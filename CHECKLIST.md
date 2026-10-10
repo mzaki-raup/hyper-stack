@@ -34,7 +34,8 @@ Last updated: 2026-10-10
 | `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings, workspaces, layout persistence | Pending | |
 | Two dummy tools; `egui_kittest` snapshots for the tab strip | Pending | |
 | `portable-pty` + PowerShell 7 profile loading verified on Windows | Pending | |
-| Minisign key pair generated, `keys/minisign.pub` committed, `HS_MINISIGN_KEY` secret set | Pending | |
+| Minisign key pair generated, `keys/minisign.pub` committed | Completed | key id `12CCB188A17A5843`, 2026-10-10 |
+| `HS_MINISIGN_KEY` repository secret set on the forge (Settings → Actions → Secrets) | Pending | release job refuses to run without it; confirm after setting |
 | `v0.1.0` published automatically and passes `verify-release.ps1` | Pending | |
 | Phase 0 exit test (USB-stick move, no plaintext secret, nothing outside the folder) | Pending | |
 

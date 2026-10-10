@@ -180,9 +180,10 @@ format is newer than what the user's other copies understand.
 | `HS_SIGN_PFX`, `HS_SIGN_PFX_PASSWORD` (optional) | Authenticode code signing; without them the exe is unsigned and SmartScreen will warn on first run, which the README documents |
 | `HS_INTEGRATION` (optional) | enables container-backed integration tests when a Docker engine is available on the runner |
 
-Key rotation: a new minisign public key is shipped in a release signed by the
-old key; the app accepts any key in its embedded list, and the list drops old
-keys two major versions later.
+The active key pair was generated on 2026-10-10; its public half is
+`keys/minisign.pub` (key id `12CCB188A17A5843`). Key rotation: a new minisign
+public key is shipped in a release signed by the old key; the app accepts any
+key in its embedded list, and the list drops old keys two major versions later.
 
 ## 5. In-app updater (`hs-core::update`, UI in Settings → Updates)
 

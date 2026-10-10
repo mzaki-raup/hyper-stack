@@ -8,6 +8,16 @@
 # Release staging written by scripts/*.ps1
 /release/
 
+# Release-signing PRIVATE key: lives only in the HS_MINISIGN_KEY forge secret
+# and the owner's offline backup. Only keys/minisign.pub is committed.
+*.key
+*.sec
+minisign.key
+hyperstack-minisign.key
+keys/*
+!keys/README.md
+!keys/minisign.pub
+
 # OS / editor
 Thumbs.db
 .DS_Store

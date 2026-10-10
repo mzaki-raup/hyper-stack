@@ -199,7 +199,9 @@ assume. `C:\Apps\gitea-runner\make-global.ps1` is what collapsed them.
   signature or hashes do not verify. `SHA256SUMS.txt` is for humans and
   scripts. The release job refuses to run without the secret, and its last
   step downloads the release anonymously and verifies it. Key generation and
-  rotation: `keys/README.md`.
+  rotation: `keys/README.md`. Active key id: `12CCB188A17A5843` (generated
+  2026-10-10). `.gitignore` blocks `*.key`/`*.sec` and everything in `keys/`
+  except the README and the public key; never weaken that.
 - Tags are `vMAJOR.MINOR.PATCH` on `main` (stable channel). Pushes to a `beta`
   branch publish `vMAJOR.MINOR.PATCH-beta.N` with the forge's `prerelease`
   flag; stable users never see those, beta users do.

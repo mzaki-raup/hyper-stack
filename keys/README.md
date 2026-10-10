@@ -6,7 +6,25 @@ a release, and it is embedded in the app (`hs-core::update`) so the updater can
 refuse anything not signed by it.
 
 The private key exists only as the `HS_MINISIGN_KEY` secret on the forge and
-in the owner's offline backup. It is never committed.
+in the owner's offline backup. It is never committed; `.gitignore` excludes
+every file in this folder except `README.md` and `minisign.pub`, plus `*.key`
+and `*.sec` anywhere in the tree.
+
+## Current key
+
+| Key id | Generated | Status |
+|---|---|---|
+| `12CCB188A17A5843` | 2026-10-10 | active (signs every release from `v0.1.0`) |
+
+The key id is the one `rsign`/`minisign` print in the public key's comment
+line and embed in every signature. Settings → About in the app shows the same
+id so a user can compare it with this file.
+
+Check a published release against it at any time:
+
+```powershell
+pwsh -File scripts/verify-release.ps1 -Tag v0.1.0
+```
 
 ## Generating the pair (once, by the repository owner)
 

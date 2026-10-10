@@ -66,6 +66,11 @@ in the same commit.
   lowercase). Sentence case for information and instructions: tooltips,
   hints and placeholders, dialog bodies, toasts, empty-state messages ("No
   background jobs.", "Type to search…"). Owner's rule, 2026-10-10.
+- **Right-click copy/paste in text surfaces (PuTTY convention).** In the
+  terminal and in every editor/text field we draw ourselves: right-click with
+  a selection copies it to the clipboard and clears the selection; right-click
+  with no selection pastes the clipboard at the cursor. A per-tool setting may
+  turn it off; the default is on. Owner's rule, 2026-10-11.
 - **Cross-platform core.** Windows ships first, but `hs-core`, `hs-ui`,
   `hs-editor`, `hs-term` and every tool must compile on Linux and macOS.
   Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`

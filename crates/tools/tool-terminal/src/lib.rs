@@ -68,7 +68,11 @@ impl TerminalTool {
             bell: false,
             tab_id_hint: 0,
         };
-        t.view.copy_on_select = services.settings.read().terminal.copy_on_select;
+        {
+            let st = services.settings.read();
+            t.view.copy_on_select = st.terminal.copy_on_select;
+            t.view.right_click_copy_paste = st.terminal.right_click_copy_paste;
+        }
         t.start(services);
         t
     }

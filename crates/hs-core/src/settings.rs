@@ -88,6 +88,8 @@ pub struct Terminal {
     pub font_size: f32,
     pub scrollback: usize,
     pub copy_on_select: bool,
+    /// Right-click copies the selection or pastes the clipboard (PuTTY style).
+    pub right_click_copy_paste: bool,
 }
 
 impl Default for Terminal {
@@ -97,6 +99,7 @@ impl Default for Terminal {
             font_size: 13.0,
             scrollback: 10_000,
             copy_on_select: false,
+            right_click_copy_paste: true,
         }
     }
 }

@@ -1001,6 +1001,13 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
             s.t("settings-terminal-copy-on-select"),
         )
         .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.terminal.right_click_copy_paste,
+            s.t("settings-terminal-right-click"),
+        )
+        .on_hover_text(s.t("settings-terminal-right-click-hint"))
+        .changed();
     ui.add_space(6.0);
     ui.colored_label(theme.text_muted, s.t("terminal-hint"));
     if changed {

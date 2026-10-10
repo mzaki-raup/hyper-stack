@@ -27,13 +27,14 @@ impl DockState {
             return;
         }
         let profiles = hs_term::shells::detect();
-        let (default, font, scrollback, copy) = {
+        let (default, font, scrollback, copy, right_click) = {
             let st = services.settings.read();
             (
                 st.terminal.default_profile.clone(),
                 st.terminal.font_size,
                 st.terminal.scrollback,
                 st.terminal.copy_on_select,
+                st.terminal.right_click_copy_paste,
             )
         };
         let Some(profile) = profiles
@@ -54,6 +55,7 @@ impl DockState {
                 let mut view =
                     hs_term::widget::TerminalView::new(egui::Id::new("hs-dock-terminal"), font);
                 view.copy_on_select = copy;
+                view.right_click_copy_paste = right_click;
                 self.terminal = Some((session, view));
             }
             Err(e) => self.terminal_error = Some(e),

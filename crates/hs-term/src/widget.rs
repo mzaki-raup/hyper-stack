@@ -103,6 +103,8 @@ pub struct TerminalResponse {
 pub struct TerminalView {
     pub font_size: f32,
     pub copy_on_select: bool,
+    /// PuTTY convention: right-click copies the selection, or pastes when nothing is selected.
+    pub right_click_copy_paste: bool,
     pub id: egui::Id,
     dragging: bool,
     last_cell: Vec2,
@@ -113,6 +115,7 @@ impl TerminalView {
         Self {
             font_size,
             copy_on_select: false,
+            right_click_copy_paste: true,
             id,
             dragging: false,
             last_cell: Vec2::new(8.0, 16.0),
@@ -224,6 +227,22 @@ impl TerminalView {
         }
         if response.clicked() && !response.drag_started() {
             session.term.lock().selection = None;
+        }
+        if self.right_click_copy_paste && response.secondary_clicked() {
+            ui.memory_mut(|m| m.request_focus(self.id));
+            let selected = session.term.lock().selection_to_string();
+            match selected {
+                Some(text) if !text.is_empty() => {
+                    ui.ctx().copy_text(text.clone());
+                    session.term.lock().selection = None;
+                    resp.copied = Some(text);
+                }
+                _ => {
+                    // Delivered as Event::Paste on the next frame and written to the shell.
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                }
+            }
         }
 
         // Keyboard input while focused.

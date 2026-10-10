@@ -6,6 +6,8 @@ members = [
   "crates/hs-term",
   "crates/hyperstack",
   "crates/tools/tool-terminal",
+  "crates/hs-editor",
+  "crates/tools/tool-editor",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -25,6 +27,8 @@ hs-core = { path = "crates/hs-core" }
 hs-ui = { path = "crates/hs-ui" }
 hs-term = { path = "crates/hs-term" }
 tool-terminal = { path = "crates/tools/tool-terminal" }
+hs-editor = { path = "crates/hs-editor" }
+tool-editor = { path = "crates/tools/tool-editor" }
 
 # UI
 eframe = "0.35"
@@ -74,6 +78,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 portable-pty = "0.9"
 alacritty_terminal = "0.26"
+ropey = "1.6"
+syntect = { version = "5", default-features = false, features = ["parsing", "default-syntaxes", "default-themes", "regex-fancy", "html"] }
+encoding_rs = "0.8"
+pulldown-cmark = { version = "0.13", default-features = false }
+rfd = "0.17"
+notify = "8"
 tempfile = "3"
 reqwest = { version = "0.13", features = ["stream", "json", "gzip"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }

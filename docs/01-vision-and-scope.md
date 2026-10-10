@@ -93,6 +93,8 @@ not match the API tool's is a real class of incident.
   timestamp).
 - Shared connection profiles, environments, variables and secrets.
 - Command palette, settings, themes, keyboard shortcuts, i18n.
+- Automated CI and releases on the project's Forgejo; in-app update check,
+  download, verification, install and revert from Settings → Updates.
 - Import from Postman, Insomnia/Bruno, OpenAPI, `.pgpass`/DBeaver connections,
   `~/.ssh/config`, AWS credentials/config files.
 

@@ -59,6 +59,8 @@ hyper-stack/
 │   │   ├── settings/               # Settings, schema, migration
 │   │   ├── storage/                # paths, TOML/JSON io, SQLite history db
 │   │   ├── i18n/                   # Fluent loader
+│   │   ├── update/                 # version info, release check, manifest + signature verify,
+│   │   │                           # download job, rename-and-relaunch install, revert
 │   │   └── runtime.rs              # tokio runtime bootstrap, UI wake-up handle
 │   ├── hs-ui/                      # egui widgets with no tool knowledge
 │   │   ├── tabs.rs                 # multi-row tab strip (ported compute_tab_layout)
@@ -86,7 +88,10 @@ hyper-stack/
 ├── assets/                         # icons (Phosphor), fonts (incl. a Nerd Font for the terminal), default themes
 ├── locales/                        # en.ftl, …
 ├── docs/
-└── xtask/                          # build helpers: package, sign, release notes
+├── xtask/                          # cargo xtask: release-plan, set-version, package, manifest,
+│                                   # sign, verify-release, smoke, setup-hooks (see docs/09)
+├── .forgejo/workflows/             # ci.yml, release.yml (drafts in docs/ci/ until Phase 0)
+└── CHANGELOG.md                    # prepended by the release workflow
 ```
 
 Rules:
@@ -203,6 +208,7 @@ colour, group }`.
 | `Settings` | typed settings with defaults, migration, change notifications | TOML |
 | `I18n` | Fluent bundles, `t!("key", args)` | `fluent` |
 | `Shortcuts` | keymap, conflict detection, per-tool scopes | TOML |
+| `Update` | current `VersionInfo`, scheduled/manual check, candidate release, download Job, verification, install/revert state machine, `update/state.toml` | `reqwest`, `minisign-verify`, `sha2`, `semver` |
 | `Tunnels` | SSH port-forward manager used by DB and API tools transparently | `russh` |
 | `Transfers` | shared transfer queue for SFTP, S3 and local copies (resume, verify, conflict rules) | tokio tasks |
 

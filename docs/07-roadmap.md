@@ -32,7 +32,10 @@ gantt
 Goal: an empty but complete shell. Every later tool plugs into this without
 changing it.
 
-- [ ] Cargo workspace, CI (fmt, clippy, test, `cargo deny`) on Windows/Linux/macOS
+- [ ] Cargo workspace with `[workspace.package] version`; move `docs/ci/ci.yml` to `.forgejo/workflows/` (fmt gate, clippy `-D warnings`, tests, `cargo deny`, release build, `--self-test` smoke) — Linux/macOS CI follow when runners exist
+- [ ] `xtask` crate: `release-plan` (Conventional Commits → SemVer bump + notes), `set-version`, `package`, `manifest` (+ minisign), `sign`, `verify-release`, `smoke`, `setup-hooks`
+- [ ] Binary: `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds git sha, build date, channel and Windows version resources
+- [ ] `release.yml` live; minisign key pair generated, private key as forge secret, public key embedded; `v0.1.0` published with the full asset contract and verified by `verify-release`
 - [ ] `hs-core`: `Tool`/`ToolFactory` traits, `Services`, `ToolContext`, actions queue
 - [ ] `hs-core`: tokio runtime, `UiWaker`, `Jobs` with progress/cancel, `Events` bus
 - [ ] `hs-core`: **portable paths** (`HyperStackData/` beside the exe, writability probe, fallback, `--data-dir` flag), atomic TOML/JSON io, schema versioning, SQLite history db
@@ -59,6 +62,7 @@ in the e2e test).
 - [ ] `hs-editor`: ropey buffer, cursor/selection model, undo tree, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent
 - [ ] `tool-editor`: project tree with `notify` watcher, open/save via VFS, encodings, line endings, dirty handling, quick-open provider
 - [ ] Devtools: Markdown preview (pulldown-cmark + native Mermaid subset) usable from the editor
+- [ ] Settings → Updates: version display, **Check now**, release notes, download Job with verification (size, sha256, manifest signature, `--self-test`), restart-and-install by rename, `--finish-update` handshake, keep previous + **Revert**
 
 ### M2 · SSH/SFTP + S3 (4 w)
 - [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term`
@@ -87,7 +91,8 @@ in the e2e test).
 - [ ] Protected environments across all tools; e2e secret-grep test; `cargo deny` clean
 - [ ] Importers polish, export workspace, team `.gitignore` template, `.local.toml` overrides
 - [ ] Performance pass against budgets (startup, 1 M-row grid, 100 MB file, 2 GB log)
-- [ ] Docs: user guide, shortcuts page, release notes; signed portable zip for Windows (no installer), tarball/AppImage for Linux, notarised app bundle for macOS; opt-in updater that swaps only the executable
+- [ ] Updates: automatic daily check with badge, "download and install on exit", install from file (offline), CHANGELOG rendering in-app, crash-before-first-frame auto-revert offer, read-only-folder fallback to zip download
+- [ ] Docs: user guide, shortcuts page, release notes; signed portable zip for Windows (no installer, Authenticode if a certificate is obtained), tarball/AppImage for Linux, notarised app bundle for macOS
 - [ ] Translations: `en` complete, structure for others
 
 ## Phase 2 — Depth (≈ 16 weeks)
@@ -102,7 +107,8 @@ in the e2e test).
 - [ ] Git: log graph, blame, file history, merge/rebase/cherry-pick/revert/tags, conflict resolution
 - [ ] SSH: port-forward manager UI, broadcast input, server monitor widget, saved commands
 - [ ] S3: object metadata/tags/versions, sync with dry run, policy/CORS viewer
-- [ ] Shell: cross-tool drag and drop, global search, auto-update, optional installed mode (per-user data folder) for people who prefer it
+- [ ] Shell: cross-tool drag and drop, global search, optional installed mode (per-user data folder) for people who prefer it
+- [ ] Delivery: Linux x64 release built on the Windows runner with `cargo-zigbuild`, beta channel from a `beta` branch, mirror `source` setting for managed networks
 - [ ] Devtools: network tools, process/port viewer, snippet manager, `.env` editor, scratchpad, SQL formatter, fake data
 
 ## Phase 3 — Reach (≈ 16 weeks)
@@ -118,9 +124,15 @@ in the e2e test).
 
 ## Release cadence
 
-- `0.x` tagged at the end of each milestone from M1 onward (usable early builds).
-- `1.0` at the end of Phase 1.
-- Minor releases monthly in Phase 2/3; patch releases as needed.
+Releases are automatic: every push to `main` with a `feat`/`fix`/`perf`/
+`security` commit publishes a version (see [09](09-ci-cd-and-updates.md)).
+In practice:
+
+- `0.x` versions flow continuously through Phase 0 and Phase 1; `0.1.0` marks
+  the Phase 0 exit, and each milestone's last merge lands as a minor bump.
+- `1.0.0` is forced with a `release: 1.0.0` trailer at the end of Phase 1.
+- Phase 2/3 continue with automatic minors and patches; `beta` branch
+  pre-releases precede risky changes.
 
 ## Risks and mitigations
 

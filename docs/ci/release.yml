@@ -1,0 +1,196 @@
+name: Release
+
+# Every push to main is a release candidate. `cargo xtask release-plan` reads
+# the Conventional Commit subjects since the last v* tag: feat → minor,
+# fix/perf/security → patch, BREAKING CHANGE → major, only docs/chore/refactor/
+# test/ci → nothing to release, and the job stops cleanly.
+#
+# Assets published per release. The in-app updater reads these exact names,
+# so they are a contract (see docs/09-ci-cd-and-updates.md §4.3):
+#
+#   HyperStack.exe                          bare executable, downloaded by the updater
+#   HyperStack-<version>-windows-x64.zip    manual update (exe + README.txt + LICENSE)
+#   manifest.json                           version, channel, assets with size + sha256
+#   manifest.json.minisig                   Ed25519 signature of manifest.json
+#   SHA256SUMS.txt                          for humans and scripts
+#   CHANGELOG-<version>.md                  the notes, also the release body
+#
+# Never let this job go green without all of them on the forge: a release that
+# lacks assets is read by the app as "no installable release", and users stay
+# on the old version without knowing why.
+on:
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_HOME: C:\hs-ci\cargo
+  CARGO_TARGET_DIR: C:\hs-ci\target
+  # The forge attributes a release to the account whose email matches the
+  # tag's author; an unknown email publishes as "Ghost".
+  TAGGER_NAME: HyperStack Release
+  TAGGER_EMAIL: owner@zacx.net
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out with full history and tags
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem -Force . | Remove-Item -Recurse -Force
+          git init --quiet --initial-branch=release .
+          git remote add origin "${{ github.server_url }}/${{ github.repository }}.git"
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          $auth = "http.extraheader=Authorization: Basic $basic"
+          git -c $auth fetch --quiet --tags origin
+          git checkout --quiet --detach ${{ github.sha }}
+          git log --oneline -1
+
+      - name: Rust toolchain
+        run: |
+          $ErrorActionPreference = "Stop"
+          rustup update stable
+          rustup default stable
+          rustup component add rustfmt clippy
+          if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { cargo install cargo-deny --locked }
+          if (-not (Get-Command minisign -ErrorAction SilentlyContinue)) { cargo install rsign2 --locked }
+
+      # Writes version/tag/channel to $GITHUB_OUTPUT and notes to release/notes.md.
+      # Prints "nothing to release" and leaves version empty when the commits
+      # since the last tag carry no user-visible change.
+      - name: Plan the release
+        id: plan
+        run: cargo xtask release-plan --channel ${{ github.ref_name == 'beta' && 'beta' || 'stable' }}
+
+      - name: Formatting
+        if: steps.plan.outputs.version != ''
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        if: steps.plan.outputs.version != ''
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        if: steps.plan.outputs.version != ''
+        run: cargo test --workspace --locked
+
+      - name: Dependency audit
+        if: steps.plan.outputs.version != ''
+        run: cargo deny check
+
+      # Before the build, so the binary reports the released version. Nothing
+      # is pushed until the build and packaging succeed.
+      - name: Set the version, commit and tag locally
+        if: steps.plan.outputs.version != ''
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo xtask set-version ${{ steps.plan.outputs.version }}
+          git config user.name "$env:TAGGER_NAME"
+          git config user.email "$env:TAGGER_EMAIL"
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          git commit --quiet -m "chore(release): ${{ steps.plan.outputs.tag }} [skip ci]"
+          git tag -a ${{ steps.plan.outputs.tag }} -m "${{ steps.plan.outputs.tag }}"
+          git log --oneline -1
+
+      - name: Build
+        if: steps.plan.outputs.version != ''
+        env:
+          HS_CHANNEL: ${{ steps.plan.outputs.channel }}
+        run: cargo build --release --locked -p hyperstack --target x86_64-pc-windows-msvc
+
+      - name: Sign the executable (when a certificate is configured)
+        if: steps.plan.outputs.version != '' && secrets.HS_SIGN_PFX != ''
+        env:
+          PFX_B64: ${{ secrets.HS_SIGN_PFX }}
+          PFX_PASSWORD: ${{ secrets.HS_SIGN_PFX_PASSWORD }}
+        run: cargo xtask sign "$env:CARGO_TARGET_DIR/x86_64-pc-windows-msvc/release/HyperStack.exe"
+
+      - name: Package and write the manifest
+        if: steps.plan.outputs.version != ''
+        env:
+          HS_MINISIGN_KEY: ${{ secrets.HS_MINISIGN_KEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo xtask package ${{ steps.plan.outputs.version }} --target x86_64-pc-windows-msvc
+          cargo xtask manifest ${{ steps.plan.outputs.version }} --channel ${{ steps.plan.outputs.channel }}
+          $required = @(
+            "HyperStack.exe",
+            "HyperStack-${{ steps.plan.outputs.version }}-windows-x64.zip",
+            "manifest.json", "manifest.json.minisig", "SHA256SUMS.txt",
+            "CHANGELOG-${{ steps.plan.outputs.version }}.md")
+          foreach ($name in $required) {
+            if (-not (Test-Path "release/dist/$name")) { throw "Packaging did not produce $name" }
+          }
+          Get-ChildItem release/dist | Select-Object Name, Length
+
+      - name: Push the version commit and the tag
+        if: steps.plan.outputs.version != ''
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          $auth = "http.extraheader=Authorization: Basic $basic"
+          git -c $auth push --quiet origin HEAD:${{ github.ref_name }}
+          git -c $auth push --quiet origin ${{ steps.plan.outputs.tag }}
+
+      - name: Publish the release
+        if: steps.plan.outputs.version != ''
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $api = "${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
+          $headers = @{ Authorization = "token $env:TOKEN" }
+          $tag = "${{ steps.plan.outputs.tag }}"
+          $version = "${{ steps.plan.outputs.version }}"
+          $prerelease = "${{ steps.plan.outputs.channel }}" -eq "beta"
+          $notes = Get-Content "release/dist/CHANGELOG-$version.md" -Raw
+          if ([string]::IsNullOrWhiteSpace($notes)) { throw "Release notes are empty." }
+
+          # The forge creates a release row from the pushed tag asynchronously.
+          # Reuse it if it exists, otherwise create it; apply the metadata LAST
+          # so the forge's own derivation cannot overwrite it.
+          $release = $null
+          try { $release = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/tags/$([uri]::EscapeDataString($tag))" } catch { }
+          if (-not $release) {
+            $body = @{ tag_name = $tag; name = "HyperStack $version"; body = $notes; draft = $true; prerelease = $prerelease } | ConvertTo-Json -Depth 4
+            $release = Invoke-RestMethod -Method Post -Headers $headers -ContentType 'application/json' -Uri "$api/releases" -Body $body
+          }
+
+          foreach ($file in Get-ChildItem release/dist -File) {
+            $existing = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)/assets"
+            $dup = $existing | Where-Object { $_.name -eq $file.Name }
+            if ($dup) { Invoke-RestMethod -Method Delete -Headers $headers -Uri "$api/releases/$($release.id)/assets/$($dup.id)" | Out-Null }
+            $form = @{ attachment = Get-Item $file.FullName }
+            Invoke-RestMethod -Method Post -Headers $headers -Uri "$api/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))" -Form $form | Out-Null
+            Write-Host "Uploaded $($file.Name)"
+          }
+
+          $patch = @{ name = "HyperStack $version"; body = $notes; draft = $false; prerelease = $prerelease } | ConvertTo-Json -Depth 4
+          $ok = $false
+          for ($i = 0; $i -lt 10 -and -not $ok; $i++) {
+            Invoke-RestMethod -Method Patch -Headers $headers -ContentType 'application/json' -Uri "$api/releases/$($release.id)" -Body $patch | Out-Null
+            Start-Sleep -Seconds 3
+            $check = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)"
+            $names = @($check.assets | ForEach-Object { $_.name })
+            $expected = @(Get-ChildItem release/dist -File | ForEach-Object { $_.Name })
+            $missing = $expected | Where-Object { $names -notcontains $_ }
+            $ok = (-not $check.draft) -and ($check.body -eq $notes) -and ($missing.Count -eq 0)
+          }
+          if (-not $ok) { throw "The forge did not confirm the release metadata and assets after 10 attempts." }
+          Write-Host "Published $tag with $($expected.Count) assets."
+
+      # The end-to-end test of the pipeline: download anonymously exactly as
+      # the app does, verify size, sha256 and signature, run --self-test.
+      - name: Verify the published release as a user would
+        if: steps.plan.outputs.version != ''
+        run: cargo xtask verify-release ${{ steps.plan.outputs.tag }}

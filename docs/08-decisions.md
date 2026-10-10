@@ -332,6 +332,44 @@ master-password prompt is the price of portability; the Windows DPAPI
 
 ---
 
+## ADR-018 · Delivery: Forgejo Actions, commit-driven SemVer, signed manifest, rename-and-relaunch updater
+
+**Context.** The code lives on a self-hosted Forgejo (`git.zacx.net`) with one
+Windows runner that cannot use published actions. Users run a portable
+executable and must be able to update it from inside the app without an
+installer. Eden Explorer's pipeline on the same forge showed two failure modes:
+releases published with missing assets, and release metadata clobbered by the
+forge's asynchronous tag-to-release derivation.
+
+**Options considered.**
+
+| Topic | Options | Chosen |
+|---|---|---|
+| CI system | Forgejo Actions on the existing runner · GitHub mirror + Actions · none | **Forgejo Actions**, PowerShell steps, no `uses:` |
+| Versioning | manual bump in `Cargo.toml` · `cargo-release` · derive from Conventional Commits | **derive from commits** via `cargo xtask release-plan`; manual override by trailer |
+| Release scripting | PowerShell scripts · Rust `xtask` crate | **`xtask`** (cross-platform, unit-testable, same toolchain) |
+| Release trust | TLS only · `SHA256SUMS.txt` only · Authenticode only · signed manifest | **Ed25519-signed `manifest.json`** (minisign) as the mandatory check, sha256 inside it, Authenticode added when a certificate exists, `SHA256SUMS.txt` kept for humans |
+| Update source | forge releases API · static manifest URL · both | **forge releases API** for discovery, manifest asset for truth; `source` override for mirrors |
+| Install mechanism | installer (MSI/Inno) · helper updater exe · rename the running exe and relaunch | **rename-and-relaunch**: Windows allows renaming a running executable, so no helper, no elevation, works on a USB stick |
+| Rollback | none · keep previous exe · keep N versions | **keep one previous** with a Revert button and automatic offer after a crash before first frame |
+| Update check default | off · on | **on**, daily, single anonymous GET, switchable; install always user-initiated unless "install on exit" chosen |
+
+**Decision.** As in the table; full mechanics in
+[09-ci-cd-and-updates.md](09-ci-cd-and-updates.md). The asset names and the
+manifest schema are a versioned contract (`schema`, `min_supported_version`).
+The release job must verify its own published release as an anonymous client
+before it may succeed.
+
+**Consequences.** Releases are frequent, small and reproducible from tags.
+Users of portable copies update in two clicks and can revert in one. The
+signing key is a single point of trust and is protected as a forge secret with
+a documented rotation path (the app embeds a list of accepted keys). The forge
+is a hard dependency for updates; a mirror option exists but still requires the
+signed manifest. Linux and macOS delivery wait for cross-compilation (Phase 2)
+and a Mac runner (Phase 3).
+
+---
+
 ## ADR-015 · Terminal emulation: `alacritty_terminal` grid + `portable-pty`
 
 **Decision.** Build `hs-term` on `alacritty_terminal`'s `Term` for parsing

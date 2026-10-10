@@ -103,13 +103,29 @@ memory limits per run. Scripts are visible in the request file, never hidden.
 
 ## 8. Updates and distribution
 
-- Release binaries are built in CI from tags, signed (Authenticode on Windows,
-  notarised on macOS), with SHA-256 sums published. Windows ships as a zip
-  containing `HyperStack.exe` (and nothing else required); no installer.
-- The in-app updater (opt-in) downloads only from the release host, verifies
-  signature and checksum, and asks before replacing the executable. It never
-  touches `HyperStackData/`. On Windows it writes `HyperStack.new.exe`, then a tiny
-  helper swaps files after exit and removes itself.
+Full design in [09-ci-cd-and-updates.md](09-ci-cd-and-updates.md). Security
+properties:
+
+- Release binaries are built by the Forgejo release workflow from a tagged
+  commit on `main`; the job re-runs all checks, publishes a `manifest.json`
+  signed with an Ed25519 (minisign) key held only as a forge secret, and then
+  downloads its own release anonymously to verify it before it may go green.
+- The app embeds the minisign public key(s). It accepts a release only if the
+  manifest signature verifies and the downloaded file's size and sha256 match
+  the manifest. TLS alone is not trusted: a compromised or mirrored host cannot
+  inject a binary without the signing key. Authenticode signing is added when
+  a certificate is available (`WinVerifyTrust` checked when present).
+- No downloaded file is executed before verification; after verification it
+  is run once with `--self-test` in a child process before being installed.
+- Install is rename-and-relaunch inside the executable's folder; it never
+  touches `HyperStackData/` except `HyperStackData/update/`. The previous
+  executable is kept for a one-click revert, and a crash before the first
+  successful frame of the new version offers the revert automatically.
+- Update checks are a single anonymous GET to the project's own forge, on by
+  default, switchable, with no identifier beyond the version string. Mirrors
+  and `enabled = false` can be set in `settings.toml` for managed machines.
+- Windows ships as a zip containing `HyperStack.exe`; no installer, nothing
+  elevated, nothing in the registry.
 
 ## 9. Local data hygiene
 

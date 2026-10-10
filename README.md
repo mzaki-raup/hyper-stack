@@ -39,6 +39,7 @@ product**, and the tools are views over them.
 | Storage | Human-readable TOML/JSON files for shareable things + SQLite for history/cache | Collections and profiles can live in git; history stays local |
 | Secrets | Encrypted vault file beside the executable (master password, Argon2id + XChaCha20-Poly1305); OS keyring optional | Portable and never a plaintext password on disk |
 | Platforms | Windows first-class, Linux and macOS supported from day one | DevOps and DBAs are often not on Windows |
+| Delivery | Forgejo Actions on `git.zacx.net`: CI on every branch, automatic SemVer release on `main`, signed `manifest.json`; the app updates itself from Settings → Updates and can revert once | Portable copies stay current without an installer |
 
 Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 
@@ -53,7 +54,9 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 05 | [Data model and storage](docs/05-data-model-and-storage.md) | Workspaces, connection profiles, environments and variables, file formats, history DB |
 | 06 | [Security](docs/06-security.md) | Threat model, secrets, host keys, TLS, destructive-action guards |
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
-| 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, and so on |
+| 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, portable-first, and so on |
+| 09 | [CI/CD, releases and in-app updates](docs/09-ci-cd-and-updates.md) | Forgejo workflows, automatic versioning, signed release manifest, Settings → Updates (check, download, verify, install, revert) |
+| — | [CI workflow drafts](docs/ci/) | `ci.yml` and `release.yml` ready to move into `.forgejo/workflows/` in Phase 0 |
 | — | [Tool specs](docs/tools/) | One design document per tool (editor, SQL database, NoSQL, Redis, logs, API client, SSH/SFTP, S3, Git, terminal, containers, devtools) |
 
 ## Tool specs

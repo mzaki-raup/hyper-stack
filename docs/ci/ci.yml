@@ -1,0 +1,89 @@
+name: CI
+
+# Runs on every branch except main and on pull requests. The release workflow
+# owns main: this instance has one runner whose working copy each job empties
+# on entry, so two workflows on the same commit would destroy each other's
+# files. main is only reached through branches this workflow has checked, and
+# release.yml re-runs the same checks before publishing anything.
+on:
+  push:
+    branches: ['**', '!main', '!beta']
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  CARGO_TERM_COLOR: always
+  # Keep the cargo home and target dir outside the (wiped) working copy so
+  # incremental builds survive between jobs.
+  CARGO_HOME: C:\hs-ci\cargo
+  CARGO_TARGET_DIR: C:\hs-ci\target
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      # No published actions: the runner cannot fetch them from
+      # code.forgejo.org (forgejo#2809) and has no Node. A manual checkout is a
+      # few lines and has neither problem.
+      - name: Check out this commit
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-ChildItem -Force . | Remove-Item -Recurse -Force
+          git init --quiet --initial-branch=ci .
+          git remote add origin "${{ github.server_url }}/${{ github.repository }}.git"
+          # The credential goes on the command line only, never into .git/config.
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:TOKEN"))
+          $auth = "http.extraheader=Authorization: Basic $basic"
+          git -c $auth fetch --quiet --depth=1 origin ${{ github.sha }}
+          git checkout --quiet --detach FETCH_HEAD
+          git log --oneline -1
+
+      - name: Rust toolchain
+        run: |
+          $ErrorActionPreference = "Stop"
+          rustup update stable
+          rustup default stable
+          rustup component add rustfmt clippy
+          rustc --version; cargo --version
+          if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { cargo install cargo-deny --locked }
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        env:
+          # Container-backed integration tests only run when the runner has
+          # Docker and this secret is set; otherwise they are skipped.
+          HS_INTEGRATION: ${{ secrets.HS_INTEGRATION }}
+        run: cargo test --workspace --locked
+
+      - name: Dependency audit
+        run: cargo deny check
+
+      - name: Release build
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo build --release --locked -p hyperstack
+          Get-Item "$env:CARGO_TARGET_DIR/release/HyperStack.exe" | Select-Object FullName, Length, LastWriteTime
+
+      - name: Smoke test the executable
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "$env:CARGO_TARGET_DIR/release/HyperStack.exe"
+          $tmp = Join-Path $env:RUNNER_TEMP "hs-smoke"
+          New-Item -ItemType Directory -Force $tmp | Out-Null
+          & $exe --version
+          & $exe --self-test --data-dir $tmp
+          if ($LASTEXITCODE -ne 0) { throw "--self-test exited with $LASTEXITCODE" }
+          # Portable guarantee: nothing may be written outside the data dir.
+          if (Test-Path "$env:APPDATA\HyperStack") { throw "The app wrote to %APPDATA% during --self-test" }

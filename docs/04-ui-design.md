@@ -218,7 +218,9 @@ shortcuts page.
 
 ## 9. Settings categories
 
-General (startup workspace, restore tabs, language, update check) · Appearance
+General (startup workspace, restore tabs, language) · **Updates** (installed
+version with sha/date/channel, channel, automatic check, check now, release
+notes, download/install, revert, install from file; see [09](09-ci-cd-and-updates.md) §5.1) · Appearance
 (theme, fonts, tab min width, tab gap, density) · Shortcuts · Environments ·
 Connections · Editor · Terminal · Database · API client · SSH/SFTP · S3 · Git ·
 Security (secret store: vault or OS keyring, master password, remember on this

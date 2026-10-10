@@ -30,7 +30,9 @@ suggestion.
 | Rebindable shortcuts with a shortcuts page | P0 | S | TOML keymap |
 | i18n with Fluent, OS-locale detection | P0 | S | Start with `en` |
 | **Portable by default** (requested): all settings and data in `HyperStackData/` beside the executable, no registry, no `%APPDATA%`; read-only location detection with fallback; "Reset all data" = delete folder | P0 | S | See ADR-017 |
-| Auto-update check (opt-in) that replaces only the executable and leaves `HyperStackData/` untouched | P1 | S | |
+| **In-app updates** (requested): Settings → Updates shows the installed version (SemVer + git sha + build date + channel), checks the forge for a newer release (daily, switchable), shows release notes, downloads with progress, verifies size + sha256 + Ed25519-signed manifest, installs by rename-and-relaunch leaving `HyperStackData/` untouched, keeps the previous executable for a one-click revert, "install from file" for offline machines | P0 | M | See [09](09-ci-cd-and-updates.md) |
+| Stable and beta update channels; "security" releases notify with a toast | P1 | S | |
+| `--version`, `--self-test`, `--data-dir`, `--finish-update` command-line flags | P0 | S | CI smoke test and updater depend on them |
 | Drag and drop between tools (file → editor, file → SFTP, result → request) | P1 | M | |
 | Detach tab to its own OS window | P2 | L | egui viewports |
 | Session audit log of commands run (local only) | P2 | M | Useful for DBAs and SREs |

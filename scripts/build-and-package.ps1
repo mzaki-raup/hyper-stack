@@ -166,7 +166,11 @@ if ($SkipSign) {
     # that would hang for ever, so sign with a timeout and explain the fix.
     $rsign = (Get-Command rsign).Source
     $sig = Join-Path $dist "manifest.json.minisig"
-    $proc = Start-Process -FilePath $rsign -ArgumentList @('sign', '-s', $keyFile, '-x', $sig, '-t', "HyperStack $Version $Channel", (Join-Path $dist 'manifest.json')) -PassThru -NoNewWindow
+    # Start-Process does not quote ArgumentList entries, so every path is wrapped
+    # in quotes and the trusted comment contains no spaces.
+    $q = { param($v) '"' + $v + '"' }
+    $args = @('sign', '-s', (& $q $keyFile), '-x', (& $q $sig), '-t', "HyperStack-$Version-$Channel", (& $q (Join-Path $dist 'manifest.json')))
+    $proc = Start-Process -FilePath $rsign -ArgumentList $args -PassThru -NoNewWindow
     if (-not $proc.WaitForExit(60000)) {
       $proc.Kill()
       throw "rsign sign did not finish in 60 s: the secret key in HS_MINISIGN_KEY needs a password. Regenerate it with 'rsign generate --unencrypted' (keys/README.md) and update the secret and keys/minisign.pub."

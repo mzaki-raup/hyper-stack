@@ -415,6 +415,39 @@ impl HyperStackApp {
             self.tabs.activate(id);
             return;
         }
+        // One tab per file: a request for something a tab of this tool already
+        // shows focuses that tab (and lets it jump to the requested line).
+        if let Some(OpenRequest::File { uri, .. }) = &request {
+            let want = normalize_uri(uri);
+            let existing = self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| {
+                    t.factory_id == factory_id
+                        && t.tool
+                            .current_uri()
+                            .is_some_and(|u| normalize_uri(&u) == want)
+                })
+                .map(|t| t.id);
+            if let Some(id) = existing {
+                self.group = Some(factory_id.to_string());
+                self.tabs.activate(id);
+                let mut actions = Vec::new();
+                let env = self.services.environments.read().active.clone();
+                if let (Some(t), Some(req)) = (self.tabs.get_mut(id), request) {
+                    let mut cx = ToolContext {
+                        services: &self.services,
+                        tab_id: id,
+                        env_id: env.as_deref(),
+                        actions: &mut actions,
+                    };
+                    t.tool.open(req, &mut cx);
+                }
+                self.pending_actions.extend(actions);
+                return;
+            }
+        }
         let Some(i) = self.factory_index(factory_id) else {
             self.toasts
                 .push(ToastLevel::Error, format!("No tool '{factory_id}'"));
@@ -1832,5 +1865,18 @@ fn font_choice(s: &Services) -> hs_ui::fonts::FontChoice {
         ui: st.appearance.ui_font.clone(),
         terminal: st.terminal.font_family.clone(),
         editor: st.editor.font_family.clone(),
+    }
+}
+
+/// Comparable form of a file URI/path: no `file://`, one separator style,
+/// no trailing separator, case-folded on Windows.
+fn normalize_uri(uri: &str) -> String {
+    let p = uri.strip_prefix("file://").unwrap_or(uri);
+    let p = p.replace('\\', "/");
+    let p = p.trim_end_matches('/');
+    if cfg!(windows) {
+        p.to_ascii_lowercase()
+    } else {
+        p.to_string()
     }
 }

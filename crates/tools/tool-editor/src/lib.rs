@@ -394,8 +394,12 @@ impl EditorTool {
             self.set_root(path, cx.services);
             return;
         }
+        if self.state.path.as_deref() == Some(path.as_path()) {
+            // Already showing this file: nothing to load (the shell focused us).
+            return;
+        }
         let here = self.state.path.is_none() && !self.buf.dirty();
-        if here || self.state.path.as_deref() == Some(path.as_path()) {
+        if here {
             if let Err(e) = self.load(&path, cx.services) {
                 let name = path
                     .file_name()
@@ -1353,6 +1357,13 @@ impl Tool for EditorTool {
         true
     }
 
+    fn current_uri(&self) -> Option<String> {
+        self.state
+            .path
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+    }
+
     fn quick_open_items(&self) -> Vec<QuickOpenItem> {
         let Ok(index) = self.index.lock() else {
             return Vec::new();
@@ -1380,10 +1391,8 @@ impl Tool for EditorTool {
         match item {
             OpenRequest::File { uri, line } => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
-                let was_empty = self.state.path.is_none() && !self.buf.dirty();
                 self.open_path(path.clone(), cx);
                 if let Some(l) = line
-                    && was_empty
                     && self.state.path.as_deref() == Some(path.as_path())
                 {
                     let pos = self.buf.line_col_to_char((l as usize).saturating_sub(1), 0);

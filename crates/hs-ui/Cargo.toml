@@ -14,6 +14,7 @@ hs-core = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
 egui-phosphor = { workspace = true }
+ttf-parser = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]

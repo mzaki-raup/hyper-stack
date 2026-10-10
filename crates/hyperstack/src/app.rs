@@ -26,7 +26,7 @@ use secrecy::SecretString;
 use crate::bootstrap;
 use crate::dock::{self, DockState};
 use crate::launcher::{self, LauncherState};
-use crate::settings_ui::{self, SettingsEffect, SettingsState};
+use crate::settings_ui::{self, SettingsEffect, SharedSettings};
 use crate::tabspace::TabSpace;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,7 +46,7 @@ pub struct HyperStackApp {
     launcher: LauncherState,
     palette: PaletteState,
     toasts: Toasts,
-    settings_ui: SettingsState,
+    settings_ui: SharedSettings,
     dock: DockState,
     dock_open: bool,
     sidebar_open: bool,
@@ -72,6 +72,7 @@ impl HyperStackApp {
         logging: Logging,
         open: Vec<std::path::PathBuf>,
     ) -> Self {
+        hs_ui::fonts::prefetch_system_fonts();
         hs_ui::icons::install_fonts(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
         let boot = match bootstrap::services(paths, waker, KdfParams::DEFAULT) {
@@ -84,10 +85,16 @@ impl HyperStackApp {
         let services = boot.services;
         let theme = Theme::by_name(&services.settings.read().appearance.theme);
         theme.apply(&cc.egui_ctx);
+        hs_ui::fonts::install(&cc.egui_ctx, &font_choice(&services));
+        hs_ui::theme::apply_font_size(
+            &cc.egui_ctx,
+            services.settings.read().appearance.ui_font_size,
+        );
         cc.egui_ctx
             .set_zoom_factor(services.settings.read().appearance.ui_zoom);
 
-        let factories = crate::tools::factories();
+        let settings_hub = SharedSettings::default();
+        let factories = crate::tools::factories(settings_hub.clone());
         let mut app = Self {
             fallback_notice_open: services.paths.fallback_reason.is_some()
                 && services.settings.read().general.show_fallback_notice,
@@ -101,7 +108,7 @@ impl HyperStackApp {
             launcher: LauncherState::default(),
             palette: PaletteState::default(),
             toasts: Toasts::default(),
-            settings_ui: SettingsState::default(),
+            settings_ui: settings_hub,
             dock: DockState::default(),
             status: String::new(),
             logging,
@@ -283,6 +290,24 @@ impl HyperStackApp {
         self.last_layout_save = Instant::now();
     }
 
+    /// Settings live in one tab: focus it if open, else open it; optionally jump to a page.
+    fn open_settings(&mut self, page: Option<settings_ui::Page>) {
+        if let Some(p) = page {
+            self.settings_ui.lock().state.page = p;
+        }
+        if let Some(id) = self
+            .tabs
+            .tabs
+            .iter()
+            .find(|t| t.factory_id == "settings")
+            .map(|t| t.id)
+        {
+            self.tabs.activate(id);
+        } else {
+            self.open_tool("settings", None);
+        }
+    }
+
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
         let Some(i) = self.factory_index(factory_id) else {
             self.toasts
@@ -379,11 +404,8 @@ impl HyperStackApp {
                 self.dock.tab = dock::DockTab::Terminal;
             }
             "terminal.new" => self.open_tool("terminal", None),
-            "app.settings" => self.settings_ui.open = true,
-            "app.shortcuts" => {
-                self.settings_ui.open = true;
-                self.settings_ui.page = settings_ui::Page::Shortcuts;
-            }
+            "app.settings" => self.open_settings(None),
+            "app.shortcuts" => self.open_settings(Some(settings_ui::Page::Shortcuts)),
             "vault.lock" => {
                 self.services.secrets.lock();
                 self.services.events.publish(Event::VaultLocked);
@@ -667,8 +689,16 @@ impl HyperStackApp {
                     };
                     self.theme = Theme::by_name(&name);
                     self.theme.apply(ctx);
+                    hs_ui::theme::apply_font_size(
+                        ctx,
+                        self.services.settings.read().appearance.ui_font_size,
+                    );
                     ctx.set_zoom_factor(zoom);
                     self.services.events.publish(Event::ThemeChanged);
+                    let _ = self.services.save_settings();
+                }
+                SettingsEffect::FontsChanged => {
+                    hs_ui::fonts::install(ctx, &font_choice(&self.services));
                     let _ = self.services.save_settings();
                 }
                 SettingsEffect::CheckUpdates => self.start_update_check(),
@@ -896,7 +926,7 @@ impl HyperStackApp {
                     .on_hover_text(s.t("settings"))
                     .clicked()
                 {
-                    self.settings_ui.open = true;
+                    self.open_settings(None);
                 }
                 let lock_icon = if s.secrets.is_locked() {
                     hs_ui::icons::LOCK
@@ -1321,8 +1351,7 @@ impl HyperStackApp {
                         )
                         .clicked()
                     {
-                        self.settings_ui.open = true;
-                        self.settings_ui.page = settings_ui::Page::Updates;
+                        self.open_settings(Some(settings_ui::Page::Updates));
                     }
                 }
             });
@@ -1469,9 +1498,10 @@ impl eframe::App for HyperStackApp {
                 }
             }
         }
-        let effects = settings_ui::show(ctx, &self.theme, &self.services, &mut self.settings_ui);
+        let effects = std::mem::take(&mut self.settings_ui.lock().effects);
         self.apply_settings_effects(effects, ctx);
-        if let Some((id, name, is_env)) = self.settings_ui.confirm_delete.clone() {
+        let confirm_delete = self.settings_ui.lock().state.confirm_delete.clone();
+        if let Some((id, name, is_env)) = confirm_delete {
             let s = self.services.clone();
             let body = if is_env {
                 s.i18n.t_args("env-delete-confirm", &[("name", &name)])
@@ -1496,19 +1526,20 @@ impl eframe::App for HyperStackApp {
                     };
                     match res {
                         Ok(()) => {
+                            let mut hub = self.settings_ui.lock();
                             if is_env {
-                                self.settings_ui.env_draft = None;
-                                self.settings_ui.env_selected = None;
+                                hub.state.env_draft = None;
+                                hub.state.env_selected = None;
                             } else {
-                                self.settings_ui.conn_draft = None;
-                                self.settings_ui.conn_selected = None;
+                                hub.state.conn_draft = None;
+                                hub.state.conn_selected = None;
                             }
                         }
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
                     }
-                    self.settings_ui.confirm_delete = None;
+                    self.settings_ui.lock().state.confirm_delete = None;
                 }
-                DialogResult::Cancel => self.settings_ui.confirm_delete = None,
+                DialogResult::Cancel => self.settings_ui.lock().state.confirm_delete = None,
                 DialogResult::Open => {}
             }
         }
@@ -1615,5 +1646,15 @@ impl eframe::App for HyperStackApp {
         if self.services.jobs.running_count() > 0 {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
+    }
+}
+
+/// The three font choices from settings (interface, terminal, editor).
+fn font_choice(s: &Services) -> hs_ui::fonts::FontChoice {
+    let st = s.settings.read();
+    hs_ui::fonts::FontChoice {
+        ui: st.appearance.ui_font.clone(),
+        terminal: st.terminal.font_family.clone(),
+        editor: st.editor.font_family.clone(),
     }
 }

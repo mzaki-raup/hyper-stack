@@ -1,4 +1,5 @@
-//! Settings window (docs/04 §9): categories on the left, pages on the right.
+//! Settings pages (docs/04 §9). Shown inside the Settings tab
+//! (`tools::settings`): the category list in the sidebar, the page in the tab.
 
 use std::collections::HashMap;
 
@@ -27,7 +28,7 @@ pub enum Page {
 }
 
 impl Page {
-    fn all() -> [(Page, &'static str); 11] {
+    pub fn all() -> [(Page, &'static str); 11] {
         [
             (Page::General, "settings-general"),
             (Page::Updates, "settings-updates"),
@@ -44,9 +45,33 @@ impl Page {
     }
 }
 
+impl Page {
+    /// Stable key (the Fluent key) used for layout persistence and commands.
+    pub fn key(self) -> &'static str {
+        Page::all()
+            .iter()
+            .find(|(p, _)| *p == self)
+            .map(|(_, k)| *k)
+            .unwrap_or("settings-general")
+    }
+    pub fn by_key(key: &str) -> Option<Page> {
+        Page::all().iter().find(|(_, k)| *k == key).map(|(p, _)| *p)
+    }
+}
+
+/// Settings state plus the effects the pages produced this frame, shared
+/// between the shell (which applies effects) and the Settings tab (which
+/// draws the pages).
+#[derive(Default)]
+pub struct SettingsHub {
+    pub state: SettingsState,
+    pub effects: Vec<SettingsEffect>,
+}
+
+pub type SharedSettings = std::sync::Arc<parking_lot::Mutex<SettingsHub>>;
+
 #[derive(Default)]
 pub struct SettingsState {
-    pub open: bool,
     pub page: Page,
     pub env_selected: Option<String>,
     pub env_draft: Option<(Environment, Vec<KvRow>)>,
@@ -65,6 +90,7 @@ pub enum SettingsEffect {
     RevertUpdate,
     SkipUpdate(String),
     ThemeChanged,
+    FontsChanged,
     LockVault,
     ChangeMasterPassword,
     EnvironmentsChanged,
@@ -72,58 +98,44 @@ pub enum SettingsEffect {
     Toast(hs_core::tool::ToastLevel, String),
 }
 
-pub fn show(
-    ctx: &egui::Context,
+/// The category list (drawn in the sidebar of the Settings tab).
+pub fn page_list(ui: &mut egui::Ui, services: &Services, state: &mut SettingsState) {
+    ui.label(egui::RichText::new(services.t("settings")).strong());
+    ui.add_space(4.0);
+    for (page, key) in Page::all() {
+        if ui
+            .add(
+                egui::Button::selectable(state.page == page, services.t(key))
+                    .min_size(egui::vec2(ui.available_width(), 0.0)),
+            )
+            .clicked()
+        {
+            state.page = page;
+        }
+    }
+}
+
+/// The selected page. Effects are appended for the shell to apply.
+pub fn page(
+    ui: &mut egui::Ui,
     theme: &Theme,
     services: &Services,
     state: &mut SettingsState,
-) -> Vec<SettingsEffect> {
-    let mut effects = Vec::new();
-    if !state.open {
-        return effects;
+    effects: &mut Vec<SettingsEffect>,
+) {
+    match state.page {
+        Page::General => general(ui, services, effects),
+        Page::Updates => updates(ui, theme, services, effects),
+        Page::Appearance => appearance(ui, theme, services, effects),
+        Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
+        Page::Environments => environments(ui, theme, services, state, effects),
+        Page::Connections => connections(ui, theme, services, state, effects),
+        Page::Security => security(ui, theme, services, effects),
+        Page::Terminal => terminal(ui, theme, services, effects),
+        Page::Editor => editor(ui, theme, services, effects),
+        Page::Data => data(ui, theme, services),
+        Page::About => about(ui, theme, services),
     }
-    let mut open = state.open;
-    egui::Window::new(services.t("settings"))
-        .open(&mut open)
-        .default_size([900.0, 600.0])
-        .min_size([700.0, 420.0])
-        .collapsible(false)
-        .show(ctx, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(170.0);
-                    for (page, key) in Page::all() {
-                        if ui
-                            .selectable_label(state.page == page, services.t(key))
-                            .clicked()
-                        {
-                            state.page = page;
-                        }
-                    }
-                });
-                ui.separator();
-                ui.vertical(|ui| {
-                    ui.set_min_width(600.0);
-                    egui::ScrollArea::vertical().show(ui, |ui| match state.page {
-                        Page::General => general(ui, services, &mut effects),
-                        Page::Updates => updates(ui, theme, services, &mut effects),
-                        Page::Appearance => appearance(ui, services, &mut effects),
-                        Page::Shortcuts => shortcuts(ui, theme, services, state, &mut effects),
-                        Page::Environments => {
-                            environments(ui, theme, services, state, &mut effects)
-                        }
-                        Page::Connections => connections(ui, theme, services, state, &mut effects),
-                        Page::Security => security(ui, theme, services, &mut effects),
-                        Page::Terminal => terminal(ui, theme, services, &mut effects),
-                        Page::Editor => editor(ui, theme, services, &mut effects),
-                        Page::Data => data(ui, theme, services),
-                        Page::About => about(ui, theme, services),
-                    });
-                });
-            });
-        });
-    state.open = open;
-    effects
 }
 
 fn general(ui: &mut egui::Ui, s: &Services, effects: &mut Vec<SettingsEffect>) {
@@ -412,7 +424,7 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
     }
 }
 
-fn appearance(ui: &mut egui::Ui, s: &Services, effects: &mut Vec<SettingsEffect>) {
+fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     let mut settings = s.settings.write();
     let mut changed = false;
     let mut theme_changed = false;
@@ -434,6 +446,36 @@ fn appearance(ui: &mut egui::Ui, s: &Services, effects: &mut Vec<SettingsEffect>
         }
     });
     ui.horizontal(|ui| {
+        ui.label(s.t("settings-font-size"));
+        if ui
+            .add(
+                egui::Slider::new(&mut settings.appearance.ui_font_size, 11.0..=22.0)
+                    .step_by(0.5)
+                    .suffix(" px"),
+            )
+            .on_hover_text(s.t("settings-font-size-hint"))
+            .changed()
+        {
+            theme_changed = true;
+        }
+    });
+    ui.colored_label(theme.text_muted, s.t("settings-font-size-hint"));
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-ui-font"));
+        if font_combo(
+            ui,
+            s,
+            "ui-font",
+            &mut settings.appearance.ui_font,
+            false,
+            &s.t("settings-ui-font-default"),
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
+    });
+    ui.colored_label(theme.text_muted, s.t("settings-ui-font-hint"));
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
         ui.label(s.t("settings-min-tab-width"));
         changed |= ui
             .add(
@@ -452,11 +494,13 @@ fn appearance(ui: &mut egui::Ui, s: &Services, effects: &mut Vec<SettingsEffect>
         ui.label(s.t("settings-ui-zoom"));
         if ui
             .add(egui::Slider::new(&mut settings.appearance.ui_zoom, 0.75..=2.0).step_by(0.05))
+            .on_hover_text(s.t("settings-ui-zoom-hint"))
             .changed()
         {
             theme_changed = true;
         }
     });
+    ui.colored_label(theme.text_muted, s.t("settings-ui-zoom-hint"));
     if theme_changed {
         effects.push(SettingsEffect::ThemeChanged);
     }
@@ -986,7 +1030,22 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
         ui.label(s.t("settings-terminal-font-size"));
         changed |= ui
             .add(egui::Slider::new(&mut settings.terminal.font_size, 9.0..=24.0).suffix(" px"))
+            .on_hover_text(s.t("settings-terminal-font-size-hint"))
             .changed();
+    });
+    ui.colored_label(theme.text_muted, s.t("settings-terminal-font-size-hint"));
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-font"));
+        if font_combo(
+            ui,
+            s,
+            "terminal-font",
+            &mut settings.terminal.font_family,
+            true,
+            "",
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
     });
     ui.horizontal(|ui| {
         ui.label(s.t("settings-terminal-scrollback"));
@@ -1027,7 +1086,22 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
         ui.label(s.t("settings-editor-font-size"));
         changed |= ui
             .add(egui::Slider::new(&mut settings.editor.font_size, 9.0..=28.0).suffix(" px"))
+            .on_hover_text(s.t("settings-editor-font-size-hint"))
             .changed();
+    });
+    ui.colored_label(theme.text_muted, s.t("settings-editor-font-size-hint"));
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-editor-font"));
+        if font_combo(
+            ui,
+            s,
+            "editor-font",
+            &mut settings.editor.font_family,
+            true,
+            "",
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
     });
     changed |= ui
         .checkbox(
@@ -1100,6 +1174,62 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     });
     ui.add_space(8.0);
     ui.colored_label(theme.text_muted, s.t("settings-about-license"));
+    ui.colored_label(theme.text_muted, s.t("settings-about-fonts"));
+}
+
+/// Font picker: bundled fonts first, then the fonts installed on this
+/// machine (monospace only when `mono`). Returns true when the choice changed.
+fn font_combo(
+    ui: &mut egui::Ui,
+    s: &Services,
+    salt: &str,
+    value: &mut String,
+    mono: bool,
+    default_label: &str,
+) -> bool {
+    use hs_ui::fonts;
+    let mut changed = false;
+    let current = fonts::label(value, default_label);
+    egui::ComboBox::from_id_salt(salt)
+        .selected_text(current)
+        .width(280.0)
+        .show_ui(ui, |ui| {
+            if !mono
+                && ui
+                    .selectable_label(value.is_empty(), default_label)
+                    .clicked()
+            {
+                value.clear();
+                changed = true;
+            }
+            for (id, label, _) in fonts::EMBEDDED {
+                if ui.selectable_label(value == id, *label).clicked() {
+                    *value = (*id).to_string();
+                    changed = true;
+                }
+            }
+            ui.separator();
+            match fonts::system_fonts() {
+                None => {
+                    ui.label(egui::RichText::new(s.t("settings-fonts-scanning")).weak());
+                }
+                Some(list) => {
+                    let mut any = false;
+                    for f in list.iter().filter(|f| !mono || f.monospace) {
+                        any = true;
+                        let id = format!("{}{}", fonts::SYSTEM_PREFIX, f.family);
+                        if ui.selectable_label(*value == id, &f.family).clicked() {
+                            *value = id;
+                            changed = true;
+                        }
+                    }
+                    if !any {
+                        ui.label(egui::RichText::new(s.t("settings-fonts-none")).weak());
+                    }
+                }
+            }
+        });
+    changed
 }
 
 fn open_folder(path: &std::path::Path) {

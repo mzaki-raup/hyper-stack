@@ -144,6 +144,36 @@ impl Theme {
 }
 
 /// `#RRGGBB` or `#RRGGBBAA`.
+/// Interface font size (Settings → Appearance → Interface Font Size): menus,
+/// tabs, sidebars, settings and dialogs. The terminal and the editor have
+/// their own sizes. egui's defaults are Body 12.5 / Heading 18 / Small 9 /
+/// Monospace 12 for a `size` of 12.5; everything scales with it.
+pub fn apply_font_size(ctx: &egui::Context, size: f32) {
+    let size = size.clamp(9.0, 32.0);
+    ctx.all_styles_mut(|style| {
+        use egui::{FontFamily, FontId, TextStyle};
+        style
+            .text_styles
+            .insert(TextStyle::Body, FontId::new(size, FontFamily::Proportional));
+        style.text_styles.insert(
+            TextStyle::Button,
+            FontId::new(size, FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Small,
+            FontId::new((size * 0.78).round(), FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Heading,
+            FontId::new((size * 1.45).round(), FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Monospace,
+            FontId::new((size * 0.96).round(), FontFamily::Monospace),
+        );
+    });
+}
+
 pub fn parse_hex(s: &str) -> Option<Color32> {
     let h = s.trim().trim_start_matches('#');
     let byte = |i: usize| u8::from_str_radix(h.get(i..i + 2)?, 16).ok();

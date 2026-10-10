@@ -42,6 +42,16 @@ struct Cli {
     /// Log filter (tracing syntax), default "info".
     #[arg(long, default_value = "info")]
     log: String,
+
+    /// Headless: query the forge for a newer release, print the result, exit 0 when a
+    /// signed, installable update exists, 3 when up to date, 1 on error.
+    #[arg(long, hide = true)]
+    check_updates: bool,
+
+    /// Headless: like --check-updates, then download and verify the update into the
+    /// data folder (size, sha256, signature, self-test) without installing it.
+    #[arg(long, hide = true)]
+    download_update: bool,
 }
 
 fn main() {
@@ -62,6 +72,10 @@ fn main() {
     if cli.self_test {
         let logging = hs_core::logging::init(None, &cli.log);
         std::process::exit(self_test::run(paths, logging));
+    }
+    if cli.check_updates || cli.download_update {
+        let _logging = hs_core::logging::init(None, &cli.log);
+        std::process::exit(self_test::update_headless(paths, cli.download_update));
     }
 
     let logging = hs_core::logging::init(Some(&paths.logs_dir()), &cli.log);

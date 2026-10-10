@@ -60,6 +60,9 @@ pub struct HyperStackApp {
     layout_dirty_since: Option<Instant>,
     pending_actions: Vec<Action>,
     fallback_notice_open: bool,
+    first_frame_done: bool,
+    confirm_revert: bool,
+    update_badge: Option<String>,
 }
 
 impl HyperStackApp {
@@ -104,6 +107,9 @@ impl HyperStackApp {
             last_layout_save: Instant::now(),
             layout_dirty_since: None,
             pending_actions: Vec::new(),
+            first_frame_done: false,
+            confirm_revert: false,
+            update_badge: None,
         };
         if let Some(e) = boot.settings_error {
             app.toasts.push(ToastLevel::Warning, e);
@@ -116,7 +122,111 @@ impl HyperStackApp {
             VaultDialog::Create
         };
         app.password.reset();
+        app.maybe_auto_check_updates();
         app
+    }
+
+    /// Daily automatic check (docs/09 §5.2), unless disabled.
+    fn maybe_auto_check_updates(&mut self) {
+        let (enabled, last, channel, source, skipped) = {
+            let st = self.services.settings.read();
+            (
+                st.updates.enabled,
+                st.updates.last_check.clone(),
+                st.updates.channel.clone(),
+                st.updates.source.clone(),
+                st.updates.skipped_version.clone(),
+            )
+        };
+        if !enabled {
+            return;
+        }
+        let due = match last
+            .as_deref()
+            .and_then(|l| chrono::DateTime::parse_from_rfc3339(l).ok())
+        {
+            Some(t) => {
+                chrono::Utc::now().signed_duration_since(t.with_timezone(&chrono::Utc))
+                    > chrono::Duration::hours(24)
+            }
+            None => true,
+        };
+        if due {
+            self.services.updater.check(
+                hs_core::update::Channel::from_setting(&channel),
+                Some(source),
+                skipped,
+            );
+        }
+    }
+
+    fn start_update_check(&mut self) {
+        let (channel, source, skipped) = {
+            let st = self.services.settings.read();
+            (
+                st.updates.channel.clone(),
+                st.updates.source.clone(),
+                st.updates.skipped_version.clone(),
+            )
+        };
+        self.services.updater.check(
+            hs_core::update::Channel::from_setting(&channel),
+            Some(source),
+            skipped,
+        );
+    }
+
+    /// Reacts to status changes of the updater once per frame.
+    fn poll_updater(&mut self, ctx: &egui::Context) {
+        use hs_core::updater::UpdateStatus;
+        match self.services.updater.status() {
+            UpdateStatus::Checking => ctx.request_repaint_after(Duration::from_millis(300)),
+            UpdateStatus::UpToDate { checked_at } => {
+                let stale = self.services.settings.read().updates.last_check.as_deref()
+                    != Some(checked_at.as_str());
+                if stale {
+                    self.services.settings.write().updates.last_check = Some(checked_at);
+                    let _ = self.services.save_settings();
+                }
+                self.update_badge = None;
+            }
+            UpdateStatus::Available { candidate, .. } => {
+                let v = candidate.version.to_string();
+                if self.update_badge.as_deref() != Some(v.as_str()) {
+                    self.update_badge = Some(v.clone());
+                    self.toasts.push(
+                        ToastLevel::Info,
+                        self.services
+                            .i18n
+                            .t_args("update-toast-available", &[("version", &v)]),
+                    );
+                    self.services.settings.write().updates.last_check =
+                        Some(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+                    let _ = self.services.save_settings();
+                }
+            }
+            UpdateStatus::Downloading { .. } => {
+                ctx.request_repaint_after(Duration::from_millis(250))
+            }
+            UpdateStatus::Ready { .. } => {
+                let on_exit = self.services.settings.read().updates.when_found == "install_on_exit";
+                if on_exit && ctx.input(|i| i.viewport().close_requested()) {
+                    self.install_update(ctx);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn install_update(&mut self, ctx: &egui::Context) {
+        use hs_core::updater::UpdateStatus;
+        if let UpdateStatus::Ready { version, path } = self.services.updater.status() {
+            self.save_layout();
+            match self.services.updater.install(&path, &version) {
+                Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                Err(e) => self.toasts.push(ToastLevel::Error, e),
+            }
+        }
     }
 
     /// Index into `self.factories`, so callers can borrow the factory and
@@ -497,6 +607,27 @@ impl HyperStackApp {
                     ctx.set_zoom_factor(zoom);
                     self.services.events.publish(Event::ThemeChanged);
                     let _ = self.services.save_settings();
+                }
+                SettingsEffect::CheckUpdates => self.start_update_check(),
+                SettingsEffect::DownloadUpdate => {
+                    if let hs_core::updater::UpdateStatus::Available {
+                        candidate, asset, ..
+                    } = self.services.updater.status()
+                    {
+                        self.services
+                            .updater
+                            .download(&self.services.jobs, candidate, asset);
+                    }
+                }
+                SettingsEffect::InstallUpdate => self.install_update(ctx),
+                SettingsEffect::RevertUpdate => self.confirm_revert = true,
+                SettingsEffect::SkipUpdate(tag) => {
+                    self.services.settings.write().updates.skipped_version = Some(tag);
+                    let _ = self.services.save_settings();
+                    self.services
+                        .updater
+                        .set_status(hs_core::updater::UpdateStatus::Idle);
+                    self.update_badge = None;
                 }
                 SettingsEffect::LockVault => self.run_action("vault.lock"),
                 SettingsEffect::ChangeMasterPassword => {
@@ -1111,6 +1242,26 @@ impl HyperStackApp {
                         .size(12.0)
                         .color(self.theme.text_muted),
                 );
+                if let Some(v) = &self.update_badge {
+                    let label = egui::RichText::new(format!(
+                        "{} {} {v}",
+                        hs_ui::icons::ARROW_UP,
+                        s.t("update-badge")
+                    ))
+                    .size(12.0)
+                    .color(egui::Color32::WHITE);
+                    if ui
+                        .add(
+                            egui::Button::new(label)
+                                .fill(self.theme.accent)
+                                .corner_radius(egui::CornerRadius::same(9)),
+                        )
+                        .clicked()
+                    {
+                        self.settings_ui.open = true;
+                        self.settings_ui.page = settings_ui::Page::Updates;
+                    }
+                }
             });
         });
     }
@@ -1120,6 +1271,25 @@ impl eframe::App for HyperStackApp {
     fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
+        if !self.first_frame_done {
+            self.first_frame_done = true;
+            if let Some(st) = self.services.updater.mark_started_ok() {
+                self.toasts.push(
+                    ToastLevel::Success,
+                    self.services
+                        .i18n
+                        .t_args("update-toast-installed", &[("version", &st.installed)]),
+                );
+            } else if let Some(st) = self.services.updater.failed_install() {
+                self.toasts.push(
+                    ToastLevel::Warning,
+                    self.services
+                        .i18n
+                        .t_args("update-toast-failed-install", &[("version", &st.installed)]),
+                );
+            }
+        }
+        self.poll_updater(ctx);
         // Idle tracking for the vault relock.
         if ctx.input(|i| !i.events.is_empty() || i.pointer.any_down()) {
             self.last_input = Instant::now();
@@ -1304,6 +1474,37 @@ impl eframe::App for HyperStackApp {
                     self.confirm_close = None;
                 }
                 DialogResult::Cancel => self.confirm_close = None,
+                DialogResult::Open => {}
+            }
+        }
+        if self.confirm_revert {
+            let s = self.services.clone();
+            let prev = s.updater.previous_exe().map(|(_, v)| v).unwrap_or_default();
+            let body = s
+                .i18n
+                .t_args("settings-updates-revert-confirm", &[("version", &prev)]);
+            let ok_label = s
+                .i18n
+                .t_args("settings-updates-revert", &[("version", &prev)]);
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "revert",
+                &s.t("settings-updates-previous"),
+                &body,
+                &ok_label,
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    self.confirm_revert = false;
+                    self.save_layout();
+                    match s.updater.revert() {
+                        Ok(_) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                        Err(e) => self.toasts.push(ToastLevel::Error, e),
+                    }
+                }
+                DialogResult::Cancel => self.confirm_revert = false,
                 DialogResult::Open => {}
             }
         }

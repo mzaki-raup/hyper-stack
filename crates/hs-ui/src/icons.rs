@@ -34,3 +34,4 @@ pub const CARET_DOWN: &str = ph::CARET_DOWN;
 pub const TRASH: &str = ph::TRASH;
 pub const COPY: &str = ph::COPY;
 pub const EDIT: &str = ph::PENCIL_SIMPLE;
+pub const ARROW_UP: &str = ph::ARROW_CIRCLE_UP;

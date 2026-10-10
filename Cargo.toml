@@ -67,6 +67,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 portable-pty = "0.9"
 tempfile = "3"
+reqwest = { version = "0.13", features = ["stream", "json", "gzip"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [profile.release]
 opt-level = 3

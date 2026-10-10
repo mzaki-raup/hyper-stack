@@ -8,7 +8,7 @@
 //! - [`tool`] / [`services`] — the `Tool` trait and the shared `Services` handle
 //! - [`workspace`] — workspaces and layout persistence
 //! - [`connections`] / [`environments`] / [`secrets`] — shared profiles, variables, vault
-//! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`]
+//! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
 pub mod connections;
 pub mod environments;
@@ -26,6 +26,7 @@ pub mod shortcuts;
 pub mod storage;
 pub mod tool;
 pub mod update;
+pub mod updater;
 pub mod version;
 pub mod workspace;
 

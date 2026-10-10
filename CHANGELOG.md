@@ -13,6 +13,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.5.0 — 2026-10-10
+
+### Added
+
+- Settings redesign, colour schemes, window state, instant terminal (8a2b6e24)
+
+### Fixed
+
+- Read panel sizes from egui's PanelState (outer_rect) (b945f352)
+
 ## 0.4.0 — 2026-10-10
 
 ### Added

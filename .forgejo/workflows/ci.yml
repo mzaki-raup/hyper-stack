@@ -49,12 +49,15 @@ jobs:
       - name: Detect the Cargo workspace
         id: ws
         run: |
+          $ErrorActionPreference = "Stop"
           $has = Test-Path Cargo.toml
           "has_cargo=$($has.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
           if (-not $has) { Write-Host "No Cargo.toml yet - documentation-only repository; skipping Rust checks." }
           foreach ($s in Get-ChildItem scripts -Filter *.ps1) {
-            $null = [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$errors)
-            if ($errors.Count) { throw "$($s.Name) does not parse: $($errors[0].Message)" }
+            # [ref] needs an existing variable; an undeclared one throws under Stop.
+            $tokens = $null; $errs = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$tokens, [ref]$errs)
+            if ($errs -and $errs.Count) { throw "$($s.Name) does not parse: $($errs[0].Message)" }
           }
           Write-Host "PowerShell scripts parse."
 

@@ -13,6 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.4.0 — 2026-10-10
+
+### Added
+
+- Material file and folder icons in the project tree (d6795a2c)
+- One component per tab strip, headless install/revert, larger rail (83a45621)
+
 ## 0.3.0 — 2026-10-10
 
 ### Added

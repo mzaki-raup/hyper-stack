@@ -2226,6 +2226,7 @@ name = "hs-editor"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "egui_kittest",
  "encoding_rs",
  "hs-ui",
  "parking_lot",

@@ -262,7 +262,7 @@ impl Buffer {
             && self.undo.last().is_some_and(|g| {
                 g.kind == kind
                     && now.duration_since(g.at) < GROUP_WINDOW
-                    && g.edits.len() == edits.len()
+                    && g.cursors_after.len() == cursors_after.len()
             });
         if merge {
             let g = self.undo.last_mut().unwrap();

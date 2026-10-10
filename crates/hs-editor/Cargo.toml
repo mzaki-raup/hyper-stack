@@ -19,3 +19,6 @@ pulldown-cmark = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 parking_lot = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true }

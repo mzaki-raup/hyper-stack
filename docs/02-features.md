@@ -29,8 +29,8 @@ suggestion.
 | Themes: dark/light, prebuilt, custom palette editor, live preview | P0 | M | |
 | Rebindable shortcuts with a shortcuts page | P0 | S | TOML keymap |
 | i18n with Fluent, OS-locale detection | P0 | S | Start with `en` |
-| **Portable by default** (requested): all settings and data in `data/` beside the executable, no registry, no `%APPDATA%`; read-only location detection with fallback; "Reset all data" = delete folder | P0 | S | See ADR-017 |
-| Auto-update check (opt-in) that replaces only the executable and leaves `data/` untouched | P1 | S | |
+| **Portable by default** (requested): all settings and data in `HyperStackData/` beside the executable, no registry, no `%APPDATA%`; read-only location detection with fallback; "Reset all data" = delete folder | P0 | S | See ADR-017 |
+| Auto-update check (opt-in) that replaces only the executable and leaves `HyperStackData/` untouched | P1 | S | |
 | Drag and drop between tools (file → editor, file → SFTP, result → request) | P1 | M | |
 | Detach tab to its own OS window | P2 | L | egui viewports |
 | Session audit log of commands run (local only) | P2 | M | Useful for DBAs and SREs |
@@ -153,7 +153,7 @@ suggestion.
 | Shell tab with full terminal emulation (reuse `hs-term`) | P0 | M |
 | SFTP pane: dual-pane local/remote, drag transfer, queue with progress, resume | P0 | L |
 | Edit remote file in editor, save back; permissions dialog (chmod/chown) | P0 | M |
-| Host key verification and known hosts (OpenSSH format, stored in `data/`) | P0 | S |
+| Host key verification and known hosts (OpenSSH format, stored in `HyperStackData/`) | P0 | S |
 | Port forwarding (local, remote, dynamic/SOCKS) managed in Jobs | P1 | M |
 | Multiple shells per host, broadcast input to several hosts | P1 | M |
 | Server monitor widget: CPU, memory, disk, load, top processes via SSH | P1 | M |

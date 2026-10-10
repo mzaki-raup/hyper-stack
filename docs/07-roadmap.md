@@ -35,7 +35,7 @@ changing it.
 - [ ] Cargo workspace, CI (fmt, clippy, test, `cargo deny`) on Windows/Linux/macOS
 - [ ] `hs-core`: `Tool`/`ToolFactory` traits, `Services`, `ToolContext`, actions queue
 - [ ] `hs-core`: tokio runtime, `UiWaker`, `Jobs` with progress/cancel, `Events` bus
-- [ ] `hs-core`: **portable paths** (`data/` beside the exe, writability probe, fallback, `--data-dir` flag), atomic TOML/JSON io, schema versioning, SQLite history db
+- [ ] `hs-core`: **portable paths** (`HyperStackData/` beside the exe, writability probe, fallback, `--data-dir` flag), atomic TOML/JSON io, schema versioning, SQLite history db
 - [ ] `hs-core`: `Connections`, `Environments`, variable substitution engine (with tests), `Secrets` (encrypted vault with master password + DPAPI remember-me on Windows; OS keyring opt-in)
 - [ ] `hs-core`: settings, shortcuts/keymap, i18n (Fluent), `tracing` with redaction
 - [ ] `hs-ui`: theme system, multi-row `TabStrip` (generic over `TabItem`), `SplitLayout`, `Palette` with providers, `Tree`, `DataTable` (first version), toasts, dialogs, `EnvBanner`, `KeyValueEditor`
@@ -61,7 +61,7 @@ in the e2e test).
 - [ ] Devtools: Markdown preview (pulldown-cmark + native Mermaid subset) usable from the editor
 
 ### M2 · SSH/SFTP + S3 (4 w)
-- [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `data/`, shell tab over `hs-term`
+- [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term`
 - [ ] `tool-ssh`: SFTP dual pane on `DataTable`, transfer queue in `Transfers`, resume, chmod, open-in-editor and save back via `sftp://` VFS
 - [ ] `Tunnels` service (local forward) ready for DB/Redis/API
 - [ ] `tool-s3`: profiles + import AWS files, SigV4 client in `hs-core::objstore`, bucket/prefix browsing, uploads with multipart, downloads, delete with guard, presigned URLs, `s3://` VFS

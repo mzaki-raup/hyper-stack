@@ -182,7 +182,7 @@ fuzzy ranker. Enter opens the first match.
 
 ## 7. Keyboard
 
-Global defaults (all rebindable via `data/shortcuts.toml`):
+Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):
 
 | Shortcut | Action |
 |---|---|

@@ -195,7 +195,7 @@ colour, group }`.
 |---|---|---|
 | `Connections` | CRUD for `ConnectionProfile` of every kind, folders, tags, colour, import | TOML files in workspace |
 | `Environments` | Named variable sets, active environment, `{{var}}` substitution with scopes (global → workspace → environment → collection → request) | TOML files |
-| `Secrets` | `get/set/delete(SecretRef)`; never returns to UI unless user clicks "reveal" | encrypted vault in `data/` (default); OS keyring opt-in |
+| `Secrets` | `get/set/delete(SecretRef)`; never returns to UI unless user clicks "reveal" | encrypted vault in `HyperStackData/` (default); OS keyring opt-in |
 | `Jobs` | spawn, list, cancel, progress events | in-memory + tokio |
 | `Events` | typed broadcast: `ConnectionChanged`, `EnvironmentSwitched`, `FileSaved{uri}`, `JobFinished`, `GitStatusChanged{repo}`, `ThemeChanged` | `tokio::sync::broadcast` + UI drain |
 | `Storage` | app data paths, workspace folder, atomic file writes, SQLite history db | `rusqlite` bundled |
@@ -233,16 +233,16 @@ internals:
 See [05-data-model-and-storage.md](05-data-model-and-storage.md) for schemas.
 Summary:
 
-- **Data folder** `data/` beside the executable (portable by default, ADR-017):
+- **Data folder** `HyperStackData/` beside the executable (portable by default, ADR-017):
   settings, themes, shortcuts, history SQLite, known hosts, cache, logs, the
   secret vault and the built-in `default` workspace. Resolved once at startup
   by `hs-core::storage::paths`; every other module asks it, nothing else
   computes paths.
-- **Workspace folder**: by default `data/workspaces/<name>/`; optionally any
+- **Workspace folder**: by default `HyperStackData/workspaces/<name>/`; optionally any
   folder the user chooses, often `.hyperstack/` inside a repo: connection
   profiles, environments (without secrets), API collections, saved queries,
   snippets, tab groups, layout. Plain TOML/JSON so it diffs well in git.
-- **Secrets**: `data/vault.hsv`, encrypted with a master password; entries keyed
+- **Secrets**: `HyperStackData/vault.hsv`, encrypted with a master password; entries keyed
   by `<workspace-id>/<secret-id>`. OS keyring is an opt-in alternative.
 - Writes are atomic (write temp, fsync, rename). The layout file is saved
   debounced (1 s after last change) and on exit.
@@ -253,7 +253,7 @@ Summary:
   tools convert to a user-facing `UiError { title, detail, hint, retry }`.
 - Nothing panics on remote failure. A disconnected driver puts its tab in a
   "disconnected" state with a Reconnect button.
-- `tracing` with a rolling file appender in `data/logs/` and an in-app
+- `tracing` with a rolling file appender in `HyperStackData/logs/` and an in-app
   Output panel; log level configurable; secrets are redacted by a layer that
   knows every `SecretRef` value currently loaded.
 
@@ -263,8 +263,8 @@ Summary:
 |---|---|---|---|
 | Window / GPU | eframe wgpu (fallback glow) | same | same |
 | Local PTY | ConPTY via `portable-pty` | `portable-pty` (forkpty) | same |
-| Secrets | encrypted vault in `data/` (default); Credential Manager via `windows` crate (opt-in) | encrypted vault (default); Secret Service via `keyring` (opt-in) | encrypted vault (default); Keychain via `keyring` (opt-in) |
-| Paths | `data\` beside `HyperStack.exe`; fallback `%LOCALAPPDATA%\HyperStack` only if that folder is not writable | `data/` beside the binary when writable (AppImage/tarball use), else `$XDG_DATA_HOME/hyperstack` | `data/` beside the binary when writable, else `~/Library/Application Support/HyperStack` (app bundles are read-only) |
+| Secrets | encrypted vault in `HyperStackData/` (default); Credential Manager via `windows` crate (opt-in) | encrypted vault (default); Secret Service via `keyring` (opt-in) | encrypted vault (default); Keychain via `keyring` (opt-in) |
+| Paths | `HyperStackData\` beside `HyperStack.exe`; fallback `%LOCALAPPDATA%\HyperStack` only if that folder is not writable | `HyperStackData/` beside the binary when writable (AppImage/tarball use), else `$XDG_DATA_HOME/hyperstack` | `HyperStackData/` beside the binary when writable, else `~/Library/Application Support/HyperStack` (app bundles are read-only) |
 | Shell detection | PowerShell 7 / 5, cmd, Git Bash, WSL distros | `$SHELL`, bash, zsh, fish | `$SHELL`, zsh, bash |
 | Fonts | system font enumeration (ported) | fontconfig via `fontdb` | CoreText via `fontdb` |
 

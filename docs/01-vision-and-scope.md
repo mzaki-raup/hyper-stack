@@ -67,7 +67,7 @@ not match the API tool's is a real class of incident.
    get a confirmation that names the environment. Production environments can
    be marked read-only per tool.
 4. **Portable and private by default.** One executable; every setting, every
-   workspace and the encrypted secret vault live in a `data/` folder beside
+   workspace and the encrypted secret vault live in a `HyperStackData/` folder beside
    it. No installer, no registry, no telemetry, no background services. Copy
    the folder to move or back up the whole app.
 5. **Keyboard first, mouse complete.** Every action is reachable from the
@@ -137,6 +137,6 @@ not match the API tool's is a real class of incident.
 | Q1 | ~~Share code with Eden Explorer?~~ **Decided:** no. Eden Explorer is a design reference only; every module is written fresh in this repo (ADR-014) | — |
 | Q2 | Monolithic binary vs. tools as dynamically loaded plugins? | Monolith with one crate per tool; a WASM plugin API is a Phase 3 idea |
 | Q3 | Should the editor get LSP support eventually? | Maybe, behind a feature flag; not before 1.0 |
-| Q4 | Name of the binary? | `HyperStack.exe` on Windows, `hyperstack` elsewhere; data in `data/` beside the executable (ADR-017) |
+| Q4 | Name of the binary? | `HyperStack.exe` on Windows, `hyperstack` elsewhere; data in `HyperStackData/` beside the executable (ADR-017) |
 | Q5 | Licence? | MIT |
 | Q6 | Optional AI assistant (bring your own key) for SQL, regex, shell help? | Design the hook (command palette provider) but ship nothing in v1 |

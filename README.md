@@ -35,7 +35,7 @@ product**, and the tools are views over them.
 | Language | **Rust** (edition 2024) | Native speed, single portable binary, same ecosystem the author already knows from Eden Explorer |
 | GUI | **egui / eframe 0.35** | Immediate-mode, proven by Eden Explorer for this kind of UI, fast tables and custom widgets, no web runtime |
 | Async | **tokio** runtime on background threads, channels to the UI thread | Network tools (HTTP, SSH, DB drivers) are async-first |
-| Distribution | **Portable by default on Windows**: one `HyperStack.exe`, all settings and data in a `data/` folder beside it; no installer, no registry, no `%APPDATA%` | Run from a USB stick or a tools folder, move or back up by copying the folder |
+| Distribution | **Portable by default on Windows**: one `HyperStack.exe`, all settings and data in a `HyperStackData/` folder beside it; no installer, no registry, no `%APPDATA%` | Run from a USB stick or a tools folder, move or back up by copying the folder |
 | Storage | Human-readable TOML/JSON files for shareable things + SQLite for history/cache | Collections and profiles can live in git; history stays local |
 | Secrets | Encrypted vault file beside the executable (master password, Argon2id + XChaCha20-Poly1305); OS keyring optional | Portable and never a plaintext password on disk |
 | Platforms | Windows first-class, Linux and macOS supported from day one | DevOps and DBAs are often not on Windows |
@@ -107,12 +107,12 @@ hyper-stack/
 ```
 HyperStack\
 ├── HyperStack.exe
-├── data\                      # everything the app writes; delete it for a factory reset
+├── HyperStackData\            # everything the app writes; delete it for a factory reset
 │   ├── settings.toml
 │   ├── vault.hsv              # encrypted secrets
 │   ├── history.sqlite
 │   ├── workspaces\default\    # built-in workspace (connections, environments, collections …)
-│   ├── themes\  shortcuts.toml  known_hosts  cache\  logs\
+│   └── themes\  shortcuts.toml  known_hosts  cache\  logs\
 └── (optional) README.txt
 ```
 

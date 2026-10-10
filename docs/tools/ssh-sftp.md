@@ -64,13 +64,13 @@ with backoff when follow-type consumers exist (logs, tunnels); shells show a
 - Host key verification against `known_hosts` (OpenSSH format, shared with
   the user's own file if they opt in); first-connect dialog shows fingerprint
   (SHA-256) and lets the user trust or abort; changed key → red dialog with
-  "forget and re-trust". `known_hosts` lives in `data/` so trust decisions
+  "forget and re-trust". `known_hosts` lives in `HyperStackData/` so trust decisions
   travel with the portable folder.
 - Agents: OpenSSH agent on Windows (`\\.\pipe\openssh-ssh-agent`), Pageant,
   `SSH_AUTH_SOCK` elsewhere. Agent forwarding is off by default, per host.
 - Keys: `ssh-keygen`-style generation UI (ed25519, RSA 4096), passphrase in
   the vault, "copy public key to host" (`authorized_keys` append over SFTP).
-  Key files may live inside `data/keys/` (referenced as `${DATA_DIR}/keys/…`)
+  Key files may live inside `HyperStackData/keys/` (referenced as `${DATA_DIR}/keys/…`)
   so a portable folder carries its keys; the folder is created with
   owner-only permissions where the filesystem supports it.
 - Protected environments: SFTP delete/overwrite confirmation names the host;

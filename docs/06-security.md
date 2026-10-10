@@ -9,7 +9,7 @@ production ones. Security is a product feature, not a checklist.
 
 | Threat | In scope? | Mitigation |
 |---|---|---|
-| Secrets leaking through files on disk (USB sticks, sync folders, repos, backups) | Yes | Secrets only in the encrypted vault (or an opt-in OS keyring); workspace files contain `secret:<id>` references only; export never includes secrets; a test greps `data/` after an e2e run. A portable `data/` folder is expected to travel, so the vault is designed to be safe when copied |
+| Secrets leaking through files on disk (USB sticks, sync folders, repos, backups) | Yes | Secrets only in the encrypted vault (or an opt-in OS keyring); workspace files contain `secret:<id>` references only; export never includes secrets; a test greps `HyperStackData/` after an e2e run. A portable `HyperStackData/` folder is expected to travel, so the vault is designed to be safe when copied |
 | Lost or stolen portable drive | Yes | Vault is useless without the master password (Argon2id, memory-hard); history and caches can be encrypted too (setting "encrypt local history", default on when portable) |
 | Secrets leaking through logs, history, crash reports | Yes | Redaction layer in `tracing`; history stores resolved URLs/SQL with secret values replaced by `***`; no crash reporting upload |
 | Shoulder surfing / screen sharing | Yes | Masked by default everywhere; reveal is per-click and auto-hides after 10 s; clipboard copy of a secret clears after 30 s (configurable) |
@@ -24,7 +24,7 @@ production ones. Security is a product feature, not a checklist.
 
 `hs-core::secrets::SecretStore` trait with two implementations:
 
-1. **Encrypted vault file** (default, portable): `data/vault.hsv`. Format:
+1. **Encrypted vault file** (default, portable): `HyperStackData/vault.hsv`. Format:
    header (magic, version, Argon2id parameters, salt), then entries encrypted
    as one XChaCha20-Poly1305 blob keyed by `<workspace-id>/<secret-id>`; the
    key is derived from a master password with Argon2id (64 MiB, 3 iterations,
@@ -108,14 +108,14 @@ memory limits per run. Scripts are visible in the request file, never hidden.
   containing `HyperStack.exe` (and nothing else required); no installer.
 - The in-app updater (opt-in) downloads only from the release host, verifies
   signature and checksum, and asks before replacing the executable. It never
-  touches `data/`. On Windows it writes `HyperStack.new.exe`, then a tiny
+  touches `HyperStackData/`. On Windows it writes `HyperStack.new.exe`, then a tiny
   helper swaps files after exit and removes itself.
 
 ## 9. Local data hygiene
 
-- Response bodies and query result caches are stored under `data/cache/` and
+- Response bodies and query result caches are stored under `HyperStackData/cache/` and
   deleted according to the retention policy; a "Clear all local data" action
-  exists in Settings → Data, and deleting the `data/` folder is a complete,
+  exists in Settings → Data, and deleting the `HyperStackData/` folder is a complete,
   documented factory reset.
 - Portable defaults: history and cache encryption on, idle relock on, clipboard
   clearing on. Settings → Security shows a one-line "this folder may travel"

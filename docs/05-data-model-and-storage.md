@@ -9,37 +9,39 @@ in **one directory**, resolved once at startup:
 
 1. `--data-dir <path>` command-line flag, or
 2. `HYPERSTACK_DATA` environment variable, or
-3. **`data/` next to the executable** when that location is writable
+3. **`HyperStackData/` next to the executable** when that location is writable
    (the normal case: a tools folder, a USB stick, an extracted zip), or
 4. a per-user fallback only when the executable's folder is read-only
    (`%LOCALAPPDATA%\HyperStack`, `$XDG_DATA_HOME/hyperstack`,
    `~/Library/Application Support/HyperStack`), with a one-time notice.
 
 No registry keys, no `%APPDATA%`, no `%TEMP%` (temporary files go to
-`data/tmp/`), no files in the user's home. Deleting `data/` is the factory
-reset; copying the folder is the backup.
+`HyperStackData/tmp/`), no files in the user's home. Deleting `HyperStackData/`
+is the factory reset; copying the folder is the backup. The folder is named
+`HyperStackData` rather than a generic `data` so it stays recognisable when the
+executable sits in a shared tools folder next to other programs' files.
 
 ### Three kinds of state
 
 | Kind | Where | Format | Shareable? |
 |---|---|---|---|
-| **Personal / machine state** — settings, themes, shortcuts, history, caches, known hosts, window geometry, logs | `data/` root | TOML + SQLite | No (but travels with the folder) |
-| **Workspace state** — connections, environments, API collections, saved queries, snippets, tab groups, layout | `data/workspaces/<name>/` by default, or any folder the user chooses (e.g. `.hyperstack/` in a repo) | TOML / JSON files, one object per file | Yes (commit it) |
-| **Secrets** — passwords, tokens, keys, passphrases | `data/vault.hsv` encrypted with a master password (OS keyring opt-in) | binary, authenticated encryption | Never in plaintext |
+| **Personal / machine state** — settings, themes, shortcuts, history, caches, known hosts, window geometry, logs | `HyperStackData/` root | TOML + SQLite | No (but travels with the folder) |
+| **Workspace state** — connections, environments, API collections, saved queries, snippets, tab groups, layout | `HyperStackData/workspaces/<name>/` by default, or any folder the user chooses (e.g. `.hyperstack/` in a repo) | TOML / JSON files, one object per file | Yes (commit it) |
+| **Secrets** — passwords, tokens, keys, passphrases | `HyperStackData/vault.hsv` encrypted with a master password (OS keyring opt-in) | binary, authenticated encryption | Never in plaintext |
 
 ### The data folder
 
 ```
 HyperStack\
 ├── HyperStack.exe
-└── data\
+└── HyperStackData\
     ├── settings.toml            # includes which workspace to open and the secret-store choice
     ├── shortcuts.toml
     ├── themes\custom-*.toml
     ├── vault.hsv                # encrypted secrets (+ vault.hsv.bak)
     ├── vault.dpapi              # optional: master password wrapped by Windows DPAPI for this user+machine
     ├── known_hosts              # OpenSSH format
-    ├── workspaces.toml          # registry of known workspace folders (relative paths when inside data\)
+    ├── workspaces.toml          # registry of known workspace folders (relative paths when inside HyperStackData\)
     ├── workspaces\
     │   └── default\             # built-in workspace, created on first run (layout below)
     ├── history.sqlite           # queries, requests, commands, recent files, job log (optionally encrypted)
@@ -52,7 +54,7 @@ HyperStack\
 
 Rules that keep the folder movable:
 
-- Paths inside `data/` are stored **relative** to it. External paths are
+- Paths inside `HyperStackData/` are stored **relative** to it. External paths are
   stored as given, and may use the tokens `${DATA_DIR}` and `${EXE_DIR}` so a
   key file on the same USB stick keeps working on another machine.
 - The SQLite databases use WAL mode with `synchronous=NORMAL` and are
@@ -62,12 +64,12 @@ Rules that keep the folder movable:
 - Several isolated copies can coexist on one machine (different folders or
   `--data-dir`), each with its own lock file.
 - Linux and macOS behave the same way when the binary's folder is writable
-  (tarball, AppImage next to a `data/` folder); app bundles and `/usr/bin`
+  (tarball, AppImage next to a `HyperStackData/` folder); app bundles and `/usr/bin`
   installs hit the per-user fallback.
 
 ### Workspace folder
 
-Default location `data/workspaces/<name>/`; the same layout is used when the
+Default location `HyperStackData/workspaces/<name>/`; the same layout is used when the
 user points a workspace at a repo's `.hyperstack/` folder:
 
 ```

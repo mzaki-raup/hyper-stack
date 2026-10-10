@@ -296,7 +296,7 @@ behind on the machine.
 
 1. At startup `hs-core::storage::paths` resolves the data directory in this
    order: `--data-dir <path>` flag → `HYPERSTACK_DATA` environment variable →
-   `data/` beside the executable **if the executable's folder is writable**
+   `HyperStackData/` beside the executable **if the executable's folder is writable**
    (probe by creating and deleting a temp file) → per-user fallback
    (`%LOCALAPPDATA%\HyperStack`, `$XDG_DATA_HOME/hyperstack`,
    `~/Library/Application Support/HyperStack`) with a one-time notice in the
@@ -304,7 +304,7 @@ behind on the machine.
 2. Everything the app writes goes under that single directory: settings,
    shortcuts, themes, vault, history, cache, logs, known hosts, the built-in
    `default` workspace, update staging. Nothing is written to the registry,
-   `%APPDATA%`, `%TEMP%` (temp files go to `data/tmp/`), or the user's home,
+   `%APPDATA%`, `%TEMP%` (temp files go to `HyperStackData/tmp/`), or the user's home,
    except files the user explicitly exports.
 3. All paths stored in settings are **relative to the data directory** when
    they point inside it, so the folder can be moved or renamed. External
@@ -313,14 +313,14 @@ behind on the machine.
    can keep SSH keys on the same stick.
 4. Secrets use the encrypted vault file (ADR in [06-security.md](06-security.md))
    so they travel with the folder; OS keyrings are opt-in.
-5. The updater replaces only the executable. Deleting `data/` is the
+5. The updater replaces only the executable. Deleting `HyperStackData/` is the
    documented factory reset. A `HyperStack.exe --data-dir X` shortcut supports
    several isolated profiles side by side.
 6. SQLite databases run in WAL mode with `synchronous=NORMAL` and checkpoint on
    exit so removable media stays consistent; the app detects well-known
    cloud-sync folders (OneDrive, Dropbox, Google Drive paths) and warns once
    about possible sync conflicts.
-7. Single-instance lock is a file in `data/` (`instance.lock`) with the PID,
+7. Single-instance lock is a file in `HyperStackData/` (`instance.lock`) with the PID,
    never a named mutex or registry key, so a second copy on another drive
    works independently.
 

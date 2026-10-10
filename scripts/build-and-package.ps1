@@ -153,10 +153,25 @@ if ($SkipSign) {
   if (-not (Test-Path $PublicKey)) { throw "Public key $PublicKey is missing; it must be committed so the release can be verified." }
   $keyFile = Join-Path ([System.IO.Path]::GetTempPath()) ("hs-minisign-" + [guid]::NewGuid() + ".key")
   try {
-    [System.IO.File]::WriteAllText($keyFile, $env:HS_MINISIGN_KEY.Trim() + "`n")
-    Invoke-Checked "rsign sign" {
-      rsign sign -s $keyFile -x "$dist/manifest.json.minisig" -t "HyperStack $Version $Channel" "$dist/manifest.json"
+    # A minisign secret key file is two lines: "untrusted comment: ..." and the
+    # base64 key. Forge secrets are often pasted as the key line alone, or with
+    # CRLF endings; normalise to the exact file layout rsign expects.
+    $lines = @($env:HS_MINISIGN_KEY -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
+    if (-not $lines.Count) { throw "HS_MINISIGN_KEY is empty." }
+    if ($lines[0] -notmatch '^untrusted comment:') { $lines = @("untrusted comment: minisign secret key") + $lines }
+    if ($lines.Count -ne 2) { throw "HS_MINISIGN_KEY must be the two-line minisign secret key (comment line + key line); got $($lines.Count) lines." }
+    [System.IO.File]::WriteAllText($keyFile, ($lines -join "`n") + "`n")
+    # rsign asks for a password on the console (not stdin) when the secret key
+    # is encrypted - including keys made with `rsign generate -W`. On a runner
+    # that would hang for ever, so sign with a timeout and explain the fix.
+    $rsign = (Get-Command rsign).Source
+    $sig = Join-Path $dist "manifest.json.minisig"
+    $proc = Start-Process -FilePath $rsign -ArgumentList @('sign', '-s', $keyFile, '-x', $sig, '-t', "HyperStack $Version $Channel", (Join-Path $dist 'manifest.json')) -PassThru -NoNewWindow
+    if (-not $proc.WaitForExit(60000)) {
+      $proc.Kill()
+      throw "rsign sign did not finish in 60 s: the secret key in HS_MINISIGN_KEY needs a password. Regenerate it with 'rsign generate --unencrypted' (keys/README.md) and update the secret and keys/minisign.pub."
     }
+    if ($proc.ExitCode -ne 0) { throw "rsign sign failed with exit code $($proc.ExitCode). If the message is 'Missing encoded key', the secret is not a minisign secret key; if it asks for a password, regenerate with 'rsign generate --unencrypted'." }
     Invoke-Checked "rsign verify" { rsign verify -p $PublicKey -x "$dist/manifest.json.minisig" "$dist/manifest.json" }
   } finally {
     if (Test-Path $keyFile) { Remove-Item $keyFile -Force }

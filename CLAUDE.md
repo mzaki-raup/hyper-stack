@@ -286,6 +286,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every
   contracted asset exists on disk before upload.
+- `rsign generate -W` ("passwordless") keys are still in the encrypted format
+  and `rsign sign` prompts for the password on the console (not stdin, so
+  piping does not help); on the runner that is a hang. Only
+  `rsign generate --unencrypted` keys sign non-interactively. The first
+  release attempt (run 8) also showed the forge secret had been pasted as the
+  base64 line alone ("Missing encoded key in secret key"); the script now
+  normalises that and times out the signing step with a clear message.
 
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it

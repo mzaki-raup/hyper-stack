@@ -30,15 +30,21 @@ pwsh -File scripts/verify-release.ps1 -Tag v0.1.0
 
 ```bash
 cargo install rsign2 --locked
-rsign generate -W -p keys/minisign.pub -s hyperstack-minisign.key
+rsign generate --unencrypted -p keys/minisign.pub -s hyperstack-minisign.key
 ```
 
-`-W` creates the secret key without a password so the release job can use it
+**Use `--unencrypted`, not `-W`.** A key made with `-W` ("passwordless") is
+still stored in the encrypted format and `rsign sign` asks for its (empty)
+password on the console, which a CI job cannot answer; the release job detects
+that and fails with a message pointing here. `--unencrypted` keys sign
 non-interactively. Then:
 
-1. Commit `keys/minisign.pub`.
-2. Paste the **contents** of `hyperstack-minisign.key` into the repository
-   secret `HS_MINISIGN_KEY` on the forge (Settings → Actions → Secrets).
+1. Commit `keys/minisign.pub` and put the same base64 line into
+   `SIGNING_KEYS` in `crates/hs-core/src/update.rs` (the app verifies with it).
+2. Paste the **whole contents** of `hyperstack-minisign.key` (both lines: the
+   `untrusted comment:` line and the base64 line) into the repository secret
+   `HS_MINISIGN_KEY` on the forge (Settings → Actions → Secrets). The release
+   script also accepts just the base64 line and CRLF endings.
 3. Store `hyperstack-minisign.key` offline and delete it from the working
    machine.
 

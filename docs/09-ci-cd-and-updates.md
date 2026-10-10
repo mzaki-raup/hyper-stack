@@ -176,7 +176,7 @@ format is newer than what the user's other copies understand.
 | Secret | Used for |
 |---|---|
 | `GITHUB_TOKEN` (provided by Forgejo) | checkout, push of the version commit and tag, release API |
-| `HS_MINISIGN_KEY` | contents of the minisign secret key (generated unencrypted with `rsign generate -W`, see `keys/README.md`) that signs `manifest.json`; the matching public key is committed as `keys/minisign.pub`, compiled into the app and printed in About |
+| `HS_MINISIGN_KEY` | contents of the minisign secret key (generated with `rsign generate --unencrypted`, see `keys/README.md`; `-W` keys still prompt for a password and cannot be used in CI) that signs `manifest.json`; the matching public key is committed as `keys/minisign.pub`, compiled into the app and printed in About |
 | `HS_SIGN_PFX`, `HS_SIGN_PFX_PASSWORD` (optional) | Authenticode code signing; without them the exe is unsigned and SmartScreen will warn on first run, which the README documents |
 | `HS_INTEGRATION` (optional) | enables container-backed integration tests when a Docker engine is available on the runner |
 

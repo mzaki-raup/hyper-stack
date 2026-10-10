@@ -21,7 +21,7 @@ individually ("JWT", "Cron") and can be pinned.
 | **YAML / TOML / XML** | format, validate, convert among each other and JSON, XPath query for XML, YAML multi-document split |
 | **CSV / TSV** | table view with header detection, delimiter sniffing, convert to JSON/Markdown/SQL `INSERT`, column stats |
 | **Diff** | two-pane text diff on `hs-editor` Diff mode, char/word/line, ignore whitespace, JSON-aware diff (sorted keys), copy as unified patch |
-| **Markdown** | editor + live preview with Mermaid (port), export HTML |
+| **Markdown** | editor + live preview with a native Mermaid subset (flowchart, sequence), export HTML |
 
 ### Encoding and crypto (P0)
 
@@ -29,7 +29,7 @@ individually ("JWT", "Cron") and can be pinned.
 |---|---|
 | **JWT** | decode header/payload with claim explanations, `exp`/`iat`/`nbf` as local time with validity status, verify with HMAC secret or public key/JWKS URL (fetched with consent), create/sign a token for testing (HS256/RS256/ES256) |
 | **Base64 / Base64url / Hex / URL / HTML entities / Unicode escapes / Punycode** | encode/decode with auto-detect, binary file ↔ Base64, data URI builder |
-| **Hash / HMAC / checksum** | MD5, SHA-1/256/512, SHA-3, BLAKE3, CRC32 (port Eden's checksum), of text or files, compare against an expected value, HMAC with key |
+| **Hash / HMAC / checksum** | MD5, SHA-1/256/512, SHA-3, BLAKE3, CRC32, of text or files (streamed), compare against an expected value, HMAC with key |
 | **Encrypt / decrypt (P1)** | AES-GCM / ChaCha20 for test vectors, RSA key pair generation, PEM/DER inspect, X.509 certificate decode (subject, SAN, validity, chain) |
 | **Password / random** | passwords with rules, random bytes/hex, passphrase (diceware) |
 
@@ -70,7 +70,7 @@ individually ("JWT", "Cron") and can be pinned.
 | Utility | What it does |
 |---|---|
 | **Snippets** | code/SQL/shell/command snippets with language, tags, `{{var}}` placeholders, search from quick-open, insert into editor/terminal/console |
-| **.env editor** | table view of `KEY=VALUE`, masking for secret-looking keys, compare two `.env` files, import as environment variables (secrets to keyring), export environment as `.env` (non-secret) |
+| **.env editor** | table view of `KEY=VALUE`, masking for secret-looking keys, compare two `.env` files, import as environment variables (secrets to the vault), export environment as `.env` (non-secret) |
 | **Scratchpad** | per-workspace Markdown notes with preview, auto-saved, checklist support |
 | **Clipboard history (P2)** | last N text items (opt-in, excluded for secrets copied from the app) |
 
@@ -102,7 +102,7 @@ editor, Ctrl+Shift+S swap input/output.
 ## 6. Crates
 
 `serde_json`, `serde_yaml`/`serde_yml`, `toml`, `quick-xml`, `jaq`, `csv`,
-`similar`, `pulldown-cmark` (+ port of Mermaid renderer), `jsonwebtoken`,
+`similar`, `pulldown-cmark` (+ our own Mermaid subset renderer), `jsonwebtoken`,
 `base64`, `data-encoding`, `md-5`/`sha1`/`sha2`/`sha3`/`blake3`/`crc32fast`,
 `hmac`, `aes-gcm`, `chacha20poly1305`, `rsa`, `x509-parser`, `uuid`, `ulid`,
 `chrono`/`jiff`, `chrono-tz`, `cron` / `croner`, `regex`, `fancy-regex`,

@@ -131,6 +131,6 @@ in the e2e test).
 | Portable folder on a slow USB stick or a synced folder (OneDrive) | SQLite locking, slow startup, sync conflicts | WAL mode with `synchronous=NORMAL`, small writes, debounced saves; detect cloud-sync folders and warn once; `--data-dir` to relocate |
 | `gix` lacks stable push/merge | Git tool blocked | Hybrid design from day one: `gix` for reads, `git` CLI for writes/network (ADR-006) |
 | egui text rendering of huge grids/logs | Frame drops | Virtualise everything; render only visible rows; cache galleys per row; measured budgets in CI |
-| Keyring differences across OSes | Secrets bugs | Native Windows path (ported) + `keyring` elsewhere + encrypted-file fallback; integration tests per OS |
+| Vault usability (master password fatigue) and opt-in keyring differences across OSes | Users store secrets outside the app | DPAPI "remember on this PC" on Windows, idle relock instead of per-use prompts; keyring backends behind one trait with integration tests per OS |
 | Driver crate maturity (`tiberius`, `redis` cluster, CouchDB has no maintained crate so we use its HTTP API directly, `aws-sdk-dynamodb` is heavy) | Partial features | Feature-gate, ship when solid, document gaps; thin HTTP clients where SDKs are too heavy |
 | Scope creep from the catalogue | 1.0 never ships | P0 list is frozen at the start of Phase 1; new ideas go to P1/P2 |

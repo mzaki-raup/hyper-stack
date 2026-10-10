@@ -64,11 +64,15 @@ with backoff when follow-type consumers exist (logs, tunnels); shells show a
 - Host key verification against `known_hosts` (OpenSSH format, shared with
   the user's own file if they opt in); first-connect dialog shows fingerprint
   (SHA-256) and lets the user trust or abort; changed key → red dialog with
-  "forget and re-trust" (port of Eden's `credentials.rs`).
+  "forget and re-trust". `known_hosts` lives in `data/` so trust decisions
+  travel with the portable folder.
 - Agents: OpenSSH agent on Windows (`\\.\pipe\openssh-ssh-agent`), Pageant,
   `SSH_AUTH_SOCK` elsewhere. Agent forwarding is off by default, per host.
 - Keys: `ssh-keygen`-style generation UI (ed25519, RSA 4096), passphrase in
-  keyring, "copy public key to host" (`authorized_keys` append over SFTP).
+  the vault, "copy public key to host" (`authorized_keys` append over SFTP).
+  Key files may live inside `data/keys/` (referenced as `${DATA_DIR}/keys/…`)
+  so a portable folder carries its keys; the folder is created with
+  owner-only permissions where the filesystem supports it.
 - Protected environments: SFTP delete/overwrite confirmation names the host;
   shell is not filtered but the frame and banner stay red.
 
@@ -105,8 +109,8 @@ substitution; a sudo prompt detector offers to paste the stored password
 - Sync (P1): compare local folder and remote folder (size/mtime/hash), show
   differences, mirror in either direction with dry run (uses the same engine
   as S3 sync).
-- Fallbacks: SCP for hosts without SFTP subsystem (P1); FTP/FTPS browser
-  reusing Eden's `suppaftp` code as a separate `ftp://` scheme (P1).
+- Fallbacks: SCP for hosts without SFTP subsystem (P1); FTP/FTPS browser on
+  `suppaftp` as a separate `ftp://` scheme (P1).
 
 ## 8. Port forwarding (P1)
 

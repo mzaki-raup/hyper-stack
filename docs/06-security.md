@@ -18,7 +18,7 @@ production ones. Security is a product feature, not a checklist.
 | Malicious workspace folder (cloned repo with `.hyperstack/`) | Yes | Opening a workspace never runs anything; scripts (Rhai) run only when the user runs a request, in a sandbox with no filesystem/network access beyond the request itself; connections from a new workspace are shown in a review list before first use |
 | Malicious server responses (terminal escape sequences, huge payloads) | Yes | Terminal parser is alacritty's (battle-tested); response bodies capped (default 50 MB) and rendered as text, never executed; JSON/HTML preview is a sanitised renderer, not a browser |
 | Supply chain (crates) | Partly | `cargo deny` for licences and advisories in CI; `cargo vet` or audited lockfile review for anything touching crypto/network; release builds reproducible from tagged source |
-| Compromised machine | No | Out of scope: if the OS user is compromised, the keyring is too |
+| Compromised machine | No | Out of scope: a keylogger captures the master password; an unlocked vault is readable from process memory |
 
 ## 2. Secret storage
 

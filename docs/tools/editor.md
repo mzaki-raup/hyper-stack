@@ -125,8 +125,9 @@ open at line, replace across files with preview (P1).
   in the background, cached).
 - **Status bar**: Ln/Col, selection count, indentation, encoding (clickable to
   convert), EOL, language (clickable to override), URI.
-- **Markdown preview** (Ctrl+Shift+V): Eden Explorer's renderer with Mermaid,
-  side-by-side with scroll sync (P1).
+- **Markdown preview** (Ctrl+Shift+V): `pulldown-cmark` rendered to egui
+  with a native Mermaid subset (flowchart, sequence), side-by-side with
+  scroll sync (P1).
 - **External formatter** (P1): run a configured command (`prettier`,
   `rustfmt`, `sqlfluff`, `black`) on save or on demand; show its errors in
   Problems.

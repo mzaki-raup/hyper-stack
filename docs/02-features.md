@@ -186,7 +186,7 @@ suggestion.
 | Log graph with search, blame, file history | P1 | M |
 | Rebase (interactive list), cherry-pick, revert, tags | P1 | M |
 | Submodules, worktrees, LFS awareness | P2 | M |
-| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in keyring) | P2 | L |
+| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in the vault) | P2 | L |
 
 ## 8. Terminal (suggested) — [spec](tools/terminal.md)
 

@@ -221,8 +221,10 @@ shortcuts page.
 General (startup workspace, restore tabs, language, update check) · Appearance
 (theme, fonts, tab min width, tab gap, density) · Shortcuts · Environments ·
 Connections · Editor · Terminal · Database · API client · SSH/SFTP · S3 · Git ·
-Security (keyring backend, lock after idle, clipboard clearing) · Data (export
-/ import / reset per section, data folder locations) · About.
+Security (secret store: vault or OS keyring, master password, remember on this
+PC, lock after idle, clipboard clearing, encrypt history) · Data (export /
+import / reset per section, data folder location and "open data folder") ·
+About.
 
 ## 10. Accessibility and ergonomics
 

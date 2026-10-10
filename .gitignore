@@ -1,0 +1,12 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# HyperStack portable data folder (never commit runtime data or the vault)
+/data/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

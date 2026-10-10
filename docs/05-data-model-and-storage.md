@@ -2,35 +2,76 @@
 
 **Status:** draft · **Last updated:** 2026-10-10
 
-## 1. Two kinds of state
+## 1. Portable first: one data folder beside the executable
+
+HyperStack is portable by default (ADR-017). Everything the app writes lives
+in **one directory**, resolved once at startup:
+
+1. `--data-dir <path>` command-line flag, or
+2. `HYPERSTACK_DATA` environment variable, or
+3. **`data/` next to the executable** when that location is writable
+   (the normal case: a tools folder, a USB stick, an extracted zip), or
+4. a per-user fallback only when the executable's folder is read-only
+   (`%LOCALAPPDATA%\HyperStack`, `$XDG_DATA_HOME/hyperstack`,
+   `~/Library/Application Support/HyperStack`), with a one-time notice.
+
+No registry keys, no `%APPDATA%`, no `%TEMP%` (temporary files go to
+`data/tmp/`), no files in the user's home. Deleting `data/` is the factory
+reset; copying the folder is the backup.
+
+### Three kinds of state
 
 | Kind | Where | Format | Shareable? |
 |---|---|---|---|
-| **Personal / machine state** — settings, themes, shortcuts, history, caches, known hosts, window geometry | app data folder | TOML + SQLite | No |
-| **Workspace state** — connections, environments, API collections, saved queries, snippets, tab groups, layout | workspace folder (user-chosen, e.g. `.hyperstack/` in a repo) | TOML / JSON files, one object per file | Yes (commit it) |
-| **Secrets** — passwords, tokens, keys, passphrases | OS keyring (fallback: encrypted file) | — | Never |
+| **Personal / machine state** — settings, themes, shortcuts, history, caches, known hosts, window geometry, logs | `data/` root | TOML + SQLite | No (but travels with the folder) |
+| **Workspace state** — connections, environments, API collections, saved queries, snippets, tab groups, layout | `data/workspaces/<name>/` by default, or any folder the user chooses (e.g. `.hyperstack/` in a repo) | TOML / JSON files, one object per file | Yes (commit it) |
+| **Secrets** — passwords, tokens, keys, passphrases | `data/vault.hsv` encrypted with a master password (OS keyring opt-in) | binary, authenticated encryption | Never in plaintext |
 
-### App data folder
+### The data folder
 
 ```
-%APPDATA%\HyperStack\            ($XDG_CONFIG_HOME/hyperstack, ~/Library/Application Support/HyperStack)
-├── settings.toml
-├── shortcuts.toml
-├── themes/custom-*.toml
-├── known_hosts                  # OpenSSH format
-├── workspaces.toml              # list of known workspace folders, last opened
-├── history.sqlite               # queries, requests, commands, recent files, job log
-├── cache/                       # icons, schema caches, S3 listings, OpenAPI specs
-└── logs/hyperstack.YYYY-MM-DD.log
+HyperStack\
+├── HyperStack.exe
+└── data\
+    ├── settings.toml            # includes which workspace to open and the secret-store choice
+    ├── shortcuts.toml
+    ├── themes\custom-*.toml
+    ├── vault.hsv                # encrypted secrets (+ vault.hsv.bak)
+    ├── vault.dpapi              # optional: master password wrapped by Windows DPAPI for this user+machine
+    ├── known_hosts              # OpenSSH format
+    ├── workspaces.toml          # registry of known workspace folders (relative paths when inside data\)
+    ├── workspaces\
+    │   └── default\             # built-in workspace, created on first run (layout below)
+    ├── history.sqlite           # queries, requests, commands, recent files, job log (optionally encrypted)
+    ├── cache\                   # icons, schema caches, S3 listings, OpenAPI specs, response bodies
+    ├── tmp\                     # scratch files; cleared on start
+    ├── logs\hyperstack.YYYY-MM-DD.log
+    ├── update\                  # staged executable during an update
+    └── instance.lock            # single-instance lock (PID), never a registry key or named mutex
 ```
 
-Portable mode: if `portable.flag` exists beside the executable, the app data
-folder is `./data/` next to the exe and secrets use the encrypted-file store.
+Rules that keep the folder movable:
+
+- Paths inside `data/` are stored **relative** to it. External paths are
+  stored as given, and may use the tokens `${DATA_DIR}` and `${EXE_DIR}` so a
+  key file on the same USB stick keeps working on another machine.
+- The SQLite databases use WAL mode with `synchronous=NORMAL` and are
+  checkpointed on exit, so removable media stays consistent.
+- The app detects well-known cloud-sync folder paths (OneDrive, Dropbox,
+  Google Drive) and warns once about possible conflicts.
+- Several isolated copies can coexist on one machine (different folders or
+  `--data-dir`), each with its own lock file.
+- Linux and macOS behave the same way when the binary's folder is writable
+  (tarball, AppImage next to a `data/` folder); app bundles and `/usr/bin`
+  installs hit the per-user fallback.
 
 ### Workspace folder
 
+Default location `data/workspaces/<name>/`; the same layout is used when the
+user points a workspace at a repo's `.hyperstack/` folder:
+
 ```
-.hyperstack/
+<workspace>/
 ├── workspace.toml               # id, name, created, default environment, protected envs
 ├── environments/
 │   ├── dev.toml
@@ -238,7 +279,7 @@ startup when more than 20 % free.
 | OpenAPI 3.x (JSON/YAML), Swagger 2 | servers → api connection, operations → requests with example bodies, schemas kept for completion | re-sync keeps user edits via `seq` and id mapping |
 | curl command | single request | from clipboard |
 | `~/.ssh/config` | hosts, users, ports, identity files, ProxyJump | watch and offer re-import |
-| `~/.aws/credentials` + `config` | S3 profiles | secrets go straight to keyring |
+| `~/.aws/credentials` + `config` | S3 profiles | secrets go straight to the vault |
 | DBeaver `data-sources.json`, `.pgpass`, `.my.cnf`, DataGrip (partial) | DB connections | passwords are not importable from DBeaver's encrypted store; prompt |
 | Docker contexts, kubeconfig | docker / k8s connections | |
 | `.env` files | environment variables | option to mark keys matching `/(pass|secret|token|key)/i` as secrets |
@@ -251,3 +292,6 @@ OpenAPI from a collection (P1), CSV/JSON/SQL from results.
 Every TOML file carries `schema = N` at top level. `hs-core::storage` runs
 forward migrations on load and writes the new version; a backup copy
 `<file>.bak-<schema>` is kept once. SQLite uses numbered migration scripts.
+Because a portable folder may be opened by an older executable (two sticks,
+two versions), files written by a newer schema are opened read-only with a
+clear message instead of being downgraded silently.

@@ -23,8 +23,10 @@ WezTerm on features; the point is proximity to the other tools.
 
 ## 3. `hs-term`
 
-Ported from Eden Explorer (`terminal.rs`, `terminal_shells.rs`,
-`ssh_shell.rs`, `terminal_panel.rs`):
+Written for HyperStack; Eden Explorer's `terminal.rs`, `terminal_shells.rs`
+and `terminal_panel.rs` are worth reading beforehand for the egui-specific
+pitfalls (key encoding, repaint wake-ups, PowerShell profile loading, Nerd
+Font fallback) but no code is taken from them.
 
 - **Grid**: `alacritty_terminal` `Term` with a `Listener` → UI wake-up; cell
   rendering with cached glyphs, true colour, bold/italic/underline/strike/
@@ -38,13 +40,13 @@ Ported from Eden Explorer (`terminal.rs`, `terminal_shells.rs`,
   `DockerExec` (`bollard` exec with TTY), `KubectlExec` (via `kube` attach),
   `Process` (no PTY, for task output). All implement `read → bytes`,
   `write(bytes)`, `resize(cols, rows)`, `kill`.
-- **Input**: key → bytes encoding (port), including application cursor mode,
+- **Input**: key → bytes encoding table (xterm sequences), including application cursor mode,
   modifiers, kitty keyboard protocol (P2); IME composition.
 - **Selection**: character/word/line/block, copy (plain or with ANSI), copy on
   select option, right-click paste or context menu, URL/path detection with
   regexes for `file:line:col`, Windows paths, URLs, git SHAs (→ Git tool).
 - **Search**: Ctrl+Shift+F in scrollback with highlights, regex, case.
-- **Shell profiles** (port): detection of PowerShell 7/5, cmd (with Clink if
+- **Shell profiles**: detection of PowerShell 7/5, cmd (with Clink if
   present), Git Bash, WSL distributions, MSYS2; on Unix `$SHELL`, bash, zsh,
   fish, nushell; profile fields: executable, args, env, cwd policy (project /
   last / fixed), icon, colour scheme, font override, startup command; loads

@@ -75,7 +75,7 @@ otherwise re-run with OFFSET).
 
 | Engine | Crate | Notes |
 |---|---|---|
-| SQLite | `rusqlite` (bundled) | port Eden's `sqlite.rs`; `spawn_blocking`; WAL/immutable handling for files in use |
+| SQLite | `rusqlite` (bundled) | `spawn_blocking`; WAL/immutable-URI handling for files in use by another process (Eden Explorer's `sqlite.rs` documents the edge cases worth reading) |
 | PostgreSQL (+ CockroachDB, Redshift basic) | `tokio-postgres` + `rustls` | portals for paging, `LISTEN/NOTIFY` viewer (P2), `COPY` for export/import |
 | MySQL / MariaDB | `mysql_async` | `KILL QUERY <id>` for cancel |
 | SQL Server | `tiberius` | Windows auth via SSPI on Windows |

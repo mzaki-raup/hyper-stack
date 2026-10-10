@@ -52,7 +52,7 @@ chosen). Main area sub-tabs: Diff, Log, Branches, Stashes, Conflicts.
 | Operation | Implementation |
 |---|---|
 | Discover repo, read config, refs, HEAD, remotes | `gix` |
-| Status (index vs worktree, untracked, ignored), with `.gitignore` semantics | `gix` (port of Eden's `git.rs`), incremental on file watcher events, debounced |
+| Status (index vs worktree, untracked, ignored), with `.gitignore` semantics | `gix` status API, incremental on file watcher events, debounced |
 | Diff (worktree ↔ index, index ↔ HEAD, commit ↔ commit, file at revision) | `gix` object access + `similar` for text diff and word-level highlighting; binary detection; rename detection via `git diff -M` output when needed |
 | Log, graph, blame, file history | `gix` revwalk; graph layout computed client-side; blame via `gix::blame` with `git blame --porcelain` fallback |
 | Stage/unstage file | `gix` index write |
@@ -127,15 +127,16 @@ commit warns.
 ## 11. Integration
 
 - Editor: gutter signs, blame, "Open changes", "Stage file", status in the
-  project tree (colours/letters like Eden Explorer's tags), diff from the
+  project tree (status letter and colour per entry), diff from the
   tree's context menu.
 - Terminal: "Open terminal here" on the repo; the Git tab refreshes on
   terminal activity in the repo (watcher on `.git/index`, `.git/HEAD`, refs).
 - Jobs: every network operation; output shown in the Output dock.
-- Forge integration (P2): GitHub/GitLab/Forgejo tokens in keyring; PR list,
+- Forge integration (P2): GitHub/GitLab/Forgejo tokens in the vault; PR list,
   create PR from branch, CI status badge on the branch, open issue numbers
-  from commit messages. Eden Explorer uses Forgejo CI, so Forgejo is a
-  first-class target.
+  from commit messages. Forgejo/Gitea is a first-class target alongside
+  GitHub and GitLab, since self-hosted forges are common in the target
+  audience.
 
 ## 12. Keyboard (Git scope)
 

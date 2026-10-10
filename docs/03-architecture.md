@@ -53,7 +53,7 @@ hyper-stack/
 │   │   ├── workspace/              # Workspace, TabModel, layout tree, persistence
 │   │   ├── connections/            # ConnectionProfile, kinds, folders, import
 │   │   ├── environments/           # Environment, variables, substitution engine
-│   │   ├── secrets/                # SecretStore trait + keyring + encrypted-file impls
+│   │   ├── secrets/                # SecretStore trait + encrypted vault (default) + OS keyring (opt-in) impls
 │   │   ├── jobs/                   # JobHandle, progress, cancel, Jobs registry
 │   │   ├── events/                 # EventBus (broadcast) + typed events
 │   │   ├── settings/               # Settings, schema, migration
@@ -195,7 +195,7 @@ colour, group }`.
 |---|---|---|
 | `Connections` | CRUD for `ConnectionProfile` of every kind, folders, tags, colour, import | TOML files in workspace |
 | `Environments` | Named variable sets, active environment, `{{var}}` substitution with scopes (global → workspace → environment → collection → request) | TOML files |
-| `Secrets` | `get/set/delete(SecretRef)`; never returns to UI unless user clicks "reveal" | OS keyring; encrypted file fallback |
+| `Secrets` | `get/set/delete(SecretRef)`; never returns to UI unless user clicks "reveal" | encrypted vault in `data/` (default); OS keyring opt-in |
 | `Jobs` | spawn, list, cancel, progress events | in-memory + tokio |
 | `Events` | typed broadcast: `ConnectionChanged`, `EnvironmentSwitched`, `FileSaved{uri}`, `JobFinished`, `GitStatusChanged{repo}`, `ThemeChanged` | `tokio::sync::broadcast` + UI drain |
 | `Storage` | app data paths, workspace folder, atomic file writes, SQLite history db | `rusqlite` bundled |

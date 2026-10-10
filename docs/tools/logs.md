@@ -155,7 +155,7 @@ collection's requests, send a record to the devtools JSON viewer.
 
 ## 12. Connections and persistence
 
-Log sources are saved in the workspace as `logs/<name>.toml` referencing an
+Log sources are saved in the workspace folder as `logs/<name>.toml` referencing an
 `ssh`/`docker`/`k8s` connection id plus path/container/unit and parser
 overrides; environment binding gives them colours and protection (no writes
 exist here, so protection only affects nothing destructive except

@@ -12,7 +12,7 @@ read response → tweak → save → commit.
 ## 2. User stories
 
 - Import the team's Postman collection and environment; secrets land in the
-  keyring; the collection folder is committed to the repo.
+  vault; the collection folder is committed to the repo.
 - Send `POST {{api_base}}/v1/orders` against staging, see 201 in 120 ms, copy
   the `id` from the response into a saved variable, run `GET /orders/{{id}}`.
 - Switch environment to `prod` (protected): a confirmation names the URL before
@@ -74,7 +74,7 @@ Response capture: status, version, headers, cookies set, body (streamed to a
 temp file over 5 MB), timing breakdown (DNS, connect, TLS, TTFB, download),
 size (compressed/uncompressed), remote IP, TLS details (cipher, cert chain
 viewer). Large and binary bodies: hex view, save to file, image preview for
-image types, PDF via text extraction (port).
+image types, PDF via text extraction (`pdf-extract`).
 
 Body views: pretty (JSON/XML/HTML/YAML with folding, search, JSONPath filter
 box), raw, preview (sanitised HTML text rendering, no scripts), as table (when
@@ -87,7 +87,7 @@ Shared engine from `hs-core::environments`. Scope chain: request literal →
 folder → collection → environment → parent env → workspace globals → built-ins.
 Hover any `{{var}}` to see its resolved value (masked if secret) and scope.
 "Set variable from response": right-click a JSON value → store as collection
-or environment variable (writes to the file; secrets to keyring). Unresolved
+or environment variable (writes to the file; secrets to the vault). Unresolved
 variables block Send with an inline fix.
 
 ## 7. Collections

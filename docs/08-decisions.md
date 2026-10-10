@@ -237,7 +237,7 @@ new S3 features ourselves as needed.
 
 ---
 
-## ADR-012 · Storage: files for shareable state, SQLite for history, keyring for secrets
+## ADR-012 · Storage: files for shareable state, SQLite for history, encrypted vault for secrets
 
 **Decision.** As described in [05](05-data-model-and-storage.md). TOML for
 hand-editable objects, JSON for the layout blob, `.sql` with a header for
@@ -259,30 +259,92 @@ enforce it).
 
 ---
 
-## ADR-014 · Code sharing with Eden Explorer: copy first, extract later
+## ADR-014 · Eden Explorer is a reference, never a code source
 
-**Decision.** Phase 0/1 copy modules into HyperStack crates with a header
-comment pointing at the Eden source and commit. Once both apps are stable, the
-truly shared pieces (`hs-term`, terminal shells, remote credentials, S3 client,
-SFTP, fuzzy ranking, theme) can move to a shared `eden-*` crate set consumed by
-both via a git dependency.
+**Context.** The sibling project solved several of the same problems in the
+same toolkit. Copying would be faster in the short term.
 
-**Consequences.** Fastest route to a working app; a known debt item recorded
-here so it is not forgotten.
+**Options.** Copy modules · extract shared crates both apps depend on · read
+for reference and write fresh.
+
+**Decision.** Read for reference, write fresh. No file, function or snippet is
+copied from Eden Explorer into this repository, and HyperStack never depends
+on an Eden crate. Contributors may read Eden's source to learn behaviour,
+pitfalls and crate choices, and the architecture doc keeps a table of which
+Eden files are worth reading for which problem.
+
+**Consequences.** Phase 0 and Phase 1 take longer than a port would. In
+exchange: every module is designed for HyperStack's own `Tool`/`Services`
+model, portable data folder and cross-platform core from the first line; no
+Windows-only assumptions or file-manager-shaped abstractions leak in; the two
+projects can evolve and be licensed independently; there is no shared-crate
+coordination cost. The architecture doc's reference table replaces the
+"shared crates later" plan entirely.
+
+---
+
+## ADR-017 · Portable by default: data lives beside the executable
+
+**Context.** The app must run from a USB stick or a tools folder on Windows
+with its settings next to the executable, with no installer and nothing left
+behind on the machine.
+
+**Options.** Per-user data folder (`%APPDATA%`) with an optional portable flag
+· portable by default with a fallback · portable only.
+
+**Decision.** Portable by default on every platform, with a safe fallback:
+
+1. At startup `hs-core::storage::paths` resolves the data directory in this
+   order: `--data-dir <path>` flag → `HYPERSTACK_DATA` environment variable →
+   `data/` beside the executable **if the executable's folder is writable**
+   (probe by creating and deleting a temp file) → per-user fallback
+   (`%LOCALAPPDATA%\HyperStack`, `$XDG_DATA_HOME/hyperstack`,
+   `~/Library/Application Support/HyperStack`) with a one-time notice in the
+   UI saying where data went and why.
+2. Everything the app writes goes under that single directory: settings,
+   shortcuts, themes, vault, history, cache, logs, known hosts, the built-in
+   `default` workspace, update staging. Nothing is written to the registry,
+   `%APPDATA%`, `%TEMP%` (temp files go to `data/tmp/`), or the user's home,
+   except files the user explicitly exports.
+3. All paths stored in settings are **relative to the data directory** when
+   they point inside it, so the folder can be moved or renamed. External
+   paths (a project folder, a key file) are stored as given; a "portable
+   path" helper also accepts `${EXE_DIR}` and `${DATA_DIR}` tokens so users
+   can keep SSH keys on the same stick.
+4. Secrets use the encrypted vault file (ADR in [06-security.md](06-security.md))
+   so they travel with the folder; OS keyrings are opt-in.
+5. The updater replaces only the executable. Deleting `data/` is the
+   documented factory reset. A `HyperStack.exe --data-dir X` shortcut supports
+   several isolated profiles side by side.
+6. SQLite databases run in WAL mode with `synchronous=NORMAL` and checkpoint on
+   exit so removable media stays consistent; the app detects well-known
+   cloud-sync folders (OneDrive, Dropbox, Google Drive paths) and warns once
+   about possible sync conflicts.
+7. Single-instance lock is a file in `data/` (`instance.lock`) with the PID,
+   never a named mutex or registry key, so a second copy on another drive
+   works independently.
+
+**Consequences.** Zero-footprint on the host machine, trivial backup and
+migration, several isolated installs possible. Users in `Program Files`-style
+read-only locations get the per-user fallback automatically. The vault's
+master-password prompt is the price of portability; the Windows DPAPI
+"remember on this PC" option softens it without weakening the travelling copy.
 
 ---
 
 ## ADR-015 · Terminal emulation: `alacritty_terminal` grid + `portable-pty`
 
-**Decision.** Keep Eden Explorer's `alacritty_terminal`-based grid, listener
-and key encoding; replace process spawning with `portable-pty` for
-cross-platform PTYs; SSH shells feed the same grid through a `Transport` enum
-(`Pty`, `Ssh`, `DockerExec`, `KubectlExec`).
+**Decision.** Build `hs-term` on `alacritty_terminal`'s `Term` for parsing
+and the grid (the same choice Eden Explorer validated), with our own listener,
+rendering and key-encoding code; `portable-pty` for cross-platform PTYs; SSH
+shells feed the same grid through a `Transport` enum (`Pty`, `Ssh`,
+`DockerExec`, `KubectlExec`).
 
 ---
 
 ## ADR-016 · Icons and fonts
 
-**Decision.** Phosphor icons via `egui-phosphor` (as Eden), a bundled Nerd
-Font variant for terminal glyphs, system font enumeration for UI/editor font
-pickers via `fontdb`.
+**Decision.** Phosphor icons via `egui-phosphor`, a bundled Nerd Font variant
+for terminal glyphs, system font enumeration for UI/editor font pickers via
+`fontdb`. Fonts are embedded in the executable (`rust-embed`/`include_bytes!`)
+so the portable exe has no loose asset files.

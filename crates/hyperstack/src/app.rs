@@ -1605,7 +1605,7 @@ impl eframe::App for HyperStackApp {
             let _ = &r;
             let width =
                 egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-sidebar"))
-                    .map(|st| st.rect.width().round())
+                    .map(|st| st.outer_rect.width().round())
                     .unwrap_or(w);
             if (width - w).abs() >= 1.0 && width >= 180.0 {
                 self.services.settings.write().appearance.sidebar_width = width;
@@ -1630,7 +1630,7 @@ impl eframe::App for HyperStackApp {
             let _ = &r;
             let height =
                 egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-dock"))
-                    .map(|st| st.rect.height().round())
+                    .map(|st| st.outer_rect.height().round())
                     .unwrap_or(h);
             if (height - h).abs() >= 1.0 && height >= 100.0 {
                 self.services.settings.write().appearance.dock_height = height;

@@ -41,7 +41,15 @@ impl KvEditor<'_> {
                     if ui.checkbox(&mut row.enabled, "").changed() {
                         resp.changed = true;
                     }
-                    if crate::form::text_field_width(ui, &mut row.key, self.key_hint, key_w)
+                    // Fixed sizes: inside a grid the leftover width is tiny on
+                    // the first frame and the fields would collapse.
+                    if ui
+                        .add_sized(
+                            [key_w, 32.0],
+                            egui::TextEdit::singleline(&mut row.key)
+                                .hint_text(self.key_hint)
+                                .margin(crate::form::FIELD_MARGIN),
+                        )
                         .changed()
                     {
                         resp.changed = true;
@@ -49,9 +57,8 @@ impl KvEditor<'_> {
                     let edit = egui::TextEdit::singleline(&mut row.value)
                         .hint_text(self.value_hint)
                         .margin(crate::form::FIELD_MARGIN)
-                        .desired_width(value_w)
                         .password(row.secret);
-                    if ui.add(edit).changed() {
+                    if ui.add_sized([value_w, 32.0], edit).changed() {
                         resp.changed = true;
                     }
                     if self.allow_secret {

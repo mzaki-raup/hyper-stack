@@ -196,6 +196,13 @@ pub trait Tool: Send {
         false
     }
 
+    /// The file/connection this tab shows, so the shell can focus an existing
+    /// tab instead of opening the same thing twice (`file://` path, `sftp://`
+    /// URI, connection id, …).
+    fn current_uri(&self) -> Option<String> {
+        None
+    }
+
     /// Items for the quick-open palette (project files, saved queries, …).
     fn quick_open_items(&self) -> Vec<QuickOpenItem> {
         Vec::new()

@@ -43,6 +43,8 @@ pub struct HyperStackApp {
     factories: Vec<Box<dyn ToolFactory>>,
     theme: Theme,
     tabs: TabSpace,
+    /// The component whose tabs the strip shows (a factory id); the rail switches it.
+    group: Option<String>,
     launcher: LauncherState,
     palette: PaletteState,
     toasts: Toasts,
@@ -74,6 +76,7 @@ impl HyperStackApp {
     ) -> Self {
         hs_ui::fonts::prefetch_system_fonts();
         hs_ui::icons::install_fonts(&cc.egui_ctx);
+        hs_ui::icons::install_image_loaders(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
         let boot = match bootstrap::services(paths, waker, KdfParams::DEFAULT) {
             Ok(b) => b,
@@ -105,6 +108,7 @@ impl HyperStackApp {
             factories,
             theme,
             tabs: TabSpace::new(),
+            group: None,
             launcher: LauncherState::default(),
             palette: PaletteState::default(),
             toasts: Toasts::default(),
@@ -274,6 +278,66 @@ impl HyperStackApp {
             self.tabs
                 .open(self.factories[i].as_ref(), &self.services, None);
         }
+        self.group = self.active_factory();
+    }
+
+    /// Factory id of the active tab.
+    fn active_factory(&self) -> Option<String> {
+        self.tabs
+            .active
+            .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+            .map(|t| t.factory_id.clone())
+    }
+
+    /// Ids of the tabs in the current group, in strip order.
+    fn group_tab_ids(&self) -> Vec<u64> {
+        self.tabs
+            .tabs
+            .iter()
+            .filter(|t| self.group.as_deref().is_none_or(|g| t.factory_id == g))
+            .map(|t| t.id)
+            .collect()
+    }
+
+    /// Show one component's tabs: keep the active tab if it belongs there,
+    /// else activate the group's most recent tab, else open a fresh one.
+    fn select_group(&mut self, factory_id: &str) {
+        self.group = Some(factory_id.to_string());
+        if self.active_factory().as_deref() == Some(factory_id) {
+            return;
+        }
+        match self.group_tab_ids().last().copied() {
+            Some(id) => self.tabs.activate(id),
+            None => self.open_tool(factory_id, None),
+        }
+    }
+
+    /// After a close or a restore the active tab may sit outside the group.
+    fn ensure_active_in_group(&mut self) {
+        let Some(g) = self.group.clone() else { return };
+        if self.active_factory().as_deref() == Some(g.as_str()) {
+            return;
+        }
+        match self.group_tab_ids().last().copied() {
+            Some(id) => self.tabs.activate(id),
+            None => self.tabs.active = None,
+        }
+    }
+
+    /// Ctrl+PageUp/PageDown cycle within the group.
+    fn cycle_tab(&mut self, step: i32) {
+        let ids = self.group_tab_ids();
+        if ids.is_empty() {
+            return;
+        }
+        let cur = self
+            .tabs
+            .active
+            .and_then(|a| ids.iter().position(|i| *i == a))
+            .unwrap_or(0) as i32;
+        let n = ids.len() as i32;
+        let idx = ((cur + step) % n + n) % n;
+        self.tabs.activate(ids[idx as usize]);
     }
 
     fn save_layout(&mut self) {
@@ -317,6 +381,7 @@ impl HyperStackApp {
         let id = self
             .tabs
             .open(self.factories[i].as_ref(), &self.services, None);
+        self.group = Some(factory_id.to_string());
         if let Some(req) = request {
             let mut actions = Vec::new();
             let env = self.services.environments.read().active.clone();
@@ -350,6 +415,7 @@ impl HyperStackApp {
             return;
         }
         self.tabs.close(id);
+        self.ensure_active_in_group();
     }
 
     fn reopen_closed(&mut self, index: Option<usize>) {
@@ -382,8 +448,8 @@ impl HyperStackApp {
                 }
             }
             "tab.reopen" => self.reopen_closed(None),
-            "tab.next" => self.tabs.next(1),
-            "tab.prev" => self.tabs.next(-1),
+            "tab.next" => self.cycle_tab(1),
+            "tab.prev" => self.cycle_tab(-1),
             "tab.split_right" | "tab.split_down" => {
                 if let Some(a) = self.tabs.active {
                     let horizontal = action == "tab.split_right";
@@ -996,7 +1062,18 @@ impl HyperStackApp {
                     .map(|e| theme.env_colour(&e.name, e.colour.as_deref()))
             })
         };
-        let views = self.tabs.views(&env_colour);
+        let all = self.tabs.views(&env_colour);
+        // Index map from the strip's slice back into the full tab list, so
+        // reorder and close-left/right keep working on the filtered strip.
+        let group = self.group.clone();
+        let index_map: Vec<usize> = all
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| group.as_deref().is_none_or(|g| v.factory_id == g))
+            .map(|(i, _)| i)
+            .collect();
+        let views: Vec<_> = index_map.iter().map(|&i| all[i].clone()).collect();
+        let group_ids: Vec<u64> = views.iter().map(|v| v.id).collect();
         let visible = self.tabs.visible();
         let strip = TabStrip {
             theme: &self.theme,
@@ -1013,28 +1090,39 @@ impl HyperStackApp {
         if let Some(id) = r.close {
             self.close_tab(id, false);
         }
-        if let Some((from, to)) = r.reorder {
+        if let Some((from, to)) = r.reorder
+            && let (Some(&from), Some(&to)) = (index_map.get(from), index_map.get(to))
+        {
             self.tabs.reorder(from, to);
         }
         if r.new_tab {
-            self.open_launcher_tab();
+            match self.group.clone() {
+                Some(g) => self.open_tool(&g, None),
+                None => self.open_launcher_tab(),
+            }
         }
         if let Some((id, action)) = r.menu {
             match action {
                 TabMenuAction::Close => self.close_tab(id, false),
                 TabMenuAction::CloseOthers => {
                     for other in self.tabs.close_others(id) {
-                        self.close_tab(other, false);
+                        if group_ids.contains(&other) {
+                            self.close_tab(other, false);
+                        }
                     }
                 }
                 TabMenuAction::CloseLeft => {
                     for other in self.tabs.close_side(id, true) {
-                        self.close_tab(other, false);
+                        if group_ids.contains(&other) {
+                            self.close_tab(other, false);
+                        }
                     }
                 }
                 TabMenuAction::CloseRight => {
                     for other in self.tabs.close_side(id, false) {
-                        self.close_tab(other, false);
+                        if group_ids.contains(&other) {
+                            self.close_tab(other, false);
+                        }
                     }
                 }
                 TabMenuAction::Pin => self.tabs.set_pinned(id, true),
@@ -1119,7 +1207,7 @@ impl HyperStackApp {
             ui.add_space(6.0);
             if ui
                 .add(
-                    egui::Button::new(egui::RichText::new(hs_ui::icons::SIDEBAR).size(18.0))
+                    egui::Button::new(egui::RichText::new(hs_ui::icons::SIDEBAR).size(22.0))
                         .frame(false),
                 )
                 .on_hover_text(s.t("sidebar-toggle"))
@@ -1140,11 +1228,13 @@ impl HyperStackApp {
                 })
                 .collect();
             for (id, icon, title) in descs {
-                let active = self
-                    .tabs
-                    .active
-                    .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
-                    .is_some_and(|t| t.factory_id == id);
+                let active = self.group.as_deref() == Some(id);
+                let count = self.tabs.tabs.iter().filter(|t| t.factory_id == id).count();
+                let title = if count > 0 {
+                    format!("{title} ({count})")
+                } else {
+                    title
+                };
                 let col = if active {
                     self.theme.accent
                 } else {
@@ -1152,13 +1242,13 @@ impl HyperStackApp {
                 };
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new(icon).size(20.0).color(col))
+                        egui::Button::new(egui::RichText::new(icon).size(26.0).color(col))
                             .frame(false),
                     )
                     .on_hover_text(title)
                     .clicked()
                 {
-                    self.open_tool(id, None);
+                    self.select_group(id);
                 }
                 ui.add_space(4.0);
             }
@@ -1166,7 +1256,7 @@ impl HyperStackApp {
                 ui.add_space(6.0);
                 if ui
                     .add(
-                        egui::Button::new(egui::RichText::new(hs_ui::icons::DOCK).size(18.0))
+                        egui::Button::new(egui::RichText::new(hs_ui::icons::DOCK).size(22.0))
                             .frame(false),
                     )
                     .on_hover_text(s.t("dock-toggle"))
@@ -1449,7 +1539,7 @@ impl eframe::App for HyperStackApp {
                 self.toolbar(ui);
             });
         egui::Panel::left("hs-rail")
-            .exact_size(44.0)
+            .exact_size(56.0)
             .resizable(false)
             .show(root, |ui| self.rail(ui));
         if self.sidebar_open {

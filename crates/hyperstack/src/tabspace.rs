@@ -35,8 +35,10 @@ pub struct TabSpace {
 }
 
 /// Read-only view for the strip.
+#[derive(Clone)]
 pub struct TabView {
     pub id: u64,
+    pub factory_id: String,
     pub title: String,
     pub icon: &'static str,
     pub pinned: bool,
@@ -86,6 +88,7 @@ impl TabSpace {
             .iter()
             .map(|t| TabView {
                 id: t.id,
+                factory_id: t.factory_id.clone(),
                 title: t.tool.title().to_string(),
                 icon: t.tool.descriptor().icon,
                 pinned: t.pinned,
@@ -209,16 +212,6 @@ impl TabSpace {
             self.tabs.insert(to, t);
             self.dirty = true;
         }
-    }
-
-    pub fn next(&mut self, step: i32) {
-        if self.tabs.is_empty() {
-            return;
-        }
-        let cur = self.active.and_then(|a| self.index_of(a)).unwrap_or(0) as i32;
-        let n = self.tabs.len() as i32;
-        let idx = ((cur + step) % n + n) % n;
-        self.active = Some(self.tabs[idx as usize].id);
     }
 
     pub fn set_pinned(&mut self, id: u64, pinned: bool) {

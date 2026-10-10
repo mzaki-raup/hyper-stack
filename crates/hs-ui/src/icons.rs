@@ -9,6 +9,12 @@ pub fn install_fonts(ctx: &egui::Context) {
     crate::fonts::install(ctx, &crate::fonts::FontChoice::default());
 }
 
+/// Install egui's image loaders (PNG and SVG) so `egui::Image` and the tree's
+/// Material icons render. Call once at startup, next to `install_fonts`.
+pub fn install_image_loaders(ctx: &egui::Context) {
+    egui_extras::install_image_loaders(ctx);
+}
+
 pub const TAB_CLOSE: &str = ph::X;
 pub const TAB_NEW: &str = ph::PLUS;
 pub const PIN: &str = ph::PUSH_PIN;

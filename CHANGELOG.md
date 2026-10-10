@@ -30,6 +30,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Settings > Updates with check, verified download, install and revert (15a38e06)
 
 - Settings open as a regular tab (categories in the sidebar) instead of a floating window.
+- Hidden `--install-update` and `--revert-update` flags run the updater's install and revert headlessly (scripted end-to-end tests).
+- Larger activity rail (56 px) and icons.
+- The editor's project tree uses VS Code Material Icon Theme icons for folders and files (132 bundled SVGs, MIT).
+- The tab strip shows one component at a time: the activity rail switches between editor tabs, terminal tabs, settings and so on instead of mixing every tool's tabs in one strip.
 - Appearance → Interface Font Size now exists and applies; the terminal and editor font sizes say what they affect.
 - Font families: JetBrainsMono, Fira Code and BitstromWera Nerd Font Mono are bundled (JetBrainsMono is the default for the terminal and the editor) and any font installed on the machine can be picked for the interface, the terminal or the editor.
 

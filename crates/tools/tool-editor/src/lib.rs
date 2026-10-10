@@ -18,6 +18,7 @@ use hs_core::tool::{
 use hs_editor::buffer::{Edit, EditKind, Encoding, Eol};
 use hs_editor::view::{EditorTheme, EditorView};
 use hs_editor::{Buffer, Cursor, Cursors, languages};
+use hs_ui::fileicons;
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tree::{TreeNode, TreeState};
@@ -432,7 +433,8 @@ impl EditorTool {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| id.clone());
-        let mut node = TreeNode::branch(id.clone(), name, ph::FOLDER_OPEN, load_children(&root));
+        let icon = fileicons::for_folder(&name);
+        let mut node = TreeNode::branch(id.clone(), name, icon, load_children(&root));
         node.leaf = false;
         self.nodes = vec![node];
         self.tree.expanded.insert(id);
@@ -1476,19 +1478,6 @@ fn human_size(n: u64) -> String {
     }
 }
 
-fn file_icon(name: &str) -> &'static str {
-    let lower = name.to_ascii_lowercase();
-    let ext = lower.rsplit('.').next().unwrap_or("");
-    match ext {
-        "md" | "markdown" | "txt" | "log" | "csv" => ph::FILE_TEXT,
-        "json" | "yaml" | "yml" | "toml" | "ini" | "env" | "cfg" | "conf" | "lock" => ph::GEAR,
-        "png" | "jpg" | "jpeg" | "gif" | "svg" | "ico" | "webp" => ph::FILE_IMAGE,
-        "zip" | "gz" | "tar" | "7z" | "rar" => ph::FILE_ZIP,
-        "" => ph::FILE,
-        _ => ph::FILE_CODE,
-    }
-}
-
 fn load_children(dir: &Path) -> Vec<TreeNode> {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return Vec::new();
@@ -1503,12 +1492,12 @@ fn load_children(dir: &Path) -> Vec<TreeNode> {
             if name == ".git" {
                 continue;
             }
-            let mut n = TreeNode::leaf(id, name, ph::FOLDER);
+            let mut n = TreeNode::leaf(id, name.clone(), fileicons::for_folder(&name));
             n.leaf = false;
             n.children = None;
             dirs.push(n);
         } else {
-            files.push(TreeNode::leaf(id, name.clone(), file_icon(&name)));
+            files.push(TreeNode::leaf(id, name.clone(), fileicons::for_file(&name)));
         }
     }
     dirs.sort_by_key(|n| n.label.to_lowercase());
@@ -1614,7 +1603,12 @@ mod tests {
         let labels: Vec<&str> = children.iter().map(|n| n.label.as_str()).collect();
         assert_eq!(labels, vec!["src", "a.rs", "b.txt"]);
         let root_id = tmp.to_string_lossy().to_string();
-        let mut nodes = vec![TreeNode::branch(root_id, "root", ph::FOLDER_OPEN, children)];
+        let mut nodes = vec![TreeNode::branch(
+            root_id,
+            "root",
+            fileicons::for_folder("root"),
+            children,
+        )];
         let src_id = tmp.join("src").to_string_lossy().to_string();
         assert!(!node_has_children(&nodes, &src_id));
         assert!(set_children(
@@ -1630,11 +1624,8 @@ mod tests {
     }
 
     #[test]
-    fn sizes_and_icons() {
+    fn sizes() {
         assert_eq!(human_size(512), "512 B");
         assert_eq!(human_size(3 * 1024 * 1024), "3.0 MB");
-        assert_eq!(file_icon("Cargo.toml"), ph::GEAR);
-        assert_eq!(file_icon("main.rs"), ph::FILE_CODE);
-        assert_eq!(file_icon("README.md"), ph::FILE_TEXT);
     }
 }

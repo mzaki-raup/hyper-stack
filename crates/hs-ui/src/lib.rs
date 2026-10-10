@@ -3,6 +3,7 @@
 pub mod badge;
 pub mod dialog;
 pub mod env_banner;
+pub mod fileicons;
 pub mod fonts;
 pub mod icons;
 pub mod kv_editor;

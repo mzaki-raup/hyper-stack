@@ -6,11 +6,46 @@ use egui::{Align2, CornerRadius, Sense, Vec2};
 
 use crate::theme::Theme;
 
+/// A node icon: a font glyph (Phosphor, Nerd Font) or an embedded image such
+/// as the Material file icons in [`crate::fileicons`].
+#[derive(Debug, Clone)]
+pub enum TreeIcon {
+    Glyph(String),
+    Image(egui::ImageSource<'static>),
+}
+
+impl PartialEq for TreeIcon {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TreeIcon::Glyph(a), TreeIcon::Glyph(b)) => a == b,
+            // Embedded images are identified by their URI (`bytes://…`).
+            (TreeIcon::Image(a), TreeIcon::Image(b)) => a.uri() == b.uri(),
+            _ => false,
+        }
+    }
+}
+
+impl From<&str> for TreeIcon {
+    fn from(s: &str) -> Self {
+        TreeIcon::Glyph(s.to_string())
+    }
+}
+impl From<String> for TreeIcon {
+    fn from(s: String) -> Self {
+        TreeIcon::Glyph(s)
+    }
+}
+impl From<egui::ImageSource<'static>> for TreeIcon {
+    fn from(s: egui::ImageSource<'static>) -> Self {
+        TreeIcon::Image(s)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TreeNode {
     pub id: String,
     pub label: String,
-    pub icon: String,
+    pub icon: TreeIcon,
     /// `None` = children not loaded yet (shows a caret; the shell loads on expand).
     pub children: Option<Vec<TreeNode>>,
     pub leaf: bool,
@@ -18,7 +53,11 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
-    pub fn leaf(id: impl Into<String>, label: impl Into<String>, icon: impl Into<String>) -> Self {
+    pub fn leaf(
+        id: impl Into<String>,
+        label: impl Into<String>,
+        icon: impl Into<TreeIcon>,
+    ) -> Self {
         Self {
             id: id.into(),
             label: label.into(),
@@ -31,7 +70,7 @@ impl TreeNode {
     pub fn branch(
         id: impl Into<String>,
         label: impl Into<String>,
-        icon: impl Into<String>,
+        icon: impl Into<TreeIcon>,
         children: Vec<TreeNode>,
     ) -> Self {
         Self {
@@ -113,13 +152,26 @@ fn show_node(
             theme.text_muted,
         );
     }
-    ui.painter().text(
-        egui::pos2(x0 + 14.0, rect.center().y),
-        Align2::LEFT_CENTER,
-        &node.icon,
-        font.clone(),
-        theme.text_muted,
-    );
+    match &node.icon {
+        TreeIcon::Glyph(g) => {
+            ui.painter().text(
+                egui::pos2(x0 + 14.0, rect.center().y),
+                Align2::LEFT_CENTER,
+                g,
+                font.clone(),
+                theme.text_muted,
+            );
+        }
+        TreeIcon::Image(src) => {
+            let icon_rect = egui::Rect::from_center_size(
+                egui::pos2(x0 + 14.0 + 8.0, rect.center().y),
+                Vec2::splat(16.0),
+            );
+            egui::Image::new(src.clone())
+                .fit_to_exact_size(Vec2::splat(16.0))
+                .paint_at(ui, icon_rect);
+        }
+    }
     ui.painter().text(
         egui::pos2(x0 + 34.0, rect.center().y),
         Align2::LEFT_CENTER,

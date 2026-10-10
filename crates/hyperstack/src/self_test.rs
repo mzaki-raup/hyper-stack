@@ -216,7 +216,7 @@ fn minisign_key_ok(k: &str) -> bool {
 }
 
 /// `--check-updates` / `--download-update`: drive the updater without a window.
-pub fn update_headless(paths: DataDir, download: bool) -> i32 {
+pub fn update_headless(paths: DataDir, download: bool, install: bool) -> i32 {
     use hs_core::update::Channel;
     use hs_core::updater::UpdateStatus;
     let boot = match crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST) {
@@ -278,7 +278,19 @@ pub fn update_headless(paths: DataDir, download: bool) -> i32 {
             match status {
                 UpdateStatus::Ready { version, path } => {
                     println!("ready   {version} at {}", path.display());
-                    0
+                    if !install {
+                        return 0;
+                    }
+                    match s.updater.install(&path, &version) {
+                        Ok(()) => {
+                            println!("installed {version}; the new executable is starting");
+                            0
+                        }
+                        Err(e) => {
+                            println!("FAILED  install: {e}");
+                            1
+                        }
+                    }
                 }
                 UpdateStatus::Error(e) => {
                     println!("FAILED  {e}");
@@ -292,6 +304,27 @@ pub fn update_headless(paths: DataDir, download: bool) -> i32 {
         }
         other => {
             println!("FAILED  unexpected state {other:?}");
+            1
+        }
+    }
+}
+
+/// `--revert-update`: swap the kept previous executable back (docs/09 §5.5).
+pub fn revert_headless(paths: DataDir) -> i32 {
+    let boot = match crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST) {
+        Ok(b) => b,
+        Err(e) => {
+            println!("FAILED  bootstrap: {e}");
+            return 1;
+        }
+    };
+    match boot.services.updater.revert() {
+        Ok(v) => {
+            println!("reverted to {v}; the previous executable is starting");
+            0
+        }
+        Err(e) => {
+            println!("FAILED  revert: {e}");
             1
         }
     }

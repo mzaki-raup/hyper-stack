@@ -1175,6 +1175,7 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     ui.add_space(8.0);
     ui.colored_label(theme.text_muted, s.t("settings-about-license"));
     ui.colored_label(theme.text_muted, s.t("settings-about-fonts"));
+    ui.colored_label(theme.text_muted, s.t("settings-about-icons"));
 }
 
 /// Font picker: bundled fonts first, then the fonts installed on this

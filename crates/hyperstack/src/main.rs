@@ -53,6 +53,15 @@ struct Cli {
     #[arg(long, hide = true)]
     download_update: bool,
 
+    /// Headless: like --download-update, then install it in place (rename-and-relaunch)
+    /// and exit; the new version starts and opens its window.
+    #[arg(long, hide = true)]
+    install_update: bool,
+
+    /// Headless: swap the kept previous executable back and relaunch it.
+    #[arg(long, hide = true)]
+    revert_update: bool,
+
     /// Files or folders to open in the editor at startup.
     #[arg(value_name = "PATH")]
     paths: Vec<PathBuf>,
@@ -77,9 +86,17 @@ fn main() {
         let logging = hs_core::logging::init(None, &cli.log);
         std::process::exit(self_test::run(paths, logging));
     }
-    if cli.check_updates || cli.download_update {
+    if cli.check_updates || cli.download_update || cli.install_update {
         let _logging = hs_core::logging::init(None, &cli.log);
-        std::process::exit(self_test::update_headless(paths, cli.download_update));
+        std::process::exit(self_test::update_headless(
+            paths,
+            cli.download_update || cli.install_update,
+            cli.install_update,
+        ));
+    }
+    if cli.revert_update {
+        let _logging = hs_core::logging::init(None, &cli.log);
+        std::process::exit(self_test::revert_headless(paths));
     }
 
     let logging = hs_core::logging::init(Some(&paths.logs_dir()), &cli.log);

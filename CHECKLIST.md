@@ -50,7 +50,7 @@ Last updated: 2026-10-10 (Phase 0 complete; v0.1.0 published)
 | `hs-editor`: rope buffer, cursors, undo tree, syntect highlighting, gutter, find/replace, brackets, indent | Completed | undo is grouped linear history (tree deferred); per-line syntect cache with checkpoints; multi-cursor; Alt+F3 selects all occurrences because Ctrl+Shift+L locks the vault |
 | `tool-editor`: project tree + watcher, VFS open/save, encodings, EOL, dirty handling, quick-open provider | Completed | local files only; `sftp://` and `s3://` arrive with M2; files > 32 MB open read-only, > 256 MB refused until the streaming mode |
 | Markdown preview with native Mermaid subset | Partial | pulldown-cmark preview side by side (Ctrl+Shift+M); Mermaid subset pending |
-| Settings → Updates: version, Check now, notes, download + verify, restart-and-install, Revert | Completed | verified headlessly; the real in-place install/revert is tested with the first release after v0.1.0 |
+| Settings → Updates: version, Check now, notes, download + verify, restart-and-install, Revert | Completed | live-tested 2026-10-11: a dev build downloaded the published v0.3.0, verified it, renamed itself aside, relaunched v0.3.0 (`ok = true`), and `--revert-update` swapped the kept v0.2.0 back; both via the hidden headless flags |
 
 ### M2 · SSH/SFTP + S3
 | Item | State | Notes |

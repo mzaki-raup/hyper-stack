@@ -32,10 +32,11 @@ gantt
 Goal: an empty but complete shell. Every later tool plugs into this without
 changing it.
 
-- [ ] Cargo workspace with `[workspace.package] version`; move `docs/ci/ci.yml` to `.forgejo/workflows/` (fmt gate, clippy `-D warnings`, tests, `cargo deny`, release build, `--self-test` smoke) — Linux/macOS CI follow when runners exist
-- [ ] `xtask` crate: `release-plan` (Conventional Commits → SemVer bump + notes), `set-version`, `package`, `manifest` (+ minisign), `sign`, `verify-release`, `smoke`, `setup-hooks`
+- [x] `.forgejo/workflows/ci.yml` and `release.yml` active (fmt gate, clippy `-D warnings`, tests, `cargo deny`, release build, `--self-test` smoke; both no-op until `Cargo.toml` exists); release scripts in `scripts/` (`next-release`, `update-version`, `build-and-package`, `verify-release`)
+- [ ] Cargo workspace with `[workspace.package] version`, every crate `version.workspace = true`; `deny.toml` — Linux/macOS CI follow when runners exist
 - [ ] Binary: `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds git sha, build date, channel and Windows version resources
-- [ ] `release.yml` live; minisign key pair generated, private key as forge secret, public key embedded; `v0.1.0` published with the full asset contract and verified by `verify-release`
+- [ ] Minisign key pair generated (`keys/README.md`), `keys/minisign.pub` committed and embedded, `HS_MINISIGN_KEY` forge secret set; first `feat:` push publishes `v0.1.0` with the full asset contract and passes `verify-release.ps1`
+- [ ] Pester tests for `next-release.ps1` under `scripts/tests/`
 - [ ] `hs-core`: `Tool`/`ToolFactory` traits, `Services`, `ToolContext`, actions queue
 - [ ] `hs-core`: tokio runtime, `UiWaker`, `Jobs` with progress/cancel, `Events` bus
 - [ ] `hs-core`: **portable paths** (`HyperStackData/` beside the exe, writability probe, fallback, `--data-dir` flag), atomic TOML/JSON io, schema versioning, SQLite history db

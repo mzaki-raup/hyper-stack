@@ -1,10 +1,10 @@
 name: CI
 
-# Runs on every branch except main and on pull requests. The release workflow
-# owns main: this instance has one runner whose working copy each job empties
-# on entry, so two workflows on the same commit would destroy each other's
-# files. main is only reached through branches this workflow has checked, and
-# release.yml re-runs the same checks before publishing anything.
+# Runs on every branch except main/beta and on pull requests. The release
+# workflow owns main: this instance has one runner whose working copy each job
+# empties on entry, so two workflows on the same commit would destroy each
+# other's files. main is only reached through branches this workflow has
+# checked, and release.yml re-runs the same checks before publishing anything.
 on:
   push:
     branches: ['**', '!main', '!beta']
@@ -18,8 +18,7 @@ defaults:
 
 env:
   CARGO_TERM_COLOR: always
-  # Keep the cargo home and target dir outside the (wiped) working copy so
-  # incremental builds survive between jobs.
+  # Outside the (wiped) working copy so builds stay incremental between jobs.
   CARGO_HOME: C:\hs-ci\cargo
   CARGO_TARGET_DIR: C:\hs-ci\target
 
@@ -45,7 +44,22 @@ jobs:
           git checkout --quiet --detach FETCH_HEAD
           git log --oneline -1
 
+      # Until Phase 0 creates the Cargo workspace there is nothing to build;
+      # the job then passes after checking that the scripts at least parse.
+      - name: Detect the Cargo workspace
+        id: ws
+        run: |
+          $has = Test-Path Cargo.toml
+          "has_cargo=$($has.ToString().ToLower())" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if (-not $has) { Write-Host "No Cargo.toml yet - documentation-only repository; skipping Rust checks." }
+          foreach ($s in Get-ChildItem scripts -Filter *.ps1) {
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($s.FullName, [ref]$null, [ref]$errors)
+            if ($errors.Count) { throw "$($s.Name) does not parse: $($errors[0].Message)" }
+          }
+          Write-Host "PowerShell scripts parse."
+
       - name: Rust toolchain
+        if: steps.ws.outputs.has_cargo == 'true'
         run: |
           $ErrorActionPreference = "Stop"
           rustup update stable
@@ -55,12 +69,15 @@ jobs:
           if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { cargo install cargo-deny --locked }
 
       - name: Formatting
+        if: steps.ws.outputs.has_cargo == 'true'
         run: cargo fmt --all --check
 
       - name: Clippy
+        if: steps.ws.outputs.has_cargo == 'true'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Tests
+        if: steps.ws.outputs.has_cargo == 'true'
         env:
           # Container-backed integration tests only run when the runner has
           # Docker and this secret is set; otherwise they are skipped.
@@ -68,15 +85,18 @@ jobs:
         run: cargo test --workspace --locked
 
       - name: Dependency audit
+        if: steps.ws.outputs.has_cargo == 'true'
         run: cargo deny check
 
       - name: Release build
+        if: steps.ws.outputs.has_cargo == 'true'
         run: |
           $ErrorActionPreference = "Stop"
           cargo build --release --locked -p hyperstack
           Get-Item "$env:CARGO_TARGET_DIR/release/HyperStack.exe" | Select-Object FullName, Length, LastWriteTime
 
       - name: Smoke test the executable
+        if: steps.ws.outputs.has_cargo == 'true'
         run: |
           $ErrorActionPreference = "Stop"
           $exe = "$env:CARGO_TARGET_DIR/release/HyperStack.exe"
@@ -87,3 +107,4 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "--self-test exited with $LASTEXITCODE" }
           # Portable guarantee: nothing may be written outside the data dir.
           if (Test-Path "$env:APPDATA\HyperStack") { throw "The app wrote to %APPDATA% during --self-test" }
+          if (Test-Path "$env:LOCALAPPDATA\HyperStack") { throw "The app wrote to %LOCALAPPDATA% during --self-test" }

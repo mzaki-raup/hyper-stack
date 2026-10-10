@@ -56,7 +56,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
 | 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, portable-first, and so on |
 | 09 | [CI/CD, releases and in-app updates](docs/09-ci-cd-and-updates.md) | Forgejo workflows, automatic versioning, signed release manifest, Settings → Updates (check, download, verify, install, revert) |
-| — | [CI workflow drafts](docs/ci/) | `ci.yml` and `release.yml` ready to move into `.forgejo/workflows/` in Phase 0 |
+| — | [Workflows](.forgejo/workflows/) and [release scripts](scripts/) | Active Forgejo Actions (`ci.yml`, `release.yml`) and the PowerShell scripts they run; [keys/](keys/) holds the release-signing public key |
 | — | [Tool specs](docs/tools/) | One design document per tool (editor, SQL database, NoSQL, Redis, logs, API client, SSH/SFTP, S3, Git, terminal, containers, devtools) |
 
 ## Tool specs

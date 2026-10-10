@@ -88,9 +88,10 @@ hyper-stack/
 ├── assets/                         # icons (Phosphor), fonts (incl. a Nerd Font for the terminal), default themes
 ├── locales/                        # en.ftl, …
 ├── docs/
-├── xtask/                          # cargo xtask: release-plan, set-version, package, manifest,
-│                                   # sign, verify-release, smoke, setup-hooks (see docs/09)
-├── .forgejo/workflows/             # ci.yml, release.yml (drafts in docs/ci/ until Phase 0)
+├── scripts/                        # release tooling (PowerShell): next-release, update-version,
+│                                   # build-and-package, verify-release (see docs/09)
+├── keys/                           # minisign.pub: release-signing public key (also embedded in the app)
+├── .forgejo/workflows/             # ci.yml, release.yml (active; no-op until Cargo.toml exists)
 └── CHANGELOG.md                    # prepended by the release workflow
 ```
 

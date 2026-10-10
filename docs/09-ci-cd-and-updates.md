@@ -38,8 +38,8 @@
 - **Shown** in: Settings → About (`1.4.0 (a1b2c3d · 2026-10-10 · stable · windows-x64)`),
   the title bar tooltip, the Launcher footer, `HyperStack.exe --version`,
   and the first line of every log file.
-- **Automatic bump from commit subjects** (Conventional Commits) by `cargo
-  xtask release-plan`, run by the release workflow:
+- **Automatic bump from commit subjects** (Conventional Commits) by
+  `scripts/next-release.ps1`, run by the release workflow:
 
   | Commits since last tag contain | Bump |
   |---|---|
@@ -48,6 +48,10 @@
   | `fix:`, `perf:`, `security:` | patch |
   | only `docs:`, `chore:`, `refactor:`, `test:`, `ci:`, `style:`, `build:` | **no release** (job stops, nothing published) |
 
+  Plain-verb subjects are accepted as a fallback with the same meaning, so a
+  commit written without a type prefix still releases correctly:
+  `Add …`/`Introduce …`/`Implement …`/`Support …`/`Enable …` = minor,
+  `Fix …` = patch, `Document …`/`Merge …` = none, any other verb = patch.
   A `release: 2.0.0` trailer in any commit overrides the computed version.
   `[skip ci]` in the subject skips both workflows (used by the version-bump
   commit itself).
@@ -59,8 +63,16 @@
 
 ## 4. Workflows
 
-Draft files live in [`docs/ci/`](ci/) until Phase 0 creates the Cargo
-workspace; they then move to `.forgejo/workflows/` unchanged.
+The workflows live in `.forgejo/workflows/` and are already active. Both
+detect a missing root `Cargo.toml` and finish green without building or
+releasing anything, so documentation pushes are safe until Phase 0 creates the
+workspace. The release tooling is four PowerShell scripts in `scripts/`
+(`next-release.ps1`, `update-version.ps1`, `build-and-package.ps1`,
+`verify-release.ps1`); they started from Eden Explorer's release scripts and
+were rewritten for the workspace, the signed manifest and channels. Build and
+release scripts are the one deliberate exception to the no-reuse rule in
+ADR-014, because they are delivery tooling for the same forge, not product
+code.
 
 ### 4.1 `ci.yml` — every branch except `main`, every pull request
 
@@ -72,10 +84,15 @@ checkout (manual) → rustup stable + rustfmt + clippy
                                       with containers run only when a `HS_INTEGRATION`
                                       secret is present)
 → cargo deny check                   (licences, advisories, duplicate crates)
-→ cargo build --release --locked
-→ cargo xtask smoke                  (launch the exe with --self-test: prints version,
-                                      opens and closes the data folder in a temp dir, exit 0)
+→ cargo build --release --locked -p hyperstack
+→ smoke: HyperStack.exe --version ; --self-test --data-dir <temp>
+                                     (prints version, opens and closes a data folder, exit 0;
+                                      the step fails if anything appeared under %APPDATA% or
+                                      %LOCALAPPDATA%)
 ```
+
+Before the workspace exists the job only checks out the commit, confirms that
+every `scripts/*.ps1` parses, and passes.
 
 Caching: `CARGO_HOME` and `target/` are kept on the runner between jobs
 (the working copy is wiped, these live outside it) to keep a full build under
@@ -85,27 +102,37 @@ the runner's timeout.
 
 ```
 1  checkout main with full history and tags
-2  cargo xtask release-plan           → version, tag, channel, notes.md, CHANGELOG.md section
-                                        (stops the job with "nothing to release" when empty)
+2  scripts/next-release.ps1 -Channel stable|beta
+                                     → version, tag, channel to $GITHUB_OUTPUT; release/notes.md
+                                       (version empty = "nothing to release" or no Cargo.toml yet;
+                                        every later step is skipped and the job is green)
 3  same checks as ci.yml (fmt, clippy, test, deny)
-4  cargo xtask set-version <v>        → root Cargo.toml + Cargo.lock
+4  scripts/update-version.ps1 -Version <v> -NotesFile release/notes.md
+                                     → [workspace.package] version, every member in Cargo.lock,
+                                       CHANGELOG.md section
    git commit "chore(release): v<v> [skip ci]" ; git tag -a v<v>
-5  cargo build --release --locked --target x86_64-pc-windows-msvc
+5  scripts/build-and-package.ps1 -Version <v> -Channel <c>
+                                     → cargo build --release --locked -p hyperstack --target x86_64-pc-windows-msvc
+                                       refuses if `HyperStack.exe --version` ≠ <v>
+                                       release/dist/: exe, zip (+README.txt, LICENSE, notes),
+                                       CHANGELOG-<v>.md, manifest.json (size + sha256 per asset),
+                                       manifest.json.minisig (rsign2 with HS_MINISIGN_KEY, verified
+                                       against keys/minisign.pub), SHA256SUMS.txt; asserts the contract
    (Phase 2: + x86_64-unknown-linux-gnu via cargo-zigbuild; aarch64 variants)
-6  cargo xtask package <v>            → release/dist/ with the contracted assets (below)
-7  (optional) Authenticode sign HyperStack.exe when HS_SIGN_PFX secret exists
-8  cargo xtask manifest <v>           → manifest.json, signed with the minisign key from
-                                        the HS_MINISIGN_KEY secret → manifest.json.minisig
-9  git push origin HEAD:main ; git push origin v<v>
-10 publish: GET or POST /api/v1/repos/owner/hyper-stack/releases, upload every asset,
-   PATCH name/body/prerelease, then GET until the forge reports all assets and the body
-11 cargo xtask verify-release v<v>    → downloads manifest + exe anonymously, checks size,
-                                        sha256, signature, runs `--self-test`; fails the job
-                                        (and marks the release as draft) if anything is off
+6  (optional) Authenticode sign HyperStack.exe when HS_SIGN_PFX secret exists
+7  git push origin HEAD:main ; git push origin v<v>
+8  publish: GET or POST /api/v1/repos/owner/hyper-stack/releases, upload every asset,
+   PATCH name/body/prerelease last, then GET until the forge reports all assets and the body
+9  scripts/verify-release.ps1 -Tag v<v>
+                                     → anonymously downloads manifest + signature + every asset,
+                                       checks signature, size, sha256, SHA256SUMS agreement,
+                                       `--version` and `--self-test`; fails the job if anything is off
 ```
 
 Nothing is pushed or published until step 5 succeeds, so a failed build leaves
-no half-release behind.
+no half-release behind. The release job refuses to run without the
+`HS_MINISIGN_KEY` secret: an unsigned release would be rejected by every
+installed copy anyway.
 
 ### 4.3 Asset contract (what the updater reads; renaming any of these is a breaking change)
 
@@ -149,7 +176,7 @@ format is newer than what the user's other copies understand.
 | Secret | Used for |
 |---|---|
 | `GITHUB_TOKEN` (provided by Forgejo) | checkout, push of the version commit and tag, release API |
-| `HS_MINISIGN_KEY` | private key that signs `manifest.json`; the matching public key is compiled into the app and printed in About |
+| `HS_MINISIGN_KEY` | contents of the minisign secret key (generated unencrypted with `rsign generate -W`, see `keys/README.md`) that signs `manifest.json`; the matching public key is committed as `keys/minisign.pub`, compiled into the app and printed in About |
 | `HS_SIGN_PFX`, `HS_SIGN_PFX_PASSWORD` (optional) | Authenticode code signing; without them the exe is unsigned and SmartScreen will warn on first run, which the README documents |
 | `HS_INTEGRATION` (optional) | enables container-backed integration tests when a Docker engine is available on the runner |
 
@@ -285,7 +312,7 @@ servers without internet and for IT departments that stage releases.
 
 ## 6. Release notes and changelog
 
-- `cargo xtask release-plan` groups commits since the last tag into
+- `scripts/next-release.ps1` groups commits since the last tag into
   **Added** (`feat`), **Fixed** (`fix`), **Changed** (`perf`, `refactor` with
   a `user-facing:` trailer), **Security** (`security`), using the commit
   subject with the type prefix removed and the first letter capitalised, one
@@ -298,25 +325,29 @@ servers without internet and for IT departments that stage releases.
 
 ## 7. Local developer workflow
 
-```bash
-cargo xtask release-plan --dry-run     # what the next push to main would release
-cargo xtask package 1.5.0-local        # builds release/dist/ exactly like CI, unsigned
-cargo xtask verify-release v1.4.0      # checks a published release end to end
-cargo run -- --self-test               # the smoke step CI runs
-cargo run -- --version
+```powershell
+pwsh -File scripts/next-release.ps1                      # what the next push to main would release (writes release/notes.md only)
+pwsh -File scripts/next-release.ps1 -Channel beta        # same for the beta branch
+pwsh -File scripts/update-version.ps1 -Version 1.5.0     # local dry run of the bump (then `git checkout -- Cargo.toml Cargo.lock CHANGELOG.md`)
+pwsh -File scripts/build-and-package.ps1 -Version 1.5.0 -SkipSign   # release/dist/ exactly like CI, unsigned (local only)
+pwsh -File scripts/verify-release.ps1 -Tag v1.4.0        # checks a published release end to end
+cargo run -p hyperstack -- --self-test                   # the smoke step CI runs
+cargo run -p hyperstack -- --version
 ```
 
-Rules for contributors: use Conventional Commit subjects (a commit-msg hook
-installed by `cargo xtask setup-hooks` checks them); never edit the version in
-`Cargo.toml` by hand; a release-worthy change that must not ship yet goes in a
-branch, not on `main`.
+Rules for contributors: use Conventional Commit subjects; never edit the
+version in `Cargo.toml` by hand; a release-worthy change that must not ship yet
+goes in a branch, not on `main`. The scripts are the only place release logic
+lives; if the workflow needs a new step, add it to a script first so it can be
+run locally.
 
 ## 8. Phasing
 
 | Phase | Deliverable |
 |---|---|
-| Phase 0 | `ci.yml` live from the first commit of the Cargo workspace; `--version`, `--self-test`, version resources in the exe; `cargo deny` config; `xtask` crate with `release-plan`, `set-version`, `package`, `manifest`, `verify-release` |
-| Phase 0, exit | `release.yml` live; `v0.1.0` published with the full asset contract; minisign key pair created, public key embedded |
+| Now | `ci.yml`, `release.yml` and the four scripts are committed and active; both workflows pass without a Cargo workspace |
+| Phase 0 | Cargo workspace with `[workspace.package] version`; `--version`, `--self-test`, `--data-dir`, version resources in the exe; `deny.toml`; minisign key pair generated, `keys/minisign.pub` committed, `HS_MINISIGN_KEY` secret set |
+| Phase 0, exit | first push with a `feat:` commit publishes `v0.1.0` with the full asset contract and passes `verify-release.ps1` |
 | M1 | Settings → Updates page with version display and **Check now**; download + verify + restart-and-install; revert; `--finish-update` |
 | M6 (1.0) | Automatic daily check, badge, "install on exit", install from file, CHANGELOG rendering, Authenticode signing if a certificate is obtained |
 | Phase 2 | Linux x64 builds via `cargo-zigbuild` on the Windows runner, beta channel, mirror source setting |
@@ -329,8 +360,12 @@ branch, not on `main`.
   manifest parsing and signature verification with a test key pair, sha256
   checks, `release-plan` bump rules over fixture commit lists, changelog
   rendering.
-- Integration (`xtask` tests): package a build into a temp dir and run the
-  full install sequence against a dummy "old" executable, including the crash
-  → revert path and the read-only-folder path.
+- Integration (Rust tests in `hs-core::update`): package a build into a temp
+  dir and run the full install sequence against a dummy "old" executable,
+  including the crash → revert path and the read-only-folder path.
+- Scripts: `next-release.ps1` is exercised against fixture repositories
+  (Pester tests under `scripts/tests/`, Phase 0) for every bump rule, the
+  `release:` trailer, beta numbering and the no-release case; `ci.yml`
+  parse-checks every script on each push.
 - CI itself: `verify-release` after every publish is the end-to-end test of
   the pipeline; the job fails if the published release is not installable.

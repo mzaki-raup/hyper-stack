@@ -5,6 +5,9 @@
 # HyperStack portable data folder (never commit runtime data or the vault)
 /HyperStackData/
 
+# Release staging written by scripts/*.ps1
+/release/
+
 # OS / editor
 Thumbs.db
 .DS_Store

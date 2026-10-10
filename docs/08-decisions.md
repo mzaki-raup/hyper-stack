@@ -268,10 +268,13 @@ same toolkit. Copying would be faster in the short term.
 for reference and write fresh.
 
 **Decision.** Read for reference, write fresh. No file, function or snippet is
-copied from Eden Explorer into this repository, and HyperStack never depends
-on an Eden crate. Contributors may read Eden's source to learn behaviour,
-pitfalls and crate choices, and the architecture doc keeps a table of which
-Eden files are worth reading for which problem.
+copied from Eden Explorer into this repository's **product code**, and
+HyperStack never depends on an Eden crate. Contributors may read Eden's source
+to learn behaviour, pitfalls and crate choices, and the architecture doc keeps
+a table of which Eden files are worth reading for which problem. The single
+exception is delivery tooling (`.forgejo/workflows/`, `scripts/*.ps1`), which
+targets the same forge and runner and was adapted from Eden's scripts
+(ADR-018); it is not part of the application.
 
 **Consequences.** Phase 0 and Phase 1 take longer than a port would. In
 exchange: every module is designed for HyperStack's own `Tool`/`Services`
@@ -346,8 +349,8 @@ forge's asynchronous tag-to-release derivation.
 | Topic | Options | Chosen |
 |---|---|---|
 | CI system | Forgejo Actions on the existing runner · GitHub mirror + Actions · none | **Forgejo Actions**, PowerShell steps, no `uses:` |
-| Versioning | manual bump in `Cargo.toml` · `cargo-release` · derive from Conventional Commits | **derive from commits** via `cargo xtask release-plan`; manual override by trailer |
-| Release scripting | PowerShell scripts · Rust `xtask` crate | **`xtask`** (cross-platform, unit-testable, same toolchain) |
+| Versioning | manual bump in `Cargo.toml` · `cargo-release` · derive from Conventional Commits | **derive from commits** via `scripts/next-release.ps1` (Conventional types first, plain verbs as fallback); manual override by `release:` trailer |
+| Release scripting | PowerShell scripts · Rust `xtask` crate | **PowerShell scripts in `scripts/`**, rewritten from Eden Explorer's release tooling (the one deliberate exception to ADR-014: delivery tooling for the same forge and runner, not product code); a Rust `xtask` can replace them later if Linux/macOS runners make PowerShell awkward |
 | Release trust | TLS only · `SHA256SUMS.txt` only · Authenticode only · signed manifest | **Ed25519-signed `manifest.json`** (minisign) as the mandatory check, sha256 inside it, Authenticode added when a certificate exists, `SHA256SUMS.txt` kept for humans |
 | Update source | forge releases API · static manifest URL · both | **forge releases API** for discovery, manifest asset for truth; `source` override for mirrors |
 | Install mechanism | installer (MSI/Inno) · helper updater exe · rename the running exe and relaunch | **rename-and-relaunch**: Windows allows renaming a running executable, so no helper, no elevation, works on a USB stick |

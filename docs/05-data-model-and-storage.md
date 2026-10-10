@@ -1,0 +1,253 @@
+# 05 — Data model and storage
+
+**Status:** draft · **Last updated:** 2026-10-10
+
+## 1. Two kinds of state
+
+| Kind | Where | Format | Shareable? |
+|---|---|---|---|
+| **Personal / machine state** — settings, themes, shortcuts, history, caches, known hosts, window geometry | app data folder | TOML + SQLite | No |
+| **Workspace state** — connections, environments, API collections, saved queries, snippets, tab groups, layout | workspace folder (user-chosen, e.g. `.hyperstack/` in a repo) | TOML / JSON files, one object per file | Yes (commit it) |
+| **Secrets** — passwords, tokens, keys, passphrases | OS keyring (fallback: encrypted file) | — | Never |
+
+### App data folder
+
+```
+%APPDATA%\HyperStack\            ($XDG_CONFIG_HOME/hyperstack, ~/Library/Application Support/HyperStack)
+├── settings.toml
+├── shortcuts.toml
+├── themes/custom-*.toml
+├── known_hosts                  # OpenSSH format
+├── workspaces.toml              # list of known workspace folders, last opened
+├── history.sqlite               # queries, requests, commands, recent files, job log
+├── cache/                       # icons, schema caches, S3 listings, OpenAPI specs
+└── logs/hyperstack.YYYY-MM-DD.log
+```
+
+Portable mode: if `portable.flag` exists beside the executable, the app data
+folder is `./data/` next to the exe and secrets use the encrypted-file store.
+
+### Workspace folder
+
+```
+.hyperstack/
+├── workspace.toml               # id, name, created, default environment, protected envs
+├── environments/
+│   ├── dev.toml
+│   ├── staging.toml
+│   └── prod.toml
+├── connections/
+│   ├── db/orders-staging.toml
+│   ├── ssh/web-01.toml
+│   ├── s3/assets.toml
+│   ├── api/shop-api.toml
+│   └── docker/local.toml
+├── api/
+│   └── shop/                    # one collection = one folder (Bruno-style)
+│       ├── collection.toml
+│       ├── auth/login.req.toml
+│       └── orders/create-order.req.toml
+├── queries/
+│   └── orders-staging/top-customers.sql   # front-matter header for metadata
+├── snippets/*.toml
+├── tab-groups/*.toml
+├── layout.json                  # last layout; gitignored by default (template .gitignore written)
+└── .gitignore                   # layout.json, *.local.toml
+```
+
+Files that end in `.local.toml` override the same-named file and are gitignored,
+so a team can commit `staging.toml` while each member keeps a `staging.local.toml`
+with their own username.
+
+## 2. Core entities
+
+### 2.1 Identity
+
+Every entity has a stable `id` (ULID, 26 chars) so renames do not break
+references, and a human `name`. Secrets are referenced by `SecretRef`, which is
+`"secret:<ulid>"` and resolves through the secret store.
+
+### 2.2 Connection profile
+
+```toml
+# connections/db/orders-staging.toml
+id        = "01J9ZX4K7Q9M8N0P1R2S3T4U5V"
+name      = "orders — staging"
+kind      = "db"                      # db | ssh | s3 | api | docker | k8s | redis | mongo
+folder    = "Shop/Staging"
+tags      = ["shop", "staging"]
+colour    = "#3B82F6"
+environment = "staging"               # optional default environment binding
+read_only = false
+
+[db]
+engine   = "postgres"                 # postgres | mysql | mariadb | sqlite | mssql | clickhouse | duckdb
+host     = "{{db_host}}"              # variables allowed in any string field
+port     = 5432
+database = "orders"
+user     = "{{db_user}}"
+password = "secret:01J9ZX5…"          # SecretRef, or "{{db_password}}" resolved from env (which may itself be a SecretRef)
+ssl      = "prefer"                   # disable | prefer | require | verify-ca | verify-full
+ssl_ca   = ""                         # path
+options  = { application_name = "hyperstack", statement_timeout = "30s" }
+
+[tunnel]                              # optional
+ssh      = "01J9ZX6…"                 # id of an ssh connection
+```
+
+Kind-specific tables:
+
+| Kind | Fields |
+|---|---|
+| `ssh` | host, port, user, auth = `password \| key \| agent \| interactive`, key_path, passphrase (SecretRef), jump = [ssh ids], keepalive, startup_command, default_remote_dir, terminal profile overrides |
+| `s3` | endpoint, region, access_key, secret_key (SecretRef), session_token (SecretRef), path_style (bool), provider hint (`aws \| minio \| r2 \| b2 \| spaces \| wasabi \| other`), default bucket |
+| `api` | base_url, default headers, auth block (same schema as request auth), proxy, tls (verify, client cert), cookie jar on/off |
+| `docker` | transport = `local \| tcp \| ssh`, host, ssh = id, tls paths |
+| `k8s` | kubeconfig path, context, namespace |
+| `redis` | host, port, user, password (SecretRef), db, tls, cluster (bool), sentinel |
+| `mongo` | uri (with SecretRef placeholders), tls, auth source |
+
+### 2.3 Environment
+
+```toml
+# environments/staging.toml
+id        = "01J9ZX7…"
+name      = "staging"
+colour    = "#F59E0B"
+protected = false                      # true → confirmations + read-only defaults
+parent    = "01J9ZX8…"                 # optional: inherit variables from another env (e.g. "base")
+
+[variables]
+db_host     = "staging-db.internal"
+db_user     = "app"
+db_password = "secret:01J9ZX9…"
+api_base    = "https://staging.api.shop.example"
+bucket      = "shop-assets-staging"
+
+[defaults]                             # which connection each tool uses when "current environment" is selected
+db     = "01J9ZX4K…"
+ssh    = ["01J9ZXA…", "01J9ZXB…"]
+s3     = "01J9ZXC…"
+api    = "01J9ZXD…"
+docker = "01J9ZXE…"
+```
+
+### 2.4 Variable substitution
+
+Syntax `{{name}}`; scopes resolve innermost first:
+
+```
+request / query literal  →  collection vars  →  environment  →  parent environment  →  workspace globals  →  built-ins
+```
+
+Built-ins: `{{$uuid}}`, `{{$ulid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}`,
+`{{$randomInt(1,100)}}`, `{{$env:HOME}}` (OS env), `{{$file:path}}`,
+`{{$secret:<ulid>}}`. Unresolved variables are highlighted red in every editor
+and block execution with a "define it now" quick-fix. Secret-backed variables
+display masked everywhere except an explicit "reveal" click, and are redacted
+from logs and history.
+
+### 2.5 API collection and request
+
+```toml
+# api/shop/orders/create-order.req.toml
+id     = "01J9ZXF…"
+name   = "Create order"
+method = "POST"
+url    = "{{api_base}}/v1/orders"
+seq    = 20                                   # ordering inside the folder
+
+[[params]]
+key = "dryRun"; value = "true"; enabled = false
+
+[[headers]]
+key = "Content-Type"; value = "application/json"
+
+[auth]
+type   = "bearer"                              # none | inherit | basic | bearer | apikey | oauth2 | awsv4 | digest
+token  = "{{access_token}}"
+
+[body]
+type = "json"                                  # none | json | text | xml | form | multipart | binary | graphql
+text = '''
+{ "customerId": "{{customer_id}}", "items": [ { "sku": "A1", "qty": 2 } ] }
+'''
+
+[[tests]]                                      # P1
+name   = "created"
+assert = "status == 201"
+[[tests]]
+name   = "has id"
+assert = "json.id exists"
+
+[scripts]                                      # P1, Rhai
+pre  = ''' env.set("ts", now()); '''
+post = ''' if res.status == 201 { env.set("order_id", res.json.id); } '''
+```
+
+`collection.toml` holds collection-level variables, auth, default headers and
+an optional OpenAPI source for re-import.
+
+### 2.6 Saved query
+
+```sql
+-- hyperstack: { "id": "01J9ZXG…", "name": "Top customers", "connection": "01J9ZX4K…", "params": ["since"] }
+SELECT customer_id, sum(total) FROM orders WHERE created_at > {{since}} GROUP BY 1 ORDER BY 2 DESC LIMIT 50;
+```
+
+Plain `.sql` with a one-line JSON header so it stays usable by other tools.
+
+### 2.7 Tab group and layout
+
+```toml
+# tab-groups/morning-checks.toml
+name = "Morning checks"
+[[tabs]]
+tool  = "db";  state = { connection = "01J9ZX4K…", query_file = "queries/orders-staging/errors-last-24h.sql" }
+[[tabs]]
+tool  = "ssh"; state = { connection = "01J9ZXA…" }
+[[tabs]]
+tool  = "api"; state = { request = "01J9ZXF…" }
+```
+
+`layout.json` is the serialised `TabSpace`: tab list (factory id + `save_state`
+JSON), active id, split tree, sidebar/dock sizes, active environment.
+
+## 3. History database (SQLite)
+
+Tables (all with `workspace_id`, `created_at`, `environment_id`):
+
+| Table | Columns |
+|---|---|
+| `query_history` | connection_id, sql (secrets redacted), duration_ms, row_count, status, error |
+| `request_history` | request_id?, method, url (resolved, secrets redacted), status, duration_ms, size, response_path (cache file for bodies < 5 MB) |
+| `command_history` | host_id?, cwd, command, exit_code |
+| `recent_items` | kind, ref, title, last_opened |
+| `jobs` | tool, title, status, started, finished, log_path |
+| `transfer_history` | source_uri, target_uri, bytes, status |
+
+Retention: configurable (default 90 days / 50 k rows per table). `VACUUM` on
+startup when more than 20 % free.
+
+## 4. Import sources
+
+| Source | What we read | Notes |
+|---|---|---|
+| Postman v2.1 collection + environment JSON | folders, requests, auth, variables, tests (translated where possible) | most common ask |
+| Insomnia v4 export, Bruno folders | same | Bruno's `.bru` grammar is simple |
+| OpenAPI 3.x (JSON/YAML), Swagger 2 | servers → api connection, operations → requests with example bodies, schemas kept for completion | re-sync keeps user edits via `seq` and id mapping |
+| curl command | single request | from clipboard |
+| `~/.ssh/config` | hosts, users, ports, identity files, ProxyJump | watch and offer re-import |
+| `~/.aws/credentials` + `config` | S3 profiles | secrets go straight to keyring |
+| DBeaver `data-sources.json`, `.pgpass`, `.my.cnf`, DataGrip (partial) | DB connections | passwords are not importable from DBeaver's encrypted store; prompt |
+| Docker contexts, kubeconfig | docker / k8s connections | |
+| `.env` files | environment variables | option to mark keys matching `/(pass|secret|token|key)/i` as secrets |
+
+Exports: whole workspace folder (already files), Postman collection JSON,
+OpenAPI from a collection (P1), CSV/JSON/SQL from results.
+
+## 5. Migrations
+
+Every TOML file carries `schema = N` at top level. `hs-core::storage` runs
+forward migrations on load and writes the new version; a backup copy
+`<file>.bak-<schema>` is kept once. SQLite uses numbered migration scripts.

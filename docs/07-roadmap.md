@@ -1,0 +1,136 @@
+# 07 — Roadmap
+
+**Status:** draft · **Last updated:** 2026-10-10
+
+Effort assumes one experienced Rust developer working mostly full-time, able to
+read Eden Explorer for reference but writing every module fresh. Weeks are
+rough. Phases are sequential;
+milestones inside a phase can overlap.
+
+```mermaid
+gantt
+    title HyperStack phases (approximate)
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b %Y
+    section Phase 0 · Foundation
+    Workspace, shell, tab space, services      :p0, 2026-10-20, 5w
+    section Phase 1 · MVP tools
+    Terminal + Editor                          :p1a, after p0, 5w
+    SSH/SFTP + S3                              :p1b, after p1a, 4w
+    SQL DB + NoSQL + Redis                     :p1c, after p1b, 8w
+    API client + Git                           :p1d, after p1c, 6w
+    Logs + Devtools core                       :p1e, after p1d, 4w
+    Hardening, imports, 1.0                    :p1f, after p1e, 4w
+    section Phase 2 · Depth
+    Containers, scripting, runner, WS/GraphQL, merge, Redis dashboard, log merge :p2, after p1f, 16w
+    section Phase 3 · Reach
+    Kubernetes, gRPC, mock server, plugins, forge integration :p3, after p2, 16w
+```
+
+## Phase 0 — Foundation (≈ 5 weeks)
+
+Goal: an empty but complete shell. Every later tool plugs into this without
+changing it.
+
+- [ ] Cargo workspace, CI (fmt, clippy, test, `cargo deny`) on Windows/Linux/macOS
+- [ ] `hs-core`: `Tool`/`ToolFactory` traits, `Services`, `ToolContext`, actions queue
+- [ ] `hs-core`: tokio runtime, `UiWaker`, `Jobs` with progress/cancel, `Events` bus
+- [ ] `hs-core`: **portable paths** (`data/` beside the exe, writability probe, fallback, `--data-dir` flag), atomic TOML/JSON io, schema versioning, SQLite history db
+- [ ] `hs-core`: `Connections`, `Environments`, variable substitution engine (with tests), `Secrets` (encrypted vault with master password + DPAPI remember-me on Windows; OS keyring opt-in)
+- [ ] `hs-core`: settings, shortcuts/keymap, i18n (Fluent), `tracing` with redaction
+- [ ] `hs-ui`: theme system, multi-row `TabStrip` (generic over `TabItem`), `SplitLayout`, `Palette` with providers, `Tree`, `DataTable` (first version), toasts, dialogs, `EnvBanner`, `KeyValueEditor`
+- [ ] `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings window, workspace open/create/switch, layout persistence
+- [ ] Two dummy tools (Scratchpad text, Hello) to prove the plumbing; `egui_kittest` snapshots for the tab strip
+- [ ] Decision: verify `portable-pty` on Windows ConPTY with PowerShell 7 profile loading before Phase 1
+
+Exit: unzip `HyperStack.exe` into an empty folder on a USB stick, run it,
+create a workspace, define an environment with a secret variable, open 30
+tabs that wrap onto rows, split, save layout, close, move the whole folder to
+another PC, run again: everything restored after the master password, no
+plaintext secret on disk, nothing written outside the folder (verified with
+Process Monitor in CI-adjacent manual test and by a registry/`%APPDATA%` diff
+in the e2e test).
+
+## Phase 1 — MVP tools (≈ 29 weeks) → v1.0
+
+### M1 · Terminal + Editor (5 w)
+- [ ] `hs-term`: grid on `alacritty_terminal`, listener, key encoding; `portable-pty` local; shell profile detection (PowerShell 7/5, cmd + Clink, Git Bash, WSL)
+- [ ] `tool-terminal`: tabs, splits, search, links, "open here" action, profiles settings
+- [ ] `hs-editor`: ropey buffer, cursor/selection model, undo tree, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent
+- [ ] `tool-editor`: project tree with `notify` watcher, open/save via VFS, encodings, line endings, dirty handling, quick-open provider
+- [ ] Devtools: Markdown preview (pulldown-cmark + native Mermaid subset) usable from the editor
+
+### M2 · SSH/SFTP + S3 (4 w)
+- [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `data/`, shell tab over `hs-term`
+- [ ] `tool-ssh`: SFTP dual pane on `DataTable`, transfer queue in `Transfers`, resume, chmod, open-in-editor and save back via `sftp://` VFS
+- [ ] `Tunnels` service (local forward) ready for DB/Redis/API
+- [ ] `tool-s3`: profiles + import AWS files, SigV4 client in `hs-core::objstore`, bucket/prefix browsing, uploads with multipart, downloads, delete with guard, presigned URLs, `s3://` VFS
+
+### M3 · SQL database + NoSQL + Redis (8 w)
+- [ ] `tool-db`: `DbDriver` trait; drivers SQLite (`rusqlite`), PostgreSQL (`tokio-postgres`), MySQL/MariaDB (`mysql_async`)
+- [ ] Schema browser, SQL editor with completion from schema cache, run statement/selection/script, cancel
+- [ ] Result grid streaming into `DataTable`, cell viewer, copy/export CSV/JSON/Markdown/INSERT
+- [ ] History, saved queries (`.sql` + header), transactions toggle, read-only, destructive classifier + guard, SSH tunnel
+- [ ] `tool-nosql`: `DocStore` trait; MongoDB driver (databases/collections tree, find with filter/projection/sort, aggregation editor, document tree/table/JSON views, Extended JSON editing, insert/update/delete with guards); CouchDB driver (databases, documents with `_rev`, Mango queries, attachments)
+- [ ] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with completion, guards
+
+### M4 · API client + Git (6 w)
+- [ ] `tool-api`: request editor (params/headers/body/auth incl. OAuth2 client-credentials and auth-code with local redirect listener, AWS SigV4), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export
+- [ ] Collections as folder of `.req.toml`, variables with scopes, importers Postman/Insomnia/Bruno/OpenAPI
+- [ ] `tool-git`: repo detection in project tree, status via `gix`, stage/unstage file + hunk, diff viewer on `hs-editor`, commit, branches, stash list, fetch/pull/push via git CLI with progress, credential helper passthrough, protected-remote guard
+
+### M5 · Logs + Devtools core (4 w)
+- [ ] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/combined/multi-line stack traces), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources
+- [ ] `tool-devtools`: JSON/YAML/TOML/XML format+convert+query, JWT, Base64/URL/hex, regex tester, cron builder, UUID/ULID/hash, timestamp converter, text diff (on `hs-editor`)
+
+### M6 · Hardening and 1.0 (4 w)
+- [ ] Protected environments across all tools; e2e secret-grep test; `cargo deny` clean
+- [ ] Importers polish, export workspace, team `.gitignore` template, `.local.toml` overrides
+- [ ] Performance pass against budgets (startup, 1 M-row grid, 100 MB file, 2 GB log)
+- [ ] Docs: user guide, shortcuts page, release notes; signed portable zip for Windows (no installer), tarball/AppImage for Linux, notarised app bundle for macOS; opt-in updater that swaps only the executable
+- [ ] Translations: `en` complete, structure for others
+
+## Phase 2 — Depth (≈ 16 weeks)
+
+- [ ] Containers: Docker/Podman (local, TCP, over SSH), compose; logs feed `tool-logs`, exec feeds `hs-term`
+- [ ] API: Rhai pre/post scripts and assertions, collection runner with report, WebSocket + SSE, GraphQL introspection, cookie jar, client certs, proxy
+- [ ] SQL: SQL Server, inline editing with preview, explain plan tree, CSV import, Excel export
+- [ ] NoSQL: Elasticsearch/OpenSearch and DynamoDB drivers, index management, explain, schema inference, import/export, copy collection across environments, CouchDB views and replication
+- [ ] Redis: server info dashboard, slowlog, client list, pub/sub tab, streams with consumer groups, big-key finder, bulk delete with dry run, export/import
+- [ ] Logs: Docker/Kubernetes/journalctl/Windows Event Log sources, multi-source merge, statistics sparkline, alerts, save filtered output
+- [ ] Editor: tree-sitter highlighting and folding, minimap, snippets, external formatter, three-way merge editor
+- [ ] Git: log graph, blame, file history, merge/rebase/cherry-pick/revert/tags, conflict resolution
+- [ ] SSH: port-forward manager UI, broadcast input, server monitor widget, saved commands
+- [ ] S3: object metadata/tags/versions, sync with dry run, policy/CORS viewer
+- [ ] Shell: cross-tool drag and drop, global search, auto-update, optional installed mode (per-user data folder) for people who prefer it
+- [ ] Devtools: network tools, process/port viewer, snippet manager, `.env` editor, scratchpad, SQL formatter, fake data
+
+## Phase 3 — Reach (≈ 16 weeks)
+
+- [ ] Kubernetes: contexts, namespaces, workloads, pods logs/exec/port-forward, describe, apply
+- [ ] API: gRPC (reflection + proto import), mock server from collection/OpenAPI, OpenAPI export
+- [ ] SQL: ER diagram, DDL generator, schema compare, data compare, ClickHouse/DuckDB
+- [ ] NoSQL: Cassandra/ScyllaDB (CQL), Firestore/Cosmos/Neo4j evaluation
+- [ ] Git forge integration: GitHub/GitLab/Forgejo PRs, issues, CI status
+- [ ] Plugin API (WASM via `wasmtime`): devtools utilities and importers first
+- [ ] Detachable tabs (multiple viewports), session audit log, presentation mode
+- [ ] Optional AI assistant hook (bring your own key) as a palette provider
+
+## Release cadence
+
+- `0.x` tagged at the end of each milestone from M1 onward (usable early builds).
+- `1.0` at the end of Phase 1.
+- Minor releases monthly in Phase 2/3; patch releases as needed.
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Building a credible text editor in egui is a lot of work | M1 slips, editor feels weak | Scope to "lightweight": rope + highlighting + find first; evaluate `egui_code_editor` and Lapce's `floem` editor core as references; tree-sitter and LSP deferred |
+| Writing everything fresh instead of porting from Eden Explorer costs time | Phase 0/1 take longer than a port would | Accepted on purpose (ADR-014): cleaner architecture and cross-platform from the start; reading Eden for behaviour still saves most of the design time |
+| Portable folder on a slow USB stick or a synced folder (OneDrive) | SQLite locking, slow startup, sync conflicts | WAL mode with `synchronous=NORMAL`, small writes, debounced saves; detect cloud-sync folders and warn once; `--data-dir` to relocate |
+| `gix` lacks stable push/merge | Git tool blocked | Hybrid design from day one: `gix` for reads, `git` CLI for writes/network (ADR-006) |
+| egui text rendering of huge grids/logs | Frame drops | Virtualise everything; render only visible rows; cache galleys per row; measured budgets in CI |
+| Keyring differences across OSes | Secrets bugs | Native Windows path (ported) + `keyring` elsewhere + encrypted-file fallback; integration tests per OS |
+| Driver crate maturity (`tiberius`, `redis` cluster, CouchDB has no maintained crate so we use its HTTP API directly, `aws-sdk-dynamodb` is heavy) | Partial features | Feature-gate, ship when solid, document gaps; thin HTTP clients where SDKs are too heavy |
+| Scope creep from the catalogue | 1.0 never ships | P0 list is frozen at the start of Phase 1; new ideas go to P1/P2 |

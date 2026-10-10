@@ -111,7 +111,15 @@ fn main() {
     let open = cli
         .paths
         .iter()
-        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .map(|p| {
+            // Absolute, without the verbatim `\\?\` prefix that canonicalize adds on Windows.
+            let abs = std::path::absolute(p).unwrap_or_else(|_| p.clone());
+            let s = abs.to_string_lossy();
+            match s.strip_prefix(r"\\?\") {
+                Some(rest) => PathBuf::from(rest),
+                None => abs,
+            }
+        })
         .collect();
     let result = eframe::run_native(
         "HyperStack",

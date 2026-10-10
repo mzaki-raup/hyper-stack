@@ -659,6 +659,7 @@ impl EditorTool {
             .show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(200.0);
+                    ui.set_max_width(240.0);
                     let item = |ui: &mut egui::Ui, label: String| {
                         ui.add(
                             egui::Button::new(label)

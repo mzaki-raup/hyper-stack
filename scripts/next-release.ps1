@@ -57,8 +57,11 @@ function Get-Tags([string]$pattern) {
 
 # The base for the next version is always the latest stable tag; the range of
 # commits to describe starts at the latest tag of the channel being released.
-$stableTags  = Get-Tags '^v\d+\.\d+\.\d+$'
-$channelTags = if ($Channel -eq "beta") { Get-Tags '^v\d+\.\d+\.\d+(-beta\.\d+)?$' } else { $stableTags }
+# @() at every assignment: PowerShell unrolls a one-element array coming out
+# of a function or an if-expression into a plain string, and "v0.1.0"[0] is
+# "v" (release run 19 planned nothing after the first tag existed).
+$stableTags  = @(Get-Tags '^v\d+\.\d+\.\d+$')
+$channelTags = @(if ($Channel -eq "beta") { Get-Tags '^v\d+\.\d+\.\d+(-beta\.\d+)?$' } else { $stableTags })
 $previous    = if ($channelTags.Count) { $channelTags[0] } else { "" }
 $range       = if ($previous) { "$previous..HEAD" } else { "HEAD" }
 
@@ -124,7 +127,7 @@ if ($forced) {
 }
 
 if ($Channel -eq "beta") {
-  $betas = Get-Tags ("^v" + [regex]::Escape($base) + '-beta\.(\d+)$')
+  $betas = @(Get-Tags ("^v" + [regex]::Escape($base) + '-beta\.(\d+)$'))
   $n = 0
   foreach ($t in $betas) { if ($t -match '-beta\.(\d+)$') { $n = [Math]::Max($n, [int]$Matches[1]) } }
   $version = "$base-beta.$($n + 1)"

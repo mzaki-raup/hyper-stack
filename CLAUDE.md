@@ -333,9 +333,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - Driving the release exe for a GUI smoke test from PowerShell: `Start-Process`
   with `--data-dir` in `%TEMP%`, `SetForegroundWindow`, then
   `[System.Windows.Forms.SendKeys]::SendWait(...)` works for keyboard paths
-  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks land unreliably
-  because a non-DPI-aware PowerShell sees virtualised coordinates; verify
-  mouse paths with `egui_kittest` instead.
+  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks only land where
+  the screenshot says once the PowerShell process has called
+  `SetProcessDPIAware()` (otherwise `GetWindowRect`, `CopyFromScreen` and
+  `SetCursorPos` all see DPI-virtualised coordinates and clicks drift by a
+  row or more). Mouse paths are also covered headlessly with `egui_kittest`
+  (`crates/hs-editor/tests/view.rs`).
 
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status
@@ -362,6 +365,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   and read `.ExitCode`; redirect stdout to a file when the text is needed.
   Bash and Rust's `Command::status()` wait correctly, which is why local
   checks passed.
+- PowerShell unrolls a one-element array returned from a function or an
+  `if` expression into a scalar string on assignment, so `$tags.Count` is 1
+  and `$tags[0]` is the first *character* ("v"). `next-release.ps1` planned
+  no release on the first push after `v0.1.0` existed (release run 19) for
+  that reason. Wrap such assignments in `@(...)` and test scripts with
+  exactly one tag/item, not only zero or many.
 - `[ref]$name` on a variable that was never assigned throws "[ref] cannot be
   applied to a variable that does not exist". The Actions `pwsh` shell runs
   with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three

@@ -26,7 +26,7 @@ impl DockState {
         if self.terminal.is_some() || self.terminal_error.is_some() {
             return;
         }
-        let profiles = hs_term::shells::detect();
+        let profiles = hs_term::shells::profiles();
         let (default, font, scrollback, copy, right_click) = {
             let st = services.settings.read();
             (
@@ -151,12 +151,9 @@ pub fn show(
         }
         DockTab::Terminal => {
             state.ensure_terminal(services);
-            let dark = services.settings.read().appearance.theme != "light";
-            let tt = if dark {
-                hs_term::widget::TermTheme::dark()
-            } else {
-                hs_term::widget::TermTheme::light()
-            };
+            let tt = hs_term::widget::TermTheme::for_theme(&hs_ui::theme::Theme::by_name(
+                &services.settings.read().appearance.theme,
+            ));
             if let Some(err) = state.terminal_error.clone() {
                 ui.colored_label(theme.error, err);
                 if ui.button(services.t("terminal-restart")).clicked() {

@@ -34,7 +34,7 @@ pub struct Theme {
 impl Theme {
     pub fn dark() -> Self {
         Self {
-            name: "Dark".into(),
+            name: "HyperStack Dark".into(),
             dark: true,
             window_bg: Color32::from_rgb(0x15, 0x15, 0x1A),
             panel_bg: Color32::from_rgb(0x1C, 0x1C, 0x23),
@@ -59,7 +59,7 @@ impl Theme {
 
     pub fn light() -> Self {
         Self {
-            name: "Light".into(),
+            name: "HyperStack Light".into(),
             dark: false,
             window_bg: Color32::from_rgb(0xF6, 0xF6, 0xF8),
             panel_bg: Color32::from_rgb(0xFF, 0xFF, 0xFF),
@@ -83,11 +83,254 @@ impl Theme {
     }
 
     pub fn by_name(name: &str) -> Self {
-        if name.eq_ignore_ascii_case("light") {
-            Self::light()
-        } else {
-            Self::dark()
+        match name.to_ascii_lowercase().as_str() {
+            "light" => Self::light(),
+            "dracula" => Self::dracula(),
+            "nord" => Self::nord(),
+            "one-dark" => Self::one_dark(),
+            "monokai" => Self::monokai(),
+            "gruvbox-dark" => Self::gruvbox_dark(),
+            "catppuccin-mocha" => Self::catppuccin_mocha(),
+            "solarized-dark" => Self::solarized_dark(),
+            "solarized-light" => Self::solarized_light(),
+            "github-light" => Self::github_light(),
+            _ => Self::dark(),
         }
+    }
+
+    /// Every bundled colour scheme: (settings id, display name, dark).
+    pub fn schemes() -> &'static [(&'static str, &'static str, bool)] {
+        &[
+            ("dark", "HyperStack Dark", true),
+            ("light", "HyperStack Light", false),
+            ("dracula", "Dracula", true),
+            ("nord", "Nord", true),
+            ("one-dark", "One Dark", true),
+            ("monokai", "Monokai", true),
+            ("gruvbox-dark", "Gruvbox Dark", true),
+            ("catppuccin-mocha", "Catppuccin Mocha", true),
+            ("solarized-dark", "Solarized Dark", true),
+            ("solarized-light", "Solarized Light", false),
+            ("github-light", "GitHub Light", false),
+        ]
+    }
+
+    /// A dark scheme from six base colours plus accents.
+    #[allow(clippy::too_many_arguments)]
+    fn scheme(
+        name: &str,
+        dark: bool,
+        bg: Color32,
+        panel: Color32,
+        surface: Color32,
+        hover: Color32,
+        border: Color32,
+        text: Color32,
+        muted: Color32,
+        accent: Color32,
+        secondary: Color32,
+        success: Color32,
+        warning: Color32,
+        error: Color32,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            dark,
+            window_bg: bg,
+            panel_bg: panel,
+            surface,
+            surface_hover: hover,
+            border,
+            text,
+            text_muted: muted,
+            accent,
+            secondary,
+            success,
+            warning,
+            error,
+            tab_active: surface,
+            tab_inactive: panel,
+            env_dev: secondary,
+            env_test: success,
+            env_staging: warning,
+            env_prod: error,
+        }
+    }
+
+    fn rgb(hex: u32) -> Color32 {
+        Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
+    }
+
+    pub fn dracula() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Dracula",
+            true,
+            c(0x1E1F29),
+            c(0x282A36),
+            c(0x343746),
+            c(0x44475A),
+            c(0x44475A),
+            c(0xF8F8F2),
+            c(0x9A9CB0),
+            c(0xBD93F9),
+            c(0x8BE9FD),
+            c(0x50FA7B),
+            c(0xF1FA8C),
+            c(0xFF5555),
+        )
+    }
+    pub fn nord() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Nord",
+            true,
+            c(0x242933),
+            c(0x2E3440),
+            c(0x3B4252),
+            c(0x434C5E),
+            c(0x4C566A),
+            c(0xECEFF4),
+            c(0xA3ACBD),
+            c(0x88C0D0),
+            c(0x81A1C1),
+            c(0xA3BE8C),
+            c(0xEBCB8B),
+            c(0xBF616A),
+        )
+    }
+    pub fn one_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "One Dark",
+            true,
+            c(0x21252B),
+            c(0x282C34),
+            c(0x2C313A),
+            c(0x3A3F4B),
+            c(0x3E4451),
+            c(0xABB2BF),
+            c(0x7F848E),
+            c(0xC678DD),
+            c(0x61AFEF),
+            c(0x98C379),
+            c(0xE5C07B),
+            c(0xE06C75),
+        )
+    }
+    pub fn monokai() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Monokai",
+            true,
+            c(0x1E1F1C),
+            c(0x272822),
+            c(0x33342C),
+            c(0x3E3D32),
+            c(0x49483E),
+            c(0xF8F8F2),
+            c(0x90908A),
+            c(0xAE81FF),
+            c(0x66D9EF),
+            c(0xA6E22E),
+            c(0xE6DB74),
+            c(0xF92672),
+        )
+    }
+    pub fn gruvbox_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Gruvbox Dark",
+            true,
+            c(0x1D2021),
+            c(0x282828),
+            c(0x3C3836),
+            c(0x504945),
+            c(0x504945),
+            c(0xEBDBB2),
+            c(0xA89984),
+            c(0xD3869B),
+            c(0x83A598),
+            c(0xB8BB26),
+            c(0xFABD2F),
+            c(0xFB4934),
+        )
+    }
+    pub fn catppuccin_mocha() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Catppuccin Mocha",
+            true,
+            c(0x181825),
+            c(0x1E1E2E),
+            c(0x313244),
+            c(0x45475A),
+            c(0x45475A),
+            c(0xCDD6F4),
+            c(0xA6ADC8),
+            c(0xCBA6F7),
+            c(0x89B4FA),
+            c(0xA6E3A1),
+            c(0xF9E2AF),
+            c(0xF38BA8),
+        )
+    }
+    pub fn solarized_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Solarized Dark",
+            true,
+            c(0x00212B),
+            c(0x002B36),
+            c(0x073642),
+            c(0x0B4453),
+            c(0x0B4453),
+            c(0xEEE8D5),
+            c(0x93A1A1),
+            c(0x6C71C4),
+            c(0x268BD2),
+            c(0x859900),
+            c(0xB58900),
+            c(0xDC322F),
+        )
+    }
+    pub fn solarized_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Solarized Light",
+            false,
+            c(0xEEE8D5),
+            c(0xFDF6E3),
+            c(0xF3EDD9),
+            c(0xE9E2CB),
+            c(0xD9D2BB),
+            c(0x073642),
+            c(0x657B83),
+            c(0x6C71C4),
+            c(0x268BD2),
+            c(0x859900),
+            c(0xB58900),
+            c(0xDC322F),
+        )
+    }
+    pub fn github_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "GitHub Light",
+            false,
+            c(0xF6F8FA),
+            c(0xFFFFFF),
+            c(0xF0F3F6),
+            c(0xE6EAEF),
+            c(0xD0D7DE),
+            c(0x1F2328),
+            c(0x656D76),
+            c(0x8250DF),
+            c(0x0969DA),
+            c(0x1A7F37),
+            c(0x9A6700),
+            c(0xCF222E),
+        )
     }
 
     /// Push the palette into egui's visuals.

@@ -29,6 +29,25 @@ impl ShellProfile {
 }
 
 /// Detect the shells available on this machine, best first.
+/// Detected profiles, computed once per process (detection runs `wsl -l`,
+/// which can take seconds). Call [`prefetch`] at startup so the first
+/// terminal opens without waiting.
+pub fn profiles() -> std::sync::Arc<Vec<ShellProfile>> {
+    static CACHE: std::sync::OnceLock<std::sync::Arc<Vec<ShellProfile>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Arc::new(detect())).clone()
+}
+
+/// Run detection on a background thread so [`profiles`] is instant later.
+pub fn prefetch() {
+    std::thread::Builder::new()
+        .name("hs-shell-detect".into())
+        .spawn(|| {
+            let _ = profiles();
+        })
+        .ok();
+}
+
 pub fn detect() -> Vec<ShellProfile> {
     let mut out = Vec::new();
     if cfg!(windows) {

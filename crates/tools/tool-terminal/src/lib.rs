@@ -13,6 +13,7 @@ use hs_core::tool::{
 use hs_term::session::{Session, TermEvent};
 use hs_term::shells::ShellProfile;
 use hs_term::widget::{TermTheme, TerminalView};
+use hs_ui::tip::TipExt;
 use serde::{Deserialize, Serialize};
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
@@ -56,7 +57,7 @@ pub struct TerminalTool {
 
 impl TerminalTool {
     fn new(services: &Services, state: State) -> Self {
-        let profiles = Arc::new(hs_term::shells::detect());
+        let profiles = hs_term::shells::profiles();
         let font_size = services.settings.read().terminal.font_size;
         let mut t = Self {
             state,
@@ -117,9 +118,28 @@ impl Tool for TerminalTool {
     }
 
     fn title(&self) -> Cow<'_, str> {
+        // The profile name until the shell sets a real title (a bare exe path
+        // or an empty string is not one).
+        let profile_name = self
+            .state
+            .profile
+            .as_ref()
+            .and_then(|id| self.profiles.iter().find(|p| p.id == *id))
+            .map(|p| p.name.clone());
         match &self.session {
-            Some(s) => Cow::Borrowed(s.title.as_str()),
-            None => Cow::Borrowed("Terminal"),
+            Some(s) => {
+                let t = s.title.trim();
+                let looks_like_path = t.is_empty()
+                    || t.to_ascii_lowercase().ends_with(".exe")
+                    || t.contains('\\')
+                    || t.starts_with('/');
+                if looks_like_path {
+                    Cow::Owned(profile_name.unwrap_or_else(|| "Terminal".into()))
+                } else {
+                    Cow::Borrowed(s.title.as_str())
+                }
+            }
+            None => Cow::Owned(profile_name.unwrap_or_else(|| "Terminal".into())),
         }
     }
 
@@ -189,18 +209,20 @@ impl Tool for TerminalTool {
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
-        ui.label(egui::RichText::new(s.t("terminal-profiles")).strong());
-        ui.add_space(4.0);
+        let theme = hs_ui::theme::Theme::by_name(&s.settings.read().appearance.theme);
+        hs_ui::form::header_bar(ui, &theme, |ui| {
+            ui.label(
+                egui::RichText::new(s.t("terminal-profiles"))
+                    .strong()
+                    .size(15.0),
+            );
+        });
         let profiles = self.profiles.clone();
+        let current = self.state.profile.clone().unwrap_or_default();
         for p in profiles.iter() {
-            if ui
-                .add(
-                    egui::Button::new(format!("{}  {}", hs_ui::icons::ph::TERMINAL, p.name))
-                        .frame(false),
-                )
-                .on_hover_text(&p.exe)
-                .clicked()
-            {
+            let icon = shell_icon(&p.id);
+            let r = hs_ui::form::list_row(ui, &theme, p.id == current, icon, &p.name, Some(&p.exe));
+            if r.tip(s.t("terminal-open-in-new-tab")).clicked() {
                 cx.open(
                     "terminal",
                     Some(OpenRequest::Terminal {
@@ -210,9 +232,15 @@ impl Tool for TerminalTool {
                     }),
                 );
             }
+            ui.add_space(2.0);
         }
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new(s.t("terminal-hint")).weak());
+        ui.add_space(10.0);
+        hs_ui::form::note(
+            ui,
+            &theme,
+            hs_ui::icons::ph::LIGHTBULB,
+            &s.t("terminal-hint"),
+        );
         true
     }
 
@@ -228,12 +256,9 @@ impl Tool for TerminalTool {
                 }
             }
         }
-        let dark = s.settings.read().appearance.theme != "light";
-        let theme = if dark {
-            TermTheme::dark()
-        } else {
-            TermTheme::light()
-        };
+        let theme = TermTheme::for_theme(&hs_ui::theme::Theme::by_name(
+            &s.settings.read().appearance.theme,
+        ));
         match (&mut self.session, &self.error) {
             (Some(sess), _) => {
                 let r = self.view.show(ui, sess, &theme);
@@ -367,5 +392,21 @@ impl Tool for TerminalTool {
             }
             _ => false,
         }
+    }
+}
+
+/// A glyph per shell family for the sidebar list.
+fn shell_icon(id: &str) -> &'static str {
+    use hs_ui::icons::ph;
+    if id.starts_with("wsl:") {
+        ph::LINUX_LOGO
+    } else if id == "pwsh" || id == "powershell" {
+        ph::TERMINAL_WINDOW
+    } else if id == "cmd" {
+        ph::WINDOWS_LOGO
+    } else if id == "git-bash" {
+        ph::GIT_BRANCH
+    } else {
+        ph::TERMINAL
     }
 }

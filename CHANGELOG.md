@@ -37,6 +37,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Settings > Updates with check, verified download, install and revert (15a38e06)
 
 - Settings open as a regular tab (categories in the sidebar) instead of a floating window.
+- Settings pages redesigned: cards, label/field grids, comfortable full-width text fields, icons in the category list; the Settings tab cannot be duplicated.
+- Colour schemes: HyperStack Dark/Light, Dracula, Nord, One Dark, Monokai, Gruvbox Dark, Catppuccin Mocha, Solarized Dark/Light, GitHub Light; the terminal and editor follow the scheme.
+- Window size, position and maximised state, sidebar width and dock height are restored on the next start.
+- Terminal opens instantly: shell detection (which runs `wsl -l`) is cached and prefetched at startup.
+- Tooltips appear above the pointer; toolbars and sidebar headers got vertical padding; the terminal's shell list has larger icons with hover and selection highlights and a framed hint panel.
 - Hidden `--install-update` and `--revert-update` flags run the updater's install and revert headlessly (scripted end-to-end tests).
 - Larger activity rail (56 px) and icons.
 - The editor's project tree uses VS Code Material Icon Theme icons for folders and files (132 bundled SVGs, MIT).

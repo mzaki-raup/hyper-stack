@@ -3,6 +3,7 @@
 //! strip wraps onto more rows. Pinned tabs render icon-only at the start of the
 //! first row.
 
+use crate::tip::TipExt;
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 
 use crate::theme::Theme;
@@ -215,7 +216,7 @@ impl TabStrip<'_> {
                     egui::FontId::proportional(16.0),
                     self.theme.text_muted,
                 );
-                if r.on_hover_text(&self.labels.new_tab).clicked() {
+                if r.tip(&self.labels.new_tab).clicked() {
                     resp.new_tab = true;
                 }
             }
@@ -385,7 +386,7 @@ impl TabStrip<'_> {
             ui.ctx()
                 .data_mut(|d| d.insert_temp(ui.id().with("tab-drag"), index));
         }
-        let r = r.on_hover_text(tab.tooltip());
+        let r = r.tip(tab.tooltip());
         let labels = self.labels;
         let pinned = tab.pinned();
         let tid = tab.id();

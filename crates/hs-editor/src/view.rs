@@ -3,6 +3,7 @@
 //! find/replace and go-to-line bars.
 
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Vec2};
+use hs_ui::tip::TipExt;
 
 use crate::buffer::{Buffer, Edit, EditKind};
 use crate::cursor::{Cursor, Cursors, Move, byte_to_char, char_to_byte};
@@ -25,6 +26,25 @@ pub struct EditorTheme {
 }
 
 impl EditorTheme {
+    /// Follow the app colour scheme (syntax colours stay per light/dark).
+    pub fn for_theme(theme: &hs_ui::theme::Theme) -> Self {
+        let mut t = if theme.dark {
+            Self::dark()
+        } else {
+            Self::light()
+        };
+        t.background = theme.window_bg;
+        t.gutter_bg = theme.panel_bg;
+        t.gutter_fg = theme.text_muted;
+        t.text = theme.text;
+        t.cursor = theme.text;
+        t.selection = theme.accent.linear_multiply(0.35);
+        t.bracket = theme.secondary.linear_multiply(0.45);
+        t.find_match = theme.warning.linear_multiply(0.35);
+        t.find_current = theme.warning.linear_multiply(0.65);
+        t
+    }
+
     pub fn dark() -> Self {
         Self {
             background: Color32::from_rgb(0x15, 0x15, 0x1A),
@@ -1259,11 +1279,11 @@ impl EditorView {
                         r.request_focus();
                     }
                     ui.toggle_value(&mut self.find.case_sensitive, "Aa")
-                        .on_hover_text("Match Case");
+                        .tip("Match Case");
                     ui.toggle_value(&mut self.find.whole_word, "ab")
-                        .on_hover_text("Whole Word");
+                        .tip("Whole Word");
                     ui.toggle_value(&mut self.find.regex, ".*")
-                        .on_hover_text("Regular Expression");
+                        .tip("Regular Expression");
                     let n = self.find.matches.len();
                     let label = if n == 0 {
                         "No results".to_string()
@@ -1271,14 +1291,10 @@ impl EditorView {
                         format!("{} of {n}", (self.find.current + 1).min(n))
                     };
                     ui.label(egui::RichText::new(label).weak());
-                    if ui
-                        .small_button("▲")
-                        .on_hover_text("Previous (Shift+F3)")
-                        .clicked()
-                    {
+                    if ui.small_button("▲").tip("Previous (Shift+F3)").clicked() {
                         step = Some(false);
                     }
-                    if ui.small_button("▼").on_hover_text("Next (F3)").clicked() {
+                    if ui.small_button("▼").tip("Next (F3)").clicked() {
                         step = Some(true);
                     }
                     if ui.small_button("✕").clicked() {

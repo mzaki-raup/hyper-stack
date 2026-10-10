@@ -326,6 +326,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `[regex]::Replace` with a string replacement expands `$1`-style tokens, which
   mangles release notes containing `$`; use the scriptblock overload
   (`{ param($m) $text }`) for literal insertion.
+- `HyperStack.exe` is a GUI-subsystem binary (release builds set
+  `windows_subsystem = "windows"`). PowerShell's `& $exe …` returns
+  immediately for such a process and leaves `$LASTEXITCODE` empty, so
+  `if ($LASTEXITCODE -ne 0)` throws even when `--self-test` printed
+  "self-test ok" (CI run 6). Always run the exe with
+  `Start-Process -FilePath $exe -ArgumentList @(…) -Wait -PassThru -NoNewWindow`
+  and read `.ExitCode`; redirect stdout to a file when the text is needed.
+  Bash and Rust's `Command::status()` wait correctly, which is why local
+  checks passed.
 - `[ref]$name` on a variable that was never assigned throws "[ref] cannot be
   applied to a variable that does not exist". The Actions `pwsh` shell runs
   with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three

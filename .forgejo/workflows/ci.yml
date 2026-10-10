@@ -103,11 +103,18 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $exe = "$env:CARGO_TARGET_DIR/release/HyperStack.exe"
-          $tmp = Join-Path $env:RUNNER_TEMP "hs-smoke"
+          # RUNNER_TEMP is not set by every runner; fall back to the system temp dir.
+          $base = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+          $tmp = Join-Path $base "hs-smoke-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
           New-Item -ItemType Directory -Force $tmp | Out-Null
-          & $exe --version
-          & $exe --self-test --data-dir $tmp
-          if ($LASTEXITCODE -ne 0) { throw "--self-test exited with $LASTEXITCODE" }
+          Write-Host "self-test data dir: $tmp"
+          # HyperStack.exe is a GUI-subsystem binary: `& $exe` does not wait for it
+          # and leaves $LASTEXITCODE empty. Start-Process -Wait gives a real exit code.
+          $p = Start-Process -FilePath $exe -ArgumentList @('--version') -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "--version exited with $($p.ExitCode)" }
+          $p = Start-Process -FilePath $exe -ArgumentList @('--self-test', '--data-dir', $tmp) -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "--self-test exited with $($p.ExitCode)" }
+          Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
           # Portable guarantee: nothing may be written outside the data dir.
           if (Test-Path "$env:APPDATA\HyperStack") { throw "The app wrote to %APPDATA% during --self-test" }
           if (Test-Path "$env:LOCALAPPDATA\HyperStack") { throw "The app wrote to %LOCALAPPDATA% during --self-test" }

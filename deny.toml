@@ -13,6 +13,11 @@ ignore = [
   # anything HyperStack calls. No fixed version exists; revisit on the next
   # egui/winit upgrade.
   { id = "RUSTSEC-2026-0192", reason = "transitive via winit/sctk-adwaita; no upstream fix yet" },
+  # bincode 1.x is "unmaintained" by its own team's declaration (they consider
+  # 1.3.3 complete). It reaches us only through syntect's bundled syntax/theme
+  # dumps (`default-syntaxes`/`default-themes`), decoded from data compiled
+  # into the binary, never from user input. Revisit when syntect moves off it.
+  { id = "RUSTSEC-2025-0141", reason = "transitive via syntect's bundled dumps; trusted embedded data only" },
 ]
 
 [licenses]

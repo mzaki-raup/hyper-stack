@@ -76,6 +76,7 @@ impl HyperStackApp {
     ) -> Self {
         hs_ui::fonts::prefetch_system_fonts();
         hs_ui::icons::install_fonts(&cc.egui_ctx);
+        hs_ui::icons::install_image_loaders(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
         let boot = match bootstrap::services(paths, waker, KdfParams::DEFAULT) {
             Ok(b) => b,

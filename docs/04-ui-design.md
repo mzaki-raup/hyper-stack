@@ -43,6 +43,9 @@ Regions, top to bottom:
    (quick-open, "open terminal here") switches to that component. Ctrl+PageUp/
    PageDown cycle within the component. Owner's request, 2026-10-11.
 5. **Sidebar** — content supplied by the active tab's tool (`Tool::sidebar`).
+   File and folder listings use the VS Code Material Icon Theme SVGs
+   (`assets/icons/material/`, MIT) through `hs_ui::fileicons`, so a project
+   tree reads like VS Code's. Owner's request, 2026-10-11.
    Width persisted per tool.
 6. **Main area** — the active tab's `Tool::ui`, or a split tree of several tabs.
 7. **Bottom dock** — Output (logs), Jobs, Problems (editor diagnostics, failed

@@ -33,7 +33,7 @@ tool-editor = { path = "crates/tools/tool-editor" }
 # UI
 eframe = "0.35"
 egui = { version = "0.35", features = ["serde"] }
-egui_extras = { version = "0.35", features = ["image"] }
+egui_extras = { version = "0.35", features = ["image", "svg"] }
 egui-phosphor = { version = "0.13", features = ["regular", "fill"] }
 egui_kittest = "0.35"
 image = { version = "0.25", default-features = false, features = ["png"] }

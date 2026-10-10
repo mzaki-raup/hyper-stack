@@ -13,6 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.3.0 — 2026-10-10
+
+### Added
+
+- Bundled Nerd Font Mono families and a system-font picker (6bb618b2)
+- Settings open as a tab; font sizes say what they affect (56aba2b3)
+
 ## 0.2.0 — 2026-10-10
 
 ### Added

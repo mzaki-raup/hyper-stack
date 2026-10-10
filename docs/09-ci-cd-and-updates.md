@@ -181,7 +181,7 @@ format is newer than what the user's other copies understand.
 | `HS_INTEGRATION` (optional) | enables container-backed integration tests when a Docker engine is available on the runner |
 
 The active key pair was generated on 2026-10-10; its public half is
-`keys/minisign.pub` (key id `12CCB188A17A5843`). Key rotation: a new minisign
+`keys/minisign.pub` (key id `99C2A397C6491EAB`; an earlier `12CCB188A17A5843` key was retired unused). Key rotation: a new minisign
 public key is shipped in a release signed by the old key; the app accepts any
 key in its embedded list, and the list drops old keys two major versions later.
 

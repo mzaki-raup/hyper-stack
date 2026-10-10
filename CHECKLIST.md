@@ -35,8 +35,8 @@ Last updated: 2026-10-10
 | `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings, workspaces, layout persistence | Completed | native window decorations in Phase 0; custom title bar later |
 | Two dummy tools; `egui_kittest` interaction test for the tab strip | Completed | image snapshots skipped: the runner has no GPU |
 | `portable-pty` verified on Windows (ConPTY DSR handshake) | Completed | PowerShell 7 profile loading is checked in M1 with the real terminal |
-| Minisign key pair generated, `keys/minisign.pub` committed | In-Progress | key `12CCB188A17A5843` was made with `-W` and prompts for a password; regenerate with `rsign generate --unencrypted`, then replace `keys/minisign.pub` and `SIGNING_KEYS` in `hs-core/src/update.rs` |
-| `HS_MINISIGN_KEY` repository secret set on the forge (Settings → Actions → Secrets) | In-Progress | secret exists (release run 8 reached signing) but holds the `-W` key; paste the new two-line key |
+| Minisign key pair generated, `keys/minisign.pub` committed and embedded | Completed | key id `99C2A397C6491EAB` (`--unencrypted`), 2026-10-10 |
+| `HS_MINISIGN_KEY` repository secret set on the forge (Settings → Actions → Secrets) | Completed | set by the owner, 2026-10-10 |
 | `v0.1.0` published automatically and passes `verify-release.ps1` | Pending | |
 | Phase 0 exit test (USB-stick move, no plaintext secret, nothing outside the folder) | Pending | |
 

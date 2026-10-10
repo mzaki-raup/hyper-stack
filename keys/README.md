@@ -14,7 +14,8 @@ and `*.sec` anywhere in the tree.
 
 | Key id | Generated | Status |
 |---|---|---|
-| `12CCB188A17A5843` | 2026-10-10 | active (signs every release from `v0.1.0`) |
+| `99C2A397C6491EAB` | 2026-10-10 | active (signs every release from `v0.1.0`) |
+| `12CCB188A17A5843` | 2026-10-10 | retired before any release: generated with `-W`, never used |
 
 The key id is the one `rsign`/`minisign` print in the public key's comment
 line and embed in every signature. Settings → About in the app shows the same

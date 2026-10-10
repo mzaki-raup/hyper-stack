@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::version::VersionInfo;
 
 /// Public keys accepted for `manifest.json.minisig` (keys/minisign.pub).
-pub const SIGNING_KEYS: &[&str] = &["RWRDWHqhiLHMEsJM7cdAWm+RQ5uimEG58V/Y4Ve89TLNIw+GsPNpZOzv"];
+pub const SIGNING_KEYS: &[&str] = &["RWSrHknGl6PCmbQLELU5/Y7cxjPzb/fgHUSZJPW4Jxpv03/dAiVCHcAM"];
 
 pub const RELEASES_URL: &str =
     "https://git.zacx.net/api/v1/repos/owner/hyper-stack/releases?limit=20";

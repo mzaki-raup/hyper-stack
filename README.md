@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/icon/hyperstack-128.png" width="128" height="128" alt="HyperStack icon: three stacked layers in purple, blue and gold"></p>
+
 # HyperStack
 
 **One workspace for everyone who ships software.**
@@ -100,7 +102,8 @@ hyper-stack/
 │       ├── tool-terminal/
 │       ├── tool-containers/
 │       └── tool-devtools/
-├── assets/                    # icons, fonts, default themes
+├── assets/
+│   └── icon/                  # hyperstack.png (512 master), hyperstack.ico, PNG sizes — regenerate with scripts/make-icons.ps1
 ├── locales/                   # Fluent .ftl files
 └── docs/
 ```

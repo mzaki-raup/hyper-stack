@@ -24,7 +24,8 @@ Last updated: 2026-10-10
 |---|---|---|
 | Cargo workspace, `[workspace.package] version`, `deny.toml`, rustfmt/clippy clean | Pending | |
 | Pester tests for `scripts/next-release.ps1` | Pending | |
-| Binary flags `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` version resources | Pending | |
+| App icon master and derived sizes in `assets/icon/` (`hyperstack.ico`, PNG 16–512), `scripts/make-icons.ps1` | Completed | 2026-10-10 |
+| Binary flags `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds `hyperstack.ico` + version resources; window icon via `with_icon` | Pending | |
 | `hs-core`: `Tool`/`ToolFactory`, `Services`, `ToolContext`, actions queue | Pending | |
 | `hs-core`: tokio runtime, `UiWaker`, `Jobs`, `Events` | Pending | |
 | `hs-core`: portable paths (`HyperStackData/`, writability probe, fallback), atomic TOML/JSON io, schema versioning, SQLite history | Pending | |

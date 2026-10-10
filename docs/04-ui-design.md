@@ -215,6 +215,14 @@ shortcuts page.
   `status.2xx/3xx/4xx/5xx`.
 - Terminal and editor can use a different font from the UI; a bundled Nerd
   Font ensures prompt glyphs render.
+- **Brand palette** comes from the app icon (`assets/icon/hyperstack.png`, three
+  stacked layers): purple `#7200CA`, blue `#0075D3`, gold `#A78700`, with the
+  darker edge tones `#0055D4` and `#AB6C00`. The default dark and light themes
+  use purple as the accent and blue as the secondary; gold is reserved for
+  warnings and the beta-channel badge so it never competes with the
+  environment colours. The icon itself is shown at 24 px in the title bar
+  (replacing the ⚡ placeholder in the mock-ups), at 64 px on the launcher and
+  at 128 px in Settings → About.
 
 ## 9. Settings categories
 

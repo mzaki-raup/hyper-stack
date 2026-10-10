@@ -25,6 +25,7 @@ release; follow it from the first commit of code (Phase 0 in
 | Why each major choice was made (ADR-001 … ADR-018) | `docs/08-decisions.md` |
 | CI, automatic releases, asset contract, in-app updater | `docs/09-ci-cd-and-updates.md`; live workflows in `.forgejo/workflows/`, scripts in `scripts/`, signing key notes in `keys/README.md` |
 | One design document per tool | `docs/tools/*.md` |
+| App icon and every derived size | `assets/icon/` (master `hyperstack.png`; regenerate with `scripts/make-icons.ps1`, never by hand; usage in `docs/03-architecture.md` §13) |
 
 Read the relevant spec before implementing a tool; the specs are the
 requirements. When implementation forces a design change, change the document

@@ -333,9 +333,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - Driving the release exe for a GUI smoke test from PowerShell: `Start-Process`
   with `--data-dir` in `%TEMP%`, `SetForegroundWindow`, then
   `[System.Windows.Forms.SendKeys]::SendWait(...)` works for keyboard paths
-  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks land unreliably
-  because a non-DPI-aware PowerShell sees virtualised coordinates; verify
-  mouse paths with `egui_kittest` instead.
+  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks only land where
+  the screenshot says once the PowerShell process has called
+  `SetProcessDPIAware()` (otherwise `GetWindowRect`, `CopyFromScreen` and
+  `SetCursorPos` all see DPI-virtualised coordinates and clicks drift by a
+  row or more). Mouse paths are also covered headlessly with `egui_kittest`
+  (`crates/hs-editor/tests/view.rs`).
 
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status

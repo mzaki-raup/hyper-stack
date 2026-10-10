@@ -20,12 +20,13 @@ pub enum Page {
     Environments,
     Connections,
     Security,
+    Terminal,
     Data,
     About,
 }
 
 impl Page {
-    fn all() -> [(Page, &'static str); 9] {
+    fn all() -> [(Page, &'static str); 10] {
         [
             (Page::General, "settings-general"),
             (Page::Updates, "settings-updates"),
@@ -34,6 +35,7 @@ impl Page {
             (Page::Environments, "settings-environments"),
             (Page::Connections, "settings-connections"),
             (Page::Security, "settings-security"),
+            (Page::Terminal, "settings-terminal"),
             (Page::Data, "settings-data"),
             (Page::About, "settings-about"),
         ]
@@ -110,6 +112,7 @@ pub fn show(
                         }
                         Page::Connections => connections(ui, theme, services, state, &mut effects),
                         Page::Security => security(ui, theme, services, &mut effects),
+                        Page::Terminal => terminal(ui, theme, services, &mut effects),
                         Page::Data => data(ui, theme, services),
                         Page::About => about(ui, theme, services),
                     });
@@ -942,6 +945,64 @@ fn security(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
             )
             .changed();
     });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    ui.heading(s.t("settings-terminal"));
+    ui.add_space(8.0);
+    let profiles = hs_term::shells::detect();
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-default-profile"));
+        let current = profiles
+            .iter()
+            .find(|p| p.id == settings.terminal.default_profile)
+            .or(profiles.first())
+            .map(|p| p.name.clone())
+            .unwrap_or_default();
+        egui::ComboBox::from_id_salt("term-default")
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                for p in &profiles {
+                    if ui
+                        .selectable_label(settings.terminal.default_profile == p.id, &p.name)
+                        .on_hover_text(&p.exe)
+                        .clicked()
+                    {
+                        settings.terminal.default_profile = p.id.clone();
+                        changed = true;
+                    }
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-font-size"));
+        changed |= ui
+            .add(egui::Slider::new(&mut settings.terminal.font_size, 9.0..=24.0).suffix(" px"))
+            .changed();
+    });
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-scrollback"));
+        changed |= ui
+            .add(
+                egui::DragValue::new(&mut settings.terminal.scrollback)
+                    .range(100..=200_000)
+                    .speed(100),
+            )
+            .changed();
+    });
+    changed |= ui
+        .checkbox(
+            &mut settings.terminal.copy_on_select,
+            s.t("settings-terminal-copy-on-select"),
+        )
+        .changed();
+    ui.add_space(6.0);
+    ui.colored_label(theme.text_muted, s.t("terminal-hint"));
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }

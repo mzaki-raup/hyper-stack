@@ -363,7 +363,12 @@ impl HyperStackApp {
             "palette.commands" => self.palette.toggle(PaletteMode::Commands),
             "palette.quick_open" => self.palette.toggle(PaletteMode::QuickOpen),
             "view.sidebar" => self.sidebar_open = !self.sidebar_open,
-            "view.dock" | "view.terminal" => self.dock_open = !self.dock_open,
+            "view.dock" => self.dock_open = !self.dock_open,
+            "view.terminal" => {
+                self.dock_open = true;
+                self.dock.tab = dock::DockTab::Terminal;
+            }
+            "terminal.new" => self.open_tool("terminal", None),
             "app.settings" => self.settings_ui.open = true,
             "app.shortcuts" => {
                 self.settings_ui.open = true;

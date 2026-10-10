@@ -191,6 +191,19 @@ vault-locked-toast = The vault is locked.
 vault-unlocked-toast = The vault is unlocked.
 
 ## Tools (built-in)
+tool-terminal = Terminal
+terminal-profiles = Shells
+terminal-profile = Shell
+terminal-restart = Restart
+terminal-clear = Clear
+terminal-exited = The shell exited with code { $code }.
+terminal-no-shell = No shell was found on this machine.
+terminal-hint = Click a shell to open it in a new tab. Ctrl+Shift+C copies, Ctrl+Shift+V pastes, Shift+Page Up scrolls back.
+settings-terminal = Terminal
+settings-terminal-default-profile = Default Shell
+settings-terminal-font-size = Font Size
+settings-terminal-scrollback = Scrollback Lines
+settings-terminal-copy-on-select = Copy on Select
 tool-scratchpad = Scratchpad
 tool-scratchpad-hint = Markdown notes for this workspace. Saved with the layout.
 tool-hello = Welcome

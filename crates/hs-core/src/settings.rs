@@ -16,6 +16,7 @@ pub struct Settings {
     pub appearance: Appearance,
     pub updates: Updates,
     pub security: Security,
+    pub terminal: Terminal,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -74,6 +75,28 @@ impl Default for Settings {
             appearance: Appearance::default(),
             updates: Updates::default(),
             security: Security::default(),
+            terminal: Terminal::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Terminal {
+    /// Shell profile id ("pwsh", "cmd", "git-bash", "wsl:Ubuntu", …); empty = first detected.
+    pub default_profile: String,
+    pub font_size: f32,
+    pub scrollback: usize,
+    pub copy_on_select: bool,
+}
+
+impl Default for Terminal {
+    fn default() -> Self {
+        Self {
+            default_profile: String::new(),
+            font_size: 13.0,
+            scrollback: 10_000,
+            copy_on_select: false,
         }
     }
 }

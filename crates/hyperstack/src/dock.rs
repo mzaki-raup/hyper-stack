@@ -17,6 +17,48 @@ pub enum DockTab {
 #[derive(Default)]
 pub struct DockState {
     pub tab: DockTab,
+    pub terminal: Option<(hs_term::session::Session, hs_term::widget::TerminalView)>,
+    pub terminal_error: Option<String>,
+}
+
+impl DockState {
+    fn ensure_terminal(&mut self, services: &Services) {
+        if self.terminal.is_some() || self.terminal_error.is_some() {
+            return;
+        }
+        let profiles = hs_term::shells::detect();
+        let (default, font, scrollback, copy) = {
+            let st = services.settings.read();
+            (
+                st.terminal.default_profile.clone(),
+                st.terminal.font_size,
+                st.terminal.scrollback,
+                st.terminal.copy_on_select,
+            )
+        };
+        let Some(profile) = profiles
+            .iter()
+            .find(|p| p.id == default)
+            .or(profiles.first())
+            .cloned()
+        else {
+            self.terminal_error = Some(services.t("terminal-no-shell"));
+            return;
+        };
+        let waker = services.runtime.waker();
+        let waker: std::sync::Arc<dyn Fn() + Send + Sync> =
+            std::sync::Arc::new(move || waker.request_repaint());
+        let cwd = services.workspace.read().root().to_path_buf();
+        match hs_term::session::Session::spawn(profile, Some(&cwd), 100, 12, scrollback, waker) {
+            Ok(session) => {
+                let mut view =
+                    hs_term::widget::TerminalView::new(egui::Id::new("hs-dock-terminal"), font);
+                view.copy_on_select = copy;
+                self.terminal = Some((session, view));
+            }
+            Err(e) => self.terminal_error = Some(e),
+        }
+    }
 }
 
 pub fn show(
@@ -106,10 +148,36 @@ pub fn show(
             ui.colored_label(theme.text_muted, "—");
         }
         DockTab::Terminal => {
-            ui.colored_label(
-                theme.text_muted,
-                "The terminal arrives in milestone M1 (see docs/07-roadmap.md).",
-            );
+            state.ensure_terminal(services);
+            let dark = services.settings.read().appearance.theme != "light";
+            let tt = if dark {
+                hs_term::widget::TermTheme::dark()
+            } else {
+                hs_term::widget::TermTheme::light()
+            };
+            if let Some(err) = state.terminal_error.clone() {
+                ui.colored_label(theme.error, err);
+                if ui.button(services.t("terminal-restart")).clicked() {
+                    state.terminal_error = None;
+                    state.terminal = None;
+                }
+            } else if let Some((session, view)) = state.terminal.as_mut() {
+                let _ = session.drain_events();
+                if let Some(code) = session.exited() {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            services
+                                .i18n
+                                .t_args("terminal-exited", &[("code", &code.to_string())]),
+                        );
+                        if ui.button(services.t("terminal-restart")).clicked() {
+                            state.terminal = None;
+                        }
+                    });
+                } else {
+                    view.show(ui, session, &tt);
+                }
+            }
         }
     }
 }

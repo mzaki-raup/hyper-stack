@@ -81,6 +81,7 @@ pub enum OpenRequest {
     Terminal {
         cwd: Option<String>,
         host: Option<String>,
+        profile: Option<String>,
     },
 }
 

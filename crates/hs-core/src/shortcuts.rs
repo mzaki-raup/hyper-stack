@@ -196,6 +196,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("view.sidebar", "Ctrl+B"),
     ("view.dock", "Ctrl+J"),
     ("view.terminal", "Ctrl+`"),
+    ("terminal.new", "Ctrl+Shift+`"),
     ("env.switch", "Ctrl+Shift+E"),
     ("app.settings", "Ctrl+,"),
     ("app.shortcuts", "F1"),

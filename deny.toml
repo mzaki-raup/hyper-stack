@@ -7,7 +7,13 @@ all-features = false
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
-ignore = []
+ignore = [
+  # ttf-parser is declared unmaintained upstream. It reaches us only through
+  # winit -> sctk-adwaita (Linux Wayland client-side decorations), not through
+  # anything HyperStack calls. No fixed version exists; revisit on the next
+  # egui/winit upgrade.
+  { id = "RUSTSEC-2026-0192", reason = "transitive via winit/sctk-adwaita; no upstream fix yet" },
+]
 
 [licenses]
 allow = [
@@ -33,6 +39,8 @@ confidence-threshold = 0.8
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace path dependencies carry no version; that is not a wildcard risk.
+allow-wildcard-paths = true
 highlight = "all"
 
 [sources]

@@ -326,6 +326,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `[regex]::Replace` with a string replacement expands `$1`-style tokens, which
   mangles release notes containing `$`; use the scriptblock overload
   (`{ param($m) $text }`) for literal insertion.
+- `[ref]$name` on a variable that was never assigned throws "[ref] cannot be
+  applied to a variable that does not exist". The Actions `pwsh` shell runs
+  with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three
+  seconds before any Rust step. Always `$x = $null` before `[ref]$x`, and
+  reproduce workflow snippets locally under `Stop` before pushing.
 
 ### Rust / build
 - `.cargo/config.toml` sets `-C target-feature=+crt-static` so the MSVC build

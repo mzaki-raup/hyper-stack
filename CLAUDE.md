@@ -66,6 +66,11 @@ in the same commit.
   lowercase). Sentence case for information and instructions: tooltips,
   hints and placeholders, dialog bodies, toasts, empty-state messages ("No
   background jobs.", "Type to search…"). Owner's rule, 2026-10-10.
+- **Right-click copy/paste in text surfaces (PuTTY convention).** In the
+  terminal and in every editor/text field we draw ourselves: right-click with
+  a selection copies it to the clipboard and clears the selection; right-click
+  with no selection pastes the clipboard at the cursor. A per-tool setting may
+  turn it off; the default is on. Owner's rule, 2026-10-11.
 - **Cross-platform core.** Windows ships first, but `hs-core`, `hs-ui`,
   `hs-editor`, `hs-term` and every tool must compile on Linux and macOS.
   Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`
@@ -316,6 +321,21 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `rust-embed`'s `#[include]`/`#[exclude]` attributes need the
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
+
+- egui-winit turns Ctrl+V, Ctrl+Shift+V and Shift+Insert into `Event::Paste`
+  (and Ctrl+C/X into Copy/Cut) before any key handling, so never bind those
+  as shortcuts; the Markdown preview is Ctrl+Shift+M for that reason.
+- Global shortcuts win over tool-local keys: `run_action` forwards unknown
+  action ids (`file.save`, `file.open`, …) to the active tool's `run_command`,
+  so a tool must not also handle the same combo itself, and a tool-local
+  combo that collides with a global default (Ctrl+Shift+L = `vault.lock`)
+  has to pick another one (the editor uses Alt+F3 for "select all occurrences").
+- Driving the release exe for a GUI smoke test from PowerShell: `Start-Process`
+  with `--data-dir` in `%TEMP%`, `SetForegroundWindow`, then
+  `[System.Windows.Forms.SendKeys]::SendWait(...)` works for keyboard paths
+  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks land unreliably
+  because a non-DPI-aware PowerShell sees virtualised coordinates; verify
+  mouse paths with `egui_kittest` instead.
 
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status

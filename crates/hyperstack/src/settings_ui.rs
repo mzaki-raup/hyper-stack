@@ -20,12 +20,14 @@ pub enum Page {
     Environments,
     Connections,
     Security,
+    Terminal,
+    Editor,
     Data,
     About,
 }
 
 impl Page {
-    fn all() -> [(Page, &'static str); 9] {
+    fn all() -> [(Page, &'static str); 11] {
         [
             (Page::General, "settings-general"),
             (Page::Updates, "settings-updates"),
@@ -34,6 +36,8 @@ impl Page {
             (Page::Environments, "settings-environments"),
             (Page::Connections, "settings-connections"),
             (Page::Security, "settings-security"),
+            (Page::Terminal, "settings-terminal"),
+            (Page::Editor, "settings-editor"),
             (Page::Data, "settings-data"),
             (Page::About, "settings-about"),
         ]
@@ -55,6 +59,11 @@ pub struct SettingsState {
 
 pub enum SettingsEffect {
     SettingsChanged,
+    CheckUpdates,
+    DownloadUpdate,
+    InstallUpdate,
+    RevertUpdate,
+    SkipUpdate(String),
     ThemeChanged,
     LockVault,
     ChangeMasterPassword,
@@ -105,6 +114,8 @@ pub fn show(
                         }
                         Page::Connections => connections(ui, theme, services, state, &mut effects),
                         Page::Security => security(ui, theme, services, &mut effects),
+                        Page::Terminal => terminal(ui, theme, services, &mut effects),
+                        Page::Editor => editor(ui, theme, services, &mut effects),
                         Page::Data => data(ui, theme, services),
                         Page::About => about(ui, theme, services),
                     });
@@ -163,32 +174,239 @@ fn general(ui: &mut egui::Ui, s: &Services, effects: &mut Vec<SettingsEffect>) {
 }
 
 fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
-    let mut settings = s.settings.write();
+    use hs_core::updater::UpdateStatus;
     let mut changed = false;
     ui.heading(s.t("settings-updates"));
     ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.label(s.t("settings-about-version"));
-        ui.monospace(s.version.to_string());
-    });
-    ui.horizontal(|ui| {
-        ui.label(s.t("settings-updates-channel"));
-        for (ch, key) in [
-            ("stable", "settings-updates-channel-stable"),
-            ("beta", "settings-updates-channel-beta"),
-        ] {
-            if ui.radio(settings.updates.channel == ch, s.t(key)).clicked() {
-                settings.updates.channel = ch.into();
-                changed = true;
+    egui::Grid::new("updates-info")
+        .num_columns(2)
+        .spacing([12.0, 6.0])
+        .show(ui, |ui| {
+            ui.label(s.t("settings-about-version"));
+            ui.monospace(s.version.to_string());
+            ui.end_row();
+            ui.label(s.t("settings-data-folder"));
+            ui.monospace(s.paths.root().display().to_string());
+            ui.end_row();
+            ui.label(s.t("settings-updates-exe-folder"));
+            match s.updater.exe_dir_writable() {
+                Ok(dir) => {
+                    ui.horizontal(|ui| {
+                        ui.monospace(dir.display().to_string());
+                        ui.colored_label(
+                            theme.success,
+                            format!("({})", s.t("settings-updates-writable")),
+                        );
+                    });
+                }
+                Err(_) => {
+                    ui.colored_label(theme.warning, s.t("settings-updates-read-only"));
+                }
             }
+            ui.end_row();
+        });
+    ui.add_space(10.0);
+    {
+        let mut settings = s.settings.write();
+        ui.horizontal(|ui| {
+            ui.label(s.t("settings-updates-channel"));
+            for (ch, key) in [
+                ("stable", "settings-updates-channel-stable"),
+                ("beta", "settings-updates-channel-beta"),
+            ] {
+                if ui.radio(settings.updates.channel == ch, s.t(key)).clicked() {
+                    settings.updates.channel = ch.into();
+                    changed = true;
+                }
+            }
+        });
+        changed |= ui
+            .checkbox(&mut settings.updates.enabled, s.t("settings-updates-auto"))
+            .changed();
+        ui.colored_label(theme.text_muted, s.t("settings-updates-auto-hint"));
+        ui.horizontal(|ui| {
+            ui.label(s.t("settings-updates-when-found"));
+            for (val, key) in [
+                ("notify", "settings-updates-when-notify"),
+                ("install_on_exit", "settings-updates-when-install"),
+            ] {
+                if ui
+                    .radio(settings.updates.when_found == val, s.t(key))
+                    .clicked()
+                {
+                    settings.updates.when_found = val.into();
+                    changed = true;
+                }
+            }
+        });
+    }
+    ui.add_space(10.0);
+    ui.separator();
+    let status = s.updater.status();
+    let last = s.settings.read().updates.last_check.clone();
+    ui.horizontal(|ui| {
+        match &status {
+            UpdateStatus::Checking => {
+                ui.spinner();
+                ui.label(s.t("settings-updates-checking"));
+            }
+            UpdateStatus::UpToDate { checked_at } => {
+                ui.colored_label(
+                    theme.success,
+                    format!(
+                        "{} {}",
+                        hs_ui::icons::CHECK,
+                        s.t("settings-updates-up-to-date")
+                    ),
+                );
+                ui.colored_label(
+                    theme.text_muted,
+                    s.i18n
+                        .t_args("settings-updates-last-checked", &[("when", checked_at)]),
+                );
+            }
+            UpdateStatus::Error(e) => {
+                ui.colored_label(
+                    theme.error,
+                    s.i18n.t_args("settings-updates-error", &[("error", e)]),
+                );
+            }
+            _ => match &last {
+                Some(w) => {
+                    ui.colored_label(
+                        theme.text_muted,
+                        s.i18n
+                            .t_args("settings-updates-last-checked", &[("when", w)]),
+                    );
+                }
+                None => {
+                    ui.colored_label(theme.text_muted, s.t("settings-updates-never-checked"));
+                }
+            },
+        }
+        let busy = matches!(
+            status,
+            UpdateStatus::Checking | UpdateStatus::Downloading { .. }
+        );
+        if !busy && ui.button(s.t("settings-updates-check-now")).clicked() {
+            effects.push(SettingsEffect::CheckUpdates);
         }
     });
-    changed |= ui
-        .checkbox(&mut settings.updates.enabled, s.t("settings-updates-auto"))
-        .changed();
-    ui.colored_label(theme.text_muted, s.t("settings-updates-auto-hint"));
-    ui.add_space(8.0);
-    ui.colored_label(theme.text_muted, s.t("settings-updates-not-yet"));
+    ui.add_space(6.0);
+    match &status {
+        UpdateStatus::Available {
+            candidate, asset, ..
+        } => {
+            let from = s.version.version.to_string();
+            let to = candidate.version.to_string();
+            ui.label(
+                egui::RichText::new(s.i18n.t_args(
+                    "settings-updates-available",
+                    &[("from", &from), ("to", &to)],
+                ))
+                .strong()
+                .color(theme.accent),
+            );
+            egui::CollapsingHeader::new(s.t("settings-updates-notes"))
+                .default_open(true)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(220.0)
+                        .show(ui, |ui| {
+                            ui.add(egui::Label::new(candidate.notes.as_str()).wrap());
+                        });
+                });
+            ui.horizontal(|ui| {
+                let size = format!("{:.1} MB", asset.size as f64 / 1_048_576.0);
+                if ui
+                    .button(
+                        s.i18n
+                            .t_args("settings-updates-download", &[("size", &size)]),
+                    )
+                    .clicked()
+                {
+                    effects.push(SettingsEffect::DownloadUpdate);
+                }
+                ui.hyperlink_to(s.t("settings-updates-view"), &candidate.html_url);
+                if ui.button(s.t("settings-updates-skip")).clicked() {
+                    effects.push(SettingsEffect::SkipUpdate(candidate.tag.clone()));
+                }
+            });
+        }
+        UpdateStatus::Downloading { version } => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(
+                    s.i18n
+                        .t_args("settings-updates-downloading", &[("version", version)]),
+                );
+            });
+            let jobs = s.jobs.snapshot();
+            if let Some(j) = jobs.iter().rev().find(|j| j.tool == "updater") {
+                if let hs_core::jobs::Progress::Bytes { done, total } = &j.progress {
+                    let f = total.map(|t| *done as f32 / t.max(1) as f32).unwrap_or(0.0);
+                    ui.add(
+                        egui::ProgressBar::new(f)
+                            .desired_width(320.0)
+                            .text(format!("{:.1} MB", *done as f64 / 1_048_576.0)),
+                    );
+                }
+                if let Some(m) = &j.message {
+                    ui.colored_label(theme.text_muted, m);
+                }
+            }
+        }
+        UpdateStatus::Ready { version, .. } => {
+            ui.colored_label(
+                theme.success,
+                format!(
+                    "{} {}",
+                    hs_ui::icons::CHECK,
+                    s.i18n
+                        .t_args("settings-updates-ready", &[("version", version)])
+                ),
+            );
+            let btn = egui::Button::new(
+                egui::RichText::new(s.t("settings-updates-install")).color(egui::Color32::WHITE),
+            )
+            .fill(theme.accent);
+            if ui.add(btn).clicked() {
+                effects.push(SettingsEffect::InstallUpdate);
+            }
+        }
+        UpdateStatus::ManualOnly {
+            version,
+            reason,
+            html_url,
+        } => {
+            ui.colored_label(
+                theme.warning,
+                s.i18n.t_args(
+                    "settings-updates-manual",
+                    &[("version", version), ("reason", reason)],
+                ),
+            );
+            ui.hyperlink_to(s.t("settings-updates-view"), html_url);
+        }
+        _ => {}
+    }
+    if let Some((_, prev)) = s.updater.previous_exe() {
+        ui.add_space(10.0);
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(s.t("settings-updates-previous"));
+            ui.monospace(&prev);
+            if ui
+                .button(
+                    s.i18n
+                        .t_args("settings-updates-revert", &[("version", &prev)]),
+                )
+                .clicked()
+            {
+                effects.push(SettingsEffect::RevertUpdate);
+            }
+        });
+    }
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }
@@ -730,6 +948,114 @@ fn security(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
             )
             .changed();
     });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    ui.heading(s.t("settings-terminal"));
+    ui.add_space(8.0);
+    let profiles = hs_term::shells::detect();
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-default-profile"));
+        let current = profiles
+            .iter()
+            .find(|p| p.id == settings.terminal.default_profile)
+            .or(profiles.first())
+            .map(|p| p.name.clone())
+            .unwrap_or_default();
+        egui::ComboBox::from_id_salt("term-default")
+            .selected_text(current)
+            .show_ui(ui, |ui| {
+                for p in &profiles {
+                    if ui
+                        .selectable_label(settings.terminal.default_profile == p.id, &p.name)
+                        .on_hover_text(&p.exe)
+                        .clicked()
+                    {
+                        settings.terminal.default_profile = p.id.clone();
+                        changed = true;
+                    }
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-font-size"));
+        changed |= ui
+            .add(egui::Slider::new(&mut settings.terminal.font_size, 9.0..=24.0).suffix(" px"))
+            .changed();
+    });
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-scrollback"));
+        changed |= ui
+            .add(
+                egui::DragValue::new(&mut settings.terminal.scrollback)
+                    .range(100..=200_000)
+                    .speed(100),
+            )
+            .changed();
+    });
+    changed |= ui
+        .checkbox(
+            &mut settings.terminal.copy_on_select,
+            s.t("settings-terminal-copy-on-select"),
+        )
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.terminal.right_click_copy_paste,
+            s.t("settings-terminal-right-click"),
+        )
+        .on_hover_text(s.t("settings-terminal-right-click-hint"))
+        .changed();
+    ui.add_space(6.0);
+    ui.colored_label(theme.text_muted, s.t("terminal-hint"));
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    ui.heading(s.t("settings-editor"));
+    ui.add_space(8.0);
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-editor-font-size"));
+        changed |= ui
+            .add(egui::Slider::new(&mut settings.editor.font_size, 9.0..=28.0).suffix(" px"))
+            .changed();
+    });
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.right_click_copy_paste,
+            s.t("settings-editor-right-click"),
+        )
+        .on_hover_text(s.t("settings-terminal-right-click-hint"))
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.trim_trailing_whitespace,
+            s.t("settings-editor-trim"),
+        )
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.insert_final_newline,
+            s.t("settings-editor-final-newline"),
+        )
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.auto_reload,
+            s.t("settings-editor-auto-reload"),
+        )
+        .changed();
+    ui.add_space(6.0);
+    ui.colored_label(theme.text_muted, s.t("editor-hint"));
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }

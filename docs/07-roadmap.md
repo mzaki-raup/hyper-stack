@@ -59,12 +59,12 @@ in the e2e test).
 ## Phase 1 — MVP tools (≈ 29 weeks) → v1.0
 
 ### M1 · Terminal + Editor (5 w)
-- [ ] `hs-term`: grid on `alacritty_terminal`, listener, key encoding; `portable-pty` local; shell profile detection (PowerShell 7/5, cmd + Clink, Git Bash, WSL)
-- [ ] `tool-terminal`: tabs, splits, search, links, "open here" action, profiles settings
-- [ ] `hs-editor`: ropey buffer, cursor/selection model, undo tree, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent
-- [ ] `tool-editor`: project tree with `notify` watcher, open/save via VFS, encodings, line endings, dirty handling, quick-open provider
-- [ ] Devtools: Markdown preview (pulldown-cmark + native Mermaid subset) usable from the editor
-- [ ] Settings → Updates: version display, **Check now**, release notes, download Job with verification (size, sha256, manifest signature, `--self-test`), restart-and-install by rename, `--finish-update` handshake, keep previous + **Revert**
+- [x] `hs-term`: grid on `alacritty_terminal`, listener, key encoding; `portable-pty` local; shell profile detection (PowerShell 7/5, cmd + Clink, Git Bash, WSL)
+- [x] `tool-terminal`: tabs, splits, "open here" action, profiles settings, right-click copy/paste — search and link detection still open
+- [x] `hs-editor`: ropey buffer, cursor/selection model, grouped undo/redo, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent, multi-cursor
+- [x] `tool-editor`: project tree with `notify` watcher, open/save (local files; VFS schemes with M2), encodings, line endings, dirty and external-change handling, quick-open provider
+- [x] Markdown preview (pulldown-cmark) in the editor — native Mermaid subset still open
+- [x] Settings → Updates: version display, **Check now**, release notes, download Job with verification (size, sha256, manifest signature, `--self-test`), restart-and-install by rename, `--finish-update` handshake, keep previous + **Revert**
 
 ### M2 · SSH/SFTP + S3 (4 w)
 - [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term`

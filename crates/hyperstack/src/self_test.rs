@@ -214,3 +214,103 @@ fn minisign_key_ok(k: &str) -> bool {
     // Re-use the parser through hs-core's test-free path: a key is valid if it decodes.
     k.len() == 56 && k.starts_with("RW")
 }
+
+/// `--check-updates` / `--download-update`: drive the updater without a window.
+pub fn update_headless(paths: DataDir, download: bool) -> i32 {
+    use hs_core::update::Channel;
+    use hs_core::updater::UpdateStatus;
+    let boot = match crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST) {
+        Ok(b) => b,
+        Err(e) => {
+            println!("FAILED  bootstrap: {e}");
+            return 1;
+        }
+    };
+    let s = &boot.services;
+    let (channel, source, skipped) = {
+        let st = s.settings.read();
+        (
+            st.updates.channel.clone(),
+            st.updates.source.clone(),
+            st.updates.skipped_version.clone(),
+        )
+    };
+    println!("HyperStack {} checking {} channel", s.version, channel);
+    s.updater
+        .check(Channel::from_setting(&channel), Some(source), skipped);
+    let status = wait_status(
+        s,
+        |st| !matches!(st, UpdateStatus::Checking | UpdateStatus::Idle),
+        60,
+    );
+    match status {
+        UpdateStatus::UpToDate { .. } => {
+            println!("up to date");
+            3
+        }
+        UpdateStatus::ManualOnly {
+            version,
+            reason,
+            html_url,
+        } => {
+            println!(
+                "newer release {version} cannot be installed in place: {reason}
+{html_url}"
+            );
+            2
+        }
+        UpdateStatus::Error(e) => {
+            println!("FAILED  {e}");
+            1
+        }
+        UpdateStatus::Available {
+            candidate, asset, ..
+        } => {
+            println!(
+                "available {} ({} bytes) signed manifest verified",
+                candidate.version, asset.size
+            );
+            if !download {
+                return 0;
+            }
+            s.updater.download(&s.jobs, candidate, asset);
+            let status = wait_status(s, |st| !matches!(st, UpdateStatus::Downloading { .. }), 600);
+            match status {
+                UpdateStatus::Ready { version, path } => {
+                    println!("ready   {version} at {}", path.display());
+                    0
+                }
+                UpdateStatus::Error(e) => {
+                    println!("FAILED  {e}");
+                    1
+                }
+                other => {
+                    println!("FAILED  unexpected state {other:?}");
+                    1
+                }
+            }
+        }
+        other => {
+            println!("FAILED  unexpected state {other:?}");
+            1
+        }
+    }
+}
+
+fn wait_status(
+    s: &hs_core::Services,
+    done: impl Fn(&hs_core::updater::UpdateStatus) -> bool,
+    timeout_secs: u64,
+) -> hs_core::updater::UpdateStatus {
+    let start = std::time::Instant::now();
+    loop {
+        let st = s.updater.status();
+        if done(&st) {
+            return st;
+        }
+        if start.elapsed().as_secs() > timeout_secs {
+            return hs_core::updater::UpdateStatus::Error("timed out".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}

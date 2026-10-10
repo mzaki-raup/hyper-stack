@@ -1,6 +1,6 @@
 # Tool spec — Code editor
 
-**Crates:** `hs-editor` (engine + widget) and `tool-editor` (tab, project tree, VFS) · **Priority:** P0 · **Status:** draft
+**Crates:** `hs-editor` (engine + widget) and `tool-editor` (tab, project tree, VFS) · **Priority:** P0 · **Status:** v1 implemented in M1 (local files, no VFS/diff/minimap/Mermaid yet)
 
 ## 1. Purpose
 
@@ -153,7 +153,7 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+G | go to line |
 | Ctrl+Shift+\ | jump to matching bracket |
 | Ctrl+K Ctrl+F | format (external) |
-| Ctrl+Shift+V | Markdown preview |
+| Ctrl+Shift+M | Markdown preview (Ctrl+Shift+V is paste on Windows) |
 | Alt+Z | toggle word wrap |
 
 ## 8. Settings

@@ -8,7 +8,9 @@ use hs_core::tool::ToolFactory;
 
 pub fn factories() -> Vec<Box<dyn ToolFactory>> {
     vec![
-        Box::new(hello::HelloFactory),
+        Box::new(tool_editor::EditorFactory),
+        Box::new(tool_terminal::TerminalFactory),
         Box::new(scratchpad::ScratchpadFactory),
+        Box::new(hello::HelloFactory),
     ]
 }

@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Terminal tool: local shells (PowerShell 7/5, cmd, Git Bash, WSL) in tabs and in the dock, profiles, restart/clear, "open terminal here".
+- Settings → Updates: version display, check now, release notes, verified download, restart-and-install, revert to the previous version.
+- Editor tool: project tree with a file watcher, open/save with encodings and line endings, syntax highlighting, find/replace, go to line, multi-cursor, external-change detection, Markdown preview, quick-open of project files (Ctrl+P).
+- Right-click copies the selection or pastes the clipboard in the terminal and the editor (PuTTY convention), with settings to turn it off.
+- `HyperStack <file-or-folder>…` opens the arguments in the editor.
 
 ## 0.1.0 — 2026-10-10
 

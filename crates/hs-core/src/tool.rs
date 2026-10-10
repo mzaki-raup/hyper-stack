@@ -81,7 +81,17 @@ pub enum OpenRequest {
     Terminal {
         cwd: Option<String>,
         host: Option<String>,
+        profile: Option<String>,
     },
+}
+
+/// A file-like item a tool contributes to Ctrl+P. `id` is handed back to the
+/// tool as `OpenRequest::File { uri: id }` when chosen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuickOpenItem {
+    pub id: String,
+    pub title: String,
+    pub subtitle: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,6 +194,11 @@ pub trait Tool: Send {
 
     fn run_command(&mut self, _id: &str, _cx: &mut ToolContext) -> bool {
         false
+    }
+
+    /// Items for the quick-open palette (project files, saved queries, …).
+    fn quick_open_items(&self) -> Vec<QuickOpenItem> {
+        Vec::new()
     }
 
     /// Persistence for workspace restore. Must not include secrets.

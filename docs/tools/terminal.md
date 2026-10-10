@@ -43,7 +43,8 @@ Font fallback) but no code is taken from them.
 - **Input**: key → bytes encoding table (xterm sequences), including application cursor mode,
   modifiers, kitty keyboard protocol (P2); IME composition.
 - **Selection**: character/word/line/block, copy (plain or with ANSI), copy on
-  select option, right-click paste or context menu, URL/path detection with
+  select option, **right-click copies the selection or pastes when nothing is
+  selected (PuTTY convention, default on)**, URL/path detection with
   regexes for `file:line:col`, Windows paths, URLs, git SHAs (→ Git tool).
 - **Search**: Ctrl+Shift+F in scrollback with highlights, regex, case.
 - **Shell profiles**: detection of PowerShell 7/5, cmd (with Clink if

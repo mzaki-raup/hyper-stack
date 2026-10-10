@@ -13,6 +13,7 @@ use hs_core::runtime::{AppRuntime, UiWaker};
 use hs_core::secrets::{KdfParams, VaultStore};
 use hs_core::settings::Settings;
 use hs_core::shortcuts::Keymap;
+use hs_core::updater::Updater;
 use hs_core::version::VersionInfo;
 use hs_core::workspace::{Registry, Workspace};
 use parking_lot::RwLock;
@@ -43,9 +44,12 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let mut environments = Environments::load(&workspace.environments_dir());
     environments.active = workspace.meta.default_environment.clone();
     let secrets = Arc::new(VaultStore::new(&paths.vault_file(), kdf));
+    let paths = Arc::new(paths);
+    let version = VersionInfo::current();
+    let updater = Updater::new(runtime.clone(), paths.clone(), version.clone());
 
     let services = Services {
-        paths: Arc::new(paths),
+        paths,
         settings: Arc::new(RwLock::new(settings)),
         runtime,
         jobs,
@@ -56,7 +60,8 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         shortcuts: Arc::new(RwLock::new(keymap)),
         i18n,
         workspace: Arc::new(RwLock::new(workspace)),
-        version: VersionInfo::current(),
+        version,
+        updater,
     };
     Ok(Boot {
         services,

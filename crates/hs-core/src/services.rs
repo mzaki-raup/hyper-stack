@@ -15,6 +15,7 @@ use crate::runtime::AppRuntime;
 use crate::secrets::SecretStore;
 use crate::settings::Settings;
 use crate::shortcuts::Keymap;
+use crate::updater::Updater;
 use crate::version::VersionInfo;
 use crate::workspace::Workspace;
 
@@ -32,6 +33,7 @@ pub struct Services {
     pub i18n: Arc<I18n>,
     pub workspace: Arc<RwLock<Workspace>>,
     pub version: VersionInfo,
+    pub updater: Updater,
 }
 
 impl Services {

@@ -42,6 +42,20 @@ struct Cli {
     /// Log filter (tracing syntax), default "info".
     #[arg(long, default_value = "info")]
     log: String,
+
+    /// Headless: query the forge for a newer release, print the result, exit 0 when a
+    /// signed, installable update exists, 3 when up to date, 1 on error.
+    #[arg(long, hide = true)]
+    check_updates: bool,
+
+    /// Headless: like --check-updates, then download and verify the update into the
+    /// data folder (size, sha256, signature, self-test) without installing it.
+    #[arg(long, hide = true)]
+    download_update: bool,
+
+    /// Files or folders to open in the editor at startup.
+    #[arg(value_name = "PATH")]
+    paths: Vec<PathBuf>,
 }
 
 fn main() {
@@ -62,6 +76,10 @@ fn main() {
     if cli.self_test {
         let logging = hs_core::logging::init(None, &cli.log);
         std::process::exit(self_test::run(paths, logging));
+    }
+    if cli.check_updates || cli.download_update {
+        let _logging = hs_core::logging::init(None, &cli.log);
+        std::process::exit(self_test::update_headless(paths, cli.download_update));
     }
 
     let logging = hs_core::logging::init(Some(&paths.logs_dir()), &cli.log);
@@ -90,10 +108,15 @@ fn main() {
         viewport,
         ..Default::default()
     };
+    let open = cli
+        .paths
+        .iter()
+        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
     let result = eframe::run_native(
         "HyperStack",
         options,
-        Box::new(move |cc| Ok(Box::new(app::HyperStackApp::new(cc, paths, logging)))),
+        Box::new(move |cc| Ok(Box::new(app::HyperStackApp::new(cc, paths, logging, open)))),
     );
     if let Err(e) = result {
         tracing::error!("window failed: {e}");

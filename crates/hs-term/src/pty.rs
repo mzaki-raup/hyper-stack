@@ -1,18 +1,114 @@
-//! Minimal PTY spawn used by the Phase 0 verification test and `--self-test`.
+//! Local PTY: spawn a shell profile and hand back reader, writer and resize.
 //!
 //! ConPTY gotcha (Windows): the pseudo console sends a Device Status Report
-//! request (`ESC [ 6 n`) and stalls the child until the "terminal" answers
-//! with a cursor position (`ESC [ row ; col R`). A real emulator does that
-//! automatically; this helper does it by hand. The full terminal in M1 lets
-//! `alacritty_terminal` answer such queries.
+//! request (`ESC [ 6 n`) at startup and stalls the child until the "terminal"
+//! answers with a cursor position. The session answers it through the
+//! `alacritty_terminal` handler (`Event::PtyWrite`); [`run_capture`] answers
+//! it by hand because it has no terminal.
 
 use std::io::{Read, Write};
+use std::path::Path;
 use std::time::{Duration, Instant};
 
-use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
+
+use crate::shells::ShellProfile;
 
 const DSR_REQUEST: &[u8] = b"\x1b[6n";
 const DSR_REPLY: &[u8] = b"\x1b[1;1R";
+
+/// A spawned local shell.
+pub struct Pty {
+    master: Option<Box<dyn MasterPty + Send>>,
+    child: Box<dyn Child + Send + Sync>,
+    writer: Option<Box<dyn Write + Send>>,
+}
+
+impl Pty {
+    pub fn spawn(
+        profile: &ShellProfile,
+        cwd: Option<&Path>,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Self, Box<dyn Read + Send>), String> {
+        let pty = native_pty_system();
+        let pair = pty
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())?;
+        let mut cmd = CommandBuilder::new(&profile.exe);
+        cmd.args(&profile.args);
+        for (k, v) in &profile.env {
+            cmd.env(k, v);
+        }
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+        cmd.env("TERM_PROGRAM", "HyperStack");
+        if let Some(d) = cwd.filter(|d| d.is_dir()) {
+            cmd.cwd(d);
+        }
+        let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+        drop(pair.slave);
+        let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+        let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+        Ok((
+            Self {
+                master: Some(pair.master),
+                child,
+                writer: Some(writer),
+            },
+            reader,
+        ))
+    }
+
+    pub fn write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        match self.writer.as_mut() {
+            Some(w) => {
+                w.write_all(bytes)?;
+                w.flush()
+            }
+            None => Err(std::io::Error::other("pty closed")),
+        }
+    }
+
+    pub fn resize(&self, cols: u16, rows: u16) {
+        if let Some(m) = &self.master {
+            let _ = m.resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
+        }
+    }
+
+    /// Drop the master side so a blocked reader returns. On ConPTY the read
+    /// never returns EOF by itself after the child exits.
+    pub fn close(&mut self) {
+        self.writer = None;
+        self.master = None;
+    }
+
+    /// Exit code when the child has finished.
+    pub fn try_wait(&mut self) -> Option<u32> {
+        match self.child.try_wait() {
+            Ok(Some(status)) => Some(status.exit_code()),
+            _ => None,
+        }
+    }
+
+    pub fn kill(&mut self) {
+        let _ = self.child.kill();
+    }
+
+    pub fn process_id(&self) -> Option<u32> {
+        self.child.process_id()
+    }
+}
 
 /// Spawn `cmd args` in a PTY and return everything it printed within `timeout`.
 pub fn run_capture(cmd: &str, args: &[&str], timeout: Duration) -> Result<String, String> {
@@ -58,7 +154,6 @@ pub fn run_capture(cmd: &str, args: &[&str], timeout: Duration) -> Result<String
             answered_dsr = true;
         }
         if let Ok(Some(_)) = child.try_wait() {
-            // Drain what is left after exit.
             while let Ok(chunk) = rx.recv_timeout(Duration::from_millis(200)) {
                 out.extend_from_slice(&chunk);
             }

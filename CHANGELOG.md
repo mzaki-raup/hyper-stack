@@ -11,7 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Settings menu reordered (General, Appearance, Environments, Security, Connections, Terminal, Editor, Data (Advanced), Shortcuts, About); Updates now lives on the About page; Startup Workspace is a picker over the saved workspaces.
+- Every icon button shows a hover background, accent colour and a pointing-hand cursor; the secret lock in the variable editor is coloured when a value is stored in the vault.
+- Taller status bar with the version at the far right and the bottom-dock toggle on it; the title bar has top padding and larger icons.
+- Welcome opens once and shares the Settings group in the rail.
 
 ## 0.6.0 — 2026-10-10
 

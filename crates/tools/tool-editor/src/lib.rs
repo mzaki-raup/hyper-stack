@@ -1160,21 +1160,27 @@ impl Tool for EditorTool {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.state.root.is_some() {
                     if ui
-                        .add(egui::Button::new(ph::X).frame(false))
+                        .add(|ui: &mut egui::Ui| {
+                            hs_ui::form::icon_button(ui, &theme, ph::X, 16.0, false)
+                        })
                         .tip(s.t("editor-close-folder"))
                         .clicked()
                     {
                         self.close_root();
                     }
                     if ui
-                        .add(egui::Button::new(ph::ARROW_CLOCKWISE).frame(false))
+                        .add(|ui: &mut egui::Ui| {
+                            hs_ui::form::icon_button(ui, &theme, ph::ARROW_CLOCKWISE, 16.0, false)
+                        })
                         .tip(s.t("editor-refresh"))
                         .clicked()
                     {
                         self.refresh_tree();
                     }
                     if ui
-                        .add(egui::Button::new(ph::FILE_PLUS).frame(false))
+                        .add(|ui: &mut egui::Ui| {
+                            hs_ui::form::icon_button(ui, &theme, ph::FILE_PLUS, 16.0, false)
+                        })
                         .tip(s.t("editor-new-file"))
                         .clicked()
                         && let Some(root) = self.state.root.clone()
@@ -1200,7 +1206,9 @@ impl Tool for EditorTool {
                     }
                 }
                 if ui
-                    .add(egui::Button::new(ph::FOLDER_OPEN).frame(false))
+                    .add(|ui: &mut egui::Ui| {
+                        hs_ui::form::icon_button(ui, &theme, ph::FOLDER_OPEN, 16.0, false)
+                    })
                     .tip(s.t("editor-open-folder"))
                     .clicked()
                 {

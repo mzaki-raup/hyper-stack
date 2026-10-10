@@ -251,6 +251,41 @@ pub fn list_row(
     resp
 }
 
+/// An icon-only button with a hover background, accent colour when hovered
+/// or active, and a pointing-hand cursor so it reads as clickable.
+pub fn icon_button(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: &str,
+    size: f32,
+    active: bool,
+) -> egui::Response {
+    let pad = (size * 0.45).round();
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size + pad * 2.0), egui::Sense::click());
+    if resp.hovered() || active {
+        let fill = if resp.hovered() {
+            theme.surface_hover
+        } else {
+            theme.accent.linear_multiply(0.18)
+        };
+        ui.painter().rect_filled(rect, CornerRadius::same(6), fill);
+    }
+    let col = if active || resp.hovered() {
+        theme.accent
+    } else {
+        theme.text_muted
+    };
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(size),
+        col,
+    );
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, icon));
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 /// A primary (accent-filled) button.
 pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
     ui.add(

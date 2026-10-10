@@ -19,7 +19,6 @@ use secrecy::SecretString;
 pub enum Page {
     #[default]
     General,
-    Updates,
     Appearance,
     Shortcuts,
     Environments,
@@ -32,18 +31,17 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 11] {
+    pub fn all() -> [(Page, &'static str); 10] {
         [
             (Page::General, "settings-general"),
-            (Page::Updates, "settings-updates"),
             (Page::Appearance, "settings-appearance"),
-            (Page::Shortcuts, "settings-shortcuts"),
             (Page::Environments, "settings-environments"),
-            (Page::Connections, "settings-connections"),
             (Page::Security, "settings-security"),
+            (Page::Connections, "settings-connections"),
             (Page::Terminal, "settings-terminal"),
             (Page::Editor, "settings-editor"),
             (Page::Data, "settings-data"),
+            (Page::Shortcuts, "settings-shortcuts"),
             (Page::About, "settings-about"),
         ]
     }
@@ -52,7 +50,6 @@ impl Page {
         use hs_ui::icons::ph;
         match self {
             Page::General => ph::SLIDERS_HORIZONTAL,
-            Page::Updates => ph::ARROW_CIRCLE_UP,
             Page::Appearance => ph::PALETTE,
             Page::Shortcuts => ph::KEYBOARD,
             Page::Environments => ph::GLOBE_HEMISPHERE_WEST,
@@ -153,7 +150,6 @@ pub fn page(
 ) {
     match state.page {
         Page::General => general(ui, theme, services, effects),
-        Page::Updates => updates(ui, theme, services, effects),
         Page::Appearance => appearance(ui, theme, services, effects),
         Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
         Page::Environments => environments(ui, theme, services, state, effects),
@@ -162,7 +158,7 @@ pub fn page(
         Page::Terminal => terminal(ui, theme, services, effects),
         Page::Editor => editor(ui, theme, services, effects),
         Page::Data => data(ui, theme, services),
-        Page::About => about(ui, theme, services),
+        Page::About => about(ui, theme, services, effects),
     }
 }
 
@@ -180,8 +176,25 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
     form::section(ui, theme, &s.t("settings-section-startup"), |ui| {
         form::field_grid(ui, "general-grid", |ui| {
             form::label(ui, &s.t("settings-startup-workspace"));
-            changed |=
-                form::text_field(ui, &mut settings.general.startup_workspace, "default").changed();
+            let names: Vec<String> = hs_core::workspace::Registry::load(&s.paths)
+                .workspaces
+                .iter()
+                .map(|w| w.name.clone())
+                .collect();
+            egui::ComboBox::from_id_salt("startup-ws")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(settings.general.startup_workspace.clone())
+                .show_ui(ui, |ui| {
+                    for n in names {
+                        if ui
+                            .selectable_label(settings.general.startup_workspace == n, &n)
+                            .clicked()
+                        {
+                            settings.general.startup_workspace = n;
+                            changed = true;
+                        }
+                    }
+                });
             ui.end_row();
             form::label(ui, &s.t("settings-language"));
             let mut lang = settings.general.language.clone();
@@ -209,6 +222,7 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             settings.general.language = lang;
             ui.end_row();
         });
+        form::hint(ui, theme, &s.t("settings-startup-workspace-hint"));
         ui.add_space(6.0);
         changed |= ui
             .checkbox(
@@ -225,13 +239,6 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
 fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     use hs_core::updater::UpdateStatus;
     let mut changed = false;
-    form::page_title(
-        ui,
-        theme,
-        &s.t("settings-updates"),
-        Some(&s.t("settings-updates-sub")),
-    );
-
     form::section(ui, theme, &s.t("settings-section-installed"), |ui| {
         form::field_grid(ui, "updates-info", |ui| {
             form::label(ui, &s.t("settings-about-version"));
@@ -1332,13 +1339,16 @@ fn data(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     });
 }
 
-fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
-    form::page_title(ui, theme, &s.t("app-name"), Some(&s.t("app-tagline")));
-    form::section(ui, theme, &s.t("settings-about"), |ui| {
+fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("app-name"),
+        Some(&s.t("settings-about-sub")),
+    );
+    updates(ui, theme, s, effects);
+    form::section(ui, theme, &s.t("settings-about-credits"), |ui| {
         form::field_grid(ui, "about", |ui| {
-            form::label(ui, &s.t("settings-about-version"));
-            ui.monospace(s.version.to_string());
-            ui.end_row();
             form::label(ui, &s.t("settings-about-signing-key"));
             ui.vertical(|ui| {
                 for k in hs_core::update::SIGNING_KEYS {
@@ -1350,8 +1360,7 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
             ui.hyperlink("https://git.zacx.net/owner/hyper-stack");
             ui.end_row();
         });
-    });
-    form::section(ui, theme, &s.t("settings-about-credits"), |ui| {
+        ui.add_space(6.0);
         form::hint(ui, theme, &s.t("settings-about-license"));
         form::hint(ui, theme, &s.t("settings-about-fonts"));
         form::hint(ui, theme, &s.t("settings-about-icons"));

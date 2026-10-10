@@ -322,6 +322,21 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
 
+- egui-winit turns Ctrl+V, Ctrl+Shift+V and Shift+Insert into `Event::Paste`
+  (and Ctrl+C/X into Copy/Cut) before any key handling, so never bind those
+  as shortcuts; the Markdown preview is Ctrl+Shift+M for that reason.
+- Global shortcuts win over tool-local keys: `run_action` forwards unknown
+  action ids (`file.save`, `file.open`, …) to the active tool's `run_command`,
+  so a tool must not also handle the same combo itself, and a tool-local
+  combo that collides with a global default (Ctrl+Shift+L = `vault.lock`)
+  has to pick another one (the editor uses Alt+F3 for "select all occurrences").
+- Driving the release exe for a GUI smoke test from PowerShell: `Start-Process`
+  with `--data-dir` in `%TEMP%`, `SetForegroundWindow`, then
+  `[System.Windows.Forms.SendKeys]::SendWait(...)` works for keyboard paths
+  (Ctrl+P, Ctrl+T, Escape). Synthetic `mouse_event` clicks land unreliably
+  because a non-DPI-aware PowerShell sees virtualised coordinates; verify
+  mouse paths with `egui_kittest` instead.
+
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status
   Report query `ESC[6n` it sends at startup with a cursor position

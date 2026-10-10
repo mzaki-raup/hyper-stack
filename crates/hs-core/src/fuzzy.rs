@@ -64,11 +64,20 @@ pub fn rank(query: &str, items: &[(&str, Option<&str>)]) -> Vec<Match> {
         .iter()
         .enumerate()
         .filter_map(|(index, (title, subtitle))| {
-            let best = score(query, title).or_else(|| {
-                subtitle
-                    .and_then(|st| score(query, st))
-                    .map(|(s, _)| (s - 30, Vec::new()))
-            })?;
+            // Title first, then the subtitle alone, then "subtitle/title" so a
+            // path-style query ("tools/editor.md") finds a file shown as
+            // title "editor.md" + subtitle "docs/tools".
+            let best = score(query, title)
+                .or_else(|| {
+                    subtitle
+                        .and_then(|st| score(query, st))
+                        .map(|(s, _)| (s - 30, Vec::new()))
+                })
+                .or_else(|| {
+                    subtitle
+                        .and_then(|st| score(query, &format!("{st}/{title}")))
+                        .map(|(s, _)| (s - 40, Vec::new()))
+                })?;
             Some(Match {
                 index,
                 score: best.0,
@@ -83,6 +92,15 @@ pub fn rank(query: &str, items: &[(&str, Option<&str>)]) -> Vec<Match> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn path_style_queries_match_subtitle_plus_title() {
+        let items = [("editor.md", Some("docs/tools")), ("README.md", Some(""))];
+        let r = rank("tools/editor.md", &items);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].index, 0);
+        assert!(rank("nothing/here", &items).is_empty());
+    }
 
     #[test]
     fn prefix_and_word_starts_beat_scattered_matches() {

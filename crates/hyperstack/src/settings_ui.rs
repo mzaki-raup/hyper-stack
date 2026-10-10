@@ -21,12 +21,13 @@ pub enum Page {
     Connections,
     Security,
     Terminal,
+    Editor,
     Data,
     About,
 }
 
 impl Page {
-    fn all() -> [(Page, &'static str); 10] {
+    fn all() -> [(Page, &'static str); 11] {
         [
             (Page::General, "settings-general"),
             (Page::Updates, "settings-updates"),
@@ -36,6 +37,7 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Security, "settings-security"),
             (Page::Terminal, "settings-terminal"),
+            (Page::Editor, "settings-editor"),
             (Page::Data, "settings-data"),
             (Page::About, "settings-about"),
         ]
@@ -113,6 +115,7 @@ pub fn show(
                         Page::Connections => connections(ui, theme, services, state, &mut effects),
                         Page::Security => security(ui, theme, services, &mut effects),
                         Page::Terminal => terminal(ui, theme, services, &mut effects),
+                        Page::Editor => editor(ui, theme, services, &mut effects),
                         Page::Data => data(ui, theme, services),
                         Page::About => about(ui, theme, services),
                     });
@@ -1010,6 +1013,49 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
         .changed();
     ui.add_space(6.0);
     ui.colored_label(theme.text_muted, s.t("terminal-hint"));
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    ui.heading(s.t("settings-editor"));
+    ui.add_space(8.0);
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-editor-font-size"));
+        changed |= ui
+            .add(egui::Slider::new(&mut settings.editor.font_size, 9.0..=28.0).suffix(" px"))
+            .changed();
+    });
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.right_click_copy_paste,
+            s.t("settings-editor-right-click"),
+        )
+        .on_hover_text(s.t("settings-terminal-right-click-hint"))
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.trim_trailing_whitespace,
+            s.t("settings-editor-trim"),
+        )
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.insert_final_newline,
+            s.t("settings-editor-final-newline"),
+        )
+        .changed();
+    changed |= ui
+        .checkbox(
+            &mut settings.editor.auto_reload,
+            s.t("settings-editor-auto-reload"),
+        )
+        .changed();
+    ui.add_space(6.0);
+    ui.colored_label(theme.text_muted, s.t("editor-hint"));
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }

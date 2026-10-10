@@ -52,6 +52,10 @@ struct Cli {
     /// data folder (size, sha256, signature, self-test) without installing it.
     #[arg(long, hide = true)]
     download_update: bool,
+
+    /// Files or folders to open in the editor at startup.
+    #[arg(value_name = "PATH")]
+    paths: Vec<PathBuf>,
 }
 
 fn main() {
@@ -104,10 +108,15 @@ fn main() {
         viewport,
         ..Default::default()
     };
+    let open = cli
+        .paths
+        .iter()
+        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.clone()))
+        .collect();
     let result = eframe::run_native(
         "HyperStack",
         options,
-        Box::new(move |cc| Ok(Box::new(app::HyperStackApp::new(cc, paths, logging)))),
+        Box::new(move |cc| Ok(Box::new(app::HyperStackApp::new(cc, paths, logging, open)))),
     );
     if let Err(e) = result {
         tracing::error!("window failed: {e}");

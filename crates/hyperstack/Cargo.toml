@@ -19,6 +19,7 @@ hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-term = { workspace = true }
 tool-terminal = { workspace = true }
+tool-editor = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }

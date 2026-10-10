@@ -66,7 +66,12 @@ pub struct HyperStackApp {
 }
 
 impl HyperStackApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, paths: DataDir, logging: Logging) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        paths: DataDir,
+        logging: Logging,
+        open: Vec<std::path::PathBuf>,
+    ) -> Self {
         hs_ui::icons::install_fonts(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
         let boot = match bootstrap::services(paths, waker, KdfParams::DEFAULT) {
@@ -123,6 +128,11 @@ impl HyperStackApp {
         };
         app.password.reset();
         app.maybe_auto_check_updates();
+        // Files and folders from the command line open in the editor.
+        for p in open {
+            let uri = p.to_string_lossy().to_string();
+            app.open_tool("editor", Some(OpenRequest::File { uri, line: None }));
+        }
         app
     }
 
@@ -421,9 +431,34 @@ impl HyperStackApp {
                     }
                 } else if let Some(tool) = other.strip_prefix("open:") {
                     self.open_tool(tool, None);
-                } else if let Some(cmd) = other.strip_prefix("tool:")
-                    && let Some(a) = self.tabs.active
+                } else if let Some(rest) = other.strip_prefix("qo:")
+                    && let Some((tab, item)) = rest.split_once(':')
+                    && let Ok(tab) = tab.parse::<u64>()
                 {
+                    // A quick-open item: hand it back to the tab that offered it.
+                    let env = self.services.environments.read().active.clone();
+                    let mut actions = Vec::new();
+                    if let Some(t) = self.tabs.get_mut(tab) {
+                        let mut cx = ToolContext {
+                            services: &self.services,
+                            tab_id: tab,
+                            env_id: env.as_deref(),
+                            actions: &mut actions,
+                        };
+                        t.tool.open(
+                            OpenRequest::File {
+                                uri: item.to_string(),
+                                line: None,
+                            },
+                            &mut cx,
+                        );
+                        self.tabs.activate(tab);
+                    }
+                    self.pending_actions.extend(actions);
+                } else if let Some(a) = self.tabs.active {
+                    // "tool:<cmd>" from the palette, or a bare action id from a
+                    // shortcut (file.save, file.open, …): the active tool decides.
+                    let cmd = other.strip_prefix("tool:").unwrap_or(other);
                     let env = self.services.environments.read().active.clone();
                     let mut actions = Vec::new();
                     if let Some(t) = self.tabs.get_mut(a) {
@@ -433,7 +468,9 @@ impl HyperStackApp {
                             env_id: env.as_deref(),
                             actions: &mut actions,
                         };
-                        t.tool.run_command(cmd, &mut cx);
+                        if !t.tool.run_command(cmd, &mut cx) && cmd == "file.new" {
+                            cx.open("editor", None);
+                        }
                     }
                     self.pending_actions.extend(actions);
                 }
@@ -566,6 +603,27 @@ impl HyperStackApp {
                         icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                         shortcut: None,
                     });
+                }
+                // Files and other items the open tools contribute (the active tab first,
+                // then the others, without repeating an item).
+                let mut seen = std::collections::HashSet::new();
+                let mut order: Vec<&crate::tabspace::TabEntry> = self.tabs.tabs.iter().collect();
+                if let Some(a) = self.tabs.active {
+                    order.sort_by_key(|t| t.id != a);
+                }
+                for t in order {
+                    for q in t.tool.quick_open_items() {
+                        if !seen.insert(q.id.clone()) {
+                            continue;
+                        }
+                        items.push(PaletteItem {
+                            id: format!("qo:{}:{}", t.id, q.id),
+                            title: q.title,
+                            subtitle: Some(q.subtitle),
+                            icon: Some(hs_ui::icons::ph::FILE.into()),
+                            shortcut: None,
+                        });
+                    }
                 }
             }
         }

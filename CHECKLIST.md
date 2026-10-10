@@ -45,12 +45,12 @@ Last updated: 2026-10-10 (Phase 0 complete; v0.1.0 published)
 ### M1 · Terminal + Editor
 | Item | State | Notes |
 |---|---|---|
-| `hs-term`: grid, listener, key encoding, `portable-pty`, shell profiles | Pending | |
-| `tool-terminal`: tabs, splits, search, links, "open here", profile settings | Pending | |
-| `hs-editor`: rope buffer, cursors, undo tree, syntect highlighting, gutter, find/replace, brackets, indent | Pending | |
-| `tool-editor`: project tree + watcher, VFS open/save, encodings, EOL, dirty handling, quick-open provider | Pending | |
-| Markdown preview with native Mermaid subset | Pending | |
-| Settings → Updates: version, Check now, notes, download + verify, restart-and-install, Revert | Pending | |
+| `hs-term`: grid, listener, key encoding, `portable-pty`, shell profiles | Completed | ConPTY DSR handshake and exit detection, see CLAUDE.md |
+| `tool-terminal`: tabs, splits, search, links, "open here", profile settings | Partial | tabs, profiles, restart/clear, "open here", right-click copy/paste done; search and link detection pending |
+| `hs-editor`: rope buffer, cursors, undo tree, syntect highlighting, gutter, find/replace, brackets, indent | Completed | undo is grouped linear history (tree deferred); per-line syntect cache with checkpoints; multi-cursor; Alt+F3 selects all occurrences because Ctrl+Shift+L locks the vault |
+| `tool-editor`: project tree + watcher, VFS open/save, encodings, EOL, dirty handling, quick-open provider | Completed | local files only; `sftp://` and `s3://` arrive with M2; files > 32 MB open read-only, > 256 MB refused until the streaming mode |
+| Markdown preview with native Mermaid subset | Partial | pulldown-cmark preview side by side (Ctrl+Shift+M); Mermaid subset pending |
+| Settings → Updates: version, Check now, notes, download + verify, restart-and-install, Revert | Completed | verified headlessly; the real in-place install/revert is tested with the first release after v0.1.0 |
 
 ### M2 · SSH/SFTP + S3
 | Item | State | Notes |

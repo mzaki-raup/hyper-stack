@@ -13,8 +13,10 @@ single window organised as a **multi-row, multi-tab workspace**, where every too
 shares the same connection profiles, environments, secrets store, command palette
 and theme.
 
-> **Status:** planning / design. No code yet. This repository currently holds the
-> product plan and technical design. Sibling project: `../eden-explorer`
+> **Status:** Phase 0 (foundation) implemented: the workspace shell, portable data
+> folder, vault, environments, settings and two built-in tools. The real tools
+> (editor, databases, API client, SSH, S3, Git, terminal, logs) follow in Phase 1
+> per [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
 > (Rust + egui file manager) serves as a **reference only**: HyperStack studies
 > how it solved the multi-row tab strip, terminal, SSH/SFTP, S3 and Git status,
 > then writes its own implementation. No code is copied or shared.
@@ -78,7 +80,17 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Partly |
 
-## Proposed repository layout
+## Build and run
+
+```bash
+cargo build --release -p hyperstack          # target/release/HyperStack.exe (static MSVC build)
+./target/release/HyperStack.exe --version
+./target/release/HyperStack.exe --self-test --data-dir ./tmp-data
+./target/release/HyperStack.exe --data-dir ./tmp-data   # run against a scratch data folder
+cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked
+```
+
+## Repository layout
 
 ```
 hyper-stack/

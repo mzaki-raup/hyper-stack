@@ -1,0 +1,20 @@
+[package]
+name = "hs-ui"
+description = "HyperStack shared egui widgets: tab strip, split layout, palette, tree, table, theme"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+egui-phosphor = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true }

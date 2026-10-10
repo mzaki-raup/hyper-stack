@@ -1,0 +1,49 @@
+# cargo deny configuration (docs/09-ci-cd-and-updates.md §4.1).
+
+[graph]
+all-features = false
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+ignore = [
+  # ttf-parser is declared unmaintained upstream. It reaches us only through
+  # winit -> sctk-adwaita (Linux Wayland client-side decorations), not through
+  # anything HyperStack calls. No fixed version exists; revisit on the next
+  # egui/winit upgrade.
+  { id = "RUSTSEC-2026-0192", reason = "transitive via winit/sctk-adwaita; no upstream fix yet" },
+]
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "BSL-1.0",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "CC0-1.0",
+  "MPL-2.0",
+  "OFL-1.1",
+  "Ubuntu-font-1.0",
+  "CDLA-Permissive-2.0",
+  "bzip2-1.0.6",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Workspace path dependencies carry no version; that is not a wildcard risk.
+allow-wildcard-paths = true
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

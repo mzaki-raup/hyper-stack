@@ -1,0 +1,142 @@
+//! HyperStack entry point: command line, data folder, logging, then the window.
+
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod app;
+mod bootstrap;
+mod dock;
+mod launcher;
+mod self_test;
+mod settings_ui;
+mod tabspace;
+mod tools;
+
+use std::path::PathBuf;
+
+use clap::Parser;
+
+/// HyperStack — one workspace for everyone who ships software.
+#[derive(Parser, Debug)]
+#[command(name = "HyperStack", disable_version_flag = true)]
+struct Cli {
+    /// Print the version and exit.
+    #[arg(long)]
+    version: bool,
+
+    /// Use this folder for all data instead of HyperStackData/ beside the executable.
+    #[arg(long, value_name = "DIR")]
+    data_dir: Option<PathBuf>,
+
+    /// Exercise the core without opening a window, then exit 0 (used by CI and the updater).
+    #[arg(long)]
+    self_test: bool,
+
+    /// Second half of an in-place update: wait for the old process, then start.
+    #[arg(long, value_name = "VERSION")]
+    finish_update: Option<String>,
+
+    /// PID of the process that launched us for --finish-update.
+    #[arg(long, value_name = "PID")]
+    waiting_for: Option<u32>,
+
+    /// Log filter (tracing syntax), default "info".
+    #[arg(long, default_value = "info")]
+    log: String,
+}
+
+fn main() {
+    let cli = Cli::parse();
+    if cli.version {
+        println!("HyperStack {}", hs_core::version::VersionInfo::current());
+        return;
+    }
+
+    let paths = match hs_core::paths::DataDir::resolve(cli.data_dir.as_deref()) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("HyperStack cannot create its data folder: {e}");
+            std::process::exit(2);
+        }
+    };
+
+    if cli.self_test {
+        let logging = hs_core::logging::init(None, &cli.log);
+        std::process::exit(self_test::run(paths, logging));
+    }
+
+    let logging = hs_core::logging::init(Some(&paths.logs_dir()), &cli.log);
+    tracing::info!(
+        "HyperStack {} starting; data folder {} ({:?})",
+        hs_core::version::VersionInfo::current(),
+        paths.root().display(),
+        paths.source
+    );
+    if let Some(v) = &cli.finish_update {
+        // M1 implements the hand-over; Phase 0 only waits for the launcher to exit.
+        tracing::info!("finishing update to {v}");
+        if let Some(pid) = cli.waiting_for {
+            wait_for_exit(pid);
+        }
+    }
+    let _ = std::fs::write(paths.instance_lock(), std::process::id().to_string());
+
+    let icon = load_icon();
+    let viewport = egui::ViewportBuilder::default()
+        .with_title("HyperStack")
+        .with_inner_size([1360.0, 860.0])
+        .with_min_inner_size([800.0, 500.0])
+        .with_icon(std::sync::Arc::new(icon));
+    let options = eframe::NativeOptions {
+        viewport,
+        ..Default::default()
+    };
+    let result = eframe::run_native(
+        "HyperStack",
+        options,
+        Box::new(move |cc| Ok(Box::new(app::HyperStackApp::new(cc, paths, logging)))),
+    );
+    if let Err(e) = result {
+        tracing::error!("window failed: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn load_icon() -> egui::IconData {
+    let bytes = include_bytes!("../../../assets/icon/hyperstack-256.png");
+    match image::load_from_memory(bytes) {
+        Ok(img) => {
+            let rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            egui::IconData {
+                rgba: rgba.into_raw(),
+                width: w,
+                height: h,
+            }
+        }
+        Err(_) => egui::IconData::default(),
+    }
+}
+
+fn wait_for_exit(pid: u32) {
+    let start = std::time::Instant::now();
+    while start.elapsed() < std::time::Duration::from_secs(30) {
+        if !process_alive(pid) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+#[cfg(windows)]
+fn process_alive(pid: u32) -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))
+        .unwrap_or(false)
+}
+
+#[cfg(not(windows))]
+fn process_alive(pid: u32) -> bool {
+    std::path::Path::new(&format!("/proc/{pid}")).exists()
+}

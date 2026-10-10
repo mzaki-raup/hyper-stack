@@ -90,11 +90,14 @@ try {
   }
 
   if (-not $NoSelfTest -and $exePath -and $IsWindows) {
-    $reported = (& $exePath --version 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw "Downloaded exe reports '$reported', expected $version." }
+    # GUI-subsystem exe: use Start-Process -Wait to get real exit codes.
+    $versionOut = Join-Path $work "version.txt"
+    $p = Start-Process -FilePath $exePath -ArgumentList @('--version') -Wait -PassThru -NoNewWindow -RedirectStandardOutput $versionOut
+    $reported = (Get-Content $versionOut -Raw -ErrorAction SilentlyContinue | Out-String).Trim()
+    if ($p.ExitCode -ne 0 -or $reported -notmatch [regex]::Escape($version)) { throw "Downloaded exe reports '$reported', expected $version." }
     $data = Join-Path $work "data"
-    & $exePath --self-test --data-dir $data
-    if ($LASTEXITCODE -ne 0) { throw "Downloaded exe failed --self-test with exit code $LASTEXITCODE." }
+    $p = Start-Process -FilePath $exePath -ArgumentList @('--self-test', '--data-dir', $data) -Wait -PassThru -NoNewWindow
+    if ($p.ExitCode -ne 0) { throw "Downloaded exe failed --self-test with exit code $($p.ExitCode)." }
     Write-Host "HyperStack.exe --version and --self-test OK"
   }
 

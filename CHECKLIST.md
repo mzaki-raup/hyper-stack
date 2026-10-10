@@ -22,19 +22,19 @@ Last updated: 2026-10-10
 
 | Item | State | Notes |
 |---|---|---|
-| Cargo workspace, `[workspace.package] version`, `deny.toml`, rustfmt/clippy clean | Pending | |
+| Cargo workspace, `[workspace.package] version`, `deny.toml`, rustfmt/clippy clean | Completed | 2026-10-10, `phase-0` branch |
 | Pester tests for `scripts/next-release.ps1` | Pending | |
 | App icon master and derived sizes in `assets/icon/` (`hyperstack.ico`, PNG 16–512), `scripts/make-icons.ps1` | Completed | 2026-10-10 |
-| Binary flags `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds `hyperstack.ico` + version resources; window icon via `with_icon` | Pending | |
-| `hs-core`: `Tool`/`ToolFactory`, `Services`, `ToolContext`, actions queue | Pending | |
-| `hs-core`: tokio runtime, `UiWaker`, `Jobs`, `Events` | Pending | |
-| `hs-core`: portable paths (`HyperStackData/`, writability probe, fallback), atomic TOML/JSON io, schema versioning, SQLite history | Pending | |
-| `hs-core`: `Connections`, `Environments`, variable substitution, `Secrets` (vault + DPAPI remember-me; keyring opt-in) | Pending | |
-| `hs-core`: settings, shortcuts, i18n (Fluent), `tracing` with redaction | Pending | |
-| `hs-ui`: theme, multi-row `TabStrip`, `SplitLayout`, `Palette`, `Tree`, `DataTable` v1, toasts, dialogs, `EnvBanner`, `KeyValueEditor` | Pending | |
-| `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings, workspaces, layout persistence | Pending | |
-| Two dummy tools; `egui_kittest` snapshots for the tab strip | Pending | |
-| `portable-pty` + PowerShell 7 profile loading verified on Windows | Pending | |
+| Binary flags `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds `hyperstack.ico` + version resources; window icon via `with_icon` | Completed | `--finish-update` only waits for the old PID; the hand-over itself is M1 |
+| `hs-core`: `Tool`/`ToolFactory`, `Services`, `ToolContext`, actions queue | Completed | |
+| `hs-core`: tokio runtime, `UiWaker`, `Jobs`, `Events` | Completed | |
+| `hs-core`: portable paths (`HyperStackData/`, writability probe, fallback), atomic TOML/JSON io, schema versioning | Completed | SQLite history db deferred to M3 (first consumer) |
+| `hs-core`: `Connections`, `Environments`, variable substitution, `Secrets` (vault; keyring opt-in) | Completed | DPAPI remember-me deferred to M1 with the Updates/Security pages |
+| `hs-core`: settings, shortcuts, i18n (Fluent), `tracing` with redaction | Completed | |
+| `hs-ui`: theme, multi-row `TabStrip`, `SplitLayout`, `Palette`, `Tree`, `DataTable` v1, toasts, dialogs, `EnvBanner`, `KeyValueEditor` | Completed | |
+| `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings, workspaces, layout persistence | Completed | native window decorations in Phase 0; custom title bar later |
+| Two dummy tools; `egui_kittest` interaction test for the tab strip | Completed | image snapshots skipped: the runner has no GPU |
+| `portable-pty` verified on Windows (ConPTY DSR handshake) | Completed | PowerShell 7 profile loading is checked in M1 with the real terminal |
 | Minisign key pair generated, `keys/minisign.pub` committed | Completed | key id `12CCB188A17A5843`, 2026-10-10 |
 | `HS_MINISIGN_KEY` repository secret set on the forge (Settings → Actions → Secrets) | Pending | release job refuses to run without it; confirm after setting |
 | `v0.1.0` published automatically and passes `verify-release.ps1` | Pending | |

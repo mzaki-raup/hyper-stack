@@ -1,0 +1,8 @@
+# Keep every text file LF in the repository and in working copies, so Windows
+# and Linux checkouts produce identical rustfmt and script output.
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.icns binary
+*.ttf binary
+*.otf binary

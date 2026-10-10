@@ -6,10 +6,10 @@ viewer, API client, SSH/SFTP, S3 browser, Git, terminal, log tail viewer and
 a devtools drawer in one multi-row, multi-tab window that shares connections,
 environments and secrets across every tool.
 
-**Status: planning and design. There is no Cargo workspace yet.** Everything
-below the "Project rules" section describes how the project *will* build and
-release; follow it from the first commit of code (Phase 0 in
-`docs/07-roadmap.md`).
+**Status: Phase 0 (foundation) implemented; Phase 1 tools not started.** The
+Cargo workspace exists (`crates/hs-core`, `hs-ui`, `hs-term`, `hyperstack`),
+builds to a portable `HyperStack.exe`, and passes the full gate (fmt, clippy
+`-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what is done.
 
 ## Where things are
 
@@ -60,6 +60,12 @@ in the same commit.
 - **Every visible string goes through Fluent** (`locales/en.ftl` first);
   every action has a palette command and a rebindable shortcut; every list and
   tree is keyboard-navigable.
+- **UI text casing.** Title Case for button labels, menu and list item names,
+  setting names, tab and category labels ("Close Others", "Check Now",
+  "Minimum Tab Width"; minor words such as a/the/of/to/from/at/in/on/and stay
+  lowercase). Sentence case for information and instructions: tooltips,
+  hints and placeholders, dialog bodies, toasts, empty-state messages ("No
+  background jobs.", "Type to search…"). Owner's rule, 2026-10-10.
 - **Cross-platform core.** Windows ships first, but `hs-core`, `hs-ui`,
   `hs-editor`, `hs-term` and every tool must compile on Linux and macOS.
   Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`
@@ -286,8 +292,31 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   is not. The updater relies on this (rename old → move new → relaunch), so
   keep `HyperStackData/update/` on the same volume as the exe.
 
-### egui
-- (none recorded yet)
+### egui / eframe 0.35
+- `eframe::App` has `fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame)`,
+  not `update(ctx, frame)`; get the context with `ui.ctx()`. Panels are
+  `egui::Panel::top/bottom/left/right(id)` with `.exact_size`, `.default_size`,
+  `.size_range`, `.resizable`, shown with `.show(ui, …)` on the root `Ui`;
+  `CentralPanel::default().show(ui, …)` likewise. `TopBottomPanel`/`SidePanel`
+  no longer exist.
+- `ctx.content_rect()` is the screen rect (`screen_rect()` is gone);
+  `TextEdit::frame` takes an `egui::Frame` (`Frame::NONE`), not a bool;
+  `ui.close()` closes menus; `rect_stroke` needs a `StrokeKind`.
+- Painter-drawn controls (`ui.interact` + `painter.text`) have no AccessKit
+  node: screen readers and `egui_kittest` queries cannot find them. Give
+  every such control `response.widget_info(|| WidgetInfo::labeled(..))`, or
+  use a real widget.
+- `rust-embed`'s `#[include]`/`#[exclude]` attributes need the
+  `include-exclude` feature; without it the derive silently fails and every
+  `Locales::get` call reports "no associated function".
+
+### Terminal / ConPTY
+- A ConPTY child does not run until the "terminal" answers the Device Status
+  Report query `ESC[6n` it sends at startup with a cursor position
+  (`ESC[1;1R`). Anything that spawns through `portable-pty` and reads output
+  must take the writer and answer that query (see `hs-term::pty`), or the
+  child hangs with 4 bytes of output. `alacritty_terminal` answers it for the
+  real terminal in M1.
 
 ### PowerShell scripts
 - `"... $LASTEXITCODE: $x"` does not parse: a colon right after a variable name
@@ -297,6 +326,24 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `[regex]::Replace` with a string replacement expands `$1`-style tokens, which
   mangles release notes containing `$`; use the scriptblock overload
   (`{ param($m) $text }`) for literal insertion.
+- `HyperStack.exe` is a GUI-subsystem binary (release builds set
+  `windows_subsystem = "windows"`). PowerShell's `& $exe …` returns
+  immediately for such a process and leaves `$LASTEXITCODE` empty, so
+  `if ($LASTEXITCODE -ne 0)` throws even when `--self-test` printed
+  "self-test ok" (CI run 6). Always run the exe with
+  `Start-Process -FilePath $exe -ArgumentList @(…) -Wait -PassThru -NoNewWindow`
+  and read `.ExitCode`; redirect stdout to a file when the text is needed.
+  Bash and Rust's `Command::status()` wait correctly, which is why local
+  checks passed.
+- `[ref]$name` on a variable that was never assigned throws "[ref] cannot be
+  applied to a variable that does not exist". The Actions `pwsh` shell runs
+  with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three
+  seconds before any Rust step. Always `$x = $null` before `[ref]$x`, and
+  reproduce workflow snippets locally under `Stop` before pushing.
 
 ### Rust / build
-- (none recorded yet)
+- `.cargo/config.toml` sets `-C target-feature=+crt-static` so the MSVC build
+  is a fully static, portable exe; keep it.
+- `cargo clippy --fix --allow-dirty` clears the mechanical lints
+  (collapsible ifs, `sort_by_key`) in one go; with edition 2024, nested
+  `if let` blocks collapse into let-chains (`if let Some(x) = a && cond`).

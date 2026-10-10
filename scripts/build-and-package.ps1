@@ -62,8 +62,12 @@ if (-not (Test-Path $built)) { throw "No binary at $built after the build." }
 
 # The app compares release tags against its own CARGO_PKG_VERSION; a binary
 # built from the wrong Cargo.toml would offer the same update for ever.
-$reported = (& $built --version 2>&1 | Out-String).Trim()
-if ($LASTEXITCODE -ne 0) { throw "HyperStack.exe --version exited with ${LASTEXITCODE}: $reported" }
+# The exe is a GUI-subsystem binary, so `&` would not wait for it; Start-Process does.
+$versionOut = Join-Path ([System.IO.Path]::GetTempPath()) ("hs-version-" + [guid]::NewGuid() + ".txt")
+$p = Start-Process -FilePath $built -ArgumentList @('--version') -Wait -PassThru -NoNewWindow -RedirectStandardOutput $versionOut
+$reported = (Get-Content $versionOut -Raw -ErrorAction SilentlyContinue | Out-String).Trim()
+Remove-Item $versionOut -Force -ErrorAction SilentlyContinue
+if ($p.ExitCode -ne 0) { throw "HyperStack.exe --version exited with $($p.ExitCode): $reported" }
 if ($reported -notmatch [regex]::Escape($Version)) { throw "The binary reports '$reported' but $Version is being released." }
 
 # --- Assemble release/dist -------------------------------------------------------

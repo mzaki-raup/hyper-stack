@@ -1,0 +1,6 @@
+[alias]
+# The checks CI runs, in one command.
+check-all = "clippy --workspace --all-targets --locked -- -D warnings"
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

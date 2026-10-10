@@ -1,0 +1,82 @@
+[workspace]
+resolver = "3"
+members = ["crates/hs-core", "crates/hs-ui", "crates/hs-term", "crates/hyperstack"]
+
+# The single source of truth for the version. scripts/update-version.ps1 moves it;
+# never edit it by hand (docs/09-ci-cd-and-updates.md §3).
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+repository = "https://git.zacx.net/owner/hyper-stack"
+authors = ["owner <owner@zacx.net>"]
+# These crates are never uploaded to crates.io (also tells cargo-deny that path deps are fine).
+publish = false
+
+[workspace.dependencies]
+hs-core = { path = "crates/hs-core" }
+hs-ui = { path = "crates/hs-ui" }
+hs-term = { path = "crates/hs-term" }
+
+# UI
+eframe = "0.35"
+egui = { version = "0.35", features = ["serde"] }
+egui_extras = { version = "0.35", features = ["image"] }
+egui-phosphor = { version = "0.13", features = ["regular", "fill"] }
+egui_kittest = "0.35"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Async, concurrency
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+
+# Serialisation, storage
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+rusqlite = { version = "0.37", features = ["bundled"] }
+
+# Secrets
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
+secrecy = "0.10"
+rand = "0.9"
+base64 = "0.22"
+sha2 = "0.10"
+minisign-verify = "0.2"
+
+# Platform, paths, misc
+dirs = "6"
+ulid = "1"
+semver = "1"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+regex = "1"
+clap = { version = "4", features = ["derive"] }
+fluent = "0.16"
+fluent-bundle = "0.15"
+unic-langid = { version = "0.9", features = ["macros"] }
+sys-locale = "0.3"
+rust-embed = "8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+portable-pty = "0.9"
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true
+panic = "unwind"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

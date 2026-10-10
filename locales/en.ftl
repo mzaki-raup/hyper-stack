@@ -96,6 +96,11 @@ settings-theme-dark = Dark
 settings-theme-light = Light
 settings-font-size = Interface Font Size
 settings-font-size-hint = Menus, tabs, sidebars, settings and dialogs. The terminal and the editor have their own font size on their pages.
+settings-ui-font = Interface Font
+settings-ui-font-default = Default (Ubuntu)
+settings-ui-font-hint = Any font installed on this computer can be used; the bundled monospace fonts are listed first.
+settings-fonts-scanning = Scanning installed fonts…
+settings-fonts-none = No installed fonts found.
 settings-ui-zoom-hint = Scales the whole window, including the terminal and the editor (Ctrl+= and Ctrl+-).
 settings-min-tab-width = Minimum Tab Width
 settings-tab-gap = Tab Gap
@@ -153,6 +158,7 @@ settings-about-version = Installed Version
 settings-about-signing-key = Release Signing Key
 settings-about-project = Project
 settings-about-license = MIT license · no telemetry · portable
+settings-about-fonts = Bundled fonts: JetBrainsMono, Fira Code (SIL OFL 1.1) and Bitstream Vera Sans Mono (Bitstream Vera licence), Nerd Fonts patched (MIT). Licence texts ship in assets/fonts.
 
 ## Environments editor
 env-name = Name
@@ -204,6 +210,7 @@ terminal-hint = Click a shell to open it in a new tab. Select text and right-cli
 settings-terminal = Terminal
 settings-terminal-default-profile = Default Shell
 settings-terminal-font-size = Terminal Font Size
+settings-terminal-font = Terminal Font
 settings-terminal-font-size-hint = Text inside terminal tabs and the dock terminal.
 settings-terminal-scrollback = Scrollback Lines
 settings-terminal-copy-on-select = Copy on Select
@@ -251,6 +258,7 @@ editor-tabs = Tabs
 editor-hint = Click a file to open it, double-click for a new tab, right-click for more actions. Ctrl+P finds files in the folder. Right-click in the text copies the selection or pastes.
 settings-editor = Editor
 settings-editor-font-size = Editor Font Size
+settings-editor-font = Editor Font
 settings-editor-font-size-hint = Text inside editor tabs. Ctrl+Mouse Wheel zooms one editor temporarily.
 settings-editor-right-click = Right Click Copies and Pastes
 settings-editor-trim = Trim Trailing Whitespace on Save

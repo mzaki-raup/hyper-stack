@@ -37,6 +37,8 @@ pub struct Appearance {
     /// "dark" | "light" | "system"
     pub theme: String,
     pub ui_font_size: f32,
+    /// Interface font id (`hs_ui::fonts`): "" = default, "system:<family>" for an installed font.
+    pub ui_font: String,
     pub min_tab_width: f32,
     pub tab_gap: f32,
     pub sidebar_width: f32,
@@ -88,6 +90,8 @@ pub struct Terminal {
     /// Shell profile id ("pwsh", "cmd", "git-bash", "wsl:Ubuntu", …); empty = first detected.
     pub default_profile: String,
     pub font_size: f32,
+    /// Font id (`hs_ui::fonts`): a bundled id or "system:<family>".
+    pub font_family: String,
     pub scrollback: usize,
     pub copy_on_select: bool,
     /// Right-click copies the selection or pastes the clipboard (PuTTY style).
@@ -98,6 +102,8 @@ pub struct Terminal {
 #[serde(default)]
 pub struct Editor {
     pub font_size: f32,
+    /// Font id (`hs_ui::fonts`): a bundled id or "system:<family>".
+    pub font_family: String,
     /// Right-click copies the selection or pastes the clipboard (PuTTY style).
     pub right_click_copy_paste: bool,
     pub trim_trailing_whitespace: bool,
@@ -110,6 +116,7 @@ impl Default for Editor {
     fn default() -> Self {
         Self {
             font_size: 13.0,
+            font_family: "jetbrains-mono-nf".into(),
             right_click_copy_paste: true,
             trim_trailing_whitespace: false,
             insert_final_newline: false,
@@ -123,6 +130,7 @@ impl Default for Terminal {
         Self {
             default_profile: String::new(),
             font_size: 13.0,
+            font_family: "jetbrains-mono-nf".into(),
             scrollback: 10_000,
             copy_on_select: false,
             right_click_copy_paste: true,
@@ -146,6 +154,7 @@ impl Default for Appearance {
         Self {
             theme: "dark".into(),
             ui_font_size: 14.0,
+            ui_font: String::new(),
             min_tab_width: 140.0,
             tab_gap: 4.0,
             sidebar_width: 260.0,

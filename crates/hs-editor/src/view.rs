@@ -146,7 +146,7 @@ impl EditorView {
     }
 
     fn cell(&self, ui: &egui::Ui) -> (egui::FontId, Vec2) {
-        let font = egui::FontId::monospace(self.font_size);
+        let font = egui::FontId::new(self.font_size, hs_ui::fonts::editor_family());
         let size = ui.fonts_mut(|f| {
             Vec2::new(
                 f.glyph_width(&font, 'M').max(1.0),

@@ -72,6 +72,7 @@ impl HyperStackApp {
         logging: Logging,
         open: Vec<std::path::PathBuf>,
     ) -> Self {
+        hs_ui::fonts::prefetch_system_fonts();
         hs_ui::icons::install_fonts(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
         let boot = match bootstrap::services(paths, waker, KdfParams::DEFAULT) {
@@ -84,6 +85,7 @@ impl HyperStackApp {
         let services = boot.services;
         let theme = Theme::by_name(&services.settings.read().appearance.theme);
         theme.apply(&cc.egui_ctx);
+        hs_ui::fonts::install(&cc.egui_ctx, &font_choice(&services));
         hs_ui::theme::apply_font_size(
             &cc.egui_ctx,
             services.settings.read().appearance.ui_font_size,
@@ -693,6 +695,10 @@ impl HyperStackApp {
                     );
                     ctx.set_zoom_factor(zoom);
                     self.services.events.publish(Event::ThemeChanged);
+                    let _ = self.services.save_settings();
+                }
+                SettingsEffect::FontsChanged => {
+                    hs_ui::fonts::install(ctx, &font_choice(&self.services));
                     let _ = self.services.save_settings();
                 }
                 SettingsEffect::CheckUpdates => self.start_update_check(),
@@ -1640,5 +1646,15 @@ impl eframe::App for HyperStackApp {
         if self.services.jobs.running_count() > 0 {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
+    }
+}
+
+/// The three font choices from settings (interface, terminal, editor).
+fn font_choice(s: &Services) -> hs_ui::fonts::FontChoice {
+    let st = s.settings.read();
+    hs_ui::fonts::FontChoice {
+        ui: st.appearance.ui_font.clone(),
+        terminal: st.terminal.font_family.clone(),
+        editor: st.editor.font_family.clone(),
     }
 }

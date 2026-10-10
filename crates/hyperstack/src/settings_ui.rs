@@ -90,6 +90,7 @@ pub enum SettingsEffect {
     RevertUpdate,
     SkipUpdate(String),
     ThemeChanged,
+    FontsChanged,
     LockVault,
     ChangeMasterPassword,
     EnvironmentsChanged,
@@ -459,6 +460,20 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
         }
     });
     ui.colored_label(theme.text_muted, s.t("settings-font-size-hint"));
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-ui-font"));
+        if font_combo(
+            ui,
+            s,
+            "ui-font",
+            &mut settings.appearance.ui_font,
+            false,
+            &s.t("settings-ui-font-default"),
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
+    });
+    ui.colored_label(theme.text_muted, s.t("settings-ui-font-hint"));
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         ui.label(s.t("settings-min-tab-width"));
@@ -1020,6 +1035,19 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
     });
     ui.colored_label(theme.text_muted, s.t("settings-terminal-font-size-hint"));
     ui.horizontal(|ui| {
+        ui.label(s.t("settings-terminal-font"));
+        if font_combo(
+            ui,
+            s,
+            "terminal-font",
+            &mut settings.terminal.font_family,
+            true,
+            "",
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
+    });
+    ui.horizontal(|ui| {
         ui.label(s.t("settings-terminal-scrollback"));
         changed |= ui
             .add(
@@ -1062,6 +1090,19 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             .changed();
     });
     ui.colored_label(theme.text_muted, s.t("settings-editor-font-size-hint"));
+    ui.horizontal(|ui| {
+        ui.label(s.t("settings-editor-font"));
+        if font_combo(
+            ui,
+            s,
+            "editor-font",
+            &mut settings.editor.font_family,
+            true,
+            "",
+        ) {
+            effects.push(SettingsEffect::FontsChanged);
+        }
+    });
     changed |= ui
         .checkbox(
             &mut settings.editor.right_click_copy_paste,
@@ -1133,6 +1174,62 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     });
     ui.add_space(8.0);
     ui.colored_label(theme.text_muted, s.t("settings-about-license"));
+    ui.colored_label(theme.text_muted, s.t("settings-about-fonts"));
+}
+
+/// Font picker: bundled fonts first, then the fonts installed on this
+/// machine (monospace only when `mono`). Returns true when the choice changed.
+fn font_combo(
+    ui: &mut egui::Ui,
+    s: &Services,
+    salt: &str,
+    value: &mut String,
+    mono: bool,
+    default_label: &str,
+) -> bool {
+    use hs_ui::fonts;
+    let mut changed = false;
+    let current = fonts::label(value, default_label);
+    egui::ComboBox::from_id_salt(salt)
+        .selected_text(current)
+        .width(280.0)
+        .show_ui(ui, |ui| {
+            if !mono
+                && ui
+                    .selectable_label(value.is_empty(), default_label)
+                    .clicked()
+            {
+                value.clear();
+                changed = true;
+            }
+            for (id, label, _) in fonts::EMBEDDED {
+                if ui.selectable_label(value == id, *label).clicked() {
+                    *value = (*id).to_string();
+                    changed = true;
+                }
+            }
+            ui.separator();
+            match fonts::system_fonts() {
+                None => {
+                    ui.label(egui::RichText::new(s.t("settings-fonts-scanning")).weak());
+                }
+                Some(list) => {
+                    let mut any = false;
+                    for f in list.iter().filter(|f| !mono || f.monospace) {
+                        any = true;
+                        let id = format!("{}{}", fonts::SYSTEM_PREFIX, f.family);
+                        if ui.selectable_label(*value == id, &f.family).clicked() {
+                            *value = id;
+                            changed = true;
+                        }
+                    }
+                    if !any {
+                        ui.label(egui::RichText::new(s.t("settings-fonts-none")).weak());
+                    }
+                }
+            }
+        });
+    changed
 }
 
 fn open_folder(path: &std::path::Path) {

@@ -13,6 +13,8 @@ struct State {
     last: EditorResponse,
     /// `EditorResponse::copied` is set on the click frame only; keep it until read.
     copied: Option<String>,
+    /// The harness runs a frame while it is built, before fonts can be installed.
+    fonts_ready: bool,
 }
 
 fn harness<'a>() -> Harness<'a, State> {
@@ -28,9 +30,17 @@ fn harness<'a>() -> Harness<'a, State> {
         cursors: Cursors::default(),
         last: EditorResponse::default(),
         copied: None,
+        fonts_ready: false,
     };
     Harness::new_ui_state(
         move |ui, state: &mut State| {
+            if !state.fonts_ready {
+                // The view draws with the named "hs-editor" family the app installs
+                // at startup; install the same definitions for the next frame.
+                hs_ui::icons::install_fonts(ui.ctx());
+                state.fonts_ready = true;
+                return;
+            }
             ui.set_width(600.0);
             ui.set_height(300.0);
             state.last = state

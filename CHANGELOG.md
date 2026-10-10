@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Settings open as a regular tab (categories in the sidebar) instead of a floating window.
 - Appearance → Interface Font Size now exists and applies; the terminal and editor font sizes say what they affect.
+- Font families: JetBrainsMono, Fira Code and BitstromWera Nerd Font Mono are bundled (JetBrainsMono is the default for the terminal and the editor) and any font installed on the machine can be picked for the interface, the terminal or the editor.
 
 ### Fixed
 

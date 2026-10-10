@@ -2,12 +2,11 @@
 
 pub use egui_phosphor::regular as ph;
 
-/// Install the UI fonts: egui defaults plus Phosphor regular and fill.
+/// Install the UI fonts with the default choice (egui defaults, Phosphor
+/// icons, bundled monospace fonts). The app calls `fonts::install` with the
+/// user's choice instead.
 pub fn install_fonts(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Fill);
-    ctx.set_fonts(fonts);
+    crate::fonts::install(ctx, &crate::fonts::FontChoice::default());
 }
 
 pub const TAB_CLOSE: &str = ph::X;

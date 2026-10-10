@@ -123,7 +123,7 @@ impl TerminalView {
     }
 
     pub fn cell_size(&self, ui: &egui::Ui) -> Vec2 {
-        let font = egui::FontId::monospace(self.font_size);
+        let font = egui::FontId::new(self.font_size, hs_ui::fonts::terminal_family());
         ui.fonts_mut(|f| {
             let w = f.glyph_width(&font, 'M');
             let h = f.row_height(&font);
@@ -329,7 +329,7 @@ impl TerminalView {
         }
 
         // Render.
-        let font = egui::FontId::monospace(self.font_size);
+        let font = egui::FontId::new(self.font_size, hs_ui::fonts::terminal_family());
         let t = session.term.lock();
         let content = t.renderable_content();
         let colors = content.colors;

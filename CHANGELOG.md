@@ -11,15 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.6.0 — 2026-10-10
+
 ### Added
 
-- A file opens in one editor tab only: opening it again (tree click or double-click, quick-open, command line, "open" from another tool) focuses the tab that already shows it and jumps to the requested line.
-
-### Fixed
-
-- Environment variable name and value fields no longer collapse to a few pixels inside the Variables card.
-
-- (nothing yet)
+- One tab per file; fix collapsed variable fields (31348d65)
 
 ## 0.5.0 — 2026-10-10
 

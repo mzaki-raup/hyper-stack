@@ -1,6 +1,7 @@
 //! Key/value rows with enable checkboxes (headers, params, variables).
 
 use crate::theme::Theme;
+use crate::tip::TipExt;
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct KvRow {
@@ -28,27 +29,27 @@ impl KvEditor<'_> {
     pub fn show(&self, ui: &mut egui::Ui, rows: &mut Vec<KvRow>) -> KvResponse {
         let mut resp = KvResponse::default();
         let mut remove = None;
+        // Key gets a third of the width, value the rest (both comfortably tall).
+        let total = ui.available_width().clamp(420.0, 900.0);
+        let key_w = (total * 0.32).clamp(140.0, 260.0);
+        let value_w = (total - key_w - 110.0).max(200.0);
         egui::Grid::new(ui.id().with("kv"))
             .num_columns(5)
-            .spacing([6.0, 4.0])
+            .spacing([8.0, 6.0])
             .show(ui, |ui| {
                 for (i, row) in rows.iter_mut().enumerate() {
                     if ui.checkbox(&mut row.enabled, "").changed() {
                         resp.changed = true;
                     }
-                    if ui
-                        .add(
-                            egui::TextEdit::singleline(&mut row.key)
-                                .hint_text(self.key_hint)
-                                .desired_width(160.0),
-                        )
+                    if crate::form::text_field_width(ui, &mut row.key, self.key_hint, key_w)
                         .changed()
                     {
                         resp.changed = true;
                     }
                     let edit = egui::TextEdit::singleline(&mut row.value)
                         .hint_text(self.value_hint)
-                        .desired_width(260.0)
+                        .margin(crate::form::FIELD_MARGIN)
+                        .desired_width(value_w)
                         .password(row.secret);
                     if ui.add(edit).changed() {
                         resp.changed = true;
@@ -61,7 +62,7 @@ impl KvEditor<'_> {
                         };
                         if ui
                             .add(egui::Button::new(icon).frame(false))
-                            .on_hover_text("secret")
+                            .tip("secret")
                             .clicked()
                         {
                             row.secret = !row.secret;

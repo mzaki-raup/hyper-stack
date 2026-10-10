@@ -249,6 +249,18 @@ PC, lock after idle, clipboard clearing, encrypt history) · Data (export /
 import / reset per section, data folder location and "open data folder") ·
 About.
 
+### 9.1 Visual rules
+
+Settings pages are built from `hs_ui::form`: a page title with a one-line
+description, then cards (`section`) that hold a two-column label/field grid.
+Text fields are tall (7 px vertical padding) and grow to the available width
+between 260 and 560 px; hints sit under the control in muted text; notes and
+instructions use a framed panel with an icon. Tooltips open above the hovered
+widget (`TipExt::tip`) so the pointer never covers them. The window geometry,
+sidebar width and dock height are restored on the next start
+(`HyperStackData/window.toml`, Appearance settings). Owner's requests,
+2026-10-11.
+
 ## 10. Accessibility and ergonomics
 
 - Full keyboard traversal of lists and trees (a known gap in Eden Explorer's

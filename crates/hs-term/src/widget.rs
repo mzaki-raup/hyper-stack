@@ -68,6 +68,21 @@ pub struct TermTheme {
 }
 
 impl TermTheme {
+    /// Follow the app colour scheme: background, foreground, cursor and
+    /// selection from the theme, ANSI palette by light/dark.
+    pub fn for_theme(theme: &hs_ui::theme::Theme) -> Self {
+        let mut t = if theme.dark {
+            Self::dark()
+        } else {
+            Self::light()
+        };
+        t.background = theme.window_bg;
+        t.foreground = theme.text;
+        t.cursor = theme.text;
+        t.selection = theme.accent.linear_multiply(0.35);
+        t
+    }
+
     pub fn dark() -> Self {
         Self {
             background: Color32::from_rgb(0x15, 0x15, 0x1A),

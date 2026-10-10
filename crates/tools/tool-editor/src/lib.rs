@@ -3,6 +3,7 @@
 //! endings, external-change detection, Markdown preview and quick-open items
 //! for the palette.
 
+use hs_ui::tip::TipExt;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -130,7 +131,7 @@ pub struct EditorTool {
 impl EditorTool {
     fn new(services: &Services, mut state: State) -> Self {
         let st = services.settings.read();
-        let dark = st.appearance.theme != "light";
+        let dark = Theme::by_name(&st.appearance.theme).dark;
         let mut view = EditorView::new(
             egui::Id::new(("hs-editor", hs_core::new_id())),
             languages::plain(),
@@ -198,11 +199,7 @@ impl EditorTool {
     fn theme(s: &Services) -> (Theme, EditorTheme) {
         let name = s.settings.read().appearance.theme.clone();
         let ui_theme = Theme::by_name(&name);
-        let ed = if name == "light" {
-            EditorTheme::light()
-        } else {
-            EditorTheme::dark()
-        };
+        let ed = EditorTheme::for_theme(&ui_theme);
         (ui_theme, ed)
     }
 
@@ -1150,27 +1147,31 @@ impl Tool for EditorTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(s.t("editor-project")).strong());
+        hs_ui::form::header_bar(ui, &theme, |ui| {
+            ui.label(
+                egui::RichText::new(s.t("editor-project"))
+                    .strong()
+                    .size(15.0),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.state.root.is_some() {
                     if ui
                         .add(egui::Button::new(ph::X).frame(false))
-                        .on_hover_text(s.t("editor-close-folder"))
+                        .tip(s.t("editor-close-folder"))
                         .clicked()
                     {
                         self.close_root();
                     }
                     if ui
                         .add(egui::Button::new(ph::ARROW_CLOCKWISE).frame(false))
-                        .on_hover_text(s.t("editor-refresh"))
+                        .tip(s.t("editor-refresh"))
                         .clicked()
                     {
                         self.refresh_tree();
                     }
                     if ui
                         .add(egui::Button::new(ph::FILE_PLUS).frame(false))
-                        .on_hover_text(s.t("editor-new-file"))
+                        .tip(s.t("editor-new-file"))
                         .clicked()
                         && let Some(root) = self.state.root.clone()
                     {
@@ -1196,7 +1197,7 @@ impl Tool for EditorTool {
                 }
                 if ui
                     .add(egui::Button::new(ph::FOLDER_OPEN).frame(false))
-                    .on_hover_text(s.t("editor-open-folder"))
+                    .tip(s.t("editor-open-folder"))
                     .clicked()
                 {
                     self.open_folder_dialog(cx);

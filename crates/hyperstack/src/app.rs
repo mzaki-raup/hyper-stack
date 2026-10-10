@@ -2,6 +2,7 @@
 //! activity rail + sidebar, main area (tab space with splits), bottom dock,
 //! status bar, palette, settings, toasts and the vault dialogs.
 
+use hs_ui::tip::TipExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -45,6 +46,8 @@ pub struct HyperStackApp {
     tabs: TabSpace,
     /// The component whose tabs the strip shows (a factory id); the rail switches it.
     group: Option<String>,
+    window_state: crate::window_state::WindowState,
+    window_poll: Instant,
     launcher: LauncherState,
     palette: PaletteState,
     toasts: Toasts,
@@ -75,6 +78,7 @@ impl HyperStackApp {
         open: Vec<std::path::PathBuf>,
     ) -> Self {
         hs_ui::fonts::prefetch_system_fonts();
+        hs_term::shells::prefetch();
         hs_ui::icons::install_fonts(&cc.egui_ctx);
         hs_ui::icons::install_image_loaders(&cc.egui_ctx);
         let waker = Arc::new(EguiWaker(cc.egui_ctx.clone()));
@@ -109,6 +113,8 @@ impl HyperStackApp {
             theme,
             tabs: TabSpace::new(),
             group: None,
+            window_state: crate::window_state::WindowState::default(),
+            window_poll: Instant::now(),
             launcher: LauncherState::default(),
             palette: PaletteState::default(),
             toasts: Toasts::default(),
@@ -278,6 +284,17 @@ impl HyperStackApp {
             self.tabs
                 .open(self.factories[i].as_ref(), &self.services, None);
         }
+        // Only one Settings tab survives a restore.
+        let settings_ids: Vec<u64> = self
+            .tabs
+            .tabs
+            .iter()
+            .filter(|t| t.factory_id == "settings")
+            .map(|t| t.id)
+            .collect();
+        for id in settings_ids.iter().skip(1) {
+            self.tabs.close(*id);
+        }
         self.group = self.active_factory();
     }
 
@@ -340,6 +357,18 @@ impl HyperStackApp {
         self.tabs.activate(ids[idx as usize]);
     }
 
+    /// Window geometry and panel sizes, saved with the layout (debounced, and on close).
+    fn save_window_state(&mut self, ctx: &egui::Context) {
+        if let Some(st) =
+            ctx.input(|i| crate::window_state::WindowState::from_viewport(i.viewport()))
+            && st != self.window_state
+        {
+            st.save(&self.services.paths.root().join("window.toml"));
+            self.window_state = st;
+        }
+        let _ = self.services.save_settings();
+    }
+
     fn save_layout(&mut self) {
         let mut layout = self
             .tabs
@@ -373,6 +402,19 @@ impl HyperStackApp {
     }
 
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
+        // Settings is a single tab: a second request focuses the existing one.
+        if factory_id == "settings"
+            && let Some(id) = self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| t.factory_id == "settings")
+                .map(|t| t.id)
+        {
+            self.group = Some("settings".into());
+            self.tabs.activate(id);
+            return;
+        }
         let Some(i) = self.factory_index(factory_id) else {
             self.toasts
                 .push(ToastLevel::Error, format!("No tool '{factory_id}'"));
@@ -989,7 +1031,7 @@ impl HyperStackApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add(egui::Button::new(hs_ui::icons::SETTINGS).frame(false))
-                    .on_hover_text(s.t("settings"))
+                    .tip(s.t("settings"))
                     .clicked()
                 {
                     self.open_settings(None);
@@ -1009,7 +1051,7 @@ impl HyperStackApp {
                         egui::Button::new(egui::RichText::new(lock_icon).color(lock_col))
                             .frame(false),
                     )
-                    .on_hover_text(s.t("settings-vault-status"))
+                    .tip(s.t("settings-vault-status"))
                     .clicked()
                 {
                     self.pending_actions.push(Action::RunCommand {
@@ -1022,14 +1064,14 @@ impl HyperStackApp {
                 }
                 if ui
                     .add(egui::Button::new(hs_ui::icons::BELL).frame(false))
-                    .on_hover_text(s.t("notifications"))
+                    .tip(s.t("notifications"))
                     .clicked()
                 {
                     self.dock_open = true;
                     self.dock.tab = dock::DockTab::Output;
                 }
                 ui.add(egui::Button::new(hs_ui::icons::SEARCH).frame(false))
-                    .on_hover_text(s.t("quick-open-placeholder"))
+                    .tip(s.t("quick-open-placeholder"))
                     .clicked()
                     .then(|| self.palette.open(PaletteMode::QuickOpen));
             });
@@ -1133,6 +1175,7 @@ impl HyperStackApp {
                         .get_mut(id)
                         .map(|t| (t.factory_id.clone(), t.tool.save_state()));
                     if let Some((fid, state)) = dup
+                        && fid != "settings"
                         && let Some(i) = self.factory_index(&fid)
                     {
                         self.tabs
@@ -1188,15 +1231,25 @@ impl HyperStackApp {
         let mut actions = Vec::new();
         let services = self.services.clone();
         if let Some(t) = self.tabs.get_mut(a) {
-            ui.horizontal(|ui| {
-                let mut cx = ToolContext {
-                    services: &services,
-                    tab_id: a,
-                    env_id: env.as_deref(),
-                    actions: &mut actions,
-                };
-                t.tool.toolbar(ui, &mut cx);
-            });
+            egui::Frame::new()
+                .inner_margin(egui::Margin {
+                    left: 8,
+                    right: 8,
+                    top: 8,
+                    bottom: 8,
+                })
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 8.0;
+                        let mut cx = ToolContext {
+                            services: &services,
+                            tab_id: a,
+                            env_id: env.as_deref(),
+                            actions: &mut actions,
+                        };
+                        t.tool.toolbar(ui, &mut cx);
+                    });
+                });
         }
         self.pending_actions.extend(actions);
     }
@@ -1210,7 +1263,7 @@ impl HyperStackApp {
                     egui::Button::new(egui::RichText::new(hs_ui::icons::SIDEBAR).size(22.0))
                         .frame(false),
                 )
-                .on_hover_text(s.t("sidebar-toggle"))
+                .tip(s.t("sidebar-toggle"))
                 .clicked()
             {
                 self.sidebar_open = !self.sidebar_open;
@@ -1245,7 +1298,7 @@ impl HyperStackApp {
                         egui::Button::new(egui::RichText::new(icon).size(26.0).color(col))
                             .frame(false),
                     )
-                    .on_hover_text(title)
+                    .tip(title)
                     .clicked()
                 {
                     self.select_group(id);
@@ -1259,7 +1312,7 @@ impl HyperStackApp {
                         egui::Button::new(egui::RichText::new(hs_ui::icons::DOCK).size(22.0))
                             .frame(false),
                     )
-                    .on_hover_text(s.t("dock-toggle"))
+                    .tip(s.t("dock-toggle"))
                     .clicked()
                 {
                     self.dock_open = !self.dock_open;
@@ -1544,11 +1597,21 @@ impl eframe::App for HyperStackApp {
             .show(root, |ui| self.rail(ui));
         if self.sidebar_open {
             let w = self.services.settings.read().appearance.sidebar_width;
-            egui::Panel::left("hs-sidebar")
+            let r = egui::Panel::left("hs-sidebar")
                 .default_size(w)
                 .size_range(180.0..=640.0)
                 .resizable(true)
                 .show(root, |ui| self.sidebar(ui));
+            let _ = &r;
+            let width =
+                egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-sidebar"))
+                    .map(|st| st.outer_rect.width().round())
+                    .unwrap_or(w);
+            if (width - w).abs() >= 1.0 && width >= 180.0 {
+                self.services.settings.write().appearance.sidebar_width = width;
+                self.layout_dirty_since.get_or_insert(Instant::now());
+                self.tabs.dirty = true;
+            }
         }
         egui::Panel::bottom("hs-status")
             .exact_size(24.0)
@@ -1557,13 +1620,23 @@ impl eframe::App for HyperStackApp {
         if self.dock_open {
             let h = self.services.settings.read().appearance.dock_height;
             let logs = self.logging.buffer.clone();
-            egui::Panel::bottom("hs-dock")
+            let r = egui::Panel::bottom("hs-dock")
                 .default_size(h)
                 .size_range(100.0..=600.0)
                 .resizable(true)
                 .show(root, |ui| {
                     dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock);
                 });
+            let _ = &r;
+            let height =
+                egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-dock"))
+                    .map(|st| st.outer_rect.height().round())
+                    .unwrap_or(h);
+            if (height - h).abs() >= 1.0 && height >= 100.0 {
+                self.services.settings.write().appearance.dock_height = height;
+                self.layout_dirty_since.get_or_insert(Instant::now());
+                self.tabs.dirty = true;
+            }
         }
         egui::CentralPanel::default().show(root, |ui| self.main_area(ui));
 
@@ -1729,6 +1802,19 @@ impl eframe::App for HyperStackApp {
                 .is_some_and(|t| t.elapsed() > Duration::from_secs(1))
         {
             self.save_layout();
+            self.save_window_state(ctx);
+        }
+        // Window moves/resizes do not dirty the layout; poll them once a second.
+        if self.window_poll.elapsed() > Duration::from_secs(1) {
+            self.window_poll = Instant::now();
+            if let Some(st) =
+                ctx.input(|i| crate::window_state::WindowState::from_viewport(i.viewport()))
+                && st != self.window_state
+            {
+                st.save(&self.services.paths.root().join("window.toml"));
+                self.window_state = st;
+            }
+            ctx.request_repaint_after(Duration::from_secs(1));
         }
         if self.tabs.dirty {
             ctx.request_repaint_after(Duration::from_millis(1100));

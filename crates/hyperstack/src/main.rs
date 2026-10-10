@@ -10,6 +10,7 @@ mod self_test;
 mod settings_ui;
 mod tabspace;
 mod tools;
+mod window_state;
 
 use std::path::PathBuf;
 
@@ -116,10 +117,10 @@ fn main() {
     let _ = std::fs::write(paths.instance_lock(), std::process::id().to_string());
 
     let icon = load_icon();
-    let viewport = egui::ViewportBuilder::default()
+    let window = window_state::WindowState::load(&paths.root().join("window.toml"));
+    let viewport = window
+        .viewport()
         .with_title("HyperStack")
-        .with_inner_size([1360.0, 860.0])
-        .with_min_inner_size([800.0, 500.0])
         .with_icon(std::sync::Arc::new(icon));
     let options = eframe::NativeOptions {
         viewport,

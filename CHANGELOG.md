@@ -11,17 +11,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.2.0 — 2026-10-10
+
 ### Added
 
-- Terminal tool: local shells (PowerShell 7/5, cmd, Git Bash, WSL) in tabs and in the dock, profiles, restart/clear, "open terminal here".
-- Settings → Updates: version display, check now, release notes, verified download, restart-and-install, revert to the previous version.
-- Editor tool: project tree with a file watcher, open/save with encodings and line endings, syntax highlighting, find/replace, go to line, multi-cursor, external-change detection, Markdown preview, quick-open of project files (Ctrl+P).
-- Right-click copies the selection or pastes the clipboard in the terminal and the editor (PuTTY convention), with settings to turn it off.
-- `HyperStack <file-or-folder>…` opens the arguments in the editor.
+- Code editor tool with project tree, highlighting, find and preview (54514f67)
+- Right-click copies the selection or pastes the clipboard (9e9d352f)
+- Local terminal tool on alacritty_terminal with shell profiles (f76872ee)
+- Settings > Updates with check, verified download, install and revert (15a38e06)
 
 ### Fixed
 
-- Release planning found no release once a `v*` tag existed (a one-element tag list was read as the string "v").
+- Plain absolute paths from the command line; narrower context menu (6e7a43e0)
+- Keep typing in one undo group; add kittest view test (198ea9dd)
 
 ## 0.1.0 — 2026-10-10
 

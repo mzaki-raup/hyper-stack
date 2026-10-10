@@ -1,0 +1,36 @@
+[package]
+name = "hyperstack"
+description = "HyperStack — one workspace for everyone who ships software"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "HyperStack"
+path = "src/main.rs"
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+hs-term = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+egui-phosphor = { workspace = true }
+image = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+secrecy = { workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

@@ -1,0 +1,490 @@
+//! The multi-row tab strip (docs/04 §2.2). Tabs never scroll off-screen and
+//! never shrink below the minimum width: when they do not fit on one row the
+//! strip wraps onto more rows. Pinned tabs render icon-only at the start of the
+//! first row.
+
+use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
+
+use crate::theme::Theme;
+
+pub const ROW_HEIGHT: f32 = 32.0;
+pub const PINNED_WIDTH: f32 = 36.0;
+pub const MAX_TAB_WIDTH: f32 = 240.0;
+pub const NEW_TAB_WIDTH: f32 = 32.0;
+
+/// What the strip needs to know about each tab.
+pub trait TabItem {
+    fn id(&self) -> u64;
+    fn title(&self) -> String;
+    fn icon(&self) -> &str;
+    fn pinned(&self) -> bool;
+    fn dirty(&self) -> bool {
+        false
+    }
+    /// Environment or user colour shown as a dot and the active underline.
+    fn colour(&self) -> Option<Color32> {
+        None
+    }
+    fn tooltip(&self) -> String {
+        self.title()
+    }
+}
+
+/// Where each tab goes. Row 0 also holds the pinned tabs and the "+" button
+/// is placed after the last tab of the last row.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TabLayout {
+    pub rows: Vec<Vec<usize>>, // indices into the tab list, per row
+    pub tab_width: f32,
+    pub pinned: Vec<usize>,
+}
+
+impl TabLayout {
+    pub fn row_count(&self) -> usize {
+        self.rows.len().max(1)
+    }
+}
+
+/// Pure layout: which tab lands on which row and how wide regular tabs are.
+///
+/// `pinned` flags per tab; `full_width` is the strip width; `min_width` and
+/// `gap` come from settings. The last row reserves room for the "+" button.
+pub fn compute_tab_layout(pinned: &[bool], full_width: f32, min_width: f32, gap: f32) -> TabLayout {
+    let pinned_idx: Vec<usize> = pinned
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| **p)
+        .map(|(i, _)| i)
+        .collect();
+    let regular: Vec<usize> = pinned
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| !**p)
+        .map(|(i, _)| i)
+        .collect();
+    let min_width = min_width.max(48.0);
+    let gap = gap.max(0.0);
+    let pinned_span = pinned_idx.len() as f32 * (PINNED_WIDTH + gap);
+    let first_row_avail = (full_width - pinned_span - NEW_TAB_WIDTH - gap).max(min_width);
+    let other_rows_avail = (full_width - NEW_TAB_WIDTH - gap).max(min_width);
+
+    if regular.is_empty() {
+        return TabLayout {
+            rows: vec![Vec::new()],
+            tab_width: min_width,
+            pinned: pinned_idx,
+        };
+    }
+
+    // Everything on one row at a comfortable width?
+    let n = regular.len() as f32;
+    let one_row_width = (first_row_avail + gap) / n - gap;
+    if one_row_width >= min_width {
+        return TabLayout {
+            rows: vec![regular],
+            tab_width: one_row_width.min(MAX_TAB_WIDTH),
+            pinned: pinned_idx,
+        };
+    }
+
+    // Wrap: as many tabs per row as fit at the minimum width, then widen them
+    // to fill the row.
+    let per_first = (((first_row_avail + gap) / (min_width + gap)).floor() as usize).max(1);
+    let per_other = (((other_rows_avail + gap) / (min_width + gap)).floor() as usize).max(1);
+    let mut rows = Vec::new();
+    let mut rest: &[usize] = &regular;
+    let first = per_first.min(rest.len());
+    rows.push(rest[..first].to_vec());
+    rest = &rest[first..];
+    while !rest.is_empty() {
+        let take = per_other.min(rest.len());
+        rows.push(rest[..take].to_vec());
+        rest = &rest[take..];
+    }
+    let widest_row = rows.iter().map(Vec::len).max().unwrap_or(1) as f32;
+    let tab_width = ((other_rows_avail + gap) / widest_row - gap).clamp(min_width, MAX_TAB_WIDTH);
+    TabLayout {
+        rows,
+        tab_width,
+        pinned: pinned_idx,
+    }
+}
+
+/// Number of rows a strip needs (used to size the title-bar region before drawing).
+pub fn tab_row_count(pinned: &[bool], full_width: f32, min_width: f32, gap: f32) -> usize {
+    compute_tab_layout(pinned, full_width, min_width, gap).row_count()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TabMenuAction {
+    Close,
+    CloseOthers,
+    CloseLeft,
+    CloseRight,
+    Pin,
+    Unpin,
+    Duplicate,
+    SplitRight,
+    SplitDown,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct TabStripResponse {
+    pub activated: Option<u64>,
+    pub close: Option<u64>,
+    pub menu: Option<(u64, TabMenuAction)>,
+    /// Drag-reorder: move tab `from` to index `to` (in display order).
+    pub reorder: Option<(usize, usize)>,
+    pub new_tab: bool,
+}
+
+pub struct TabStripLabels {
+    pub new_tab: String,
+    pub close: String,
+    pub close_others: String,
+    pub close_left: String,
+    pub close_right: String,
+    pub pin: String,
+    pub unpin: String,
+    pub duplicate: String,
+    pub split_right: String,
+    pub split_down: String,
+}
+
+pub struct TabStrip<'a> {
+    pub theme: &'a Theme,
+    pub min_width: f32,
+    pub gap: f32,
+    pub active: Option<u64>,
+    /// Tabs visible in a split (drawn with a thin underline).
+    pub visible: &'a [u64],
+    pub labels: &'a TabStripLabels,
+}
+
+impl TabStrip<'_> {
+    pub fn show<T: TabItem>(&self, ui: &mut egui::Ui, tabs: &[T]) -> TabStripResponse {
+        let mut resp = TabStripResponse::default();
+        let full_width = ui.available_width();
+        let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
+        let layout = compute_tab_layout(&pinned, full_width, self.min_width, self.gap);
+        let total_height = layout.row_count() as f32 * (ROW_HEIGHT + self.gap);
+        let (strip_rect, _) =
+            ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::hover());
+        let painter = ui.painter_at(strip_rect);
+
+        let drag_id = ui.id().with("tab-drag");
+        let dragging: Option<usize> = ui.ctx().data(|d| d.get_temp(drag_id));
+        let mut rects: Vec<(usize, Rect)> = Vec::new();
+
+        let mut y = strip_rect.top();
+        for (row_i, row) in layout.rows.iter().enumerate() {
+            let mut x = strip_rect.left();
+            if row_i == 0 {
+                for &i in &layout.pinned {
+                    let rect =
+                        Rect::from_min_size(Pos2::new(x, y), Vec2::new(PINNED_WIDTH, ROW_HEIGHT));
+                    self.draw_tab(ui, &painter, rect, &tabs[i], true, &mut resp, i);
+                    rects.push((i, rect));
+                    x += PINNED_WIDTH + self.gap;
+                }
+            }
+            for &i in row {
+                let rect =
+                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(layout.tab_width, ROW_HEIGHT));
+                self.draw_tab(ui, &painter, rect, &tabs[i], false, &mut resp, i);
+                rects.push((i, rect));
+                x += layout.tab_width + self.gap;
+            }
+            if row_i + 1 == layout.rows.len() {
+                let rect =
+                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(NEW_TAB_WIDTH, ROW_HEIGHT));
+                let r = ui.interact(rect, ui.id().with("new-tab"), Sense::click());
+                r.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &self.labels.new_tab)
+                });
+                let fill = if r.hovered() {
+                    self.theme.surface_hover
+                } else {
+                    Color32::TRANSPARENT
+                };
+                painter.rect_filled(rect, CornerRadius::same(4), fill);
+                painter.text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    crate::icons::TAB_NEW,
+                    egui::FontId::proportional(16.0),
+                    self.theme.text_muted,
+                );
+                if r.on_hover_text(&self.labels.new_tab).clicked() {
+                    resp.new_tab = true;
+                }
+            }
+            y += ROW_HEIGHT + self.gap;
+        }
+
+        // Drag-and-drop reorder: drop onto another tab's rect.
+        if let Some(from) = dragging {
+            if let Some(pos) = ui.ctx().pointer_latest_pos()
+                && let Some((to, rect)) = rects.iter().find(|(_, r)| r.contains(pos))
+            {
+                painter.rect_stroke(
+                    *rect,
+                    CornerRadius::same(4),
+                    Stroke::new(2.0, self.theme.accent),
+                    StrokeKind::Inside,
+                );
+                if ui.input(|i| i.pointer.any_released()) && *to != from {
+                    resp.reorder = Some((from, *to));
+                }
+            }
+            if ui.input(|i| i.pointer.any_released()) {
+                ui.ctx().data_mut(|d| d.remove::<usize>(drag_id));
+            }
+        }
+        resp
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn draw_tab<T: TabItem>(
+        &self,
+        ui: &mut egui::Ui,
+        painter: &egui::Painter,
+        rect: Rect,
+        tab: &T,
+        icon_only: bool,
+        resp: &mut TabStripResponse,
+        index: usize,
+    ) {
+        let id = ui.id().with(("tab", tab.id()));
+        let r = ui.interact(rect, id, Sense::click_and_drag());
+        r.widget_info(|| {
+            egui::WidgetInfo::selected(
+                egui::WidgetType::Button,
+                true,
+                self.active == Some(tab.id()),
+                tab.title(),
+            )
+        });
+        let is_active = self.active == Some(tab.id());
+        let is_visible = self.visible.contains(&tab.id());
+        let fill = if is_active {
+            self.theme.tab_active
+        } else if r.hovered() {
+            self.theme.surface_hover
+        } else {
+            self.theme.tab_inactive
+        };
+        painter.rect_filled(
+            rect,
+            CornerRadius {
+                nw: 6,
+                ne: 6,
+                sw: 0,
+                se: 0,
+            },
+            fill,
+        );
+        let colour = tab.colour().unwrap_or(self.theme.accent);
+        if is_active {
+            painter.rect_filled(
+                Rect::from_min_size(rect.left_top(), Vec2::new(rect.width(), 2.0)),
+                CornerRadius::ZERO,
+                colour,
+            );
+        } else if is_visible {
+            painter.rect_filled(
+                Rect::from_min_size(
+                    Pos2::new(rect.left(), rect.bottom() - 2.0),
+                    Vec2::new(rect.width(), 2.0),
+                ),
+                CornerRadius::ZERO,
+                colour.linear_multiply(0.6),
+            );
+        }
+
+        let font = egui::FontId::proportional(14.0);
+        let icon_pos = Pos2::new(rect.left() + 10.0, rect.center().y);
+        painter.text(
+            icon_pos,
+            egui::Align2::LEFT_CENTER,
+            tab.icon(),
+            font.clone(),
+            self.theme.text_muted,
+        );
+
+        if !icon_only {
+            let close_rect = Rect::from_center_size(
+                Pos2::new(rect.right() - 14.0, rect.center().y),
+                Vec2::splat(18.0),
+            );
+            let text_left = rect.left() + 30.0;
+            let text_right = close_rect.left() - 4.0;
+            let title = tab.title();
+            let galley = painter.layout_no_wrap(title.clone(), font.clone(), self.theme.text);
+            let avail = (text_right - text_left).max(0.0);
+            let shown = if galley.size().x <= avail {
+                title
+            } else {
+                elide(&title, avail, galley.size().x)
+            };
+            painter.text(
+                Pos2::new(text_left, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                shown,
+                font.clone(),
+                self.theme.text,
+            );
+
+            let cr = ui.interact(close_rect, id.with("close"), Sense::click());
+            cr.widget_info(|| {
+                egui::WidgetInfo::labeled(
+                    egui::WidgetType::Button,
+                    true,
+                    format!("{} {}", self.labels.close, tab.title()),
+                )
+            });
+            if tab.dirty() && !cr.hovered() {
+                painter.circle_filled(close_rect.center(), 4.0, colour);
+            } else {
+                let c = if cr.hovered() {
+                    self.theme.text
+                } else {
+                    self.theme.text_muted
+                };
+                if cr.hovered() {
+                    painter.rect_filled(
+                        close_rect,
+                        CornerRadius::same(4),
+                        self.theme.surface_hover,
+                    );
+                }
+                painter.text(
+                    close_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    crate::icons::TAB_CLOSE,
+                    egui::FontId::proportional(12.0),
+                    c,
+                );
+            }
+            if cr.clicked() {
+                resp.close = Some(tab.id());
+            }
+        } else if tab.dirty() {
+            painter.circle_filled(Pos2::new(rect.right() - 7.0, rect.top() + 7.0), 3.0, colour);
+        }
+
+        if r.clicked() {
+            resp.activated = Some(tab.id());
+        }
+        if r.middle_clicked() {
+            resp.close = Some(tab.id());
+        }
+        if r.drag_started() {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(id.with("drag-root"), ()));
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(ui.id().with("tab-drag"), index));
+        }
+        let r = r.on_hover_text(tab.tooltip());
+        let labels = self.labels;
+        let pinned = tab.pinned();
+        let tid = tab.id();
+        r.context_menu(|ui| {
+            let mut pick = |ui: &mut egui::Ui, label: &str, action: TabMenuAction| {
+                if ui.button(label).clicked() {
+                    resp.menu = Some((tid, action));
+                    ui.close();
+                }
+            };
+            pick(ui, &labels.close, TabMenuAction::Close);
+            pick(ui, &labels.close_others, TabMenuAction::CloseOthers);
+            pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
+            pick(ui, &labels.close_right, TabMenuAction::CloseRight);
+            ui.separator();
+            if pinned {
+                pick(ui, &labels.unpin, TabMenuAction::Unpin);
+            } else {
+                pick(ui, &labels.pin, TabMenuAction::Pin);
+            }
+            pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
+            ui.separator();
+            pick(ui, &labels.split_right, TabMenuAction::SplitRight);
+            pick(ui, &labels.split_down, TabMenuAction::SplitDown);
+        });
+    }
+}
+
+/// Middle-elide a title to roughly `avail` pixels given its full width.
+fn elide(title: &str, avail: f32, full: f32) -> String {
+    let chars: Vec<char> = title.chars().collect();
+    if chars.len() < 4 || full <= 0.0 {
+        return title.to_string();
+    }
+    let keep = ((avail / full) * chars.len() as f32).floor() as usize;
+    let keep = keep.saturating_sub(1).max(2);
+    let head = keep.div_ceil(2);
+    let tail = keep / 2;
+    let mut s: String = chars[..head.min(chars.len())].iter().collect();
+    s.push('…');
+    s.extend(chars[chars.len().saturating_sub(tail)..].iter());
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_row_when_tabs_fit_and_width_is_capped() {
+        let l = compute_tab_layout(&[false; 3], 1000.0, 140.0, 4.0);
+        assert_eq!(l.rows.len(), 1);
+        assert_eq!(l.tab_width, MAX_TAB_WIDTH);
+        assert_eq!(tab_row_count(&[false; 3], 1000.0, 140.0, 4.0), 1);
+    }
+
+    #[test]
+    fn tabs_shrink_to_minimum_then_wrap_instead_of_going_thinner() {
+        // 6 tabs × 140 + gaps + "+" needs more than 600 px → wraps.
+        let l = compute_tab_layout(&[false; 6], 600.0, 140.0, 4.0);
+        assert!(l.rows.len() >= 2, "expected wrapping, got {:?}", l.rows);
+        assert!(l.tab_width >= 140.0);
+        let total: usize = l.rows.iter().map(Vec::len).sum();
+        assert_eq!(total, 6);
+        // Every row fits the width at the computed tab width.
+        for row in &l.rows {
+            let used = row.len() as f32 * (l.tab_width + 4.0) + NEW_TAB_WIDTH;
+            assert!(used <= 600.0 + 4.0 + 1.0, "row too wide: {used}");
+        }
+    }
+
+    #[test]
+    fn pinned_tabs_take_first_row_space_and_are_not_counted_as_regular() {
+        let pinned = [true, false, true, false, false];
+        let l = compute_tab_layout(&pinned, 800.0, 140.0, 4.0);
+        assert_eq!(l.pinned, vec![0, 2]);
+        let regular: Vec<usize> = l.rows.concat();
+        assert_eq!(regular, vec![1, 3, 4]);
+    }
+
+    #[test]
+    fn minimum_width_setting_changes_row_count() {
+        let narrow = tab_row_count(&[false; 10], 900.0, 80.0, 4.0);
+        let wide = tab_row_count(&[false; 10], 900.0, 200.0, 4.0);
+        assert!(wide > narrow);
+    }
+
+    #[test]
+    fn no_regular_tabs_is_one_empty_row() {
+        let l = compute_tab_layout(&[true, true], 500.0, 140.0, 4.0);
+        assert_eq!(l.rows, vec![Vec::<usize>::new()]);
+        assert_eq!(l.row_count(), 1);
+    }
+
+    #[test]
+    fn elide_keeps_head_and_tail() {
+        let s = elide("docker-compose.staging.yml", 60.0, 200.0);
+        assert!(s.contains('…'));
+        assert!(s.starts_with('d'));
+        assert!(s.ends_with('l'));
+    }
+}

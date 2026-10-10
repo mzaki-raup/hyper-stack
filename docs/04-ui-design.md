@@ -226,6 +226,11 @@ shortcuts page.
 
 ## 9. Settings categories
 
+Settings open as a regular tab (one at a time; opening it again focuses the
+existing tab): the category list is the tab's sidebar, the page is the tab
+body, so settings can sit next to the tool being configured and survive a
+restart like any other tab. Owner's request, 2026-10-11.
+
 General (startup workspace, restore tabs, language) · **Updates** (installed
 version with sha/date/channel, channel, automatic check, check now, release
 notes, download/install, revert, install from file; see [09](09-ci-cd-and-updates.md) §5.1) · Appearance

@@ -3,14 +3,18 @@
 
 pub mod hello;
 pub mod scratchpad;
+pub mod settings;
 
 use hs_core::tool::ToolFactory;
 
-pub fn factories() -> Vec<Box<dyn ToolFactory>> {
+use crate::settings_ui::SharedSettings;
+
+pub fn factories(settings: SharedSettings) -> Vec<Box<dyn ToolFactory>> {
     vec![
         Box::new(tool_editor::EditorFactory),
         Box::new(tool_terminal::TerminalFactory),
         Box::new(scratchpad::ScratchpadFactory),
+        Box::new(settings::SettingsFactory { hub: settings }),
         Box::new(hello::HelloFactory),
     ]
 }

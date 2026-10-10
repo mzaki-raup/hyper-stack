@@ -19,6 +19,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Right-click copies the selection or pastes the clipboard in the terminal and the editor (PuTTY convention), with settings to turn it off.
 - `HyperStack <file-or-folder>…` opens the arguments in the editor.
 
+- Settings open as a regular tab (categories in the sidebar) instead of a floating window.
+- Appearance → Interface Font Size now exists and applies; the terminal and editor font sizes say what they affect.
+
 ### Fixed
 
 - Release planning found no release once a `v*` tag existed (a one-element tag list was read as the string "v").

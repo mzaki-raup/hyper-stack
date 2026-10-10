@@ -239,9 +239,12 @@ existing tab): the category list is the tab's sidebar, the page is the tab
 body, so settings can sit next to the tool being configured and survive a
 restart like any other tab. Owner's request, 2026-10-11.
 
-General (startup workspace, restore tabs, language) · **Updates** (installed
-version with sha/date/channel, channel, automatic check, check now, release
-notes, download/install, revert, install from file; see [09](09-ci-cd-and-updates.md) §5.1) · Appearance
+Order: General (startup workspace, restore tabs, language) · Appearance ·
+Environments · Security · Connections · Terminal · Editor · Data (Advanced) ·
+Shortcuts · About, which also holds **Updates** (installed version with
+sha/date/channel, channel, automatic check, check now, release notes,
+download/install, revert; see [09](09-ci-cd-and-updates.md) §5.1).
+Appearance
 (theme, interface font and size, tab min width, tab gap, density; the terminal and editor pages carry their own font and size: three bundled Nerd Font Mono families, see `assets/fonts/README.md`, plus any font installed on the machine, so a proprietary font such as Anthropic Sans can be used when present without ever being shipped) · Shortcuts · Environments ·
 Connections · Editor · Terminal · Database · API client · SSH/SFTP · S3 · Git ·
 Security (secret store: vault or OS keyring, master password, remember on this

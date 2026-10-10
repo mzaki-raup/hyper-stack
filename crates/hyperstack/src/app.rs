@@ -284,18 +284,23 @@ impl HyperStackApp {
             self.tabs
                 .open(self.factories[i].as_ref(), &self.services, None);
         }
-        // Only one Settings tab survives a restore.
-        let settings_ids: Vec<u64> = self
-            .tabs
-            .tabs
-            .iter()
-            .filter(|t| t.factory_id == "settings")
-            .map(|t| t.id)
-            .collect();
-        for id in settings_ids.iter().skip(1) {
-            self.tabs.close(*id);
+        // Only one Settings / Welcome tab survives a restore.
+        for fid in SINGLE_INSTANCE {
+            let ids: Vec<u64> = self
+                .tabs
+                .tabs
+                .iter()
+                .filter(|t| t.factory_id == *fid)
+                .map(|t| t.id)
+                .collect();
+            for id in ids.iter().skip(1) {
+                self.tabs.close(*id);
+            }
         }
-        self.group = self.active_factory();
+        self.group = self
+            .active_factory()
+            .as_deref()
+            .map(|f| group_of(f).to_string());
     }
 
     /// Factory id of the active tab.
@@ -311,7 +316,11 @@ impl HyperStackApp {
         self.tabs
             .tabs
             .iter()
-            .filter(|t| self.group.as_deref().is_none_or(|g| t.factory_id == g))
+            .filter(|t| {
+                self.group
+                    .as_deref()
+                    .is_none_or(|g| group_of(&t.factory_id) == g)
+            })
             .map(|t| t.id)
             .collect()
     }
@@ -319,8 +328,9 @@ impl HyperStackApp {
     /// Show one component's tabs: keep the active tab if it belongs there,
     /// else activate the group's most recent tab, else open a fresh one.
     fn select_group(&mut self, factory_id: &str) {
+        let factory_id = group_of(factory_id);
         self.group = Some(factory_id.to_string());
-        if self.active_factory().as_deref() == Some(factory_id) {
+        if self.active_factory().as_deref().map(group_of) == Some(factory_id) {
             return;
         }
         match self.group_tab_ids().last().copied() {
@@ -332,7 +342,7 @@ impl HyperStackApp {
     /// After a close or a restore the active tab may sit outside the group.
     fn ensure_active_in_group(&mut self) {
         let Some(g) = self.group.clone() else { return };
-        if self.active_factory().as_deref() == Some(g.as_str()) {
+        if self.active_factory().as_deref().map(group_of) == Some(g.as_str()) {
             return;
         }
         match self.group_tab_ids().last().copied() {
@@ -402,16 +412,16 @@ impl HyperStackApp {
     }
 
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
-        // Settings is a single tab: a second request focuses the existing one.
-        if factory_id == "settings"
+        // Settings and Welcome are single tabs: a second request focuses the existing one.
+        if SINGLE_INSTANCE.contains(&factory_id)
             && let Some(id) = self
                 .tabs
                 .tabs
                 .iter()
-                .find(|t| t.factory_id == "settings")
+                .find(|t| t.factory_id == factory_id)
                 .map(|t| t.id)
         {
-            self.group = Some("settings".into());
+            self.group = Some(group_of(factory_id).to_string());
             self.tabs.activate(id);
             return;
         }
@@ -456,7 +466,7 @@ impl HyperStackApp {
         let id = self
             .tabs
             .open(self.factories[i].as_ref(), &self.services, None);
-        self.group = Some(factory_id.to_string());
+        self.group = Some(group_of(factory_id).to_string());
         if let Some(req) = request {
             let mut actions = Vec::new();
             let env = self.services.environments.read().active.clone();
@@ -979,136 +989,157 @@ impl HyperStackApp {
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        ui.horizontal(|ui| {
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(s.t("app-name"))
-                    .strong()
-                    .color(self.theme.accent),
-            );
-            ui.add_space(12.0);
-            // Workspace switcher
-            let ws_name = s.workspace.read().meta.name.clone();
-            egui::ComboBox::from_id_salt("ws")
-                .selected_text(format!("{} {}", hs_ui::icons::WORKSPACE, ws_name))
-                .show_ui(ui, |ui| {
-                    let names: Vec<String> = self
-                        .registry
-                        .workspaces
-                        .iter()
-                        .map(|w| w.name.clone())
-                        .collect();
-                    for n in names {
-                        if ui.selectable_label(n == ws_name, &n).clicked() && n != ws_name {
-                            self.pending_actions.push(Action::RunCommand {
-                                id: format!("ws:{n}"),
-                            });
+        egui::Frame::new()
+            .inner_margin(egui::Margin {
+                left: 10,
+                right: 10,
+                top: 8,
+                bottom: 4,
+            })
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 10.0;
+                    ui.label(
+                        egui::RichText::new(s.t("app-name"))
+                            .strong()
+                            .size(16.0)
+                            .color(self.theme.accent),
+                    );
+                    ui.add_space(8.0);
+                    // Workspace switcher
+                    let ws_name = s.workspace.read().meta.name.clone();
+                    egui::ComboBox::from_id_salt("ws")
+                        .selected_text(format!("{} {}", hs_ui::icons::WORKSPACE, ws_name))
+                        .show_ui(ui, |ui| {
+                            let names: Vec<String> = self
+                                .registry
+                                .workspaces
+                                .iter()
+                                .map(|w| w.name.clone())
+                                .collect();
+                            for n in names {
+                                if ui.selectable_label(n == ws_name, &n).clicked() && n != ws_name {
+                                    self.pending_actions.push(Action::RunCommand {
+                                        id: format!("ws:{n}"),
+                                    });
+                                }
+                            }
+                        });
+                    // Environment switcher
+                    let (active_name, active_col, active_protected) = {
+                        let envs = s.environments.read();
+                        match envs.active_env() {
+                            Some(e) => (
+                                e.name.clone(),
+                                self.theme.env_colour(&e.name, e.colour.as_deref()),
+                                e.protected,
+                            ),
+                            None => (s.t("env-none"), self.theme.text_muted, false),
                         }
-                    }
-                });
-            // Environment switcher
-            let (active_name, active_col, active_protected) = {
-                let envs = s.environments.read();
-                match envs.active_env() {
-                    Some(e) => (
-                        e.name.clone(),
-                        self.theme.env_colour(&e.name, e.colour.as_deref()),
-                        e.protected,
-                    ),
-                    None => (s.t("env-none"), self.theme.text_muted, false),
-                }
-            };
-            let label = egui::RichText::new(format!(
-                "{} {}{}",
-                hs_ui::icons::ENVIRONMENT,
-                if active_protected { "🔒 " } else { "" },
-                active_name
-            ))
-            .color(active_col);
-            egui::ComboBox::from_id_salt("env")
-                .selected_text(label)
-                .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(s.environments.read().active.is_none(), s.t("env-none"))
-                        .clicked()
-                    {
-                        self.pending_actions
-                            .push(Action::RunCommand { id: "env:".into() });
-                    }
-                    let list: Vec<(String, String, Option<String>, bool)> = s
-                        .environments
-                        .read()
-                        .all()
-                        .iter()
-                        .map(|e| (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected))
-                        .collect();
-                    let active = s.environments.read().active.clone();
-                    for (id, name, colour, protected) in list {
-                        let col = self.theme.env_colour(&name, colour.as_deref());
-                        let txt = egui::RichText::new(format!(
-                            "{}{}",
-                            if protected { "🔒 " } else { "" },
-                            name
-                        ))
-                        .color(col);
-                        if ui
-                            .selectable_label(active.as_deref() == Some(&id), txt)
+                    };
+                    let label = egui::RichText::new(format!(
+                        "{} {}{}",
+                        hs_ui::icons::ENVIRONMENT,
+                        if active_protected { "🔒 " } else { "" },
+                        active_name
+                    ))
+                    .color(active_col);
+                    egui::ComboBox::from_id_salt("env")
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(
+                                    s.environments.read().active.is_none(),
+                                    s.t("env-none"),
+                                )
+                                .clicked()
+                            {
+                                self.pending_actions
+                                    .push(Action::RunCommand { id: "env:".into() });
+                            }
+                            let list: Vec<(String, String, Option<String>, bool)> = s
+                                .environments
+                                .read()
+                                .all()
+                                .iter()
+                                .map(|e| {
+                                    (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected)
+                                })
+                                .collect();
+                            let active = s.environments.read().active.clone();
+                            for (id, name, colour, protected) in list {
+                                let col = self.theme.env_colour(&name, colour.as_deref());
+                                let txt = egui::RichText::new(format!(
+                                    "{}{}",
+                                    if protected { "🔒 " } else { "" },
+                                    name
+                                ))
+                                .color(col);
+                                if ui
+                                    .selectable_label(active.as_deref() == Some(&id), txt)
+                                    .clicked()
+                                {
+                                    self.pending_actions.push(Action::RunCommand {
+                                        id: format!("env:{id}"),
+                                    });
+                                }
+                            }
+                        });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        let theme = self.theme.clone();
+                        if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::SETTINGS, 20.0, false)
+                            .tip(s.t("settings"))
                             .clicked()
                         {
+                            self.open_settings(None);
+                        }
+                        let locked = s.secrets.is_locked();
+                        let lock_icon = if locked {
+                            hs_ui::icons::LOCK
+                        } else {
+                            hs_ui::icons::UNLOCK
+                        };
+                        let r = hs_ui::form::icon_button(ui, &theme, lock_icon, 20.0, false);
+                        // Vault state colour on top of the button glyph.
+                        ui.painter().text(
+                            r.rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            lock_icon,
+                            egui::FontId::proportional(20.0),
+                            if locked { theme.warning } else { theme.success },
+                        );
+                        if r.tip(if locked {
+                            s.t("vault-tip-locked")
+                        } else {
+                            s.t("vault-tip-unlocked")
+                        })
+                        .clicked()
+                        {
                             self.pending_actions.push(Action::RunCommand {
-                                id: format!("env:{id}"),
+                                id: if locked {
+                                    "vault.unlock".into()
+                                } else {
+                                    "vault.lock".into()
+                                },
                             });
                         }
-                    }
-                });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(egui::Button::new(hs_ui::icons::SETTINGS).frame(false))
-                    .tip(s.t("settings"))
-                    .clicked()
-                {
-                    self.open_settings(None);
-                }
-                let lock_icon = if s.secrets.is_locked() {
-                    hs_ui::icons::LOCK
-                } else {
-                    hs_ui::icons::UNLOCK
-                };
-                let lock_col = if s.secrets.is_locked() {
-                    self.theme.warning
-                } else {
-                    self.theme.success
-                };
-                if ui
-                    .add(
-                        egui::Button::new(egui::RichText::new(lock_icon).color(lock_col))
-                            .frame(false),
-                    )
-                    .tip(s.t("settings-vault-status"))
-                    .clicked()
-                {
-                    self.pending_actions.push(Action::RunCommand {
-                        id: if s.secrets.is_locked() {
-                            "vault.unlock".into()
-                        } else {
-                            "vault.lock".into()
-                        },
+                        if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::BELL, 20.0, false)
+                            .tip(s.t("notifications"))
+                            .clicked()
+                        {
+                            self.dock_open = true;
+                            self.dock.tab = dock::DockTab::Output;
+                        }
+                        if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::SEARCH, 20.0, false)
+                            .tip(s.t("quick-open"))
+                            .clicked()
+                        {
+                            self.palette.open(PaletteMode::QuickOpen);
+                        }
                     });
-                }
-                if ui
-                    .add(egui::Button::new(hs_ui::icons::BELL).frame(false))
-                    .tip(s.t("notifications"))
-                    .clicked()
-                {
-                    self.dock_open = true;
-                    self.dock.tab = dock::DockTab::Output;
-                }
-                ui.add(egui::Button::new(hs_ui::icons::SEARCH).frame(false))
-                    .tip(s.t("quick-open-placeholder"))
-                    .clicked()
-                    .then(|| self.palette.open(PaletteMode::QuickOpen));
+                });
             });
-        });
     }
 
     fn tab_strip(&mut self, ui: &mut egui::Ui) {
@@ -1144,7 +1175,11 @@ impl HyperStackApp {
         let index_map: Vec<usize> = all
             .iter()
             .enumerate()
-            .filter(|(_, v)| group.as_deref().is_none_or(|g| v.factory_id == g))
+            .filter(|(_, v)| {
+                group
+                    .as_deref()
+                    .is_none_or(|g| group_of(&v.factory_id) == g)
+            })
             .map(|(i, _)| i)
             .collect();
         let views: Vec<_> = index_map.iter().map(|&i| all[i].clone()).collect();
@@ -1208,7 +1243,7 @@ impl HyperStackApp {
                         .get_mut(id)
                         .map(|t| (t.factory_id.clone(), t.tool.save_state()));
                     if let Some((fid, state)) = dup
-                        && fid != "settings"
+                        && !SINGLE_INSTANCE.contains(&fid.as_str())
                         && let Some(i) = self.factory_index(&fid)
                     {
                         self.tabs
@@ -1291,11 +1326,8 @@ impl HyperStackApp {
         let s = self.services.clone();
         ui.vertical_centered(|ui| {
             ui.add_space(6.0);
-            if ui
-                .add(
-                    egui::Button::new(egui::RichText::new(hs_ui::icons::SIDEBAR).size(22.0))
-                        .frame(false),
-                )
+            let theme = self.theme.clone();
+            if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::SIDEBAR, 20.0, self.sidebar_open)
                 .tip(s.t("sidebar-toggle"))
                 .clicked()
             {
@@ -1314,23 +1346,17 @@ impl HyperStackApp {
                 })
                 .collect();
             for (id, icon, title) in descs {
-                let active = self.group.as_deref() == Some(id);
+                if id == "hello" {
+                    continue; // Welcome shares the Settings group
+                }
+                let active = self.group.as_deref() == Some(group_of(id));
                 let count = self.tabs.tabs.iter().filter(|t| t.factory_id == id).count();
                 let title = if count > 0 {
                     format!("{title} ({count})")
                 } else {
                     title
                 };
-                let col = if active {
-                    self.theme.accent
-                } else {
-                    self.theme.text_muted
-                };
-                if ui
-                    .add(
-                        egui::Button::new(egui::RichText::new(icon).size(26.0).color(col))
-                            .frame(false),
-                    )
+                if hs_ui::form::icon_button(ui, &theme, icon, 24.0, active)
                     .tip(title)
                     .clicked()
                 {
@@ -1338,19 +1364,6 @@ impl HyperStackApp {
                 }
                 ui.add_space(4.0);
             }
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.add_space(6.0);
-                if ui
-                    .add(
-                        egui::Button::new(egui::RichText::new(hs_ui::icons::DOCK).size(22.0))
-                            .frame(false),
-                    )
-                    .tip(s.t("dock-toggle"))
-                    .clicked()
-                {
-                    self.dock_open = !self.dock_open;
-                }
-            });
         });
     }
 
@@ -1475,63 +1488,73 @@ impl HyperStackApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(&self.status).size(12.0));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(
-                    egui::RichText::new(s.i18n.locale.clone())
-                        .size(12.0)
-                        .color(self.theme.text_muted),
-                );
-                let n = s.jobs.running_count();
-                let jobs = s.i18n.t_args("status-jobs", &[("n", &n.to_string())]);
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new(format!("{} {jobs}", hs_ui::icons::JOBS))
-                                .size(12.0),
-                        )
-                        .frame(false),
+        let theme = self.theme.clone();
+        let text = |t: String| egui::RichText::new(t).size(13.0);
+        let muted = |t: String| egui::RichText::new(t).size(13.0).color(theme.text_muted);
+        egui::Frame::new()
+            .inner_margin(egui::Margin::symmetric(8, 0))
+            .show(ui, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+                    if hs_ui::form::icon_button(
+                        ui,
+                        &theme,
+                        hs_ui::icons::DOCK,
+                        15.0,
+                        self.dock_open,
                     )
+                    .tip(s.t("dock-toggle"))
                     .clicked()
-                {
-                    self.dock_open = true;
-                    self.dock.tab = dock::DockTab::Jobs;
-                }
-                ui.label(
-                    egui::RichText::new(
-                        s.i18n
-                            .t_args("tab-count", &[("n", &self.tabs.tabs.len().to_string())]),
-                    )
-                    .size(12.0)
-                    .color(self.theme.text_muted),
-                );
-                ui.label(
-                    egui::RichText::new(s.version.version.to_string())
-                        .size(12.0)
-                        .color(self.theme.text_muted),
-                );
-                if let Some(v) = &self.update_badge {
-                    let label = egui::RichText::new(format!(
-                        "{} {} {v}",
-                        hs_ui::icons::ARROW_UP,
-                        s.t("update-badge")
-                    ))
-                    .size(12.0)
-                    .color(egui::Color32::WHITE);
-                    if ui
-                        .add(
-                            egui::Button::new(label)
-                                .fill(self.theme.accent)
-                                .corner_radius(egui::CornerRadius::same(9)),
-                        )
-                        .clicked()
                     {
-                        self.open_settings(Some(settings_ui::Page::Updates));
+                        self.dock_open = !self.dock_open;
                     }
-                }
+                    ui.label(text(self.status.clone()));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 12.0;
+                        ui.label(muted(format!("v{}", s.version.version)));
+                        ui.separator();
+                        ui.label(muted(s.i18n.locale.clone()));
+                        let n = s.jobs.running_count();
+                        let jobs = s.i18n.t_args("status-jobs", &[("n", &n.to_string())]);
+                        if ui
+                            .add(
+                                egui::Button::new(text(format!("{} {jobs}", hs_ui::icons::JOBS)))
+                                    .frame(false),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .tip(s.t("status-jobs-tip"))
+                            .clicked()
+                        {
+                            self.dock_open = true;
+                            self.dock.tab = dock::DockTab::Jobs;
+                        }
+                        ui.label(muted(s.i18n.t_args(
+                            "tab-count",
+                            &[("n", &self.tabs.tabs.len().to_string())],
+                        )));
+                        if let Some(v) = &self.update_badge {
+                            let label = egui::RichText::new(format!(
+                                "{} {} {v}",
+                                hs_ui::icons::ARROW_UP,
+                                s.t("update-badge")
+                            ))
+                            .size(13.0)
+                            .color(egui::Color32::WHITE);
+                            if ui
+                                .add(
+                                    egui::Button::new(label)
+                                        .fill(theme.accent)
+                                        .corner_radius(egui::CornerRadius::same(9)),
+                                )
+                                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                .clicked()
+                            {
+                                self.open_settings(Some(settings_ui::Page::About));
+                            }
+                        }
+                    });
+                });
             });
-        });
     }
 }
 
@@ -1609,7 +1632,7 @@ impl eframe::App for HyperStackApp {
         }
 
         egui::Panel::top("hs-top")
-            .exact_size(36.0)
+            .exact_size(46.0)
             .resizable(false)
             .show(root, |ui| self.top_bar(ui));
         egui::Panel::top("hs-tabs")
@@ -1647,7 +1670,7 @@ impl eframe::App for HyperStackApp {
             }
         }
         egui::Panel::bottom("hs-status")
-            .exact_size(24.0)
+            .exact_size(32.0)
             .resizable(false)
             .show(root, |ui| self.status_bar(ui));
         if self.dock_open {
@@ -1878,5 +1901,16 @@ fn normalize_uri(uri: &str) -> String {
         p.to_ascii_lowercase()
     } else {
         p.to_string()
+    }
+}
+
+/// Tools that never open twice: a second request focuses the existing tab.
+const SINGLE_INSTANCE: &[&str] = &["settings", "hello"];
+
+/// The rail group a tool's tabs show in (Welcome shares the Settings group).
+fn group_of(factory_id: &str) -> &str {
+    match factory_id {
+        "hello" => "settings",
+        other => other,
     }
 }

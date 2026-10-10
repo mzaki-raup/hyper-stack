@@ -62,16 +62,23 @@ impl KvEditor<'_> {
                         resp.changed = true;
                     }
                     if self.allow_secret {
-                        let icon = if row.secret {
-                            crate::icons::LOCK
+                        // Locked = warning colour with a filled lock; plain = muted open lock.
+                        let (icon, tip) = if row.secret {
+                            (crate::icons::LOCK, "Secret (Stored in the Vault)")
                         } else {
-                            crate::icons::UNLOCK
+                            (crate::icons::UNLOCK, "Mark as Secret")
                         };
-                        if ui
-                            .add(egui::Button::new(icon).frame(false))
-                            .tip("secret")
-                            .clicked()
-                        {
+                        let r = crate::form::icon_button(ui, self.theme, icon, 16.0, row.secret);
+                        if row.secret {
+                            ui.painter().text(
+                                r.rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                icon,
+                                egui::FontId::proportional(16.0),
+                                self.theme.warning,
+                            );
+                        }
+                        if r.tip(tip).clicked() {
                             row.secret = !row.secret;
                             resp.changed = true;
                         }

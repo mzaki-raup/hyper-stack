@@ -20,6 +20,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - `HyperStack <file-or-folder>…` opens the arguments in the editor.
 
 - Settings open as a regular tab (categories in the sidebar) instead of a floating window.
+- Hidden `--install-update` and `--revert-update` flags run the updater's install and revert headlessly (scripted end-to-end tests).
+- Larger activity rail (56 px) and icons.
+- The tab strip shows one component at a time: the activity rail switches between editor tabs, terminal tabs, settings and so on instead of mixing every tool's tabs in one strip.
 - Appearance → Interface Font Size now exists and applies; the terminal and editor font sizes say what they affect.
 - Font families: JetBrainsMono, Fira Code and BitstromWera Nerd Font Mono are bundled (JetBrainsMono is the default for the terminal and the editor) and any font installed on the machine can be picked for the interface, the terminal or the editor.
 

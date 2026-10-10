@@ -34,9 +34,14 @@ Regions, top to bottom:
 3. **Environment banner + tool toolbar** — a thin coloured stripe (theme colour
    per environment; red default for production) and the active tool's own
    toolbar row.
-4. **Activity rail** (left, 44 px) — one icon per tool category; clicking opens
-   that tool's sidebar or, if the active tab is a different tool, offers "new
-   tab" for it. Collapsible.
+4. **Activity rail** (left, 56 px, 26 px icons) — one icon per tool; the rail is the
+   component switcher: the tab space shows only the tabs of the selected
+   component (editor tabs, or terminal tabs, or settings, …), the icon's
+   tooltip carries that component's tab count, and clicking an icon shows its
+   most recent tab or opens a fresh one when it has none. "+" in the strip adds
+   another tab of the current component; opening something from another tool
+   (quick-open, "open terminal here") switches to that component. Ctrl+PageUp/
+   PageDown cycle within the component. Owner's request, 2026-10-11.
 5. **Sidebar** — content supplied by the active tab's tool (`Tool::sidebar`).
    Width persisted per tool.
 6. **Main area** — the active tab's `Tool::ui`, or a split tree of several tabs.

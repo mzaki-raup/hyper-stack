@@ -373,6 +373,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   no release on the first push after `v0.1.0` existed (release run 19) for
   that reason. Wrap such assignments in `@(...)` and test scripts with
   exactly one tag/item, not only zero or many.
+- `Start-Process -Wait` puts the started process in a job and waits for the
+  whole tree; when the wait ends it kills what is still running in that job.
+  An updater end-to-end test run that way sees the relaunched new version die
+  a frame after it started (state says `ok = true`, no process left). Run
+  `HyperStack.exe --install-update` / `--revert-update` from Bash (or without
+  `-Wait`) when the relaunched process must survive.
 - `[ref]$name` on a variable that was never assigned throws "[ref] cannot be
   applied to a variable that does not exist". The Actions `pwsh` shell runs
   with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three

@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-10
+Last updated: 2026-10-10 (Phase 0 complete; v0.1.0 published)
 
 ## Planning
 
@@ -37,7 +37,7 @@ Last updated: 2026-10-10
 | `portable-pty` verified on Windows (ConPTY DSR handshake) | Completed | PowerShell 7 profile loading is checked in M1 with the real terminal |
 | Minisign key pair generated, `keys/minisign.pub` committed and embedded | Completed | key id `99C2A397C6491EAB` (`--unencrypted`), 2026-10-10 |
 | `HS_MINISIGN_KEY` repository secret set on the forge (Settings → Actions → Secrets) | Completed | set by the owner, 2026-10-10 |
-| `v0.1.0` published automatically and passes `verify-release.ps1` | Pending | |
+| `v0.1.0` published automatically and passes `verify-release.ps1` | Completed | release run 11, 2026-10-10; verified locally too |
 | Phase 0 exit test (USB-stick move, no plaintext secret, nothing outside the folder) | Pending | |
 
 ## Phase 1 — MVP tools (v1.0)

@@ -1348,9 +1348,10 @@ fn connections(
                     };
                     match parsed {
                         Ok(mut table) => {
+                            let mut secrets_ok = true;
                             if is_ssh {
                                 let mut f = hs_ssh::SshFields::from_table(&table);
-                                store_typed_secrets(
+                                secrets_ok = store_typed_secrets(
                                     s,
                                     &draft.name,
                                     [
@@ -1363,7 +1364,7 @@ fn connections(
                                 draft.fields = table.clone();
                             } else if is_s3 {
                                 let mut f = S3Fields::from_table(&table);
-                                store_typed_secrets(
+                                secrets_ok = store_typed_secrets(
                                     s,
                                     &draft.name,
                                     [
@@ -1374,6 +1375,10 @@ fn connections(
                                 );
                                 f.write_into(&mut table);
                                 draft.fields = table.clone();
+                            }
+                            if !secrets_ok {
+                                // Never write a typed secret to disk.
+                                return;
                             }
                             let mut c = draft.clone();
                             c.fields = table;
@@ -1855,14 +1860,22 @@ fn ssh_form(
 
 /// Move secrets the user typed into a profile form into the vault, leaving
 /// `secret:<id>` references in the profile.
+/// Move typed secrets into the vault. Returns false when one could not be
+/// stored (vault locked, write failed): the caller must not save the
+/// profile then, or the typed text would reach the TOML file in plaintext.
+/// `{{variables}}` are references, not secrets, and stay as typed.
 fn store_typed_secrets<const N: usize>(
     s: &Services,
     profile_name: &str,
     fields: [(&str, &mut String); N],
     effects: &mut Vec<SettingsEffect>,
-) {
+) -> bool {
+    let mut ok = true;
     for (label, v) in fields {
-        if v.is_empty() || hs_core::secrets::SecretRef::parse(v).is_some() {
+        if v.is_empty()
+            || hs_core::secrets::SecretRef::parse(v).is_some()
+            || (v.trim().starts_with("{{") && v.trim().ends_with("}}"))
+        {
             continue;
         }
         if s.secrets.is_locked() {
@@ -1870,6 +1883,7 @@ fn store_typed_secrets<const N: usize>(
                 hs_core::tool::ToastLevel::Warning,
                 s.t("settings-vault-unlock-first"),
             ));
+            ok = false;
             continue;
         }
         match s.secrets.create(
@@ -1877,12 +1891,16 @@ fn store_typed_secrets<const N: usize>(
             &SecretString::from(v.clone()),
         ) {
             Ok(r) => *v = r.to_string_ref(),
-            Err(e) => effects.push(SettingsEffect::Toast(
-                hs_core::tool::ToastLevel::Error,
-                e.to_string(),
-            )),
+            Err(e) => {
+                effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                ));
+                ok = false;
+            }
         }
     }
+    ok
 }
 
 /// The `kind = "s3"` form: provider preset, endpoint, region, keys (into

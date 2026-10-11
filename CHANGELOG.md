@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.11.0 — 2026-10-11
+
+### Added
+
+- Add MIT License (6dd4cec8)
+
 ## 0.10.0 — 2026-10-11
 
 ### Added

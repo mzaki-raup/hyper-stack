@@ -11,15 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Database tool for PostgreSQL, MySQL/MariaDB and SQLite: a SQL editor bound to a connection with completion from the schema (tables, aliases, columns), run statement/selection/script and Explain, cancel (button or Escape) and a statement timeout; a streaming result grid with NULLs shown as NULL, sorting, filtering, a cell viewer, Fetch More, Copy As (TSV, CSV, JSON, Markdown, INSERT, IN list) and Export of all rows as a Job; a schema browser (schemas, tables, views, functions, sequences, columns with keys, indexes); query history; saved queries; Auto-Commit / Manual Commit; SSH tunnels; TLS modes.
-- Database guards: statements are classified before they run; read-only connections and protected environments refuse writes (with **Allow Writes** per tab) and run read-only sessions; UPDATE/DELETE without WHERE, DROP, TRUNCATE and admin statements ask first, and on a protected environment the table name has to be typed.
-- Settings → Connections has a form for database connections, including **Paste a URL** (`postgres://`, `mysql://`, `mariadb://`, `jdbc:`, `sqlite:`).
-- Security: saving a connection whose typed password cannot go into the vault (vault locked) is now refused instead of writing the password into the profile file (SSH and S3 forms too).
-- Plural forms in messages work ("1 tab", "1 row"): whole numbers reach Fluent as numbers.
-- Sidebar trees show a row's badge only when it fits beside the label (otherwise on hover), and their rows are visible to screen readers and UI tests.
-- README: SQL database section with a walkthrough animation and screenshots; the launcher screenshot shows the Database tool.
+- (nothing yet)
 
-- Releases: the Forgejo release job now pushes the version commit and tag to the GitHub mirror and starts GitHub's release workflow for it (`scripts/push-to-mirror.ps1`, secrets `HS_GITHUB_MIRROR_URL` / `HS_GITHUB_MIRROR_TOKEN`), so GitHub builds every release without manual steps (a tag on a `[skip ci]` commit does not start GitHub workflows by itself); GitHub workflows use `actions/checkout@v5` (Node 24).
+## 0.13.0 — 2026-10-11
+
+### Added
+
+- SQL database tool for PostgreSQL, MySQL/MariaDB and SQLite (59ca64d4)
+
+### Security
+
+- Never save a typed secret the vault could not take (b9397bb5)
 
 ## 0.12.1 — 2026-10-11
 

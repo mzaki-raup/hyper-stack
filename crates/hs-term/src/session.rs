@@ -15,6 +15,7 @@ use parking_lot::Mutex;
 
 use crate::pty::Pty;
 use crate::shells::ShellProfile;
+use crate::transport::Transport;
 
 /// Events the UI reacts to between frames.
 #[derive(Debug, Clone)]
@@ -64,7 +65,7 @@ pub type SharedTerm = Arc<FairMutex<Term<Listener>>>;
 pub struct Session {
     pub term: SharedTerm,
     listener: Listener,
-    pty: Arc<Mutex<Pty>>,
+    pty: Arc<Mutex<Box<dyn Transport>>>,
     exited: Arc<AtomicBool>,
     exit_code: Arc<AtomicU32>,
     pub profile: ShellProfile,
@@ -83,7 +84,30 @@ impl Session {
         scrollback: usize,
         waker: Arc<dyn Fn() + Send + Sync>,
     ) -> Result<Self, String> {
-        let (pty, mut reader) = Pty::spawn(&profile, cwd, cols, rows)?;
+        let (pty, reader) = Pty::spawn(&profile, cwd, cols, rows)?;
+        Self::with_transport(
+            profile,
+            Box::new(pty),
+            reader,
+            cols,
+            rows,
+            scrollback,
+            waker,
+        )
+    }
+
+    /// Drive the grid from any transport (an SSH channel, a serial port, …).
+    /// `profile` only supplies the default title and id.
+    pub fn with_transport(
+        profile: ShellProfile,
+        transport: Box<dyn Transport>,
+        mut reader: Box<dyn std::io::Read + Send>,
+        cols: u16,
+        rows: u16,
+        scrollback: usize,
+        waker: Arc<dyn Fn() + Send + Sync>,
+    ) -> Result<Self, String> {
+        let pty = transport;
         let listener = Listener {
             events: Arc::new(Mutex::new(Vec::new())),
             pty_writes: Arc::new(Mutex::new(Vec::new())),

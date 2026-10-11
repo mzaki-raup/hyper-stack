@@ -342,6 +342,28 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   row or more). Mouse paths are also covered headlessly with `egui_kittest`
   (`crates/hs-editor/tests/view.rs`).
 
+### SSH (russh)
+- russh 0.64 with `default-features = false, features = ["ring", "rsa"]` so it
+  builds on Windows without aws-lc-rs (which needs NASM/CMake, absent here).
+  The server `check_server_key` takes `&PublicKeyOrCertificate` (call
+  `.public_key()`); agent auth iterates `request_identities()` and uses
+  `authenticate_publickey_with`. Bound only the TCP connect by a timeout, not
+  the whole handshake (a host-key prompt may wait for the user).
+- A shell channel is exposed to `hs-term` through the `Transport` trait
+  (`hs-ssh::ShellTransport`) plus a `ChannelReader` fed by the channel's data.
+- russh still calls the server `Handler::data` for a channel even after you
+  take it via `into_stream`, so a test/real server that also runs an SFTP
+  subsystem on another channel must skip `data` for the SFTP channel id, or it
+  echoes the client's SFTP bytes back and the client sees a duplicate INIT
+  ("sender dropped"). The HyperStack SFTP *client* is the stock
+  `SftpSession::new(channel.into_stream())` pattern and is fine against real
+  servers; the bug was only in the in-repo test server.
+- Live SSH test: `hs-ssh` ships an in-process test server behind the
+  `testserver` feature and a `devsshd` example (`cargo run -p hs-ssh --features
+  testserver --example devsshd -- 2222`, user `dev`/`dev`). Point the SSH tool
+  at `127.0.0.1:2222`. WSL's own sshd is NOT reachable from Windows under the
+  default NAT networking, so use devsshd for manual UI testing.
+
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status
   Report query `ESC[6n` it sends at startup with a cursor position

@@ -556,6 +556,7 @@ impl HyperStackApp {
             }
             "terminal.new" => self.open_tool("terminal", None),
             "app.settings" => self.open_settings(None),
+            "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "app.shortcuts" => self.open_settings(Some(settings_ui::Page::Shortcuts)),
             "vault.lock" => {
                 self.services.secrets.lock();
@@ -1708,10 +1709,20 @@ impl eframe::App for HyperStackApp {
                 palette::show(ctx, &self.theme, &mut self.palette, &items, &labels)
             {
                 if let Some(c) = chosen.strip_prefix("conn:") {
-                    self.toasts.push(
-                        ToastLevel::Info,
-                        format!("Connection {c}: tools arrive in M2/M3"),
-                    );
+                    let kind = self
+                        .services
+                        .connections
+                        .read()
+                        .by_id(c)
+                        .map(|p| p.kind.clone());
+                    match kind.as_deref() {
+                        Some("ssh") => self
+                            .open_tool("ssh", Some(OpenRequest::Connection { id: c.to_string() })),
+                        _ => self.toasts.push(
+                            ToastLevel::Info,
+                            format!("Connection {c}: this tool arrives in a later milestone"),
+                        ),
+                    }
                 } else {
                     self.run_action(&chosen);
                 }

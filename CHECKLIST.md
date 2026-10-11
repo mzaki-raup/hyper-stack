@@ -55,8 +55,8 @@ Last updated: 2026-10-10 (Phase 0 complete; v0.1.0 published)
 ### M2 · SSH/SFTP + S3
 | Item | State | Notes |
 |---|---|---|
-| `tool-ssh`: profiles, `~/.ssh/config` import, auth methods, agent, jump hosts, known hosts, shell tab | Pending | |
-| SFTP dual pane, transfer queue, resume, chmod, `sftp://` VFS | Pending | |
+| `tool-ssh`: profiles, auth methods (password/key/agent), known hosts, shell tab | Completed | ~/.ssh/config import, jump hosts and agent-forwarding are P1 |
+| SFTP dual pane, transfers as Jobs, folder sync with the shell, edit-in-editor | Completed | transfer queue/resume, chmod dialog and the `sftp://` VFS are P1 |
 | `Tunnels` service (local forward) | Pending | |
 | `tool-s3`: profiles, AWS import, SigV4 client, browsing, multipart upload, download, guarded delete, presign, `s3://` VFS | Pending | |
 

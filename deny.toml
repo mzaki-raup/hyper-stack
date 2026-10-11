@@ -18,6 +18,14 @@ ignore = [
   # dumps (`default-syntaxes`/`default-themes`), decoded from data compiled
   # into the binary, never from user input. Revisit when syntect moves off it.
   { id = "RUSTSEC-2025-0141", reason = "transitive via syntect's bundled dumps; trusted embedded data only" },
+  # The `rsa` crate (Marvin timing side-channel) reaches us through russh's RSA
+  # support (ssh-key/rsa). No fixed version exists upstream: the advisory notes
+  # the latest rsa is still affected, so the only alternative is dropping RSA
+  # keys and ssh-rsa host keys entirely, which would break the common case of
+  # existing ~/.ssh/id_rsa and enterprise servers. The exposure is an attacker
+  # able to measure the timing of the user's own key signatures on the wire;
+  # accepted for a local developer tool. Revisit when rsa ships a mitigation.
+  { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack via russh; no upstream fix, RSA SSH keys still needed" },
 ]
 
 [licenses]

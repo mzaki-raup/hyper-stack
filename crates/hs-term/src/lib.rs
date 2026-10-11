@@ -13,6 +13,7 @@ pub mod keys;
 pub mod pty;
 pub mod session;
 pub mod shells;
+pub mod transport;
 pub mod widget;
 
 pub use alacritty_terminal;

@@ -11,7 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Settings: the Data (Advanced) page is gone; the data folder and **Open Data Folder** now sit in About → Installed. Open Data Folder opens the folder as a new tab in Eden Explorer when it is running or installed, otherwise in the system file manager, without blocking the UI.
+- Editor: project-tree folders no longer collapse by themselves; a refresh or a file change keeps expanded subfolders open, and the expanded folders are saved with the tab and carried to new tabs on the same project.
 
 ## 0.13.0 — 2026-10-11
 

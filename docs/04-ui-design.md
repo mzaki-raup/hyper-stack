@@ -240,10 +240,15 @@ body, so settings can sit next to the tool being configured and survive a
 restart like any other tab. Owner's request, 2026-10-11.
 
 Order: General (startup workspace, restore tabs, language) · Appearance ·
-Environments · Security · Connections · Terminal · Editor · Data (Advanced) ·
+Environments · Security · Connections · Terminal · Editor ·
 Shortcuts · About, which also holds **Updates** (installed version with
 sha/date/channel, channel, automatic check, check now, release notes,
-download/install, revert; see [09](09-ci-cd-and-updates.md) §5.1).
+download/install, revert; see [09](09-ci-cd-and-updates.md) §5.1). The About
+→ Installed card also shows the data folder with **Open Data Folder**, which
+opens it as a new tab in Eden Explorer when that is running or installed
+(found on the running process, `PATH`, beside HyperStack or in the usual
+program folders) and in the system file manager otherwise; there is no
+separate Data page any more (owner's request, 2026-10-11).
 Appearance
 (theme, interface font and size, tab min width, tab gap, density; the terminal and editor pages carry their own font and size: three bundled Nerd Font Mono families, see `assets/fonts/README.md`, plus any font installed on the machine, so a proprietary font such as Anthropic Sans can be used when present without ever being shipped) · Shortcuts · Environments ·
 Connections · Editor · Terminal · Database · API client · SSH/SFTP · S3 · Git ·

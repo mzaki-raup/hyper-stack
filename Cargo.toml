@@ -8,6 +8,8 @@ members = [
   "crates/tools/tool-terminal",
   "crates/hs-editor",
   "crates/tools/tool-editor",
+  "crates/hs-ssh",
+  "crates/tools/tool-ssh",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -29,6 +31,8 @@ hs-term = { path = "crates/hs-term" }
 tool-terminal = { path = "crates/tools/tool-terminal" }
 hs-editor = { path = "crates/hs-editor" }
 tool-editor = { path = "crates/tools/tool-editor" }
+hs-ssh = { path = "crates/hs-ssh" }
+tool-ssh = { path = "crates/tools/tool-ssh" }
 
 # UI
 eframe = "0.35"
@@ -77,6 +81,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 portable-pty = "0.9"
+russh = { version = "0.64", default-features = false, features = ["ring", "rsa"] }
+russh-sftp = "3"
 alacritty_terminal = "0.26"
 ropey = "1.6"
 syntect = { version = "5", default-features = false, features = ["parsing", "default-syntaxes", "default-themes", "regex-fancy", "html"] }

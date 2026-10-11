@@ -1064,14 +1064,55 @@ fn connections(
                     ui.end_row();
                 });
             });
-            form::section(ui, theme, &s.t("conn-fields"), |ui| {
-                form::code_field(ui, fields_text, 8);
-                form::hint(ui, theme, &s.t("conn-fields-hint"));
-            });
+            let is_ssh = draft.kind == "ssh";
+            if is_ssh {
+                ssh_form(ui, theme, s, draft, fields_text, effects);
+            } else {
+                form::section(ui, theme, &s.t("conn-fields"), |ui| {
+                    form::code_field(ui, fields_text, 8);
+                    form::hint(ui, theme, &s.t("conn-fields-hint"));
+                });
+            }
             ui.horizontal(|ui| {
                 if form::primary_button(ui, theme, &s.t("save")).clicked() {
-                    match toml::from_str::<toml::Table>(fields_text) {
-                        Ok(table) => {
+                    let parsed = if is_ssh {
+                        Ok(draft.fields.clone())
+                    } else {
+                        toml::from_str::<toml::Table>(fields_text)
+                    };
+                    match parsed {
+                        Ok(mut table) => {
+                            if is_ssh {
+                                let mut f = hs_ssh::SshFields::from_table(&table);
+                                for (label, v) in [
+                                    ("password", &mut f.password),
+                                    ("key passphrase", &mut f.key_passphrase),
+                                ] {
+                                    if !v.is_empty()
+                                        && hs_core::secrets::SecretRef::parse(v).is_none()
+                                    {
+                                        if s.secrets.is_locked() {
+                                            effects.push(SettingsEffect::Toast(
+                                                hs_core::tool::ToastLevel::Warning,
+                                                s.t("settings-vault-unlock-first"),
+                                            ));
+                                        } else {
+                                            match s.secrets.create(
+                                                &format!("{}: {label}", draft.name),
+                                                &SecretString::from(v.clone()),
+                                            ) {
+                                                Ok(r) => *v = r.to_string_ref(),
+                                                Err(e) => effects.push(SettingsEffect::Toast(
+                                                    hs_core::tool::ToastLevel::Error,
+                                                    e.to_string(),
+                                                )),
+                                            }
+                                        }
+                                    }
+                                }
+                                f.write_into(&mut table);
+                                draft.fields = table.clone();
+                            }
                             let mut c = draft.clone();
                             c.fields = table;
                             match s.connections.write().upsert(c) {
@@ -1365,6 +1406,164 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Setti
         form::hint(ui, theme, &s.t("settings-about-fonts"));
         form::hint(ui, theme, &s.t("settings-about-icons"));
     });
+}
+
+/// SSH host form (docs/tools/ssh-sftp.md §4) bound to the profile's `[ssh]`
+/// table. Secrets typed here go to the vault on save and are kept as refs.
+fn ssh_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_ssh::SshFields;
+    let mut f = SshFields::from_table(&draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-ssh-section-host"), |ui| {
+        form::field_grid(ui, "ssh-host", |ui| {
+            form::label(ui, &s.t("conn-ssh-host"));
+            ui.horizontal(|ui| {
+                changed |=
+                    form::text_field_width(ui, &mut f.host, "web-01.example.com", 320.0).changed();
+                ui.label(s.t("conn-ssh-port"));
+                let mut port = f.port as i64;
+                if ui
+                    .add(egui::DragValue::new(&mut port).range(1..=65535))
+                    .changed()
+                {
+                    f.port = port as u16;
+                    changed = true;
+                }
+            });
+            ui.end_row();
+            form::label(ui, &s.t("conn-ssh-user"));
+            changed |= form::text_field(ui, &mut f.user, "ubuntu").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-ssh-remote-dir"));
+            changed |= form::text_field(ui, &mut f.remote_dir, "/var/www").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-ssh-startup"));
+            changed |= form::text_field(ui, &mut f.startup_command, "").changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-ssh-startup-hint"));
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "ssh-auth", |ui| {
+            form::label(ui, &s.t("conn-ssh-auth"));
+            egui::ComboBox::from_id_salt("ssh-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(match f.auth.as_str() {
+                    "key" => "conn-ssh-auth-key",
+                    "agent" => "conn-ssh-auth-agent",
+                    _ => "conn-ssh-auth-password",
+                }))
+                .show_ui(ui, |ui| {
+                    for (id, key) in [
+                        ("password", "conn-ssh-auth-password"),
+                        ("key", "conn-ssh-auth-key"),
+                        ("agent", "conn-ssh-auth-agent"),
+                    ] {
+                        if ui.selectable_label(f.auth == id, s.t(key)).clicked() {
+                            f.auth = id.into();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            match f.auth.as_str() {
+                "key" => {
+                    form::label(ui, &s.t("conn-ssh-key-path"));
+                    ui.horizontal(|ui| {
+                        changed |=
+                            form::text_field_width(ui, &mut f.key_path, "~/.ssh/id_ed25519", 320.0)
+                                .changed();
+                        if ui.button(s.t("conn-ssh-browse")).clicked()
+                            && let Some(p) = rfd::FileDialog::new().pick_file()
+                        {
+                            f.key_path = p.to_string_lossy().to_string();
+                            changed = true;
+                        }
+                    });
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-ssh-key-passphrase"));
+                    changed |= secret_field(
+                        ui,
+                        theme,
+                        s,
+                        "ssh-passphrase",
+                        &mut f.key_passphrase,
+                        scratch,
+                        1,
+                    );
+                    ui.end_row();
+                }
+                "agent" => {
+                    form::label(ui, "");
+                    form::hint(ui, theme, &s.t("conn-ssh-agent-hint"));
+                    ui.end_row();
+                }
+                _ => {
+                    form::label(ui, &s.t("conn-ssh-password"));
+                    changed |=
+                        secret_field(ui, theme, s, "ssh-password", &mut f.password, scratch, 0);
+                    ui.end_row();
+                }
+            }
+        });
+        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+    let _ = effects;
+}
+
+/// A vault-backed secret field: shows "stored" when the value is a secret
+/// reference, otherwise a password box whose text is moved into the vault on
+/// save. `scratch` carries typed-but-unsaved text between frames; `slot`
+/// distinguishes several fields sharing one scratch string.
+fn secret_field(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    salt: &str,
+    value: &mut String,
+    scratch: &mut String,
+    slot: usize,
+) -> bool {
+    use hs_core::secrets::SecretRef;
+    let mut changed = false;
+    if SecretRef::parse(value).is_some() {
+        ui.horizontal(|ui| {
+            ui.colored_label(
+                theme.success,
+                format!("{} {}", hs_ui::icons::LOCK, s.t("conn-ssh-secret-stored")),
+            );
+            if ui.button(s.t("conn-ssh-change")).clicked() {
+                value.clear();
+                changed = true;
+            }
+        });
+        return changed;
+    }
+    // Plain text until saved: keep it in the profile value and store on save.
+    let _ = (salt, scratch, slot);
+    let r = form::secret_field(
+        ui,
+        value,
+        &s.t("conn-ssh-type-secret"),
+        form::FIELD_MIN_WIDTH,
+    );
+    if r.changed() {
+        changed = true;
+    }
+    if s.secrets.is_locked() && !value.is_empty() {
+        ui.colored_label(theme.warning, s.t("settings-vault-unlock-first"));
+    }
+    changed
 }
 
 /// Font picker: bundled fonts first, then the fonts installed on this

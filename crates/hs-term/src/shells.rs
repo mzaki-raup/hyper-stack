@@ -16,7 +16,7 @@ pub struct ShellProfile {
 }
 
 impl ShellProfile {
-    fn new(id: &str, name: &str, icon: &str, exe: impl Into<String>, args: &[&str]) -> Self {
+    pub fn new(id: &str, name: &str, icon: &str, exe: impl Into<String>, args: &[&str]) -> Self {
         Self {
             id: id.into(),
             name: name.into(),

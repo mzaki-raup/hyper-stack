@@ -13,6 +13,7 @@ pub fn factories(settings: SharedSettings) -> Vec<Box<dyn ToolFactory>> {
     vec![
         Box::new(tool_editor::EditorFactory),
         Box::new(tool_terminal::TerminalFactory),
+        Box::new(tool_ssh::SshFactory),
         Box::new(scratchpad::ScratchpadFactory),
         Box::new(settings::SettingsFactory { hub: settings }),
         Box::new(hello::HelloFactory),

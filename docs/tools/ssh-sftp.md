@@ -1,6 +1,6 @@
 # Tool spec — SSH + SFTP
 
-**Crate:** `tool-ssh` (on `hs-term` and `hs-core::vfs`) · **Priority:** P0 · **Status:** draft
+**Crate:** `tool-ssh` (on `hs-term` and `hs-core::vfs`) · **Priority:** P0 · **Status:** M2 — shell + SFTP dual pane implemented (`hs-ssh`, `tool-ssh`); tunnels, jump hosts, ssh-config import, broadcast and server monitor remain (P1)
 
 ## 1. Purpose
 

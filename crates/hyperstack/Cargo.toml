@@ -20,6 +20,9 @@ hs-ui = { workspace = true }
 hs-term = { workspace = true }
 tool-terminal = { workspace = true }
 tool-editor = { workspace = true }
+tool-ssh = { workspace = true }
+hs-ssh = { workspace = true }
+rfd = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }

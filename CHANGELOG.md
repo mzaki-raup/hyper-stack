@@ -11,7 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- SSH tool: connect to `kind = "ssh"` connection profiles (password, key file or agent auth) with host-key verification stored in `HyperStackData/known_hosts`. Each host tab is a dual pane — the remote file browser (SFTP) on the left, the shell on the right — that stay in sync: `cd` in the shell moves the file pane and opening a folder in the pane runs `cd` in the shell. Double-click a remote file to edit it in the editor; saving uploads it back. Upload, download, rename, delete and new-folder run as background jobs. Connection form for SSH hosts in Settings → Connections.
+- `hs-term` gained a `Transport` trait so a terminal session can run over an SSH channel as well as a local PTY.
+- The tab strip already wraps onto multiple rows when tabs overflow the width.
+
 
 ## 0.7.0 — 2026-10-10
 

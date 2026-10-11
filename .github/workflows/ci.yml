@@ -1,0 +1,83 @@
+name: CI
+
+# The public mirror's own gate. It runs the same checks as
+# .forgejo/workflows/ci.yml so a contributor who only has GitHub still gets a
+# full verdict on a pull request, and main carries a public green badge.
+#
+# Unlike the Forgejo workflow this one may use published actions: it runs on
+# GitHub-hosted runners, which have Node and can reach the action registry.
+on:
+  push:
+    branches: [main, beta]
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  CARGO_TERM_COLOR: always
+  # A mirror build checks GitHub for its updates, so the checks run against the
+  # same configuration the release will ship (docs/09-ci-cd-and-updates.md §10).
+  HS_RELEASES_URL: ${{ github.api_url }}/repos/${{ github.repository }}/releases?per_page=20
+  HS_FORGE_URL: ${{ github.server_url }}/${{ github.repository }}
+
+jobs:
+  check:
+    # Forgejo Actions also reads .github/workflows. This job is GitHub-only, so
+    # skip it anywhere else rather than failing on the first `uses:`
+    # (the Forgejo runner cannot fetch actions - forgejo#2809).
+    if: github.server_url == 'https://github.com'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --locked
+
+      - name: Dependency audit
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { cargo install cargo-deny --locked }
+          cargo deny check
+
+      - name: Release build
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo build --release --locked -p hyperstack
+          Get-Item target/release/HyperStack.exe | Select-Object FullName, Length
+
+      - name: Smoke test the executable
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = "target/release/HyperStack.exe"
+          $base = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+          $tmp = Join-Path $base "hs-smoke-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+          New-Item -ItemType Directory -Force $tmp | Out-Null
+          # GUI-subsystem binary: `& $exe` does not wait and leaves
+          # $LASTEXITCODE empty. Start-Process -Wait gives a real exit code.
+          $p = Start-Process -FilePath $exe -ArgumentList @('--version') -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "--version exited with $($p.ExitCode)" }
+          $p = Start-Process -FilePath $exe -ArgumentList @('--self-test', '--data-dir', $tmp) -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "--self-test exited with $($p.ExitCode)" }
+          Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+          # Portable guarantee: nothing may be written outside the data dir.
+          if (Test-Path "$env:APPDATA\HyperStack") { throw "The app wrote to %APPDATA% during --self-test" }
+          if (Test-Path "$env:LOCALAPPDATA\HyperStack") { throw "The app wrote to %LOCALAPPDATA% during --self-test" }

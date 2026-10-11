@@ -1,0 +1,149 @@
+name: Release
+
+# The public mirror's release pipeline.
+#
+# VERSIONING LIVES ON FORGEJO. scripts/next-release.ps1 works out the version
+# there, update-version.ps1 bumps Cargo.toml and CHANGELOG.md, and the release
+# commit is tagged - all of which reach this repository through the shared git
+# history. This workflow therefore never computes a version: it builds the tag
+# it was handed, takes the version from the tag name, and refuses to run if the
+# tag disagrees with the Cargo.toml at that commit. That is what keeps the two
+# forges publishing the same version, from the same commit, with the same
+# notes (docs/09-ci-cd-and-updates.md §10).
+#
+# The only differences from the Forgejo release are the baked-in update source
+# (HS_RELEASES_URL / HS_FORGE_URL) and the asset download URLs in the manifest.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish, e.g. v0.9.0
+        required: true
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    # Forgejo Actions also reads .github/workflows; this job is GitHub-only.
+    if: github.server_url == 'https://github.com'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Full history: the changelog section and the notes come from the tree.
+          fetch-depth: 0
+
+      - name: Take the version from the tag
+        id: plan
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ inputs.tag || github.ref_name }}"
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+(?:-beta\.\d+)?)$') { throw "Tag '$tag' is not a release tag." }
+          $version = $Matches[1]
+          # Forgejo tags the commit that bumped the version, so the two must
+          # agree here. If they do not, the tag is on the wrong commit and
+          # publishing would ship a binary that offers itself as an update for
+          # ever.
+          $line = Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
+          if (-not $line) { throw "No [workspace.package] version in Cargo.toml." }
+          $inToml = $line.Matches[0].Groups[1].Value
+          if ($inToml -ne $version) { throw "Tag $tag disagrees with Cargo.toml version $inToml; the tag must be on the release bump commit." }
+          $channel = if ($version -match '-beta\.') { "beta" } else { "stable" }
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=$tag"         | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "channel=$channel" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Publishing $tag ($channel) from $(git rev-parse --short HEAD)"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace --locked
+
+      - name: Install rsign2
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command rsign -ErrorAction SilentlyContinue)) { cargo install rsign2 --locked }
+
+      # The notes are read back out of CHANGELOG.md (the Forgejo release put
+      # them there before tagging), so both forges publish the same text.
+      - name: Release notes
+        run: pwsh -NoProfile -File scripts/changelog-section.ps1 -Version ${{ steps.plan.outputs.version }}
+
+      - name: Build, package and sign
+        env:
+          HS_CHANNEL: ${{ steps.plan.outputs.channel }}
+          HS_MINISIGN_KEY: ${{ secrets.HS_MINISIGN_KEY }}
+          # Baked into the binary: a copy downloaded here updates from here.
+          HS_RELEASES_URL: ${{ github.api_url }}/repos/${{ github.repository }}/releases?per_page=20
+          HS_FORGE_URL: ${{ github.server_url }}/${{ github.repository }}
+          # Only set this if this pipeline signs with a key of its own; empty
+          # means both forges use the same key (keys/README.md).
+          HS_SIGNING_KEY_EXTRA: ${{ vars.HS_SIGNING_KEY_EXTRA }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not $env:HS_MINISIGN_KEY) { throw "The HS_MINISIGN_KEY secret is not configured; releases must be signed (see keys/README.md)." }
+          # -RepoUrl is required here: GitHub is only a PUSH url on origin, so
+          # the script's `git remote get-url origin` fallback would answer with
+          # the Forgejo URL and the manifest would point at the wrong assets.
+          pwsh -NoProfile -File scripts/build-and-package.ps1 `
+            -Version ${{ steps.plan.outputs.version }} `
+            -Channel ${{ steps.plan.outputs.channel }} `
+            -RepoUrl "${{ github.server_url }}/${{ github.repository }}"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ steps.plan.outputs.tag }}"
+          $version = "${{ steps.plan.outputs.version }}"
+          $notes = "release/dist/CHANGELOG-$version.md"
+          if (-not (Test-Path $notes)) { throw "Packaging did not produce $notes." }
+          $assets = @(Get-ChildItem release/dist -File | ForEach-Object { $_.FullName })
+          if ($assets.Count -lt 6) { throw "Expected the six contracted assets, found $($assets.Count)." }
+          $flags = @('--title', "HyperStack $version", '--notes-file', $notes, '--verify-tag')
+          if ("${{ steps.plan.outputs.channel }}" -eq "beta") { $flags += '--prerelease' }
+          # Re-running the workflow for a tag that already has a release should
+          # replace its assets, not fail.
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag exists; replacing its assets."
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with $LASTEXITCODE." }
+            gh release edit $tag --title "HyperStack $version" --notes-file $notes
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with $LASTEXITCODE." }
+          } else {
+            gh release create $tag @assets @flags
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with $LASTEXITCODE." }
+          }
+          Write-Host "Published $tag with $($assets.Count) assets."
+
+      # The end-to-end test: download anonymously exactly as the app does,
+      # verify the signature, sizes and hashes, then run --self-test.
+      - name: Verify the published release as a user would
+        run: |
+          pwsh -NoProfile -File scripts/verify-release.ps1 `
+            -Tag ${{ steps.plan.outputs.tag }} `
+            -Repository ${{ github.repository }} `
+            -Server https://github.com

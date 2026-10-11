@@ -17,6 +17,7 @@ Last updated: 2026-10-10 (Phase 0 complete; v0.1.0 published)
 | Tool specs (12) | Completed | `docs/tools/` |
 | CI/CD and updater design | Completed | `docs/09` |
 | Forgejo workflows and release scripts committed and green without a workspace | Completed | `.forgejo/workflows/`, `scripts/`, `keys/README.md` |
+| Public GitHub mirror: build-time forge parameters, `.github/workflows/`, `changelog-section.ps1`, `sync-from-github.ps1`, version authority on Forgejo | In-Progress | Code, scripts, workflows and `docs/09` §10 done and gated locally; the GitHub repository, its `HS_MINISIGN_KEY` secret and the first tag release are the owner's set-up steps |
 
 ## Phase 0 — Foundation
 

@@ -52,6 +52,26 @@ non-interactively. Then:
 ## Rotation
 
 Generate a new pair, add the new public key to `keys/` and to the app's
-embedded key list, ship a release signed with the **old** key, then switch
-`HS_MINISIGN_KEY` to the new secret. The app accepts any embedded key; old
-keys are dropped two major versions later (docs/09 §4.4).
+embedded key list (`SIGNING_KEYS` in `crates/hs-core/src/update.rs`), ship a
+release signed with the **old** key, then switch `HS_MINISIGN_KEY` to the new
+secret. The app accepts any embedded key; old keys are dropped two major
+versions later (docs/09 §4.4).
+
+## The GitHub mirror
+
+The public GitHub repository publishes the same versions from the same
+commits (docs/09 §10) and signs its manifests too. Two ways to set it up:
+
+- **Same key (default, simplest).** Paste the same two-line secret into the
+  GitHub Actions secret `HS_MINISIGN_KEY`. Nothing else changes; every binary
+  already trusts `keys/minisign.pub`.
+- **A key of its own.** Generate a second pair the same way, commit its public
+  half as `keys/minisign-github.pub`, set the GitHub secret `HS_MINISIGN_KEY`
+  to that secret key, and set the GitHub Actions **variable**
+  `HS_SIGNING_KEY_EXTRA` to the public base64 line. The release build appends
+  it to the app's accepted keys at build time, so GitHub-built copies trust
+  both keys and Forgejo-built copies trust only the upstream one. Rotation of
+  either key follows the section above.
+
+Either way the private key file never enters the repository: `.gitignore`
+covers both forges equally.

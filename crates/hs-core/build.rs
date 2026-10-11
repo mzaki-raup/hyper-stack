@@ -20,6 +20,13 @@ fn main() {
     println!("cargo:rustc-env=HS_CHANNEL={channel}");
     println!("cargo:rustc-env=HS_TARGET={target}");
     println!("cargo:rerun-if-env-changed=HS_CHANNEL");
+    // update.rs bakes the release source in with option_env!. Cargo does not
+    // track those on its own, and the CI runner shares one CARGO_TARGET_DIR
+    // between jobs, so without these a GitHub-flavoured build would happily
+    // reuse a Forgejo-flavoured hs-core and ship the wrong update URL.
+    println!("cargo:rerun-if-env-changed=HS_RELEASES_URL");
+    println!("cargo:rerun-if-env-changed=HS_FORGE_URL");
+    println!("cargo:rerun-if-env-changed=HS_SIGNING_KEY_EXTRA");
     println!("cargo:rerun-if-changed=../../.git/HEAD");
     println!("cargo:rerun-if-changed=../../.git/refs/heads");
 }

@@ -7,11 +7,46 @@ use serde::Deserialize;
 
 use crate::version::VersionInfo;
 
-/// Public keys accepted for `manifest.json.minisig` (keys/minisign.pub).
-pub const SIGNING_KEYS: &[&str] = &["RWSrHknGl6PCmbQLELU5/Y7cxjPzb/fgHUSZJPW4Jxpv03/dAiVCHcAM"];
+// --- Which forge this build came from (docs/09 §10) ---------------------------
+//
+// The project is published from two places: the Forgejo instance at
+// git.zacx.net and a public GitHub mirror. The two share one git history and
+// one source tree; the only difference between the binaries is baked in here
+// at build time, so a copy updates from wherever it was downloaded. Each
+// release workflow sets these; an unset variable means the Forgejo upstream,
+// which is also what a local `cargo build` gets.
+//
+// Forgejo cloned GitHub's releases API, so `ApiRelease` below parses both
+// without a branch: only the endpoint differs.
 
-pub const RELEASES_URL: &str =
-    "https://git.zacx.net/api/v1/repos/owner/hyper-stack/releases?limit=20";
+// A workflow variable that exists but is unset arrives as `Some("")`, so every
+// one of these falls back on empty as well as on absent.
+
+/// Releases API this build polls. Set with `HS_RELEASES_URL` at build time.
+pub const RELEASES_URL: &str = match option_env!("HS_RELEASES_URL") {
+    Some(u) if !u.is_empty() => u,
+    _ => "https://git.zacx.net/api/v1/repos/owner/hyper-stack/releases?limit=20",
+};
+
+/// Human-facing project page, shown in Settings → About. Set with
+/// `HS_FORGE_URL` at build time.
+pub const FORGE_URL: &str = match option_env!("HS_FORGE_URL") {
+    Some(u) if !u.is_empty() => u,
+    _ => "https://git.zacx.net/owner/hyper-stack",
+};
+
+/// The key every release has been signed with since v0.1.0 (keys/minisign.pub).
+const UPSTREAM_SIGNING_KEY: &str = "RWSrHknGl6PCmbQLELU5/Y7cxjPzb/fgHUSZJPW4Jxpv03/dAiVCHcAM";
+
+/// Public keys accepted for `manifest.json.minisig`. Both release pipelines
+/// sign with the same key by default; a pipeline that uses a key of its own
+/// adds it at build time with `HS_SIGNING_KEY_EXTRA` (the public half, so it
+/// is safe in a workflow variable). Rotation adds a second literal to this
+/// list instead — see keys/README.md.
+pub const SIGNING_KEYS: &[&str] = match option_env!("HS_SIGNING_KEY_EXTRA") {
+    Some(k) if !k.is_empty() => &[UPSTREAM_SIGNING_KEY, k],
+    _ => &[UPSTREAM_SIGNING_KEY],
+};
 
 pub const EXE_ASSET: &str = "HyperStack.exe";
 pub const MANIFEST_ASSET: &str = "manifest.json";
@@ -325,6 +360,26 @@ mod tests {
     fn embedded_public_key_parses() {
         for k in SIGNING_KEYS {
             assert!(minisign_verify::PublicKey::from_base64(k).is_ok());
+        }
+    }
+
+    /// The release source is baked in at build time so the Forgejo build and
+    /// the GitHub build can come from one source tree (docs/09 §10). Comparing
+    /// the compile-time constant against the run-time environment also catches
+    /// a stale object file: if this fails with the variable set, the
+    /// `rerun-if-env-changed` lines in build.rs are not doing their job and a
+    /// build could ship the wrong update URL.
+    #[test]
+    fn release_source_follows_the_build_environment() {
+        assert!(RELEASES_URL.starts_with("https://"), "{RELEASES_URL}");
+        assert!(FORGE_URL.starts_with("https://"), "{FORGE_URL}");
+        match std::env::var("HS_RELEASES_URL") {
+            Ok(want) if !want.is_empty() => assert_eq!(RELEASES_URL, want, "stale build"),
+            _ => assert!(RELEASES_URL.contains("git.zacx.net"), "{RELEASES_URL}"),
+        }
+        match std::env::var("HS_FORGE_URL") {
+            Ok(want) if !want.is_empty() => assert_eq!(FORGE_URL, want, "stale build"),
+            _ => assert!(FORGE_URL.contains("git.zacx.net"), "{FORGE_URL}"),
         }
     }
 }

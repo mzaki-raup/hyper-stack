@@ -22,6 +22,9 @@ param(
   [Parameter(Mandatory = $true)][string]$Tag,
   # owner/repo on the forge; defaults to the origin remote.
   [string]$Repository = "",
+  # Forgejo instance, or https://github.com for the public mirror. Forgejo
+  # cloned GitHub's releases API, so only the base URL differs and everything
+  # below works unchanged against either.
   [string]$Server = "https://git.zacx.net",
   [string]$PublicKey = "keys/minisign.pub",
   [switch]$NoSelfTest
@@ -36,7 +39,14 @@ if (-not $Repository) {
 if (-not (Test-Path $PublicKey)) { throw "Public key $PublicKey is missing." }
 if (-not (Get-Command rsign -ErrorAction SilentlyContinue)) { throw "rsign (rsign2) is not installed: cargo install rsign2 --locked" }
 
-$api = "$Server/api/v1/repos/$Repository"
+# GitHub puts the API on a separate host; Forgejo serves it under /api/v1 on
+# the instance itself. Anonymous github.com calls are rate-limited to 60/hour
+# per IP, which is ample for one release but will bite a tight retry loop.
+$api = if ($Server -match '^https://(api\.)?github\.com/?$') {
+  "https://api.github.com/repos/$Repository"
+} else {
+  "$Server/api/v1/repos/$Repository"
+}
 $ua  = @{ "User-Agent" = "HyperStack-verify-release" }
 $release = Invoke-RestMethod -Method Get -Headers $ua -Uri "$api/releases/tags/$([uri]::EscapeDataString($Tag))"
 

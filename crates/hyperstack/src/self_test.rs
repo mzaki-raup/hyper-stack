@@ -201,6 +201,23 @@ pub fn run(paths: DataDir, _logging: Logging) -> i32 {
         },
     );
 
+    // The release source is baked in per forge (docs/09 §10); a typo in a
+    // workflow variable would otherwise ship a binary that can never update.
+    check(
+        "release source",
+        if hs_core::update::RELEASES_URL.starts_with("https://")
+            && hs_core::update::FORGE_URL.starts_with("https://")
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "must be https: {} and {}",
+                hs_core::update::RELEASES_URL,
+                hs_core::update::FORGE_URL
+            ))
+        },
+    );
+
     if failures.is_empty() {
         println!("self-test ok");
         0

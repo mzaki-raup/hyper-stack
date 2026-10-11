@@ -60,6 +60,11 @@
   the forge's `prerelease` flag set. The app only offers releases from the
   channel chosen in Settings, and never offers a pre-release to a stable
   user.
+- **One version authority.** The project is also published from a public
+  GitHub mirror that shares this repository's history (§10). Only the
+  Forgejo workflow computes, bumps, commits and tags a version; GitHub builds
+  the tag it receives and takes the version from the tag name, so both
+  forges publish the same version from the same commit by construction.
 
 ## 4. Workflows
 
@@ -184,6 +189,9 @@ The active key pair was generated on 2026-10-10; its public half is
 `keys/minisign.pub` (key id `99C2A397C6491EAB`; an earlier `12CCB188A17A5843` key was retired unused). Key rotation: a new minisign
 public key is shipped in a release signed by the old key; the app accepts any
 key in its embedded list, and the list drops old keys two major versions later.
+
+The GitHub mirror's release workflow needs the same `HS_MINISIGN_KEY` in its
+own secret store (or a key of its own; §10.4).
 
 ## 5. In-app updater (`hs-core::update`, UI in Settings → Updates)
 
@@ -370,3 +378,111 @@ run locally.
   parse-checks every script on each push.
 - CI itself: `verify-release` after every publish is the end-to-end test of
   the pipeline; the job fails if the published release is not installable.
+
+## 10. The public GitHub mirror
+
+HyperStack is published from two places: this Forgejo instance and a public
+repository on GitHub under a different account name. They are **one
+repository with one git history**, not two code bases kept in step: a commit
+is the same commit on both forges, and `v1.4.0` is the same sha on both.
+Nothing is copied, filtered or rewritten between them. Copybara, `git
+subtree` and similar were considered and rejected because the two trees
+differ by three constants and two directories that cannot collide.
+
+### 10.1 What differs, and where it is decided
+
+| | Forgejo build | GitHub build |
+|---|---|---|
+| Update source the app polls | `https://git.zacx.net/api/v1/repos/owner/hyper-stack/releases` | `https://api.github.com/repos/<user>/hyper-stack/releases` |
+| Project link in Settings → About | `git.zacx.net/owner/hyper-stack` | `github.com/<user>/hyper-stack` |
+| Asset URLs in `manifest.json` and the zip's README | Forgejo release page | GitHub release page |
+| Signing key | `keys/minisign.pub` | the same key by default; optionally one more via `HS_SIGNING_KEY_EXTRA` |
+
+All of these are **build-time parameters, not code differences**.
+`hs-core::update` reads `HS_RELEASES_URL`, `HS_FORGE_URL` and
+`HS_SIGNING_KEY_EXTRA` with `option_env!` and falls back to the Forgejo
+values when a variable is absent *or empty* (an unset workflow variable
+arrives as an empty string), so a plain `cargo build` is a Forgejo build.
+`hs-core/build.rs` declares `rerun-if-env-changed` for all three: cargo does
+not track `option_env!` on its own, and a shared `CARGO_TARGET_DIR` would
+otherwise let a GitHub build reuse a Forgejo-flavoured `hs-core`. A unit test
+compares the baked-in constant with the run-time environment and fails on a
+stale object file; `--self-test` refuses a source that is not `https://`.
+
+`scripts/build-and-package.ps1 -RepoUrl` sets the asset base for the
+manifest and the README. The GitHub pipeline must pass it because GitHub is
+only a *push* URL on `origin` (§10.3), so the script's
+`git remote get-url origin` fallback would answer with the Forgejo URL.
+Forgejo cloned GitHub's releases API, so `ApiRelease`, the asset layout
+`<repo>/releases/download/<tag>/<name>` and `scripts/verify-release.ps1`
+work against both without a branch; only the API base differs
+(`-Server https://github.com` selects `api.github.com`).
+
+### 10.2 Workflows: two directories, one tree
+
+`.forgejo/workflows/` and `.github/workflows/` sit side by side and each
+forge ignores the other's directory, with one exception: Forgejo Actions
+also reads `.github/workflows/`, and the GitHub workflows use published
+actions the Forgejo runner cannot fetch (forgejo#2809). Every GitHub job
+therefore carries `if: github.server_url == 'https://github.com'` and is
+skipped, not failed, on Forgejo.
+
+- `.github/workflows/ci.yml`: the same gate as `.forgejo/workflows/ci.yml`
+  (fmt, clippy, tests, `cargo deny`, release build, `--self-test`, the
+  portable check) on `main`, `beta` and pull requests, with the GitHub update
+  source set so the tests exercise the configuration the release ships.
+- `.github/workflows/release.yml`: runs on a `v*` tag only. It takes the
+  version from the tag name, refuses if `Cargo.toml` at that commit says
+  otherwise, re-runs the checks, reads the notes back out of `CHANGELOG.md`
+  with `scripts/changelog-section.ps1` (identical text to the Forgejo
+  release), builds with the GitHub source baked in, signs, publishes with
+  `gh release create` and verifies the result anonymously with
+  `verify-release.ps1`. It never bumps, commits or tags.
+
+### 10.3 Version authority and the direction of sync
+
+**Forgejo owns versioning.** Its `release.yml` computes the version, commits
+the bump and tags (§3); that commit and tag reach GitHub through the shared
+history and GitHub's release job fires on the tag. Both forges publish the
+same version, from the same commit, with the same notes, by construction.
+
+**Forgejo → GitHub** is an ordinary push. The owner's clone has GitHub as a
+second push URL on `origin` and as a fetch remote of its own:
+
+```bash
+git remote set-url --add --push origin https://git.zacx.net/owner/hyper-stack.git
+git remote set-url --add --push origin https://github.com/<user>/hyper-stack.git
+git remote add github https://github.com/<user>/hyper-stack.git
+```
+
+so `git push origin main` lands on both, and `git push origin --tags` after
+a Forgejo release hands GitHub the tag that starts its release job.
+
+**GitHub → Forgejo** is deliberate, not automatic:
+`pwsh -File scripts/sync-from-github.ps1` fetches, fast-forwards `main`
+onto `github/main` and pushes to both. `--ff-only` is the safety: when the
+two sides have diverged it stops and prints the graph instead of inventing a
+merge.
+
+Why neither direction is a mirror: a Forgejo *push mirror* force-pushes, so
+a commit made on GitHub and not yet pulled would be silently discarded by
+the next mirror run; a *pull mirror* makes the Forgejo repository read-only.
+A plain push to a diverged remote is *rejected*, which is the behaviour
+wanted when both sides can change. Automating both ways would also race the
+release job's bump commit.
+
+### 10.4 Secrets and identity on GitHub
+
+| On GitHub | Kind | Value |
+|---|---|---|
+| `HS_MINISIGN_KEY` | Actions secret | the same two-line minisign secret key as on Forgejo (default), or a key of its own |
+| `HS_SIGNING_KEY_EXTRA` | Actions **variable** | only when GitHub signs with its own key: that key's public base64 line, appended at build time to the keys the app accepts |
+| `GITHUB_TOKEN` | provided | `gh release create` / `upload` |
+
+Commit identity: the GitHub account name need not match the Forgejo one.
+Only the author line in each commit is visible, and it is
+`owner <owner@zacx.net>` on both forges; adding that address to the GitHub
+account (Settings → Emails, verified) attributes the commits to the GitHub
+user without rewriting anything. A *different author per forge* would
+require rewriting history, which breaks the shared-history model; that is
+the one requirement that would justify Copybara.

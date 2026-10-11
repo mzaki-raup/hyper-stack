@@ -16,8 +16,9 @@
   The SIGNED MANIFEST is the trust anchor: the app refuses a release whose
   manifest signature or hashes do not verify. Signing uses rsign2 (a minisign
   implementation in Rust, `cargo install rsign2`) with the secret key taken from
-  $env:HS_MINISIGN_KEY (the key file's contents, generated unencrypted with
-  `rsign generate -W`). The matching public key is committed as
+  $env:HS_MINISIGN_KEY (the key file's contents, generated with
+  `rsign generate --unencrypted`; a `-W` key still prompts for a password and
+  hangs a runner - see keys/README.md). The matching public key is committed as
   keys/minisign.pub and embedded in the app. Use -SkipSign only for local
   packaging; the release workflow never does.
 
@@ -31,6 +32,11 @@ param(
   [string]$Target = "x86_64-pc-windows-msvc",
   [string]$NotesFile = "release/notes.md",
   [string]$PublicKey = "keys/minisign.pub",
+  # Base web URL of the forge this release is being published to; the manifest's
+  # asset URLs, notes_url and the zip's README.txt are built from it. The GitHub
+  # pipeline MUST pass this: the repository has GitHub as a *push* remote only,
+  # so `git remote get-url origin` still answers with the Forgejo URL there.
+  [string]$RepoUrl = "",
   # Oldest version that can update in place to this one; older copies are sent
   # to the zip. Bump only when the updater protocol changes.
   [string]$MinSupportedVersion = "0.1.0",
@@ -51,6 +57,15 @@ if ($Version -notmatch '^\d+\.\d+\.\d+(-beta\.\d+)?$') { throw "Version '$Versio
 if (-not (Test-Path $NotesFile)) { throw "Release notes $NotesFile are missing - run scripts/next-release.ps1 first." }
 $notes = (Get-Content $NotesFile -Raw).Trim()
 if (-not $notes) { throw "Release notes $NotesFile are empty." }
+
+# Where this release will live. Needed before the zip's README.txt is written.
+if (-not $RepoUrl) {
+  $origin = (git remote get-url origin 2>$null)
+  $RepoUrl = if ($origin) { ($origin -replace '\.git$', '') } else { "https://git.zacx.net/owner/hyper-stack" }
+}
+$RepoUrl = $RepoUrl.TrimEnd('/')
+if ($RepoUrl -notmatch '^https://') { throw "RepoUrl '$RepoUrl' must be an https URL." }
+$forgeHost = ([uri]$RepoUrl).Host
 
 # --- Build ----------------------------------------------------------------------
 if (-not $SkipBuild) {
@@ -97,25 +112,25 @@ goes into a HyperStackData folder created next to the executable. Nothing is
 written to the registry or to your user profile. To move or back up the app,
 copy the whole folder. To reset it, delete HyperStackData.
 
-Updating: Settings > Updates checks git.zacx.net for newer releases and can
-install them in place. To update by hand, replace HyperStack.exe with the one
-from a newer zip; keep your HyperStackData folder.
+Updating: Settings > Updates checks $forgeHost - where this copy came from -
+for newer releases and can install them in place. To update by hand, replace
+HyperStack.exe with the one from a newer zip; keep your HyperStackData folder.
 
 Verifying this download: SHA256SUMS.txt on the release page lists the hash of
 every file, and manifest.json is signed (minisign) with the key printed in
 Settings > About.
 
 Release notes: see $noteName
-Project: https://git.zacx.net/owner/hyper-stack
+Project: $RepoUrl
 "@ | Set-Content "$staging/README.txt" -Encoding utf8
 Compress-Archive -Path "$staging/*" -DestinationPath "$dist/$zipName"
 Remove-Item $staging -Recurse -Force
 
 # --- manifest.json ------------------------------------------------------------
-$origin = (git remote get-url origin 2>$null)
-$repoUrl = if ($origin) { ($origin -replace '\.git$', '') } else { "https://git.zacx.net/owner/hyper-stack" }
+# Forgejo and GitHub both serve release assets at
+# <repo>/releases/download/<tag>/<asset>, so one layout covers both.
 $tag = "v$Version"
-$download = "$repoUrl/releases/download/$tag"
+$download = "$RepoUrl/releases/download/$tag"
 
 function Asset-Entry([string]$name) {
   $file = Get-Item "$dist/$name"
@@ -134,7 +149,7 @@ $manifest = [ordered]@{
   channel               = $Channel
   published_at          = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   tag                   = $tag
-  notes_url             = "$repoUrl/releases/tag/$tag"
+  notes_url             = "$RepoUrl/releases/tag/$tag"
   min_supported_version = $MinSupportedVersion
   data_schema           = $DataSchema
   assets                = [ordered]@{

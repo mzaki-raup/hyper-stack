@@ -1660,7 +1660,7 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Setti
             });
             ui.end_row();
             form::label(ui, &s.t("settings-about-project"));
-            ui.hyperlink("https://git.zacx.net/owner/hyper-stack");
+            ui.hyperlink(hs_core::update::FORGE_URL);
             ui.end_row();
         });
         ui.add_space(6.0);

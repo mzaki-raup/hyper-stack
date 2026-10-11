@@ -83,6 +83,15 @@ in the same commit.
 - Remote: `https://git.zacx.net/owner/hyper-stack.git` (Forgejo). Commit and
   push as the repository owner: this clone has `user.name = owner` and
   `user.email = owner@zacx.net` set locally; keep it that way.
+- **Public GitHub mirror** (`docs/09-ci-cd-and-updates.md` §10): the same
+  history is also pushed to a GitHub repository under a different account
+  name. `origin` carries both forges as *push* URLs, so `git push origin
+  main` (and `--tags`) lands on both; a separate `github` remote is the fetch
+  side. Forgejo is the version authority - its release job bumps and tags,
+  GitHub only builds the tag. Changes made on GitHub come back with
+  `pwsh -File scripts/sync-from-github.ps1` (fast-forward only); never set up
+  a Forgejo push mirror while GitHub is writable, it force-pushes and would
+  discard them. The commit author stays `owner <owner@zacx.net>` on both.
 - Commit subjects decide releases (see **Releases**). Use Conventional Commits:
   `feat:`, `fix:`, `perf:`, `security:`, `docs:`, `chore:`, `refactor:`,
   `test:`, `ci:`, `style:`, `build:`. A `!` after the type or a
@@ -223,6 +232,15 @@ assume. `C:\Apps\gitea-runner\make-global.ps1` is what collapsed them.
   Changed / Security) into `CHANGELOG-<version>.md` and prepended to
   `CHANGELOG.md`. Hand-edit only the `Unreleased` section of `CHANGELOG.md`;
   released sections belong to the workflow.
+- **The GitHub mirror releases the same tag.** `.github/workflows/release.yml`
+  runs on a `v*` tag, takes the version from the tag name, refuses if the
+  `Cargo.toml` at that commit disagrees, reads the notes back out of
+  `CHANGELOG.md` (`scripts/changelog-section.ps1`) and builds with
+  `HS_RELEASES_URL`/`HS_FORGE_URL` pointing at GitHub, so that copy updates
+  from GitHub. Both workflows call the same scripts; the GitHub one must pass
+  `-RepoUrl` to `build-and-package.ps1`. Every GitHub job is guarded with
+  `if: github.server_url == 'https://github.com'` because Forgejo Actions
+  also reads `.github/workflows/` and cannot fetch published actions.
 
 ## Build & run (once the workspace exists)
 
@@ -300,6 +318,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   release attempt (run 8) also showed the forge secret had been pasted as the
   base64 line alone ("Missing encoded key in secret key"); the script now
   normalises that and times out the signing step with a clear message.
+- Forgejo Actions reads `.github/workflows/` as well as `.forgejo/workflows/`.
+  A GitHub-only workflow dropped into the tree runs on the Forgejo runner and
+  dies on its first `uses:`; guard every such job with
+  `if: github.server_url == 'https://github.com'`.
+- A Forgejo *push mirror* force-pushes and a *pull mirror* makes the repo
+  read-only, so neither is usable for a two-way GitHub mirror. Two push URLs
+  on `origin` plus a fast-forward-only pull script is the arrangement that
+  rejects divergence instead of destroying it.
 
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
@@ -413,3 +439,10 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `cargo clippy --fix --allow-dirty` clears the mechanical lints
   (collapsible ifs, `sort_by_key`) in one go; with edition 2024, nested
   `if let` blocks collapse into let-chains (`if let Some(x) = a && cond`).
+- Cargo does not track `option_env!` for rebuilds, and a workflow variable
+  that exists but is blank arrives as `Some("")`. `hs-core/build.rs` declares
+  `rerun-if-env-changed` for every baked-in forge variable (the CI runner
+  shares one `CARGO_TARGET_DIR`), and the `match` arms treat empty as unset;
+  `update::tests::release_source_follows_the_build_environment` fails on a
+  stale object file. `match` with guards and `&[a, b]` promotion both work
+  in a `const` initializer.

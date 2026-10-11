@@ -11,37 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.9.0 — 2026-10-11
+
 ### Added
 
-- Workspaces as projects: create a new workspace, switch between them, and
-  delete one from the workspace menu.
-- New Workspace can copy environments and connections from any existing
-  workspace, chosen from a "Copy From" dropdown.
-- A workspace can have a logo (PNG, ICO, JPG, BMP, GIF, WEBP or SVG), picked
-  when it is created and stored in the workspace folder so it travels with the
-  project. The logo shows in the workspace menu and its switcher.
-- Typing `{{` in an environment-aware field (the SSH connection's host, user,
-  remote directory and startup command) opens a fuzzy autocomplete of the
-  active environment's variables; a key can be picked with the mouse or
-  keyboard, or a brand-new variable defined inline and saved to the
-  environment.
-- "Copy Variables From…" on the Environments page copies variable keys from
-  any environment in any workspace into the one being edited, showing which
-  keys are new or already exist and letting the user multi-select which to
-  bring over (missing keys ticked by default).
-
-### Changed
-
-- Connection kinds now display with proper casing (DB, SSH, S3, Redis,
-  MongoDB, …) everywhere they are shown, while still stored as lowercase ids.
+- Copy variables between environments across workspaces (f37645bb)
+- {{ }} variable autocomplete with inline add (472583b9)
+- Per-workspace logo and copy-from picker (0eaa35d1)
+- Workspaces as projects; fix SSH dual-pane layout (fe430b94)
 
 ### Fixed
 
-- SSH dual pane now splits exactly 50/50 and tracks the window width; the
-  shell no longer shrinks as the mouse moves over the panes.
-- SSH file list is browsable again (double-click a folder to open it, a file
-  to edit it) and the row cursor shows it is clickable.
-- Disconnecting an SSH session no longer closes the app.
+- Show connection kinds with proper casing (255a5f94)
 
 ## 0.8.0 — 2026-10-11
 

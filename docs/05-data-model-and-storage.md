@@ -192,7 +192,13 @@ docker = "01J9ZXE…"
 
 ### 2.4 Variable substitution
 
-Syntax `{{name}}`; scopes resolve innermost first:
+Syntax `{{name}}`; scopes resolve innermost first. Environment-aware text
+fields (`hs_ui::varfield`) open an autocomplete when the caret enters an
+unclosed `{{`: the active environment's variables are fuzzy-matched, a key is
+picked with the mouse or the arrow keys plus Enter, and a brand-new variable
+can be defined inline (key and value) and is written straight to the active
+environment. The SSH connection form uses it for host, user, remote directory
+and startup command; other tools adopt it as they are built.
 
 ```
 request / query literal  →  collection vars  →  environment  →  parent environment  →  workspace globals  →  built-ins

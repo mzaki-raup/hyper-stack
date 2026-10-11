@@ -20,6 +20,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - A workspace can have a logo (PNG, ICO, JPG, BMP, GIF, WEBP or SVG), picked
   when it is created and stored in the workspace folder so it travels with the
   project. The logo shows in the workspace menu and its switcher.
+- Typing `{{` in an environment-aware field (the SSH connection's host, user,
+  remote directory and startup command) opens a fuzzy autocomplete of the
+  active environment's variables; a key can be picked with the mouse or
+  keyboard, or a brand-new variable defined inline and saved to the
+  environment.
 
 ### Changed
 

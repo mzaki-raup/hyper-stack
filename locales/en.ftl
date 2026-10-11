@@ -62,6 +62,7 @@ workspace-new-title = New Workspace
 workspace-new-hint = A workspace is a project: its own tabs, environments, connections and layout. Switching between workspaces swaps all of them.
 workspace-name = Name
 workspace-name-hint = e.g. Shop API
+env-var-added = Variable "{ $key }" added to the environment.
 workspace-copy-from = Copy From
 workspace-copy-none = Don't copy
 workspace-copy-from-hint = Seed the new workspace with another's environments and connections.

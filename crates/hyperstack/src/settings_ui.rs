@@ -1410,14 +1410,34 @@ fn ssh_form(
     effects: &mut Vec<SettingsEffect>,
 ) {
     use hs_ssh::SshFields;
+    use hs_ui::varfield;
     let mut f = SshFields::from_table(&draft.fields);
     let mut changed = false;
+    // Variables for `{{ }}` autocomplete, from the connection's environment
+    // (or the active one). New keys the user adds inline are collected and
+    // written back afterwards.
+    let vars = s
+        .environments
+        .read()
+        .available_vars(draft.environment.as_deref());
+    let mut new_vars: Vec<(String, String)> = Vec::new();
     form::section(ui, theme, &s.t("conn-ssh-section-host"), |ui| {
         form::field_grid(ui, "ssh-host", |ui| {
             form::label(ui, &s.t("conn-ssh-host"));
             ui.horizontal(|ui| {
-                changed |=
-                    form::text_field_width(ui, &mut f.host, "web-01.example.com", 320.0).changed();
+                let o = varfield::var_field_width(
+                    ui,
+                    theme,
+                    "ssh-host-var",
+                    &mut f.host,
+                    "web-01.example.com",
+                    &vars,
+                    320.0,
+                );
+                changed |= o.changed;
+                if let Some(kv) = o.add_var {
+                    new_vars.push(kv);
+                }
                 ui.label(s.t("conn-ssh-port"));
                 let mut port = f.port as i64;
                 if ui
@@ -1430,17 +1450,60 @@ fn ssh_form(
             });
             ui.end_row();
             form::label(ui, &s.t("conn-ssh-user"));
-            changed |= form::text_field(ui, &mut f.user, "ubuntu").changed();
+            let o = varfield::var_field(ui, theme, "ssh-user-var", &mut f.user, "ubuntu", &vars);
+            changed |= o.changed;
+            if let Some(kv) = o.add_var {
+                new_vars.push(kv);
+            }
             ui.end_row();
             form::label(ui, &s.t("conn-ssh-remote-dir"));
-            changed |= form::text_field(ui, &mut f.remote_dir, "/var/www").changed();
+            let o = varfield::var_field(
+                ui,
+                theme,
+                "ssh-remote-var",
+                &mut f.remote_dir,
+                "/var/www",
+                &vars,
+            );
+            changed |= o.changed;
+            if let Some(kv) = o.add_var {
+                new_vars.push(kv);
+            }
             ui.end_row();
             form::label(ui, &s.t("conn-ssh-startup"));
-            changed |= form::text_field(ui, &mut f.startup_command, "").changed();
+            let o = varfield::var_field(
+                ui,
+                theme,
+                "ssh-startup-var",
+                &mut f.startup_command,
+                "",
+                &vars,
+            );
+            changed |= o.changed;
+            if let Some(kv) = o.add_var {
+                new_vars.push(kv);
+            }
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("conn-ssh-startup-hint"));
     });
+    if !new_vars.is_empty() {
+        let mut envs = s.environments.write();
+        for (k, v) in &new_vars {
+            match envs.set_var(draft.environment.as_deref(), k, v) {
+                Ok(()) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Success,
+                    s.i18n.t_args("env-var-added", &[("key", k)]),
+                )),
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                )),
+            }
+        }
+        drop(envs);
+        effects.push(SettingsEffect::EnvironmentsChanged);
+    }
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "ssh-auth", |ui| {
             form::label(ui, &s.t("conn-ssh-auth"));

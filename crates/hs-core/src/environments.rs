@@ -122,6 +122,21 @@ impl Environments {
         Ok(())
     }
 
+    /// Set a variable on an environment (the active one when `env_id` is
+    /// `None`) and persist it. Errors when there is no such environment.
+    pub fn set_var(&mut self, env_id: Option<&str>, key: &str, value: &str) -> storage::Result<()> {
+        let id = env_id
+            .map(str::to_string)
+            .or_else(|| self.active.clone())
+            .ok_or_else(|| storage::StorageError::Message("no active environment".into()))?;
+        let mut env = self
+            .by_id(&id)
+            .cloned()
+            .ok_or_else(|| storage::StorageError::Message("environment not found".into()))?;
+        env.variables.insert(key.to_string(), value.to_string());
+        self.upsert(env)
+    }
+
     pub fn remove(&mut self, id: &str) -> storage::Result<()> {
         if let Some(e) = self.envs.iter().find(|x| x.id == id) {
             let f = self.dir.join(format!("{}.toml", storage::slug(&e.name)));
@@ -140,6 +155,41 @@ impl Environments {
     }
 
     /// Look up a variable through the scope chain for `env_id` (or the active env).
+    /// Every variable (key, value) visible for an environment, in resolution
+    /// order: the environment itself, then its parent chain, then globals.
+    /// Nearer scopes win, so a key is listed once with its effective value.
+    /// Used to populate `{{ }}` autocomplete.
+    pub fn available_vars(&self, env_id: Option<&str>) -> Vec<(String, String)> {
+        let mut seen = std::collections::HashSet::new();
+        let mut out: Vec<(String, String)> = Vec::new();
+        let mut push = |k: &String, v: &String, seen: &mut std::collections::HashSet<String>| {
+            if seen.insert(k.clone()) {
+                out.push((k.clone(), v.clone()));
+            }
+        };
+        let mut current = env_id.map(str::to_string).or_else(|| self.active.clone());
+        let mut hops = 0;
+        while let Some(id) = current {
+            let Some(env) = self.by_id(&id) else { break };
+            let mut keys: Vec<&String> = env.variables.keys().collect();
+            keys.sort();
+            for k in keys {
+                push(k, &env.variables[k], &mut seen);
+            }
+            current = env.parent.clone();
+            hops += 1;
+            if hops > 16 {
+                break;
+            }
+        }
+        let mut gkeys: Vec<&String> = self.globals.keys().collect();
+        gkeys.sort();
+        for k in gkeys {
+            push(k, &self.globals[k], &mut seen);
+        }
+        out
+    }
+
     pub fn lookup(
         &self,
         name: &str,

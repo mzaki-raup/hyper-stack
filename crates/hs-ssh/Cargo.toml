@@ -10,10 +10,12 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+hs-core = { workspace = true }
 hs-term = { workspace = true }
 russh = { workspace = true }
 russh-sftp = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util"] }
+tokio-util = { workspace = true }
 parking_lot = { workspace = true }
 secrecy = { workspace = true }
 tracing = { workspace = true }

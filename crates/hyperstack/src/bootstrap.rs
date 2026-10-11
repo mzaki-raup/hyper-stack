@@ -47,6 +47,13 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let paths = Arc::new(paths);
     let version = VersionInfo::current();
     let updater = Updater::new(runtime.clone(), paths.clone(), version.clone());
+    let connections = Arc::new(RwLock::new(connections));
+    let tunnels = Arc::new(hs_ssh::tunnels::TunnelManager::new(
+        runtime.clone(),
+        connections.clone(),
+        secrets.clone(),
+        paths.known_hosts_file(),
+    ));
 
     let services = Services {
         paths,
@@ -54,7 +61,7 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         runtime,
         jobs,
         events: EventBus::new(),
-        connections: Arc::new(RwLock::new(connections)),
+        connections,
         environments: Arc::new(RwLock::new(environments)),
         secrets,
         shortcuts: Arc::new(RwLock::new(keymap)),
@@ -62,6 +69,7 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         workspace: Arc::new(RwLock::new(workspace)),
         version,
         updater,
+        tunnels,
     };
     Ok(Boot {
         services,
@@ -79,6 +87,10 @@ pub fn switch_workspace(
     let ws = registry
         .open(&services.paths, name)
         .map_err(|e| e.to_string())?;
+    // Forwards go through the old workspace's SSH profiles.
+    for t in services.tunnels.list() {
+        services.tunnels.stop(t.id);
+    }
     *services.connections.write() = Connections::load(&ws.connections_dir());
     let mut envs = Environments::load(&ws.environments_dir());
     envs.active = ws.meta.default_environment.clone();

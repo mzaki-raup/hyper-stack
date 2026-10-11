@@ -1,6 +1,6 @@
 # Tool spec — SSH + SFTP
 
-**Crate:** `tool-ssh` (on `hs-term` and `hs-core::vfs`) · **Priority:** P0 · **Status:** M2 — shell + SFTP dual pane implemented (`hs-ssh`, `tool-ssh`); tunnels, jump hosts, ssh-config import, broadcast and server monitor remain (P1)
+**Crate:** `tool-ssh` (on `hs-term` and `hs-core::vfs`) · **Priority:** P0 · **Status:** M2 — shell + SFTP dual pane and local port forwards (`Tunnels` service) implemented (`hs-ssh`, `tool-ssh`); remote/dynamic forwards, jump hosts, ssh-config import, broadcast and server monitor remain (P1)
 
 ## 1. Purpose
 
@@ -125,6 +125,22 @@ or ad hoc; listed in the sidebar and Jobs with bytes transferred; start on
 connect option. The `Tunnels` service exposes `ensure_local_forward(ssh_id,
 remote_host, remote_port) -> local_port` to other tools, reusing an existing
 forward when present.
+
+*Implemented (local forwards):* the trait is `hs_core::tunnels::Tunnels` on
+`Services`, implemented by `hs_ssh::tunnels::TunnelManager` and installed at
+start-up. One SSH session per profile is shared by every forward through
+it (and reconnected on the next connection if it dropped); each forward
+listens on `127.0.0.1` only and opens a `direct-tcpip` channel per accepted
+connection, counting connections and bytes both ways. `known_hosts` is
+re-read at each connect, and a background forward never prompts: an
+untrusted host fails with "connect once in the SSH tool to trust its key".
+The SSH tool's sidebar lists every forward (local port → remote host:port,
+the host it goes through, open connections, ↑/↓ bytes; click copies
+`127.0.0.1:port`, × stops it) and has a **New Tunnel** form (`ssh.tunnel.new`
+in the palette): host, remote host (default `localhost`), remote port,
+local port (empty = any free port). Switching workspace stops all forwards.
+Remote (`-R`) and dynamic (`-D`) forwards, start-on-connect and Jobs
+entries are still to come.
 
 ## 9. Server monitor widget (P1)
 

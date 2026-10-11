@@ -19,7 +19,7 @@ and theme.
 > workspace shell with workspaces as projects (create, clone, switch, delete),
 > portable data folder, vault, environments, settings (as a tab, with bundled
 > and system fonts), a terminal with scrollback search and Ctrl+click links, a code editor with project tree and Markdown
-> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane, and the in-app updater
+> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port forwarding, and the in-app updater
 > with signed releases. Databases, API client, S3, Git and logs follow in the
 > next milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
@@ -94,6 +94,8 @@ made.
 | **Host key check** — new keys are shown by fingerprint before trusting | **Dual pane** — remote files (SFTP) on the left, the shell on the right |
 | ![File pane follows the shell](docs/screenshots/ssh-follow-shell-folder.png) | ![Remote file in the editor](docs/screenshots/ssh-remote-edit.png) |
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
+| ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | |
+| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | |
 
 ### Settings
 

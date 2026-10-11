@@ -147,6 +147,13 @@ pub fn install(ctx: &egui::Context, choice: &FontChoice) {
     {
         list.insert(0, f);
     }
+    // egui's default UI font has no arrows (→ ↑ ↓) or box drawing; the
+    // bundled Nerd Font has them, so it is the last glyph fallback.
+    if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional)
+        && !list.iter().any(|f| f == DEFAULT_MONO)
+    {
+        list.push(DEFAULT_MONO.to_string());
+    }
     let mono_fallback = fonts
         .families
         .get(&FontFamily::Monospace)

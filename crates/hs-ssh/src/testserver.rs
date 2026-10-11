@@ -187,8 +187,9 @@ impl russh::server::Server for ServerFactory {
 struct ClientSession {
     fs: SharedFs,
     channels: HashMap<ChannelId, Channel<Msg>>,
-    /// Channels handed to the SFTP subsystem: russh still calls `data` for
-    /// them, so the shell handler must ignore their bytes.
+    /// Channels handed to the SFTP subsystem or a `direct-tcpip` stream:
+    /// russh still calls `data` for them, so the shell handler must ignore
+    /// their bytes.
     sftp_channels: HashSet<ChannelId>,
     cwd: String,
     line: String,
@@ -366,6 +367,37 @@ impl russh::server::Handler for ClientSession {
         } else {
             session.channel_failure(channel_id)?;
         }
+        Ok(())
+    }
+
+    /// `ssh -L` support for the tunnel tests: loopback targets only, so the
+    /// test server is never an open proxy.
+    async fn channel_open_direct_tcpip(
+        &mut self,
+        channel: Channel<Msg>,
+        host_to_connect: &str,
+        port_to_connect: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        reply: russh::server::ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        if host_to_connect != "127.0.0.1" && host_to_connect != "localhost" {
+            reply
+                .reject(russh::ChannelOpenFailure::AdministrativelyProhibited)
+                .await;
+            return Ok(());
+        }
+        // Streamed like SFTP: `data` must ignore it.
+        self.sftp_channels.insert(channel.id());
+        reply.accept().await;
+        let target = format!("127.0.0.1:{port_to_connect}");
+        tokio::spawn(async move {
+            if let Ok(mut tcp) = tokio::net::TcpStream::connect(target).await {
+                let mut stream = channel.into_stream();
+                let _ = tokio::io::copy_bidirectional(&mut tcp, &mut stream).await;
+            }
+        });
         Ok(())
     }
 

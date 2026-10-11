@@ -213,7 +213,7 @@ colour, group }`.
 | `I18n` | Fluent bundles, `t!("key", args)` | `fluent` |
 | `Shortcuts` | keymap, conflict detection, per-tool scopes | TOML |
 | `Update` | current `VersionInfo`, scheduled/manual check, candidate release, download Job, verification, install/revert state machine, `update/state.toml` | `reqwest`, `minisign-verify`, `sha2`, `semver` |
-| `Tunnels` | SSH port-forward manager used by DB and API tools transparently | `russh` |
+| `Tunnels` | SSH port-forward manager used by DB and API tools transparently; trait in `hs-core::tunnels`, implemented by `hs_ssh::tunnels::TunnelManager` (local forwards) | `russh` |
 | `Transfers` | shared transfer queue for SFTP, S3 and local copies (resume, verify, conflict rules) | tokio tasks |
 
 All services are `Arc<…>` with interior `RwLock`/`Mutex` or are actor tasks with

@@ -348,6 +348,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   node: screen readers and `egui_kittest` queries cannot find them. Give
   every such control `response.widget_info(|| WidgetInfo::labeled(..))`, or
   use a real widget.
+- A widget in a side panel that asks for even a few pixels more than
+  `available_width()` (a `TextEdit` with `desired_width(avail - n)` beside
+  another, a button next to a full-width row) makes the resizable panel
+  grow every frame, and the runaway width is then saved with the layout.
+  Use `desired_width(f32::INFINITY)`, leave real slack for ComboBox
+  padding, and overlay row buttons inside the row's rect (the SSH tunnel
+  rows do).
+- egui's default proportional font has no arrows (→ ↑ ↓) or box drawing;
+  `hs_ui::fonts::install` appends the bundled Nerd Font as the last
+  fallback so they render instead of tofu boxes.
 - A single-line `TextEdit` gives up focus on Escape *before* your code sees
   the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
   `(r.has_focus() || r.lost_focus())` (the terminal find bar does).

@@ -15,6 +15,7 @@ use crate::runtime::AppRuntime;
 use crate::secrets::SecretStore;
 use crate::settings::Settings;
 use crate::shortcuts::Keymap;
+use crate::tunnels::Tunnels;
 use crate::updater::Updater;
 use crate::version::VersionInfo;
 use crate::workspace::Workspace;
@@ -34,6 +35,8 @@ pub struct Services {
     pub workspace: Arc<RwLock<Workspace>>,
     pub version: VersionInfo,
     pub updater: Updater,
+    /// SSH local forwards for any tool (`hs_ssh::tunnels::TunnelManager`).
+    pub tunnels: Arc<dyn Tunnels>,
 }
 
 impl Services {

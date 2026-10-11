@@ -2728,6 +2728,7 @@ name = "hs-ssh"
 version = "0.11.0"
 dependencies = [
  "chrono",
+ "hs-core",
  "hs-ssh",
  "hs-term",
  "parking_lot",
@@ -2737,6 +2738,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "toml 0.8.23",
  "tracing",
 ]

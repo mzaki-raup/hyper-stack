@@ -11,12 +11,13 @@ use std::sync::Arc;
 
 use hs_core::Services;
 use hs_core::events::Event;
-use hs_core::secrets::SecretRef;
 use hs_core::tool::{
     Accept, CommandDescriptor, OpenRequest, ToastLevel, Tool, ToolCategory, ToolContext,
     ToolDescriptor, ToolFactory,
 };
-use hs_ssh::{Auth, HostKeyPrompt, KnownHosts, SftpSession, SshClient, SshConfig, SshFields};
+use hs_core::tunnels::{ForwardSpec, TunnelError, TunnelInfo, TunnelState};
+use hs_ssh::config::{ConfigError, config_from_fields};
+use hs_ssh::{HostKeyPrompt, KnownHosts, SftpSession, SshClient, SshFields};
 use hs_term::session::{Session, TermEvent};
 use hs_term::shells::ShellProfile;
 use hs_term::widget::{TermTheme, TerminalView};
@@ -132,6 +133,22 @@ pub struct SshTool {
     confirm_delete: Option<String>,
     startup_sent: bool,
     conn_name: String,
+    /// The "New Tunnel" form in the sidebar, while open.
+    tunnel_form: Option<TunnelForm>,
+    /// The last connect failed only because the vault was locked: retry as
+    /// soon as it is unlocked (a tab restored at start-up hits this).
+    waiting_for_vault: bool,
+}
+
+/// `ssh -L` as a form: local port (empty = any free one) → remote host:port
+/// through an SSH profile.
+#[derive(Default)]
+struct TunnelForm {
+    ssh_id: String,
+    remote_host: String,
+    remote_port: String,
+    local_port: String,
+    error: Option<String>,
 }
 
 impl SshTool {
@@ -161,6 +178,8 @@ impl SshTool {
             confirm_delete: None,
             startup_sent: false,
             conn_name: String::new(),
+            tunnel_form: None,
+            waiting_for_vault: false,
         };
         if t.state.conn_id.is_some() {
             t.connect(services);
@@ -175,26 +194,6 @@ impl SshTool {
         Some((c.name.clone(), SshFields::from_table(&c.fields)))
     }
 
-    fn secret(services: &Services, value: &str) -> Result<Option<secrecy::SecretString>, String> {
-        if value.is_empty() {
-            return Ok(None);
-        }
-        match SecretRef::parse(value) {
-            Some(r) => {
-                if services.secrets.is_locked() {
-                    return Err(services.t("ssh-vault-locked"));
-                }
-                services
-                    .secrets
-                    .get(&r)
-                    .map(Some)
-                    .map_err(|e| e.to_string())
-            }
-            // A plain value (never written by the form, but tolerated).
-            None => Ok(Some(secrecy::SecretString::from(value.to_string()))),
-        }
-    }
-
     fn connect(&mut self, services: &Services) {
         let Some((name, f)) = self.fields(services) else {
             self.status = Status::Failed(services.t("ssh-no-profile"));
@@ -203,37 +202,17 @@ impl SshTool {
         self.conn_name = name;
         self.session = None;
         self.startup_sent = false;
-        let auth = match f.auth.as_str() {
-            "key" => match Self::secret(services, &f.key_passphrase) {
-                Ok(p) => Auth::KeyFile {
-                    path: PathBuf::from(expand_home(&f.key_path)),
-                    passphrase: p,
-                },
-                Err(e) => {
-                    self.status = Status::Failed(e);
-                    return;
-                }
-            },
-            "agent" => Auth::Agent,
-            _ => match Self::secret(services, &f.password) {
-                Ok(Some(p)) => Auth::Password(p),
-                Ok(None) => {
-                    self.status = Status::Failed(services.t("ssh-no-password"));
-                    return;
-                }
-                Err(e) => {
-                    self.status = Status::Failed(e);
-                    return;
-                }
-            },
-        };
-        let cfg = SshConfig {
-            host: f.host.clone(),
-            port: f.port,
-            user: f.user.clone(),
-            auth,
-            keepalive_secs: f.keepalive_secs,
-            connect_timeout_secs: f.connect_timeout_secs,
+        let cfg = match config_from_fields(&f, services.secrets.as_ref()) {
+            Ok(c) => c,
+            Err(e) => {
+                self.waiting_for_vault = e == ConfigError::VaultLocked;
+                self.status = Status::Failed(match e {
+                    ConfigError::VaultLocked => services.t("ssh-vault-locked"),
+                    ConfigError::NoPassword => services.t("ssh-no-password"),
+                    ConfigError::Secret(e) => e,
+                });
+                return;
+            }
         };
         self.status = Status::Connecting;
         {
@@ -852,6 +831,251 @@ impl SshTool {
     }
 }
 
+impl SshTool {
+    fn new_tunnel_form(&mut self, services: &Services) {
+        let ssh_id = self
+            .state
+            .conn_id
+            .clone()
+            .or_else(|| {
+                services
+                    .connections
+                    .read()
+                    .of_kind("ssh")
+                    .next()
+                    .map(|c| c.id.clone())
+            })
+            .unwrap_or_default();
+        self.tunnel_form = Some(TunnelForm {
+            ssh_id,
+            remote_host: "localhost".into(),
+            ..Default::default()
+        });
+    }
+
+    /// Port forwards (docs/tools/ssh-sftp.md §8): the list from the
+    /// `Tunnels` service, each with its traffic and a stop button, and the
+    /// "New Tunnel" form.
+    fn tunnels_section(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        form::header_bar(ui, theme, |ui| {
+            ui.label(egui::RichText::new(s.t("ssh-tunnels")).strong().size(15.0));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if form::icon_button(ui, theme, ph::PLUS, 16.0, false)
+                    .tip(s.t("ssh-tunnel-new"))
+                    .clicked()
+                {
+                    self.new_tunnel_form(s);
+                }
+            });
+        });
+        let tunnels = s.tunnels.list();
+        if !tunnels.is_empty() {
+            // Byte counters move without other UI events.
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs(1));
+        }
+        for t in &tunnels {
+            self.tunnel_row(ui, cx, theme, t);
+            ui.add_space(2.0);
+        }
+        if tunnels.is_empty() && self.tunnel_form.is_none() {
+            ui.label(egui::RichText::new(s.t("ssh-tunnels-none")).weak());
+        }
+        if let Some(form_state) = &mut self.tunnel_form {
+            let hosts: Vec<(String, String)> = s
+                .connections
+                .read()
+                .of_kind("ssh")
+                .map(|c| (c.id.clone(), c.name.clone()))
+                .collect();
+            let mut start = false;
+            let mut cancel = false;
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(egui::CornerRadius::same(6))
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(s.t("ssh-tunnel-via")).weak());
+                    let current = hosts
+                        .iter()
+                        .find(|(id, _)| *id == form_state.ssh_id)
+                        .map(|(_, n)| n.clone())
+                        .unwrap_or_default();
+                    // Widths below stay inside the sidebar: anything wider
+                    // grows the panel a little every frame.
+                    egui::ComboBox::from_id_salt("ssh-tunnel-host")
+                        .selected_text(current)
+                        .width((ui.available_width() - 24.0).max(60.0))
+                        .show_ui(ui, |ui| {
+                            for (id, name) in &hosts {
+                                ui.selectable_value(&mut form_state.ssh_id, id.clone(), name);
+                            }
+                        });
+                    ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-host")).weak());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut form_state.remote_host)
+                            .hint_text("localhost")
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-port")).weak());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut form_state.remote_port)
+                            .hint_text("5432")
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.label(egui::RichText::new(s.t("ssh-tunnel-local")).weak());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut form_state.local_port)
+                            .hint_text(s.t("ssh-tunnel-local-hint"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    if let Some(e) = &form_state.error {
+                        ui.colored_label(theme.error, e);
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button(s.t("ssh-tunnel-start")).clicked() {
+                            start = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            cancel = true;
+                        }
+                    });
+                });
+            if start {
+                match parse_tunnel_form(form_state) {
+                    Ok(spec) => {
+                        s.tunnels.open(spec);
+                        self.tunnel_form = None;
+                    }
+                    Err(key) => form_state.error = Some(s.t(key)),
+                }
+            } else if cancel {
+                self.tunnel_form = None;
+            }
+        }
+    }
+
+    fn tunnel_row(&self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, t: &TunnelInfo) {
+        let s = cx.services;
+        let local = match &t.state {
+            TunnelState::Listening { local_port } => local_port.to_string(),
+            _ if t.spec.local_port != 0 => t.spec.local_port.to_string(),
+            _ => "…".into(),
+        };
+        let title = format!(
+            ":{local} {} {}:{}",
+            ph::ARROW_RIGHT,
+            t.spec.remote_host,
+            t.spec.remote_port
+        );
+        let detail = match &t.state {
+            TunnelState::Starting => s.t("ssh-tunnel-starting"),
+            TunnelState::Failed(e) => tunnel_error_text(s, e),
+            TunnelState::Listening { .. } => s.i18n.t_args(
+                "ssh-tunnel-traffic",
+                &[
+                    ("via", &t.via),
+                    ("open", &t.open.to_string()),
+                    ("up", &human_size(t.bytes_up)),
+                    ("down", &human_size(t.bytes_down)),
+                ],
+            ),
+        };
+        let icon = match &t.state {
+            TunnelState::Failed(_) => ph::WARNING,
+            TunnelState::Starting => ph::HOURGLASS,
+            TunnelState::Listening { .. } => ph::PLUGS_CONNECTED,
+        };
+        // The row takes exactly the sidebar width (list_row paints its text);
+        // the stop button is overlaid on its right end, never beside it, or
+        // the side panel would grow a little every frame.
+        let r = form::list_row(ui, theme, false, icon, &title, Some(&detail));
+        let stop_rect = egui::Rect::from_center_size(
+            egui::pos2(r.rect.right() - 16.0, r.rect.center().y),
+            egui::vec2(24.0, 24.0),
+        );
+        let stop = ui.interact(stop_rect, r.id.with("stop"), egui::Sense::click());
+        stop.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, s.t("ssh-tunnel-stop"))
+        });
+        if r.hovered() || stop.hovered() {
+            if stop.hovered() {
+                ui.painter().rect_filled(
+                    stop_rect,
+                    egui::CornerRadius::same(4),
+                    theme.surface_hover,
+                );
+            }
+            ui.painter().text(
+                stop_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                ph::X,
+                egui::FontId::proportional(14.0),
+                theme.text,
+            );
+        }
+        if stop.tip(s.t("ssh-tunnel-stop")).clicked() {
+            s.tunnels.stop(t.id);
+            return;
+        }
+        let r = if let TunnelState::Failed(_) = &t.state {
+            r.on_hover_text(detail.clone())
+        } else {
+            r
+        };
+        if let TunnelState::Listening { local_port } = &t.state
+            && r.tip(s.t("ssh-tunnel-copy")).clicked()
+        {
+            ui.ctx().copy_text(format!("127.0.0.1:{local_port}"));
+            cx.toast(ToastLevel::Info, s.t("ssh-tunnel-copied"));
+        }
+    }
+}
+
+/// Validate the form; errors are Fluent keys.
+fn parse_tunnel_form(f: &TunnelForm) -> Result<ForwardSpec, &'static str> {
+    if f.ssh_id.is_empty() {
+        return Err("ssh-tunnel-need-host");
+    }
+    let remote_port: u16 = f
+        .remote_port
+        .trim()
+        .parse()
+        .ok()
+        .filter(|p| *p > 0)
+        .ok_or("ssh-tunnel-bad-port")?;
+    let local_port: u16 = if f.local_port.trim().is_empty() {
+        0
+    } else {
+        f.local_port
+            .trim()
+            .parse()
+            .map_err(|_| "ssh-tunnel-bad-port")?
+    };
+    let host = f.remote_host.trim();
+    Ok(ForwardSpec {
+        ssh_id: f.ssh_id.clone(),
+        remote_host: if host.is_empty() {
+            "localhost".into()
+        } else {
+            host.into()
+        },
+        remote_port,
+        local_port,
+    })
+}
+
+fn tunnel_error_text(s: &Services, e: &TunnelError) -> String {
+    match e {
+        TunnelError::NoProfile => s.t("ssh-no-profile"),
+        TunnelError::VaultLocked => s.t("ssh-vault-locked"),
+        TunnelError::NoPassword => s.t("ssh-no-password"),
+        TunnelError::UnknownHostKey => s.t("ssh-tunnel-untrusted"),
+        TunnelError::Other(e) => e.clone(),
+    }
+}
+
 impl Tool for SshTool {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
@@ -961,6 +1185,8 @@ impl Tool for SshTool {
             ui.add_space(2.0);
         }
         ui.add_space(10.0);
+        self.tunnels_section(ui, cx, &theme);
+        ui.add_space(10.0);
         form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-hint"));
         true
     }
@@ -968,6 +1194,10 @@ impl Tool for SshTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        if self.waiting_for_vault && !s.secrets.is_locked() {
+            self.waiting_for_vault = false;
+            self.connect(s);
+        }
         // Pull async results.
         {
             let mut sh = self.shared.lock();
@@ -1150,6 +1380,7 @@ impl Tool for SshTool {
             c("ssh.disconnect", "SSH: Disconnect"),
             c("ssh.refresh", "SSH: Refresh Files"),
             c("ssh.sync", "SSH: Toggle Folder Sync With Shell"),
+            c("ssh.tunnel.new", "SSH: New Tunnel"),
         ]
     }
 
@@ -1159,6 +1390,7 @@ impl Tool for SshTool {
             "ssh.disconnect" => self.disconnect(),
             "ssh.refresh" => self.refresh(cx.services),
             "ssh.sync" => self.state.sync_cwd = !self.state.sync_cwd,
+            "ssh.tunnel.new" => self.new_tunnel_form(cx.services),
             _ => return false,
         }
         true
@@ -1421,21 +1653,33 @@ fn human_size(n: u64) -> String {
 }
 
 /// `~/x` → the user's home on this machine (for key paths).
-fn expand_home(p: &str) -> String {
-    if let Some(rest) = p.strip_prefix("~/")
-        && let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))
-    {
-        return std::path::Path::new(&home)
-            .join(rest)
-            .to_string_lossy()
-            .to_string();
-    }
-    p.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tunnel_form_validation() {
+        let mut f = TunnelForm {
+            ssh_id: "x".into(),
+            remote_host: " db ".into(),
+            remote_port: "5432".into(),
+            ..Default::default()
+        };
+        let spec = parse_tunnel_form(&f).unwrap();
+        assert_eq!(
+            (spec.remote_host.as_str(), spec.remote_port, spec.local_port),
+            ("db", 5432, 0)
+        );
+        f.local_port = "15432".into();
+        assert_eq!(parse_tunnel_form(&f).unwrap().local_port, 15432);
+        f.remote_port = "0".into();
+        assert_eq!(parse_tunnel_form(&f), Err("ssh-tunnel-bad-port"));
+        f.remote_port = "70000".into();
+        assert_eq!(parse_tunnel_form(&f), Err("ssh-tunnel-bad-port"));
+        f.remote_port = "22".into();
+        f.ssh_id.clear();
+        assert_eq!(parse_tunnel_form(&f), Err("ssh-tunnel-need-host"));
+    }
 
     #[test]
     fn paths_perms_and_sizes() {

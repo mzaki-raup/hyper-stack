@@ -11,6 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- SSH tunnels: a `Tunnels` service for local port forwards (`ssh -L`) that any tool can ask for, sharing one SSH session per host; the SSH tool's sidebar lists forwards with live traffic and has a New Tunnel form.
+- SSH tabs restored at start-up connect as soon as the vault is unlocked instead of failing with "unlock the vault".
+- Arrows (→ ↑ ↓) in the interface no longer render as boxes: the bundled monospace font is now the last fallback of the UI font.
 - Markdown preview draws Mermaid flowcharts and sequence diagrams natively (subgraphs, all node shapes and arrow kinds, notes, loop/alt blocks); other diagram kinds show their source with a note.
 - Terminal: search the scrollback with Ctrl+Shift+F (or the Find button): plain or regex, match case, every hit highlighted, "n of m", Enter/Shift+Enter to step.
 - Terminal: Ctrl+click opens links — URLs in the browser, `path:line:col` locations (compiler errors, panics, MSBuild) in the editor at that line, folders in a new terminal; Settings → Terminal → Detect Links turns it off.

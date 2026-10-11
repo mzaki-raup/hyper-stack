@@ -5,11 +5,13 @@
 //! Everything here is async on the app's tokio runtime; the UI talks to it
 //! through channels and shared state, never by blocking.
 
+pub mod config;
 pub mod known_hosts;
 pub mod profile;
 pub mod shell;
 #[cfg(feature = "testserver")]
 pub mod testserver;
+pub mod tunnels;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -283,6 +285,22 @@ impl SshClient {
         channel.request_subsystem(true, "sftp").await?;
         let sftp = SftpSession::new(channel.into_stream()).await?;
         Ok(sftp)
+    }
+
+    /// A `direct-tcpip` channel to `host:port` as seen from the server (one
+    /// connection of an `ssh -L` forward).
+    pub async fn open_direct_tcpip(
+        &self,
+        host: &str,
+        port: u16,
+        originator: &str,
+        originator_port: u16,
+    ) -> Result<russh::ChannelStream<client::Msg>> {
+        let channel = self
+            .handle
+            .channel_open_direct_tcpip(host, port as u32, originator, originator_port as u32)
+            .await?;
+        Ok(channel.into_stream())
     }
 
     pub fn is_closed(&self) -> bool {

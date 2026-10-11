@@ -69,7 +69,7 @@ in the e2e test).
 ### M2 · SSH/SFTP + S3 (4 w)
 - [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term`
 - [ ] `tool-ssh`: SFTP dual pane on `DataTable`, transfer queue in `Transfers`, resume, chmod, open-in-editor and save back via `sftp://` VFS
-- [ ] `Tunnels` service (local forward) ready for DB/Redis/API
+- [x] `Tunnels` service (local forward) ready for DB/Redis/API
 - [ ] `tool-s3`: profiles + import AWS files, SigV4 client in `hs-core::objstore`, bucket/prefix browsing, uploads with multipart, downloads, delete with guard, presigned URLs, `s3://` VFS
 
 ### M3 · SQL database + NoSQL + Redis (8 w)

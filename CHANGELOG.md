@@ -11,18 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- S3 tool: profiles for AWS and S3-compatible stores (MinIO, R2, B2, Spaces, Wasabi) with keys in the vault, import from `~/.aws` files, bucket and prefix browsing with paging, multipart uploads and streamed downloads as Jobs, new folder, presigned URLs, editing objects in the editor, and a guarded delete that asks for the bucket name.
-- `hs-core::objstore`: a SigV4 signer verified against AWS's examples and an S3 client on `reqwest`.
-- Tables: clicking a cell's text now selects and opens the row (labels were text-selectable and swallowed the click), in the SFTP pane too.
-- SSH tunnels: a `Tunnels` service for local port forwards (`ssh -L`) that any tool can ask for, sharing one SSH session per host; the SSH tool's sidebar lists forwards with live traffic and has a New Tunnel form.
-- SSH tabs restored at start-up connect as soon as the vault is unlocked instead of failing with "unlock the vault".
-- Arrows (→ ↑ ↓) in the interface no longer render as boxes: the bundled monospace font is now the last fallback of the UI font.
-- Markdown preview draws Mermaid flowcharts and sequence diagrams natively (subgraphs, all node shapes and arrow kinds, notes, loop/alt blocks); other diagram kinds show their source with a note.
-- Terminal: search the scrollback with Ctrl+Shift+F (or the Find button): plain or regex, match case, every hit highlighted, "n of m", Enter/Shift+Enter to step.
-- Terminal: Ctrl+click opens links — URLs in the browser, `path:line:col` locations (compiler errors, panics, MSBuild) in the editor at that line, folders in a new terminal; Settings → Terminal → Detect Links turns it off.
-- Terminal tabs now pick up changed terminal settings (font size, copy on select, right-click, links) without reopening.
-- Editor: a line number sent with "open file" is kept when the file opens in a new tab.
-- README: animated walkthrough GIF as the main screenshot and a categorised screenshot gallery of every built feature (`docs/screenshots/`).
+- (nothing yet)
+
+## 0.12.0 — 2026-10-11
+
+### Added
+
+- S3 browser with SigV4 client, AWS profile import and guarded delete (562d5804)
+- Tunnels service for local port forwards (c1804a8b)
+- Draw Mermaid flowcharts and sequence diagrams in the Markdown preview (2146cd54)
+- Scrollback search and Ctrl+click links (34ef1ead)
 
 ## 0.11.0 — 2026-10-11
 

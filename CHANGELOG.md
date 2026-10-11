@@ -25,6 +25,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   active environment's variables; a key can be picked with the mouse or
   keyboard, or a brand-new variable defined inline and saved to the
   environment.
+- "Copy Variables From…" on the Environments page copies variable keys from
+  any environment in any workspace into the one being edited, showing which
+  keys are new or already exist and letting the user multi-select which to
+  bring over (missing keys ticked by default).
 
 ### Changed
 

@@ -91,11 +91,24 @@ pub struct SettingsState {
     pub page: Page,
     pub env_selected: Option<String>,
     pub env_draft: Option<(Environment, Vec<KvRow>)>,
+    pub env_copy: Option<EnvCopyState>,
     pub conn_selected: Option<String>,
     pub conn_draft: Option<(ConnectionProfile, String)>,
     pub shortcut_edit: HashMap<String, String>,
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
+}
+
+/// The "Copy Variables From…" dialog on the Environments page: which source
+/// workspace and environment to copy from, and which of its keys are ticked.
+#[derive(Default)]
+pub struct EnvCopyState {
+    pub source_ws: String,
+    pub source_env: String,
+    pub selected: std::collections::HashSet<String>,
+    /// The (workspace, env) the `selected` set was seeded for, so a changed
+    /// source re-seeds the ticks (missing keys on by default).
+    pub seeded_for: Option<(String, String)>,
 }
 
 pub enum SettingsEffect {
@@ -720,6 +733,7 @@ fn environments(
         &s.t("settings-environments"),
         Some(&s.t("settings-environments-sub")),
     );
+    let mut open_copy = false;
     ui.horizontal_top(|ui| {
         // Left: the list.
         ui.vertical(|ui| {
@@ -848,6 +862,15 @@ fn environments(
                 });
             });
             form::section(ui, theme, &s.t("env-variables"), |ui| {
+                ui.horizontal(|ui| {
+                    if ui
+                        .button(format!("{} {}", hs_ui::icons::COPY, s.t("env-copy-from")))
+                        .clicked()
+                    {
+                        open_copy = true;
+                    }
+                });
+                ui.add_space(6.0);
                 KvEditor {
                     theme,
                     key_hint: &s.t("env-var-name"),
@@ -909,6 +932,254 @@ fn environments(
             });
         });
     });
+    if open_copy {
+        state.env_copy = Some(EnvCopyState {
+            source_ws: s.workspace.read().meta.name.clone(),
+            ..Default::default()
+        });
+    }
+    env_copy_dialog(ui, theme, s, state, effects);
+}
+
+/// One source environment for the copy dialog: `(id, name, sorted vars)`.
+type SourceEnv = (String, String, Vec<(String, String)>);
+
+/// The "Copy Variables From…" modal: choose a source workspace and
+/// environment (anywhere), compare its keys against the environment being
+/// edited, tick which to copy, and merge them into the draft.
+fn env_copy_dialog(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    if state.env_copy.is_none() || state.env_draft.is_none() {
+        return;
+    }
+    // Keys already in the environment being edited.
+    let target_keys: std::collections::HashSet<String> = state
+        .env_draft
+        .as_ref()
+        .map(|(_, vars)| vars.iter().map(|r| r.key.trim().to_string()).collect())
+        .unwrap_or_default();
+    let target_name = state
+        .env_draft
+        .as_ref()
+        .map(|(e, _)| e.name.clone())
+        .unwrap_or_default();
+
+    let registry = hs_core::workspace::Registry::load(&s.paths);
+    let ws_names = registry.names();
+    let current_ws = s.workspace.read().meta.name.clone();
+
+    let cp = state.env_copy.as_mut().unwrap();
+    if cp.source_ws.is_empty() || !ws_names.contains(&cp.source_ws) {
+        cp.source_ws = current_ws.clone();
+    }
+
+    // Environments available in the chosen source workspace: live for the
+    // current workspace, loaded from disk for any other.
+    let source_envs: Vec<SourceEnv> = if cp.source_ws == current_ws {
+        s.environments
+            .read()
+            .all()
+            .iter()
+            .map(|e| {
+                let mut v: Vec<(String, String)> = e
+                    .variables
+                    .iter()
+                    .map(|(k, val)| (k.clone(), val.clone()))
+                    .collect();
+                v.sort();
+                (e.id.clone(), e.name.clone(), v)
+            })
+            .collect()
+    } else if let Some(entry) = registry.workspaces.iter().find(|w| w.name == cp.source_ws) {
+        let root = s.paths.resolve_path(&entry.path);
+        match hs_core::workspace::Workspace::open_or_create(&root, &cp.source_ws) {
+            Ok(ws) => hs_core::environments::Environments::load(&ws.environments_dir())
+                .all()
+                .iter()
+                .map(|e| {
+                    let mut v: Vec<(String, String)> = e
+                        .variables
+                        .iter()
+                        .map(|(k, val)| (k.clone(), val.clone()))
+                        .collect();
+                    v.sort();
+                    (e.id.clone(), e.name.clone(), v)
+                })
+                .collect(),
+            Err(_) => Vec::new(),
+        }
+    } else {
+        Vec::new()
+    };
+
+    if cp.source_env.is_empty() || !source_envs.iter().any(|(id, ..)| *id == cp.source_env) {
+        cp.source_env = source_envs
+            .first()
+            .map(|(id, ..)| id.clone())
+            .unwrap_or_default();
+    }
+    let source_vars: Vec<(String, String)> = source_envs
+        .iter()
+        .find(|(id, ..)| *id == cp.source_env)
+        .map(|(.., v)| v.clone())
+        .unwrap_or_default();
+
+    // Re-seed the tick set when the source changes: default on for keys the
+    // target does not already have.
+    let seed_key = (cp.source_ws.clone(), cp.source_env.clone());
+    if cp.seeded_for.as_ref() != Some(&seed_key) {
+        cp.selected = source_vars
+            .iter()
+            .filter(|(k, _)| !target_keys.contains(k))
+            .map(|(k, _)| k.clone())
+            .collect();
+        cp.seeded_for = Some(seed_key);
+    }
+
+    let mut apply: Option<Vec<(String, String)>> = None;
+    let mut cancel = false;
+    let modal = egui::Modal::new(egui::Id::new("hs-env-copy")).show(ui.ctx(), |ui| {
+        ui.set_width(520.0);
+        ui.heading(s.t("env-copy-title"));
+        ui.add_space(6.0);
+        ui.label(s.i18n.t_args("env-copy-into", &[("name", &target_name)]));
+        ui.add_space(10.0);
+        let cp = state.env_copy.as_mut().unwrap();
+        egui::Grid::new("env-copy-src")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label(s.t("env-copy-workspace"));
+                egui::ComboBox::from_id_salt("env-copy-ws")
+                    .selected_text(&cp.source_ws)
+                    .show_ui(ui, |ui| {
+                        for n in &ws_names {
+                            ui.selectable_value(&mut cp.source_ws, n.clone(), n);
+                        }
+                    });
+                ui.end_row();
+                ui.label(s.t("env-copy-environment"));
+                let sel_name = source_envs
+                    .iter()
+                    .find(|(id, ..)| *id == cp.source_env)
+                    .map(|(_, n, _)| n.clone())
+                    .unwrap_or_else(|| "—".into());
+                egui::ComboBox::from_id_salt("env-copy-env")
+                    .selected_text(sel_name)
+                    .show_ui(ui, |ui| {
+                        for (id, name, _) in &source_envs {
+                            ui.selectable_value(&mut cp.source_env, id.clone(), name);
+                        }
+                    });
+                ui.end_row();
+            });
+        ui.add_space(8.0);
+        ui.separator();
+        if source_vars.is_empty() {
+            form::hint(ui, theme, &s.t("env-copy-empty"));
+        } else {
+            ui.horizontal(|ui| {
+                if ui.button(s.t("env-copy-all")).clicked() {
+                    cp.selected = source_vars.iter().map(|(k, _)| k.clone()).collect();
+                }
+                if ui.button(s.t("env-copy-missing")).clicked() {
+                    cp.selected = source_vars
+                        .iter()
+                        .filter(|(k, _)| !target_keys.contains(k))
+                        .map(|(k, _)| k.clone())
+                        .collect();
+                }
+                if ui.button(s.t("env-copy-none-btn")).clicked() {
+                    cp.selected.clear();
+                }
+            });
+            ui.add_space(6.0);
+            egui::ScrollArea::vertical()
+                .max_height(320.0)
+                .show(ui, |ui| {
+                    for (k, v) in &source_vars {
+                        ui.horizontal(|ui| {
+                            let mut on = cp.selected.contains(k);
+                            if ui.checkbox(&mut on, "").changed() {
+                                if on {
+                                    cp.selected.insert(k.clone());
+                                } else {
+                                    cp.selected.remove(k);
+                                }
+                            }
+                            let exists = target_keys.contains(k);
+                            let tag = if exists {
+                                egui::RichText::new(s.t("env-copy-exists"))
+                                    .small()
+                                    .color(theme.warning)
+                            } else {
+                                egui::RichText::new(s.t("env-copy-new"))
+                                    .small()
+                                    .color(theme.success)
+                            };
+                            ui.label(egui::RichText::new(k).strong());
+                            ui.label(tag);
+                            let preview: String = v.chars().take(40).collect();
+                            ui.label(egui::RichText::new(preview).color(theme.text_muted));
+                        });
+                    }
+                });
+        }
+        ui.add_space(10.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let n = cp.selected.len();
+            let label = s.i18n.t_args("env-copy-apply", &[("n", &n.to_string())]);
+            let enabled = n > 0;
+            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                apply = Some(
+                    source_vars
+                        .iter()
+                        .filter(|(k, _)| cp.selected.contains(k))
+                        .cloned()
+                        .collect(),
+                );
+            }
+            if ui.button(s.t("cancel")).clicked() {
+                cancel = true;
+            }
+        });
+    });
+    if modal.should_close() {
+        cancel = true;
+    }
+
+    if let Some(pairs) = apply {
+        if let Some((_, vars)) = state.env_draft.as_mut() {
+            for (k, v) in &pairs {
+                let secret = SecretRef::parse(v).is_some();
+                if let Some(row) = vars.iter_mut().find(|r| r.key.trim() == k) {
+                    row.value = v.clone();
+                    row.secret = secret;
+                    row.enabled = true;
+                } else {
+                    vars.push(KvRow {
+                        enabled: true,
+                        key: k.clone(),
+                        value: v.clone(),
+                        secret,
+                    });
+                }
+            }
+            vars.sort_by(|a, b| a.key.cmp(&b.key));
+        }
+        effects.push(SettingsEffect::Toast(
+            hs_core::tool::ToastLevel::Success,
+            s.i18n
+                .t_args("env-copy-done", &[("n", &pairs.len().to_string())]),
+        ));
+        state.env_copy = None;
+    } else if cancel {
+        state.env_copy = None;
+    }
 }
 
 fn connections(

@@ -200,6 +200,13 @@ can be defined inline (key and value) and is written straight to the active
 environment. The SSH connection form uses it for host, user, remote directory
 and startup command; other tools adopt it as they are built.
 
+The Environments settings page can also copy variables between environments
+with "Copy Variables From…": it reads any environment in any workspace (the
+current workspace's live, others loaded from their folder), compares the
+source keys against the environment being edited, marks each as new or
+already-present, and copies the multi-selected keys in (missing keys ticked by
+default, existing values left untouched unless re-ticked).
+
 ```
 request / query literal  →  collection vars  →  environment  →  parent environment  →  workspace globals  →  built-ins
 ```

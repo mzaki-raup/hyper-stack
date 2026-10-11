@@ -122,7 +122,7 @@ in the e2e test).
 - [ ] Git forge integration: GitHub/GitLab/Forgejo PRs, issues, CI status
 - [ ] Plugin API (WASM via `wasmtime`): devtools utilities and importers first
 - [ ] Detachable tabs (multiple viewports), session audit log, presentation mode
-- [ ] Optional AI assistant hook (bring your own key) as a palette provider
+- [x] Optional AI assistant (bring your own service) in the editor (ADR-019); SQL/regex/shell helpers to follow
 
 ## Release cadence
 

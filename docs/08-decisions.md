@@ -398,3 +398,37 @@ shells feed the same grid through a `Transport` enum (`Pty`, `Ssh`,
 for terminal glyphs, system font enumeration for UI/editor font pickers via
 `fontdb`. Fonts are embedded in the executable (`rust-embed`/`include_bytes!`)
 so the portable exe has no loose asset files.
+
+## ADR-019 · Optional AI assistant in the editor (bring your own service)
+
+**Context.** Q6 in [01](01-vision-and-scope.md) deferred an AI assistant
+past v1. On 2026-10-11 the owner asked for one in the editor: chat about the
+open file or a selected fragment, review it, and let the model change the
+code directly, iterating like an agent ("cascade"). The owner uses 1min.AI,
+and wants self-hosted LM Studio with several models as well.
+
+**Decision.**
+- `hs-core::ai` holds a small streaming client with two provider kinds:
+  **1min.AI** (its own API: `POST /api/chat-with-ai?isStreaming=true`, type
+  `UNIFY_CHAT_WITH_AI`, `API-KEY` header, SSE events `content`/`result`/
+  `done`/`error`; it takes one prompt, so the conversation is folded into a
+  transcript) and **OpenAI-compatible** (`POST {base}/chat/completions`,
+  bearer token optional, `GET {base}/models` for the model list). The second
+  covers OpenAI, LM Studio, Ollama, OpenRouter, vLLM and similar servers.
+  ChatPlayground AI publishes no developer API, so it cannot be a provider.
+- Several named providers live in `settings.toml` (`[ai]`), each with a
+  default model; keys are vault references (`secret:<ulid>`). A chat picks
+  any provider and model, so one LM Studio server with JIT loading serves
+  every downloaded model.
+- Models change code only through **SEARCH/REPLACE edit blocks** that the
+  editor parses, shows as diffs and applies on request (or automatically
+  in Cascade), each as one undo step. No tool calls are needed, so the same
+  flow works with 1min.AI, which has none. Cascade sends the updated file
+  back after applying and stops when the model answers DONE, when no edit
+  applies, or after `max_rounds`.
+- Nothing is sent until the user asks; the request runs on the runtime.
+
+**Consequences.** Code leaves the machine when a remote provider is used
+(the settings page says so and suggests a local server). Edits are applied
+to the buffer, never saved without the user. Other tools (SQL "explain this
+query") can reuse `hs-core::ai` later.

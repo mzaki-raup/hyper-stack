@@ -23,6 +23,8 @@ use hs_ui::fileicons;
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tree::{TreeNode, TreeState};
+
+mod ai_panel;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 
@@ -134,6 +136,7 @@ pub struct EditorTool {
     confirm_delete: Option<PathBuf>,
     preview_cache: (u64, String),
     tab_id: u64,
+    ai: ai_panel::AiPanel,
 }
 
 impl EditorTool {
@@ -184,6 +187,7 @@ impl EditorTool {
             confirm_delete: None,
             preview_cache: (u64::MAX, String::new()),
             tab_id: 0,
+            ai: ai_panel::AiPanel::default(),
         };
         t.state.preview = state.preview;
         if let Some(root) = state.root.clone().filter(|r| r.is_dir()) {
@@ -200,6 +204,14 @@ impl EditorTool {
             }
         }
         t
+    }
+
+    /// How the assistant names the open file: relative to the project.
+    fn ai_file_label(&self) -> String {
+        match &self.state.path {
+            Some(p) => self.relative(p),
+            None => "untitled".into(),
+        }
     }
 
     fn file_name(&self) -> String {
@@ -1182,6 +1194,18 @@ impl Tool for EditorTool {
             self.view.goto_open = true;
             self.view.goto_text.clear();
         }
+        ui.separator();
+        let mut ai_open = self.ai.open;
+        if ui
+            .toggle_value(
+                &mut ai_open,
+                format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+            )
+            .tip(s.t("ai-toggle-tip"))
+            .clicked()
+        {
+            self.ai.toggle();
+        }
         if self.view.language.is_markdown {
             ui.separator();
             ui.toggle_value(
@@ -1319,6 +1343,21 @@ impl Tool for EditorTool {
             .exact_size(22.0)
             .resizable(false)
             .show(ui, |ui| self.status_row(ui, cx));
+        if self.ai.open {
+            let mut ed = ai_panel::EditorCtx {
+                read_only: self.view.read_only,
+                file_label: self.ai_file_label(),
+                language: self.view.language.name,
+                buf: &mut self.buf,
+                cursors: &mut self.cursors,
+            };
+            let ai = &mut self.ai;
+            egui::Panel::right(self.view.id.with("ai"))
+                .default_size(380.0)
+                .size_range(260.0..=(ui.available_width() - 200.0).max(260.0))
+                .resizable(true)
+                .show(ui, |ui| ai.ui(ui, s, &theme, &mut ed));
+        }
         if self.state.preview && self.view.language.is_markdown {
             let w = ui.available_width() / 2.0;
             egui::Panel::right(self.view.id.with("preview"))
@@ -1360,6 +1399,10 @@ impl Tool for EditorTool {
                 Some("editor.preview"),
             ),
             c("editor.terminal_here", "Editor: Open Terminal Here", None),
+            c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
+            c("editor.ai_explain", "AI: Explain Selection or File", None),
+            c("editor.ai_review", "AI: Review Selection or File", None),
+            c("editor.ai_improve", "AI: Improve Selection or File", None),
         ]
     }
 
@@ -1391,6 +1434,22 @@ impl Tool for EditorTool {
                 if self.view.language.is_markdown {
                     self.state.preview = !self.state.preview;
                 }
+            }
+            "editor.ai" => self.ai.toggle(),
+            "editor.ai_explain" | "editor.ai_review" | "editor.ai_improve" => {
+                let prompt = match id {
+                    "editor.ai_explain" => "ai-explain-prompt",
+                    "editor.ai_review" => "ai-review-prompt",
+                    _ => "ai-improve-prompt",
+                };
+                let mut ed = ai_panel::EditorCtx {
+                    read_only: self.view.read_only,
+                    file_label: self.ai_file_label(),
+                    language: self.view.language.name,
+                    buf: &mut self.buf,
+                    cursors: &mut self.cursors,
+                };
+                self.ai.quick(cx.services, &mut ed, prompt);
             }
             "editor.terminal_here" => {
                 let dir = self

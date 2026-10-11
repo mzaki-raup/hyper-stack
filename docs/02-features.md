@@ -237,4 +237,4 @@ suggestion.
 | Import/export of everything except secrets as a folder of files; put `.hyperstack/` in a repo to share with a team | P0 | S |
 | Global search across saved queries, requests, hosts, buckets, snippets | P1 | M |
 | Plugin API (WASM, limited to devtools and importers first) | P2 | L |
-| Optional AI assistant hook (bring your own key) for "explain this query / write this regex" | Idea | M |
+| Optional AI assistant (bring your own service: 1min.AI, OpenAI-compatible, local LM Studio/Ollama): editor chat, review, edit blocks applied as diffs, Cascade rounds (ADR-019); SQL/regex helpers later | P1 (editor done) | M |

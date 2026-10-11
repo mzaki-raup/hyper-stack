@@ -141,4 +141,4 @@ not match the API tool's is a real class of incident.
 | Q3 | Should the editor get LSP support eventually? | Maybe, behind a feature flag; not before 1.0 |
 | Q4 | Name of the binary? | `HyperStack.exe` on Windows, `hyperstack` elsewhere; data in `HyperStackData/` beside the executable (ADR-017) |
 | Q5 | Licence? | MIT |
-| Q6 | Optional AI assistant (bring your own key) for SQL, regex, shell help? | Design the hook (command palette provider) but ship nothing in v1 |
+| Q6 | Optional AI assistant (bring your own key) for SQL, regex, shell help? | Revised 2026-10-11 (ADR-019): an opt-in assistant ships in the editor (1min.AI or any OpenAI-compatible service, including local LM Studio/Ollama); other tools may reuse it later |

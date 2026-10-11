@@ -9,7 +9,9 @@ environments and secrets across every tool.
 **Status: Phase 0 (foundation), M1 (terminal with search and links,
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
-(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next.** The
+(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. The
+editor also carries an optional AI assistant (ADR-019: 1min.AI or any
+OpenAI-compatible service such as LM Studio, `hs-core::ai`).** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
 `hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
 `tools/tool-s3`, `tools/tool-db`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
@@ -27,7 +29,7 @@ is done; releases are published automatically from `main`.
 | Portable data folder, workspace files, environments, vault, history db, importers | `docs/05-data-model-and-storage.md` |
 | Threat model, vault format, protected environments, destructive-action guards | `docs/06-security.md` |
 | Phases, milestones, checklists, risks | `docs/07-roadmap.md` (progress is tracked in `CHECKLIST.md`) |
-| Why each major choice was made (ADR-001 … ADR-018) | `docs/08-decisions.md` |
+| Why each major choice was made (ADR-001 … ADR-019) | `docs/08-decisions.md` |
 | CI, automatic releases, asset contract, in-app updater | `docs/09-ci-cd-and-updates.md`; live workflows in `.forgejo/workflows/`, scripts in `scripts/`, signing key notes in `keys/README.md` |
 | One design document per tool | `docs/tools/*.md` |
 | README screenshots and walkthrough GIF, and how to retake them | `docs/screenshots/` (`README.md` there) |
@@ -386,6 +388,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   selection, no double-click). Leave the builder's sense off and put
   `ui.interact(ui.max_rect(), id, Sense::click())` first in each cell,
   before the hover-only label (`tool-db::grid`).
+- `EditorView` keeps per-line highlight spans and used to drop them only
+  for edits it made itself, so a buffer changed from outside (the AI
+  assistant applying an edit) drew each changed line cut at its old length.
+  The view now invalidates the cache whenever the buffer version moved
+  behind its back; edit the buffer from anywhere, the view catches up.
 - egui drops keyboard focus on Escape before the tool runs, even when the
   tool then consumes the key (closing a completion list). Request focus for
   the editor again after handling such an Escape.
@@ -486,6 +493,19 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   psql form), which is what the grid wants; column types come from a
   separate `prepare` of the same statement and are only used for alignment
   and unquoted numbers.
+
+### AI assistant (hs-core::ai)
+- 1min.AI is not OpenAI-compatible: `POST https://api.1min.ai/api/chat-with-ai`
+  (`?isStreaming=true` for SSE) with an `API-KEY` header (no `Bearer`) and
+  `{"type":"UNIFY_CHAT_WITH_AI","model":…,"promptObject":{"prompt":…}}`; the
+  older `CHAT_WITH_AI` type on `/api/features` is gone. It takes one prompt,
+  so the conversation is folded into a transcript; there is no model-list
+  endpoint and no tool calling, which is why edits use SEARCH/REPLACE blocks
+  rather than tools. The SSE stream sends `content` pieces, then a `result`
+  record repeating the whole answer (ignore it unless nothing streamed).
+- Its docs host (`docs.1min.ai`) and `chatplayground.ai` do not resolve from
+  the cloud sandbox; test against a local mock server that speaks both SSE
+  formats (the OpenAI one ends with `data: [DONE]`).
 
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was

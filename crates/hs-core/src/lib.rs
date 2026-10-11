@@ -10,8 +10,10 @@
 //! - [`connections`] / [`environments`] / [`secrets`] — shared profiles, variables, vault
 //! - [`tunnels`] — the SSH port-forward service interface
 //! - [`objstore`] — SigV4 and the S3 client
+//! - [`ai`] — the optional AI assistant client (1min.AI, OpenAI-compatible)
 //! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
+pub mod ai;
 pub mod connections;
 pub mod environments;
 pub mod events;

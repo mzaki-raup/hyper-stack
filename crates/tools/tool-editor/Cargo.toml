@@ -20,3 +20,5 @@ tracing = { workspace = true }
 rfd = { workspace = true }
 notify = { workspace = true }
 parking_lot = { workspace = true }
+secrecy = { workspace = true }
+tokio = { workspace = true }

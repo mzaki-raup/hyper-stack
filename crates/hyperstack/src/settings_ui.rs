@@ -28,11 +28,12 @@ pub enum Page {
     Security,
     Terminal,
     Editor,
+    Ai,
     About,
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 9] {
+    pub fn all() -> [(Page, &'static str); 10] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -41,6 +42,7 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Terminal, "settings-terminal"),
             (Page::Editor, "settings-editor"),
+            (Page::Ai, "settings-ai"),
             (Page::Shortcuts, "settings-shortcuts"),
             (Page::About, "settings-about"),
         ]
@@ -57,6 +59,7 @@ impl Page {
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
+            Page::Ai => ph::SPARKLE,
             Page::About => ph::INFO,
         }
     }
@@ -101,6 +104,7 @@ pub struct SettingsState {
     pub shortcut_edit: HashMap<String, String>,
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
+    pub ai: crate::settings_ai::AiPageState,
 }
 
 /// The "Copy Variables From…" dialog on the Environments page: which source
@@ -174,6 +178,7 @@ pub fn page(
         Page::Security => security(ui, theme, services, effects),
         Page::Terminal => terminal(ui, theme, services, effects),
         Page::Editor => editor(ui, theme, services, effects),
+        Page::Ai => crate::settings_ai::page(ui, theme, services, &mut state.ai, effects),
         Page::About => about(ui, theme, services, effects),
     }
 }
@@ -262,20 +267,23 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             ui.end_row();
             form::label(ui, &s.t("settings-data-folder"));
             ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.monospace(s.paths.root().display().to_string());
-                    if ui
-                        .button(format!(
-                            "{} {}",
-                            hs_ui::icons::ph::FOLDER_OPEN,
-                            s.t("settings-data-open-folder")
-                        ))
-                        .tip(s.t("settings-data-open-folder-tip"))
-                        .clicked()
-                    {
-                        open_folder(s, s.paths.root());
-                    }
-                });
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(s.paths.root().display().to_string()).monospace(),
+                    )
+                    .wrap(),
+                );
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        s.t("settings-data-open-folder")
+                    ))
+                    .tip(s.t("settings-data-open-folder-tip"))
+                    .clicked()
+                {
+                    open_folder(s, s.paths.root());
+                }
                 if let Some(r) = &s.paths.fallback_reason {
                     ui.colored_label(theme.warning, r);
                 }
@@ -1870,7 +1878,7 @@ fn ssh_form(
 /// stored (vault locked, write failed): the caller must not save the
 /// profile then, or the typed text would reach the TOML file in plaintext.
 /// `{{variables}}` are references, not secrets, and stay as typed.
-fn store_typed_secrets<const N: usize>(
+pub(crate) fn store_typed_secrets<const N: usize>(
     s: &Services,
     profile_name: &str,
     fields: [(&str, &mut String); N],

@@ -6942,8 +6942,10 @@ dependencies = [
  "notify",
  "parking_lot",
  "rfd",
+ "secrecy",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
 ]
 

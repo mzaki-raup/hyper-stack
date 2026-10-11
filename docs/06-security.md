@@ -108,6 +108,12 @@ typed.
 - DB TLS: per-driver, surfaced with the same `ssl` modes vocabulary.
 - No outbound connection without user action except the opt-in update check,
   which fetches a signed manifest.
+- The AI assistant (ADR-019) sends only what the user chose (the selection,
+  the open file, or nothing) and only when the user asks or Cascade continues
+  a task the user started. Provider keys live in the vault; the settings
+  page warns that code leaves the machine and points to local servers (LM
+  Studio, Ollama). Edits the model proposes change the buffer, never the
+  file on disk, and a read-only or protected buffer refuses them.
 
 ## 6. Scripts (API tests, pre/post request)
 

@@ -206,6 +206,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("file.open", "Ctrl+O"),
     ("file.new", "Ctrl+N"),
     ("editor.preview", "Ctrl+Shift+M"),
+    ("editor.ai", "Ctrl+Shift+I"),
     ("run", "Ctrl+Enter"),
     ("run.alt", "F5"),
     ("db.run_script", "Ctrl+Shift+Enter"),

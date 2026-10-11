@@ -18,6 +18,7 @@ pub struct Settings {
     pub security: Security,
     pub terminal: Terminal,
     pub editor: Editor,
+    pub ai: Ai,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -80,6 +81,7 @@ impl Default for Settings {
             security: Security::default(),
             terminal: Terminal::default(),
             editor: Editor::default(),
+            ai: Ai::default(),
         }
     }
 }
@@ -112,6 +114,66 @@ pub struct Editor {
     pub insert_final_newline: bool,
     /// Reload an unmodified buffer silently when the file changes on disk.
     pub auto_reload: bool,
+}
+
+/// The optional AI assistant (ADR-019): the services it may call. Nothing
+/// is sent anywhere until the user adds a provider and asks something.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Ai {
+    pub providers: Vec<AiProvider>,
+    /// `AiProvider::id` used for a new chat; empty = the first one.
+    pub default_provider: String,
+    /// How many rounds Cascade may run on its own before it stops and asks.
+    pub max_rounds: u32,
+}
+
+impl Default for Ai {
+    fn default() -> Self {
+        Self {
+            providers: Vec::new(),
+            default_provider: String::new(),
+            max_rounds: 4,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct AiProvider {
+    pub id: String,
+    pub name: String,
+    pub kind: crate::ai::Provider,
+    /// Empty = the kind's default endpoint.
+    pub base_url: String,
+    /// `secret:<ulid>` in the vault, or empty for a local server without one.
+    pub api_key: String,
+    /// The model a new chat starts with.
+    pub model: String,
+}
+
+impl Ai {
+    /// The provider a new chat uses.
+    pub fn chosen(&self) -> Option<&AiProvider> {
+        self.providers
+            .iter()
+            .find(|p| p.id == self.default_provider)
+            .or(self.providers.first())
+    }
+}
+
+impl AiProvider {
+    pub fn config(&self, model: &str) -> crate::ai::AiConfig {
+        crate::ai::AiConfig {
+            provider: self.kind,
+            base_url: self.base_url.clone(),
+            model: if model.is_empty() {
+                self.model.clone()
+            } else {
+                model.to_string()
+            },
+        }
+    }
 }
 
 impl Default for Editor {

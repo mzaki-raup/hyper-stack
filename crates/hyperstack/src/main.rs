@@ -7,6 +7,7 @@ mod bootstrap;
 mod dock;
 mod launcher;
 mod self_test;
+mod settings_ai;
 mod settings_ui;
 mod tabspace;
 mod tools;

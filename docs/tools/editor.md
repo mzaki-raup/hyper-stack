@@ -188,3 +188,28 @@ format on save, file exclusions for search, large-file threshold.
 - Benchmarks: open 100 MB, type at end of 100 MB, find across 100 MB.
 - Reference points when designing: Lapce (`floem` editor core), Zed, Helix
   (selection model), CodeMirror 6 (view virtualisation).
+
+## 10. AI assistant (ADR-019)
+
+- **Panel**: toolbar **AI Assistant** or Ctrl+Shift+I opens a resizable
+  panel on the right. A chat picks a provider and model (Settings → AI
+  Assistant lists providers: 1min.AI or OpenAI-compatible such as OpenAI,
+  LM Studio, Ollama, OpenRouter; Fetch Models asks an OpenAI-compatible
+  server for its list; Test Connection sends a one-line question).
+- **Context**: Auto (the selection when there is one, else the whole file),
+  Whole File, Selection Only or No Code. Only the newest request carries the
+  code; earlier ones are reduced to their text. Files over 120 000
+  characters are cut with a note.
+- **Quick actions**: Explain, Review, Improve, Add Comments (also palette
+  commands `AI: Explain/Review/Improve Selection or File`).
+- **Edits**: the system prompt asks for SEARCH/REPLACE blocks. Each block
+  is drawn as a diff (red removed, green added) with Apply / Reject and
+  Apply All. The block is located exactly (once) or line by line ignoring
+  indentation and trailing spaces; a block that matches nowhere or twice is
+  marked Not Applied. An applied block is one undo step. Code fences in
+  answers get Copy and Insert at Cursor.
+- **Cascade** (toggle): blocks are applied automatically and the updated
+  file is sent back ("continue or answer DONE") until DONE, no block
+  applies, or Settings → AI Assistant → Maximum Rounds (default 4).
+- The request streams on the runtime; Stop aborts it. Read-only buffers
+  refuse edits. Keys come from the vault (unlock first).

@@ -106,6 +106,8 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Pending | |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | Pending | |
 | Editor: tree-sitter, minimap, snippets, formatter, three-way merge | Pending | |
+| Editor: AI assistant (1min.AI / OpenAI-compatible, edit blocks, Cascade; ADR-019) | Completed | 2026-10-11, owner's request ahead of the roadmap: chat with file/selection context, diffs with Apply/Reject (one undo step each), Cascade rounds, Settings → AI Assistant with several providers, Fetch Models and Test Connection; exercised in the app against a mock server speaking both the 1min.AI and the OpenAI SSE formats; API key stored in the vault and the data folder grepped clean. Not yet tried against the live 1min.AI service or a real LM Studio |
+| Editor: several project roots, each with its own editor tabs | Pending | design proposed 2026-10-11 |
 | Git: log graph, blame, merge/rebase/cherry-pick, conflicts | Pending | |
 | SSH: port-forward UI, broadcast, server monitor | Pending | |
 | S3: metadata/tags/versions, sync, policy viewer | Pending | |

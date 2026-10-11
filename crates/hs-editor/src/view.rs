@@ -197,9 +197,9 @@ impl EditorView {
     ) -> EditorResponse {
         let mut resp = EditorResponse::default();
         if buf.version() != self.last_version {
-            if self.last_version == u64::MAX {
-                self.highlighter.invalidate_all();
-            }
+            // Changed outside the view (a new file, the AI assistant, a
+            // reload): the cached highlight spans no longer match the lines.
+            self.highlighter.invalidate_all();
             self.last_version = buf.version();
         }
         self.highlighter.set_dark(theme.dark);

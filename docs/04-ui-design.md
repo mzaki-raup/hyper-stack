@@ -240,8 +240,8 @@ body, so settings can sit next to the tool being configured and survive a
 restart like any other tab. Owner's request, 2026-10-11.
 
 Order: General (startup workspace, restore tabs, language) · Appearance ·
-Environments · Security · Connections · Terminal · Editor ·
-Shortcuts · About, which also holds **Updates** (installed version with
+Environments · Security · Connections · Terminal · Editor · AI Assistant
+(providers, models, Cascade rounds; ADR-019) · Shortcuts · About, which also holds **Updates** (installed version with
 sha/date/channel, channel, automatic check, check now, release notes,
 download/install, revert; see [09](09-ci-cd-and-updates.md) §5.1). The About
 → Installed card also shows the data folder with **Open Data Folder**, which

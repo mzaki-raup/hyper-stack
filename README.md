@@ -22,7 +22,9 @@ and theme.
 > links, a code editor with project tree and Markdown preview (with native
 > Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port
 > forwarding, an S3 browser for AWS and S3-compatible stores, a SQL client for
-> PostgreSQL, MySQL/MariaDB and SQLite, and the in-app updater with signed
+> PostgreSQL, MySQL/MariaDB and SQLite, an optional AI assistant in the
+> editor (1min.AI, LM Studio, Ollama or any OpenAI-compatible service), and
+> the in-app updater with signed
 > releases. NoSQL, Redis, API client, Git and logs follow in the next
 > milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
@@ -77,8 +79,10 @@ made.
 | **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
-| ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | |
-| **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | |
+| ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
+| **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
+| ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
+| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — 1min.AI or any OpenAI-compatible server (OpenAI, local LM Studio or Ollama with every downloaded model, OpenRouter); keys in the vault |
 
 ### Terminal
 

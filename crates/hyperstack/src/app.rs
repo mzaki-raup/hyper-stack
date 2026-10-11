@@ -30,6 +30,39 @@ use crate::launcher::{self, LauncherState};
 use crate::settings_ui::{self, SettingsEffect, SharedSettings};
 use crate::tabspace::TabSpace;
 
+/// The workspace create/delete modal.
+#[derive(Default)]
+enum WorkspaceDialog {
+    #[default]
+    None,
+    New {
+        name: String,
+        /// Workspace to seed environments and connections from, by name.
+        /// `None` starts empty.
+        copy_from: Option<String>,
+        /// Logo file the user picked, copied into the workspace on create.
+        icon: Option<std::path::PathBuf>,
+    },
+    ConfirmDelete {
+        name: String,
+        delete_files: bool,
+    },
+}
+
+/// An `egui` image for a logo file, read as bytes and decoded by the installed
+/// PNG/SVG loaders (keyed by the path so it is cached after the first frame).
+/// Returns `None` when the file is missing or unreadable.
+fn logo_image(path: &std::path::Path) -> Option<egui::Image<'static>> {
+    let bytes = std::fs::read(path).ok()?;
+    let uri = path.display().to_string().replace('\\', "/");
+    Some(egui::Image::from_bytes(uri, bytes))
+}
+
+/// The workspace logo image for a workspace folder, if it has one.
+fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'static>> {
+    logo_image(&hs_core::workspace::workspace_icon_file(root)?)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum VaultDialog {
     None,
@@ -67,6 +100,7 @@ pub struct HyperStackApp {
     fallback_notice_open: bool,
     first_frame_done: bool,
     confirm_revert: bool,
+    workspace_dialog: WorkspaceDialog,
     update_badge: Option<String>,
 }
 
@@ -131,6 +165,7 @@ impl HyperStackApp {
             pending_actions: Vec::new(),
             first_frame_done: false,
             confirm_revert: false,
+            workspace_dialog: WorkspaceDialog::None,
             update_badge: None,
         };
         if let Some(e) = boot.settings_error {
@@ -557,6 +592,13 @@ impl HyperStackApp {
             "terminal.new" => self.open_tool("terminal", None),
             "app.settings" => self.open_settings(None),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
+            "ws.new" => {
+                self.workspace_dialog = WorkspaceDialog::New {
+                    name: String::new(),
+                    copy_from: None,
+                    icon: None,
+                }
+            }
             "app.shortcuts" => self.open_settings(Some(settings_ui::Page::Shortcuts)),
             "vault.lock" => {
                 self.services.secrets.lock();
@@ -594,6 +636,11 @@ impl HyperStackApp {
                         env_id: self.services.environments.read().active.clone(),
                     });
                     self.tabs.dirty = true;
+                } else if let Some(ws) = other.strip_prefix("ws.delete:") {
+                    self.workspace_dialog = WorkspaceDialog::ConfirmDelete {
+                        name: ws.to_string(),
+                        delete_files: false,
+                    };
                 } else if let Some(ws) = other.strip_prefix("ws:") {
                     self.save_layout();
                     match bootstrap::switch_workspace(&self.services, &mut self.registry, ws) {
@@ -764,7 +811,7 @@ impl HyperStackApp {
                     items.push(PaletteItem {
                         id: format!("conn:{}", c.id),
                         title: c.name.clone(),
-                        subtitle: Some(c.kind.clone()),
+                        subtitle: Some(hs_core::connections::kind_label(&c.kind).to_string()),
                         icon: None,
                         shortcut: None,
                     });
@@ -894,6 +941,210 @@ impl HyperStackApp {
         }
     }
 
+    /// New Workspace and Delete Workspace modals.
+    fn workspace_dialogs(&mut self, ctx: &egui::Context) {
+        let s = self.services.clone();
+        let theme = self.theme.clone();
+        match &mut self.workspace_dialog {
+            WorkspaceDialog::None => {}
+            WorkspaceDialog::New {
+                name,
+                copy_from,
+                icon,
+            } => {
+                let mut create = false;
+                let mut cancel = false;
+                let ws_names = self.registry.names();
+                let modal = egui::Modal::new(egui::Id::new("hs-ws-new")).show(ctx, |ui| {
+                    ui.set_width(440.0);
+                    ui.heading(s.t("workspace-new-title"));
+                    ui.add_space(6.0);
+                    hs_ui::form::hint(ui, &theme, &s.t("workspace-new-hint"));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("workspace-name"));
+                        let r = hs_ui::form::text_field(ui, name, &s.t("workspace-name-hint"));
+                        r.request_focus();
+                        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                            create = true;
+                        }
+                    });
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("workspace-logo"));
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 6.0, theme.surface);
+                        if let Some(img) = icon.as_ref().and_then(|p| logo_image(p)) {
+                            img.fit_to_exact_size(egui::vec2(36.0, 36.0))
+                                .paint_at(ui, rect.shrink(2.0));
+                        } else {
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                hs_ui::icons::WORKSPACE,
+                                egui::FontId::proportional(20.0),
+                                theme.text_muted,
+                            );
+                        }
+                        ui.add_space(6.0);
+                        if ui.button(s.t("workspace-logo-choose")).clicked()
+                            && let Some(p) = rfd::FileDialog::new()
+                                .add_filter("Image", hs_core::workspace::ICON_EXTS)
+                                .pick_file()
+                        {
+                            *icon = Some(p);
+                        }
+                        if icon.is_some() && ui.button(s.t("workspace-logo-remove")).clicked() {
+                            *icon = None;
+                        }
+                    });
+                    ui.add_space(2.0);
+                    hs_ui::form::hint(ui, &theme, &s.t("workspace-logo-hint"));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("workspace-copy-from"));
+                        let none = s.t("workspace-copy-none");
+                        let selected = copy_from.clone().unwrap_or_else(|| none.clone());
+                        egui::ComboBox::from_id_salt("ws-copy-from")
+                            .selected_text(selected)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(copy_from, None, &none);
+                                for n in &ws_names {
+                                    ui.selectable_value(copy_from, Some(n.clone()), n);
+                                }
+                            });
+                    });
+                    ui.add_space(2.0);
+                    hs_ui::form::hint(ui, &theme, &s.t("workspace-copy-from-hint"));
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if hs_ui::form::primary_button(ui, &theme, &s.t("workspace-create"))
+                            .clicked()
+                        {
+                            create = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            cancel = true;
+                        }
+                    });
+                });
+                if modal.should_close() {
+                    cancel = true;
+                }
+                if create && !name.trim().is_empty() {
+                    let name = name.trim().to_string();
+                    let copy_from = copy_from.clone();
+                    let icon = icon.clone();
+                    self.workspace_dialog = WorkspaceDialog::None;
+                    self.create_workspace(&name, copy_from.as_deref(), icon.as_deref());
+                } else if cancel {
+                    self.workspace_dialog = WorkspaceDialog::None;
+                }
+            }
+            WorkspaceDialog::ConfirmDelete { name, delete_files } => {
+                let name = name.clone();
+                let mut files = *delete_files;
+                let mut decide: Option<bool> = None;
+                let modal = egui::Modal::new(egui::Id::new("hs-ws-del")).show(ctx, |ui| {
+                    ui.set_width(440.0);
+                    ui.heading(s.t("workspace-delete-title"));
+                    ui.add_space(6.0);
+                    ui.label(s.i18n.t_args("workspace-delete-body", &[("name", &name)]));
+                    ui.add_space(6.0);
+                    ui.checkbox(&mut files, s.t("workspace-delete-files"));
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if hs_ui::form::danger_button(ui, &theme, &s.t("delete")).clicked() {
+                            decide = Some(true);
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            decide = Some(false);
+                        }
+                    });
+                });
+                if let WorkspaceDialog::ConfirmDelete { delete_files, .. } =
+                    &mut self.workspace_dialog
+                {
+                    *delete_files = files;
+                }
+                if modal.should_close() && decide.is_none() {
+                    decide = Some(false);
+                }
+                match decide {
+                    Some(true) => {
+                        self.workspace_dialog = WorkspaceDialog::None;
+                        self.delete_workspace(&name, files);
+                    }
+                    Some(false) => self.workspace_dialog = WorkspaceDialog::None,
+                    None => {}
+                }
+            }
+        }
+    }
+
+    fn create_workspace(
+        &mut self,
+        name: &str,
+        copy_from: Option<&str>,
+        icon: Option<&std::path::Path>,
+    ) {
+        // Load the chosen source workspace read-only (never through
+        // `Registry::open`, which would move `last_opened`).
+        let source = copy_from.and_then(|src| {
+            if src == self.services.workspace.read().meta.name {
+                return Some(self.services.workspace.read().clone());
+            }
+            let entry = self.registry.workspaces.iter().find(|w| w.name == src)?;
+            let root = self.services.paths.resolve_path(&entry.path);
+            hs_core::workspace::Workspace::open_or_create(&root, src).ok()
+        });
+        let result = self
+            .registry
+            .create(&self.services.paths, name, source.as_ref(), icon);
+        match result {
+            Ok(_) => {
+                self.save_layout();
+                match bootstrap::switch_workspace(&self.services, &mut self.registry, name) {
+                    Ok(()) => {
+                        self.tabs = TabSpace::new();
+                        self.restore_layout();
+                        self.toasts.push(
+                            ToastLevel::Success,
+                            self.services
+                                .i18n
+                                .t_args("workspace-created", &[("name", name)]),
+                        );
+                    }
+                    Err(e) => self.toasts.push(ToastLevel::Error, e),
+                }
+            }
+            Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+        }
+    }
+
+    fn delete_workspace(&mut self, name: &str, delete_files: bool) {
+        let switch_away = self.services.workspace.read().meta.name == name;
+        if switch_away {
+            self.save_layout();
+            let _ = bootstrap::switch_workspace(&self.services, &mut self.registry, "default");
+            self.tabs = TabSpace::new();
+            self.restore_layout();
+        }
+        match self
+            .registry
+            .remove(&self.services.paths, name, delete_files)
+        {
+            Ok(()) => self.toasts.push(
+                ToastLevel::Success,
+                self.services
+                    .i18n
+                    .t_args("workspace-deleted", &[("name", name)]),
+            ),
+            Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+        }
+    }
+
     fn vault_dialogs(&mut self, ctx: &egui::Context) {
         let s = self.services.clone();
         match self.vault_dialog {
@@ -1009,21 +1260,69 @@ impl HyperStackApp {
                     ui.add_space(8.0);
                     // Workspace switcher
                     let ws_name = s.workspace.read().meta.name.clone();
+                    let ws_root = s.workspace.read().root().to_path_buf();
+                    if let Some(img) = ws_logo_image(&ws_root) {
+                        ui.add(img.fit_to_exact_size(egui::vec2(18.0, 18.0)));
+                    }
                     egui::ComboBox::from_id_salt("ws")
                         .selected_text(format!("{} {}", hs_ui::icons::WORKSPACE, ws_name))
                         .show_ui(ui, |ui| {
-                            let names: Vec<String> = self
+                            let rows: Vec<(String, std::path::PathBuf)> = self
                                 .registry
                                 .workspaces
                                 .iter()
-                                .map(|w| w.name.clone())
+                                .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
                                 .collect();
-                            for n in names {
-                                if ui.selectable_label(n == ws_name, &n).clicked() && n != ws_name {
-                                    self.pending_actions.push(Action::RunCommand {
-                                        id: format!("ws:{n}"),
-                                    });
-                                }
+                            for (n, root) in rows {
+                                ui.horizontal(|ui| {
+                                    match ws_logo_image(&root) {
+                                        Some(img) => {
+                                            ui.add(img.fit_to_exact_size(egui::vec2(16.0, 16.0)));
+                                        }
+                                        None => {
+                                            ui.label(hs_ui::icons::WORKSPACE);
+                                        }
+                                    }
+                                    if ui.selectable_label(n == ws_name, &n).clicked()
+                                        && n != ws_name
+                                    {
+                                        self.pending_actions.push(Action::RunCommand {
+                                            id: format!("ws:{n}"),
+                                        });
+                                    }
+                                    if n != "default" {
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                if ui
+                                                    .add(
+                                                        egui::Button::new(hs_ui::icons::TRASH)
+                                                            .frame(false),
+                                                    )
+                                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                                    .clicked()
+                                                {
+                                                    self.pending_actions.push(Action::RunCommand {
+                                                        id: format!("ws.delete:{n}"),
+                                                    });
+                                                    ui.close();
+                                                }
+                                            },
+                                        );
+                                    }
+                                });
+                            }
+                            ui.separator();
+                            if ui
+                                .selectable_label(
+                                    false,
+                                    format!("{} {}", hs_ui::icons::TAB_NEW, s.t("workspace-new")),
+                                )
+                                .clicked()
+                            {
+                                self.pending_actions.push(Action::RunCommand {
+                                    id: "ws.new".into(),
+                                });
                             }
                         });
                     // Environment switcher
@@ -1855,6 +2154,7 @@ impl eframe::App for HyperStackApp {
             }
         }
         self.vault_dialogs(ctx);
+        self.workspace_dialogs(ctx);
         self.handle_pending_actions();
         self.toasts.show(ctx, &self.theme);
 

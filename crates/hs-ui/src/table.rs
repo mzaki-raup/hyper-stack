@@ -165,7 +165,9 @@ impl DataTable<'_> {
                         });
                     }
                     row.col(|_| {});
-                    let r = row.response();
+                    let r = row
+                        .response()
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
                     if r.clicked() {
                         state.selected = Some(data_idx);
                         resp.clicked = Some(data_idx);

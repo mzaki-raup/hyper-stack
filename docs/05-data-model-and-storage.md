@@ -75,6 +75,7 @@ user points a workspace at a repo's `.hyperstack/` folder:
 ```
 <workspace>/
 ├── workspace.toml               # id, name, created, default environment, protected envs
+├── icon.png                     # optional workspace logo (icon.<ext>); travels with the folder
 ├── environments/
 │   ├── dev.toml
 │   ├── staging.toml
@@ -101,6 +102,20 @@ user points a workspace at a repo's `.hyperstack/` folder:
 Files that end in `.local.toml` override the same-named file and are gitignored,
 so a team can commit `staging.toml` while each member keeps a `staging.local.toml`
 with their own username.
+
+A workspace is the project boundary. The workspace menu in the title bar
+creates a new workspace (optionally seeding its `environments/` and
+`connections/` from any existing workspace chosen in the dialog, and giving it
+a logo), switches between them — saving the leaving workspace's layout and
+restoring the entered one's tabs and pinned connections — and deletes one, with
+an option to remove its folder. The built-in `default` workspace cannot be
+deleted, and a delete only ever removes files inside
+`HyperStackData/workspaces/`.
+
+A workspace logo is an image file stored in the workspace folder as
+`icon.<ext>` (PNG, ICO, JPG, BMP, GIF, WEBP or SVG). Because it lives inside
+the portable folder, copying the workspace to another machine carries its logo.
+The menu and the switcher show it.
 
 ## 2. Core entities
 
@@ -177,7 +192,20 @@ docker = "01J9ZXE…"
 
 ### 2.4 Variable substitution
 
-Syntax `{{name}}`; scopes resolve innermost first:
+Syntax `{{name}}`; scopes resolve innermost first. Environment-aware text
+fields (`hs_ui::varfield`) open an autocomplete when the caret enters an
+unclosed `{{`: the active environment's variables are fuzzy-matched, a key is
+picked with the mouse or the arrow keys plus Enter, and a brand-new variable
+can be defined inline (key and value) and is written straight to the active
+environment. The SSH connection form uses it for host, user, remote directory
+and startup command; other tools adopt it as they are built.
+
+The Environments settings page can also copy variables between environments
+with "Copy Variables From…": it reads any environment in any workspace (the
+current workspace's live, others loaded from their folder), compares the
+source keys against the environment being edited, marks each as new or
+already-present, and copies the multi-selected keys in (missing keys ticked by
+default, existing values left untouched unless re-ticked).
 
 ```
 request / query literal  →  collection vars  →  environment  →  parent environment  →  workspace globals  →  built-ins

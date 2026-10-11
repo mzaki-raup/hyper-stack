@@ -10,6 +10,43 @@ use crate::storage;
 
 pub const SCHEMA: u32 = 1;
 
+/// The connection kinds the app knows, in the order they appear in pickers.
+/// The id (lowercase) is what is stored; [`kind_label`] gives the display text.
+pub const KINDS: &[&str] = &[
+    "db",
+    "ssh",
+    "s3",
+    "api",
+    "docker",
+    "k8s",
+    "redis",
+    "mongodb",
+    "couchdb",
+    "elasticsearch",
+    "dynamodb",
+    "cassandra",
+];
+
+/// Display label for a connection kind id ("db" → "DB", "mongodb" → "MongoDB").
+/// Unknown kinds are returned unchanged so custom ids still show.
+pub fn kind_label(kind: &str) -> &str {
+    match kind {
+        "db" => "DB",
+        "ssh" => "SSH",
+        "s3" => "S3",
+        "api" => "API",
+        "docker" => "Docker",
+        "k8s" => "K8s",
+        "redis" => "Redis",
+        "mongodb" => "MongoDB",
+        "couchdb" => "CouchDB",
+        "elasticsearch" => "Elasticsearch",
+        "dynamodb" => "DynamoDB",
+        "cassandra" => "Cassandra",
+        other => other,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ConnectionProfile {

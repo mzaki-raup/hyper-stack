@@ -120,6 +120,7 @@ pub struct SshTool {
     state: State,
     status: Status,
     shared: Arc<Mutex<Shared>>,
+    runtime: hs_core::runtime::AppRuntime,
     known_hosts: Arc<KnownHosts>,
     session: Option<Session>,
     view: TerminalView,
@@ -148,6 +149,7 @@ impl SshTool {
             state,
             status: Status::Idle,
             shared: Arc::new(Mutex::new(Shared::default())),
+            runtime: services.runtime.clone(),
             known_hosts,
             session: None,
             view,
@@ -295,7 +297,7 @@ impl SshTool {
         self.shared.lock().sftp = None;
         self.status = Status::Disconnected;
         if let Some(c) = client {
-            tokio::spawn(async move {
+            self.runtime.spawn(async move {
                 c.disconnect().await;
             });
         }
@@ -785,11 +787,7 @@ impl SshTool {
             show_filter: false,
             copy_row_label: &copy_label,
         };
-        let resp = egui::ScrollArea::both()
-            .id_salt(self.view.id.with("remote-table"))
-            .auto_shrink([false, false])
-            .show(ui, |ui| table.show(ui, &mut self.table))
-            .inner;
+        let resp = table.show(ui, &mut self.table);
         // Map table row (shown index) back to the entry index.
         let to_entry = |i: usize| shown.get(i).map(|(idx, _)| *idx);
         if let Some(i) = resp.clicked {
@@ -1056,57 +1054,85 @@ impl Tool for SshTool {
         self.hostkey_dialog(ui, &theme, s);
         self.prompts(ui, &theme, cx);
 
-        // Layout: file pane left, shell right, both resizable.
-        let total = ui.available_width();
-        egui::Panel::left(self.view.id.with("files"))
-            .default_size((total * 0.45).round())
-            .size_range(260.0..=(total - 300.0).max(300.0))
-            .resizable(true)
-            .show(ui, |ui| {
-                if self.shared.lock().sftp.is_some() {
-                    self.file_pane(ui, &theme, cx);
-                } else {
-                    ui.add_space(12.0);
-                    form::note(ui, &theme, ph::INFO, &s.t("ssh-no-sftp-yet"));
-                }
-            });
+        // Layout: a straight 50/50 split of the tool's width — file pane on the
+        // left, shell on the right. Both panes are carved into fixed
+        // sub-rectangles of exactly half the available width and clipped to
+        // them, so neither pane's content can push the divider or feed back into
+        // the split (an overfull file table clips instead of growing). The
+        // split is recomputed from the available rect every frame, so it tracks
+        // the workspace width.
         let term_theme = TermTheme::for_theme(&theme);
-        match (&mut self.session, &self.status) {
-            (Some(sess), _) => {
-                self.view.show(ui, sess, &term_theme);
-            }
-            (None, Status::Connecting) => {
-                ui.add_space(24.0);
-                ui.vertical_centered(|ui| {
-                    ui.spinner();
-                    ui.label(
-                        s.i18n
-                            .t_args("ssh-connecting-to", &[("host", &self.conn_name)]),
-                    );
-                });
-            }
-            (None, Status::Failed(e)) => {
-                let e = e.clone();
-                ui.add_space(24.0);
-                ui.vertical_centered(|ui| {
-                    ui.colored_label(theme.error, e);
-                    ui.add_space(8.0);
-                    if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
-                        self.connect(s);
-                    }
-                });
-            }
-            (None, _) => {
-                ui.add_space(24.0);
-                ui.vertical_centered(|ui| {
-                    if self.state.conn_id.is_none() {
-                        ui.label(egui::RichText::new(s.t("ssh-pick-host")).weak());
-                    } else if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
-                        self.connect(s);
-                    }
-                });
+        let sftp_ready = self.shared.lock().sftp.is_some();
+        let full = ui.available_rect_before_wrap();
+        let gap = 7.0;
+        let file_w = ((full.width() - gap) * 0.5).floor().max(240.0);
+        let file_rect = egui::Rect::from_min_size(full.min, egui::vec2(file_w, full.height()));
+        let sep_x = (full.min.x + file_w + gap * 0.5).round();
+        let term_rect =
+            egui::Rect::from_min_max(egui::pos2(full.min.x + file_w + gap, full.min.y), full.max);
+
+        let mut file_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(file_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        file_ui.set_clip_rect(file_rect.intersect(ui.clip_rect()));
+        if sftp_ready {
+            self.file_pane(&mut file_ui, &theme, cx);
+        } else {
+            file_ui.add_space(12.0);
+            form::note(&mut file_ui, &theme, ph::INFO, &s.t("ssh-no-sftp-yet"));
+        }
+
+        ui.painter()
+            .vline(sep_x, full.y_range(), egui::Stroke::new(1.0, theme.border));
+
+        let mut term_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(term_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        term_ui.set_clip_rect(term_rect.intersect(ui.clip_rect()));
+        {
+            let ui = &mut term_ui;
+            match (&mut self.session, &self.status) {
+                (Some(sess), _) => {
+                    self.view.show(ui, sess, &term_theme);
+                }
+                (None, Status::Connecting) => {
+                    ui.add_space(24.0);
+                    ui.vertical_centered(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            s.i18n
+                                .t_args("ssh-connecting-to", &[("host", &self.conn_name)]),
+                        );
+                    });
+                }
+                (None, Status::Failed(e)) => {
+                    let e = e.clone();
+                    ui.add_space(24.0);
+                    ui.vertical_centered(|ui| {
+                        ui.colored_label(theme.error, e);
+                        ui.add_space(8.0);
+                        if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
+                            self.connect(s);
+                        }
+                    });
+                }
+                (None, _) => {
+                    ui.add_space(24.0);
+                    ui.vertical_centered(|ui| {
+                        if self.state.conn_id.is_none() {
+                            ui.label(egui::RichText::new(s.t("ssh-pick-host")).weak());
+                        } else if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
+                            self.connect(s);
+                        }
+                    });
+                }
             }
         }
+        ui.allocate_rect(full, egui::Sense::hover());
         if self.status == Status::Connecting || self.shared.lock().remote.loading {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(200));

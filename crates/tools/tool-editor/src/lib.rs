@@ -374,7 +374,7 @@ impl EditorTool {
             dlg = dlg.set_directory(dir);
         }
         if let Some(path) = dlg.pick_file() {
-            self.open_path(path, cx);
+            self.open_path(path, None, cx);
         }
     }
 
@@ -388,8 +388,9 @@ impl EditorTool {
         }
     }
 
-    /// Open `path` here when this tab is empty, otherwise in a new editor tab.
-    fn open_path(&mut self, path: PathBuf, cx: &mut ToolContext) {
+    /// Open `path` here when this tab is empty, otherwise in a new editor tab
+    /// (which then jumps to `line`).
+    fn open_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
         if path.is_dir() {
             self.set_root(path, cx.services);
             return;
@@ -417,7 +418,7 @@ impl EditorTool {
                 "editor",
                 Some(OpenRequest::File {
                     uri: path.to_string_lossy().to_string(),
-                    line: None,
+                    line,
                 }),
             );
         }
@@ -834,7 +835,7 @@ impl EditorTool {
                 }
             };
             match result {
-                Ok(Some(new_file)) => self.open_path(new_file, cx),
+                Ok(Some(new_file)) => self.open_path(new_file, None, cx),
                 Ok(None) => {}
                 Err(e) => cx.toast(ToastLevel::Error, e),
             }
@@ -1235,7 +1236,7 @@ impl Tool for EditorTool {
         if let Some(id) = resp.clicked {
             let p = PathBuf::from(&id);
             if p.is_file() {
-                self.open_path(p, cx);
+                self.open_path(p, None, cx);
             }
         }
         if let Some(id) = resp.double_clicked {
@@ -1399,7 +1400,7 @@ impl Tool for EditorTool {
         match item {
             OpenRequest::File { uri, line } => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
-                self.open_path(path.clone(), cx);
+                self.open_path(path.clone(), line, cx);
                 if let Some(l) = line
                     && self.state.path.as_deref() == Some(path.as_path())
                 {

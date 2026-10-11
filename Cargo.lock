@@ -2751,6 +2751,7 @@ dependencies = [
  "hs-ui",
  "parking_lot",
  "portable-pty",
+ "regex",
  "serde",
  "tracing",
 ]

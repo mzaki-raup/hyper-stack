@@ -46,7 +46,24 @@ Font fallback) but no code is taken from them.
   select option, **right-click copies the selection or pastes when nothing is
   selected (PuTTY convention, default on)**, URL/path detection with
   regexes for `file:line:col`, Windows paths, URLs, git SHAs (→ Git tool).
+  *Implemented (`hs-term::links`):* URLs (`http`, `https`, `ftp`, `file`)
+  and paths with `:line[:col]` or MSBuild's `(line,col)` suffix; a bare
+  path needs an anchor (`/`, `./`, `../`, `~/`, `C:\`), an extension or a
+  position, so prose such as "and/or" or "3:4" never matches. Holding Ctrl
+  underlines the link under the pointer; Ctrl+click opens a URL in the
+  browser, a file in the editor at that line (the column is not passed on
+  yet), or a folder in a new terminal. Relative paths resolve against the
+  folder in a `user@host: dir` window title (the default bash/zsh prompt
+  title), then the tab's start folder, then the workspace folder; a path
+  that resolves nowhere shows a toast. Git SHAs wait for the Git tool.
+  Detection runs per grid row, so a link split by a soft wrap is not found.
 - **Search**: Ctrl+Shift+F in scrollback with highlights, regex, case.
+  *Implemented (`hs-term::search`):* a find bar in the terminal toolbar
+  (also the **Find** button and the `terminal.find` palette command, seeded
+  with a one-line selection); Aa and .* toggles; every hit highlighted, the
+  current one stronger, with an "n of m" counter (capped at 1000+); Enter
+  steps to the older hit, Shift+Enter to the newer, Escape closes and
+  returns to the bottom. Like links, matching is per grid row.
 - **Shell profiles**: detection of PowerShell 7/5, cmd (with Clink if
   present), Git Bash, WSL distributions, MSYS2; on Unix `$SHELL`, bash, zsh,
   fish, nushell; profile fields: executable, args, env, cwd policy (project /

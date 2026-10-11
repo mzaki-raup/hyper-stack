@@ -11,6 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- Terminal: search the scrollback with Ctrl+Shift+F (or the Find button): plain or regex, match case, every hit highlighted, "n of m", Enter/Shift+Enter to step.
+- Terminal: Ctrl+click opens links — URLs in the browser, `path:line:col` locations (compiler errors, panics, MSBuild) in the editor at that line, folders in a new terminal; Settings → Terminal → Detect Links turns it off.
+- Terminal tabs now pick up changed terminal settings (font size, copy on select, right-click, links) without reopening.
+- Editor: a line number sent with "open file" is kept when the file opens in a new tab.
 - README: animated walkthrough GIF as the main screenshot and a categorised screenshot gallery of every built feature (`docs/screenshots/`).
 
 ## 0.11.0 — 2026-10-11

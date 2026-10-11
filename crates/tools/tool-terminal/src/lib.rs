@@ -6,10 +6,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use hs_core::Services;
+use hs_core::events::Event;
 use hs_core::tool::{
     Accept, CommandDescriptor, OpenRequest, ToastLevel, Tool, ToolCategory, ToolContext,
     ToolDescriptor, ToolFactory,
 };
+use hs_term::alacritty_terminal::grid::{Dimensions, Scroll};
+use hs_term::links::LinkTarget;
+use hs_term::search::{self, SearchMatch, SearchQuery};
 use hs_term::session::{Session, TermEvent};
 use hs_term::shells::ShellProfile;
 use hs_term::widget::{TermTheme, TerminalView};
@@ -53,6 +57,20 @@ pub struct TerminalTool {
     exit_code: Option<u32>,
     bell: bool,
     tab_id_hint: u64,
+    find: Find,
+    /// Give the terminal keyboard focus on the next frame.
+    pending_focus: Option<egui::Id>,
+}
+
+/// The search bar (Ctrl+Shift+F): query, options and the hits in the grid.
+#[derive(Default)]
+struct Find {
+    open: bool,
+    focus: bool,
+    query: SearchQuery,
+    matches: Vec<SearchMatch>,
+    current: Option<usize>,
+    error: Option<String>,
 }
 
 impl TerminalTool {
@@ -68,12 +86,10 @@ impl TerminalTool {
             exit_code: None,
             bell: false,
             tab_id_hint: 0,
+            find: Find::default(),
+            pending_focus: None,
         };
-        {
-            let st = services.settings.read();
-            t.view.copy_on_select = st.terminal.copy_on_select;
-            t.view.right_click_copy_paste = st.terminal.right_click_copy_paste;
-        }
+        t.apply_settings(services);
         t.start(services);
         t
     }
@@ -86,6 +102,269 @@ impl TerminalTool {
         wanted
             .and_then(|id| self.profiles.iter().find(|p| p.id == id).cloned())
             .or_else(|| self.profiles.first().cloned())
+    }
+
+    fn apply_settings(&mut self, services: &Services) {
+        let st = services.settings.read();
+        self.view.font_size = st.terminal.font_size;
+        self.view.copy_on_select = st.terminal.copy_on_select;
+        self.view.right_click_copy_paste = st.terminal.right_click_copy_paste;
+        self.view.link_detection = st.terminal.link_detection;
+    }
+
+    /// Re-run the search over the current grid; keeps the current hit near
+    /// where it was, or picks the newest one.
+    fn run_search(&mut self) {
+        let Some(sess) = &self.session else {
+            return;
+        };
+        self.find.error = None;
+        let re = match self.find.query.compile() {
+            Ok(Some(re)) => re,
+            Ok(None) => {
+                self.find.matches.clear();
+                self.find.current = None;
+                self.sync_view();
+                return;
+            }
+            Err(e) => {
+                self.find.error = Some(e);
+                self.find.matches.clear();
+                self.find.current = None;
+                self.sync_view();
+                return;
+            }
+        };
+        let previous = self
+            .find
+            .current
+            .and_then(|i| self.find.matches.get(i))
+            .copied();
+        self.find.matches = search::search(&sess.term.lock(), &re);
+        self.find.current = match previous {
+            Some(p) => self
+                .find
+                .matches
+                .iter()
+                .rposition(|m| (m.line, m.start) <= (p.line, p.start))
+                .or(self.find.matches.len().checked_sub(1)),
+            None => self.find.matches.len().checked_sub(1),
+        };
+        self.sync_view();
+        self.reveal_current();
+    }
+
+    /// Step through hits: `older` moves up the scrollback.
+    fn step(&mut self, older: bool) {
+        self.run_search();
+        let n = self.find.matches.len();
+        if n == 0 {
+            return;
+        }
+        let i = self.find.current.unwrap_or(n - 1);
+        self.find.current = Some(if older { (i + n - 1) % n } else { (i + 1) % n });
+        self.sync_view();
+        self.reveal_current();
+    }
+
+    fn sync_view(&mut self) {
+        if self.find.open {
+            self.view.search_matches = self.find.matches.clone();
+            self.view.search_current = self.find.current;
+        } else {
+            self.view.search_matches.clear();
+            self.view.search_current = None;
+        }
+    }
+
+    /// Scroll so the current hit is on screen.
+    fn reveal_current(&self) {
+        let (Some(sess), Some(m)) = (
+            &self.session,
+            self.find.current.and_then(|i| self.find.matches.get(i)),
+        ) else {
+            return;
+        };
+        let mut t = sess.term.lock();
+        let offset = t.grid().display_offset() as i32;
+        let rows = t.grid().screen_lines() as i32;
+        let visible = m.line >= -offset && m.line < rows - offset;
+        if !visible {
+            let target = search::offset_for_line(m.line, rows as usize, t.grid().history_size());
+            t.scroll_display(Scroll::Delta(target as i32 - offset));
+        }
+    }
+
+    fn open_find(&mut self) {
+        self.find.open = true;
+        self.find.focus = true;
+        // Seed with the selection, like most terminals.
+        if let Some(sess) = &self.session
+            && let Some(sel) = sess.term.lock().selection_to_string()
+            && !sel.is_empty()
+            && !sel.contains('\n')
+        {
+            self.find.query.text = sel;
+        }
+        self.run_search();
+    }
+
+    fn close_find(&mut self) {
+        self.find.open = false;
+        self.sync_view();
+        if let Some(sess) = &self.session {
+            sess.term.lock().scroll_display(Scroll::Bottom);
+        }
+        let id = self.view.id;
+        self.pending_focus = Some(id);
+    }
+
+    fn find_bar(&mut self, ui: &mut egui::Ui, s: &Services) {
+        use hs_ui::icons::ph;
+        ui.separator();
+        let edit = egui::TextEdit::singleline(&mut self.find.query.text)
+            .hint_text(s.t("terminal-find-placeholder"))
+            .desired_width(220.0);
+        let r = ui.add(edit);
+        if self.find.focus {
+            r.request_focus();
+            self.find.focus = false;
+        }
+        let mut changed = r.changed();
+        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            let shift = ui.input(|i| i.modifiers.shift);
+            self.step(!shift);
+            r.request_focus();
+        }
+        if (r.has_focus() || r.lost_focus()) && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.close_find();
+            return;
+        }
+        changed |= ui
+            .selectable_label(self.find.query.case_sensitive, "Aa")
+            .tip(s.t("terminal-find-case"))
+            .clicked()
+            .then(|| self.find.query.case_sensitive = !self.find.query.case_sensitive)
+            .is_some();
+        changed |= ui
+            .selectable_label(self.find.query.regex, ".*")
+            .tip(s.t("terminal-find-regex"))
+            .clicked()
+            .then(|| self.find.query.regex = !self.find.query.regex)
+            .is_some();
+        if changed {
+            self.find.current = None;
+            self.run_search();
+        }
+        let status = if self.find.error.is_some() {
+            s.t("terminal-find-bad-regex")
+        } else if self.find.query.text.is_empty() {
+            String::new()
+        } else if self.find.matches.is_empty() {
+            s.t("terminal-find-none")
+        } else {
+            let total = if self.find.matches.len() >= search::MAX_MATCHES {
+                format!("{}+", search::MAX_MATCHES)
+            } else {
+                self.find.matches.len().to_string()
+            };
+            let current = self.find.current.map(|i| i + 1).unwrap_or(0).to_string();
+            s.i18n.t_args(
+                "terminal-find-count",
+                &[("current", &current), ("total", &total)],
+            )
+        };
+        let label = ui.label(egui::RichText::new(status).weak());
+        if let Some(e) = &self.find.error {
+            label.on_hover_text(e.clone());
+        }
+        if ui
+            .button(ph::ARROW_UP)
+            .tip(s.t("terminal-find-prev"))
+            .clicked()
+        {
+            self.step(true);
+        }
+        if ui
+            .button(ph::ARROW_DOWN)
+            .tip(s.t("terminal-find-next"))
+            .clicked()
+        {
+            self.step(false);
+        }
+        if ui.button(ph::X).tip(s.t("terminal-find-close")).clicked() {
+            self.close_find();
+        }
+    }
+
+    /// The shell's folder: from a `user@host: dir` title when the prompt
+    /// sets one, else the folder the tab was opened in.
+    fn shell_dirs(&self, services: &Services) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        if let Some(sess) = &self.session
+            && let Some((_, dir)) = sess.title.split_once(": ")
+        {
+            let dir = dir.trim();
+            if let Some(rest) = dir.strip_prefix('~') {
+                if let Some(home) = home_dir() {
+                    out.push(home.join(rest.trim_start_matches(['/', '\\'])));
+                }
+            } else if !dir.is_empty() {
+                out.push(PathBuf::from(dir));
+            }
+        }
+        if let Some(c) = &self.state.cwd {
+            out.push(c.clone());
+        }
+        out.push(services.workspace.read().root().to_path_buf());
+        out
+    }
+
+    fn open_link(&self, target: LinkTarget, ui: &egui::Ui, cx: &mut ToolContext) {
+        match target {
+            LinkTarget::Url(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
+            LinkTarget::Path { path, line, .. } => {
+                let p = if let Some(rest) = path.strip_prefix("~/") {
+                    home_dir()
+                        .map(|h| h.join(rest))
+                        .unwrap_or_else(|| PathBuf::from(&path))
+                } else {
+                    PathBuf::from(&path)
+                };
+                let found = if p.is_absolute() {
+                    p.exists().then_some(p)
+                } else {
+                    self.shell_dirs(cx.services)
+                        .into_iter()
+                        .map(|d| d.join(&p))
+                        .find(|c| c.exists())
+                };
+                match found {
+                    Some(f) if f.is_dir() => cx.open(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd: Some(f.to_string_lossy().to_string()),
+                            host: None,
+                            profile: self.state.profile.clone(),
+                        }),
+                    ),
+                    Some(f) => cx.open(
+                        "editor",
+                        Some(OpenRequest::File {
+                            uri: f.to_string_lossy().to_string(),
+                            line,
+                        }),
+                    ),
+                    None => {
+                        let msg = cx
+                            .services
+                            .i18n
+                            .t_args("terminal-link-missing", &[("path", &path)]);
+                        cx.toast(ToastLevel::Warning, msg);
+                    }
+                }
+            }
+        }
     }
 
     fn start(&mut self, services: &Services) {
@@ -205,6 +484,19 @@ impl Tool for TerminalTool {
                 hs_ui::icons::BELL,
             );
         }
+        if self.find.open {
+            self.find_bar(ui, s);
+        } else if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::MAGNIFYING_GLASS,
+                s.t("terminal-find")
+            ))
+            .tip("Ctrl+Shift+F")
+            .clicked()
+        {
+            self.open_find();
+        }
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
@@ -259,12 +551,19 @@ impl Tool for TerminalTool {
         let theme = TermTheme::for_theme(&hs_ui::theme::Theme::by_name(
             &s.settings.read().appearance.theme,
         ));
+        let mut find_requested = false;
+        let mut link = None;
         match (&mut self.session, &self.error) {
             (Some(sess), _) => {
+                if let Some(id) = self.pending_focus.take() {
+                    ui.memory_mut(|m| m.request_focus(id));
+                }
                 let r = self.view.show(ui, sess, &theme);
                 if r.clicked {
                     self.bell = false;
                 }
+                find_requested = r.find_requested;
+                link = r.link;
                 if let Some(code) = sess.exited().or(self.exit_code) {
                     let rect = ui.max_rect();
                     let overlay =
@@ -301,6 +600,12 @@ impl Tool for TerminalTool {
                 ui.spinner();
             }
         }
+        if find_requested {
+            self.open_find();
+        }
+        if let Some(link) = link {
+            self.open_link(link, ui, cx);
+        }
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
@@ -316,6 +621,11 @@ impl Tool for TerminalTool {
                 shortcut_action: None,
             },
             CommandDescriptor {
+                id: "terminal.find".into(),
+                title: "Terminal: Find".into(),
+                shortcut_action: Some("terminal.find".into()),
+            },
+            CommandDescriptor {
                 id: "terminal.new".into(),
                 title: "Terminal: New Terminal".into(),
                 shortcut_action: Some("terminal.new".into()),
@@ -328,6 +638,10 @@ impl Tool for TerminalTool {
             "terminal.restart" => {
                 self.session = None;
                 self.start(cx.services);
+                true
+            }
+            "terminal.find" => {
+                self.open_find();
                 true
             }
             "terminal.clear" => {
@@ -357,6 +671,12 @@ impl Tool for TerminalTool {
 
     fn save_state(&self) -> serde_json::Value {
         serde_json::to_value(&self.state).unwrap_or_default()
+    }
+
+    fn on_event(&mut self, ev: &Event, cx: &mut ToolContext) {
+        if let Event::SettingsChanged = ev {
+            self.apply_settings(cx.services);
+        }
     }
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {
@@ -393,6 +713,10 @@ impl Tool for TerminalTool {
             _ => false,
         }
     }
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map(PathBuf::from)
 }
 
 /// A glyph per shell family for the sidebar list.

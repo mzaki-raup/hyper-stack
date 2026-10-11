@@ -60,7 +60,7 @@ in the e2e test).
 
 ### M1 · Terminal + Editor (5 w)
 - [x] `hs-term`: grid on `alacritty_terminal`, listener, key encoding; `portable-pty` local; shell profile detection (PowerShell 7/5, cmd + Clink, Git Bash, WSL)
-- [x] `tool-terminal`: tabs, splits, "open here" action, profiles settings, right-click copy/paste — search and link detection still open
+- [x] `tool-terminal`: tabs, splits, "open here" action, profiles settings, right-click copy/paste, scrollback search (Ctrl+Shift+F), Ctrl+click links (URLs, `path:line:col`)
 - [x] `hs-editor`: ropey buffer, cursor/selection model, grouped undo/redo, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent, multi-cursor
 - [x] `tool-editor`: project tree with `notify` watcher, open/save (local files; VFS schemes with M2), encodings, line endings, dirty and external-change handling, quick-open provider
 - [x] Markdown preview (pulldown-cmark) in the editor — native Mermaid subset still open

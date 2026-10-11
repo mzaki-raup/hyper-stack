@@ -19,6 +19,8 @@ pub struct DockState {
     pub tab: DockTab,
     pub terminal: Option<(hs_term::session::Session, hs_term::widget::TerminalView)>,
     pub terminal_error: Option<String>,
+    /// A Ctrl+clicked link in the dock terminal, for the app to open.
+    pub pending_link: Option<hs_term::links::LinkTarget>,
 }
 
 impl DockState {
@@ -27,7 +29,7 @@ impl DockState {
             return;
         }
         let profiles = hs_term::shells::profiles();
-        let (default, font, scrollback, copy, right_click) = {
+        let (default, font, scrollback, copy, right_click, links) = {
             let st = services.settings.read();
             (
                 st.terminal.default_profile.clone(),
@@ -35,6 +37,7 @@ impl DockState {
                 st.terminal.scrollback,
                 st.terminal.copy_on_select,
                 st.terminal.right_click_copy_paste,
+                st.terminal.link_detection,
             )
         };
         let Some(profile) = profiles
@@ -56,6 +59,7 @@ impl DockState {
                     hs_term::widget::TerminalView::new(egui::Id::new("hs-dock-terminal"), font);
                 view.copy_on_select = copy;
                 view.right_click_copy_paste = right_click;
+                view.link_detection = links;
                 self.terminal = Some((session, view));
             }
             Err(e) => self.terminal_error = Some(e),
@@ -174,7 +178,10 @@ pub fn show(
                         }
                     });
                 } else {
-                    view.show(ui, session, &tt);
+                    let r = view.show(ui, session, &tt);
+                    if r.link.is_some() {
+                        state.pending_link = r.link;
+                    }
                 }
             }
         }

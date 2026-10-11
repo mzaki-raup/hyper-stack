@@ -18,7 +18,7 @@ and theme.
 > **Status:** Phase 0 (foundation) and M1 implemented, with M2 under way: the
 > workspace shell with workspaces as projects (create, clone, switch, delete),
 > portable data folder, vault, environments, settings (as a tab, with bundled
-> and system fonts), a terminal, a code editor with project tree and Markdown
+> and system fonts), a terminal with scrollback search and Ctrl+click links, a code editor with project tree and Markdown
 > preview, an SSH + SFTP tool with a synced dual pane, and the in-app updater
 > with signed releases. Databases, API client, S3, Git and logs follow in the
 > next milestones per
@@ -79,8 +79,10 @@ made.
 
 | | |
 |---|---|
-| ![Terminal](docs/screenshots/terminal.png) | |
-| **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | |
+| ![Terminal](docs/screenshots/terminal.png) | ![Terminal search](docs/screenshots/terminal-search.png) |
+| **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | **Search** (Ctrl+Shift+F) — plain or regex, match case, every hit highlighted, "n of m" |
+| ![Ctrl+click a file location](docs/screenshots/terminal-links.png) | |
+| **Links** — hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor | |
 
 ### SSH and SFTP
 

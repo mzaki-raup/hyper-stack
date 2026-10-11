@@ -347,6 +347,9 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   node: screen readers and `egui_kittest` queries cannot find them. Give
   every such control `response.widget_info(|| WidgetInfo::labeled(..))`, or
   use a real widget.
+- A single-line `TextEdit` gives up focus on Escape *before* your code sees
+  the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
+  `(r.has_focus() || r.lost_focus())` (the terminal find bar does).
 - `rust-embed`'s `#[include]`/`#[exclude]` attributes need the
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
@@ -378,6 +381,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   remote prompt that does not set it leaves the file pane where it is.
 - `rfd` folder/file dialogs do not open headless; seed `layout.json` (editor
   `root`/`path`) instead of clicking Open Folder.
+- `cargo clippy --workspace` on Linux needs `libwayland-dev`,
+  `libxkbcommon-dev` and `pkg-config` (the `egui_kittest` dev-dependency
+  builds `wayland-sys`). Windows-only helpers (`hs-term::shells::on_path`)
+  must be `#[cfg(windows)]`, or Linux clippy fails on dead code that the
+  Windows CI never sees.
 
 ### SSH (russh)
 - russh 0.64 with `default-features = false, features = ["ring", "rsa"]` so it

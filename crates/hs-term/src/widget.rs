@@ -9,6 +9,8 @@ use alacritty_terminal::vte::ansi::{Color, CursorShape, NamedColor, Rgb};
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Vec2};
 
 use crate::keys;
+use crate::links::{self, LinkTarget};
+use crate::search::SearchMatch;
 use crate::session::Session;
 
 /// Default xterm-ish palette (index 0..=15); 16..=255 are computed.
@@ -112,6 +114,10 @@ pub struct TerminalResponse {
     pub focused: bool,
     pub copied: Option<String>,
     pub clicked: bool,
+    /// Ctrl+click on a URL or `path:line:col`.
+    pub link: Option<LinkTarget>,
+    /// Ctrl+Shift+F while focused (the tool opens its search bar).
+    pub find_requested: bool,
 }
 
 /// Per-view state (font size, selection drag) kept by the owner.
@@ -121,6 +127,11 @@ pub struct TerminalView {
     /// PuTTY convention: right-click copies the selection, or pastes when nothing is selected.
     pub right_click_copy_paste: bool,
     pub id: egui::Id,
+    /// Ctrl+hover underlines links and Ctrl+click opens them.
+    pub link_detection: bool,
+    /// Search hits to highlight (set by the owner) and the current one.
+    pub search_matches: Vec<SearchMatch>,
+    pub search_current: Option<usize>,
     dragging: bool,
     last_cell: Vec2,
 }
@@ -132,6 +143,9 @@ impl TerminalView {
             copy_on_select: false,
             right_click_copy_paste: true,
             id,
+            link_detection: true,
+            search_matches: Vec::new(),
+            search_current: None,
             dragging: false,
             last_cell: Vec2::new(8.0, 16.0),
         }
@@ -240,6 +254,29 @@ impl TerminalView {
             let (p, side) = to_point(pos, off);
             t.selection = Some(Selection::new(SelectionType::Lines, p, side));
         }
+        // Ctrl+hover: find the link under the pointer; Ctrl+click opens it.
+        let mut hovered_link: Option<(i32, usize, usize)> = None;
+        let ctrl = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+        if self.link_detection
+            && ctrl
+            && let Some(pos) = response.hover_pos()
+        {
+            let t = session.term.lock();
+            let off = t.grid().display_offset();
+            let (p, _) = to_point(pos, off);
+            let (text, map) = crate::search::line_text(&t, p.line);
+            if let Some(ci) = map.iter().rposition(|&c| c <= p.column.0)
+                && let Some(link) = links::link_at(&text, ci)
+            {
+                let start = map[link.start];
+                let end = map.get(link.end).copied().unwrap_or(cols as usize);
+                hovered_link = Some((p.line.0, start, end));
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                if response.clicked() {
+                    resp.link = Some(link.target);
+                }
+            }
+        }
         if response.clicked() && !response.drag_started() {
             session.term.lock().selection = None;
         }
@@ -299,6 +336,10 @@ impl TerminalView {
                                 ui.ctx().copy_text(text.clone());
                                 resp.copied = Some(text);
                             }
+                            continue;
+                        }
+                        if ctrl_shift && key == egui::Key::F {
+                            resp.find_requested = true;
                             continue;
                         }
                         if ctrl_shift && key == egui::Key::V {
@@ -387,6 +428,19 @@ impl TerminalView {
             .mode
             .contains(alacritty_terminal::term::TermMode::SHOW_CURSOR);
 
+        // Search hits on screen, as (line, start, end, is_current).
+        let hit_bg = Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 110);
+        let current_bg = Color32::from_rgba_unmultiplied(0xF0, 0x8A, 0x24, 200);
+        let first_line = -(content.display_offset as i32);
+        let last_line = first_line + rows as i32;
+        let hits: Vec<(i32, usize, usize, bool)> = self
+            .search_matches
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.line >= first_line && m.line < last_line)
+            .map(|(i, m)| (m.line, m.start, m.end, Some(i) == self.search_current))
+            .collect();
+
         // Group cells into runs of equal style per line.
         let mut run_text = String::new();
         let mut run_start: Option<(Pos2, Color32, Color32, Flags)> = None;
@@ -451,6 +505,11 @@ impl TerminalView {
             let selected = selection.as_ref().is_some_and(|s| s.contains(point));
             if selected {
                 bg = blend(bg, theme.selection);
+            } else if let Some(&(_, _, _, cur)) = hits
+                .iter()
+                .find(|h| h.0 == point.line.0 && (h.1..h.2).contains(&point.column.0))
+            {
+                bg = blend(bg, if cur { current_bg } else { hit_bg });
             }
             let style_flags = c.flags
                 & (Flags::UNDERLINE
@@ -549,6 +608,18 @@ impl TerminalView {
                     }
                 }
             }
+        }
+        // Underline the Ctrl+hovered link.
+        if let Some((line, start, end)) = hovered_link {
+            let screen_line = line + content.display_offset as i32;
+            let y = origin.y + (screen_line + 1) as f32 * cell.y - 1.0;
+            painter.line_segment(
+                [
+                    Pos2::new(origin.x + start as f32 * cell.x, y),
+                    Pos2::new(origin.x + end as f32 * cell.x, y),
+                ],
+                egui::Stroke::new(1.0, theme.foreground),
+            );
         }
         // Scrollback indicator.
         if content.display_offset > 0 {

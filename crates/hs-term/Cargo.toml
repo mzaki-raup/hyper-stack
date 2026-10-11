@@ -18,3 +18,4 @@ egui = { workspace = true }
 parking_lot = { workspace = true }
 tracing = { workspace = true }
 serde = { workspace = true }
+regex = { workspace = true }

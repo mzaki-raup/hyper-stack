@@ -446,6 +446,37 @@ impl HyperStackApp {
         }
     }
 
+    /// A Ctrl+clicked link from the dock terminal: URLs go to the browser,
+    /// file locations (relative to the workspace folder) to the editor.
+    fn open_terminal_link(&mut self, link: hs_term::links::LinkTarget, ctx: &egui::Context) {
+        match link {
+            hs_term::links::LinkTarget::Url(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            hs_term::links::LinkTarget::Path { path, line, .. } => {
+                let p = std::path::PathBuf::from(&path);
+                let p = if p.is_absolute() {
+                    p
+                } else {
+                    self.services.workspace.read().root().join(p)
+                };
+                if p.is_file() {
+                    self.open_tool(
+                        "editor",
+                        Some(OpenRequest::File {
+                            uri: p.to_string_lossy().to_string(),
+                            line,
+                        }),
+                    );
+                } else {
+                    let msg = self
+                        .services
+                        .i18n
+                        .t_args("terminal-link-missing", &[("path", &path)]);
+                    self.toasts.push(ToastLevel::Warning, msg);
+                }
+            }
+        }
+    }
+
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
         // Settings and Welcome are single tabs: a second request focuses the existing one.
         if SINGLE_INSTANCE.contains(&factory_id)
@@ -1983,6 +2014,9 @@ impl eframe::App for HyperStackApp {
                 .show(root, |ui| {
                     dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock);
                 });
+            if let Some(link) = self.dock.pending_link.take() {
+                self.open_terminal_link(link, root.ctx());
+            }
             let _ = &r;
             let height =
                 egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-dock"))

@@ -8,9 +8,13 @@
 //! - [`keys`] — egui key events to terminal byte sequences.
 //! - [`widget`] — the egui view: rendering, scrolling, selection, input.
 //! - [`pty`] — the portable-pty spawn helper (also used by `--self-test`).
+//! - [`search`] — scrollback search (plain/regex, case).
+//! - [`links`] — URL and `path:line:col` detection for Ctrl+click.
 
 pub mod keys;
+pub mod links;
 pub mod pty;
+pub mod search;
 pub mod session;
 pub mod shells;
 pub mod transport;

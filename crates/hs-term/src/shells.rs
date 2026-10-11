@@ -1,5 +1,6 @@
 //! Shell profiles: what to run for "a terminal" on this machine.
 
+#[cfg(windows)]
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -58,6 +59,7 @@ pub fn detect() -> Vec<ShellProfile> {
     out
 }
 
+#[cfg(windows)]
 fn on_path(exe: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
@@ -192,6 +194,7 @@ fn detect_unix(out: &mut Vec<ShellProfile>) {
     }
 }
 
+#[cfg(any(windows, test))]
 fn decode_utf16le_or_utf8(bytes: &[u8]) -> String {
     if bytes.len() >= 2 && bytes[1] == 0 {
         let units: Vec<u16> = bytes

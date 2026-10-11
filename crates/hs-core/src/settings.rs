@@ -96,6 +96,8 @@ pub struct Terminal {
     pub copy_on_select: bool,
     /// Right-click copies the selection or pastes the clipboard (PuTTY style).
     pub right_click_copy_paste: bool,
+    /// Ctrl+click opens URLs and `path:line:col` locations.
+    pub link_detection: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -134,6 +136,7 @@ impl Default for Terminal {
             scrollback: 10_000,
             copy_on_select: false,
             right_click_copy_paste: true,
+            link_detection: true,
         }
     }
 }

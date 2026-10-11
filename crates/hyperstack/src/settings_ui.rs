@@ -1543,6 +1543,13 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-terminal-right-click-hint"));
+        changed |= ui
+            .checkbox(
+                &mut settings.terminal.link_detection,
+                s.t("settings-terminal-links"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-terminal-links-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);

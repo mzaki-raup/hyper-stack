@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Release planner: a beta after a `feat:` beta no longer plans a patch on the old stable version (`0.1.1-beta.1` after `0.2.0-beta.1`); the bump now counts every commit since the last stable tag, and a beta with nothing new since the previous beta plans nothing. Pester tests for `next-release.ps1` run in CI.
+- (nothing yet)
+
+## 0.12.1 — 2026-10-11
+
+### Fixed
+
+- Bump betas from the last stable tag; add Pester tests (80b68dcf)
 
 ## 0.12.0 — 2026-10-11
 

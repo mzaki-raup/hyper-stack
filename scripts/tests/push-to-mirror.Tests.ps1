@@ -89,6 +89,19 @@ Describe "push-to-mirror.ps1" {
     git -C $Mirror tag --list | Should -Be "v0.2.0"
   }
 
+  It "dispatches nothing for a mirror that is not on github.com" {
+    $r = Invoke-Mirror $Src $Mirror "v0.2.0"
+    $r.text | Should -Match "not a github.com repository"
+  }
+
+  It "relies on the tag push when the tagged commit has no skip marker" {
+    Add-Commit $Src "feat: plain"
+    git -C $Src -c user.name=t -c user.email=t@example.invalid -c tag.gpgsign=false tag -a v0.3.0 -m v0.3.0
+    $r = Invoke-Mirror $Src $Mirror "v0.3.0"
+    $r.code | Should -Be 0
+    $r.text | Should -Match "no skip marker"
+  }
+
   It "fails when the tag does not exist" {
     $r = Invoke-Mirror $Src $Mirror "v9.9.9"
     $r.code | Should -Not -Be 0

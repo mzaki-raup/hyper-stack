@@ -465,20 +465,25 @@ so `git push origin main` lands on both.
 release job's last step, `scripts/push-to-mirror.ps1`, runs after the
 release is published and verified: it fast-forwards GitHub's branch to the
 version commit (never forced; if GitHub has commits Forgejo lacks it warns
-and leaves the branch alone) and pushes the tag, which starts GitHub's
-`release.yml`. It needs two forge secrets:
+and leaves the branch alone), pushes the tag, and starts GitHub's
+`release.yml` for that tag through the REST API (`workflow_dispatch`). The
+dispatch is needed because GitHub does not start push-triggered workflows
+for a commit whose message contains `[skip ci]`, and that covers the tag
+push of `chore(release): vX.Y.Z [skip ci]` (this is why 0.12.0 and 0.12.1
+had no GitHub build, and why 0.11.0's was started by hand). It needs two
+forge secrets:
 
 | Secret | Value |
 |---|---|
 | `HS_GITHUB_MIRROR_URL` | `https://github.com/<user>/hyper-stack.git` |
-| `HS_GITHUB_MIRROR_TOKEN` | a GitHub token with write access to the repository's **contents** and **workflows** (fine-grained PAT: Contents + Workflows read/write on that one repository; classic: `repo` + `workflow`) |
+| `HS_GITHUB_MIRROR_TOKEN` | a GitHub token for that one repository with **Contents**, **Workflows** and **Actions** read/write (fine-grained PAT; classic: `repo` + `workflow`) |
 
 Workflows permission is needed because a pushed history can change
-`.github/workflows/`, which GitHub refuses from a token without it. A tag
-pushed with a personal token starts workflows (one pushed with GitHub's own
-`GITHUB_TOKEN` would not). Without the secrets the step prints a notice and
-the release stays Forgejo-only; `git push origin main` and
-`git push origin vX.Y.Z` from the owner's clone then do the same by hand.
+`.github/workflows/`, which GitHub refuses from a token without it; Actions
+permission is what the dispatch needs. Without the secrets the step prints a
+notice and the release stays Forgejo-only; by hand that is
+`git push origin main`, `git push origin vX.Y.Z`, then Actions → Release →
+Run workflow with the tag.
 The script is tested against a local bare repository in
 `scripts/tests/push-to-mirror.Tests.ps1`.
 

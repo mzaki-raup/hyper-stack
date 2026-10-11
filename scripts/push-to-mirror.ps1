@@ -18,12 +18,18 @@
   - Not configured (no token or URL): prints a notice and exits 0, so a
     fork or a forge without the mirror still releases.
 
+  - Release run: GitHub does not start push-triggered workflows for a
+    commit whose message contains [skip ci], and that covers the tag push
+    of Forgejo's "chore(release): vX.Y.Z [skip ci]". So when the tagged
+    commit carries a skip marker, the script starts the mirror's
+    release.yml through the REST API (workflow_dispatch with the tag);
+    otherwise the tag push itself starts it and nothing is dispatched.
+
   The token goes on the git command line as an http.extraheader, never
-  into .git/config. It needs write access to the repository's contents and,
-  because a pushed history can touch .github/workflows/, to its workflows
-  (fine-grained PAT: Contents + Workflows read/write; classic: repo +
-  workflow). A tag pushed with a personal token starts GitHub workflows,
-  which a push with GitHub's own GITHUB_TOKEN would not.
+  into .git/config. It needs write access to the repository's contents,
+  to its workflows (a pushed history can touch .github/workflows/) and to
+  Actions (to dispatch the release run): fine-grained PAT with Contents,
+  Workflows and Actions read/write; classic: repo + workflow.
 
 .EXAMPLE
   $env:HS_GITHUB_MIRROR_URL = "https://github.com/<user>/hyper-stack.git"
@@ -91,5 +97,36 @@ $tagResult = Invoke-Push "Tag push" "refs/tags/${Tag}:refs/tags/$Tag"
 if (-not $tagResult.ok) {
   throw "Pushing $Tag to the GitHub mirror failed; GitHub will not build this release.`n$($tagResult.text.Trim())"
 }
-Write-Host "Pushed $Tag to the GitHub mirror; its release workflow builds it from there."
+Write-Host "Pushed $Tag to the GitHub mirror."
+
+# Start the mirror's release run when the tag push will not (see above).
+$message = (git log -1 --format=%B $sha) -join "`n"
+if ($message -notmatch '\[(skip ci|ci skip|no ci|skip actions|actions skip)\]') {
+  Write-Host "The tagged commit has no skip marker; the tag push starts GitHub's release workflow."
+  exit 0
+}
+if ($MirrorUrl -notmatch '^https://github\.com/([^/]+)/([^/]+?)(\.git)?/?$') {
+  Write-Host "The mirror is not a github.com repository; no release run to dispatch."
+  exit 0
+}
+$api = "https://api.github.com/repos/$($Matches[1])/$($Matches[2])/actions/workflows/release.yml/dispatches"
+$headers = @{
+  Authorization          = "Bearer $Token"
+  Accept                 = "application/vnd.github+json"
+  "X-GitHub-Api-Version" = "2022-11-28"
+}
+$body = @{ ref = $Branch; inputs = @{ tag = $Tag } } | ConvertTo-Json -Depth 3
+for ($attempt = 1; ; $attempt++) {
+  try {
+    Invoke-RestMethod -Method Post -Uri $api -Headers $headers -ContentType "application/json" -Body $body | Out-Null
+    break
+  } catch {
+    if ($attempt -ge 3) {
+      throw "Starting the GitHub release run for $Tag failed: $($_.Exception.Message). Run it by hand: Actions > Release > Run workflow, tag $Tag."
+    }
+    Write-Host "Dispatch failed (attempt $attempt), retrying: $($_.Exception.Message)"
+    Start-Sleep -Seconds (3 * $attempt)
+  }
+}
+Write-Host "Started GitHub's release workflow for $Tag (the [skip ci] commit does not start it on its own)."
 exit 0

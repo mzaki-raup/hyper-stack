@@ -92,6 +92,12 @@ substitution; a sudo prompt detector offers to paste the stored password
 
 ## 7. SFTP browser
 
+- **Implemented layout (M2):** the tab splits its width exactly 50/50 between
+  the remote file list (left) and the shell (right). The split is recomputed
+  from the tab width every frame so it tracks window resizes, and each pane is
+  clipped to its half so a wide file table cannot push the divider or the
+  shell. The local-folder pane and the optional separate shell split below are
+  still P1.
 - Dual pane on `hs-ui::DataTable`: local (any folder) and remote (default
   dir); columns name, size, modified, permissions, owner/group, link target;
   sort/filter; breadcrumb with editable path and `~`, `-` history; hidden

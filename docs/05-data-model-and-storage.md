@@ -102,6 +102,14 @@ Files that end in `.local.toml` override the same-named file and are gitignored,
 so a team can commit `staging.toml` while each member keeps a `staging.local.toml`
 with their own username.
 
+A workspace is the project boundary. The workspace menu in the title bar
+creates a new workspace (optionally seeding its `environments/` and
+`connections/` from the current one), switches between them — saving the
+leaving workspace's layout and restoring the entered one's tabs and pinned
+connections — and deletes one, with an option to remove its folder. The
+built-in `default` workspace cannot be deleted, and a delete only ever removes
+files inside `HyperStackData/workspaces/`.
+
 ## 2. Core entities
 
 ### 2.1 Identity

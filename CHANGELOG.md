@@ -11,7 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Workspaces as projects: create a new workspace (optionally copying the
+  current one's environments and connections), switch between them, and
+  delete one from the workspace menu.
+
+### Fixed
+
+- SSH dual pane now splits exactly 50/50 and tracks the window width; the
+  shell no longer shrinks as the mouse moves over the panes.
+- SSH file list is browsable again (double-click a folder to open it, a file
+  to edit it) and the row cursor shows it is clickable.
+- Disconnecting an SSH session no longer closes the app.
 
 ## 0.8.0 — 2026-10-11
 

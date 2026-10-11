@@ -13,11 +13,13 @@ single window organised as a **multi-row, multi-tab workspace**, where every too
 shares the same connection profiles, environments, secrets store, command palette
 and theme.
 
-> **Status:** Phase 0 (foundation) and M1 implemented: the workspace shell,
+> **Status:** Phase 0 (foundation) and M1 implemented, with M2 under way: the
+> workspace shell with workspaces as projects (create, clone, switch, delete),
 > portable data folder, vault, environments, settings (as a tab, with bundled
 > and system fonts), a terminal, a code editor with project tree and Markdown
-> preview, and the in-app updater with signed releases. Databases, API client,
-> SSH, S3, Git and logs follow in the next milestones per
+> preview, an SSH + SFTP tool with a synced dual pane, and the in-app updater
+> with signed releases. Databases, API client, S3, Git and logs follow in the
+> next milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
 > (Rust + egui file manager) serves as a **reference only**: HyperStack studies
 > how it solved the multi-row tab strip, terminal, SSH/SFTP, S3 and Git status,

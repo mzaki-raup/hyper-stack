@@ -8,6 +8,8 @@ use serde::{Serialize, de::DeserializeOwned};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
+    #[error("{0}")]
+    Message(String),
     #[error("io error at {path}: {source}")]
     Io {
         path: String,

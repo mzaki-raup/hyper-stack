@@ -1,6 +1,6 @@
 # Tool spec — Code editor
 
-**Crates:** `hs-editor` (engine + widget) and `tool-editor` (tab, project tree, VFS) · **Priority:** P0 · **Status:** v1 implemented in M1 (local files, no VFS/diff/minimap/Mermaid yet)
+**Crates:** `hs-editor` (engine + widget) and `tool-editor` (tab, project tree, VFS) · **Priority:** P0 · **Status:** v1 implemented in M1 (local files, Markdown preview with native Mermaid flowcharts and sequence diagrams; no VFS/diff/minimap yet)
 
 ## 1. Purpose
 
@@ -125,9 +125,23 @@ open at line, replace across files with preview (P1).
   in the background, cached).
 - **Status bar**: Ln/Col, selection count, indentation, encoding (clickable to
   convert), EOL, language (clickable to override), URI.
-- **Markdown preview** (Ctrl+Shift+V): `pulldown-cmark` rendered to egui
-  with a native Mermaid subset (flowchart, sequence), side-by-side with
-  scroll sync (P1).
+- **Markdown preview** (Ctrl+Shift+M, because egui turns Ctrl+Shift+V into
+  a paste): `pulldown-cmark` rendered to egui with a native Mermaid subset
+  (flowchart, sequence), side-by-side with scroll sync (P1).
+  *Implemented (`hs-editor::mermaid`):* `flowchart`/`graph` in all four
+  directions with rect, round, stadium, diamond, circle, cylinder and
+  hexagon nodes, `-->`, `---`, `-.->`, `==>`, `--x`/`--o`, labels as
+  `-->|text|` or `-- text -->`, chains, `&`, `;`, quoted labels, `<br/>`,
+  nested `subgraph … end` drawn as frames and edges to a subgraph; ranks by
+  longest path, order by neighbour barycentre, top-down ranks wider than
+  760 px wrap onto another row. `sequenceDiagram` with `participant`/`actor
+  … as …`, the eight arrow kinds, self messages, `Note left of/right of/
+  over A[,B]`, `loop`/`alt`/`opt`/`par`/`critical`/`break` with
+  `else`/`and`; long labels wrap. A diagram wider than the preview shrinks
+  (down to ~55 %) and then scrolls sideways. `classDef`/`style`/`click`,
+  `activate` and `autonumber` are accepted and ignored; other diagram kinds
+  (gantt, class, state, …) show their source under a "not supported" note.
+  Edges are straight lines, so a long edge can cross a node.
 - **External formatter** (P1): run a configured command (`prettier`,
   `rustfmt`, `sqlfluff`, `black`) on save or on demand; show its errors in
   Problems.

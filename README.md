@@ -19,7 +19,7 @@ and theme.
 > workspace shell with workspaces as projects (create, clone, switch, delete),
 > portable data folder, vault, environments, settings (as a tab, with bundled
 > and system fonts), a terminal with scrollback search and Ctrl+click links, a code editor with project tree and Markdown
-> preview, an SSH + SFTP tool with a synced dual pane, and the in-app updater
+> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane, and the in-app updater
 > with signed releases. Databases, API client, S3, Git and logs follow in the
 > next milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
@@ -72,8 +72,10 @@ made.
 |---|---|
 | ![Editor](docs/screenshots/editor.png) | ![Markdown preview](docs/screenshots/editor-markdown-preview.png) |
 | **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
-| ![Find and replace](docs/screenshots/editor-find-replace.png) | |
-| **Find and replace** — case, whole word and regex, match count | |
+| ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
+| **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
+| ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | |
+| **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | |
 
 ### Terminal
 

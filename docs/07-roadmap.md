@@ -63,7 +63,7 @@ in the e2e test).
 - [x] `tool-terminal`: tabs, splits, "open here" action, profiles settings, right-click copy/paste, scrollback search (Ctrl+Shift+F), Ctrl+click links (URLs, `path:line:col`)
 - [x] `hs-editor`: ropey buffer, cursor/selection model, grouped undo/redo, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent, multi-cursor
 - [x] `tool-editor`: project tree with `notify` watcher, open/save (local files; VFS schemes with M2), encodings, line endings, dirty and external-change handling, quick-open provider
-- [x] Markdown preview (pulldown-cmark) in the editor — native Mermaid subset still open
+- [x] Markdown preview (pulldown-cmark) in the editor with a native Mermaid subset (flowchart, sequence)
 - [x] Settings → Updates: version display, **Check now**, release notes, download Job with verification (size, sha256, manifest signature, `--self-test`), restart-and-install by rename, `--finish-update` handshake, keep previous + **Revert**
 
 ### M2 · SSH/SFTP + S3 (4 w)

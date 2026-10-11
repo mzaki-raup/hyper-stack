@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- Markdown preview draws Mermaid flowcharts and sequence diagrams natively (subgraphs, all node shapes and arrow kinds, notes, loop/alt blocks); other diagram kinds show their source with a note.
 - Terminal: search the scrollback with Ctrl+Shift+F (or the Find button): plain or regex, match case, every hit highlighted, "n of m", Enter/Shift+Enter to step.
 - Terminal: Ctrl+click opens links — URLs in the browser, `path:line:col` locations (compiler errors, panics, MSBuild) in the editor at that line, folders in a new terminal; Settings → Terminal → Detect Links turns it off.
 - Terminal tabs now pick up changed terminal settings (font size, copy on select, right-click, links) without reopening.

@@ -8,12 +8,14 @@
 //! - [`highlight`] — cached syntect highlighting per line
 //! - [`view`] — the egui widget: rendering, input, find/replace, go to line
 //! - [`markdown`] — a Markdown renderer for previews
+//! - [`mermaid`] — native flowchart and sequence diagrams for the preview
 
 pub mod buffer;
 pub mod cursor;
 pub mod highlight;
 pub mod languages;
 pub mod markdown;
+pub mod mermaid;
 pub mod view;
 
 pub use buffer::{Buffer, Encoding, Eol};

@@ -1,6 +1,8 @@
 //! Markdown preview rendered with egui widgets (headings, paragraphs with
 //! inline styles, lists, code blocks with highlighting, quotes, rules, links,
-//! simple tables). Mermaid blocks are shown as code for now.
+//! simple tables) and ```` ```mermaid ```` blocks drawn natively by
+//! [`crate::mermaid`] (flowcharts and sequence diagrams; other kinds fall
+//! back to the source with a note).
 
 use egui::{Color32, RichText};
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
@@ -70,55 +72,33 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
                 }
                 ui.add_space(4.0);
             }
+            Block::Code { lang, text } if lang.trim() == "mermaid" => {
+                let pal = crate::mermaid::Palette {
+                    text: style.text,
+                    line: style.muted,
+                    fill: style.code_bg,
+                    frame: style.quote_bar,
+                    note: Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 48),
+                    label_bg: style.code_bg,
+                };
+                let shown = egui::Frame::new()
+                    .inner_margin(egui::Margin::same(6))
+                    .show(ui, |ui| {
+                        crate::mermaid::show(ui, &text, style.base_size, &pal)
+                    })
+                    .inner;
+                if let Err(e) = shown {
+                    ui.label(
+                        RichText::new(format!("Mermaid: {e}. Showing the source."))
+                            .color(style.muted)
+                            .italics(),
+                    );
+                    code_block(ui, "", &text, style);
+                }
+                ui.add_space(6.0);
+            }
             Block::Code { lang, text } => {
-                let frame = egui::Frame::new()
-                    .fill(style.code_bg)
-                    .inner_margin(egui::Margin::same(8))
-                    .corner_radius(egui::CornerRadius::same(4));
-                frame.show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    let language = languages::by_extension(lang.trim());
-                    let mut hl = LineHighlighter::new(&language, style.dark);
-                    let buf = Buffer::from_text(&text);
-                    let font = egui::FontId::monospace(style.base_size - 1.0);
-                    for line in 0..buf.len_lines() {
-                        let line_text = buf.line_text(line);
-                        if line + 1 == buf.len_lines() && line_text.is_empty() {
-                            break;
-                        }
-                        let mut job = egui::text::LayoutJob::default();
-                        let spans = hl.spans(&buf, line);
-                        if spans.is_empty() {
-                            job.append(
-                                &line_text,
-                                0.0,
-                                egui::TextFormat {
-                                    font_id: font.clone(),
-                                    color: style.text,
-                                    ..Default::default()
-                                },
-                            );
-                        } else {
-                            let chars: Vec<char> = line_text.chars().collect();
-                            for s in spans {
-                                let piece: String = chars
-                                    [s.start.min(chars.len())..s.end.min(chars.len())]
-                                    .iter()
-                                    .collect();
-                                job.append(
-                                    &piece,
-                                    0.0,
-                                    egui::TextFormat {
-                                        font_id: font.clone(),
-                                        color: s.fg,
-                                        ..Default::default()
-                                    },
-                                );
-                            }
-                        }
-                        ui.add(egui::Label::new(job).wrap());
-                    }
-                });
+                code_block(ui, &lang, &text, style);
                 ui.add_space(6.0);
             }
             Block::Rule => {
@@ -166,6 +146,57 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
             last_was_table = false;
         }
     }
+}
+
+/// A fenced code block with syntax highlighting.
+fn code_block(ui: &mut egui::Ui, lang: &str, text: &str, style: &MarkdownStyle) {
+    let frame = egui::Frame::new()
+        .fill(style.code_bg)
+        .inner_margin(egui::Margin::same(8))
+        .corner_radius(egui::CornerRadius::same(4));
+    frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        let language = languages::by_extension(lang.trim());
+        let mut hl = LineHighlighter::new(&language, style.dark);
+        let buf = Buffer::from_text(text);
+        let font = egui::FontId::monospace(style.base_size - 1.0);
+        for line in 0..buf.len_lines() {
+            let line_text = buf.line_text(line);
+            if line + 1 == buf.len_lines() && line_text.is_empty() {
+                break;
+            }
+            let mut job = egui::text::LayoutJob::default();
+            let spans = hl.spans(&buf, line);
+            if spans.is_empty() {
+                job.append(
+                    &line_text,
+                    0.0,
+                    egui::TextFormat {
+                        font_id: font.clone(),
+                        color: style.text,
+                        ..Default::default()
+                    },
+                );
+            } else {
+                let chars: Vec<char> = line_text.chars().collect();
+                for s in spans {
+                    let piece: String = chars[s.start.min(chars.len())..s.end.min(chars.len())]
+                        .iter()
+                        .collect();
+                    job.append(
+                        &piece,
+                        0.0,
+                        egui::TextFormat {
+                            font_id: font.clone(),
+                            color: s.fg,
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+            ui.add(egui::Label::new(job).wrap());
+        }
+    });
 }
 
 fn fmt(style: &MarkdownStyle, inline: &Inline, size: f32, heading: bool) -> egui::TextFormat {

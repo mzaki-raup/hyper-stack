@@ -6,8 +6,9 @@ viewer, API client, SSH/SFTP, S3 browser, Git, terminal, log tail viewer and
 a devtools drawer in one multi-row, multi-tab window that shares connections,
 environments and secrets across every tool.
 
-**Status: Phase 0 (foundation) and M1 (terminal, editor, in-app updater)
-implemented; M2 (SSH/SFTP + S3) next.** The Cargo workspace (`crates/hs-core`,
+**Status: Phase 0 (foundation) and M1 (terminal with search and links,
+editor with Markdown + Mermaid preview, in-app updater) implemented; M2
+(SSH/SFTP + S3) under way.** The Cargo workspace (`crates/hs-core`,
 `hs-ui`, `hs-term`, `hs-editor`, `tools/tool-terminal`, `tools/tool-editor`,
 `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what

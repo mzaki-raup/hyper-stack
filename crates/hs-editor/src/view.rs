@@ -22,6 +22,7 @@ pub struct EditorTheme {
     pub bracket: Color32,
     pub find_match: Color32,
     pub find_current: Color32,
+    pub error: Color32,
     pub dark: bool,
 }
 
@@ -42,6 +43,7 @@ impl EditorTheme {
         t.bracket = theme.secondary.linear_multiply(0.45);
         t.find_match = theme.warning.linear_multiply(0.35);
         t.find_current = theme.warning.linear_multiply(0.65);
+        t.error = theme.error;
         t
     }
 
@@ -57,6 +59,7 @@ impl EditorTheme {
             bracket: Color32::from_rgba_unmultiplied(0x3F, 0x9C, 0xEE, 110),
             find_match: Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 90),
             find_current: Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 170),
+            error: Color32::from_rgb(0xF0, 0x5A, 0x5A),
             dark: true,
         }
     }
@@ -72,6 +75,7 @@ impl EditorTheme {
             bracket: Color32::from_rgba_unmultiplied(0x00, 0x75, 0xD3, 90),
             find_match: Color32::from_rgba_unmultiplied(0xA7, 0x87, 0x00, 70),
             find_current: Color32::from_rgba_unmultiplied(0xA7, 0x87, 0x00, 150),
+            error: Color32::from_rgb(0xC8, 0x1E, 0x1E),
             dark: false,
         }
     }
@@ -111,6 +115,11 @@ pub struct EditorView {
     pub goto_open: bool,
     pub goto_text: String,
     pub right_click_copy_paste: bool,
+    /// Character ranges underlined as errors (SQL error position, …).
+    pub error_ranges: Vec<(usize, usize)>,
+    /// Screen rectangle of the primary cursor after the last `show`, for
+    /// popups anchored at the caret (completion).
+    pub cursor_rect: Option<Rect>,
     highlighter: LineHighlighter,
     scroll_to_cursor: bool,
     last_version: u64,
@@ -134,6 +143,8 @@ impl EditorView {
             goto_open: false,
             goto_text: String::new(),
             right_click_copy_paste: true,
+            error_ranges: Vec::new(),
+            cursor_rect: None,
             highlighter,
             scroll_to_cursor: false,
             last_version: u64::MAX,
@@ -514,6 +525,27 @@ impl EditorView {
                         );
                     }
                 }
+                // Error underlines.
+                for (s, e) in &self.error_ranges {
+                    if *e < line_start || *s > line_start + line_len {
+                        continue;
+                    }
+                    let a = s.max(&line_start) - line_start;
+                    let b = e.min(&(line_start + line_len)) - line_start;
+                    let x0 = text_x + a as f32 * cell.x;
+                    let x1 = text_x + b.max(a + 1) as f32 * cell.x;
+                    let base = y + cell.y - 2.0;
+                    let mut pts = Vec::new();
+                    let mut x = x0;
+                    let mut up = false;
+                    while x < x1 {
+                        pts.push(Pos2::new(x, if up { base - 2.0 } else { base }));
+                        x += 2.0;
+                        up = !up;
+                    }
+                    pts.push(Pos2::new(x1, base));
+                    painter.add(egui::Shape::line(pts, egui::Stroke::new(1.2, theme.error)));
+                }
                 // Cursors.
                 if focused && blink_on {
                     for c in &cursors.list {
@@ -531,6 +563,13 @@ impl EditorView {
             if focused {
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(500));
+            }
+            {
+                let (l, c) = buf.char_to_line_col(cursors.primary().head);
+                self.cursor_rect = Some(Rect::from_min_size(
+                    Pos2::new(text_x + c as f32 * cell.x, origin.y + l as f32 * cell.y),
+                    Vec2::new(2.0, cell.y),
+                ));
             }
             // Keep the primary cursor in view after edits/moves.
             if self.scroll_to_cursor {

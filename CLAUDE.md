@@ -494,6 +494,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   reproduce workflow snippets locally under `Stop` before pushing.
 
 ### Rust / build
+- Merging a release bump (`chore(release): vX.Y.Z`) into a branch that
+  adds a workspace crate leaves that crate's `Cargo.lock` entry at the old
+  version (the release script only bumps the members it knows), and every
+  `--locked` command then fails in CI. After such a merge run any `cargo`
+  command once without `--locked` (it rewrites the entry) and commit
+  `Cargo.lock`.
 - `.cargo/config.toml` sets `-C target-feature=+crt-static` so the MSVC build
   is a fully static, portable exe; keep it.
 - `cargo clippy --fix --allow-dirty` clears the mechanical lints

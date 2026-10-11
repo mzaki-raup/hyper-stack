@@ -11,24 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.10.0 — 2026-10-11
+
 ### Added
 
-- Public GitHub mirror with its own release pipeline (`.github/workflows/`):
-  the same history, version numbers and release notes as Forgejo, and a copy
-  downloaded from GitHub checks GitHub for updates while a Forgejo copy keeps
-  checking Forgejo. The update source and project link are baked in at build
-  time (`HS_RELEASES_URL`, `HS_FORGE_URL`, optional `HS_SIGNING_KEY_EXTRA`);
-  `--self-test` refuses a non-https source.
-- `scripts/changelog-section.ps1` extracts one released section of
-  `CHANGELOG.md` into `release/notes.md`; `scripts/sync-from-github.ps1`
-  fast-forwards `main` onto the GitHub mirror and pushes to both forges.
-
-### Changed
-
-- `scripts/build-and-package.ps1` takes `-RepoUrl` for the manifest's asset
-  URLs and the zip's README instead of reading the origin remote;
-  `scripts/verify-release.ps1 -Server https://github.com` verifies a GitHub
-  release through `api.github.com`.
+- Public GitHub mirror with per-forge update source (a2aac6c6)
 
 ## 0.9.0 — 2026-10-11
 

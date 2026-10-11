@@ -11,6 +11,7 @@ members = [
   "crates/hs-ssh",
   "crates/tools/tool-ssh",
   "crates/tools/tool-s3",
+  "crates/tools/tool-db",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -35,6 +36,7 @@ tool-editor = { path = "crates/tools/tool-editor" }
 hs-ssh = { path = "crates/hs-ssh" }
 tool-ssh = { path = "crates/tools/tool-ssh" }
 tool-s3 = { path = "crates/tools/tool-s3" }
+tool-db = { path = "crates/tools/tool-db" }
 
 # UI
 eframe = "0.35"
@@ -105,6 +107,13 @@ tempfile = "3"
 ttf-parser = "0.25"
 reqwest = { version = "0.13", features = ["stream", "json", "gzip"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+async-trait = "0.1"
+# Database drivers. TLS through rustls with the ring provider (no NASM/CMake on Windows).
+tokio-postgres = "0.7"
+tokio-postgres-rustls = { version = "0.14", default-features = false, features = ["ring"] }
+mysql_async = { version = "0.37", default-features = false, features = ["default-rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-platform-verifier = "0.7"
 
 [profile.release]
 opt-level = 3

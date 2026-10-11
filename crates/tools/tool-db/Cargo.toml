@@ -1,0 +1,36 @@
+[package]
+name = "tool-db"
+description = "HyperStack database tool: SQL client for PostgreSQL, MySQL/MariaDB and SQLite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+hs-editor = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+secrecy = { workspace = true }
+rfd = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+rusqlite = { workspace = true, features = ["column_decltype"] }
+tokio-postgres = { workspace = true }
+tokio-postgres-rustls = { workspace = true }
+mysql_async = { workspace = true }
+rustls = { workspace = true }
+rustls-platform-verifier = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

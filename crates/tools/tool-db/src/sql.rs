@@ -13,7 +13,10 @@ use crate::driver::Engine;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tok {
     /// A bare word, upper-cased in `upper`, original text in `raw`.
-    Word { upper: String, raw: String },
+    Word {
+        upper: String,
+        raw: String,
+    },
     /// `"x"`, `` `x` `` or `[x]`, unquoted.
     Quoted(String),
     /// A string literal (contents ignored).
@@ -509,10 +512,7 @@ pub fn classify(stmt: &str, engine: Engine) -> Classified {
         let starts = k == 0 || matches!(toks[k - 1].tok, Tok::LParen) || {
             // EXPLAIN [ANALYZE] [VERBOSE] verb, WITH … AS (…) verb
             matches!(toks[k - 1].tok, Tok::RParen)
-                || matches!(
-                    word(&toks[k - 1]),
-                    Some("ANALYZE" | "VERBOSE" | "EXPLAIN")
-                )
+                || matches!(word(&toks[k - 1]), Some("ANALYZE" | "VERBOSE" | "EXPLAIN"))
         };
         if !starts {
             continue;
@@ -607,7 +607,10 @@ pub fn classify(stmt: &str, engine: Engine) -> Classified {
             }
         }
         "ALTER" => {
-            if matches!(w(1), "SYSTEM" | "USER" | "ROLE" | "LOGIN" | "SERVER" | "INSTANCE") {
+            if matches!(
+                w(1),
+                "SYSTEM" | "USER" | "ROLE" | "LOGIN" | "SERVER" | "INSTANCE"
+            ) {
                 of(Class::Admin)
             } else if words.contains(&"DROP") {
                 Classified {

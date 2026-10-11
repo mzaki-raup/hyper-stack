@@ -205,3 +205,15 @@ jobs:
       - name: Verify the published release as a user would
         if: steps.plan.outputs.version != ''
         run: pwsh -NoProfile -File scripts/verify-release.ps1 -Tag ${{ steps.plan.outputs.tag }} -Repository ${{ github.repository }} -Server ${{ github.server_url }}
+
+      # GitHub builds a release only when the tag reaches it (docs/09 §10.3).
+      # Fast-forwards the mirror's branch to the version commit and pushes the
+      # tag with a GitHub token held as a forge secret; skipped when the
+      # secrets are absent. Runs last so GitHub only ever sees a tag that
+      # Forgejo published and verified.
+      - name: Hand the release to the GitHub mirror
+        if: steps.plan.outputs.version != ''
+        env:
+          HS_GITHUB_MIRROR_URL: ${{ secrets.HS_GITHUB_MIRROR_URL }}
+          HS_GITHUB_MIRROR_TOKEN: ${{ secrets.HS_GITHUB_MIRROR_TOKEN }}
+        run: pwsh -NoProfile -File scripts/push-to-mirror.ps1 -Tag ${{ steps.plan.outputs.tag }} -Branch ${{ github.ref_name }}

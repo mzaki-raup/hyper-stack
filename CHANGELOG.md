@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Releases: the Forgejo release job now pushes the version commit and tag to the GitHub mirror (`scripts/push-to-mirror.ps1`, secrets `HS_GITHUB_MIRROR_URL` / `HS_GITHUB_MIRROR_TOKEN`), so GitHub builds every release without a manual tag push; GitHub workflows use `actions/checkout@v5` (Node 24).
 
 ## 0.12.1 — 2026-10-11
 

@@ -244,6 +244,13 @@ assume. `C:\Apps\gitea-runner\make-global.ps1` is what collapsed them.
   `-RepoUrl` to `build-and-package.ps1`. Every GitHub job is guarded with
   `if: github.server_url == 'https://github.com'` because Forgejo Actions
   also reads `.github/workflows/` and cannot fetch published actions.
+- **The tag reaches GitHub from the Forgejo release job**: its last step,
+  `scripts/push-to-mirror.ps1`, fast-forwards GitHub's branch to the version
+  commit (never forced) and pushes the tag, using the forge secrets
+  `HS_GITHUB_MIRROR_URL` and `HS_GITHUB_MIRROR_TOKEN` (GitHub token with
+  Contents + Workflows write). Without them the step is skipped and GitHub
+  builds nothing until `git push origin vX.Y.Z` by hand (0.12.0 and 0.12.1
+  were missed that way).
 
 ## Build & run (once the workspace exists)
 

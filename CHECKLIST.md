@@ -24,7 +24,7 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 | Item | State | Notes |
 |---|---|---|
 | Cargo workspace, `[workspace.package] version`, `deny.toml`, rustfmt/clippy clean | Completed | 2026-10-10, `phase-0` branch |
-| Pester tests for `scripts/next-release.ps1` | Pending | |
+| Pester tests for `scripts/next-release.ps1` | Completed | `scripts/tests/next-release.Tests.ps1`: 33 cases on fixture repos; run in `ci.yml` |
 | App icon master and derived sizes in `assets/icon/` (`hyperstack.ico`, PNG 16–512), `scripts/make-icons.ps1` | Completed | 2026-10-10 |
 | Binary flags `--version`, `--self-test`, `--data-dir`, `--finish-update`; `build.rs` embeds `hyperstack.ico` + version resources; window icon via `with_icon` | Completed | `--finish-update` only waits for the old PID; the hand-over itself is M1 |
 | `hs-core`: `Tool`/`ToolFactory`, `Services`, `ToolContext`, actions queue | Completed | |

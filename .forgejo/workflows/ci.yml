@@ -61,6 +61,23 @@ jobs:
           }
           Write-Host "PowerShell scripts parse."
 
+      # The release planner decides every version; its rules are tested
+      # against throwaway git repositories (scripts/tests/).
+      - name: Release script tests (Pester)
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]"5.5" })) {
+            try {
+              Install-Module Pester -MinimumVersion 5.5 -Scope CurrentUser -Force -SkipPublisherCheck
+            } catch {
+              Write-Warning "Pester 5 is not installed and could not be fetched ($_); skipping the script tests."
+              exit 0
+            }
+          }
+          Import-Module Pester -MinimumVersion 5.5
+          $r = Invoke-Pester scripts/tests -Output Detailed -PassThru
+          if ($r.FailedCount -gt 0) { throw "$($r.FailedCount) script test(s) failed" }
+
       - name: Rust toolchain
         if: steps.ws.outputs.has_cargo == 'true'
         run: |

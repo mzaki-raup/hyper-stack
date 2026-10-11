@@ -254,6 +254,7 @@ cargo run -p hyperstack -- --self-test     # what the CI smoke step runs
 cargo test -p tool-s3                      # one tool crate at a time
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server / MinIO
 pwsh -File scripts/next-release.ps1        # what the next push to main would release
+pwsh -c 'Invoke-Pester scripts/tests'      # release-planner tests (Pester 5)
 pwsh -File scripts/build-and-package.ps1 -Version 0.0.0-local -SkipSign   # local packaging dry run
 ```
 
@@ -466,6 +467,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   no release on the first push after `v0.1.0` existed (release run 19) for
   that reason. Wrap such assignments in `@(...)` and test scripts with
   exactly one tag/item, not only zero or many.
+- A beta's bump was measured only from the previous beta, so `fix:` after a
+  `feat:` beta planned `0.1.1-beta.1` after `0.2.0-beta.1`. Bump over the
+  range since the last *stable* tag; limit only the notes to the channel
+  range (`scripts/tests/next-release.Tests.ps1` covers it).
+- The PowerShell Gallery is unreachable from the cloud sandbox; Pester comes
+  from nuget.org's `pester` package (chocolatey layout: copy its `tools/`
+  folder to `~/.local/share/powershell/Modules/Pester/<version>`).
 - `Start-Process -Wait` puts the started process in a job and waits for the
   whole tree; when the wait ends it kills what is still running in that job.
   An updater end-to-end test run that way sees the relaunched new version die

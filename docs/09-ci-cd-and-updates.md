@@ -373,8 +373,12 @@ run locally.
   dir and run the full install sequence against a dummy "old" executable,
   including the crash → revert path and the read-only-folder path.
 - Scripts: `next-release.ps1` is exercised against fixture repositories
-  (Pester tests under `scripts/tests/`, Phase 0) for every bump rule, the
-  `release:` trailer, beta numbering and the no-release case; `ci.yml`
+  (Pester 5 tests in `scripts/tests/next-release.Tests.ps1`, run by
+  `ci.yml` and locally with `Invoke-Pester scripts/tests`) for every bump
+  rule, the `release:` trailer, zero / exactly one / many tags, beta
+  numbering and the no-release case. A beta's version is bumped over every
+  commit since the last *stable* tag, while its notes cover only the commits
+  since the previous beta; `ci.yml`
   parse-checks every script on each push.
 - CI itself: `verify-release` after every publish is the end-to-end test of
   the pipeline; the job fails if the published release is not installable.

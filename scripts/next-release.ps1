@@ -63,14 +63,21 @@ function Get-Tags([string]$pattern) {
 $stableTags  = @(Get-Tags '^v\d+\.\d+\.\d+$')
 $channelTags = @(if ($Channel -eq "beta") { Get-Tags '^v\d+\.\d+\.\d+(-beta\.\d+)?$' } else { $stableTags })
 $previous    = if ($channelTags.Count) { $channelTags[0] } else { "" }
+# The bump is measured over everything since the last stable tag, so a beta
+# after a feat beta still plans the minor (not a patch on the old stable);
+# the notes describe only the commits since the channel's previous tag.
+$bumpRange   = if ($stableTags.Count) { "$($stableTags[0])..HEAD" } else { "HEAD" }
 $range       = if ($previous) { "$previous..HEAD" } else { "HEAD" }
+$inNotes     = @{}
+foreach ($h in @(git log --no-merges --format="%H" $range)) { $inNotes[$h] = $true }
 
 # -z-style record separators: subjects can contain anything, including quotes.
-$raw = git log --no-merges --format="%H%x1f%s%x1f%b%x1e" $range
+$raw = git log --no-merges --format="%H%x1f%s%x1f%b%x1e" $bumpRange
 $records = @(($raw -join "`n") -split "`u{1e}" | Where-Object { $_.Trim() -ne "" })
 
 $bump = 0   # 0 none, 1 patch, 2 minor, 3 major
 $forced = $null
+$forcedHere = $false
 $added = @(); $fixed = @(); $changed = @(); $security = @()
 
 foreach ($record in $records) {
@@ -78,7 +85,10 @@ foreach ($record in $records) {
   $hash = $parts[0]; $subject = $parts[1]; $body = if ($parts.Count -gt 2) { $parts[2] } else { "" }
   if (-not $subject) { continue }
 
-  if ($body -match '(?m)^release:\s*(\d+\.\d+\.\d+)\s*$') { $forced = $Matches[1] }
+  if ($body -match '(?m)^release:\s*(\d+\.\d+\.\d+)\s*$') {
+    $forced = $Matches[1]
+    if ($inNotes[$hash]) { $forcedHere = $true }
+  }
 
   $type = ""; $desc = $subject; $bang = $false
   if ($subject -match '^(?<type>[a-z]+)(\([^)]*\))?(?<bang>!)?:\s*(?<desc>.+)$') {
@@ -86,7 +96,7 @@ foreach ($record in $records) {
   }
   $verb = if ($subject -match '^([A-Za-z][\w-]*)') { $Matches[1] } else { "" }
   $breaking = $bang -or ($body -match 'BREAKING[ -]CHANGE')
-  $line = "- $($desc.Substring(0,1).ToUpper())$($desc.Substring(1)) ($($hash.Substring(0,8)))"
+  $line = if ($inNotes[$hash]) { "- $($desc.Substring(0,1).ToUpper())$($desc.Substring(1)) ($($hash.Substring(0,8)))" } else { $null }
 
   if ($breaking) { $bump = [Math]::Max($bump, 3); $added += $line; continue }
   if ($type) {
@@ -103,7 +113,15 @@ foreach ($record in $records) {
   $bump = [Math]::Max($bump, 1); $changed += $line
 }
 
-if ($bump -eq 0 -and -not $forced) {
+$added    = @($added    | Where-Object { $_ })
+$fixed    = @($fixed    | Where-Object { $_ })
+$changed  = @($changed  | Where-Object { $_ })
+$security = @($security | Where-Object { $_ })
+
+# Something in the channel's own range must warrant the release: a beta with
+# no new release-worthy commit since the previous beta plans nothing.
+$worthy = ($added.Count + $fixed.Count + $changed.Count + $security.Count) -gt 0
+if ((-not $worthy -and -not $forcedHere) -or ($bump -eq 0 -and -not $forced)) {
   Write-Host "No commits since $(if ($previous) { $previous } else { 'the beginning' }) warrant a release."
   Set-Output "version" ""
   Set-Output "tag" ""

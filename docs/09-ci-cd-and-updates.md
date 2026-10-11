@@ -459,8 +459,28 @@ git remote set-url --add --push origin https://github.com/<user>/hyper-stack.git
 git remote add github https://github.com/<user>/hyper-stack.git
 ```
 
-so `git push origin main` lands on both, and `git push origin --tags` after
-a Forgejo release hands GitHub the tag that starts its release job.
+so `git push origin main` lands on both.
+
+**The release commit and tag reach GitHub automatically.** The Forgejo
+release job's last step, `scripts/push-to-mirror.ps1`, runs after the
+release is published and verified: it fast-forwards GitHub's branch to the
+version commit (never forced; if GitHub has commits Forgejo lacks it warns
+and leaves the branch alone) and pushes the tag, which starts GitHub's
+`release.yml`. It needs two forge secrets:
+
+| Secret | Value |
+|---|---|
+| `HS_GITHUB_MIRROR_URL` | `https://github.com/<user>/hyper-stack.git` |
+| `HS_GITHUB_MIRROR_TOKEN` | a GitHub token with write access to the repository's **contents** and **workflows** (fine-grained PAT: Contents + Workflows read/write on that one repository; classic: `repo` + `workflow`) |
+
+Workflows permission is needed because a pushed history can change
+`.github/workflows/`, which GitHub refuses from a token without it. A tag
+pushed with a personal token starts workflows (one pushed with GitHub's own
+`GITHUB_TOKEN` would not). Without the secrets the step prints a notice and
+the release stays Forgejo-only; `git push origin main` and
+`git push origin vX.Y.Z` from the owner's clone then do the same by hand.
+The script is tested against a local bare repository in
+`scripts/tests/push-to-mirror.Tests.ps1`.
 
 **GitHub → Forgejo** is deliberate, not automatic:
 `pwsh -File scripts/sync-from-github.ps1` fetches, fast-forwards `main`

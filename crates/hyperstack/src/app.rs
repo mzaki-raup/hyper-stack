@@ -37,12 +37,30 @@ enum WorkspaceDialog {
     None,
     New {
         name: String,
-        copy_data: bool,
+        /// Workspace to seed environments and connections from, by name.
+        /// `None` starts empty.
+        copy_from: Option<String>,
+        /// Logo file the user picked, copied into the workspace on create.
+        icon: Option<std::path::PathBuf>,
     },
     ConfirmDelete {
         name: String,
         delete_files: bool,
     },
+}
+
+/// An `egui` image for a logo file, read as bytes and decoded by the installed
+/// PNG/SVG loaders (keyed by the path so it is cached after the first frame).
+/// Returns `None` when the file is missing or unreadable.
+fn logo_image(path: &std::path::Path) -> Option<egui::Image<'static>> {
+    let bytes = std::fs::read(path).ok()?;
+    let uri = path.display().to_string().replace('\\', "/");
+    Some(egui::Image::from_bytes(uri, bytes))
+}
+
+/// The workspace logo image for a workspace folder, if it has one.
+fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'static>> {
+    logo_image(&hs_core::workspace::workspace_icon_file(root)?)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -577,7 +595,8 @@ impl HyperStackApp {
             "ws.new" => {
                 self.workspace_dialog = WorkspaceDialog::New {
                     name: String::new(),
-                    copy_data: false,
+                    copy_from: None,
+                    icon: None,
                 }
             }
             "app.shortcuts" => self.open_settings(Some(settings_ui::Page::Shortcuts)),
@@ -928,10 +947,14 @@ impl HyperStackApp {
         let theme = self.theme.clone();
         match &mut self.workspace_dialog {
             WorkspaceDialog::None => {}
-            WorkspaceDialog::New { name, copy_data } => {
+            WorkspaceDialog::New {
+                name,
+                copy_from,
+                icon,
+            } => {
                 let mut create = false;
                 let mut cancel = false;
-                let current = s.workspace.read().meta.name.clone();
+                let ws_names = self.registry.names();
                 let modal = egui::Modal::new(egui::Id::new("hs-ws-new")).show(ctx, |ui| {
                     ui.set_width(440.0);
                     ui.heading(s.t("workspace-new-title"));
@@ -946,11 +969,54 @@ impl HyperStackApp {
                             create = true;
                         }
                     });
-                    ui.add_space(6.0);
-                    ui.checkbox(
-                        copy_data,
-                        s.i18n.t_args("workspace-copy-data", &[("name", &current)]),
-                    );
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("workspace-logo"));
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 6.0, theme.surface);
+                        if let Some(img) = icon.as_ref().and_then(|p| logo_image(p)) {
+                            img.fit_to_exact_size(egui::vec2(36.0, 36.0))
+                                .paint_at(ui, rect.shrink(2.0));
+                        } else {
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                hs_ui::icons::WORKSPACE,
+                                egui::FontId::proportional(20.0),
+                                theme.text_muted,
+                            );
+                        }
+                        ui.add_space(6.0);
+                        if ui.button(s.t("workspace-logo-choose")).clicked()
+                            && let Some(p) = rfd::FileDialog::new()
+                                .add_filter("Image", hs_core::workspace::ICON_EXTS)
+                                .pick_file()
+                        {
+                            *icon = Some(p);
+                        }
+                        if icon.is_some() && ui.button(s.t("workspace-logo-remove")).clicked() {
+                            *icon = None;
+                        }
+                    });
+                    ui.add_space(2.0);
+                    hs_ui::form::hint(ui, &theme, &s.t("workspace-logo-hint"));
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("workspace-copy-from"));
+                        let none = s.t("workspace-copy-none");
+                        let selected = copy_from.clone().unwrap_or_else(|| none.clone());
+                        egui::ComboBox::from_id_salt("ws-copy-from")
+                            .selected_text(selected)
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(copy_from, None, &none);
+                                for n in &ws_names {
+                                    ui.selectable_value(copy_from, Some(n.clone()), n);
+                                }
+                            });
+                    });
+                    ui.add_space(2.0);
+                    hs_ui::form::hint(ui, &theme, &s.t("workspace-copy-from-hint"));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if hs_ui::form::primary_button(ui, &theme, &s.t("workspace-create"))
@@ -968,9 +1034,10 @@ impl HyperStackApp {
                 }
                 if create && !name.trim().is_empty() {
                     let name = name.trim().to_string();
-                    let copy = *copy_data;
+                    let copy_from = copy_from.clone();
+                    let icon = icon.clone();
                     self.workspace_dialog = WorkspaceDialog::None;
-                    self.create_workspace(&name, copy);
+                    self.create_workspace(&name, copy_from.as_deref(), icon.as_deref());
                 } else if cancel {
                     self.workspace_dialog = WorkspaceDialog::None;
                 }
@@ -1016,11 +1083,25 @@ impl HyperStackApp {
         }
     }
 
-    fn create_workspace(&mut self, name: &str, copy_data: bool) {
-        let copy_from = copy_data.then(|| self.services.workspace.read().clone());
+    fn create_workspace(
+        &mut self,
+        name: &str,
+        copy_from: Option<&str>,
+        icon: Option<&std::path::Path>,
+    ) {
+        // Load the chosen source workspace read-only (never through
+        // `Registry::open`, which would move `last_opened`).
+        let source = copy_from.and_then(|src| {
+            if src == self.services.workspace.read().meta.name {
+                return Some(self.services.workspace.read().clone());
+            }
+            let entry = self.registry.workspaces.iter().find(|w| w.name == src)?;
+            let root = self.services.paths.resolve_path(&entry.path);
+            hs_core::workspace::Workspace::open_or_create(&root, src).ok()
+        });
         let result = self
             .registry
-            .create(&self.services.paths, name, copy_from.as_ref());
+            .create(&self.services.paths, name, source.as_ref(), icon);
         match result {
             Ok(_) => {
                 self.save_layout();
@@ -1179,17 +1260,29 @@ impl HyperStackApp {
                     ui.add_space(8.0);
                     // Workspace switcher
                     let ws_name = s.workspace.read().meta.name.clone();
+                    let ws_root = s.workspace.read().root().to_path_buf();
+                    if let Some(img) = ws_logo_image(&ws_root) {
+                        ui.add(img.fit_to_exact_size(egui::vec2(18.0, 18.0)));
+                    }
                     egui::ComboBox::from_id_salt("ws")
                         .selected_text(format!("{} {}", hs_ui::icons::WORKSPACE, ws_name))
                         .show_ui(ui, |ui| {
-                            let names: Vec<String> = self
+                            let rows: Vec<(String, std::path::PathBuf)> = self
                                 .registry
                                 .workspaces
                                 .iter()
-                                .map(|w| w.name.clone())
+                                .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
                                 .collect();
-                            for n in names {
+                            for (n, root) in rows {
                                 ui.horizontal(|ui| {
+                                    match ws_logo_image(&root) {
+                                        Some(img) => {
+                                            ui.add(img.fit_to_exact_size(egui::vec2(16.0, 16.0)));
+                                        }
+                                        None => {
+                                            ui.label(hs_ui::icons::WORKSPACE);
+                                        }
+                                    }
                                     if ui.selectable_label(n == ws_name, &n).clicked()
                                         && n != ws_name
                                     {

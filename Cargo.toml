@@ -40,7 +40,14 @@ egui = { version = "0.35", features = ["serde"] }
 egui_extras = { version = "0.35", features = ["image", "svg"] }
 egui-phosphor = { version = "0.13", features = ["regular", "fill"] }
 egui_kittest = "0.35"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = [
+    "png",
+    "ico",
+    "jpeg",
+    "bmp",
+    "gif",
+    "webp",
+] }
 
 # Async, concurrency
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }

@@ -11,6 +11,48 @@ use crate::storage;
 
 pub const SCHEMA: u32 = 1;
 
+/// Image extensions accepted for a workspace logo. The file is always stored
+/// as `icon.<ext>` in the workspace folder, so it travels with the workspace
+/// when the folder is copied to another machine.
+pub const ICON_EXTS: &[&str] = &["png", "ico", "jpg", "jpeg", "bmp", "gif", "webp", "svg"];
+
+/// The workspace logo file (`icon.<ext>`) if one exists in `root`.
+pub fn workspace_icon_file(root: &Path) -> Option<PathBuf> {
+    ICON_EXTS
+        .iter()
+        .map(|ext| root.join(format!("icon.{ext}")))
+        .find(|p| p.is_file())
+}
+
+/// Copy an image at `src` into the workspace folder as `icon.<ext>`, replacing
+/// any existing logo. Returns the stored file name. Rejects unknown
+/// extensions.
+pub fn set_workspace_icon(root: &Path, src: &Path) -> storage::Result<String> {
+    let ext = src
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .filter(|e| ICON_EXTS.contains(&e.as_str()))
+        .ok_or_else(|| {
+            storage::StorageError::Message("choose a PNG, ICO, JPG, BMP, GIF, WEBP or SVG".into())
+        })?;
+    let io_err = |path: &Path| {
+        let p = path.display().to_string();
+        move |source| storage::StorageError::Io {
+            path: p.clone(),
+            source,
+        }
+    };
+    std::fs::create_dir_all(root).map_err(io_err(root))?;
+    // Drop any logo in another format first so only one remains.
+    if let Some(old) = workspace_icon_file(root) {
+        let _ = std::fs::remove_file(old);
+    }
+    let dst = root.join(format!("icon.{ext}"));
+    std::fs::copy(src, &dst).map_err(io_err(src))?;
+    Ok(format!("icon.{ext}"))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WorkspaceMeta {
     pub schema: u32,
@@ -95,6 +137,15 @@ impl Workspace {
     }
     pub fn tab_groups_dir(&self) -> PathBuf {
         self.root.join("tab-groups")
+    }
+    /// The workspace logo file (`icon.<ext>`) if one has been set.
+    pub fn icon_file(&self) -> Option<PathBuf> {
+        workspace_icon_file(&self.root)
+    }
+    /// Store `src` as this workspace's logo (`icon.<ext>`), replacing any
+    /// existing one.
+    pub fn set_icon(&self, src: &Path) -> storage::Result<String> {
+        set_workspace_icon(&self.root, src)
     }
 
     /// Open an existing workspace folder or create a fresh one.
@@ -205,6 +256,7 @@ impl Registry {
         paths: &DataDir,
         name: &str,
         copy_from: Option<&Workspace>,
+        icon: Option<&Path>,
     ) -> storage::Result<Workspace> {
         let name = name.trim();
         if name.is_empty() {
@@ -222,6 +274,9 @@ impl Registry {
         if let Some(src) = copy_from {
             copy_dir_contents(&src.environments_dir(), &ws.environments_dir())?;
             copy_dir_contents(&src.connections_dir(), &ws.connections_dir())?;
+        }
+        if let Some(src) = icon {
+            ws.set_icon(src)?;
         }
         self.workspaces.push(RegistryEntry {
             name: name.to_string(),

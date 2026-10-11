@@ -13,9 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Workspaces as projects: create a new workspace (optionally copying the
-  current one's environments and connections), switch between them, and
+- Workspaces as projects: create a new workspace, switch between them, and
   delete one from the workspace menu.
+- New Workspace can copy environments and connections from any existing
+  workspace, chosen from a "Copy From" dropdown.
+- A workspace can have a logo (PNG, ICO, JPG, BMP, GIF, WEBP or SVG), picked
+  when it is created and stored in the workspace folder so it travels with the
+  project. The logo shows in the workspace menu and its switcher.
 
 ### Fixed
 

@@ -75,6 +75,7 @@ user points a workspace at a repo's `.hyperstack/` folder:
 ```
 <workspace>/
 ├── workspace.toml               # id, name, created, default environment, protected envs
+├── icon.png                     # optional workspace logo (icon.<ext>); travels with the folder
 ├── environments/
 │   ├── dev.toml
 │   ├── staging.toml
@@ -104,11 +105,17 @@ with their own username.
 
 A workspace is the project boundary. The workspace menu in the title bar
 creates a new workspace (optionally seeding its `environments/` and
-`connections/` from the current one), switches between them — saving the
-leaving workspace's layout and restoring the entered one's tabs and pinned
-connections — and deletes one, with an option to remove its folder. The
-built-in `default` workspace cannot be deleted, and a delete only ever removes
-files inside `HyperStackData/workspaces/`.
+`connections/` from any existing workspace chosen in the dialog, and giving it
+a logo), switches between them — saving the leaving workspace's layout and
+restoring the entered one's tabs and pinned connections — and deletes one, with
+an option to remove its folder. The built-in `default` workspace cannot be
+deleted, and a delete only ever removes files inside
+`HyperStackData/workspaces/`.
+
+A workspace logo is an image file stored in the workspace folder as
+`icon.<ext>` (PNG, ICO, JPG, BMP, GIF, WEBP or SVG). Because it lives inside
+the portable folder, copying the workspace to another machine carries its logo.
+The menu and the switcher show it.
 
 ## 2. Core entities
 

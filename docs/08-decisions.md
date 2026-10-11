@@ -141,6 +141,15 @@ differs), but full control over streaming, cancellation (`pg_cancel_backend`,
 `KILL QUERY`), type decoding and explain plans. `sqlx`'s compile-time checking
 offers nothing for ad-hoc queries.
 
+**Amended in M3 (2026-10-12).** The abstraction landed as one `DbSession`
+trait object per tab with an `Engine` enum, not a separate `DbDriver` plus
+`Dialect`. Statement splitting and the classifier use the tool's own
+dialect-aware tokenizer instead of `sqlparser`: the classifier needs the
+verb, CTE bodies and a missing WHERE, and `sqlparser` rejects much valid
+dialect SQL (procedures, `DELIMITER` scripts, extensions) that still has to
+be split and guarded. PostgreSQL runs over the simple-query protocol so
+values keep the server's text form (docs/tools/database.md §15).
+
 ---
 
 ## ADR-008 · Redis is its own tool, not a `DbDriver`

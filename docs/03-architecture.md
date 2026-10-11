@@ -74,7 +74,7 @@ hyper-stack/
 │   ├── hs-term/                    # alacritty_terminal grid, portable-pty, russh shell
 │   └── tools/
 │       ├── tool-editor/
-│       ├── tool-db/                # SQL: + src/drivers/{sqlite,postgres,mysql,mssql,clickhouse,duckdb,odbc}.rs
+│       ├── tool-db/                # SQL: src/driver/{sqlite,postgres,mysql,tls}.rs (mssql, clickhouse, duckdb, odbc later), sql.rs (splitter, classifier), runner.rs (session task), grid.rs, complete.rs, export.rs, history.rs, profile.rs
 │       ├── tool-nosql/             # documents: + src/drivers/{mongodb,couchdb,elasticsearch,dynamodb,cassandra}.rs
 │       ├── tool-redis/             # key browser, type viewers, console, pub/sub, server info
 │       ├── tool-logs/              # log tail viewer: sources, index, filters, parsers
@@ -321,7 +321,7 @@ implementation that fits HyperStack's own architecture (`Tool` trait,
 | SSH shell over `russh`, SFTP, host key verification UX | `core/ssh_shell.rs`, `core/remote/sftp.rs`, `core/remote/credentials.rs` | `tool-ssh` and `hs-core::vfs::sftp`, cross-platform from the start |
 | S3 SigV4 without the AWS SDK, S3-compatible endpoints | `core/remote/s3.rs` | `hs-core::objstore` on async `reqwest`, multipart and versions added |
 | Git status with `gix`, `.gitignore` semantics | `core/git.rs` | `tool-git` status layer plus the hybrid CLI design |
-| SQLite browsing edge cases (WAL, locked files, immutable URI) | `core/sqlite.rs` | `tool-db` SQLite driver behind `DbDriver` |
+| SQLite browsing edge cases (WAL, locked files, immutable URI) | `core/sqlite.rs` | `tool-db` SQLite driver (`DbSession`) |
 | Syntect highlighting, Markdown + native Mermaid rendering | `core/syntax_highlight.rs`, `core/mermaid.rs`, `core/preview.rs` | `hs-editor` highlighter, `tool-devtools` Markdown preview |
 | Command palette ranking and rendering, keymap format, shortcuts page | `gui/windows/command_palette.rs`, `core/fuzzy.rs`, `core/keymap.rs` | `hs-ui::palette` with provider trait, `hs-core::shortcuts` |
 | Theme system with custom palettes and live preview | `gui/windows/customizetheme.rs` | `hs-ui::theme` |

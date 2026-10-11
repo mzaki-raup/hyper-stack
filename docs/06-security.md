@@ -49,6 +49,11 @@ Rules:
   never holds the plaintext except inside the reveal widget.
 - Changing a secret updates every connection that references it (they only hold
   the ref).
+- A password typed into a connection form is moved into the vault when the
+  profile is saved. If that cannot happen (vault locked, write failed) the
+  profile is **not saved**: the form keeps the text and asks for the vault
+  to be unlocked, so a typed secret never reaches the profile's TOML file.
+  `{{variable}}` references are kept as typed.
 - Deleting a workspace offers to delete its secrets.
 
 ## 3. Environment protection
@@ -70,11 +75,27 @@ bar shows a lock icon.
 
 ## 4. Destructive SQL classifier
 
-A small parser (not a full SQL grammar) in `tool-db` classifies each statement:
-`Read`, `Write`, `WriteUnbounded` (UPDATE/DELETE with no WHERE), `Ddl`,
-`DdlDestructive` (DROP, TRUNCATE), `Admin` (GRANT, ALTER SYSTEM). Uses
-`sqlparser` where the dialect is supported, with a regex fallback. Unit tests
-cover comments, CTEs, strings containing keywords and multi-statement scripts.
+A small classifier (not a full SQL grammar) in `tool-db::sql` classifies each
+statement: `Read`, `Session` (BEGIN/COMMIT/SET/USE…, allowed on read-only
+connections), `Write`, `WriteUnbounded` (UPDATE/DELETE with no WHERE or LIMIT
+at its own level), `Ddl`, `DdlDestructive` (DROP, TRUNCATE, ALTER … DROP),
+`Admin` (GRANT/REVOKE, ALTER SYSTEM/USER/ROLE, CREATE USER/ROLE, KILL,
+SET GLOBAL, `pg_terminate_backend()`…). It runs on the tool's own
+dialect-aware tokenizer rather than `sqlparser`: it only has to be right
+about the verb, CTE bodies (`WITH d AS (DELETE …)`, `EXPLAIN ANALYZE
+DELETE …`) and a missing WHERE, and anything it does not know is a `Write`.
+It also names the target (`DROP TABLE x`, `DELETE FROM x`) for the "type the
+name" guard. Unit tests cover comments, strings and quoted identifiers
+containing keywords, CTEs, subqueries with their own WHERE, `ON DELETE
+CASCADE`, `FOR UPDATE` and multi-statement scripts.
+
+What the tool does with the class (docs/tools/database.md §9, §15):
+read-only profiles and protected environments (until **Allow Writes** for
+the tab) refuse anything but `Read`/`Session`, and their server session is
+read-only too; `WriteUnbounded`, `DdlDestructive` and `Admin` (and `Ddl` on
+a protected environment) open a dialog naming the connection and the
+environment, and on a protected environment the target's name has to be
+typed.
 
 ## 5. Network
 

@@ -171,16 +171,15 @@ per profile (max 4 sessions by default) with idle close.
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+Enter | run current statement |
-| Ctrl+Shift+Enter | run script |
-| Ctrl+Alt+Enter | run selection |
+| Ctrl+Enter | run the selection, else the statement at the cursor |
+| Ctrl+Shift+Enter, F5 | run script |
 | Ctrl+Shift+X | explain |
 | Esc | cancel running |
 | Ctrl+Shift+R | refresh schema |
 | Ctrl+Space | completion |
-| Ctrl+Shift+F | format SQL |
+| Ctrl+Shift+F | format SQL (not yet; the combo is the terminal's Find) |
 | Alt+C / Alt+R | commit / rollback (manual tx) |
-| Ctrl+Shift+E | export result |
+| Ctrl+Alt+E | export result as CSV (Ctrl+Shift+E is the global environment switcher) |
 
 ## 14. Tests
 
@@ -188,3 +187,105 @@ Classifier and splitter fixtures per dialect; driver integration tests against
 containers (Postgres 16, MySQL 8, MariaDB, SQL Server 2022) covering
 streaming, cancel, introspection, type decoding (dates, decimals, JSON,
 arrays, UUID, binary); grid tests on 1 M synthetic rows.
+
+## 15. Implementation status (M3, 2026-10-12)
+
+What exists, and where it differs from the sections above:
+
+- **Drivers** (`tool-db::driver`): one `DbSession` trait object per tab
+  (`connect(&ConnectConfig)` picks the engine; there is no separate
+  `DbDriver`/`Dialect` object, the `Engine` enum carries the dialect's few
+  differences). Rows stream in batches of 100 into a `ResultSink`.
+  - *PostgreSQL* (`tokio-postgres` + rustls/ring): statements run over the
+    **simple-query protocol**, so every value arrives in the server's own
+    text form (arrays, ranges, JSON, intervals, extensions) and any
+    statement works, transaction control included; a Describe of the same
+    statement supplies column types for alignment and unquoted numbers.
+    Error positions and SQLSTATE come back with the error; notices land in
+    Messages. Reaching the row limit outside a transaction block sends a
+    cancel request (awaited before the next statement) instead of reading
+    the rest; inside a block the rest is read and dropped, since a cancel
+    would abort the transaction. Portals are not used.
+  - *MySQL / MariaDB* (`mysql_async`, text protocol, rustls/ring): cancel is
+    `KILL QUERY` from a second short-lived connection, awaited before the
+    result is drained; warnings are read with `SHOW WARNINGS`.
+  - *SQLite* (`rusqlite`, bundled): the connection lives on its own thread;
+    cancel is `sqlite3_interrupt`; read-only profiles open the file
+    read-only with `query_only`.
+  - TLS modes as in docs/06 §5: `prefer`/`require` encrypt without checking
+    the certificate; `verify-ca`/`verify-full` check it against the platform
+    store plus `ssl_ca` (Postgres checks the host name in both; MySQL skips
+    it for `verify-ca`).
+  - Read-only profiles, and protected environments until writes are
+    allowed, also make the **server session** read-only (`SET SESSION
+    CHARACTERISTICS AS TRANSACTION READ ONLY`, `SET SESSION TRANSACTION
+    READ ONLY`, SQLite read-only open), behind the client-side refusal.
+  - Statement timeout (30 s, 5 min or none from the toolbar) is enforced by
+    the client: on expiry the statement is cancelled. One session per tab;
+    no pool of four.
+- **Splitter and classifier** (`tool-db::sql`): a dialect-aware tokenizer
+  (strings, `E''`, `$tag$` bodies, quoted identifiers, `#`/`--`/nested
+  `/* */` comments), splitting on `;`, MySQL `DELIMITER`, `GO` lines and
+  `BEGIN … END` bodies of triggers and routines. The classifier is written
+  on that tokenizer, not on `sqlparser` (see docs/06 §4).
+- **Schema browser**: schemas › Tables/Views/Functions/Sequences (by engine)
+  › columns with PK/NOT NULL/FK badges and an Indexes branch, loaded per
+  level; filter box; refresh; double-click a table or view to run
+  `SELECT *`; context menu Open Data, New SELECT, Count Rows, Copy Name,
+  Truncate…/Drop… (these put the statement in the editor, where running it
+  goes through the guard). DDL generation, dependencies and exact counts
+  are not done.
+- **Completion**: tables after FROM/JOIN/INTO/UPDATE (other schemas
+  qualified), columns after `alias.` with the statement's aliases tracked,
+  tables after `schema.`, else the statement's columns, tables and
+  keywords; opens while typing a word of two or more characters or after
+  `.`, Ctrl+Space forces it. The catalog (one query per engine) is cached in
+  `HyperStackData/cache/db-catalog/<connection id>.json` so completion works
+  before the server answers.
+- **Running**: Ctrl+Enter runs the selection or the statement at the cursor,
+  F5/Ctrl+Shift+Enter the script (stopping at the first error, later
+  statements marked skipped), Explain prefixes `EXPLAIN` (`EXPLAIN QUERY
+  PLAN` on SQLite) and shows the plan as rows; the tree view is P1.
+  `{{variables}}` are substituted from the profile's environment first.
+  Each statement gets a result tab; a failed run selects the failing tab and
+  the server's error position is underlined in the editor. Cancel button
+  and Escape. `:name`/`$1` parameter prompts are not done.
+- **Result grid** (`tool-db::grid`): virtualised, resizable columns, NULL in
+  grey italics, numbers right-aligned, header click sorts (numeric-aware,
+  NULLs last), quick filter (`null` finds NULLs), cell selection, a cell
+  viewer on double-click (JSON pretty-printed, bytes as a hex dump), cell
+  context menu (copy cell, copy row, view, filter by value), footer with row
+  count, **Fetch More** (re-runs the read with the limit raised by 500),
+  **Copy As** (TSV, CSV, JSON, Markdown, SQL INSERT, `IN (…)`) of the
+  loaded rows, and **Export** (CSV, JSON, INSERT, Markdown, TSV) of *all*
+  rows: a Job that re-runs the statement on a second connection and
+  streams it to the file. Column reorder/hide, transpose, statistics and
+  Excel are not done; data editing (§8) is P1.
+- **Transactions**: Auto-Commit / Manual Commit toggle; manual mode opens a
+  transaction before the first statement; Commit/Rollback buttons, a
+  "Transaction open" badge, and the tab counts as unsaved while one is open.
+- **Guards**: see docs/06 §3–4. Read-only refusal and the confirm dialog
+  (statement, class, connection and environment; the target's name typed
+  on a protected environment, the connection name when the statement has
+  no single target). **Allow Writes** in the toolbar lifts a protected
+  environment's read-only for that tab and reconnects. A profile without an
+  environment follows the active one.
+- **History**: every executed statement in `history.sqlite`
+  (`query_history`, password redacted, 90 days / 50,000 rows), searchable
+  in the sidebar; a click inserts it into the editor.
+- **Saved queries**: Ctrl+S saves the editor to
+  `<workspace>/queries/<connection-slug>/<name>.sql` with the JSON header;
+  listed in the sidebar and in Ctrl+P as `# name`.
+- **Connections**: Settings → Connections form for kind DB (engine,
+  host/port/database or SQLite file, user, password into the vault on save,
+  TLS mode and CA file, SSH tunnel through any SSH profile via the
+  `Tunnels` service) and a **Paste a URL** field (`postgres://`,
+  `mysql://`, `mariadb://`, `jdbc:…`, `sqlite:`). Test-connection button and
+  the DBeaver/`.pgpass`/`.my.cnf` importers are not done.
+- **Tests**: `tests/drivers.rs` runs one scenario on every engine (types,
+  row limit + session still usable, transactions, error position,
+  introspection, catalog, cancel, read-only) — SQLite always, PostgreSQL
+  with `HS_PG`, MySQL/MariaDB with `HS_MYSQL`, TLS modes with `HS_PG_TLS`;
+  verified against PostgreSQL 16 and MariaDB 10.11. Unit tests cover the
+  splitter and classifier, completion, export formats, URL parsing,
+  history redaction and the grid (egui_kittest).

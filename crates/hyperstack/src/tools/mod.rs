@@ -15,6 +15,7 @@ pub fn factories(settings: SharedSettings) -> Vec<Box<dyn ToolFactory>> {
         Box::new(tool_terminal::TerminalFactory),
         Box::new(tool_ssh::SshFactory),
         Box::new(tool_s3::S3Factory),
+        Box::new(tool_db::DbFactory),
         Box::new(scratchpad::ScratchpadFactory),
         Box::new(settings::SettingsFactory { hub: settings }),
         Box::new(hello::HelloFactory),

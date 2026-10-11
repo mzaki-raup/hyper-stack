@@ -20,6 +20,14 @@ Images used by the top-level [README](../../README.md). They show HyperStack
   imported through the tool's "Import AWS Profiles" from a `~/.aws` pair
   pointing at it. The tunnel shot forwards a local port through the same
   OpenSSH server to a small HTTP service.
+- The database shots and `database-walkthrough.gif` (12 fps x11grab →
+  10 fps, 1200 px GIF) use a local PostgreSQL 16 and MariaDB 10.11 seeded
+  with a small shop schema (customers, products, 600 orders, order items,
+  an `audit` schema), and a SQLite copy of it. The PostgreSQL and MariaDB
+  profiles were created through Settings → Connections by pasting a URL
+  (the password went into the vault); "orders (production)" points at the
+  same database under the protected Production environment, and
+  "orders via web-01" tunnels through the local OpenSSH server.
 - `hyperstack-demo.gif` is an `ffmpeg x11grab` recording of one scripted run
   (vault unlock → launcher → terminal with search and a Ctrl+clicked
   `path:line` → editor at that line → Markdown preview with a Mermaid

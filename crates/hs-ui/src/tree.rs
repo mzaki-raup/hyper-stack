@@ -172,22 +172,33 @@ fn show_node(
                 .paint_at(ui, icon_rect);
         }
     }
-    ui.painter().text(
+    let label_rect = ui.painter().text(
         egui::pos2(x0 + 34.0, rect.center().y),
         Align2::LEFT_CENTER,
         &node.label,
         font,
         theme.text,
     );
-    if let Some(b) = &node.badge {
-        ui.painter().text(
-            egui::pos2(rect.right() - 6.0, rect.center().y),
-            Align2::RIGHT_CENTER,
-            b,
+    let mut r = r;
+    if let Some(b) = node.badge.as_ref().filter(|b| !b.is_empty()) {
+        // Drawn only where it fits beside the label; otherwise on hover.
+        let galley = ui.painter().layout_no_wrap(
+            b.clone(),
             egui::FontId::proportional(11.0),
             theme.text_muted,
         );
+        let left = rect.right() - 6.0 - galley.size().x;
+        if left > label_rect.right() + 8.0 {
+            ui.painter().galley(
+                egui::pos2(left, rect.center().y - galley.size().y / 2.0),
+                galley,
+                theme.text_muted,
+            );
+        } else {
+            r = r.on_hover_text(b);
+        }
     }
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &node.label));
     if r.clicked() {
         state.selected = Some(node.id.clone());
         resp.clicked = Some(node.id.clone());

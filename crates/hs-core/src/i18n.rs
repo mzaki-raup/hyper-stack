@@ -94,7 +94,12 @@ impl I18n {
     pub fn t_args(&self, key: &str, args: &[(&str, &str)]) -> String {
         let mut fa = FluentArgs::new();
         for (k, v) in args {
-            fa.set(*k, *v);
+            // Integers go in as numbers so plural selectors (`[one]`) match;
+            // only canonical ones, so "007" or "0.12.1" stay text.
+            match v.parse::<i64>() {
+                Ok(n) if n.to_string() == *v => fa.set(*k, n),
+                _ => fa.set(*k, *v),
+            }
         }
         Self::format(&self.bundle, key, Some(&fa))
             .or_else(|| Self::format(&self.fallback, key, Some(&fa)))
@@ -152,6 +157,23 @@ mod tests {
         assert_eq!(i.t("app-name"), "HyperStack");
         assert_eq!(i.t("no-such-key"), "no-such-key");
         assert!(i.t_args("tab-count", &[("n", "3")]).contains('3'));
+    }
+
+    #[test]
+    fn integer_arguments_select_plural_forms() {
+        let i = I18n::load("en");
+        let strip = |s: String| s.replace(['\u{2068}', '\u{2069}'], "");
+        assert_eq!(strip(i.t_args("tab-count", &[("n", "1")])), "1 tab");
+        assert_eq!(strip(i.t_args("tab-count", &[("n", "2")])), "2 tabs");
+        assert_eq!(
+            strip(i.t_args("db-affected", &[("rows", "1"), ("ms", "4")])),
+            "1 row affected in 4 ms."
+        );
+        // Not canonical integers: passed through as text.
+        assert_eq!(
+            strip(i.t_args("db-exported", &[("path", "007")])),
+            "Exported to 007"
+        );
     }
 
     #[test]

@@ -8,10 +8,11 @@ environments and secrets across every tool.
 
 **Status: Phase 0 (foundation), M1 (terminal with search and links,
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
-with tunnels, S3) implemented; M3 (databases, NoSQL, Redis) next.** The
+with tunnels, S3) implemented; M3 under way: the SQL database tool
+(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next.** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
 `hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
-`tools/tool-s3`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+`tools/tool-s3`, `tools/tool-db`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -259,6 +260,7 @@ cargo run -p hyperstack -- --data-dir ./tmp-data   # run against a throwaway dat
 cargo run -p hyperstack -- --self-test     # what the CI smoke step runs
 cargo test -p tool-s3                      # one tool crate at a time
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server / MinIO
+HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers   # SQL drivers (SQLite always)
 pwsh -File scripts/next-release.ps1        # what the next push to main would release
 pwsh -c 'Invoke-Pester scripts/tests'      # release-planner tests (Pester 5)
 pwsh -File scripts/build-and-package.ps1 -Version 0.0.0-local -SkipSign   # local packaging dry run
@@ -379,6 +381,20 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A single-line `TextEdit` gives up focus on Escape *before* your code sees
   the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
   `(r.has_focus() || r.lost_focus())` (the terminal find bar does).
+- `egui_extras::TableBuilder::sense(click)` registers a row-wide click area
+  *after* the cells, so a cell's own `interact` never sees clicks (no cell
+  selection, no double-click). Leave the builder's sense off and put
+  `ui.interact(ui.max_rect(), id, Sense::click())` first in each cell,
+  before the hover-only label (`tool-db::grid`).
+- egui drops keyboard focus on Escape before the tool runs, even when the
+  tool then consumes the key (closing a completion list). Request focus for
+  the editor again after handling such an Escape.
+- Fluent plural selectors (`[one]`) never match string arguments, and
+  `t_args` takes strings: `I18n::t_args` passes canonical integers as
+  numbers so "1 row" / "1 tab" work. A new `[one]` message needs nothing
+  more; non-canonical text ("007", "0.12.1") stays text.
+- `egui_kittest`'s synthetic clicks (and raw pointer events) never form a
+  double-click; cover double-click paths in the running app.
 - `rust-embed`'s `#[include]`/`#[exclude]` attributes need the
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
@@ -416,6 +432,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
   moto verifies the request shape, not the signature; the SigV4 unit tests
   against AWS's examples cover that.
+- `pkill -f /opt/HyperStack/HyperStack` run from a Bash tool call also
+  matches that shell's own command line and kills it (exit 144); stop the
+  app with `pkill -x HyperStack`. `xdotool type` cannot type multi-byte
+  characters such as "—".
+- Live DB servers for the driver tests: PostgreSQL from the distro's
+  `/usr/lib/postgresql/16/bin` (`initdb`/`pg_ctl` as the `postgres` user,
+  with the data directory under `/var/lib/postgresql/` — the scratchpad's
+  parent folders lose their permissions and the server then dies), and
+  `apt-get install mariadb-server` then `mysqld_safe --user=mysql`.
 - Repeated `cargo test` runs grow `target/debug` past 20 GB and the disk
   fills ("No space left on device", even `pwd` fails); delete
   `target/debug` and rebuild.
@@ -446,6 +471,27 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   testserver --example devsshd -- 2222`, user `dev`/`dev`). Point the SSH tool
   at `127.0.0.1:2222`. WSL's own sshd is NOT reachable from Windows under the
   default NAT networking, so use devsshd for manual UI testing.
+
+### Databases (tool-db)
+- `mysql_async` builds its rustls config with `ClientConfig::builder()`,
+  which panics when more than one crypto provider is compiled in (reqwest
+  brings aws-lc-rs, we use ring): install ring as the process default
+  once before connecting (`driver::mysql::install_crypto_provider`).
+- A Postgres cancel request issued when a row limit is reached must be
+  *awaited* before the next statement starts, or it can cancel that one;
+  and inside a transaction block it aborts the transaction, so there the
+  rest of the result is read and dropped instead. MySQL's `KILL QUERY`
+  likewise goes out (and is awaited) before draining the result.
+- Postgres via `simple_query` returns every value as server text (the
+  psql form), which is what the grid wants; column types come from a
+  separate `prepare` of the same statement and are only used for alignment
+  and unquoted numbers.
+
+### Connection forms
+- `store_typed_secrets` used to warn and carry on when the vault was
+  locked, so the profile was saved with the typed password in its TOML. It
+  now returns false and the form does not save; any new form must check
+  that result before `upsert`.
 
 ### Terminal / ConPTY
 - A ConPTY child does not run until the "terminal" answers the Device Status

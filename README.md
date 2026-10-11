@@ -15,14 +15,16 @@ single window organised as a **multi-row, multi-tab workspace**, where every too
 shares the same connection profiles, environments, secrets store, command palette
 and theme.
 
-> **Status:** Phase 0 (foundation) and M1 implemented, with M2 under way: the
-> workspace shell with workspaces as projects (create, clone, switch, delete),
-> portable data folder, vault, environments, settings (as a tab, with bundled
-> and system fonts), a terminal with scrollback search and Ctrl+click links, a code editor with project tree and Markdown
-> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port forwarding, an S3
-> browser for AWS and S3-compatible stores, and the in-app updater
-> with signed releases. Databases, API client, Git and logs follow in the
-> next milestones per
+> **Status:** Phase 0 (foundation), M1 and M2 implemented, with M3 under way:
+> the workspace shell with workspaces as projects (create, clone, switch,
+> delete), portable data folder, vault, environments, settings (as a tab, with
+> bundled and system fonts), a terminal with scrollback search and Ctrl+click
+> links, a code editor with project tree and Markdown preview (with native
+> Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port
+> forwarding, an S3 browser for AWS and S3-compatible stores, a SQL client for
+> PostgreSQL, MySQL/MariaDB and SQLite, and the in-app updater with signed
+> releases. NoSQL, Redis, API client, Git and logs follow in the next
+> milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
 > (Rust + egui file manager) serves as a **reference only**: HyperStack studies
 > how it solved the multi-row tab strip, terminal, SSH/SFTP, S3 and Git status,
@@ -32,7 +34,7 @@ and theme.
 
 ## Screenshots
 
-Every feature that is built today, captured from a real `HyperStack` 0.11.0
+Every feature that is built today, captured from a real `HyperStack`
 build. See [docs/screenshots/](docs/screenshots/README.md) for how they were
 made.
 
@@ -108,6 +110,23 @@ made.
 | **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
+
+### SQL databases (PostgreSQL, MySQL / MariaDB, SQLite)
+
+<p align="center"><img src="docs/screenshots/database-walkthrough.gif" alt="Database tool walkthrough: expand the schema tree and open a table's rows, write a join with completion, run it, run a script whose last statement fails with the error underlined in the editor, then on the protected Production connection see a DELETE refused, allow writes, and get asked to type the table name" width="960"></p>
+
+| | |
+|---|---|
+| ![Schema browser and rows](docs/screenshots/db-browse.png) | ![Completion](docs/screenshots/db-completion.png) |
+| **Schema browser** — schemas, tables, views, functions, columns with PK/FK/NOT NULL, indexes; double-click a table for its rows | **Completion** from the schema cache — tables after FROM/JOIN, columns after an alias |
+| ![Query and result grid](docs/screenshots/db-query.png) | ![Script with an error](docs/screenshots/db-script-error.png) |
+| **Result grid** — streamed rows, NULL shown as NULL, numbers right-aligned, sort, filter, Copy As, Export | **Scripts** — one result tab per statement; the failing one is selected and the server's error position underlined |
+| ![Refused on a protected environment](docs/screenshots/db-refused.png) | ![Guarded statement](docs/screenshots/db-guard.png) |
+| **Protected environments** open read-only — writes are refused until **Allow Writes** | **Guards** — UPDATE/DELETE without WHERE, DROP, TRUNCATE ask first; on production the table name must be typed |
+| ![Manual commit](docs/screenshots/db-manual-tx.png) | ![Cell viewer](docs/screenshots/db-cell-viewer.png) |
+| **Transactions** — Auto-Commit or Manual Commit with Commit / Rollback and an open-transaction badge | **Cell viewer** — JSON pretty-printed, binary as a hex dump |
+| ![DB connection form](docs/screenshots/connection-db-form.png) | |
+| **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile | |
 
 ### Settings
 
@@ -188,6 +207,8 @@ cargo build --release -p hyperstack          # target/release/HyperStack.exe (st
 ./target/release/HyperStack.exe --data-dir ./tmp-data   # run against a scratch data folder
 cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server or MinIO
+# SQL drivers: SQLite always; PostgreSQL / MySQL when given host:port:user:password:database
+HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers
 ```
 
 On Linux, `cargo clippy --workspace` also needs `libwayland-dev`,
@@ -207,7 +228,7 @@ hyper-stack/
 │   ├── hs-term/               # terminal grid, PTY, SSH shell transport
 │   └── tools/
 │       ├── tool-editor/
-│       ├── tool-db/           # SQL: + drivers/ (postgres, mysql, sqlite, mssql, …)
+│       ├── tool-db/           # SQL: driver/ (postgres, mysql, sqlite; mssql, … later), splitter + classifier, grid
 │       ├── tool-nosql/        # documents: + drivers/ (mongodb, couchdb, elasticsearch, dynamodb, …)
 │       ├── tool-redis/
 │       ├── tool-logs/

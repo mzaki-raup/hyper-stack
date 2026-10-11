@@ -15,6 +15,7 @@ use hs_ui::kv_editor::{KvEditor, KvRow};
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 use secrecy::SecretString;
+use tool_db::profile::DbFields;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Page {
@@ -1329,10 +1330,13 @@ fn connections(
             });
             let is_ssh = draft.kind == "ssh";
             let is_s3 = draft.kind == "s3";
+            let is_db = draft.kind == "db";
             if is_ssh {
                 ssh_form(ui, theme, s, draft, fields_text, effects);
             } else if is_s3 {
                 s3_form(ui, theme, s, draft, fields_text);
+            } else if is_db {
+                db_form(ui, theme, s, draft, fields_text);
             } else {
                 form::section(ui, theme, &s.t("conn-fields"), |ui| {
                     form::code_field(ui, fields_text, 8);
@@ -1341,7 +1345,7 @@ fn connections(
             }
             ui.horizontal(|ui| {
                 if form::primary_button(ui, theme, &s.t("save")).clicked() {
-                    let parsed = if is_ssh || is_s3 {
+                    let parsed = if is_ssh || is_s3 || is_db {
                         Ok(draft.fields.clone())
                     } else {
                         toml::from_str::<toml::Table>(fields_text)
@@ -1371,6 +1375,16 @@ fn connections(
                                         ("secret key", &mut f.secret_key),
                                         ("session token", &mut f.session_token),
                                     ],
+                                    effects,
+                                );
+                                f.write_into(&mut table);
+                                draft.fields = table.clone();
+                            } else if is_db {
+                                let mut f = DbFields::from_table(&table);
+                                secrets_ok = store_typed_secrets(
+                                    s,
+                                    &draft.name,
+                                    [("password", &mut f.password)],
                                     effects,
                                 );
                                 f.write_into(&mut table);
@@ -1969,6 +1983,187 @@ fn s3_form(
         });
         form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
     });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The `kind = "db"` form: engine, server or file, credentials (password
+/// into the vault on save), TLS mode, SSH tunnel, and a pasted connection URL.
+fn db_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_db::driver::Engine;
+    use tool_db::profile::{SSL_MODES, parse_url};
+    let mut f = DbFields::from_table(&draft.fields);
+    let mut changed = false;
+    let url_id = egui::Id::new(("db-url", draft.id.clone()));
+    let mut url: String = ui.data_mut(|d| d.get_temp(url_id).unwrap_or_default());
+    form::section(ui, theme, &s.t("conn-db-section-server"), |ui| {
+        form::field_grid(ui, "db-server", |ui| {
+            form::label(ui, &s.t("conn-db-url"));
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut url)
+                        .hint_text("postgres://user@host:5432/db")
+                        .desired_width(form::FIELD_MIN_WIDTH - 70.0),
+                );
+                if ui
+                    .add_enabled(
+                        !url.trim().is_empty(),
+                        egui::Button::new(s.t("conn-db-apply-url")),
+                    )
+                    .clicked()
+                {
+                    if let Some((parsed, password)) = parse_url(&url) {
+                        let tunnel = std::mem::take(&mut f.tunnel_ssh);
+                        f = parsed;
+                        f.tunnel_ssh = tunnel;
+                        if let Some(p) = password {
+                            // Typed text until save moves it into the vault.
+                            f.password = p;
+                        }
+                        url.clear();
+                        changed = true;
+                    } else {
+                        url.clear();
+                    }
+                }
+            });
+            ui.end_row();
+            form::label(ui, &s.t("conn-db-engine"));
+            let engines = [
+                ("postgres", "PostgreSQL"),
+                ("mysql", "MySQL"),
+                ("mariadb", "MariaDB"),
+                ("sqlite", "SQLite"),
+            ];
+            let current = engines
+                .iter()
+                .find(|(id, _)| f.engine.eq_ignore_ascii_case(id))
+                .map(|(_, l)| *l)
+                .unwrap_or("?");
+            egui::ComboBox::from_id_salt("db-engine")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    for (id, label) in engines {
+                        if ui.selectable_label(f.engine == id, label).clicked() && f.engine != id {
+                            let old_default = f.engine().map(Engine::default_port);
+                            f.engine = id.to_string();
+                            if old_default == Some(f.port) || f.port == 0 {
+                                f.port = f.engine().map(Engine::default_port).unwrap_or(0);
+                            }
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            if f.engine() == Some(Engine::Sqlite) {
+                form::label(ui, &s.t("conn-db-file"));
+                ui.horizontal(|ui| {
+                    changed |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut f.path)
+                                .hint_text("C:/data/app.db")
+                                .desired_width(form::FIELD_MIN_WIDTH - 70.0),
+                        )
+                        .changed();
+                    if ui.button(s.t("conn-db-browse")).clicked()
+                        && let Some(p) = rfd::FileDialog::new().pick_file()
+                    {
+                        f.path = p.to_string_lossy().to_string();
+                        changed = true;
+                    }
+                });
+                ui.end_row();
+            } else {
+                form::label(ui, &s.t("conn-db-host"));
+                changed |= form::text_field(ui, &mut f.host, "localhost").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-db-port"));
+                let mut port = f.port.to_string();
+                if form::text_field(ui, &mut port, "5432").changed() {
+                    f.port = port.trim().parse().unwrap_or(f.port);
+                    changed = true;
+                }
+                ui.end_row();
+                form::label(ui, &s.t("conn-db-database"));
+                changed |= form::text_field(ui, &mut f.database, "").changed();
+                ui.end_row();
+            }
+        });
+        form::hint(ui, theme, &s.t("conn-db-server-hint"));
+    });
+    if f.engine() != Some(Engine::Sqlite) {
+        form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+            form::field_grid(ui, "db-auth", |ui| {
+                form::label(ui, &s.t("conn-db-user"));
+                changed |= form::text_field(ui, &mut f.user, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-db-password"));
+                changed |= secret_field(ui, theme, s, "db-password", &mut f.password, scratch, 0);
+                ui.end_row();
+                form::label(ui, &s.t("conn-db-ssl"));
+                egui::ComboBox::from_id_salt("db-ssl")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(f.ssl.clone())
+                    .show_ui(ui, |ui| {
+                        for m in SSL_MODES {
+                            if ui.selectable_label(f.ssl == *m, *m).clicked() {
+                                f.ssl = (*m).to_string();
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+                if f.ssl.starts_with("verify") {
+                    form::label(ui, &s.t("conn-db-ssl-ca"));
+                    changed |=
+                        form::text_field(ui, &mut f.ssl_ca, &s.t("conn-db-ssl-ca-hint")).changed();
+                    ui.end_row();
+                }
+                form::label(ui, &s.t("conn-db-tunnel"));
+                let hosts: Vec<(String, String)> = s
+                    .connections
+                    .read()
+                    .of_kind("ssh")
+                    .map(|c| (c.id.clone(), c.name.clone()))
+                    .collect();
+                let none = s.t("conn-db-no-tunnel");
+                let current = hosts
+                    .iter()
+                    .find(|(id, _)| *id == f.tunnel_ssh)
+                    .map(|(_, n)| n.clone())
+                    .unwrap_or_else(|| none.clone());
+                egui::ComboBox::from_id_salt("db-tunnel")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(current)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                            .clicked()
+                        {
+                            f.tunnel_ssh.clear();
+                            changed = true;
+                        }
+                        for (id, name) in hosts {
+                            if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                                f.tunnel_ssh = id;
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+            });
+            form::hint(ui, theme, &s.t("conn-db-auth-hint"));
+        });
+    }
+    ui.data_mut(|d| d.insert_temp(url_id, url));
     if changed {
         f.write_into(&mut draft.fields);
     }

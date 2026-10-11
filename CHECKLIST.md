@@ -64,10 +64,10 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 ### M3 · SQL database + NoSQL + Redis
 | Item | State | Notes |
 |---|---|---|
-| `tool-db`: `DbDriver`; SQLite, PostgreSQL, MySQL/MariaDB | Pending | |
-| Schema browser, SQL editor with completion, run statement/selection/script, cancel | Pending | |
-| Result grid streaming, cell viewer, copy/export | Pending | |
-| History, saved queries, transactions, read-only, destructive classifier, SSH tunnel | Pending | |
+| `tool-db`: `DbSession`; SQLite, PostgreSQL, MySQL/MariaDB | Completed | 2026-10-12: `tests/drivers.rs` passes on SQLite, PostgreSQL 16 (incl. TLS `require`/`verify-full`) and MariaDB 10.11; streaming, row limit with server-side stop, cancel, introspection, read-only sessions |
+| Schema browser, SQL editor with completion, run statement/selection/script, cancel | Completed | Exercised in the app on all three engines; error positions underlined; Escape cancels. `:name` parameter prompts and SQL formatting deferred |
+| Result grid streaming, cell viewer, copy/export | Completed | Sort, filter, NULL styling, cell viewer, Fetch More, Copy As (6 formats), Export of all rows as a Job on a second connection (native save dialog, so not exercised headless; covered by the `FileSink` test). Column reorder/hide, transpose, Excel deferred |
+| History, saved queries, transactions, read-only, destructive classifier, SSH tunnel | Completed | Guards exercised on a protected environment (refusal, Allow Writes, typed name); tunnel exercised through OpenSSH; the vault keeps the password (grep found no plaintext) |
 | `tool-nosql`: `DocStore`; MongoDB (tree, find, aggregation, views, Extended JSON editing, guarded writes) | Pending | |
 | `tool-nosql`: CouchDB (databases, `_rev`, Mango, attachments) | Pending | |
 | `tool-redis`: connection, SCAN tree, type viewers/editors, TTL, console, guards | Pending | |

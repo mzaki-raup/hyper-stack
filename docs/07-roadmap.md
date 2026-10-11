@@ -73,10 +73,10 @@ in the e2e test).
 - [x] `tool-s3`: profiles + import AWS files, SigV4 client in `hs-core::objstore`, bucket/prefix browsing, uploads with multipart, downloads, delete with guard, presigned URLs — the `s3://` VFS moves to M6 with the `sftp://` one (editing goes through a temp file meanwhile)
 
 ### M3 · SQL database + NoSQL + Redis (8 w)
-- [ ] `tool-db`: `DbDriver` trait; drivers SQLite (`rusqlite`), PostgreSQL (`tokio-postgres`), MySQL/MariaDB (`mysql_async`)
-- [ ] Schema browser, SQL editor with completion from schema cache, run statement/selection/script, cancel
-- [ ] Result grid streaming into `DataTable`, cell viewer, copy/export CSV/JSON/Markdown/INSERT
-- [ ] History, saved queries (`.sql` + header), transactions toggle, read-only, destructive classifier + guard, SSH tunnel
+- [x] `tool-db`: `DbSession` trait (was `DbDriver`); drivers SQLite (`rusqlite`), PostgreSQL (`tokio-postgres`), MySQL/MariaDB (`mysql_async`)
+- [x] Schema browser, SQL editor with completion from schema cache, run statement/selection/script, cancel
+- [x] Result grid streaming into its own grid, cell viewer, copy/export CSV/JSON/Markdown/INSERT
+- [x] History, saved queries (`.sql` + header), transactions toggle, read-only, destructive classifier + guard, SSH tunnel
 - [ ] `tool-nosql`: `DocStore` trait; MongoDB driver (databases/collections tree, find with filter/projection/sort, aggregation editor, document tree/table/JSON views, Extended JSON editing, insert/update/delete with guards); CouchDB driver (databases, documents with `_rev`, Mango queries, attachments)
 - [ ] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with completion, guards
 

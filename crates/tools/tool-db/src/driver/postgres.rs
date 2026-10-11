@@ -158,7 +158,11 @@ impl PgSession {
             .await?;
         if let Some(row) = r.first() {
             s.info = ServerInfo {
-                version: format!("PostgreSQL {}", cell(row, 0)),
+                // "16.4 (Ubuntu 16.4-1)" → "16.4"
+                version: format!(
+                    "PostgreSQL {}",
+                    cell(row, 0).split_whitespace().next().unwrap_or_default()
+                ),
                 database: cell(row, 1),
             };
         }

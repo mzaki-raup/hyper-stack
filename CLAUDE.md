@@ -246,11 +246,10 @@ assume. `C:\Apps\gitea-runner\make-global.ps1` is what collapsed them.
   also reads `.github/workflows/` and cannot fetch published actions.
 - **The tag reaches GitHub from the Forgejo release job**: its last step,
   `scripts/push-to-mirror.ps1`, fast-forwards GitHub's branch to the version
-  commit (never forced) and pushes the tag, using the forge secrets
-  `HS_GITHUB_MIRROR_URL` and `HS_GITHUB_MIRROR_TOKEN` (GitHub token with
-  Contents + Workflows write). Without them the step is skipped and GitHub
-  builds nothing until `git push origin vX.Y.Z` by hand (0.12.0 and 0.12.1
-  were missed that way).
+  commit (never forced), pushes the tag and dispatches GitHub's
+  `release.yml` for it, using the forge secrets `HS_GITHUB_MIRROR_URL` and
+  `HS_GITHUB_MIRROR_TOKEN` (GitHub token with Contents + Workflows + Actions
+  write). Without them the step is skipped and GitHub builds nothing.
 
 ## Build & run (once the workspace exists)
 
@@ -334,6 +333,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   A GitHub-only workflow dropped into the tree runs on the Forgejo runner and
   dies on its first `uses:`; guard every such job with
   `if: github.server_url == 'https://github.com'`.
+- GitHub does not start push-triggered workflows for a commit whose
+  message contains `[skip ci]`, **including a tag push**: the tag of
+  `chore(release): vX.Y.Z [skip ci]` reached GitHub and no release ran
+  (0.12.1). `push-to-mirror.ps1` dispatches `release.yml` with the tag
+  instead; by hand, Actions → Release → Run workflow.
 - A Forgejo *push mirror* force-pushes and a *pull mirror* makes the repo
   read-only, so neither is usable for a two-way GitHub mirror. Two push URLs
   on `origin` plus a fast-forward-only pull script is the arrangement that

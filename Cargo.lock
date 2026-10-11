@@ -2679,7 +2679,7 @@ dependencies = [
 
 [[package]]
 name = "hs-core"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "argon2 0.5.3",
  "base64 0.22.1",
@@ -2720,7 +2720,7 @@ dependencies = [
 
 [[package]]
 name = "hs-editor"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -2736,7 +2736,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ssh"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "chrono",
  "hs-core",
@@ -2756,7 +2756,7 @@ dependencies = [
 
 [[package]]
 name = "hs-term"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "alacritty_terminal",
  "egui",
@@ -2771,7 +2771,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ui"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "egui",
  "egui-phosphor",
@@ -2897,7 +2897,7 @@ dependencies = [
 
 [[package]]
 name = "hyperstack"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "chrono",
  "clap",
@@ -6507,7 +6507,7 @@ checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
 name = "tool-editor"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -6523,7 +6523,7 @@ dependencies = [
 
 [[package]]
 name = "tool-s3"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -6537,7 +6537,7 @@ dependencies = [
 
 [[package]]
 name = "tool-ssh"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "chrono",
  "egui",
@@ -6556,7 +6556,7 @@ dependencies = [
 
 [[package]]
 name = "tool-terminal"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "egui",
  "hs-core",

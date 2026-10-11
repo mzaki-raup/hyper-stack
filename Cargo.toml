@@ -10,6 +10,7 @@ members = [
   "crates/tools/tool-editor",
   "crates/hs-ssh",
   "crates/tools/tool-ssh",
+  "crates/tools/tool-s3",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -33,6 +34,7 @@ hs-editor = { path = "crates/hs-editor" }
 tool-editor = { path = "crates/tools/tool-editor" }
 hs-ssh = { path = "crates/hs-ssh" }
 tool-ssh = { path = "crates/tools/tool-ssh" }
+tool-s3 = { path = "crates/tools/tool-s3" }
 
 # UI
 eframe = "0.35"
@@ -68,6 +70,8 @@ zeroize = { version = "1", features = ["derive"] }
 secrecy = "0.10"
 rand = "0.9"
 base64 = "0.22"
+hmac = "0.12"
+md-5 = "0.10"
 sha2 = "0.10"
 minisign-verify = "0.2"
 

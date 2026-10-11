@@ -1,0 +1,20 @@
+[package]
+name = "tool-s3"
+description = "HyperStack S3 tool: object storage browser for AWS and S3-compatible stores"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+secrecy = { workspace = true }
+rfd = { workspace = true }

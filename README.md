@@ -4,7 +4,7 @@
 
 **One workspace for everyone who ships software.**
 
-<p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, browse the project in the editor with Markdown preview, use the command palette, connect to a server over SSH with the SFTP pane following the shell, switch to the protected Production environment and edit environments in Settings" width="960"></p>
+<p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, search the output and Ctrl+click a compiler location to open it in the editor, preview Markdown with a Mermaid diagram, connect over SSH and start a port-forward tunnel, browse an S3 bucket and create a presigned URL, then switch to the protected Production environment" width="960"></p>
 
 HyperStack is a desktop application for full-stack developers, DevOps engineers,
 database administrators, testers and integration engineers. It brings the tools
@@ -19,8 +19,9 @@ and theme.
 > workspace shell with workspaces as projects (create, clone, switch, delete),
 > portable data folder, vault, environments, settings (as a tab, with bundled
 > and system fonts), a terminal with scrollback search and Ctrl+click links, a code editor with project tree and Markdown
-> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port forwarding, and the in-app updater
-> with signed releases. Databases, API client, S3, Git and logs follow in the
+> preview (with native Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port forwarding, an S3
+> browser for AWS and S3-compatible stores, and the in-app updater
+> with signed releases. Databases, API client, Git and logs follow in the
 > next milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
 > (Rust + egui file manager) serves as a **reference only**: HyperStack studies
@@ -96,6 +97,17 @@ made.
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
 | ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | |
 | **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | |
+
+### S3 and S3-compatible storage
+
+| | |
+|---|---|
+| ![S3 browser](docs/screenshots/s3-browser.png) | ![S3 profile](docs/screenshots/connection-s3-form.png) |
+| **Browser** — profiles and buckets in the sidebar, breadcrumb, size / modified / class / ETag, Load More | **Profile** — provider presets (AWS, MinIO, R2, B2, Spaces, Wasabi), keys stored in the vault |
+| ![Import AWS profiles](docs/screenshots/s3-import-aws.png) | ![Presigned URL](docs/screenshots/s3-presign.png) |
+| **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
+| ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
+| **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
 
 ### Settings
 
@@ -175,7 +187,12 @@ cargo build --release -p hyperstack          # target/release/HyperStack.exe (st
 ./target/release/HyperStack.exe --self-test --data-dir ./tmp-data
 ./target/release/HyperStack.exe --data-dir ./tmp-data   # run against a scratch data folder
 cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --workspace --locked
+HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server or MinIO
 ```
+
+On Linux, `cargo clippy --workspace` also needs `libwayland-dev`,
+`libxkbcommon-dev` and `pkg-config` (the UI test harness builds the Wayland
+backend).
 
 ## Repository layout
 

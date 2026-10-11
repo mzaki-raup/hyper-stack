@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use hs_core::Services;
 use hs_core::connections::ConnectionProfile;
 use hs_core::environments::Environment;
+use hs_core::objstore::profile::S3Fields;
 use hs_core::secrets::SecretRef;
 use hs_ui::form;
 use hs_ui::kv_editor::{KvEditor, KvRow};
@@ -1327,8 +1328,11 @@ fn connections(
                 });
             });
             let is_ssh = draft.kind == "ssh";
+            let is_s3 = draft.kind == "s3";
             if is_ssh {
                 ssh_form(ui, theme, s, draft, fields_text, effects);
+            } else if is_s3 {
+                s3_form(ui, theme, s, draft, fields_text);
             } else {
                 form::section(ui, theme, &s.t("conn-fields"), |ui| {
                     form::code_field(ui, fields_text, 8);
@@ -1337,7 +1341,7 @@ fn connections(
             }
             ui.horizontal(|ui| {
                 if form::primary_button(ui, theme, &s.t("save")).clicked() {
-                    let parsed = if is_ssh {
+                    let parsed = if is_ssh || is_s3 {
                         Ok(draft.fields.clone())
                     } else {
                         toml::from_str::<toml::Table>(fields_text)
@@ -1346,32 +1350,28 @@ fn connections(
                         Ok(mut table) => {
                             if is_ssh {
                                 let mut f = hs_ssh::SshFields::from_table(&table);
-                                for (label, v) in [
-                                    ("password", &mut f.password),
-                                    ("key passphrase", &mut f.key_passphrase),
-                                ] {
-                                    if !v.is_empty()
-                                        && hs_core::secrets::SecretRef::parse(v).is_none()
-                                    {
-                                        if s.secrets.is_locked() {
-                                            effects.push(SettingsEffect::Toast(
-                                                hs_core::tool::ToastLevel::Warning,
-                                                s.t("settings-vault-unlock-first"),
-                                            ));
-                                        } else {
-                                            match s.secrets.create(
-                                                &format!("{}: {label}", draft.name),
-                                                &SecretString::from(v.clone()),
-                                            ) {
-                                                Ok(r) => *v = r.to_string_ref(),
-                                                Err(e) => effects.push(SettingsEffect::Toast(
-                                                    hs_core::tool::ToastLevel::Error,
-                                                    e.to_string(),
-                                                )),
-                                            }
-                                        }
-                                    }
-                                }
+                                store_typed_secrets(
+                                    s,
+                                    &draft.name,
+                                    [
+                                        ("password", &mut f.password),
+                                        ("key passphrase", &mut f.key_passphrase),
+                                    ],
+                                    effects,
+                                );
+                                f.write_into(&mut table);
+                                draft.fields = table.clone();
+                            } else if is_s3 {
+                                let mut f = S3Fields::from_table(&table);
+                                store_typed_secrets(
+                                    s,
+                                    &draft.name,
+                                    [
+                                        ("secret key", &mut f.secret_key),
+                                        ("session token", &mut f.session_token),
+                                    ],
+                                    effects,
+                                );
                                 f.write_into(&mut table);
                                 draft.fields = table.clone();
                             }
@@ -1851,6 +1851,109 @@ fn ssh_form(
         f.write_into(&mut draft.fields);
     }
     let _ = effects;
+}
+
+/// Move secrets the user typed into a profile form into the vault, leaving
+/// `secret:<id>` references in the profile.
+fn store_typed_secrets<const N: usize>(
+    s: &Services,
+    profile_name: &str,
+    fields: [(&str, &mut String); N],
+    effects: &mut Vec<SettingsEffect>,
+) {
+    for (label, v) in fields {
+        if v.is_empty() || hs_core::secrets::SecretRef::parse(v).is_some() {
+            continue;
+        }
+        if s.secrets.is_locked() {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Warning,
+                s.t("settings-vault-unlock-first"),
+            ));
+            continue;
+        }
+        match s.secrets.create(
+            &format!("{profile_name}: {label}"),
+            &SecretString::from(v.clone()),
+        ) {
+            Ok(r) => *v = r.to_string_ref(),
+            Err(e) => effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+/// The `kind = "s3"` form: provider preset, endpoint, region, keys (into
+/// the vault on save), path style, default bucket.
+fn s3_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use hs_core::objstore::profile::{PROVIDERS, provider_label, provider_preset};
+    let mut f = S3Fields::from_table(&draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-s3-section-endpoint"), |ui| {
+        form::field_grid(ui, "s3-endpoint", |ui| {
+            form::label(ui, &s.t("conn-s3-provider"));
+            egui::ComboBox::from_id_salt("s3-provider")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(provider_label(&f.provider))
+                .show_ui(ui, |ui| {
+                    for p in PROVIDERS {
+                        if ui
+                            .selectable_label(f.provider == *p, provider_label(p))
+                            .clicked()
+                            && f.provider != *p
+                        {
+                            f.provider = (*p).to_string();
+                            let (endpoint, path_style) = provider_preset(p);
+                            f.endpoint = endpoint.to_string();
+                            f.path_style = path_style;
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            form::label(ui, &s.t("conn-s3-endpoint"));
+            changed |=
+                form::text_field(ui, &mut f.endpoint, &s.t("conn-s3-endpoint-hint")).changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-s3-region"));
+            changed |= form::text_field(ui, &mut f.region, "us-east-1").changed();
+            ui.end_row();
+            form::label(ui, "");
+            changed |= ui
+                .checkbox(&mut f.path_style, s.t("conn-s3-path-style"))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-s3-default-bucket"));
+            changed |= form::text_field(ui, &mut f.default_bucket, "").changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-s3-endpoint-help"));
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "s3-auth", |ui| {
+            form::label(ui, &s.t("conn-s3-access-key"));
+            changed |= form::text_field(ui, &mut f.access_key, "AKIA…").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-s3-secret-key"));
+            changed |= secret_field(ui, theme, s, "s3-secret", &mut f.secret_key, scratch, 0);
+            ui.end_row();
+            form::label(ui, &s.t("conn-s3-session-token"));
+            changed |= secret_field(ui, theme, s, "s3-token", &mut f.session_token, scratch, 1);
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
 }
 
 /// A vault-backed secret field: shows "stored" when the value is a secret

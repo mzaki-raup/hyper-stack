@@ -59,7 +59,7 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 | `tool-ssh`: profiles, auth methods (password/key/agent), known hosts, shell tab | Completed | ~/.ssh/config import, jump hosts and agent-forwarding are P1 |
 | SFTP dual pane, transfers as Jobs, folder sync with the shell, edit-in-editor | Completed | 50/50 split tracks the window width, shell stable on mouse move (2026-10-11); transfer queue/resume, chmod dialog and the `sftp://` VFS are P1 |
 | `Tunnels` service (local forward) | Completed | `hs_core::tunnels::Tunnels` + `hs_ssh::tunnels::TunnelManager`; SSH sidebar list and New Tunnel form; end-to-end test through the in-process server, live-tested through OpenSSH 2026-10-11; `-R`/`-D` are P1 |
-| `tool-s3`: profiles, AWS import, SigV4 client, browsing, multipart upload, download, guarded delete, presign, `s3://` VFS | Pending | |
+| `tool-s3`: profiles, AWS import, SigV4 client, browsing, multipart upload, download, guarded delete, presign, `s3://` VFS | Completed | 2026-10-11: SigV4 verified against AWS examples; client tested end to end against moto (`HS_S3_ENDPOINT`); browsing, import, editor round trip, folder create and guarded delete exercised in the app. Upload/Download use native file dialogs, which cannot open headless, so they were exercised through the client test only. `s3://` VFS deferred (temp-file round trip like SFTP) |
 
 ### M3 · SQL database + NoSQL + Redis
 | Item | State | Notes |

@@ -11,6 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- S3 tool: profiles for AWS and S3-compatible stores (MinIO, R2, B2, Spaces, Wasabi) with keys in the vault, import from `~/.aws` files, bucket and prefix browsing with paging, multipart uploads and streamed downloads as Jobs, new folder, presigned URLs, editing objects in the editor, and a guarded delete that asks for the bucket name.
+- `hs-core::objstore`: a SigV4 signer verified against AWS's examples and an S3 client on `reqwest`.
+- Tables: clicking a cell's text now selects and opens the row (labels were text-selectable and swallowed the click), in the SFTP pane too.
 - SSH tunnels: a `Tunnels` service for local port forwards (`ssh -L`) that any tool can ask for, sharing one SSH session per host; the SSH tool's sidebar lists forwards with live traffic and has a New Tunnel form.
 - SSH tabs restored at start-up connect as soon as the vault is unlocked instead of failing with "unlock the vault".
 - Arrows (→ ↑ ↓) in the interface no longer render as boxes: the bundled monospace font is now the last fallback of the UI font.

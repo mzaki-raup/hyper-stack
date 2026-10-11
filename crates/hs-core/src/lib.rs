@@ -9,6 +9,7 @@
 //! - [`workspace`] — workspaces and layout persistence
 //! - [`connections`] / [`environments`] / [`secrets`] — shared profiles, variables, vault
 //! - [`tunnels`] — the SSH port-forward service interface
+//! - [`objstore`] — SigV4 and the S3 client
 //! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
 pub mod connections;
@@ -18,6 +19,7 @@ pub mod fuzzy;
 pub mod i18n;
 pub mod jobs;
 pub mod logging;
+pub mod objstore;
 pub mod paths;
 pub mod runtime;
 pub mod secrets;

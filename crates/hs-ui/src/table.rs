@@ -155,12 +155,15 @@ impl DataTable<'_> {
                                     |ui| {
                                         ui.add(
                                             egui::Label::new(egui::RichText::new(text).monospace())
-                                                .truncate(),
+                                                .truncate()
+                                                .selectable(false),
                                         );
                                     },
                                 );
                             } else {
-                                ui.add(egui::Label::new(text).truncate());
+                                // Not selectable: a selectable label takes the
+                                // click, so the row would not select or open.
+                                ui.add(egui::Label::new(text).truncate().selectable(false));
                             }
                         });
                     }

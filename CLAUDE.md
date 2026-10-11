@@ -6,11 +6,12 @@ viewer, API client, SSH/SFTP, S3 browser, Git, terminal, log tail viewer and
 a devtools drawer in one multi-row, multi-tab window that shares connections,
 environments and secrets across every tool.
 
-**Status: Phase 0 (foundation) and M1 (terminal with search and links,
-editor with Markdown + Mermaid preview, in-app updater) implemented; M2
-(SSH/SFTP + S3) under way.** The Cargo workspace (`crates/hs-core`,
-`hs-ui`, `hs-term`, `hs-editor`, `tools/tool-terminal`, `tools/tool-editor`,
-`hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+**Status: Phase 0 (foundation), M1 (terminal with search and links,
+editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
+with tunnels, S3) implemented; M3 (databases, NoSQL, Redis) next.** The
+Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
+`hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
+`tools/tool-s3`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -250,7 +251,8 @@ assume. `C:\Apps\gitea-runner\make-global.ps1` is what collapsed them.
 cargo build --release -p hyperstack        # target/release/HyperStack.exe
 cargo run -p hyperstack -- --data-dir ./tmp-data   # run against a throwaway data folder
 cargo run -p hyperstack -- --self-test     # what the CI smoke step runs
-cargo test -p tool-db                      # one tool crate at a time
+cargo test -p tool-s3                      # one tool crate at a time
+HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server / MinIO
 pwsh -File scripts/next-release.ps1        # what the next push to main would release
 pwsh -File scripts/build-and-package.ps1 -Version 0.0.0-local -SkipSign   # local packaging dry run
 ```
@@ -358,6 +360,10 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - egui's default proportional font has no arrows (→ ↑ ↓) or box drawing;
   `hs_ui::fonts::install` appends the bundled Nerd Font as the last
   fallback so they render instead of tofu boxes.
+- An `egui::Label` is text-selectable by default and takes the click, so a
+  table row whose cell text is clicked neither selects nor opens. Cells in
+  `hs_ui::table` use `.selectable(false)`; do the same for any label inside
+  a clickable row.
 - A single-line `TextEdit` gives up focus on Escape *before* your code sees
   the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
   `(r.has_focus() || r.lost_focus())` (the terminal find bar does).
@@ -391,7 +397,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - SSH **Follow Shell Folder** reads the xterm title (`user@host: dir`); a
   remote prompt that does not set it leaves the file pane where it is.
 - `rfd` folder/file dialogs do not open headless; seed `layout.json` (editor
-  `root`/`path`) instead of clicking Open Folder.
+  `root`/`path`) instead of clicking Open Folder. S3/SFTP Upload and
+  Download use them too, so test those paths through the client tests.
+- S3 without MinIO: `pip install "moto[server]"` in a venv, run
+  `moto_server -H 127.0.0.1 -p 5055`, keys `testing`/`testing`, then
+  `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
+  moto verifies the request shape, not the signature; the SigV4 unit tests
+  against AWS's examples cover that.
+- Repeated `cargo test` runs grow `target/debug` past 20 GB and the disk
+  fills ("No space left on device", even `pwd` fails); delete
+  `target/debug` and rebuild.
 - `cargo clippy --workspace` on Linux needs `libwayland-dev`,
   `libxkbcommon-dev` and `pkg-config` (the `egui_kittest` dev-dependency
   builds `wayland-sys`). Windows-only helpers (`hs-term::shells::on_path`)

@@ -38,7 +38,7 @@ jobs:
     if: github.server_url == 'https://github.com'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag || github.ref }}
           # Full history: the changelog section and the notes come from the tree.

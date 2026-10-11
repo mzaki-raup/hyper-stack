@@ -4,6 +4,8 @@
 
 **One workspace for everyone who ships software.**
 
+<p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, browse the project in the editor with Markdown preview, use the command palette, connect to a server over SSH with the SFTP pane following the shell, switch to the protected Production environment and edit environments in Settings" width="960"></p>
+
 HyperStack is a desktop application for full-stack developers, DevOps engineers,
 database administrators, testers and integration engineers. It brings the tools
 those people switch between all day — code editor, SQL database client, NoSQL
@@ -26,6 +28,81 @@ and theme.
 > then writes its own implementation. No code is copied or shared.
 
 ---
+
+## Screenshots
+
+Every feature that is built today, captured from a real `HyperStack` 0.11.0
+build. See [docs/screenshots/](docs/screenshots/README.md) for how they were
+made.
+
+### Shell: launcher, command palette, tabs and splits
+
+| | |
+|---|---|
+| ![Welcome tab](docs/screenshots/welcome.png) | ![Launcher](docs/screenshots/launcher.png) |
+| **Welcome** — version, build and the portable data folder in use | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
+| ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
+| **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
+| ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
+| **Split panes** (Ctrl+\\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs, Problems and Terminal |
+
+### Workspaces and environments
+
+| | |
+|---|---|
+| ![Workspace menu](docs/screenshots/workspace-menu.png) | ![New workspace](docs/screenshots/workspace-new.png) |
+| **Workspace switcher** in the title bar | **New workspace** — name, logo, and copy environments/connections from another |
+| ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |
+| **Environment switcher** — colour-coded, protected ones marked | **Protected Production** — red banner and frame on every tab |
+| ![Environments settings](docs/screenshots/settings-environments.png) | |
+| **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault) | |
+
+### Secret vault and connections
+
+| | |
+|---|---|
+| ![Create vault](docs/screenshots/vault-create.png) | ![Unlock vault](docs/screenshots/vault-unlock.png) |
+| **Create the vault** on first run (Argon2id + XChaCha20-Poly1305) | **Unlock** on start; the title-bar padlock locks it again |
+| ![SSH connection form](docs/screenshots/connection-ssh-form.png) | ![Saved connection](docs/screenshots/connection-saved.png) |
+| **Connection profile** (kind SSH) — host, user, start folder, auth | **Saved** — the password lives in the vault, the profile keeps a `secret:` reference |
+
+### Code editor
+
+| | |
+|---|---|
+| ![Editor](docs/screenshots/editor.png) | ![Markdown preview](docs/screenshots/editor-markdown-preview.png) |
+| **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
+| ![Find and replace](docs/screenshots/editor-find-replace.png) | |
+| **Find and replace** — case, whole word and regex, match count | |
+
+### Terminal
+
+| | |
+|---|---|
+| ![Terminal](docs/screenshots/terminal.png) | |
+| **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | |
+
+### SSH and SFTP
+
+| | |
+|---|---|
+| ![Host key prompt](docs/screenshots/ssh-host-key.png) | ![SSH with SFTP pane](docs/screenshots/ssh-sftp.png) |
+| **Host key check** — new keys are shown by fingerprint before trusting | **Dual pane** — remote files (SFTP) on the left, the shell on the right |
+| ![File pane follows the shell](docs/screenshots/ssh-follow-shell-folder.png) | ![Remote file in the editor](docs/screenshots/ssh-remote-edit.png) |
+| **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
+
+### Settings
+
+| | |
+|---|---|
+| ![General](docs/screenshots/settings-general.png) | ![Appearance](docs/screenshots/settings-appearance.png) |
+| **General** — startup workspace, language, restore tabs | **Appearance** — colour scheme, interface font, zoom, tab sizing |
+| ![Security](docs/screenshots/settings-security.png) | ![Terminal settings](docs/screenshots/settings-terminal.png) |
+| **Security** — vault state, auto-lock, clipboard clearing | **Terminal** — default shell, scrollback, font, copy/paste behaviour |
+| ![Editor settings](docs/screenshots/settings-editor.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
+| **Editor** — font, right-click copy/paste, reload, save hooks | **Shortcuts** — every action rebindable |
+| ![Data folder](docs/screenshots/settings-data.png) | ![About and updates](docs/screenshots/settings-about.png) |
+| **Data (Advanced)** — where the portable data folder lives | **About** — version, update channel and policy, Check Now, signing key |
 
 ## Why
 

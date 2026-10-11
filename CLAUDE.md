@@ -27,6 +27,7 @@ is done; releases are published automatically from `main`.
 | Why each major choice was made (ADR-001 … ADR-018) | `docs/08-decisions.md` |
 | CI, automatic releases, asset contract, in-app updater | `docs/09-ci-cd-and-updates.md`; live workflows in `.forgejo/workflows/`, scripts in `scripts/`, signing key notes in `keys/README.md` |
 | One design document per tool | `docs/tools/*.md` |
+| README screenshots and walkthrough GIF, and how to retake them | `docs/screenshots/` (`README.md` there) |
 | App icon and every derived size | `assets/icon/` (master `hyperstack.png`; regenerate with `scripts/make-icons.ps1`, never by hand; usage in `docs/03-architecture.md` §13) |
 
 Read the relevant spec before implementing a tool; the specs are the
@@ -367,6 +368,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `SetCursorPos` all see DPI-virtualised coordinates and clicks drift by a
   row or more). Mouse paths are also covered headlessly with `egui_kittest`
   (`crates/hs-editor/tests/view.rs`).
+
+### Headless Linux (screenshots, GUI smoke tests)
+- Under Xvfb the app panics at start without `libxkbcommon-x11-0`; install it
+  (plus `libgl1-mesa-dri`) and it renders with llvmpipe. With no window
+  manager, `xdotool` input is ignored until `xdotool windowfocus <id>`;
+  `xdotool type` needs `--` before text starting with `-`.
+- SSH **Follow Shell Folder** reads the xterm title (`user@host: dir`); a
+  remote prompt that does not set it leaves the file pane where it is.
+- `rfd` folder/file dialogs do not open headless; seed `layout.json` (editor
+  `root`/`path`) instead of clicking Open Folder.
 
 ### SSH (russh)
 - russh 0.64 with `default-features = false, features = ["ring", "rsa"]` so it

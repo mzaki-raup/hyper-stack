@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- README: animated walkthrough GIF as the main screenshot and a categorised screenshot gallery of every built feature (`docs/screenshots/`).
 
 ## 0.11.0 — 2026-10-11
 

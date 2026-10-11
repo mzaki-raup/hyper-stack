@@ -21,6 +21,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   when it is created and stored in the workspace folder so it travels with the
   project. The logo shows in the workspace menu and its switcher.
 
+### Changed
+
+- Connection kinds now display with proper casing (DB, SSH, S3, Redis,
+  MongoDB, …) everywhere they are shown, while still stored as lowercase ids.
+
 ### Fixed
 
 - SSH dual pane now splits exactly 50/50 and tracks the window width; the

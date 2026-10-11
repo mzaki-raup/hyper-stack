@@ -138,7 +138,7 @@ pub fn show(
                         .unwrap_or(theme.secondary);
                     hs_ui::badge::badge(
                         ui,
-                        &format!("{}  {}", c.kind, c.name),
+                        &format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name),
                         col.linear_multiply(0.35),
                         theme.text,
                     );

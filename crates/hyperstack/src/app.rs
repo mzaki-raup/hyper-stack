@@ -811,7 +811,7 @@ impl HyperStackApp {
                     items.push(PaletteItem {
                         id: format!("conn:{}", c.id),
                         title: c.name.clone(),
-                        subtitle: Some(c.kind.clone()),
+                        subtitle: Some(hs_core::connections::kind_label(&c.kind).to_string()),
                         icon: None,
                         shortcut: None,
                     });

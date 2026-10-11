@@ -962,7 +962,7 @@ fn connections(
                         selected,
                         hs_ui::icons::ph::PLUGS_CONNECTED,
                         &name,
-                        Some(&kind),
+                        Some(hs_core::connections::kind_label(&kind)),
                     )
                     .clicked()
                     {
@@ -990,23 +990,14 @@ fn connections(
                     form::label(ui, &s.t("conn-kind"));
                     egui::ComboBox::from_id_salt("conn-kind")
                         .width(form::FIELD_MIN_WIDTH)
-                        .selected_text(draft.kind.clone())
+                        .selected_text(hs_core::connections::kind_label(&draft.kind))
                         .show_ui(ui, |ui| {
-                            for k in [
-                                "db",
-                                "ssh",
-                                "s3",
-                                "api",
-                                "docker",
-                                "k8s",
-                                "redis",
-                                "mongodb",
-                                "couchdb",
-                                "elasticsearch",
-                                "dynamodb",
-                                "cassandra",
-                            ] {
-                                ui.selectable_value(&mut draft.kind, k.to_string(), k);
+                            for k in hs_core::connections::KINDS {
+                                ui.selectable_value(
+                                    &mut draft.kind,
+                                    (*k).to_string(),
+                                    hs_core::connections::kind_label(k),
+                                );
                             }
                         });
                     ui.end_row();

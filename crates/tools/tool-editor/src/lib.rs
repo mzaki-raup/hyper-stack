@@ -51,6 +51,11 @@ const SKIP_DIRS: &[&str] = &[
 /// The folder the last editor tab opened, so new tabs start in the same project.
 static LAST_ROOT: parking_lot::Mutex<Option<PathBuf>> = parking_lot::Mutex::new(None);
 
+/// The folders expanded in the last-used project tree, with its root, so a
+/// new tab on the same project shows the tree the way the user left it.
+static LAST_EXPANDED: parking_lot::Mutex<Option<(PathBuf, Vec<PathBuf>)>> =
+    parking_lot::Mutex::new(None);
+
 pub struct EditorFactory;
 
 impl ToolFactory for EditorFactory {
@@ -71,6 +76,9 @@ struct State {
     root: Option<PathBuf>,
     preview: bool,
     cursor: usize,
+    /// Folders expanded in the project tree; only the user collapses them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    expanded: Vec<PathBuf>,
 }
 
 struct Watch {
@@ -146,6 +154,12 @@ impl EditorTool {
         if state.root.is_none() {
             state.root = LAST_ROOT.lock().clone();
         }
+        if state.expanded.is_empty()
+            && let Some((root, dirs)) = LAST_EXPANDED.lock().clone()
+            && state.root.as_ref() == Some(&root)
+        {
+            state.expanded = dirs;
+        }
         let mut t = Self {
             state: State::default(),
             buf: Buffer::default(),
@@ -174,6 +188,7 @@ impl EditorTool {
         t.state.preview = state.preview;
         if let Some(root) = state.root.clone().filter(|r| r.is_dir()) {
             t.set_root(root, services);
+            t.expand_dirs(&state.expanded);
         }
         if let Some(p) = state.path.clone().filter(|p| p.is_file()) {
             if let Err(e) = t.load(&p, services) {
@@ -442,6 +457,33 @@ impl EditorTool {
         self.tree.expanded.insert(id);
         self.start_watch(services);
         self.rebuild_index(services);
+    }
+
+    /// Expand these folders (outermost first, so each parent is loaded
+    /// before its child is looked up). Folders gone from disk are skipped.
+    fn expand_dirs(&mut self, dirs: &[PathBuf]) {
+        let Some(root) = self.state.root.clone() else {
+            return;
+        };
+        let mut dirs: Vec<&PathBuf> = dirs
+            .iter()
+            .filter(|d| d.starts_with(&root) && d.is_dir())
+            .collect();
+        dirs.sort_by_key(|d| d.components().count());
+        for d in dirs {
+            let id = d.to_string_lossy().to_string();
+            if !node_has_children(&self.nodes, &id) {
+                set_children(&mut self.nodes, &id, load_children(d));
+            }
+            self.tree.expanded.insert(id);
+        }
+    }
+
+    /// The expanded folders in a stable order, for the saved layout.
+    fn expanded_dirs(&self) -> Vec<PathBuf> {
+        let mut v: Vec<PathBuf> = self.tree.expanded.iter().map(PathBuf::from).collect();
+        v.sort();
+        v
     }
 
     fn close_root(&mut self) {
@@ -1233,6 +1275,11 @@ impl Tool for EditorTool {
             let dir = PathBuf::from(&id);
             set_children(&mut self.nodes, &id, load_children(&dir));
         }
+        if resp.clicked.is_some()
+            && let Some(root) = self.state.root.clone()
+        {
+            *LAST_EXPANDED.lock() = Some((root, self.expanded_dirs()));
+        }
         if let Some(id) = resp.clicked {
             let p = PathBuf::from(&id);
             if p.is_file() {
@@ -1393,6 +1440,7 @@ impl Tool for EditorTool {
     fn save_state(&self) -> serde_json::Value {
         let mut st = self.state.clone();
         st.cursor = self.cursors.primary().head;
+        st.expanded = self.expanded_dirs();
         serde_json::to_value(&st).unwrap_or_default()
     }
 
@@ -1533,7 +1581,28 @@ fn set_children(nodes: &mut [TreeNode], id: &str, children: Vec<TreeNode>) -> bo
 fn set_children_inner(nodes: &mut [TreeNode], id: &str, slot: &mut Option<Vec<TreeNode>>) -> bool {
     for n in nodes.iter_mut() {
         if n.id == id {
-            n.children = slot.take();
+            // Keep what was already loaded below each surviving child, so a
+            // refresh (or a file saved in the folder) never collapses an
+            // expanded subfolder.
+            let mut old: std::collections::HashMap<String, Vec<TreeNode>> = n
+                .children
+                .take()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|c| c.children.map(|ch| (c.id, ch)))
+                .collect();
+            let mut new = slot.take();
+            if let Some(new) = new.as_mut() {
+                for c in new.iter_mut() {
+                    if !c.leaf
+                        && c.children.is_none()
+                        && let Some(ch) = old.remove(&c.id)
+                    {
+                        c.children = Some(ch);
+                    }
+                }
+            }
+            n.children = new;
             return true;
         }
         if let Some(c) = n.children.as_mut()
@@ -1636,6 +1705,13 @@ mod tests {
             load_children(&tmp.join("src"))
         ));
         assert!(node_has_children(&nodes, &src_id));
+        // Reloading the parent (a refresh, a file saved there) keeps the
+        // expanded subfolder's children instead of collapsing it.
+        let root_id = tmp.to_string_lossy().to_string();
+        std::fs::write(tmp.join("c.txt"), "c").unwrap();
+        assert!(set_children(&mut nodes, &root_id, load_children(&tmp)));
+        assert!(node_has_children(&nodes, &src_id));
+        std::fs::remove_file(tmp.join("c.txt")).unwrap();
         let mut index = Vec::new();
         walk(&tmp, &mut index, 100);
         assert_eq!(index.len(), 3);

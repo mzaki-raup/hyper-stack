@@ -11,6 +11,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- Settings: the Data (Advanced) page is gone; the data folder and **Open Data Folder** now sit in About → Installed. Open Data Folder opens the folder as a new tab in Eden Explorer when it is running or installed, otherwise in the system file manager, without blocking the UI.
+- Editor: project-tree folders no longer collapse by themselves; a refresh or a file change keeps expanded subfolders open, and the expanded folders are saved with the tab and carried to new tabs on the same project.
 - Database tool for PostgreSQL, MySQL/MariaDB and SQLite: a SQL editor bound to a connection with completion from the schema (tables, aliases, columns), run statement/selection/script and Explain, cancel (button or Escape) and a statement timeout; a streaming result grid with NULLs shown as NULL, sorting, filtering, a cell viewer, Fetch More, Copy As (TSV, CSV, JSON, Markdown, INSERT, IN list) and Export of all rows as a Job; a schema browser (schemas, tables, views, functions, sequences, columns with keys, indexes); query history; saved queries; Auto-Commit / Manual Commit; SSH tunnels; TLS modes.
 - Database guards: statements are classified before they run; read-only connections and protected environments refuse writes (with **Allow Writes** per tab) and run read-only sessions; UPDATE/DELETE without WHERE, DROP, TRUNCATE and admin statements ask first, and on a protected environment the table name has to be typed.
 - Settings → Connections has a form for database connections, including **Paste a URL** (`postgres://`, `mysql://`, `mariadb://`, `jdbc:`, `sqlite:`).

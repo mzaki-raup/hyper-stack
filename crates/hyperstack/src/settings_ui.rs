@@ -28,12 +28,11 @@ pub enum Page {
     Security,
     Terminal,
     Editor,
-    Data,
     About,
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 10] {
+    pub fn all() -> [(Page, &'static str); 9] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -42,7 +41,6 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Terminal, "settings-terminal"),
             (Page::Editor, "settings-editor"),
-            (Page::Data, "settings-data"),
             (Page::Shortcuts, "settings-shortcuts"),
             (Page::About, "settings-about"),
         ]
@@ -59,7 +57,6 @@ impl Page {
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
-            Page::Data => ph::DATABASE,
             Page::About => ph::INFO,
         }
     }
@@ -73,6 +70,11 @@ impl Page {
             .unwrap_or("settings-general")
     }
     pub fn by_key(key: &str) -> Option<Page> {
+        // The data folder moved from its own page to About (2026-10-12);
+        // layouts saved before still name the old page.
+        if key == "settings-data" {
+            return Some(Page::About);
+        }
         Page::all().iter().find(|(_, k)| *k == key).map(|(p, _)| *p)
     }
 }
@@ -172,7 +174,6 @@ pub fn page(
         Page::Security => security(ui, theme, services, effects),
         Page::Terminal => terminal(ui, theme, services, effects),
         Page::Editor => editor(ui, theme, services, effects),
-        Page::Data => data(ui, theme, services),
         Page::About => about(ui, theme, services, effects),
     }
 }
@@ -260,7 +261,26 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             ui.monospace(s.version.to_string());
             ui.end_row();
             form::label(ui, &s.t("settings-data-folder"));
-            ui.monospace(s.paths.root().display().to_string());
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    ui.monospace(s.paths.root().display().to_string());
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::FOLDER_OPEN,
+                            s.t("settings-data-open-folder")
+                        ))
+                        .tip(s.t("settings-data-open-folder-tip"))
+                        .clicked()
+                    {
+                        open_folder(s, s.paths.root());
+                    }
+                });
+                if let Some(r) = &s.paths.fallback_reason {
+                    ui.colored_label(theme.warning, r);
+                }
+                form::hint(ui, theme, &s.t("settings-data-reset"));
+            });
             ui.end_row();
             form::label(ui, &s.t("settings-updates-exe-folder"));
             match s.updater.exe_dir_writable() {
@@ -1640,34 +1660,6 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
     }
 }
 
-fn data(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
-    form::page_title(
-        ui,
-        theme,
-        &s.t("settings-data"),
-        Some(&s.t("settings-data-sub")),
-    );
-    form::section(ui, theme, &s.t("settings-data-folder"), |ui| {
-        ui.horizontal(|ui| {
-            ui.monospace(s.paths.root().display().to_string());
-            if ui.button(s.t("settings-data-open-folder")).clicked() {
-                open_folder(s.paths.root());
-            }
-        });
-        form::hint(ui, theme, &format!("{:?}", s.paths.source));
-        if let Some(r) = &s.paths.fallback_reason {
-            ui.colored_label(theme.warning, r);
-        }
-        ui.add_space(6.0);
-        form::note(
-            ui,
-            theme,
-            hs_ui::icons::WARNING,
-            &s.t("settings-data-reset"),
-        );
-    });
-}
-
 fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     form::page_title(
         ui,
@@ -2269,11 +2261,14 @@ fn font_combo(
     changed
 }
 
-fn open_folder(path: &std::path::Path) {
-    #[cfg(windows)]
-    let _ = std::process::Command::new("explorer").arg(path).spawn();
-    #[cfg(target_os = "macos")]
-    let _ = std::process::Command::new("open").arg(path).spawn();
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+/// Open a folder in Eden Explorer when it is installed (a new tab of the
+/// running window), else in the system file manager. Finding Eden can take a
+/// moment, so it runs on the runtime's blocking pool, never the UI thread.
+fn open_folder(s: &Services, path: &std::path::Path) {
+    let path = path.to_path_buf();
+    s.runtime
+        .spawn_blocking(move || match hs_core::paths::open_folder(&path) {
+            Ok(opener) => tracing::info!("opened {} with {opener:?}", path.display()),
+            Err(e) => tracing::warn!("could not open {}: {e}", path.display()),
+        });
 }

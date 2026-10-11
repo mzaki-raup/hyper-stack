@@ -115,7 +115,9 @@ open at line, replace across files with preview (P1).
 
 - **Project tree** on `hs-ui::Tree` rooted at a chosen folder (local, or a
   remote `sftp://` / `s3://` folder); lazy load, `notify` watcher (local only;
-  remote refresh on focus), create/rename/delete/move with confirmation, drag
+  remote refresh on focus; a refresh keeps expanded subfolders open, and the
+  expanded set is saved with the tab and carried to new tabs on the same
+  root, so only the user collapses a folder), create/rename/delete/move with confirmation, drag
   into terminal/SFTP/S3, context menu "Open in terminal here", "Git: show
   diff", "Copy path / relative path".
 - **VFS**: `hs-core::vfs` `read/write/stat/list` by scheme; saves are atomic

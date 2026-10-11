@@ -138,8 +138,8 @@ made.
 | **Security** — vault state, auto-lock, clipboard clearing | **Terminal** — default shell, scrollback, font, copy/paste behaviour |
 | ![Editor settings](docs/screenshots/settings-editor.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
 | **Editor** — font, right-click copy/paste, reload, save hooks | **Shortcuts** — every action rebindable |
-| ![Data folder](docs/screenshots/settings-data.png) | ![About and updates](docs/screenshots/settings-about.png) |
-| **Data (Advanced)** — where the portable data folder lives | **About** — version, update channel and policy, Check Now, signing key |
+| ![About and updates](docs/screenshots/settings-about.png) | |
+| **About** — version, data folder (Open Data Folder, in Eden Explorer when installed), update channel and policy, Check Now, signing key | |
 
 ## Why
 

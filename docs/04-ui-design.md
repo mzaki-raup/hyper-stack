@@ -151,6 +151,14 @@ Shown by `+`, Ctrl+T, and when the last tab is closed.
 Typing filters tools, recent items and connections together using the shared
 fuzzy ranker. Enter opens the first match.
 
+Each pinned-connection chip opens its profile in the tool that owns the
+connection kind (`ssh` → SSH, `s3` → S3, `db` → SQL database) by sending
+`OpenRequest::Connection { id }` to that tool, the same path the tools' own
+sidebars and the quick-open palette use. If a tab of that tool is already
+bound to the profile (`Tool::current_connection`), the shell focuses it
+instead of opening another. Chips for kinds no tool handles yet (Redis,
+MongoDB, …) are drawn muted, are not clickable, and say so in their tooltip.
+
 ## 4. Command palette and quick-open
 
 - **Ctrl+Shift+P** — commands. Sources: shell commands (tabs, layout, settings,

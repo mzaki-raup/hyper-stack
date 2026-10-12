@@ -2543,6 +2543,10 @@ impl Tool for DbTool {
         serde_json::to_value(&st).unwrap_or_default()
     }
 
+    fn current_connection(&self) -> Option<&str> {
+        self.state.conn_id.as_deref()
+    }
+
     fn current_uri(&self) -> Option<String> {
         self.state
             .query_file

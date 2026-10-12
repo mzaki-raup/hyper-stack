@@ -11,7 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Launcher pinned-connection chips are clickable: an SSH, S3 or DB chip
+  opens that profile in its tool, or focuses the tab already showing it
+  (new `Tool::current_connection`); quick-open does the same for S3 and DB
+  connections, which it used to answer with a "later milestone" toast.
+  Chips for kinds with no tool yet stay inert with a tooltip saying so.
 
 ## 0.15.0 — 2026-10-12
 

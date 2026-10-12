@@ -14,6 +14,19 @@ pub struct LauncherState {
 pub struct LauncherResponse {
     pub open_tool: Option<String>,
     pub reopen_closed: Option<usize>,
+    /// (tool factory id, connection profile id) from a pinned-connection chip.
+    pub open_connection: Option<(String, String)>,
+}
+
+/// The tool that opens connection profiles of `kind`, or `None` while no
+/// tool handles that kind yet (redis, mongodb, …).
+pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "ssh" => Some("ssh"),
+        "s3" => Some("s3"),
+        "db" => Some("db"),
+        _ => None,
+    }
 }
 
 pub fn show(
@@ -27,6 +40,7 @@ pub fn show(
     let mut resp = LauncherResponse {
         open_tool: None,
         reopen_closed: None,
+        open_connection: None,
     };
     let width = ui.available_width().min(960.0);
     ui.vertical_centered(|ui| {
@@ -136,12 +150,32 @@ pub fn show(
                         .as_deref()
                         .and_then(hs_ui::theme::parse_hex)
                         .unwrap_or(theme.secondary);
-                    hs_ui::badge::badge(
-                        ui,
-                        &format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name),
-                        col.linear_multiply(0.35),
-                        theme.text,
-                    );
+                    let text = format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name);
+                    let fill = col.linear_multiply(0.35);
+                    let tool =
+                        tool_for_kind(&c.kind).and_then(|id| tools.iter().find(|t| t.id == id));
+                    match tool {
+                        Some(t) => {
+                            let tip = services.i18n.t_args(
+                                "launcher-open-connection",
+                                &[("tool", &services.t(t.title_key))],
+                            );
+                            if hs_ui::badge::badge_button(ui, &text, fill, theme.text)
+                                .on_hover_text(tip)
+                                .clicked()
+                            {
+                                resp.open_connection = Some((t.id.to_string(), c.id.clone()));
+                            }
+                        }
+                        None => {
+                            let tip = services.i18n.t_args(
+                                "launcher-connection-no-tool",
+                                &[("kind", hs_core::connections::kind_label(&c.kind))],
+                            );
+                            hs_ui::badge::badge(ui, &text, fill, theme.text_muted)
+                                .on_hover_text(tip);
+                        }
+                    }
                 }
             });
         }
@@ -174,4 +208,75 @@ fn tool_card(ui: &mut egui::Ui, theme: &Theme, icon: &str, title: &str) -> egui:
     );
     ui.add_space(4.0);
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+    use hs_core::connections::ConnectionProfile;
+    use hs_core::paths::DataDir;
+    use hs_core::runtime::NoopWaker;
+    use hs_core::secrets::KdfParams;
+    use std::sync::Arc;
+
+    const SSH: ToolDescriptor = ToolDescriptor {
+        id: "ssh",
+        title_key: "tool-ssh",
+        icon: "S",
+        category: ToolCategory::Infra,
+        accepts: &[],
+    };
+
+    #[test]
+    fn kinds_map_to_their_tools() {
+        assert_eq!(tool_for_kind("ssh"), Some("ssh"));
+        assert_eq!(tool_for_kind("s3"), Some("s3"));
+        assert_eq!(tool_for_kind("db"), Some("db"));
+        assert_eq!(tool_for_kind("redis"), None);
+        assert_eq!(tool_for_kind("mongodb"), None);
+    }
+
+    #[test]
+    fn clicking_a_chip_opens_its_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = DataDir::resolve(Some(dir.path())).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let services = boot.services;
+        let ssh = ConnectionProfile {
+            name: "web-01".into(),
+            kind: "ssh".into(),
+            ..Default::default()
+        };
+        let ssh_id = ssh.id.clone();
+        let redis = ConnectionProfile {
+            name: "cache".into(),
+            kind: "redis".into(),
+            ..Default::default()
+        };
+        {
+            let mut c = services.connections.write();
+            c.upsert(ssh).unwrap();
+            c.upsert(redis).unwrap();
+        }
+
+        let theme = Theme::dark();
+        let mut state = LauncherState::default();
+        let mut opened = None;
+        let mut harness = Harness::new_ui(|ui| {
+            let r = show(ui, &theme, &services, &mut state, &[&SSH], &[]);
+            if r.open_connection.is_some() {
+                opened = r.open_connection;
+            }
+        });
+        harness.run();
+        // The redis chip is a plain label: clicking it opens nothing.
+        harness.get_by_label("Redis  cache").click();
+        harness.run();
+        harness.get_by_label("SSH  web-01").click();
+        harness.run();
+        drop(harness);
+        assert_eq!(opened, Some(("ssh".to_string(), ssh_id)));
+    }
 }

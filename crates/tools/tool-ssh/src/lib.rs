@@ -1400,6 +1400,10 @@ impl Tool for SshTool {
         serde_json::to_value(&self.state).unwrap_or_default()
     }
 
+    fn current_connection(&self) -> Option<&str> {
+        self.state.conn_id.as_deref()
+    }
+
     fn current_uri(&self) -> Option<String> {
         self.state.conn_id.as_ref().map(|id| format!("ssh://{id}"))
     }

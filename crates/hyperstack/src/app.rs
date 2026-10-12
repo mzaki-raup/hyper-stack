@@ -507,22 +507,24 @@ impl HyperStackApp {
                 })
                 .map(|t| t.id);
             if let Some(id) = existing {
-                self.group = Some(factory_id.to_string());
-                self.tabs.activate(id);
-                let mut actions = Vec::new();
-                let env = self.services.environments.read().active.clone();
-                if let (Some(t), Some(req)) = (self.tabs.get_mut(id), request) {
-                    let mut cx = ToolContext {
-                        services: &self.services,
-                        tab_id: id,
-                        env_id: env.as_deref(),
-                        actions: &mut actions,
-                    };
-                    t.tool.open(req, &mut cx);
-                }
-                self.pending_actions.extend(actions);
+                self.focus_and_open(id, factory_id, request);
                 return;
             }
+        }
+        // One tab per connection: a tab of this tool already bound to the
+        // profile is focused (its `open` reconnects it if it dropped).
+        if let Some(OpenRequest::Connection { id: conn }) = &request
+            && let Some(id) = self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| {
+                    t.factory_id == factory_id && t.tool.current_connection() == Some(conn.as_str())
+                })
+                .map(|t| t.id)
+        {
+            self.focus_and_open(id, factory_id, request);
+            return;
         }
         let Some(i) = self.factory_index(factory_id) else {
             self.toasts
@@ -547,6 +549,25 @@ impl HyperStackApp {
             }
             self.pending_actions.extend(actions);
         }
+    }
+
+    /// Focus an existing tab and hand it the request (jump to a line,
+    /// reconnect a dropped connection).
+    fn focus_and_open(&mut self, id: u64, factory_id: &str, request: Option<OpenRequest>) {
+        self.group = Some(group_of(factory_id).to_string());
+        self.tabs.activate(id);
+        let mut actions = Vec::new();
+        let env = self.services.environments.read().active.clone();
+        if let (Some(t), Some(req)) = (self.tabs.get_mut(id), request) {
+            let mut cx = ToolContext {
+                services: &self.services,
+                tab_id: id,
+                env_id: env.as_deref(),
+                actions: &mut actions,
+            };
+            t.tool.open(req, &mut cx);
+        }
+        self.pending_actions.extend(actions);
     }
 
     fn open_launcher_tab(&mut self) {
@@ -1747,6 +1768,9 @@ impl HyperStackApp {
             if let Some(i) = r.reopen_closed {
                 self.reopen_closed(Some(i));
             }
+            if let Some((tool, id)) = r.open_connection {
+                self.open_tool(&tool, Some(OpenRequest::Connection { id }));
+            }
             return;
         }
         let env = self.services.environments.read().active.clone();
@@ -2048,10 +2072,10 @@ impl eframe::App for HyperStackApp {
                         .read()
                         .by_id(c)
                         .map(|p| p.kind.clone());
-                    match kind.as_deref() {
-                        Some("ssh") => self
-                            .open_tool("ssh", Some(OpenRequest::Connection { id: c.to_string() })),
-                        _ => self.toasts.push(
+                    match kind.as_deref().and_then(launcher::tool_for_kind) {
+                        Some(tool) => self
+                            .open_tool(tool, Some(OpenRequest::Connection { id: c.to_string() })),
+                        None => self.toasts.push(
                             ToastLevel::Info,
                             format!("Connection {c}: this tool arrives in a later milestone"),
                         ),

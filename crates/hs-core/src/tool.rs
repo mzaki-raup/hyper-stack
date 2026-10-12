@@ -203,6 +203,13 @@ pub trait Tool: Send {
         None
     }
 
+    /// The connection profile id this tab is bound to, so a request to open
+    /// that connection (launcher chip, palette) focuses this tab instead of
+    /// opening another one.
+    fn current_connection(&self) -> Option<&str> {
+        None
+    }
+
     /// Items for the quick-open palette (project files, saved queries, …).
     fn quick_open_items(&self) -> Vec<QuickOpenItem> {
         Vec::new()

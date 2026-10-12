@@ -18,6 +18,8 @@ launcher-title = What do you want to do?
 launcher-search = Type to search tools, connections and recent items
 launcher-recent = Recent
 launcher-pinned = Pinned Connections
+launcher-open-connection = Open this connection in { $tool }.
+launcher-connection-no-tool = No tool handles { $kind } connections yet.
 launcher-no-tools = No tools match.
 tab-count = { $n ->
     [one] { $n } tab

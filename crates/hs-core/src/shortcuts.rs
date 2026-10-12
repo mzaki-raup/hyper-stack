@@ -207,6 +207,8 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("file.new", "Ctrl+N"),
     ("editor.preview", "Ctrl+Shift+M"),
     ("editor.ai", "Ctrl+Shift+I"),
+    ("git.source_control", "Ctrl+Shift+G"),
+    ("git.history", "Ctrl+Shift+H"),
     ("editor.close_file", "Ctrl+F4"),
     ("editor.next_file", "Ctrl+Alt+PageDown"),
     ("editor.prev_file", "Ctrl+Alt+PageUp"),

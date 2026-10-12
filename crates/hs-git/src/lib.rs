@@ -325,6 +325,76 @@ pub fn file_diff(root: &Path, path: &str, side: Side) -> Result<FileDiff> {
     }
 }
 
+/// The text of `path` (repository-relative) in the last commit; `None`
+/// when HEAD does not have it (a new file, or no commit yet) or it is binary.
+pub fn head_text(root: &Path, path: &str) -> Result<Option<String>> {
+    let spec = format!("HEAD:{path}");
+    match git(root, &["show", "--no-textconv", &spec]) {
+        Ok(bytes) if bytes.contains(&0) => Ok(None),
+        Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
+        Err(GitError::Failed { message, .. })
+            if message.contains("does not exist")
+                || message.contains("not in 'HEAD'")
+                || message.contains("invalid object name")
+                || message.contains("bad revision") =>
+        {
+            Ok(None)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// How one line of the current text differs from the committed one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineChange {
+    Added,
+    Modified,
+    /// Lines were removed just above this one.
+    Deleted,
+}
+
+/// Per-line changes of `new` against `old` (`None` for an unchanged
+/// line), indexed by line of `new`; `old = None` marks every line added.
+/// Gives up after a short time on pathological input and returns what it
+/// has, so it is safe to call while the user types.
+pub fn line_changes(old: Option<&str>, new: &str) -> Vec<Option<LineChange>> {
+    let lines = new.split('\n').count();
+    let mut out = vec![None; lines];
+    let Some(old) = old else {
+        if new.is_empty() {
+            return out;
+        }
+        let real = if new.ends_with('\n') {
+            lines - 1
+        } else {
+            lines
+        };
+        out[..real].fill(Some(LineChange::Added));
+        return out;
+    };
+    let diff = similar::TextDiff::configure()
+        .timeout(std::time::Duration::from_millis(150))
+        .diff_lines(old, new);
+    for op in diff.ops() {
+        match *op {
+            similar::DiffOp::Equal { .. } => {}
+            similar::DiffOp::Delete { new_index, .. } => {
+                let at = new_index.min(lines.saturating_sub(1));
+                if out[at].is_none() {
+                    out[at] = Some(LineChange::Deleted);
+                }
+            }
+            similar::DiffOp::Insert {
+                new_index, new_len, ..
+            } => out[new_index..new_index + new_len].fill(Some(LineChange::Added)),
+            similar::DiffOp::Replace {
+                new_index, new_len, ..
+            } => out[new_index..new_index + new_len].fill(Some(LineChange::Modified)),
+        }
+    }
+    out
+}
+
 // ---- history ----------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -632,6 +702,27 @@ refs/remotes/origin/main\x1f \x1f\x1f\x1f1700000000\x1ftip\x1e";
         assert!(b[0].current && !b[0].remote);
         assert_eq!((b[0].ahead, b[0].behind), (1, 2));
         assert!(b[1].remote && b[1].name == "origin/main");
+    }
+
+    #[test]
+    fn line_changes_mark_added_modified_and_deleted() {
+        use LineChange::*;
+        let old = "a\nb\nc\nd\n";
+        let new = "a\nB\nc\nnew\n";
+        // b -> B modified; d -> new modified; trailing empty line clean.
+        assert_eq!(
+            line_changes(Some(old), new),
+            [None, Some(Modified), None, Some(Modified), None]
+        );
+        let ch = line_changes(Some(old), "a\nb\nx\ny\nc\nd\n");
+        assert_eq!(ch[2..4], [Some(Added), Some(Added)]);
+        let ch = line_changes(Some(old), "a\nd\n");
+        assert_eq!(ch[1], Some(Deleted));
+        assert_eq!(
+            line_changes(None, "x\ny\n"),
+            [Some(Added), Some(Added), None]
+        );
+        assert!(line_changes(Some(old), old).iter().all(Option::is_none));
     }
 
     #[test]

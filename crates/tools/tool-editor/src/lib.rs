@@ -29,6 +29,7 @@ use hs_ui::theme::Theme;
 use hs_ui::tree::{TreeNode, TreeState};
 
 mod ai_panel;
+mod git_view;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 
@@ -76,6 +77,12 @@ struct State {
     projects: Vec<ProjectState>,
     #[serde(default)]
     active: usize,
+    /// The sidebar shows Source Control instead of the project tree.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    source_control: bool,
+    /// Diffs side by side rather than inline.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    side_by_side: bool,
     // The layout before several projects: one file and one folder per tab.
     // Read once to migrate, never written.
     #[serde(default, skip_serializing)]
@@ -174,6 +181,7 @@ struct Doc {
     preview_cache: (u64, String),
     /// Stable id for the file tab strip.
     uid: u64,
+    git: git_view::DocGit,
 }
 
 static NEXT_DOC: AtomicU64 = AtomicU64::new(1);
@@ -201,6 +209,7 @@ impl Doc {
             preview: false,
             preview_cache: (u64::MAX, String::new()),
             uid: NEXT_DOC.fetch_add(1, Ordering::Relaxed),
+            git: git_view::DocGit::default(),
         }
     }
 
@@ -679,6 +688,7 @@ pub struct EditorTool {
     /// Projects of a tab saved by an older version that held several:
     /// they move to tabs of their own on the first frame.
     split_off: Vec<ProjectState>,
+    git: git_view::Git,
 }
 
 impl EditorTool {
@@ -705,6 +715,7 @@ impl EditorTool {
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
             split_off: Vec::new(),
+            git: git_view::Git::new(state.source_control, state.side_by_side),
         };
         t.start_watch(services);
         // One project per tab: keep the active one, hand the rest to tabs
@@ -926,6 +937,7 @@ impl EditorTool {
         if pi < self.projects.len() && di < self.projects[pi].docs.len() {
             self.active = pi;
             self.projects[pi].active = di;
+            self.git.close_main();
             self.select_in_tree();
         }
     }
@@ -1301,11 +1313,16 @@ impl EditorTool {
 
     /// Watch every project root and the folders of open files outside them.
     fn sync_watches(&mut self) {
-        let mut want: Vec<(PathBuf, bool)> = self
+        let roots: Vec<PathBuf> = self
             .projects
             .iter()
-            .filter_map(|p| p.root.clone().map(|r| (r, true)))
+            .filter_map(|p| p.root.clone())
             .collect();
+        self.git.sync(&roots);
+        let mut want: Vec<(PathBuf, bool)> = roots.into_iter().map(|r| (r, true)).collect();
+        for g in self.git.extra_watch_dirs() {
+            want.push((g, false));
+        }
         for p in &self.projects {
             for d in &p.docs {
                 if let Some(path) = &d.path
@@ -1359,6 +1376,7 @@ impl EditorTool {
                 K::Create(_) | K::Remove(_) | K::Modify(notify::event::ModifyKind::Name(_))
             );
             for p in &ev.paths {
+                self.git.on_fs_event(p);
                 if structural {
                     if let Some(parent) = p.parent()
                         && !dirs_to_refresh.iter().any(|d| d == parent)
@@ -1408,6 +1426,23 @@ impl EditorTool {
         }
         for p in &mut self.projects {
             p.index_dirty = true;
+        }
+    }
+
+    fn apply_git(
+        &mut self,
+        actions: Vec<git_view::GitAction>,
+        ui: &egui::Ui,
+        cx: &mut ToolContext,
+    ) {
+        for a in actions {
+            match a {
+                git_view::GitAction::OpenFile(p) => {
+                    self.git.close_main();
+                    self.open_path(p, None, cx);
+                }
+                git_view::GitAction::CopyPath(p) => ui.ctx().copy_text(p),
+            }
         }
     }
 
@@ -1984,6 +2019,44 @@ impl Tool for EditorTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
+        let changes = self.git.change_count();
+        let git_label = if changes > 0 {
+            format!(
+                "{} {} ({changes})",
+                ph::GIT_BRANCH,
+                s.t("git-source-control")
+            )
+        } else {
+            format!("{} {}", ph::GIT_BRANCH, s.t("git-source-control"))
+        };
+        let files_label = format!("{} {}", ph::FOLDERS, s.t("editor-project"));
+        if let Some(i) = segmented(
+            ui,
+            &theme,
+            &[&files_label, &git_label],
+            usize::from(self.git.sidebar),
+        ) {
+            self.git.sidebar = i == 1;
+        }
+        ui.add_space(2.0);
+        if self.git.sidebar {
+            let projects: Vec<(PathBuf, String)> = self
+                .projects
+                .iter()
+                .filter_map(|p| {
+                    p.root.clone().map(|r| {
+                        let name = r
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| r.to_string_lossy().to_string());
+                        (r, name)
+                    })
+                })
+                .collect();
+            let actions = self.git.sidebar_ui(ui, s, &theme, &projects);
+            self.apply_git(actions, ui, cx);
+            return true;
+        }
         let has_folder = !self.nodes.is_empty();
         hs_ui::form::header_bar(ui, &theme, |ui| {
             ui.label(
@@ -2060,6 +2133,7 @@ impl Tool for EditorTool {
             ui.label(egui::RichText::new(s.t("editor-no-folder")).weak());
             return true;
         }
+        self.git.decorate(&mut self.nodes, &theme);
         let resp = egui::ScrollArea::both()
             .id_salt(self.id.with("tree"))
             .auto_shrink([false, false])
@@ -2110,12 +2184,30 @@ impl Tool for EditorTool {
                 .push(hs_core::tool::Action::FocusTab { tab_id: cx.tab_id });
         }
         self.poll_watch(s);
+        self.git.poll(s, ui.ctx());
         self.prompt_modal(ui, cx);
         self.delete_dialog(ui, cx);
         self.close_dialog(ui, s);
         self.ensure_doc(s);
         let (theme, ed_theme) = Self::theme(s);
         self.file_tabs(ui, s, &theme);
+        if self.git.has_main() {
+            let size = self.doc().view.font_size;
+            let actions = self.git.main_ui(ui, s, &theme, size);
+            self.apply_git(actions, ui, cx);
+            return;
+        }
+        {
+            let pa = self.active;
+            let p = &mut self.projects[pa];
+            let d = &mut p.docs[p.active];
+            if let Some(m) =
+                self.git
+                    .update_marks(&mut d.git, d.path.as_deref(), &d.buf, s, ui.ctx())
+            {
+                d.view.line_marks = m;
+            }
+        }
         self.doc_mut().disk_banner(ui, s);
         egui::Panel::bottom(self.id.with("status"))
             .exact_size(22.0)
@@ -2194,6 +2286,13 @@ impl Tool for EditorTool {
             ),
             c("editor.terminal_here", "Editor: Open Terminal Here", None),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
+            c(
+                "git.source_control",
+                "Git: Toggle Source Control",
+                Some("git.source_control"),
+            ),
+            c("git.history", "Git: Show History", Some("git.history")),
+            c("git.refresh", "Git: Refresh Status", None),
             c("editor.ai_explain", "AI: Explain Selection or File", None),
             c("editor.ai_review", "AI: Review Selection or File", None),
             c("editor.ai_improve", "AI: Improve Selection or File", None),
@@ -2237,6 +2336,18 @@ impl Tool for EditorTool {
                 }
             }
             "editor.ai" => self.ai.toggle(),
+            "git.source_control" => self.git.sidebar = !self.git.sidebar,
+            "git.history" => {
+                let path = self
+                    .doc()
+                    .path
+                    .clone()
+                    .or_else(|| self.projects[self.active].root.clone());
+                if !self.git.open_history_for(path.as_deref(), s) {
+                    cx.toast(ToastLevel::Info, s.t("git-no-repo-toast"));
+                }
+            }
+            "git.refresh" => self.git.refresh_all(),
             "editor.ai_explain" | "editor.ai_review" | "editor.ai_improve" => {
                 let prompt = match id {
                     "editor.ai_explain" => "ai-explain-prompt",
@@ -2375,6 +2486,8 @@ impl Tool for EditorTool {
         let st = State {
             projects,
             active: self.active,
+            source_control: self.git.sidebar,
+            side_by_side: self.git.side_by_side,
             ..Default::default()
         };
         serde_json::to_value(&st).unwrap_or_default()
@@ -2457,6 +2570,53 @@ const LANGUAGE_MENU: &[(&str, &str)] = &[
     ("Log", "log"),
     ("CSV", "csv"),
 ];
+
+/// A row of equal-width toggle segments across the available width (never
+/// wider, so a resizable side panel does not grow). Returns the clicked one.
+fn segmented(ui: &mut egui::Ui, theme: &Theme, labels: &[&str], selected: usize) -> Option<usize> {
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 26.0), egui::Sense::hover());
+    let w = rect.width() / labels.len().max(1) as f32;
+    let mut clicked = None;
+    for (i, label) in labels.iter().enumerate() {
+        let r = egui::Rect::from_min_size(
+            egui::pos2(rect.left() + i as f32 * w, rect.top()),
+            egui::vec2(w, rect.height()),
+        )
+        .shrink2(egui::vec2(1.0, 0.0));
+        let resp = ui.interact(r, ui.id().with(("segment", i)), egui::Sense::click());
+        resp.widget_info(|| {
+            egui::WidgetInfo::selected(
+                egui::WidgetType::SelectableLabel,
+                true,
+                i == selected,
+                *label,
+            )
+        });
+        let on = i == selected;
+        let fill = if on {
+            theme.accent.linear_multiply(0.3)
+        } else if resp.hovered() {
+            theme.surface_hover
+        } else {
+            theme.surface
+        };
+        ui.painter()
+            .rect_filled(r, egui::CornerRadius::same(4), fill);
+        let p = ui.painter().with_clip_rect(r);
+        p.text(
+            r.center(),
+            egui::Align2::CENTER_CENTER,
+            *label,
+            egui::FontId::proportional(13.0),
+            if on { theme.text } else { theme.text_muted },
+        );
+        if resp.clicked() {
+            clicked = Some(i);
+        }
+    }
+    clicked
+}
 
 fn is_writable(meta: &std::fs::Metadata) -> bool {
     !meta.permissions().readonly()

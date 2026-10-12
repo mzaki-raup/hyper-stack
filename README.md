@@ -92,6 +92,10 @@ made.
 | **Projects as tabs** — every folder you open is its own window tab, and inside it the project's files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. Files from outside the projects (a terminal Ctrl+click) collect in an **Other Files** tab. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks the file tabs. | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
+| ![Git in the project tree](docs/screenshots/editor-git-tree.png) | ![Git diff](docs/screenshots/editor-git-diff.png) |
+| **Git in the editor** — the branch on the project, change letters and colours in the tree, change markers in the gutter as you type | **Source Control** (Ctrl+Shift+G) — staged, changed and untracked files; diffs inline or side by side; Up/Down steps through them |
+| ![Git history](docs/screenshots/editor-git-history.png) | |
+| **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
 | **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — 1min.AI or any OpenAI-compatible server (OpenAI, local LM Studio or Ollama with every downloaded model, OpenRouter); keys in the vault |
 

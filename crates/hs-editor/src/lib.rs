@@ -20,4 +20,4 @@ pub mod view;
 
 pub use buffer::{Buffer, Encoding, Eol};
 pub use cursor::{Cursor, Cursors};
-pub use view::{EditorResponse, EditorView};
+pub use view::{EditorResponse, EditorView, LineMark};

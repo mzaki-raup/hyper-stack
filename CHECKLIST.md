@@ -77,7 +77,8 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 |---|---|---|
 | `tool-api`: request editor, auth (incl. OAuth2, SigV4), send, response viewer, history, curl import/export | Pending | |
 | Collections as files, variable scopes, importers (Postman, Insomnia, Bruno, OpenAPI) | Pending | |
-| `tool-git`: status via `gix`, stage/unstage (file + hunk), diff viewer, commit, branches, stash, fetch/pull/push via CLI, protected-remote guard | Pending | |
+| Git read side in the editor: `hs-git` (status, diffs, log, branches over the git CLI), branch + change letters in the tree, Source Control list, diff viewer (inline / side by side), history with commit details, gutter change markers | Completed | 2026-10-12, ahead of M4 at the owner's request: parsers and a real fixture repository in `hs-git` tests; exercised in the app on a repo with staged/unstaged/deleted/untracked files, a tag and a second branch (tree, list, both diff modes, arrow stepping, history and Down, Esc, live refresh on an outside edit, live gutter while typing) |
+| `tool-git`: stage/unstage (file + hunk), commit, branches, stash, fetch/pull/push via CLI, protected-remote guard | Pending | |
 
 ### M5 · Logs + Devtools core
 | Item | State | Notes |

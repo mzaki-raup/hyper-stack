@@ -89,6 +89,9 @@ same day). Two multi-row tab strips:
   of open files outside it non-recursively. Quick open (Ctrl+P) lists the
   project's files.
 - The AI assistant panel is one per editor tab and works on the active file.
+- **Git** (docs/tools/git.md §3a): branch and change letters in the tree, a
+  Source Control list in the sidebar (switch at its top), diffs and history
+  in the main area, change markers in the gutter.
 
 ## 4. Engine (`hs-editor`)
 
@@ -217,7 +220,8 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+K Ctrl+F | format (external) |
 | Ctrl+Shift+M | Markdown preview (Ctrl+Shift+V is paste on Windows) |
 | Ctrl+F4 | close the active file (Ctrl+W closes the whole editor tab) |
-| Ctrl+Alt+PgDn / Ctrl+Alt+PgUp | next / previous open file, across the project rows |
+| Ctrl+Alt+PgDn / Ctrl+Alt+PgUp | next / previous file tab |
+| Ctrl+Shift+G / Ctrl+Shift+H | Source Control in the sidebar / repository history (docs/tools/git.md §3a) |
 | Alt+Z | toggle word wrap |
 
 ## 8. Settings

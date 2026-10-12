@@ -104,6 +104,25 @@ pub struct FindState {
     last_key: (String, bool, bool, bool, u64),
 }
 
+/// How a line differs from the last commit, for the gutter marker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineMark {
+    Added,
+    Modified,
+    /// Lines were removed just above this one.
+    Deleted,
+}
+
+impl LineMark {
+    pub fn colour(self) -> Color32 {
+        match self {
+            LineMark::Added => Color32::from_rgb(0x3F, 0xB9, 0x50),
+            LineMark::Modified => Color32::from_rgb(0x4A, 0x90, 0xD9),
+            LineMark::Deleted => Color32::from_rgb(0xE0, 0x4F, 0x4F),
+        }
+    }
+}
+
 pub struct EditorView {
     pub id: egui::Id,
     pub font_size: f32,
@@ -117,6 +136,9 @@ pub struct EditorView {
     pub right_click_copy_paste: bool,
     /// Character ranges underlined as errors (SQL error position, …).
     pub error_ranges: Vec<(usize, usize)>,
+    /// Change markers at the gutter's left edge, indexed by line (the Git
+    /// changes against the last commit). Lines past the end have none.
+    pub line_marks: Vec<Option<LineMark>>,
     /// Screen rectangle of the primary cursor after the last `show`, for
     /// popups anchored at the caret (completion).
     pub cursor_rect: Option<Rect>,
@@ -144,6 +166,7 @@ impl EditorView {
             goto_text: String::new(),
             right_click_copy_paste: true,
             error_ranges: Vec::new(),
+            line_marks: Vec::new(),
             cursor_rect: None,
             highlighter,
             scroll_to_cursor: false,
@@ -468,6 +491,33 @@ impl EditorView {
                                 ),
                                 CornerRadius::same(2),
                                 theme.bracket,
+                            );
+                        }
+                    }
+                }
+                // Change marker.
+                if self.show_gutter
+                    && let Some(Some(m)) = self.line_marks.get(line)
+                {
+                    let x = origin.x + 1.0;
+                    match m {
+                        LineMark::Deleted => {
+                            // A wedge on the line where text was removed.
+                            painter.add(egui::Shape::convex_polygon(
+                                vec![
+                                    Pos2::new(x, y - 3.0),
+                                    Pos2::new(x + 5.0, y),
+                                    Pos2::new(x, y + 3.0),
+                                ],
+                                m.colour(),
+                                egui::Stroke::NONE,
+                            ));
+                        }
+                        _ => {
+                            painter.rect_filled(
+                                Rect::from_min_size(Pos2::new(x, y), Vec2::new(3.0, cell.y)),
+                                CornerRadius::ZERO,
+                                m.colour(),
                             );
                         }
                     }

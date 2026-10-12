@@ -780,3 +780,37 @@ ai-not-applied = Not applied:
 ai-not-applied-tip = The text to replace was not found exactly once in the file; it may have changed since the answer.
 ai-copy-code = Copy the code
 ai-insert-code = Insert at the cursor (replaces the selection)
+
+## Git view in the editor
+git-source-control = Source Control
+git-staged = Staged
+git-changes = Changes
+git-untracked = Untracked
+git-conflicts = Conflicts
+git-no-changes = No changes.
+git-not-repo = Not a Git repository.
+git-not-installed = Git is not installed or not on PATH. Install it from git-scm.com to see changes and history.
+git-loading = Loading…
+git-refresh = Refresh status
+git-history-tip = Show this repository's history
+git-history-of = History of { $name }
+git-upstream-tip = Tracks { $upstream }: { $ahead } to push, { $behind } to pull.
+git-open-file = Open File
+git-open-changes = Open Changes
+git-copy-path = Copy Path
+git-copy-id = Copy the commit id
+git-back = Back to Editor
+git-back-tip = Return to the file (Esc). Up and Down step through the changes.
+git-inline = Inline
+git-side-by-side = Side by Side
+git-binary = Binary file; no text diff.
+git-no-diff = No differences.
+git-no-commits = No commits yet.
+git-select-file = Select a file to see how this commit changed it.
+git-files-changed = { $n ->
+    [one] 1 changed file
+   *[other] { $n } changed files
+}
+git-committed-by = Committed by { $name }
+git-renamed-from = renamed from { $path }
+git-no-repo-toast = None of this tab's projects is in a Git repository.

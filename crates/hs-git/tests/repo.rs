@@ -85,6 +85,11 @@ fn a_repository_in_every_state() {
     assert!(d.notes.iter().any(|n| n.starts_with("new file")));
     let d = hs_git::file_diff(root, "notes/todo.txt", Side::Untracked).unwrap();
     assert_eq!(d.added(), 2);
+    assert_eq!(
+        hs_git::head_text(root, "src/a.rs").unwrap().as_deref(),
+        Some("one\ntwo\nthree\n")
+    );
+    assert_eq!(hs_git::head_text(root, "b.txt").unwrap(), None);
     // Nothing staged for a file changed only in the work tree.
     assert!(
         hs_git::file_diff(root, "src/a.rs", Side::Staged)

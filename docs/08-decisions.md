@@ -120,6 +120,16 @@ config, credentials, signing). A `git` binary is required for write
 operations; read-only browsing works without it. Can revisit when `gix` ships
 stable push/merge.
 
+**Amended 2026-10-12.** The first Git feature to ship is the read-only Git
+view in the editor, and it reads through the `git` CLI as well (`hs-git`:
+porcelain v2 status, diffs, log, branches, `--no-optional-locks`), not
+`gix`: one dependency instead of a large one, identical answers to the
+user's terminal (config, attributes, worktrees), and the parsers are small
+and tested against a real repository. `gix` comes back if status or log on
+large repositories proves too slow through the CLI; `hs-git`'s API does not
+change when it does. Consequence: without `git` installed the Git view
+shows an install hint instead of read-only data.
+
 ---
 
 ## ADR-007 · Database drivers: native per-engine crates behind a `DbDriver` trait (not sqlx)

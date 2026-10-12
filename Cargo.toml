@@ -85,6 +85,7 @@ ulid = "1"
 semver = "1"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
+similar = "2"
 regex = "1"
 clap = { version = "4", features = ["derive"] }
 fluent = "0.16"

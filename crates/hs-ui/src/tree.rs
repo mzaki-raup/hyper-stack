@@ -50,6 +50,9 @@ pub struct TreeNode {
     pub children: Option<Vec<TreeNode>>,
     pub leaf: bool,
     pub badge: Option<String>,
+    /// Colour for the label and badge instead of the default (Git status
+    /// in the editor's project tree).
+    pub tint: Option<egui::Color32>,
 }
 
 impl TreeNode {
@@ -65,6 +68,7 @@ impl TreeNode {
             children: None,
             leaf: true,
             badge: None,
+            tint: None,
         }
     }
     pub fn branch(
@@ -80,6 +84,7 @@ impl TreeNode {
             children: Some(children),
             leaf: false,
             badge: None,
+            tint: None,
         }
     }
 }
@@ -177,7 +182,7 @@ fn show_node(
         Align2::LEFT_CENTER,
         &node.label,
         font,
-        theme.text,
+        node.tint.unwrap_or(theme.text),
     );
     let mut r = r;
     if let Some(b) = node.badge.as_ref().filter(|b| !b.is_empty()) {
@@ -185,14 +190,14 @@ fn show_node(
         let galley = ui.painter().layout_no_wrap(
             b.clone(),
             egui::FontId::proportional(11.0),
-            theme.text_muted,
+            node.tint.unwrap_or(theme.text_muted),
         );
         let left = rect.right() - 6.0 - galley.size().x;
         if left > label_rect.right() + 8.0 {
             ui.painter().galley(
                 egui::pos2(left, rect.center().y - galley.size().y / 2.0),
                 galley,
-                theme.text_muted,
+                node.tint.unwrap_or(theme.text_muted),
             );
         } else {
             r = r.on_hover_text(b);

@@ -47,7 +47,49 @@ Git GUIs; the terminal is one tab away for anything exotic.
 A Git tab is bound to one repository (detected from the editor project tree or
 chosen). Main area sub-tabs: Diff, Log, Branches, Stashes, Conflicts.
 
+## 3a. The Git view in the editor (implemented 2026-10-12)
+
+The read side of this spec ships first inside the editor, where the files
+are (owner's request): every project tab knows its repository.
+
+- **Project tree**: the project root shows the branch (`⎇ main ↑2 ↓1`);
+  changed files carry their letter (M, A, D, R, U untracked, ! conflict) in
+  the change's colour, and folders holding changes get a tinted dot.
+- **Source Control** (sidebar switch next to Projects, Ctrl+Shift+G): per
+  repository, Conflicts / Staged / Changes / Untracked with the change
+  letter, the file's folder, deleted files struck through; a click shows the
+  diff in the main area, a double click (or Open File, Enter in the diff)
+  opens the file; right-click: Open Changes, Open File, Copy Path. The
+  header has the branch with ahead/behind (upstream in the tooltip), History
+  and Refresh.
+- **Diff view** (main area): inline or side by side (remembered per tab),
+  line numbers, added/removed backgrounds, hunk headers, notes (new file,
+  rename, mode change), binary notice. Up/Down steps through the changes,
+  Esc or **Back to Editor** returns; it reloads when the status changes.
+- **History** (Ctrl+Shift+H, or the header's clock): the current branch's
+  commits (200 at a time, more as you scroll) with branch, tag and remote
+  chips, author and date; Up/Down moves; the selected commit shows its full
+  message, author, committer when different, id (copy), changed files and
+  the selected file's diff against the first parent.
+- **Gutter markers** in the editor: added (green bar), modified (blue bar)
+  and removed (red wedge) lines against the last commit, recomputed on the
+  blocking pool as you type, not only on save.
+- Status refreshes on file-system events in the work tree and in `.git`
+  (HEAD, index, refs; object and lock churn ignored), debounced 400 ms, plus
+  the Refresh button and `git.refresh`.
+
+Staging, commit, branches, stash, fetch/pull/push, merge and the rest stay
+for the Git tool proper (M4/P1). Engine: `crates/hs-git`.
+
 ## 4. Engine (hybrid, see ADR-006)
+
+**As built (2026-10-12):** every read goes through the `git` CLI with
+porcelain output (`status --porcelain=v2 -z`, `diff`, `log` with a
+separator format, `for-each-ref`, `diff-tree --name-status -z`, `show
+HEAD:path`), `--no-optional-locks` so a refresh never takes the index lock,
+`LC_ALL=C`, no console window on Windows. Line markers use `similar` with a
+150 ms timeout. `gix` remains the plan for when status/log speed on large
+repositories needs it; the table below is that target.
 
 | Operation | Implementation |
 |---|---|
@@ -150,7 +192,8 @@ commit warns.
 | Ctrl+Alt+S | stash |
 | F7 / Shift+F7 | next / previous hunk |
 | Ctrl+Shift+B | branches |
-| Ctrl+Shift+G | log |
+| Ctrl+Shift+G | Source Control in the editor sidebar (toggle) |
+| Ctrl+Shift+H | history |
 
 ## 13. Tests
 

@@ -12,6 +12,7 @@ publish.workspace = true
 [dependencies]
 hs-core = { workspace = true }
 thiserror = { workspace = true }
+similar = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

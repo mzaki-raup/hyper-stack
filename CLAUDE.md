@@ -11,10 +11,11 @@ editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
 (PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. The
 editor gives every project folder its own window tab with a multi-row
-strip of file tabs inside, and carries an optional AI assistant (ADR-019: 1min.AI or any
+strip of file tabs inside, shows Git status, diffs and history
+(`hs-git`, read-only over the git CLI), and carries an optional AI assistant (ADR-019: 1min.AI or any
 OpenAI-compatible service such as LM Studio, `hs-core::ai`).** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
-`hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
+`hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
 `tools/tool-s3`, `tools/tool-db`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.

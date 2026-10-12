@@ -11,11 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- AI Assistant in the editor (Ctrl+Shift+I, toolbar **AI Assistant**): chat about the open file or the selection, quick Explain / Review / Improve / Add Comments, answers streamed; proposed changes arrive as diffs with Apply / Reject / Apply All, each applied change one undo step; **Cascade** applies changes and continues on the updated file until the model answers DONE (Maximum Rounds in settings).
-- Settings → AI Assistant: several providers, each 1min.AI or OpenAI-compatible (presets for OpenAI, LM Studio, Ollama, OpenRouter), default model, Fetch Models, Test Connection; API keys go into the vault.
-- Editor: text changed from outside the view (the assistant, a reload) no longer shows stale highlighting cut at the old line length.
-- Settings: the Data (Advanced) page is gone; the data folder and **Open Data Folder** now sit in About → Installed. Open Data Folder opens the folder as a new tab in Eden Explorer when it is running or installed, otherwise in the system file manager, without blocking the UI.
-- Editor: project-tree folders no longer collapse by themselves; a refresh or a file change keeps expanded subfolders open, and the expanded folders are saved with the tab and carried to new tabs on the same project.
+- (nothing yet)
+
+## 0.14.0 — 2026-10-12
+
+### Added
+
+- AI assistant with 1min.AI and OpenAI-compatible providers (205ac253)
+- Open the data folder from About in Eden Explorer; keep editor folders expanded (17677f4f)
 
 ## 0.13.0 — 2026-10-11
 

@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   (new `Tool::current_connection`); quick-open does the same for S3 and DB
   connections, which it used to answer with a "later milestone" toast.
   Chips for kinds with no tool yet stay inert with a tooltip saying so.
+- AI Assistant: 1min.AI's model picker lists the 95 models its chat API accepts, grouped by vendor with display names on hover; a new "1min.AI (OpenAI-Compatible)" preset points at 1min.AI's `/openai/v1` adapter, whose model list Fetch Models reads live.
 
 ## 0.15.0 — 2026-10-12
 

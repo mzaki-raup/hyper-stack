@@ -256,12 +256,8 @@ fn form_body(
         );
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            let can_list = d.provider.kind == Provider::OpenAi;
             if ui
-                .add_enabled(
-                    can_list,
-                    egui::Button::new(format!("{} {}", ph::LIST, s.t("ai-fetch-models"))),
-                )
+                .button(format!("{} {}", ph::LIST, s.t("ai-fetch-models")))
                 .tip(s.t("ai-fetch-models-tip"))
                 .clicked()
             {

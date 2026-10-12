@@ -17,6 +17,16 @@ pub use edits::{EditBlock, LocateError, Segment, apply_block, locate, segments};
 pub const ONEMIN_BASE: &str = "https://api.1min.ai";
 pub const OPENAI_BASE: &str = "https://api.openai.com/v1";
 
+/// 1min.AI has no endpoint that lists its models, so its model picker
+/// offers these known ids (any other id can still be typed).
+pub const ONEMIN_MODELS: &[&str] = &[
+    "claude-4-6-sonnet",
+    "deepseek-chat",
+    "gpt-4o",
+    "gpt-4o-mini",
+    "qwen3-coder-plus",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
@@ -215,14 +225,15 @@ pub async fn chat(
 
 /// Model ids the service offers (`GET {base}/models`, OpenAI-compatible
 /// services only; LM Studio with JIT loading lists every downloaded model,
-/// Ollama its pulled ones). 1min.AI has no such endpoint: `Ok(vec![])`.
+/// Ollama its pulled ones). 1min.AI has no such endpoint, so it answers
+/// with the built-in [`ONEMIN_MODELS`] without a request.
 pub async fn list_models(
     http: &reqwest::Client,
     cfg: &AiConfig,
     api_key: &str,
 ) -> Result<Vec<String>, AiError> {
     if cfg.provider == Provider::OneMin {
-        return Ok(Vec::new());
+        return Ok(ONEMIN_MODELS.iter().map(|m| m.to_string()).collect());
     }
     let mut r = http.get(format!("{}/models", cfg.base()));
     if !api_key.is_empty() {
@@ -731,6 +742,23 @@ mod tests {
         assert_eq!(model_ids(&v), vec!["llama-3.1-8b", "qwen2.5-coder-7b"]);
         let v: Value = serde_json::from_str(r#"{"models":[{"name":"codellama"}]}"#).unwrap();
         assert_eq!(model_ids(&v), vec!["codellama"]);
+    }
+
+    #[test]
+    fn one_min_lists_its_built_in_models_without_asking() {
+        // An unroutable endpoint: a request would fail, the list must not.
+        let cfg = AiConfig {
+            provider: Provider::OneMin,
+            base_url: "http://127.0.0.1:9".into(),
+            model: String::new(),
+        };
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let models = rt.block_on(list_models(&http_client(), &cfg, "")).unwrap();
+        assert_eq!(models.len(), ONEMIN_MODELS.len());
+        assert!(models.iter().any(|m| m == Provider::OneMin.default_model()));
     }
 
     #[test]

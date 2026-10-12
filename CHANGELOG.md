@@ -11,9 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Git view in the editor (read-only, via the installed `git`): the project root shows the branch with ahead/behind, changed files carry coloured letters and folders with changes a dot; a **Source Control** switch in the sidebar (Ctrl+Shift+G) lists conflicts, staged, changed and untracked files; clicking one shows its diff inline or side by side (Up/Down to step, Esc to go back); **History** (Ctrl+Shift+H) lists commits with branch and tag chips and shows each commit's message, files and diffs; the gutter marks added, modified and removed lines while you type. Status refreshes on file and `.git` changes. New crate `hs-git`.
-- Editor: one window tab per project. Each opened folder is its own tab titled with the folder name, and inside it the project's open files are a second, multi-row strip of file tabs (close, reorder, Close Others / to the Left / to the Right, Copy Path, + for a new file). Files from outside the projects collect in an Other Files tab. This replaces Settings → Editor → Open Files In (Separate Tabs / Project Rows); a tab saved with several projects reopens them as separate tabs.
 - (nothing yet)
+
+## 0.18.0 — 2026-10-12
+
+### Added
+
+- Git view in the editor: tree status, Source Control, diffs, history (8746f145)
+- One window tab per project with a multi-row strip of file tabs (ca9199a7)
 
 ## 0.17.0 — 2026-10-12
 

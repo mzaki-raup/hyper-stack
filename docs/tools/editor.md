@@ -40,9 +40,42 @@ LSP in v1.
 └──────────────────────────┴───────────────────────────────────────────────────────────┘
 ```
 
-Each **editor tab in the strip holds one file** by default (consistent with
-the rest of the app). Optional "buffer tabs inside one editor tab" is a
-setting for people who want an IDE-like group.
+**One editor tab holds several projects** (implemented 2026-10-12, owner's
+request; this replaces "one file per tab"). Each folder opened becomes a
+project; the sidebar tree lists every project root, and above the text each
+project that has open files gets **its own row of file tabs**, labelled with
+the project name (the active row is highlighted):
+
+```
+│ 📁 calc     total.py ×  test_total.py ×                      │
+│ 📁 webshop  README.md ×  app.ts ×  compose.yml ● ×           │  ← active row
+│ 🗎 Other Files  todo.txt ×                                    │
+```
+
+- Clicking a file in the tree opens it in its project's row (or switches to
+  it); a file outside every project goes to the **Other Files** row. The
+  rows are hidden while the tab holds a single file, so the plain editor
+  looks as before.
+- A file tab: click to switch, middle-click or × to close, right-click for
+  Close / Close Others / Copy Path. The project label: click to switch to
+  that row, right-click to Close Project. Closing anything with unsaved
+  changes asks first ("Close Without Saving" / Cancel). Closing the last
+  file leaves an empty untitled one.
+- Requests from other tools route here (`Tool::uri_affinity`): a file the
+  tab already has open (0), a file inside one of its projects (1), any other
+  local file (2, into Other Files); a folder becomes another project. The
+  tree's **Open in New Tab** still opens a separate editor tab
+  (`Action::OpenToolNewTab`). A file opened into a fresh tab replaces its
+  empty untitled file instead of adding a tab next to it.
+- The tab title is the active file; the tab is dirty when any file is.
+- Saved layout: `{ projects: [{ root?, expanded, files: [{path, cursor,
+  preview}], active }], active }`; the one-file layout of earlier versions
+  (`path`, `root`, `cursor`, `expanded`) is read once and migrated.
+- One `notify` watcher per tab: each project root recursively, the folders
+  of open files outside them non-recursively. Quick open (Ctrl+P) lists
+  every project's files, prefixed with the project name when there are
+  several.
+- The AI assistant panel is one per editor tab and works on the active file.
 
 ## 4. Engine (`hs-editor`)
 
@@ -113,7 +146,7 @@ open at line, replace across files with preview (P1).
 
 ## 5. Tool (`tool-editor`)
 
-- **Project tree** on `hs-ui::Tree` rooted at a chosen folder (local, or a
+- **Project tree** on `hs-ui::Tree` with one root per project (local, or a
   remote `sftp://` / `s3://` folder); lazy load, `notify` watcher (local only;
   remote refresh on focus; a refresh keeps expanded subfolders open, and the
   expanded set is saved with the tab and carried to new tabs on the same
@@ -170,6 +203,8 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+Shift+\ | jump to matching bracket |
 | Ctrl+K Ctrl+F | format (external) |
 | Ctrl+Shift+M | Markdown preview (Ctrl+Shift+V is paste on Windows) |
+| Ctrl+F4 | close the active file (Ctrl+W closes the whole editor tab) |
+| Ctrl+Alt+PgDn / Ctrl+Alt+PgUp | next / previous open file, across the project rows |
 | Alt+Z | toggle word wrap |
 
 ## 8. Settings
@@ -192,7 +227,12 @@ format on save, file exclusions for search, large-file threshold.
 ## 10. AI assistant (ADR-019)
 
 - **Panel**: toolbar **AI Assistant** or Ctrl+Shift+I opens a resizable
-  panel on the right. A chat picks a provider and model (Settings → AI
+  panel on the right. A chat picks a provider and, from a **dropdown**, a
+  model: the list the provider offers (`GET {base}/models` for
+  OpenAI-compatible servers, asked when the provider is first picked and
+  shared by every editor tab for the session; ⟳ asks again; 1min.AI has no
+  such endpoint, so it offers a built-in list, `hs_core::ai::ONEMIN_MODELS`),
+  plus an **Other model id** field at the bottom for an id the list lacks (Settings → AI
   Assistant lists providers: 1min.AI or OpenAI-compatible such as OpenAI,
   LM Studio, Ollama, OpenRouter; Fetch Models asks an OpenAI-compatible
   server for its list; Test Connection sends a one-line question).

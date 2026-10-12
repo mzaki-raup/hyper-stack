@@ -108,6 +108,12 @@ pub enum Action {
         factory_id: String,
         request: Option<OpenRequest>,
     },
+    /// Like `OpenTool`, but always in a new tab (no routing to a tab that
+    /// already shows or would take the item).
+    OpenToolNewTab {
+        factory_id: String,
+        request: Option<OpenRequest>,
+    },
     FocusTab {
         tab_id: u64,
     },
@@ -160,6 +166,12 @@ impl ToolContext<'_> {
             request,
         });
     }
+    pub fn open_new_tab(&mut self, factory_id: &str, request: Option<OpenRequest>) {
+        self.actions.push(Action::OpenToolNewTab {
+            factory_id: factory_id.to_string(),
+            request,
+        });
+    }
 }
 
 pub trait Tool: Send {
@@ -200,6 +212,14 @@ pub trait Tool: Send {
     /// tab instead of opening the same thing twice (`file://` path, `sftp://`
     /// URI, connection id, …).
     fn current_uri(&self) -> Option<String> {
+        None
+    }
+
+    /// How well this tab would take a request for `uri` that no tab's
+    /// `current_uri` matches; lower is better, `None` declines. The editor
+    /// answers 0 for a file open in a background row, 1 for a file inside
+    /// one of its projects, 2 for any other local file.
+    fn uri_affinity(&self, _uri: &str) -> Option<u8> {
         None
     }
 

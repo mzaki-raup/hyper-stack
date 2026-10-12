@@ -10,7 +10,8 @@ environments and secrets across every tool.
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
 (PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. The
-editor also carries an optional AI assistant (ADR-019: 1min.AI or any
+editor holds several projects per tab, each with its own row of file
+tabs, and carries an optional AI assistant (ADR-019: 1min.AI or any
 OpenAI-compatible service such as LM Studio, `hs-core::ai`).** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
 `hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
@@ -439,6 +440,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
   moto verifies the request shape, not the signature; the SigV4 unit tests
   against AWS's examples cover that.
+- Under Xvfb a modal dialog can leave the window without keyboard focus
+  (typed keys go nowhere afterwards); run `xdotool windowfocus <id>`
+  again before typing.
+- A shell heredoc that writes code must be quoted (`<<'EOF'`): with
+  `<<EOF` the shell runs every `` `backtick` `` span in the text, which
+  silently blanked the backticked names in doc comments being inserted.
 - `pkill -f /opt/HyperStack/HyperStack` run from a Bash tool call also
   matches that shell's own command line and kills it (exit 144); stop the
   app with `pkill -x HyperStack`. `xdotool type` cannot type multi-byte

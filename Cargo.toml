@@ -9,6 +9,7 @@ members = [
   "crates/hs-editor",
   "crates/tools/tool-editor",
   "crates/hs-ssh",
+  "crates/hs-git",
   "crates/tools/tool-ssh",
   "crates/tools/tool-s3",
   "crates/tools/tool-db",
@@ -34,6 +35,7 @@ tool-terminal = { path = "crates/tools/tool-terminal" }
 hs-editor = { path = "crates/hs-editor" }
 tool-editor = { path = "crates/tools/tool-editor" }
 hs-ssh = { path = "crates/hs-ssh" }
+hs-git = { path = "crates/hs-git" }
 tool-ssh = { path = "crates/tools/tool-ssh" }
 tool-s3 = { path = "crates/tools/tool-s3" }
 tool-db = { path = "crates/tools/tool-db" }

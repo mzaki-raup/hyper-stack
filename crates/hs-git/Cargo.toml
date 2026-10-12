@@ -1,0 +1,17 @@
+[package]
+name = "hs-git"
+description = "HyperStack Git engine: repository discovery, status, diffs, log, branches (read side, via the git CLI)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

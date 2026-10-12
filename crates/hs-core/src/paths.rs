@@ -253,6 +253,21 @@ fn eden_candidates(exe_dir: Option<&Path>, env: &dyn Fn(&str) -> Option<String>)
     out
 }
 
+/// A command for a helper process the user never sees (`git`, …): on
+/// Windows it starts without a console window, which a GUI app would
+/// otherwise flash on every call.
+pub fn background_command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
+    #[allow(unused_mut)] // only Windows changes it
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
 /// Eden Explorer's executable on this machine, if there is one: a running
 /// instance first (asked through PowerShell, so this blocks for a moment —
 /// call it off the UI thread), then `PATH`, then [`eden_candidates`].

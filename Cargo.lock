@@ -2837,6 +2837,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-git"
+version = "0.16.0"
+dependencies = [
+ "hs-core",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "hs-ssh"
 version = "0.16.0"
 dependencies = [

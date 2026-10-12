@@ -10,8 +10,8 @@ environments and secrets across every tool.
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
 (PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. The
-editor holds several projects per tab, each with its own row of file
-tabs, and carries an optional AI assistant (ADR-019: 1min.AI or any
+editor holds several projects (files open in separate tabs by default,
+or per-project rows of file tabs in one editor tab), and carries an optional AI assistant (ADR-019: 1min.AI or any
 OpenAI-compatible service such as LM Studio, `hs-core::ai`).** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
 `hs-ssh`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,

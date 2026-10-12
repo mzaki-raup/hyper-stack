@@ -42,6 +42,7 @@ fn several_projects_each_keep_their_files() {
     let paths = DataDir::resolve(Some(&tmp.join("data"))).unwrap();
     let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
     let s = &boot.services;
+    s.settings.write().editor.open_files_in = hs_core::settings::OpenFilesIn::Rows;
     let factory = tool_editor::EditorFactory;
     let mut actions = Vec::new();
 
@@ -114,6 +115,62 @@ fn several_projects_each_keep_their_files() {
     // Nothing left open: an empty untitled file, not a broken tab.
     assert_eq!(t.title(), "Untitled");
     assert!(!t.dirty());
+
+    // Separate Tabs (the default): one file per editor tab.
+    s.settings.write().editor.open_files_in = hs_core::settings::OpenFilesIn::Tabs;
+    let mut actions = Vec::new();
+    let mut cx = ToolContext {
+        services: s,
+        tab_id: 2,
+        env_id: None,
+        actions: &mut actions,
+    };
+    let mut tab = factory.create(s, None);
+    // A fresh tab starts with the projects of the last tab (beta and
+    // Other Files were left; Other Files is not a folder).
+    let st = tab.save_state();
+    assert_eq!(st["projects"][0]["root"], json!(b));
+    assert!(tab.open(
+        OpenRequest::File {
+            uri: p(&b.join("c.md")),
+            line: None
+        },
+        &mut cx
+    ));
+    assert_eq!(tab.title(), "c.md", "an empty tab takes the file itself");
+    std::fs::write(b.join("d.md"), "# d\n").unwrap();
+    assert!(tab.open(
+        OpenRequest::File {
+            uri: p(&b.join("d.md")),
+            line: None
+        },
+        &mut cx
+    ));
+    assert_eq!(tab.title(), "c.md", "this tab keeps its file");
+    let asked: Vec<String> = cx
+        .actions
+        .iter()
+        .filter_map(|a| match a {
+            hs_core::tool::Action::OpenTool {
+                factory_id,
+                request: Some(OpenRequest::File { uri, .. }),
+            } if factory_id == "editor" => Some(uri.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        asked,
+        [p(&b.join("d.md"))],
+        "the other file goes to a new tab"
+    );
+    // The shell routes only a file this tab shows here.
+    assert_eq!(tab.uri_affinity(&p(&b.join("c.md"))), Some(0));
+    assert_eq!(tab.uri_affinity(&p(&b.join("d.md"))), None);
+    assert_eq!(
+        tab.uri_affinity(&p(&a)),
+        Some(2),
+        "a folder becomes a project here"
+    );
     drop(boot);
     let _ = std::fs::remove_dir_all(&tmp);
 }

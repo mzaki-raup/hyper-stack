@@ -53,13 +53,11 @@ const SKIP_DIRS: &[&str] = &[
     ".svn",
 ];
 
-/// The folder the last editor tab worked in, so new tabs start in the same project.
-static LAST_ROOT: parking_lot::Mutex<Option<PathBuf>> = parking_lot::Mutex::new(None);
-
-/// The folders expanded in the last-used project tree, with its root, so a
-/// new tab on the same project shows the tree the way the user left it.
-static LAST_EXPANDED: parking_lot::Mutex<Option<(PathBuf, Vec<PathBuf>)>> =
-    parking_lot::Mutex::new(None);
+/// The projects (folders, with the subfolders expanded in the tree) of the
+/// editor tab used last, so a new editor tab starts with the same projects
+/// and the tree the way the user left it. With "Separate Tabs" every file
+/// opens in a new tab, which is how the tabs share one project list.
+static LAST_PROJECTS: parking_lot::Mutex<Vec<ProjectState>> = parking_lot::Mutex::new(Vec::new());
 
 pub struct EditorFactory;
 
@@ -680,6 +678,8 @@ pub struct EditorTool {
     /// Index into `projects`; that project always has an open file.
     active: usize,
     auto_reload: bool,
+    /// Settings → Editor → Open Files In = Project Rows.
+    rows_mode: bool,
     trim_trailing: bool,
     final_newline: bool,
 
@@ -701,6 +701,7 @@ impl EditorTool {
     fn new(services: &Services, state: State) -> Self {
         let st = services.settings.read();
         let auto_reload = st.editor.auto_reload;
+        let rows_mode = st.editor.open_files_in == hs_core::settings::OpenFilesIn::Rows;
         let trim_trailing = st.editor.trim_trailing_whitespace;
         let final_newline = st.editor.insert_final_newline;
         drop(st);
@@ -708,6 +709,7 @@ impl EditorTool {
             projects: Vec::new(),
             active: 0,
             auto_reload,
+            rows_mode,
             trim_trailing,
             final_newline,
             nodes: Vec::new(),
@@ -723,20 +725,8 @@ impl EditorTool {
         };
         t.start_watch(services);
         let (mut projects, active) = state.into_projects();
-        if projects.is_empty()
-            && let Some(root) = LAST_ROOT.lock().clone()
-        {
-            let expanded = LAST_EXPANDED
-                .lock()
-                .clone()
-                .filter(|(r, _)| *r == root)
-                .map(|(_, d)| d)
-                .unwrap_or_default();
-            projects.push(ProjectState {
-                root: Some(root),
-                expanded,
-                ..Default::default()
-            });
+        if projects.is_empty() {
+            projects = LAST_PROJECTS.lock().clone();
         }
         let mut restored_active = None;
         for (i, ps) in projects.into_iter().enumerate() {
@@ -863,9 +853,23 @@ impl EditorTool {
         })
     }
 
+    /// Hand this tab's projects (not its files) to the next editor tab.
+    fn remember_projects(&self) {
+        *LAST_PROJECTS.lock() = self
+            .projects
+            .iter()
+            .filter_map(|p| {
+                p.root.as_ref().map(|r| ProjectState {
+                    root: Some(r.clone()),
+                    expanded: self.expanded_dirs(r),
+                    ..Default::default()
+                })
+            })
+            .collect();
+    }
+
     /// Add `root` as a project (or find it) and make it the one new files go to.
     fn add_project(&mut self, root: PathBuf) -> usize {
-        *LAST_ROOT.lock() = Some(root.clone());
         if let Some(i) = self
             .projects
             .iter()
@@ -914,6 +918,7 @@ impl EditorTool {
         }
         self.projects[at].rebuild_index();
         self.sync_watches();
+        self.remember_projects();
         at
     }
 
@@ -935,15 +940,13 @@ impl EditorTool {
         self.ensure_doc(services);
         self.sync_watches();
         self.select_in_tree();
+        self.remember_projects();
     }
 
     fn activate(&mut self, pi: usize, di: usize) {
         if pi < self.projects.len() && di < self.projects[pi].docs.len() {
             self.active = pi;
             self.projects[pi].active = di;
-            if let Some(r) = &self.projects[pi].root {
-                *LAST_ROOT.lock() = Some(r.clone());
-            }
             self.select_in_tree();
         }
     }
@@ -997,6 +1000,23 @@ impl EditorTool {
                 self.active = pi;
             }
             self.ensure_doc(cx.services);
+            return;
+        }
+        // "Separate Tabs": a file this tab does not show gets its own tab
+        // (the shell focuses a tab that already shows it), unless this tab
+        // is still empty.
+        if !self.rows_mode && self.find_doc(&path).is_none() && !self.doc().is_placeholder() {
+            self.remember_projects();
+            cx.open(
+                "editor",
+                Some(OpenRequest::File {
+                    uri: path.to_string_lossy().to_string(),
+                    line,
+                }),
+            );
+            // The click selected the file in this tab's tree; it opened
+            // elsewhere, so the tree goes back to this tab's file.
+            self.select_in_tree();
             return;
         }
         if let Err(e) = self.open_file(&path, line, cx.services) {
@@ -1376,7 +1396,9 @@ impl EditorTool {
     /// before.
     fn file_rows(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         let with_docs = self.projects.iter().filter(|p| !p.docs.is_empty()).count();
-        if with_docs <= 1 && self.total_docs() <= 1 {
+        // Project Rows: always, so a new file visibly lands beside the
+        // others. Separate Tabs: only in the rare tab that holds several.
+        if !self.rows_mode && self.total_docs() <= 1 {
             return;
         }
         let mut actions = Vec::new();
@@ -1396,7 +1418,7 @@ impl EditorTool {
                 .inner_margin(egui::Margin::symmetric(6, 2))
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.horizontal_wrapped(|ui| {
+                    ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
                         let name = p.name(s);
                         let colour = if row_active {
@@ -1410,21 +1432,29 @@ impl EditorTool {
                             ph::FILES
                         };
                         let chip = ui
-                            .add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!("{icon} {name}"))
-                                        .strong()
-                                        .color(colour),
-                                )
-                                .truncate()
-                                .sense(egui::Sense::click()),
+                            .allocate_ui_with_layout(
+                                egui::vec2(120.0, 20.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.set_min_width(120.0);
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(format!("{icon} {name}"))
+                                                .strong()
+                                                .color(colour),
+                                        )
+                                        .truncate()
+                                        .sense(egui::Sense::click()),
+                                    )
+                                    .on_hover_text(
+                                        p.root
+                                            .as_ref()
+                                            .map(|r| r.display().to_string())
+                                            .unwrap_or_else(|| s.t("editor-other-files-tip")),
+                                    )
+                                },
                             )
-                            .on_hover_text(
-                                p.root
-                                    .as_ref()
-                                    .map(|r| r.display().to_string())
-                                    .unwrap_or_else(|| s.t("editor-other-files-tip")),
-                            );
+                            .inner;
                         if chip.clicked() {
                             actions.push(RowAction::Activate(pi, p.active));
                         }
@@ -1434,70 +1464,72 @@ impl EditorTool {
                                 ui.close();
                             }
                         });
-                        ui.add_space(8.0);
-                        for (di, d) in p.docs.iter().enumerate() {
-                            let selected = row_active && di == p.active;
-                            let name = if d.path.is_some() {
-                                d.file_name()
-                            } else {
-                                s.t("editor-untitled")
-                            };
-                            let label = if d.buf.dirty() {
-                                format!("{name} ●")
-                            } else {
-                                name.clone()
-                            };
-                            let mut text = egui::RichText::new(label).size(13.0);
-                            if !selected && !(di == p.active && !row_active) {
-                                text = text.color(theme.text_muted);
-                            }
-                            let icon = egui::Image::new(fileicons::for_file(&name))
-                                .fit_to_exact_size(egui::vec2(14.0, 14.0));
-                            let r = ui.add(
-                                egui::Button::image_and_text(icon, text)
-                                    .selected(selected)
-                                    .frame_when_inactive(di == p.active),
-                            );
-                            let r = match &d.path {
-                                Some(path) => r.on_hover_text(path.display().to_string()),
-                                None => r,
-                            };
-                            if r.clicked() {
-                                actions.push(RowAction::Activate(pi, di));
-                            }
-                            if r.middle_clicked() {
-                                actions.push(RowAction::Close(pi, di));
-                            }
-                            r.context_menu(|ui| {
-                                if ui.button(s.t("editor-close-file")).clicked() {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            for (di, d) in p.docs.iter().enumerate() {
+                                let selected = row_active && di == p.active;
+                                let name = if d.path.is_some() {
+                                    d.file_name()
+                                } else {
+                                    s.t("editor-untitled")
+                                };
+                                let label = if d.buf.dirty() {
+                                    format!("{name} ●")
+                                } else {
+                                    name.clone()
+                                };
+                                let mut text = egui::RichText::new(label).size(13.0);
+                                if !selected && !(di == p.active && !row_active) {
+                                    text = text.color(theme.text_muted);
+                                }
+                                let icon = egui::Image::new(fileicons::for_file(&name))
+                                    .fit_to_exact_size(egui::vec2(14.0, 14.0));
+                                let r = ui.add(
+                                    egui::Button::image_and_text(icon, text)
+                                        .selected(selected)
+                                        .frame_when_inactive(di == p.active),
+                                );
+                                let r = match &d.path {
+                                    Some(path) => r.on_hover_text(path.display().to_string()),
+                                    None => r,
+                                };
+                                if r.clicked() {
+                                    actions.push(RowAction::Activate(pi, di));
+                                }
+                                if r.middle_clicked() {
                                     actions.push(RowAction::Close(pi, di));
-                                    ui.close();
                                 }
-                                if ui.button(s.t("editor-close-others")).clicked() {
-                                    actions.push(RowAction::CloseOthers(pi, di));
-                                    ui.close();
-                                }
-                                if let Some(path) = &d.path
-                                    && ui.button(s.t("editor-copy-path")).clicked()
+                                r.context_menu(|ui| {
+                                    if ui.button(s.t("editor-close-file")).clicked() {
+                                        actions.push(RowAction::Close(pi, di));
+                                        ui.close();
+                                    }
+                                    if ui.button(s.t("editor-close-others")).clicked() {
+                                        actions.push(RowAction::CloseOthers(pi, di));
+                                        ui.close();
+                                    }
+                                    if let Some(path) = &d.path
+                                        && ui.button(s.t("editor-copy-path")).clicked()
+                                    {
+                                        actions.push(RowAction::CopyPath(
+                                            path.to_string_lossy().to_string(),
+                                        ));
+                                        ui.close();
+                                    }
+                                });
+                                if ui
+                                    .add(
+                                        egui::Button::new(egui::RichText::new(ph::X).size(11.0))
+                                            .frame(false),
+                                    )
+                                    .tip(s.t("editor-close-file"))
+                                    .clicked()
                                 {
-                                    actions.push(RowAction::CopyPath(
-                                        path.to_string_lossy().to_string(),
-                                    ));
-                                    ui.close();
+                                    actions.push(RowAction::Close(pi, di));
                                 }
-                            });
-                            if ui
-                                .add(
-                                    egui::Button::new(egui::RichText::new(ph::X).size(11.0))
-                                        .frame(false),
-                                )
-                                .tip(s.t("editor-close-file"))
-                                .clicked()
-                            {
-                                actions.push(RowAction::Close(pi, di));
+                                ui.add_space(4.0);
                             }
-                            ui.add_space(4.0);
-                        }
+                        });
                     });
                 });
         }
@@ -2019,13 +2051,9 @@ impl Tool for EditorTool {
             let dir = PathBuf::from(&id);
             set_children(&mut self.nodes, &id, load_children(&dir));
         }
-        if let Some(id) = &resp.clicked
-            && let Some(pi) = self.project_for(Path::new(id))
-            && let Some(root) = self.projects[pi].root.clone()
-        {
-            let dirs = self.expanded_dirs(&root);
-            *LAST_EXPANDED.lock() = Some((root.clone(), dirs));
-            *LAST_ROOT.lock() = Some(root);
+        if resp.clicked.is_some() {
+            // A folder may have been expanded or collapsed.
+            self.remember_projects();
         }
         if let Some(id) = resp.clicked.or(resp.double_clicked) {
             let p = PathBuf::from(&id);
@@ -2141,7 +2169,8 @@ impl Tool for EditorTool {
         match id {
             "file.open" => self.open_file_dialog(cx),
             "file.open_folder" => self.open_folder_dialog(cx),
-            "file.new" => self.new_file(s),
+            "file.new" if self.rows_mode => self.new_file(s),
+            "file.new" => cx.open("editor", None),
             "file.save" => {
                 self.save(cx);
             }
@@ -2224,6 +2253,12 @@ impl Tool for EditorTool {
         let path = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
         if self.find_doc(path).is_some() {
             Some(0)
+        } else if path.is_dir() {
+            // A folder becomes another project of an existing editor tab.
+            Some(2)
+        } else if !self.rows_mode {
+            // Separate Tabs: any other file gets a tab of its own.
+            None
         } else if self.project_for(path).is_some() {
             Some(1)
         } else if path.is_absolute() {
@@ -2328,6 +2363,10 @@ impl Tool for EditorTool {
                     _ => None,
                 };
                 if !self.doc().is_placeholder() {
+                    if !self.rows_mode {
+                        cx.open("editor", Some(OpenRequest::Text { mime, body }));
+                        return true;
+                    }
                     self.new_file(cx.services);
                 }
                 self.doc_mut().set_text(&body, hint);
@@ -2341,6 +2380,7 @@ impl Tool for EditorTool {
         if let Event::SettingsChanged = ev {
             let st = cx.services.settings.read();
             self.auto_reload = st.editor.auto_reload;
+            self.rows_mode = st.editor.open_files_in == hs_core::settings::OpenFilesIn::Rows;
             self.trim_trailing = st.editor.trim_trailing_whitespace;
             self.final_newline = st.editor.insert_final_newline;
             drop(st);

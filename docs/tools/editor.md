@@ -40,11 +40,22 @@ LSP in v1.
 └──────────────────────────┴───────────────────────────────────────────────────────────┘
 ```
 
-**One editor tab holds several projects** (implemented 2026-10-12, owner's
-request; this replaces "one file per tab"). Each folder opened becomes a
-project; the sidebar tree lists every project root, and above the text each
-project that has open files gets **its own row of file tabs**, labelled with
-the project name (the active row is highlighted):
+**Several projects, two layouts** (owner's requests, 2026-10-12). Each
+folder opened becomes a project and the sidebar tree lists every project
+root. Settings → Editor → **Open Files In** chooses where a file clicked in
+the tree opens:
+
+- **Separate Tabs** (default; the layout before projects existed): every
+  file gets its own tab in the window's tab strip. A file already open in
+  another tab is focused instead; an empty editor tab takes the file
+  itself. A new editor tab starts with the projects (and expanded folders)
+  of the tab used last, so every editor tab shows all your projects.
+  Ctrl+N opens a new editor tab.
+- **Project Rows**: one editor tab holds the projects, and above the text
+  each project that has open files gets **its own row of file tabs** beside
+  a fixed-width project label (the active row is highlighted). A row that
+  fills up **wraps onto more lines**, aligned under its first tab, so no
+  tab is hidden:
 
 ```
 │ 📁 calc     total.py ×  test_total.py ×                      │
@@ -52,18 +63,21 @@ the project name (the active row is highlighted):
 │ 🗎 Other Files  todo.txt ×                                    │
 ```
 
-- Clicking a file in the tree opens it in its project's row (or switches to
-  it); a file outside every project goes to the **Other Files** row. The
-  rows are hidden while the tab holds a single file, so the plain editor
-  looks as before.
+- In Project Rows, clicking a file in the tree opens it in its project's
+  row (or switches to it); a file outside every project goes to the
+  **Other Files** row. The rows are always shown, so a new file visibly
+  lands beside the others. (In Separate Tabs they appear only in the rare
+  tab that holds more than one file.)
 - A file tab: click to switch, middle-click or × to close, right-click for
   Close / Close Others / Copy Path. The project label: click to switch to
   that row, right-click to Close Project. Closing anything with unsaved
   changes asks first ("Close Without Saving" / Cancel). Closing the last
   file leaves an empty untitled one.
-- Requests from other tools route here (`Tool::uri_affinity`): a file the
-  tab already has open (0), a file inside one of its projects (1), any other
-  local file (2, into Other Files); a folder becomes another project. The
+- Requests from other tools route by `Tool::uri_affinity`: a file a tab
+  already has open goes there (0) and a folder becomes another project of
+  an existing editor tab (2). In Project Rows a file inside a tab's project
+  (1) or any other local file (2, into Other Files) also joins that tab; in
+  Separate Tabs it gets a new tab. The
   tree's **Open in New Tab** still opens a separate editor tab
   (`Action::OpenToolNewTab`). A file opened into a fresh tab replaces its
   empty untitled file instead of adding a tab next to it.

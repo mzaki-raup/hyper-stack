@@ -4,6 +4,14 @@
 
 **One workspace for everyone who ships software.**
 
+<p align="center">
+  <img src="https://img.shields.io/github/downloads/mzaki-raup/hyper-stack/total?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Downloads" />
+  <img src="https://img.shields.io/github/v/release/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Release" />
+  <img src="https://img.shields.io/github/license/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="License" />
+  <img src="https://img.shields.io/github/actions/workflow/status/mzaki-raup/hyper-stack/release.yml?style=for-the-badge&label=build&color=5F4B87&labelColor=14161A" alt="Build" />
+  <img src="https://img.shields.io/github/stars/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Stars" />
+</p>
+
 <p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, search the output and Ctrl+click a compiler location to open it in the editor, preview Markdown with a Mermaid diagram, connect over SSH and start a port-forward tunnel, browse an S3 bucket and create a presigned URL, then switch to the protected Production environment" width="960"></p>
 
 HyperStack is a desktop application for full-stack developers, DevOps engineers,
@@ -81,7 +89,7 @@ made.
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
 | ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
-| **Several projects in one editor** — every folder you open is a project in the tree, each with its own row of file tabs; files from elsewhere (a terminal Ctrl+click) join an **Other Files** row. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks them | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
+| **Several projects** — every folder you open is a project in the tree. By default each file opens in its own tab; with Settings → Editor → Open Files In = **Project Rows**, one editor tab holds them, each project with its own row of file tabs that wraps when full; files from elsewhere (a terminal Ctrl+click) join an **Other Files** row. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks them | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
@@ -144,7 +152,7 @@ made.
 | ![Security](docs/screenshots/settings-security.png) | ![Terminal settings](docs/screenshots/settings-terminal.png) |
 | **Security** — vault state, auto-lock, clipboard clearing | **Terminal** — default shell, scrollback, font, copy/paste behaviour |
 | ![Editor settings](docs/screenshots/settings-editor.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
-| **Editor** — font, right-click copy/paste, reload, save hooks | **Shortcuts** — every action rebindable |
+| **Editor** — font, right-click copy/paste, reload, where files open (Separate Tabs or Project Rows), save hooks | **Shortcuts** — every action rebindable |
 | ![About and updates](docs/screenshots/settings-about.png) | |
 | **About** — version, data folder (Open Data Folder, in Eden Explorer when installed), update channel and policy, Check Now, signing key | |
 

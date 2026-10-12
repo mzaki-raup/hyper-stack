@@ -114,19 +114,6 @@ pub struct Editor {
     pub insert_final_newline: bool,
     /// Reload an unmodified buffer silently when the file changes on disk.
     pub auto_reload: bool,
-    /// Where a file clicked in the project tree opens.
-    pub open_files_in: OpenFilesIn,
-}
-
-/// How the editor lays out open files (docs/tools/editor.md §3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum OpenFilesIn {
-    /// Each file in its own tab in the window's tab strip.
-    #[default]
-    Tabs,
-    /// One editor tab; each project's files in its own row of tabs.
-    Rows,
 }
 
 /// The optional AI assistant (ADR-019): the services it may call. Nothing
@@ -198,7 +185,6 @@ impl Default for Editor {
             trim_trailing_whitespace: false,
             insert_final_newline: false,
             auto_reload: true,
-            open_files_in: OpenFilesIn::Tabs,
         }
     }
 }

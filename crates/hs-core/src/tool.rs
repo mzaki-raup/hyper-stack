@@ -217,8 +217,9 @@ pub trait Tool: Send {
 
     /// How well this tab would take a request for `uri` that no tab's
     /// `current_uri` matches; lower is better, `None` declines. The editor
-    /// answers 0 for a file open in a background row, 1 for a file inside
-    /// one of its projects, 2 for any other local file.
+    /// answers 0 for a file it has open or its own project folder, 1 + depth
+    /// for a file inside its project, 200 (Other Files or an empty tab) for
+    /// any other local file.
     fn uri_affinity(&self, _uri: &str) -> Option<u8> {
         None
     }

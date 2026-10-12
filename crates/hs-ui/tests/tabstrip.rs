@@ -39,6 +39,7 @@ fn labels() -> TabStripLabels {
         duplicate: "Duplicate".into(),
         split_right: "Split right".into(),
         split_down: "Split down".into(),
+        copy_path: "Copy path".into(),
     }
 }
 
@@ -70,6 +71,7 @@ fn clicking_the_plus_button_requests_a_new_tab_and_strip_wraps() {
                 active: state.active,
                 visible: &[],
                 labels: &labels,
+                compact: false,
             };
             let r = strip.show(ui, &tabs);
             if let Some(id) = r.activated {

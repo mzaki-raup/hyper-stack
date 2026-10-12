@@ -1535,6 +1535,7 @@ impl HyperStackApp {
             duplicate: s.t("tab-duplicate"),
             split_right: s.t("tab-split-right"),
             split_down: s.t("tab-split-down"),
+            copy_path: s.t("editor-copy-path"),
         };
         let theme = self.theme.clone();
         let env_colour = |env: Option<String>| -> Option<Color32> {
@@ -1568,6 +1569,7 @@ impl HyperStackApp {
             active: self.tabs.active,
             visible: &visible,
             labels: &labels,
+            compact: false,
         };
         let r = strip.show(ui, &views);
         if let Some(id) = r.activated {
@@ -1611,6 +1613,7 @@ impl HyperStackApp {
                         }
                     }
                 }
+                TabMenuAction::CopyPath => {}
                 TabMenuAction::Pin => self.tabs.set_pinned(id, true),
                 TabMenuAction::Unpin => self.tabs.set_pinned(id, false),
                 TabMenuAction::Duplicate => {

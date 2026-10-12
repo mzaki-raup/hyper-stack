@@ -368,10 +368,6 @@ settings-editor-right-click = Right Click Copies and Pastes
 settings-editor-trim = Trim Trailing Whitespace on Save
 settings-editor-final-newline = Insert Final Newline on Save
 settings-editor-auto-reload = Reload Unchanged Files When They Change on Disk
-settings-editor-open-files-in = Open Files In
-settings-editor-open-tabs = Separate Tabs
-settings-editor-open-rows = Project Rows
-settings-editor-open-files-in-hint = Separate Tabs: every file you open gets its own tab in the tab strip, and each editor tab shows all your projects. Project Rows: one editor tab holds your projects, each with its own row of file tabs that wraps onto more lines when it fills up.
 
 ## SSH
 tool-ssh = SSH

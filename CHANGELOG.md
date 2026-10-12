@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- Editor: one window tab per project. Each opened folder is its own tab titled with the folder name, and inside it the project's open files are a second, multi-row strip of file tabs (close, reorder, Close Others / to the Left / to the Right, Copy Path, + for a new file). Files from outside the projects collect in an Other Files tab. This replaces Settings → Editor → Open Files In (Separate Tabs / Project Rows); a tab saved with several projects reopens them as separate tabs.
 - (nothing yet)
 
 ## 0.17.0 — 2026-10-12

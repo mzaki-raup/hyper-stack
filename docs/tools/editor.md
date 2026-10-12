@@ -40,55 +40,54 @@ LSP in v1.
 └──────────────────────────┴───────────────────────────────────────────────────────────┘
 ```
 
-**Several projects, two layouts** (owner's requests, 2026-10-12). Each
-folder opened becomes a project and the sidebar tree lists every project
-root. Settings → Editor → **Open Files In** chooses where a file clicked in
-the tree opens:
+**One window tab per project, its files inside** (owner's request,
+2026-10-12, replacing the "Separate Tabs / Project Rows" choice of the
+same day). Two multi-row tab strips:
 
-- **Separate Tabs** (default; the layout before projects existed): every
-  file gets its own tab in the window's tab strip. A file already open in
-  another tab is focused instead; an empty editor tab takes the file
-  itself. A new editor tab starts with the projects (and expanded folders)
-  of the tab used last, so every editor tab shows all your projects.
-  Ctrl+N opens a new editor tab.
-- **Project Rows**: one editor tab holds the projects, and above the text
-  each project that has open files gets **its own row of file tabs** beside
-  a fixed-width project label (the active row is highlighted). A row that
-  fills up **wraps onto more lines**, aligned under its first tab, so no
-  tab is hidden:
+- **The window's tab strip holds projects.** Every folder opened becomes
+  its own editor tab, titled with the folder's name; opening a folder that
+  already has a tab focuses it. The strip wraps onto more rows like every
+  window tab strip (docs/04-ui-design.md §2.2).
+- **Inside a project tab, a strip of file tabs** (the same
+  `hs_ui::tabs::TabStrip`, `compact`: lower rows) holds that project's open
+  files and **wraps onto more rows** when they do not fit, so no file tab
+  is hidden. The sidebar tree shows that project only.
 
 ```
-│ 📁 calc     total.py ×  test_total.py ×                      │
-│ 📁 webshop  README.md ×  app.ts ×  compose.yml ● ×           │  ← active row
-│ 🗎 Other Files  todo.txt ×                                    │
+│ webshop ×  calc ×  api-gateway ×  billing-service ×  …  data-pipeline × │  window tabs
+│ admin-portal ×  +                                                       │  (projects, wrapped)
+├─────────────────────────────────────────────────────────────────────────┤
+│ README.md ×  app.ts ×  compose.yml ×  customers.ts ×  … orders.ts ×     │  file tabs of
+│ payments.ts ×  products.ts ×  refunds.ts ×  reviews.ts ●  +             │  "webshop" (wrapped)
 ```
 
-- In Project Rows, clicking a file in the tree opens it in its project's
-  row (or switches to it); a file outside every project goes to the
-  **Other Files** row. The rows are always shown, so a new file visibly
-  lands beside the others. (In Separate Tabs they appear only in the rare
-  tab that holds more than one file.)
-- A file tab: click to switch, middle-click or × to close, right-click for
-  Close / Close Others / Copy Path. The project label: click to switch to
-  that row, right-click to Close Project. Closing anything with unsaved
-  changes asks first ("Close Without Saving" / Cancel). Closing the last
-  file leaves an empty untitled one.
-- Requests from other tools route by `Tool::uri_affinity`: a file a tab
-  already has open goes there (0) and a folder becomes another project of
-  an existing editor tab (2). In Project Rows a file inside a tab's project
-  (1) or any other local file (2, into Other Files) also joins that tab; in
-  Separate Tabs it gets a new tab. The
-  tree's **Open in New Tab** still opens a separate editor tab
+- Clicking a file in the tree opens it as a file tab of this project (or
+  switches to it). Files outside every project (a terminal Ctrl+click,
+  Open File elsewhere) go to an **Other Files** tab that collects them; a
+  file of another open project goes to that project's tab.
+- A file tab: click to switch, middle-click or × to close, drag to
+  reorder, right-click for Close / Close Others / Close to the Left / Close
+  to the Right / Copy Path; "+" (Ctrl+N) adds an untitled file. Closing
+  files with unsaved changes asks first ("Close Without Saving" / Cancel);
+  closing the last file leaves an empty untitled one.
+- Routing (`Tool::uri_affinity`, lower wins): a tab that has the file open
+  or is that folder's project (0); the project holding the file (1 + its
+  depth below the root, so of nested projects the innermost wins); the
+  Other Files tab or an empty editor tab (200). Another folder never
+  joins an existing project tab: it opens a new tab
   (`Action::OpenToolNewTab`). A file opened into a fresh tab replaces its
-  empty untitled file instead of adding a tab next to it.
-- The tab title is the active file; the tab is dirty when any file is.
+  empty untitled file.
+- A layout saved while one tab could hold several projects keeps the
+  active project in that tab and reopens the others as tabs of their own
+  on the first frame.
+- The window tab's title is the project name (the file name in the Other
+  Files tab); the tab is dirty when any of its files is.
 - Saved layout: `{ projects: [{ root?, expanded, files: [{path, cursor,
   preview}], active }], active }`; the one-file layout of earlier versions
   (`path`, `root`, `cursor`, `expanded`) is read once and migrated.
-- One `notify` watcher per tab: each project root recursively, the folders
-  of open files outside them non-recursively. Quick open (Ctrl+P) lists
-  every project's files, prefixed with the project name when there are
-  several.
+- One `notify` watcher per tab: the project root recursively, the folders
+  of open files outside it non-recursively. Quick open (Ctrl+P) lists the
+  project's files.
 - The AI assistant panel is one per editor tab and works on the active file.
 
 ## 4. Engine (`hs-editor`)

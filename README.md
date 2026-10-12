@@ -89,7 +89,7 @@ made.
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
 | ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
-| **Several projects** — every folder you open is a project in the tree. By default each file opens in its own tab; with Settings → Editor → Open Files In = **Project Rows**, one editor tab holds them, each project with its own row of file tabs that wraps when full; files from elsewhere (a terminal Ctrl+click) join an **Other Files** row. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks them | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
+| **Projects as tabs** — every folder you open is its own window tab, and inside it the project's files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. Files from outside the projects (a terminal Ctrl+click) collect in an **Other Files** tab. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks the file tabs. | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
@@ -152,7 +152,7 @@ made.
 | ![Security](docs/screenshots/settings-security.png) | ![Terminal settings](docs/screenshots/settings-terminal.png) |
 | **Security** — vault state, auto-lock, clipboard clearing | **Terminal** — default shell, scrollback, font, copy/paste behaviour |
 | ![Editor settings](docs/screenshots/settings-editor.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
-| **Editor** — font, right-click copy/paste, reload, where files open (Separate Tabs or Project Rows), save hooks | **Shortcuts** — every action rebindable |
+| **Editor** — font, right-click copy/paste, reload, save hooks | **Shortcuts** — every action rebindable |
 | ![About and updates](docs/screenshots/settings-about.png) | |
 | **About** — version, data folder (Open Data Folder, in Eden Explorer when installed), update channel and policy, Check Now, signing key | |
 

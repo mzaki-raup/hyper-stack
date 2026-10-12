@@ -1648,20 +1648,6 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-terminal-right-click-hint"));
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.label(s.t("settings-editor-open-files-in"));
-            use hs_core::settings::OpenFilesIn;
-            for (v, key) in [
-                (OpenFilesIn::Tabs, "settings-editor-open-tabs"),
-                (OpenFilesIn::Rows, "settings-editor-open-rows"),
-            ] {
-                changed |= ui
-                    .radio_value(&mut settings.editor.open_files_in, v, s.t(key))
-                    .changed();
-            }
-        });
-        form::hint(ui, theme, &s.t("settings-editor-open-files-in-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-on-save"), |ui| {
         changed |= ui

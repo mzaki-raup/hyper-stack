@@ -1,6 +1,7 @@
-//! Code editor tool (docs/tools/editor.md): one editor tab holds several
-//! projects (folders), each with its own row of open files above the text,
-//! and a project tree in the sidebar listing every project root. Files open
+//! Code editor tool (docs/tools/editor.md): one window tab per project
+//! (folder), titled with the folder's name, with the project tree in the
+//! sidebar and the project's open files as a multi-row strip of file tabs
+//! above the text. Files outside every project share an "Other Files" tab. Files open
 //! with encodings and line endings, the watcher reports changes on disk,
 //! Markdown files get a preview, and every project feeds the quick-open
 //! palette.
@@ -8,7 +9,7 @@
 use hs_ui::tip::TipExt;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant, SystemTime};
@@ -52,12 +53,6 @@ const SKIP_DIRS: &[&str] = &[
     ".hg",
     ".svn",
 ];
-
-/// The projects (folders, with the subfolders expanded in the tree) of the
-/// editor tab used last, so a new editor tab starts with the same projects
-/// and the tree the way the user left it. With "Separate Tabs" every file
-/// opens in a new tab, which is how the tabs share one project list.
-static LAST_PROJECTS: parking_lot::Mutex<Vec<ProjectState>> = parking_lot::Mutex::new(Vec::new());
 
 pub struct EditorFactory;
 
@@ -177,7 +172,11 @@ struct Doc {
     disk: DiskState,
     preview: bool,
     preview_cache: (u64, String),
+    /// Stable id for the file tab strip.
+    uid: u64,
 }
+
+static NEXT_DOC: AtomicU64 = AtomicU64::new(1);
 
 impl Doc {
     fn new(s: &Services) -> Self {
@@ -201,6 +200,7 @@ impl Doc {
             disk: DiskState::Clean,
             preview: false,
             preview_cache: (u64::MAX, String::new()),
+            uid: NEXT_DOC.fetch_add(1, Ordering::Relaxed),
         }
     }
 
@@ -582,16 +582,6 @@ impl Project {
         p
     }
 
-    fn name(&self, s: &Services) -> String {
-        match &self.root {
-            Some(r) => r
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| r.to_string_lossy().to_string()),
-            None => s.t("editor-other-files"),
-        }
-    }
-
     fn contains(&self, path: &Path) -> bool {
         self.root.as_ref().is_some_and(|r| path.starts_with(r))
     }
@@ -661,16 +651,9 @@ struct Prompt {
 enum CloseTarget {
     File(usize, usize),
     Others(usize, usize),
+    /// The files left (`true`) or right of one.
+    Side(usize, usize, bool),
     Project(usize),
-}
-
-/// What a click in the file rows asks for, applied after drawing.
-enum RowAction {
-    Activate(usize, usize),
-    Close(usize, usize),
-    CloseOthers(usize, usize),
-    CloseProject(usize),
-    CopyPath(String),
 }
 
 pub struct EditorTool {
@@ -678,8 +661,6 @@ pub struct EditorTool {
     /// Index into `projects`; that project always has an open file.
     active: usize,
     auto_reload: bool,
-    /// Settings → Editor → Open Files In = Project Rows.
-    rows_mode: bool,
     trim_trailing: bool,
     final_newline: bool,
 
@@ -695,13 +676,15 @@ pub struct EditorTool {
     id: egui::Id,
     tab_id: u64,
     ai: ai_panel::AiPanel,
+    /// Projects of a tab saved by an older version that held several:
+    /// they move to tabs of their own on the first frame.
+    split_off: Vec<ProjectState>,
 }
 
 impl EditorTool {
     fn new(services: &Services, state: State) -> Self {
         let st = services.settings.read();
         let auto_reload = st.editor.auto_reload;
-        let rows_mode = st.editor.open_files_in == hs_core::settings::OpenFilesIn::Rows;
         let trim_trailing = st.editor.trim_trailing_whitespace;
         let final_newline = st.editor.insert_final_newline;
         drop(st);
@@ -709,7 +692,6 @@ impl EditorTool {
             projects: Vec::new(),
             active: 0,
             auto_reload,
-            rows_mode,
             trim_trailing,
             final_newline,
             nodes: Vec::new(),
@@ -722,14 +704,28 @@ impl EditorTool {
             id: egui::Id::new(("hs-editor-tool", hs_core::new_id())),
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
+            split_off: Vec::new(),
         };
         t.start_watch(services);
-        let (mut projects, active) = state.into_projects();
-        if projects.is_empty() {
-            projects = LAST_PROJECTS.lock().clone();
+        // One project per tab: keep the active one, hand the rest to tabs
+        // of their own (layouts saved when a tab held several).
+        let (projects, active) = state.into_projects();
+        let mut mine = None;
+        for (i, ps) in projects.into_iter().enumerate() {
+            if ps.root.is_none() && ps.files.is_empty() {
+                continue;
+            }
+            if i == active && mine.is_none() {
+                mine = Some(ps);
+            } else {
+                t.split_off.push(ps);
+            }
+        }
+        if mine.is_none() && !t.split_off.is_empty() {
+            mine = Some(t.split_off.remove(0));
         }
         let mut restored_active = None;
-        for (i, ps) in projects.into_iter().enumerate() {
+        for (i, ps) in mine.into_iter().enumerate() {
             let pi = match ps.root.clone().filter(|r| r.is_dir()) {
                 Some(root) => {
                     let pi = t.add_project(root);
@@ -762,7 +758,7 @@ impl EditorTool {
             if let Some(d) = active_doc {
                 t.projects[pi].active = d;
             }
-            if i == active {
+            if i == 0 {
                 restored_active = Some(pi);
             }
         }
@@ -853,21 +849,6 @@ impl EditorTool {
         })
     }
 
-    /// Hand this tab's projects (not its files) to the next editor tab.
-    fn remember_projects(&self) {
-        *LAST_PROJECTS.lock() = self
-            .projects
-            .iter()
-            .filter_map(|p| {
-                p.root.as_ref().map(|r| ProjectState {
-                    root: Some(r.clone()),
-                    expanded: self.expanded_dirs(r),
-                    ..Default::default()
-                })
-            })
-            .collect();
-    }
-
     /// Add `root` as a project (or find it) and make it the one new files go to.
     fn add_project(&mut self, root: PathBuf) -> usize {
         if let Some(i) = self
@@ -918,7 +899,6 @@ impl EditorTool {
         }
         self.projects[at].rebuild_index();
         self.sync_watches();
-        self.remember_projects();
         at
     }
 
@@ -940,7 +920,6 @@ impl EditorTool {
         self.ensure_doc(services);
         self.sync_watches();
         self.select_in_tree();
-        self.remember_projects();
     }
 
     fn activate(&mut self, pi: usize, di: usize) {
@@ -993,20 +972,32 @@ impl EditorTool {
         }
     }
 
+    /// The project folder of this tab (`None`: the Other Files tab, or a
+    /// tab with nothing in it yet).
+    fn root(&self) -> Option<&Path> {
+        self.projects.iter().find_map(|p| p.root.as_deref())
+    }
+
+    /// No project and nothing but an empty untitled file: the next folder
+    /// or file opened becomes this tab's.
+    fn is_empty_tab(&self) -> bool {
+        self.root().is_none() && self.total_docs() <= 1 && self.doc().is_placeholder()
+    }
+
+    /// The user opened `path` from this tab (tree, Open File/Folder): open
+    /// it here when it belongs here, otherwise let the shell route it to
+    /// its project's tab, the Other Files tab or a new tab.
     fn open_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
-        if path.is_dir() {
-            let pi = self.add_project(path);
-            if !self.projects[pi].docs.is_empty() {
-                self.active = pi;
-            }
-            self.ensure_doc(cx.services);
-            return;
-        }
-        // "Separate Tabs": a file this tab does not show gets its own tab
-        // (the shell focuses a tab that already shows it), unless this tab
-        // is still empty.
-        if !self.rows_mode && self.find_doc(&path).is_none() && !self.doc().is_placeholder() {
-            self.remember_projects();
+        let here = if path.is_dir() {
+            self.is_empty_tab() || self.root() == Some(path.as_path())
+        } else {
+            self.find_doc(&path).is_some()
+                || self.root().is_some_and(|r| path.starts_with(r))
+                || self.is_empty_tab()
+        };
+        if here {
+            self.take_path(path, line, cx);
+        } else {
             cx.open(
                 "editor",
                 Some(OpenRequest::File {
@@ -1014,9 +1005,30 @@ impl EditorTool {
                     line,
                 }),
             );
-            // The click selected the file in this tab's tree; it opened
-            // elsewhere, so the tree goes back to this tab's file.
+            // The click selected it in this tab's tree; it opened elsewhere.
             self.select_in_tree();
+        }
+    }
+
+    /// Open `path` in this tab (the shell routed it here, or it belongs here).
+    fn take_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
+        if path.is_dir() {
+            if self.root() == Some(path.as_path()) {
+                return;
+            }
+            if !self.is_empty_tab() {
+                // A second project never shares a tab.
+                cx.open_new_tab(
+                    "editor",
+                    Some(OpenRequest::File {
+                        uri: path.to_string_lossy().to_string(),
+                        line: None,
+                    }),
+                );
+                return;
+            }
+            self.add_project(path);
+            self.ensure_doc(cx.services);
             return;
         }
         if let Err(e) = self.open_file(&path, line, cx.services) {
@@ -1083,6 +1095,12 @@ impl EditorTool {
                     .enumerate()
                     .any(|(i, d)| i != di && d.buf.dirty())
             }),
+            CloseTarget::Side(pi, di, left) => self.projects.get(pi).is_some_and(|p| {
+                p.docs
+                    .iter()
+                    .enumerate()
+                    .any(|(i, d)| (if left { i < di } else { i > di }) && d.buf.dirty())
+            }),
             CloseTarget::Project(pi) => self
                 .projects
                 .get(pi)
@@ -1099,6 +1117,17 @@ impl EditorTool {
         match target {
             CloseTarget::File(pi, di) => self.close_file(pi, di, s),
             CloseTarget::Others(pi, di) => self.close_others(pi, di, s),
+            CloseTarget::Side(pi, di, left) => {
+                let n = self.projects.get(pi).map_or(0, |p| p.docs.len());
+                let range: Vec<usize> = if left {
+                    (0..di).rev().collect()
+                } else {
+                    (di + 1..n).rev().collect()
+                };
+                for i in range {
+                    self.close_file(pi, i, s);
+                }
+            }
             CloseTarget::Project(pi) => self.close_project(pi, s),
         }
     }
@@ -1391,158 +1420,130 @@ impl EditorTool {
 
     // ---- ui pieces -----------------------------------------------------------
 
-    /// One row of file tabs per project that has open files. Hidden while
-    /// the tab holds a single file, so the plain one-file editor looks as
-    /// before.
-    fn file_rows(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-        let with_docs = self.projects.iter().filter(|p| !p.docs.is_empty()).count();
-        // Project Rows: always, so a new file visibly lands beside the
-        // others. Separate Tabs: only in the rare tab that holds several.
-        if !self.rows_mode && self.total_docs() <= 1 {
-            return;
+    /// The open files of this tab as a multi-row strip of file tabs.
+    fn file_tabs(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        struct FileTab {
+            id: u64,
+            title: String,
+            dirty: bool,
+            tooltip: String,
         }
-        let mut actions = Vec::new();
-        let multi = with_docs > 1;
-        for (pi, p) in self.projects.iter().enumerate() {
-            if p.docs.is_empty() {
-                continue;
+        impl hs_ui::tabs::TabItem for FileTab {
+            fn id(&self) -> u64 {
+                self.id
             }
-            let row_active = pi == self.active;
-            let fill = if row_active && multi {
-                theme.surface
-            } else {
-                egui::Color32::TRANSPARENT
-            };
-            egui::Frame::new()
-                .fill(fill)
-                .inner_margin(egui::Margin::symmetric(6, 2))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal_top(|ui| {
-                        ui.spacing_mut().item_spacing.x = 2.0;
-                        let name = p.name(s);
-                        let colour = if row_active {
-                            theme.accent
-                        } else {
-                            theme.text_muted
-                        };
-                        let icon = if p.root.is_some() {
-                            ph::FOLDER
-                        } else {
-                            ph::FILES
-                        };
-                        let chip = ui
-                            .allocate_ui_with_layout(
-                                egui::vec2(120.0, 20.0),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.set_min_width(120.0);
-                                    ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(format!("{icon} {name}"))
-                                                .strong()
-                                                .color(colour),
-                                        )
-                                        .truncate()
-                                        .sense(egui::Sense::click()),
-                                    )
-                                    .on_hover_text(
-                                        p.root
-                                            .as_ref()
-                                            .map(|r| r.display().to_string())
-                                            .unwrap_or_else(|| s.t("editor-other-files-tip")),
-                                    )
-                                },
-                            )
-                            .inner;
-                        if chip.clicked() {
-                            actions.push(RowAction::Activate(pi, p.active));
-                        }
-                        chip.context_menu(|ui| {
-                            if ui.button(s.t("editor-close-project")).clicked() {
-                                actions.push(RowAction::CloseProject(pi));
-                                ui.close();
-                            }
-                        });
-                        ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 2.0;
-                            for (di, d) in p.docs.iter().enumerate() {
-                                let selected = row_active && di == p.active;
-                                let name = if d.path.is_some() {
-                                    d.file_name()
-                                } else {
-                                    s.t("editor-untitled")
-                                };
-                                let label = if d.buf.dirty() {
-                                    format!("{name} ●")
-                                } else {
-                                    name.clone()
-                                };
-                                let mut text = egui::RichText::new(label).size(13.0);
-                                if !selected && !(di == p.active && !row_active) {
-                                    text = text.color(theme.text_muted);
-                                }
-                                let icon = egui::Image::new(fileicons::for_file(&name))
-                                    .fit_to_exact_size(egui::vec2(14.0, 14.0));
-                                let r = ui.add(
-                                    egui::Button::image_and_text(icon, text)
-                                        .selected(selected)
-                                        .frame_when_inactive(di == p.active),
-                                );
-                                let r = match &d.path {
-                                    Some(path) => r.on_hover_text(path.display().to_string()),
-                                    None => r,
-                                };
-                                if r.clicked() {
-                                    actions.push(RowAction::Activate(pi, di));
-                                }
-                                if r.middle_clicked() {
-                                    actions.push(RowAction::Close(pi, di));
-                                }
-                                r.context_menu(|ui| {
-                                    if ui.button(s.t("editor-close-file")).clicked() {
-                                        actions.push(RowAction::Close(pi, di));
-                                        ui.close();
-                                    }
-                                    if ui.button(s.t("editor-close-others")).clicked() {
-                                        actions.push(RowAction::CloseOthers(pi, di));
-                                        ui.close();
-                                    }
-                                    if let Some(path) = &d.path
-                                        && ui.button(s.t("editor-copy-path")).clicked()
-                                    {
-                                        actions.push(RowAction::CopyPath(
-                                            path.to_string_lossy().to_string(),
-                                        ));
-                                        ui.close();
-                                    }
-                                });
-                                if ui
-                                    .add(
-                                        egui::Button::new(egui::RichText::new(ph::X).size(11.0))
-                                            .frame(false),
-                                    )
-                                    .tip(s.t("editor-close-file"))
-                                    .clicked()
-                                {
-                                    actions.push(RowAction::Close(pi, di));
-                                }
-                                ui.add_space(4.0);
-                            }
-                        });
-                    });
-                });
+            fn title(&self) -> String {
+                self.title.clone()
+            }
+            fn icon(&self) -> &str {
+                ph::FILE_TEXT
+            }
+            fn pinned(&self) -> bool {
+                false
+            }
+            fn dirty(&self) -> bool {
+                self.dirty
+            }
+            fn tooltip(&self) -> String {
+                self.tooltip.clone()
+            }
         }
-        ui.separator();
-        for a in actions {
-            match a {
-                RowAction::Activate(pi, di) => self.activate(pi, di),
-                RowAction::Close(pi, di) => self.request_close(CloseTarget::File(pi, di), s),
-                RowAction::CloseOthers(pi, di) => {
-                    self.request_close(CloseTarget::Others(pi, di), s)
+        // (project, doc) per strip position.
+        let order: Vec<(usize, usize)> = self
+            .projects
+            .iter()
+            .enumerate()
+            .flat_map(|(pi, p)| (0..p.docs.len()).map(move |di| (pi, di)))
+            .collect();
+        let tabs: Vec<FileTab> = order
+            .iter()
+            .map(|&(pi, di)| {
+                let d = &self.projects[pi].docs[di];
+                let title = if d.path.is_some() {
+                    d.file_name()
+                } else {
+                    s.t("editor-untitled")
+                };
+                FileTab {
+                    id: d.uid,
+                    tooltip: d
+                        .path
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| title.clone()),
+                    title,
+                    dirty: d.buf.dirty(),
                 }
-                RowAction::CloseProject(pi) => self.request_close(CloseTarget::Project(pi), s),
-                RowAction::CopyPath(p) => ui.ctx().copy_text(p),
+            })
+            .collect();
+        let pa = self.active;
+        let active = self.projects[pa]
+            .docs
+            .get(self.projects[pa].active)
+            .map(|d| d.uid);
+        let labels = hs_ui::tabs::TabStripLabels {
+            new_tab: s.t("editor-new-file"),
+            close: s.t("editor-close-file"),
+            close_others: s.t("editor-close-others"),
+            close_left: s.t("tab-close-left"),
+            close_right: s.t("tab-close-right"),
+            pin: String::new(),
+            unpin: String::new(),
+            duplicate: String::new(),
+            split_right: String::new(),
+            split_down: String::new(),
+            copy_path: s.t("editor-copy-path"),
+        };
+        let r = ui
+            .push_id(self.id.with("file-tabs"), |ui| {
+                hs_ui::tabs::TabStrip {
+                    theme,
+                    min_width: 120.0,
+                    gap: 2.0,
+                    active,
+                    visible: &[],
+                    labels: &labels,
+                    compact: true,
+                }
+                .show(ui, &tabs)
+            })
+            .inner;
+        ui.add_space(2.0);
+        let at = |id: u64| tabs.iter().position(|t| t.id == id).map(|i| order[i]);
+        if let Some((pi, di)) = r.activated.and_then(at) {
+            self.activate(pi, di);
+        }
+        if let Some((pi, di)) = r.close.and_then(at) {
+            self.request_close(CloseTarget::File(pi, di), s);
+        }
+        if r.new_tab {
+            self.new_file(s);
+        }
+        if let Some((from, to)) = r.reorder
+            && let (Some(&(pf, df)), Some(&(pt, dt))) = (order.get(from), order.get(to))
+            && pf == pt
+        {
+            let p = &mut self.projects[pf];
+            let d = p.docs.remove(df);
+            p.docs.insert(dt, d);
+            p.active = dt;
+            self.active = pf;
+        }
+        if let Some((id, action)) = r.menu
+            && let Some((pi, di)) = at(id)
+        {
+            use hs_ui::tabs::TabMenuAction as M;
+            match action {
+                M::Close => self.request_close(CloseTarget::File(pi, di), s),
+                M::CloseOthers => self.request_close(CloseTarget::Others(pi, di), s),
+                M::CloseLeft => self.request_close(CloseTarget::Side(pi, di, true), s),
+                M::CloseRight => self.request_close(CloseTarget::Side(pi, di, false), s),
+                M::CopyPath => {
+                    if let Some(p) = &self.projects[pi].docs[di].path {
+                        ui.ctx().copy_text(p.to_string_lossy().to_string());
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -1567,6 +1568,18 @@ impl EditorTool {
                         .iter()
                         .enumerate()
                         .filter(|(i, d)| *i != di && d.buf.dirty())
+                        .map(|(_, d)| d.file_name())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            CloseTarget::Side(pi, di, left) => self
+                .projects
+                .get(pi)
+                .map(|p| {
+                    p.docs
+                        .iter()
+                        .enumerate()
+                        .filter(|(i, d)| (if left { *i < di } else { *i > di }) && d.buf.dirty())
                         .map(|(_, d)| d.file_name())
                         .collect()
                 })
@@ -1878,6 +1891,13 @@ impl Tool for EditorTool {
     }
 
     fn title(&self) -> Cow<'_, str> {
+        if let Some(r) = self.root() {
+            return Cow::Owned(
+                r.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| r.to_string_lossy().to_string()),
+            );
+        }
         let n = self.doc().file_name();
         if n.is_empty() {
             Cow::Borrowed("Untitled")
@@ -2051,10 +2071,6 @@ impl Tool for EditorTool {
             let dir = PathBuf::from(&id);
             set_children(&mut self.nodes, &id, load_children(&dir));
         }
-        if resp.clicked.is_some() {
-            // A folder may have been expanded or collapsed.
-            self.remember_projects();
-        }
         if let Some(id) = resp.clicked.or(resp.double_clicked) {
             let p = PathBuf::from(&id);
             if p.is_file() {
@@ -2073,13 +2089,33 @@ impl Tool for EditorTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         self.tab_id = cx.tab_id;
+        let had_split = !self.split_off.is_empty();
+        for ps in std::mem::take(&mut self.split_off) {
+            let file = |p: &Path| {
+                Some(OpenRequest::File {
+                    uri: p.to_string_lossy().to_string(),
+                    line: None,
+                })
+            };
+            if let Some(r) = &ps.root {
+                cx.open_new_tab("editor", file(r));
+            }
+            for f in &ps.files {
+                cx.open("editor", file(&f.path));
+            }
+        }
+        if had_split {
+            // Opening those tabs focused them; this one was the active tab.
+            cx.actions
+                .push(hs_core::tool::Action::FocusTab { tab_id: cx.tab_id });
+        }
         self.poll_watch(s);
         self.prompt_modal(ui, cx);
         self.delete_dialog(ui, cx);
         self.close_dialog(ui, s);
         self.ensure_doc(s);
         let (theme, ed_theme) = Self::theme(s);
-        self.file_rows(ui, s, &theme);
+        self.file_tabs(ui, s, &theme);
         self.doc_mut().disk_banner(ui, s);
         egui::Panel::bottom(self.id.with("status"))
             .exact_size(22.0)
@@ -2169,8 +2205,7 @@ impl Tool for EditorTool {
         match id {
             "file.open" => self.open_file_dialog(cx),
             "file.open_folder" => self.open_folder_dialog(cx),
-            "file.new" if self.rows_mode => self.new_file(s),
-            "file.new" => cx.open("editor", None),
+            "file.new" => self.new_file(s),
             "file.save" => {
                 self.save(cx);
             }
@@ -2252,21 +2287,21 @@ impl Tool for EditorTool {
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
         let path = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
         if self.find_doc(path).is_some() {
-            Some(0)
-        } else if path.is_dir() {
-            // A folder becomes another project of an existing editor tab.
-            Some(2)
-        } else if !self.rows_mode {
-            // Separate Tabs: any other file gets a tab of its own.
-            None
-        } else if self.project_for(path).is_some() {
-            Some(1)
-        } else if path.is_absolute() {
-            // Any other local file joins "Other Files" here rather than
-            // starting a new editor tab.
-            Some(2)
-        } else {
-            None
+            return Some(0);
+        }
+        match self.root() {
+            Some(r) if path == r => Some(0),
+            // The project holding the file; of nested projects the
+            // innermost (fewest folders between it and the file).
+            Some(r) if !path.is_dir() && path.starts_with(r) => {
+                let depth = path.strip_prefix(r).map_or(0, |p| p.components().count());
+                Some((1 + depth).min(150) as u8)
+            }
+            Some(_) => None,
+            None if path.is_dir() => self.is_empty_tab().then_some(200),
+            // The Other Files tab (or an empty one) takes any other file.
+            None if path.is_absolute() => Some(200),
+            None => None,
         }
     }
 
@@ -2349,7 +2384,7 @@ impl Tool for EditorTool {
         match item {
             OpenRequest::File { uri, line } => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
-                self.open_path(path, line, cx);
+                self.take_path(path, line, cx);
                 true
             }
             OpenRequest::Text { mime, body } => {
@@ -2363,10 +2398,6 @@ impl Tool for EditorTool {
                     _ => None,
                 };
                 if !self.doc().is_placeholder() {
-                    if !self.rows_mode {
-                        cx.open("editor", Some(OpenRequest::Text { mime, body }));
-                        return true;
-                    }
                     self.new_file(cx.services);
                 }
                 self.doc_mut().set_text(&body, hint);
@@ -2380,7 +2411,6 @@ impl Tool for EditorTool {
         if let Event::SettingsChanged = ev {
             let st = cx.services.settings.read();
             self.auto_reload = st.editor.auto_reload;
-            self.rows_mode = st.editor.open_files_in == hs_core::settings::OpenFilesIn::Rows;
             self.trim_trailing = st.editor.trim_trailing_whitespace;
             self.final_newline = st.editor.insert_final_newline;
             drop(st);

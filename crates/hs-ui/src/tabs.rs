@@ -2,6 +2,9 @@
 //! never shrink below the minimum width: when they do not fit on one row the
 //! strip wraps onto more rows. Pinned tabs render icon-only at the start of the
 //! first row.
+//!
+//! The same strip in `compact` form (lower rows, a file menu) is the editor's
+//! row of file tabs inside a project tab.
 
 use crate::tip::TipExt;
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
@@ -12,6 +15,8 @@ pub const ROW_HEIGHT: f32 = 32.0;
 pub const PINNED_WIDTH: f32 = 36.0;
 pub const MAX_TAB_WIDTH: f32 = 240.0;
 pub const NEW_TAB_WIDTH: f32 = 32.0;
+/// Row height of a compact strip.
+pub const COMPACT_ROW_HEIGHT: f32 = 26.0;
 
 /// What the strip needs to know about each tab.
 pub trait TabItem {
@@ -127,6 +132,8 @@ pub enum TabMenuAction {
     Duplicate,
     SplitRight,
     SplitDown,
+    /// Compact strips only: copy what the tab shows (a file path).
+    CopyPath,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -150,6 +157,8 @@ pub struct TabStripLabels {
     pub duplicate: String,
     pub split_right: String,
     pub split_down: String,
+    /// Compact strips only.
+    pub copy_path: String,
 }
 
 pub struct TabStrip<'a> {
@@ -160,15 +169,26 @@ pub struct TabStrip<'a> {
     /// Tabs visible in a split (drawn with a thin underline).
     pub visible: &'a [u64],
     pub labels: &'a TabStripLabels,
+    /// Lower rows and a menu of Close / Close Others / Close Left / Close
+    /// Right / Copy Path (no pin, duplicate or split).
+    pub compact: bool,
 }
 
 impl TabStrip<'_> {
+    fn row_h(&self) -> f32 {
+        if self.compact {
+            COMPACT_ROW_HEIGHT
+        } else {
+            ROW_HEIGHT
+        }
+    }
+
     pub fn show<T: TabItem>(&self, ui: &mut egui::Ui, tabs: &[T]) -> TabStripResponse {
         let mut resp = TabStripResponse::default();
         let full_width = ui.available_width();
         let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
         let layout = compute_tab_layout(&pinned, full_width, self.min_width, self.gap);
-        let total_height = layout.row_count() as f32 * (ROW_HEIGHT + self.gap);
+        let total_height = layout.row_count() as f32 * (self.row_h() + self.gap);
         let (strip_rect, _) =
             ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::hover());
         let painter = ui.painter_at(strip_rect);
@@ -183,7 +203,7 @@ impl TabStrip<'_> {
             if row_i == 0 {
                 for &i in &layout.pinned {
                     let rect =
-                        Rect::from_min_size(Pos2::new(x, y), Vec2::new(PINNED_WIDTH, ROW_HEIGHT));
+                        Rect::from_min_size(Pos2::new(x, y), Vec2::new(PINNED_WIDTH, self.row_h()));
                     self.draw_tab(ui, &painter, rect, &tabs[i], true, &mut resp, i);
                     rects.push((i, rect));
                     x += PINNED_WIDTH + self.gap;
@@ -191,14 +211,14 @@ impl TabStrip<'_> {
             }
             for &i in row {
                 let rect =
-                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(layout.tab_width, ROW_HEIGHT));
+                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(layout.tab_width, self.row_h()));
                 self.draw_tab(ui, &painter, rect, &tabs[i], false, &mut resp, i);
                 rects.push((i, rect));
                 x += layout.tab_width + self.gap;
             }
             if row_i + 1 == layout.rows.len() {
                 let rect =
-                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(NEW_TAB_WIDTH, ROW_HEIGHT));
+                    Rect::from_min_size(Pos2::new(x, y), Vec2::new(NEW_TAB_WIDTH, self.row_h()));
                 let r = ui.interact(rect, ui.id().with("new-tab"), Sense::click());
                 r.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &self.labels.new_tab)
@@ -220,7 +240,7 @@ impl TabStrip<'_> {
                     resp.new_tab = true;
                 }
             }
-            y += ROW_HEIGHT + self.gap;
+            y += self.row_h() + self.gap;
         }
 
         // Drag-and-drop reorder: drop onto another tab's rect.
@@ -303,7 +323,7 @@ impl TabStrip<'_> {
             );
         }
 
-        let font = egui::FontId::proportional(14.0);
+        let font = egui::FontId::proportional(if self.compact { 13.0 } else { 14.0 });
         let icon_pos = Pos2::new(rect.left() + 10.0, rect.center().y);
         painter.text(
             icon_pos,
@@ -390,6 +410,7 @@ impl TabStrip<'_> {
         let labels = self.labels;
         let pinned = tab.pinned();
         let tid = tab.id();
+        let compact = self.compact;
         r.context_menu(|ui| {
             let mut pick = |ui: &mut egui::Ui, label: &str, action: TabMenuAction| {
                 if ui.button(label).clicked() {
@@ -402,6 +423,10 @@ impl TabStrip<'_> {
             pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
             pick(ui, &labels.close_right, TabMenuAction::CloseRight);
             ui.separator();
+            if compact {
+                pick(ui, &labels.copy_path, TabMenuAction::CopyPath);
+                return;
+            }
             if pinned {
                 pick(ui, &labels.unpin, TabMenuAction::Unpin);
             } else {

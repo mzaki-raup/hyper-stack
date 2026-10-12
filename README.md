@@ -19,7 +19,8 @@ and theme.
 > the workspace shell with workspaces as projects (create, clone, switch,
 > delete), portable data folder, vault, environments, settings (as a tab, with
 > bundled and system fonts), a terminal with scrollback search and Ctrl+click
-> links, a code editor with project tree and Markdown preview (with native
+> links, a code editor holding several projects (each with its own row of
+> file tabs) and Markdown preview (with native
 > Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port
 > forwarding, an S3 browser for AWS and S3-compatible stores, a SQL client for
 > PostgreSQL, MySQL/MariaDB and SQLite, an optional AI assistant in the
@@ -79,6 +80,8 @@ made.
 | **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
+| ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
+| **Several projects in one editor** — every folder you open is a project in the tree, each with its own row of file tabs; files from elsewhere (a terminal Ctrl+click) join an **Other Files** row. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks them | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |

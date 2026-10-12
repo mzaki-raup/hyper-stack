@@ -478,6 +478,12 @@ impl HyperStackApp {
     }
 
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
+        self.open_tool_in(factory_id, request, true);
+    }
+
+    /// Open a tool for `request`; with `reuse`, a tab that already shows the
+    /// item (or would take it, `Tool::uri_affinity`) gets it instead.
+    fn open_tool_in(&mut self, factory_id: &str, request: Option<OpenRequest>, reuse: bool) {
         // Settings and Welcome are single tabs: a second request focuses the existing one.
         if SINGLE_INSTANCE.contains(&factory_id)
             && let Some(id) = self
@@ -493,8 +499,9 @@ impl HyperStackApp {
         }
         // One tab per file: a request for something a tab of this tool already
         // shows focuses that tab (and lets it jump to the requested line).
-        if let Some(OpenRequest::File { uri, .. }) = &request {
+        if reuse && let Some(OpenRequest::File { uri, .. }) = &request {
             let want = normalize_uri(uri);
+            let active = self.tabs.active;
             let existing = self
                 .tabs
                 .tabs
@@ -505,7 +512,19 @@ impl HyperStackApp {
                             .current_uri()
                             .is_some_and(|u| normalize_uri(&u) == want)
                 })
-                .map(|t| t.id);
+                .map(|t| t.id)
+                .or_else(|| {
+                    // A tab that holds the item elsewhere (an editor with
+                    // the file in another row, or its project): best rank
+                    // wins, the active tab on a tie.
+                    self.tabs
+                        .tabs
+                        .iter()
+                        .filter(|t| t.factory_id == factory_id)
+                        .filter_map(|t| t.tool.uri_affinity(uri).map(|r| (r, t.id)))
+                        .min_by_key(|(r, id)| (*r, Some(*id) != active))
+                        .map(|(_, id)| id)
+                });
             if let Some(id) = existing {
                 self.group = Some(factory_id.to_string());
                 self.tabs.activate(id);
@@ -890,6 +909,10 @@ impl HyperStackApp {
                     factory_id,
                     request,
                 } => self.open_tool(&factory_id, request),
+                Action::OpenToolNewTab {
+                    factory_id,
+                    request,
+                } => self.open_tool_in(&factory_id, request, false),
                 Action::FocusTab { tab_id } => self.tabs.activate(tab_id),
                 Action::CloseSelf => {
                     if let Some(a) = self.tabs.active {

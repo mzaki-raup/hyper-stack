@@ -5,6 +5,8 @@
 mod app;
 mod bootstrap;
 mod dock;
+#[cfg(test)]
+mod editor_tests;
 mod launcher;
 mod self_test;
 mod settings_ai;

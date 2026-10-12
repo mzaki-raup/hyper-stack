@@ -179,6 +179,13 @@ pub trait Tool: Send {
 
     /// Cross-tool: something was dropped or "opened with" this tool.
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool { false }
+    /// What the tab shows (`file://` path, connection id), so the shell
+    /// focuses it instead of opening the same thing twice.
+    fn current_uri(&self) -> Option<String> { None }
+    /// When no tab shows `uri`: how well this tab would take it (lower is
+    /// better, `None` declines). The editor holds several projects and
+    /// answers for files open in a background row or inside a project.
+    fn uri_affinity(&self, uri: &str) -> Option<u8> { None }
     /// Typed events from the bus the tool subscribed to.
     fn on_event(&mut self, ev: &Event, cx: &mut ToolContext) {}
 }
@@ -191,8 +198,10 @@ pub trait ToolFactory: Send + Sync {
 
 `ToolContext` gives a tool, per frame: `services: &Services`, the current
 `EnvId`, a `ui_waker`, the `theme`, and an `actions` queue for requests that
-the shell must execute (open a new tab with another tool, focus a tab, show a
-dialog, start a job, set status text).
+the shell must execute (open a tab with another tool — routed by
+`current_uri`/`uri_affinity` to a tab that already has the item, or always a
+new tab with `OpenToolNewTab` — focus a tab, show a dialog, start a job, set
+status text).
 
 The shell keeps a **tool registry** (`Vec<Box<dyn ToolFactory>>`) populated at
 startup. A tab is `TabModel { id, factory_id, tool: Box<dyn Tool>, pinned,

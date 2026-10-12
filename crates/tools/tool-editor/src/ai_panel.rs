@@ -8,11 +8,13 @@
 //! The request runs on the tokio runtime; the streamed answer lands in a
 //! shared buffer drained each frame (ADR-013).
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
 
 use hs_core::Services;
 use hs_core::ai::{self, EditBlock, Message, Role, Segment};
 use hs_core::secrets::SecretRef;
+use hs_core::settings::AiProvider;
 use hs_editor::buffer::{Buffer, Edit, EditKind};
 use hs_editor::cursor::{Cursor, Cursors, byte_to_char};
 use hs_ui::icons::ph;
@@ -60,6 +62,62 @@ struct Stream {
 struct Running {
     stream: Arc<Mutex<Stream>>,
     abort: tokio::task::AbortHandle,
+}
+
+/// The models a provider offers: `None` while the request runs.
+type ModelList = Arc<Mutex<Option<Result<Vec<String>, String>>>>;
+
+/// Model lists by provider (id, kind and endpoint), shared by every editor
+/// tab so a provider is asked once per session unless the user refreshes.
+static MODELS: LazyLock<Mutex<HashMap<String, ModelList>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// The provider's API key from the vault (empty for a local server).
+fn provider_key(s: &Services, p: &AiProvider) -> Result<String, String> {
+    match SecretRef::parse(&p.api_key) {
+        None => Ok(String::new()),
+        Some(_) if s.secrets.is_locked() => Err(s.t("settings-vault-unlock-first")),
+        Some(r) => s
+            .secrets
+            .get(&r)
+            .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+            .map_err(|e| e.to_string()),
+    }
+}
+
+/// The provider's model list, asking the service the first time (or again
+/// on `refresh`). Runs on the runtime; the list fills in when it answers.
+fn models_for(s: &Services, p: &AiProvider, refresh: bool) -> ModelList {
+    let cache_key = format!("{}|{:?}|{}", p.id, p.kind, p.base_url);
+    if !refresh && let Some(l) = MODELS.lock().get(&cache_key) {
+        return l.clone();
+    }
+    let list: ModelList = Arc::new(Mutex::new(None));
+    MODELS.lock().insert(cache_key, list.clone());
+    let key = match p.kind {
+        // The built-in list needs no key (and no unlocked vault).
+        ai::Provider::OneMin => Ok(String::new()),
+        ai::Provider::OpenAi => provider_key(s, p),
+    };
+    let key = match key {
+        Ok(k) => k,
+        Err(e) => {
+            *list.lock() = Some(Err(e));
+            return list;
+        }
+    };
+    let cfg = p.config("");
+    let out = list.clone();
+    let waker = s.runtime.waker();
+    s.runtime.spawn(async move {
+        let http = ai::http_client();
+        let r = ai::list_models(&http, &cfg, &key)
+            .await
+            .map_err(|e| e.to_string());
+        *out.lock() = Some(r);
+        waker.request_repaint();
+    });
+    list
 }
 
 #[derive(Default)]
@@ -194,20 +252,12 @@ impl AiPanel {
             };
             msgs.push(Message::new(t.role, content));
         }
-        let stored = SecretRef::parse(&provider.api_key);
-        if stored.is_some() && s.secrets.is_locked() {
-            self.fail(s.t("settings-vault-unlock-first"));
-            return;
-        }
-        let key = match stored {
-            Some(r) => match s.secrets.get(&r) {
-                Ok(v) => secrecy::ExposeSecret::expose_secret(&v).to_string(),
-                Err(e) => {
-                    self.fail(e.to_string());
-                    return;
-                }
-            },
-            None => String::new(),
+        let key = match provider_key(s, &provider) {
+            Ok(k) => k,
+            Err(e) => {
+                self.fail(e);
+                return;
+            }
         };
         let stream = Arc::new(Mutex::new(Stream::default()));
         let out = stream.clone();
@@ -369,11 +419,8 @@ impl AiPanel {
 
     pub fn ui(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme, ed: &mut EditorCtx) {
         self.poll(s, ed);
-        let providers: Vec<(String, String, String)> = s
-            .settings
-            .read()
-            .ai
-            .providers
+        let all: Vec<AiProvider> = s.settings.read().ai.providers.clone();
+        let providers: Vec<(String, String, String)> = all
             .iter()
             .map(|p| (p.id.clone(), p.name.clone(), p.model.clone()))
             .collect();
@@ -432,12 +479,9 @@ impl AiPanel {
                         }
                     }
                 });
-            ui.add(
-                egui::TextEdit::singleline(&mut self.model)
-                    .hint_text(s.t("ai-model"))
-                    .desired_width(f32::INFINITY),
-            )
-            .tip(s.t("ai-model-tip"));
+            if let Some(p) = all.iter().find(|p| p.id == self.provider) {
+                self.model_picker(ui, s, theme, p);
+            }
         });
         ui.horizontal(|ui| {
             let has_sel = ed.cursors.primary().has_selection();
@@ -570,6 +614,83 @@ impl AiPanel {
                 }
                 Action::Copy(code) => ui.ctx().copy_text(code),
             }
+        }
+    }
+
+    /// The model dropdown: what the provider lists (fetched when the
+    /// provider is first picked), plus a field for an id it does not list.
+    fn model_picker(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme, p: &AiProvider) {
+        let list = models_for(s, p, false);
+        let shown = if self.model.trim().is_empty() {
+            p.kind.default_model().to_string()
+        } else {
+            self.model.clone()
+        };
+        // Leave room for the refresh button so the panel never grows.
+        let width = (ui.available_width() - 40.0).max(80.0);
+        let state = list.lock().clone();
+        egui::ComboBox::from_id_salt("ai-model")
+            .width(width)
+            .truncate()
+            .height(420.0)
+            .selected_text(shown)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show_ui(ui, |ui| {
+                ui.set_min_width(width.max(220.0));
+                match &state {
+                    None => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(s.t("ai-models-loading"));
+                        });
+                    }
+                    Some(Err(e)) => {
+                        ui.set_max_width(width.max(220.0));
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(format!("{}: {e}", s.t("ai-models-failed")))
+                                    .color(theme.error),
+                            )
+                            .wrap(),
+                        );
+                    }
+                    Some(Ok(v)) if v.is_empty() => {
+                        ui.label(egui::RichText::new(s.t("ai-models-none")).weak());
+                    }
+                    Some(Ok(v)) => {
+                        egui::ScrollArea::vertical()
+                            .max_height(320.0)
+                            .show(ui, |ui| {
+                                for m in v {
+                                    if ui.selectable_label(self.model == *m, m).clicked() {
+                                        self.model = m.clone();
+                                        ui.close();
+                                    }
+                                }
+                            });
+                    }
+                }
+                ui.separator();
+                ui.label(egui::RichText::new(s.t("ai-model-other")).size(12.0));
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut self.model)
+                        .hint_text(p.kind.default_model())
+                        .desired_width(f32::INFINITY),
+                );
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    ui.close();
+                }
+            })
+            .response
+            .tip(s.t("ai-model-tip"));
+        if ui
+            .add(|ui: &mut egui::Ui| {
+                hs_ui::form::icon_button(ui, theme, ph::ARROW_CLOCKWISE, 16.0, false)
+            })
+            .tip(s.t("ai-models-refresh"))
+            .clicked()
+        {
+            models_for(s, p, true);
         }
     }
 

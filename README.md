@@ -5,11 +5,11 @@
 **One workspace for everyone who ships software.**
 
 <p align="center">
-  <img src="https://img.shields.io/github/downloads/mzaki-raup/hyper-stack/total?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Downloads" />
-  <img src="https://img.shields.io/github/v/release/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Release" />
-  <img src="https://img.shields.io/github/license/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="License" />
-  <img src="https://img.shields.io/github/actions/workflow/status/mzaki-raup/hyper-stack/release.yml?style=for-the-badge&label=build&color=5F4B87&labelColor=14161A" alt="Build" />
-  <img src="https://img.shields.io/github/stars/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Stars" />
+  <a href="https://github.com/mzaki-raup/hyper-stack/releases"><img src="https://img.shields.io/github/downloads/mzaki-raup/hyper-stack/total?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Downloads" /></a>
+  <a href="https://github.com/mzaki-raup/hyper-stack/releases/latest"><img src="https://img.shields.io/github/v/release/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Latest release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="License" /></a>
+  <a href="https://github.com/mzaki-raup/hyper-stack/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mzaki-raup/hyper-stack/ci.yml?branch=main&label=build&style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Build (CI on main)" /></a>
+  <a href="https://github.com/mzaki-raup/hyper-stack/stargazers"><img src="https://img.shields.io/github/stars/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Stars" /></a>
 </p>
 
 <p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, search the output and Ctrl+click a compiler location to open it in the editor, preview Markdown with a Mermaid diagram, connect over SSH and start a port-forward tunnel, browse an S3 bucket and create a presigned URL, then switch to the protected Production environment" width="960"></p>

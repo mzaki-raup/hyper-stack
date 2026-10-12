@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- README: Downloads, Release, License, Build and Stars badges for the GitHub mirror.
+- README: Downloads, Release, License, Build and Stars badges for the GitHub mirror, each a link (releases, latest release, licence, CI runs, stargazers); Build shows the CI workflow (`ci.yml`: lint, tests, build) on `main`.
 - Editor: Settings → Editor → **Open Files In**. **Separate Tabs** (the default) brings back one tab per file: a file clicked in the project tree opens in its own tab (or focuses the tab that already has it), and every new editor tab starts with all your projects. **Project Rows** keeps one editor tab with a row of file tabs per project; the rows now always show, and a full row wraps onto more lines beside its project label.
 - AI Assistant: 1min.AI's model picker lists the 95 models its chat API accepts, grouped by vendor with display names on hover; a new "1min.AI (OpenAI-Compatible)" preset points at 1min.AI's `/openai/v1` adapter, whose model list Fetch Models reads live.
 

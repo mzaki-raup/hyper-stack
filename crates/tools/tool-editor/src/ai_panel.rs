@@ -95,7 +95,7 @@ fn models_for(s: &Services, p: &AiProvider, refresh: bool) -> ModelList {
     let list: ModelList = Arc::new(Mutex::new(None));
     MODELS.lock().insert(cache_key, list.clone());
     let key = match p.kind {
-        // The built-in list needs no key (and no unlocked vault).
+        // 1min.AI's list is built in: no key, no unlocked vault needed.
         ai::Provider::OneMin => Ok(String::new()),
         ai::Provider::OpenAi => provider_key(s, p),
     };
@@ -661,10 +661,27 @@ impl AiPanel {
                         egui::ScrollArea::vertical()
                             .max_height(320.0)
                             .show(ui, |ui| {
-                                for m in v {
-                                    if ui.selectable_label(self.model == *m, m).clicked() {
-                                        self.model = m.clone();
-                                        ui.close();
+                                for (heading, models) in ai::group_models(p.kind, v) {
+                                    if !heading.is_empty() {
+                                        ui.label(
+                                            egui::RichText::new(heading)
+                                                .size(11.0)
+                                                .strong()
+                                                .color(theme.text_muted),
+                                        );
+                                    }
+                                    for m in models {
+                                        let r = ui.selectable_label(self.model == m, &m);
+                                        let r = match ai::onemin_model_name(&m) {
+                                            Some(name) if p.kind == ai::Provider::OneMin => {
+                                                r.on_hover_text(name)
+                                            }
+                                            _ => r,
+                                        };
+                                        if r.clicked() {
+                                            self.model = m;
+                                            ui.close();
+                                        }
                                     }
                                 }
                             });

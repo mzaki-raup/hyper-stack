@@ -17,15 +17,223 @@ pub use edits::{EditBlock, LocateError, Segment, apply_block, locate, segments};
 pub const ONEMIN_BASE: &str = "https://api.1min.ai";
 pub const OPENAI_BASE: &str = "https://api.openai.com/v1";
 
-/// 1min.AI has no endpoint that lists its models, so its model picker
-/// offers these known ids (any other id can still be typed).
-pub const ONEMIN_MODELS: &[&str] = &[
-    "claude-4-6-sonnet",
-    "deepseek-chat",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "qwen3-coder-plus",
+/// The models 1min.AI's chat endpoint (`/api/chat-with-ai`) accepts, by
+/// vendor, as `(id, display name)`: its "Available Models" list as of
+/// 2026-10-12 (the owner pasted it from the 1min.AI documentation). The
+/// endpoint cannot list them itself, so this is the picker's list; any
+/// other id can still be typed. (1min.AI's separate OpenAI-compatible
+/// adapter, `{base}/openai/v1`, has its own list, read live through an
+/// OpenAI-compatible provider.)
+pub const ONEMIN_MODEL_GROUPS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "Alibaba",
+        &[
+            ("qwen3.7-plus", "Qwen 3.7 Plus"),
+            ("qwen3.7-max", "Qwen 3.7 Max"),
+            ("qwen3.7-flash", "Qwen 3.7 Flash"),
+            ("qwen3.6-plus", "Qwen 3.6 Plus"),
+            ("qwen3.6-flash", "Qwen 3.6 Flash"),
+            ("qwen-plus", "Qwen Plus"),
+            ("qwen-max", "Qwen Max"),
+            ("qwen-flash", "Qwen Flash"),
+        ],
+    ),
+    (
+        "Anthropic (AWS Bedrock)",
+        &[
+            ("us.anthropic.claude-sonnet-5-5", "Claude 5.5 Sonnet"),
+            ("us.anthropic.claude-sonnet-5", "Claude 5 Sonnet"),
+            ("us.anthropic.claude-sonnet-4-6", "Claude 4.6 Sonnet"),
+            (
+                "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "Claude 4.5 Sonnet",
+            ),
+            ("us.anthropic.claude-opus-5-5", "Claude 5.5 Opus"),
+            ("us.anthropic.claude-opus-5", "Claude 5 Opus"),
+            ("us.anthropic.claude-opus-4-8", "Claude 4.8 Opus"),
+            ("us.anthropic.claude-opus-4-7", "Claude 4.7 Opus"),
+            ("us.anthropic.claude-opus-4-6-v1", "Claude 4.6 Opus"),
+            (
+                "us.anthropic.claude-opus-4-5-20251101-v1:0",
+                "Claude 4.5 Opus",
+            ),
+            ("us.anthropic.claude-haiku-5-5", "Claude 5.5 Haiku"),
+            (
+                "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+                "Claude 4.5 Haiku",
+            ),
+            ("us.anthropic.claude-fable-5-1", "Claude 5.1 Fable"),
+            ("us.anthropic.claude-fable-5", "Claude 5 Fable"),
+        ],
+    ),
+    ("Cohere", &[("command-r-08-2024", "Command R")]),
+    (
+        "DeepSeek",
+        &[
+            ("deepseek-v4-pro", "DeepSeek V4 Pro"),
+            ("deepseek-flash", "DeepSeek V4.1 Flash"),
+        ],
+    ),
+    (
+        "Google",
+        &[
+            ("gemini-3.8-flash", "Gemini 3.8 Flash"),
+            ("gemini-3.7-flash", "Gemini 3.7 Flash"),
+            ("gemini-3.6-flash", "Gemini 3.6 Flash"),
+            ("gemini-3.5-flash", "Gemini 3.5 Flash"),
+            ("gemini-3.1-pro-preview", "Gemini 3.1 Pro"),
+            ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash Lite"),
+            ("gemini-3-flash-preview", "Gemini 3 Flash"),
+        ],
+    ),
+    (
+        "Mistral",
+        &[
+            ("magistral-small-latest", "Magistral Small 1.2"),
+            ("magistral-medium-latest", "Magistral Medium 1.2"),
+            ("ministral-14b-latest", "Ministral 14B Latest"),
+            ("open-mistral-nemo", "Mistral Open Nemo"),
+            ("mistral-small-latest", "Mistral Small"),
+            ("mistral-small-2603", "Mistral Small 4"),
+            ("mistral-medium-latest", "Mistral Medium 3.1"),
+            ("mistral-medium-3-5", "Mistral Medium 3.5"),
+            ("mistral-large-latest", "Mistral Large 2"),
+            ("mistral-large-2512", "Mistral Large 3"),
+        ],
+    ),
+    (
+        "OpenAI",
+        &[
+            ("gpt-5.3-codex", "GPT-5.3 Codex"),
+            ("o3-mini", "GPT-o3 Mini"),
+            ("gpt-6.1-sol", "GPT-6.1 Sol"),
+            ("gpt-6-sol", "GPT-6 Sol"),
+            ("gpt-6-luna", "GPT-6 Luna"),
+            ("gpt-6-astra", "GPT-6 Astra"),
+            ("gpt-5.6-terra", "GPT-5.6 Terra"),
+            ("gpt-5.6-sol", "GPT-5.6 Sol"),
+            ("gpt-5.6-luna", "GPT-5.6 Luna"),
+            ("gpt-5.5-pro", "GPT-5.5 Pro"),
+            ("gpt-5.5", "GPT-5.5"),
+            ("gpt-5.4-pro", "GPT-5.4 Pro"),
+            ("gpt-5.4-nano", "GPT-5.4 Nano"),
+            ("gpt-5.4-mini", "GPT-5.4 Mini"),
+            ("gpt-5.4", "GPT-5.4"),
+            ("gpt-5.2-pro", "GPT-5.2 Pro"),
+            ("gpt-5.2", "GPT-5.2"),
+            ("gpt-5.1", "GPT-5.1"),
+            ("gpt-5-nano", "GPT-5 Nano"),
+            ("gpt-5-mini", "GPT-5 Mini"),
+            ("gpt-5", "GPT-5"),
+            ("gpt-4o-mini", "GPT-4o Mini"),
+            ("gpt-4o", "GPT-4o"),
+            ("gpt-4.1-nano", "GPT-4.1 nano"),
+            ("gpt-4.1-mini", "GPT-4.1 mini"),
+            ("gpt-4.1", "GPT-4.1"),
+            ("gpt-4-turbo", "GPT-4 Turbo"),
+            ("gpt-3.5-turbo", "GPT-3.5"),
+            ("o3-pro", "o3 Pro"),
+            ("o3", "o3"),
+        ],
+    ),
+    (
+        "OpenRouter",
+        &[
+            ("moonshotai/kimi-k3", "Kimi K3"),
+            ("moonshotai/kimi-k2.7-code", "Kimi K2.7 Code"),
+            ("moonshotai/kimi-k2.6", "Kimi K2.6"),
+            ("meta/muse-spark-1.3", "Muse Spark 1.3"),
+            ("meta/muse-spark-1.2", "Muse Spark 1.2"),
+            ("meta/muse-spark-1.1", "Muse Spark 1.1"),
+        ],
+    ),
+    (
+        "Perplexity",
+        &[
+            ("sonar-reasoning-pro", "Perplexity Reasoning Pro"),
+            ("sonar-pro", "Perplexity Pro"),
+            ("sonar-deep-research", "Perplexity Deep Research"),
+            ("sonar", "Perplexity"),
+        ],
+    ),
+    (
+        "xAI",
+        &[
+            ("grok-4.7", "Grok 4.7"),
+            ("grok-4.6", "Grok 4.6"),
+            ("grok-4.5", "Grok 4.5"),
+            ("grok-4.3", "Grok 4.3"),
+        ],
+    ),
+    (
+        "Z.AI",
+        &[
+            ("glm-5.3", "GLM-5.3"),
+            ("glm-5.2", "GLM-5.2"),
+            ("glm-5.1", "GLM-5.1"),
+            ("glm-5", "GLM-5"),
+        ],
+    ),
+    (
+        "Other",
+        &[
+            ("meta/meta-llama-3-70b-instruct", "LLaMA 3 70b"),
+            ("meta/llama-4-scout-instruct", "LLaMA 4 Scout Instruct"),
+            (
+                "meta/llama-4-maverick-instruct",
+                "LLaMA 4 Maverick Instruct",
+            ),
+            ("openai/gpt-oss-20b", "GPT OSS 20b"),
+            ("openai/gpt-oss-120b", "GPT OSS 120b"),
+        ],
+    ),
 ];
+
+/// Every id in [`ONEMIN_MODEL_GROUPS`], in table order.
+pub fn onemin_models() -> Vec<String> {
+    ONEMIN_MODEL_GROUPS
+        .iter()
+        .flat_map(|(_, ids)| ids.iter().map(|(id, _)| id.to_string()))
+        .collect()
+}
+
+/// 1min.AI's display name for a model id ("GPT-4o Mini").
+pub fn onemin_model_name(id: &str) -> Option<&'static str> {
+    ONEMIN_MODEL_GROUPS
+        .iter()
+        .flat_map(|(_, ids)| ids.iter())
+        .find(|(m, _)| *m == id)
+        .map(|(_, name)| *name)
+}
+
+/// Models arranged for a picker: for 1min.AI under its vendor headings
+/// (ids it does not know last, under an empty heading), otherwise one
+/// group with no heading.
+pub fn group_models(provider: Provider, models: &[String]) -> Vec<(&'static str, Vec<String>)> {
+    if provider != Provider::OneMin {
+        return vec![("", models.to_vec())];
+    }
+    let mut out: Vec<(&'static str, Vec<String>)> = Vec::new();
+    for (heading, ids) in ONEMIN_MODEL_GROUPS {
+        let have: Vec<String> = ids
+            .iter()
+            .filter(|(id, _)| models.iter().any(|m| m == id))
+            .map(|(id, _)| id.to_string())
+            .collect();
+        if !have.is_empty() {
+            out.push((heading, have));
+        }
+    }
+    let rest: Vec<String> = models
+        .iter()
+        .filter(|m| onemin_model_name(m).is_none())
+        .cloned()
+        .collect();
+    if !rest.is_empty() {
+        out.push(("", rest));
+    }
+    out
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -225,15 +433,15 @@ pub async fn chat(
 
 /// Model ids the service offers (`GET {base}/models`, OpenAI-compatible
 /// services only; LM Studio with JIT loading lists every downloaded model,
-/// Ollama its pulled ones). 1min.AI has no such endpoint, so it answers
-/// with the built-in [`ONEMIN_MODELS`] without a request.
+/// Ollama its pulled ones). 1min.AI's chat endpoint has no such list, so
+/// it answers with [`onemin_models`] without a request.
 pub async fn list_models(
     http: &reqwest::Client,
     cfg: &AiConfig,
     api_key: &str,
 ) -> Result<Vec<String>, AiError> {
     if cfg.provider == Provider::OneMin {
-        return Ok(ONEMIN_MODELS.iter().map(|m| m.to_string()).collect());
+        return Ok(onemin_models());
     }
     let mut r = http.get(format!("{}/models", cfg.base()));
     if !api_key.is_empty() {
@@ -757,8 +965,34 @@ mod tests {
             .build()
             .unwrap();
         let models = rt.block_on(list_models(&http_client(), &cfg, "")).unwrap();
-        assert_eq!(models.len(), ONEMIN_MODELS.len());
+        assert_eq!(models.len(), 95);
         assert!(models.iter().any(|m| m == Provider::OneMin.default_model()));
+        // Even with a key nothing is asked: the chat endpoint has no list.
+        let again = rt.block_on(list_models(&http_client(), &cfg, "k")).unwrap();
+        assert_eq!(again, models);
+    }
+
+    #[test]
+    fn one_min_list_has_no_duplicates() {
+        let mut all = onemin_models();
+        let n = all.len();
+        all.sort();
+        all.dedup();
+        assert_eq!(all.len(), n);
+    }
+
+    #[test]
+    fn one_min_models_group_under_their_vendors() {
+        let models: Vec<String> = ["gpt-5", "glm-5", "new-model", "sonar"]
+            .map(String::from)
+            .to_vec();
+        let groups = group_models(Provider::OneMin, &models);
+        let headings: Vec<&str> = groups.iter().map(|g| g.0).collect();
+        assert_eq!(headings, ["OpenAI", "Perplexity", "Z.AI", ""]);
+        assert_eq!(groups[3].1, ["new-model"]);
+        assert_eq!(onemin_model_name("gpt-4o-mini"), Some("GPT-4o Mini"));
+        assert_eq!(onemin_model_name("new-model"), None);
+        assert_eq!(group_models(Provider::OpenAi, &models).len(), 1);
     }
 
     #[test]

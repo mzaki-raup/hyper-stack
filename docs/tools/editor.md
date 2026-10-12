@@ -231,7 +231,11 @@ format on save, file exclusions for search, large-file threshold.
   model: the list the provider offers (`GET {base}/models` for
   OpenAI-compatible servers, asked when the provider is first picked and
   shared by every editor tab for the session; ⟳ asks again; 1min.AI has no
-  such endpoint, so it offers a built-in list, `hs_core::ai::ONEMIN_MODELS`),
+  cannot list its chat models, so it offers the 95 ids its chat
+  endpoint accepts, `hs_core::ai::ONEMIN_MODEL_GROUPS`, under vendor
+  headings with the display name as a tooltip; the separate "1min.AI
+  (OpenAI-Compatible)" preset points at its `/openai/v1` adapter, whose
+  `/models` is read live),
   plus an **Other model id** field at the bottom for an id the list lacks (Settings → AI
   Assistant lists providers: 1min.AI or OpenAI-compatible such as OpenAI,
   LM Studio, Ollama, OpenRouter; Fetch Models asks an OpenAI-compatible

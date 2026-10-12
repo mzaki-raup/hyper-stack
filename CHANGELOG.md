@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- AI Assistant: 1min.AI's model picker lists the 95 models its chat API accepts, grouped by vendor with display names on hover; a new "1min.AI (OpenAI-Compatible)" preset points at 1min.AI's `/openai/v1` adapter, whose model list Fetch Models reads live.
 - Editor: one editor tab holds several projects. Every folder opened is a project in the tree with its own row of file tabs above the text; files outside them go to an Other Files row. Close a file with ×, middle-click or Ctrl+F4 (unsaved changes ask first), walk files with Ctrl+Alt+PgUp/PgDn, close a project from its label or the tree. Files opened from other tools (terminal Ctrl+click, SFTP/S3 edit, the command line) join the editor tab that has them or their project; "Open in New Tab" still opens a separate tab. Layouts saved by earlier versions are migrated.
 - AI Assistant: the model is picked from a dropdown filled with the models the provider lists (fetched once per session, refresh button; 1min.AI offers a built-in list since it has no model endpoint), with a field for any other id. Settings → Fetch Models now works for 1min.AI too.
 

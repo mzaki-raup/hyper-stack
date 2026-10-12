@@ -48,6 +48,11 @@ impl Draft {
 /// Presets for the endpoint field: (label, kind, base URL, needs a key).
 const PRESETS: &[(&str, Provider, &str)] = &[
     ("1min.AI", Provider::OneMin, ""),
+    (
+        "1min.AI (OpenAI-Compatible)",
+        Provider::OpenAi,
+        "https://api.1min.ai/openai/v1",
+    ),
     ("OpenAI", Provider::OpenAi, ai::OPENAI_BASE),
     ("LM Studio", Provider::OpenAi, "http://localhost:1234/v1"),
     ("Ollama", Provider::OpenAi, "http://localhost:11434/v1"),

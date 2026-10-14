@@ -146,6 +146,15 @@ pub struct EditorCtx<'a> {
 }
 
 impl AiPanel {
+    /// The assistant's latest complete answer, for read-aloud.
+    pub fn last_answer(&self) -> Option<&str> {
+        self.turns
+            .iter()
+            .rev()
+            .find(|t| t.role == Role::Assistant && !t.shown.is_empty())
+            .map(|t| t.shown.as_str())
+    }
+
     pub fn toggle(&mut self) {
         self.open = !self.open;
         self.focus_input = self.open;

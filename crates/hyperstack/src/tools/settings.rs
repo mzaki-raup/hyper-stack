@@ -58,14 +58,14 @@ impl Tool for SettingsTool {
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
-        let theme = Theme::by_name(&cx.services.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&cx.services.settings.read().appearance);
         let mut hub = self.hub.lock();
         settings_ui::page_list(ui, &theme, cx.services, &mut hub.state);
         true
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
-        let theme = Theme::by_name(&cx.services.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&cx.services.settings.read().appearance);
         let mut hub = self.hub.lock();
         let hub = &mut *hub;
         egui::ScrollArea::vertical()

@@ -241,6 +241,21 @@ impl Registry {
         Ok(ws)
     }
 
+    /// Load a registered workspace without opening it (no last-opened
+    /// change, no registry write). `None` when the name is unknown.
+    pub fn peek(&self, paths: &DataDir, name: &str) -> storage::Result<Workspace> {
+        let root = match self.workspaces.iter().find(|w| w.name == name) {
+            Some(e) => paths.resolve_path(&e.path),
+            None if name == "default" => paths.workspaces_dir().join("default"),
+            None => {
+                return Err(storage::StorageError::Message(format!(
+                    "no workspace named \"{name}\""
+                )));
+            }
+        };
+        Workspace::open_or_create(&root, name)
+    }
+
     pub fn exists(&self, name: &str) -> bool {
         name == "default" || self.workspaces.iter().any(|w| w.name == name)
     }

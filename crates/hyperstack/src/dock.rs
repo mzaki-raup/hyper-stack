@@ -155,8 +155,8 @@ pub fn show(
         }
         DockTab::Terminal => {
             state.ensure_terminal(services);
-            let tt = hs_term::widget::TermTheme::for_theme(&hs_ui::theme::Theme::by_name(
-                &services.settings.read().appearance.theme,
+            let tt = hs_term::widget::TermTheme::for_theme(&hs_ui::theme::Theme::from_settings(
+                &services.settings.read().appearance,
             ));
             if let Some(err) = state.terminal_error.clone() {
                 ui.colored_label(theme.error, err);

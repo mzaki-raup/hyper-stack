@@ -1062,7 +1062,7 @@ impl Tool for S3Tool {
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         form::header_bar(ui, &theme, |ui| {
             ui.label(egui::RichText::new(s.t("s3-profiles")).strong().size(15.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1155,7 +1155,7 @@ impl Tool for S3Tool {
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.waiting_for_vault && !s.secrets.is_locked() {
             self.connect(s);
         }
@@ -1290,9 +1290,16 @@ impl Tool for S3Tool {
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
-                    self.assistant.ui(ui, s, &theme, "S3");
+                    let _ = self.assistant.ui(ui, s, &theme, "S3");
                 });
         }
+    }
+
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        self.assistant
+            .last_answer()
+            .map(|a| vec![hs_core::tool::Speakable::new("Assistant's last answer", a)])
+            .unwrap_or_default()
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {

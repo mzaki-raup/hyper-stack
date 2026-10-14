@@ -178,6 +178,12 @@ enum Dialog {
     Cell {
         title: String,
         text: String,
+        /// The raw value of a binary cell, for the picture/document preview
+        /// and Save As. `None` for text cells.
+        bytes: Option<Vec<u8>>,
+        sniffed: Option<hs_core::sniff::Sniffed>,
+        /// Image size when the bytes decode as a picture.
+        image_size: Option<(u32, u32)>,
     },
     SaveQuery {
         name: String,
@@ -303,7 +309,7 @@ fn short_sql(s: &str) -> String {
 impl DbTool {
     fn new(services: &Services, state: State) -> Self {
         let st = services.settings.read();
-        let dark = Theme::by_name(&st.appearance.theme).dark;
+        let dark = Theme::from_settings(&st.appearance).dark;
         let mut view = EditorView::new(
             egui::Id::new(("hs-db-editor", hs_core::new_id())),
             languages::detect("query.sql"),
@@ -1504,6 +1510,9 @@ impl DbTool {
         else {
             return;
         };
+        let mut bytes = None;
+        let mut sniffed = None;
+        let mut image_size = None;
         let text = match v {
             Value::Null => "NULL".to_string(),
             Value::Text(t) => serde_json::from_str::<serde_json::Value>(t)
@@ -1512,22 +1521,21 @@ impl DbTool {
                 .and_then(|j| serde_json::to_string_pretty(&j).ok())
                 .unwrap_or_else(|| t.clone()),
             Value::Bytes(b) => {
-                let mut out = String::new();
-                for (n, chunk) in b.chunks(16).take(4096).enumerate() {
-                    let hex: Vec<String> = chunk.iter().map(|x| format!("{x:02x}")).collect();
-                    let ascii: String = chunk
-                        .iter()
-                        .map(|&x| {
-                            if (32..127).contains(&x) {
-                                x as char
-                            } else {
-                                '.'
-                            }
-                        })
-                        .collect();
-                    out.push_str(&format!("{:08x}  {:<48}  {ascii}\n", n * 16, hex.join(" ")));
+                // A picture is shown as a picture, text as text, a document
+                // is named and offered as a file; the rest is a hex dump.
+                let sn = hs_core::sniff::sniff(b);
+                let shown = match sn.kind {
+                    hs_core::sniff::Kind::Text => String::from_utf8_lossy(b).into_owned(),
+                    _ => hs_core::sniff::hex_dump(b, 4096),
+                };
+                if sn.kind == hs_core::sniff::Kind::Image && b.len() <= 64 * 1024 * 1024 {
+                    image_size = image::load_from_memory(b)
+                        .ok()
+                        .map(|img| (img.width(), img.height()));
                 }
-                out
+                sniffed = Some(sn);
+                bytes = Some(b.clone());
+                shown
             }
             other => other.display(),
         };
@@ -1538,7 +1546,13 @@ impl DbTool {
         };
         let _ = s;
         drop(sh);
-        self.dialog = Some(Dialog::Cell { title, text });
+        self.dialog = Some(Dialog::Cell {
+            title,
+            text,
+            bytes,
+            sniffed,
+            image_size,
+        });
     }
 
     fn grid_menu(
@@ -1740,19 +1754,73 @@ impl DbTool {
                             }
                         });
                     }
-                    Dialog::Cell { title, text } => {
+                    Dialog::Cell {
+                        title,
+                        text,
+                        bytes,
+                        sniffed,
+                        image_size,
+                    } => {
                         ui.heading(title.as_str());
                         ui.add_space(4.0);
+                        if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref()) {
+                            let size = match image_size {
+                                Some((w, h)) => format!(" · {w} × {h}"),
+                                None => String::new(),
+                            };
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{} · {}{size}",
+                                    sn.label,
+                                    human_bytes(b.len())
+                                ))
+                                .color(theme.text_muted),
+                            );
+                            ui.add_space(4.0);
+                        }
+                        let picture = matches!(
+                            sniffed.as_ref().map(|sn| sn.kind),
+                            Some(hs_core::sniff::Kind::Image | hs_core::sniff::Kind::Svg)
+                        );
                         egui::ScrollArea::vertical()
                             .max_height(420.0)
                             .show(ui, |ui| {
-                                let mut shown = text.clone();
-                                ui.add(
-                                    egui::TextEdit::multiline(&mut shown)
-                                        .font(egui::TextStyle::Monospace)
-                                        .desired_width(f32::INFINITY)
-                                        .desired_rows(12),
-                                );
+                                if picture && let Some(b) = bytes.as_ref() {
+                                    let ext = sniffed.as_ref().map(|sn| sn.ext).unwrap_or("bin");
+                                    let digest = {
+                                        use std::hash::{Hash, Hasher};
+                                        let mut h =
+                                            std::collections::hash_map::DefaultHasher::new();
+                                        b.hash(&mut h);
+                                        h.finish()
+                                    };
+                                    let uri = format!("bytes://db-cell-{digest:x}.{ext}");
+                                    ui.add(
+                                        egui::Image::from_bytes(uri, b.clone())
+                                            .max_size(egui::vec2(620.0, 400.0))
+                                            .corner_radius(4.0),
+                                    );
+                                    ui.add_space(6.0);
+                                    egui::CollapsingHeader::new(s.t("db-cell-hex"))
+                                        .default_open(false)
+                                        .show(ui, |ui| {
+                                            let mut shown = text.clone();
+                                            ui.add(
+                                                egui::TextEdit::multiline(&mut shown)
+                                                    .font(egui::TextStyle::Monospace)
+                                                    .desired_width(f32::INFINITY)
+                                                    .desired_rows(8),
+                                            );
+                                        });
+                                } else {
+                                    let mut shown = text.clone();
+                                    ui.add(
+                                        egui::TextEdit::multiline(&mut shown)
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_width(f32::INFINITY)
+                                            .desired_rows(12),
+                                    );
+                                }
                             });
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
@@ -1761,6 +1829,27 @@ impl DbTool {
                                 .clicked()
                             {
                                 ui.ctx().copy_text(text.clone());
+                            }
+                            if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref())
+                                && ui
+                                    .button(format!("{} {}", ph::FLOPPY_DISK, s.t("db-cell-save")))
+                                    .on_hover_text(s.t("db-cell-save-tip"))
+                                    .clicked()
+                                && let Some(path) = rfd::FileDialog::new()
+                                    .set_file_name(format!("cell.{}", sn.ext))
+                                    .add_filter(sn.label, &[sn.ext])
+                                    .save_file()
+                            {
+                                match std::fs::write(&path, b) {
+                                    Ok(()) => cx.toast(
+                                        ToastLevel::Success,
+                                        s.i18n.t_args(
+                                            "db-cell-saved",
+                                            &[("path", &path.display().to_string())],
+                                        ),
+                                    ),
+                                    Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+                                }
                             }
                             if ui.button(s.t("close")).clicked() {
                                 close = true;
@@ -2139,7 +2228,7 @@ impl Tool for DbTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         let ready = self.ready();
         let (running, in_tx) = {
             let sh = self.shared.lock();
@@ -2302,7 +2391,7 @@ impl Tool for DbTool {
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         form::header_bar(ui, &theme, |ui| {
             ui.label(
                 egui::RichText::new(s.t("db-connections"))
@@ -2538,6 +2627,28 @@ impl Tool for DbTool {
             .show(ui, |ui| self.body(ui, cx));
     }
 
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        let mut out = Vec::new();
+        if let Some(Dialog::Cell { title, text, .. }) = &self.dialog {
+            out.push(hs_core::tool::Speakable::new(
+                format!("Cell: {title}"),
+                text.clone(),
+            ));
+        }
+        let sel = hs_editor::view::selected_text(&self.buf, &self.cursors);
+        if !sel.trim().is_empty() {
+            out.push(hs_core::tool::Speakable::new("Selected SQL", sel));
+        }
+        let query = self.buf.text();
+        if !query.trim().is_empty() {
+            out.push(hs_core::tool::Speakable::new("Query", query));
+        }
+        if let Some(a) = self.assistant.last_answer() {
+            out.push(hs_core::tool::Speakable::new("Assistant's last answer", a));
+        }
+        out
+    }
+
     fn commands(&self) -> Vec<CommandDescriptor> {
         self.command_list()
     }
@@ -2647,7 +2758,7 @@ impl Tool for DbTool {
 impl DbTool {
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.waiting_for_vault && !s.secrets.is_locked() {
             self.connect(s);
         }
@@ -2762,7 +2873,18 @@ impl DbTool {
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
-                    self.assistant.ui(ui, s, &theme, "SQL");
+                    self.assistant.can_insert = true;
+                    let out = self.assistant.ui(ui, s, &theme, "SQL");
+                    if let Some(block) = out.use_block {
+                        // Into the SQL editor at the cursor; Run stays with the user.
+                        self.view.insert_at_cursors(
+                            &mut self.buf,
+                            &mut self.cursors,
+                            &block,
+                            EditKind::Other,
+                        );
+                        self.view.scroll_to_cursor();
+                    }
                 });
         }
     }
@@ -2845,5 +2967,17 @@ impl DbTool {
             _ => return false,
         }
         true
+    }
+}
+
+/// "1.2 KB" style size for the cell viewer.
+fn human_bytes(n: usize) -> String {
+    let n = n as f64;
+    if n < 1024.0 {
+        format!("{n} B")
+    } else if n < 1024.0 * 1024.0 {
+        format!("{:.1} KB", n / 1024.0)
+    } else {
+        format!("{:.1} MB", n / (1024.0 * 1024.0))
     }
 }

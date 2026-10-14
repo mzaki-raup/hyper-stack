@@ -19,6 +19,19 @@ pub struct Settings {
     pub terminal: Terminal,
     pub editor: Editor,
     pub ai: Ai,
+    pub accessibility: Accessibility,
+}
+
+/// Settings → Accessibility. Everything off by default.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct Accessibility {
+    /// Show the Read Aloud button in the title bar.
+    pub tts_enabled: bool,
+    /// Speech rate, -10 (slowest) … 10 (fastest), 0 = the voice's default.
+    pub tts_rate: i32,
+    /// Skip toast slide and spinner animation.
+    pub reduce_motion: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -35,8 +48,14 @@ pub struct General {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Appearance {
-    /// "dark" | "light" | "system"
+    /// "dark" | "light" | "system". Empty (settings written before the mode
+    /// existed) means "whatever `theme` is", so an old `theme = "github-light"`
+    /// keeps showing that light scheme.
+    pub mode: String,
+    /// The colour scheme used in dark mode (`hs_ui::theme::Theme::schemes`).
     pub theme: String,
+    /// The colour scheme used in light mode.
+    pub light_theme: String,
     pub ui_font_size: f32,
     /// Interface font id (`hs_ui::fonts`): "" = default, "system:<family>" for an installed font.
     pub ui_font: String,
@@ -47,6 +66,11 @@ pub struct Appearance {
     pub sidebar_width: f32,
     pub dock_height: f32,
     pub ui_zoom: f32,
+    /// Show each tool's name under its icon in the activity rail.
+    pub rail_labels: bool,
+    /// Tool ids in the order the rail shows them; ids missing here follow
+    /// in their default order. Home is always first and Settings last.
+    pub rail_order: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -84,6 +108,7 @@ impl Default for Settings {
             terminal: Terminal::default(),
             editor: Editor::default(),
             ai: Ai::default(),
+            accessibility: Accessibility::default(),
         }
     }
 }
@@ -219,7 +244,9 @@ impl Default for General {
 impl Default for Appearance {
     fn default() -> Self {
         Self {
+            mode: "dark".into(),
             theme: "dark".into(),
+            light_theme: "light".into(),
             ui_font_size: 14.0,
             ui_font: String::new(),
             min_tab_width: 140.0,
@@ -228,6 +255,8 @@ impl Default for Appearance {
             sidebar_width: 260.0,
             dock_height: 220.0,
             ui_zoom: 1.0,
+            rail_labels: false,
+            rail_order: Vec::new(),
         }
     }
 }

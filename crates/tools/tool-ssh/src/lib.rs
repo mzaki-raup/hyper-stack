@@ -1093,7 +1093,7 @@ impl Tool for SshTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         let (dot, label) = match &self.status {
             Status::Idle => (theme.text_muted, s.t("ssh-idle")),
             Status::Connecting => (theme.warning, s.t("ssh-connecting")),
@@ -1141,7 +1141,7 @@ impl Tool for SshTool {
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         form::header_bar(ui, &theme, |ui| {
             ui.label(egui::RichText::new(s.t("ssh-hosts")).strong().size(15.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1202,7 +1202,7 @@ impl Tool for SshTool {
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.waiting_for_vault && !s.secrets.is_locked() {
             self.waiting_for_vault = false;
             self.connect(s);
@@ -1403,13 +1403,34 @@ impl Tool for SshTool {
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
-                    self.assistant.ui(ui, s, &theme, "SSH");
+                    self.assistant.can_insert = self.session.is_some();
+                    let out = self.assistant.ui(ui, s, &theme, "SSH");
+                    if let Some(block) = out.use_block
+                        && let Some(session) = &self.session
+                    {
+                        // Typed into the remote shell, not run.
+                        session.write(block.trim_end().as_bytes());
+                    }
                 });
         }
         if self.status == Status::Connecting || self.shared.lock().remote.loading {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(200));
         }
+    }
+
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        let mut out = Vec::new();
+        if let Some(session) = &self.session {
+            let screen = session.visible_text(200);
+            if !screen.trim().is_empty() {
+                out.push(hs_core::tool::Speakable::new("SSH screen", screen));
+            }
+        }
+        if let Some(a) = self.assistant.last_answer() {
+            out.push(hs_core::tool::Speakable::new("Assistant's last answer", a));
+        }
+        out
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {

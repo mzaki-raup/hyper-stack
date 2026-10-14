@@ -1,7 +1,74 @@
 //! Themes (docs/04 §8). The brand palette comes from the app icon: purple
 //! accent, blue secondary, gold reserved for warnings and the beta badge.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use egui::Color32;
+use hs_core::settings::Appearance;
+
+/// Whether the operating system currently prefers a dark colour scheme, as
+/// last reported by the window (`sync_system`). Dark until told otherwise.
+static SYSTEM_DARK: AtomicBool = AtomicBool::new(true);
+
+pub fn system_dark() -> bool {
+    SYSTEM_DARK.load(Ordering::Relaxed)
+}
+
+/// Record the OS preference from the frame's input. Returns `true` when it
+/// changed, so the shell can re-apply a theme in System mode.
+pub fn sync_system(ctx: &egui::Context) -> bool {
+    let Some(theme) = ctx.system_theme() else {
+        return false;
+    };
+    let dark = theme == egui::Theme::Dark;
+    SYSTEM_DARK.swap(dark, Ordering::Relaxed) != dark
+}
+
+/// The scheme id the Appearance settings select right now: the dark scheme
+/// in Dark mode, the light one in Light mode, and in System mode whichever
+/// the OS prefers. An empty mode is the pre-mode behaviour (`theme` as is).
+pub fn scheme_id(app: &Appearance) -> &str {
+    match app.mode.as_str() {
+        "light" => &app.light_theme,
+        "system" => {
+            if system_dark() {
+                &app.theme
+            } else {
+                &app.light_theme
+            }
+        }
+        "dark" => &app.theme,
+        _ => &app.theme,
+    }
+}
+
+/// Push the selected scheme(s) into egui. Explicit modes pin egui's theme
+/// preference and fill both of its visuals slots, so a Windows 10 machine
+/// whose system theme is reported late (or reported light while the user
+/// chose dark) can never swap our palette for egui's default one. System
+/// mode gives egui both palettes and lets it follow the OS.
+pub fn install(ctx: &egui::Context, app: &Appearance) {
+    match app.mode.as_str() {
+        "system" => {
+            let dark = Theme::by_name(&app.theme);
+            let light = Theme::by_name(&app.light_theme);
+            ctx.set_visuals_of(egui::Theme::Dark, dark.visuals());
+            ctx.set_visuals_of(egui::Theme::Light, light.visuals());
+            ctx.set_theme(egui::ThemePreference::System);
+        }
+        _ => {
+            let t = Theme::from_settings(app);
+            let v = t.visuals();
+            ctx.set_visuals_of(egui::Theme::Dark, v.clone());
+            ctx.set_visuals_of(egui::Theme::Light, v);
+            ctx.set_theme(if t.dark {
+                egui::ThemePreference::Dark
+            } else {
+                egui::ThemePreference::Light
+            });
+        }
+    }
+}
 
 pub const BRAND_PURPLE: Color32 = Color32::from_rgb(0x72, 0x00, 0xCA);
 pub const BRAND_BLUE: Color32 = Color32::from_rgb(0x00, 0x75, 0xD3);
@@ -80,6 +147,11 @@ impl Theme {
             env_staging: BRAND_GOLD,
             env_prod: Color32::from_rgb(0xC6, 0x2A, 0x2A),
         }
+    }
+
+    /// The theme the Appearance settings select right now (see `scheme_id`).
+    pub fn from_settings(app: &Appearance) -> Self {
+        Self::by_name(scheme_id(app))
     }
 
     pub fn by_name(name: &str) -> Self {
@@ -333,8 +405,22 @@ impl Theme {
         )
     }
 
-    /// Push the palette into egui's visuals.
+    /// Push the palette into egui's visuals (both theme slots, preference
+    /// pinned to this palette's darkness). Prefer `install` when the
+    /// Appearance settings are at hand.
     pub fn apply(&self, ctx: &egui::Context) {
+        let v = self.visuals();
+        ctx.set_visuals_of(egui::Theme::Dark, v.clone());
+        ctx.set_visuals_of(egui::Theme::Light, v);
+        ctx.set_theme(if self.dark {
+            egui::ThemePreference::Dark
+        } else {
+            egui::ThemePreference::Light
+        });
+    }
+
+    /// egui visuals for this palette.
+    pub fn visuals(&self) -> egui::Visuals {
         let mut v = if self.dark {
             egui::Visuals::dark()
         } else {
@@ -363,7 +449,7 @@ impl Theme {
         v.menu_corner_radius = egui::CornerRadius::same(6);
         v.warn_fg_color = self.warning;
         v.error_fg_color = self.error;
-        ctx.set_visuals(v);
+        v
     }
 
     /// Colour for an environment: explicit hex if given, else by name, else the accent.

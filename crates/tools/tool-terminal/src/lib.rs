@@ -510,7 +510,7 @@ impl Tool for TerminalTool {
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
-        let theme = hs_ui::theme::Theme::by_name(&s.settings.read().appearance.theme);
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         hs_ui::form::header_bar(ui, &theme, |ui| {
             ui.label(
                 egui::RichText::new(s.t("terminal-profiles"))
@@ -557,8 +557,8 @@ impl Tool for TerminalTool {
                 }
             }
         }
-        let theme = TermTheme::for_theme(&hs_ui::theme::Theme::by_name(
-            &s.settings.read().appearance.theme,
+        let theme = TermTheme::for_theme(&hs_ui::theme::Theme::from_settings(
+            &s.settings.read().appearance,
         ));
         let mut find_requested = false;
         let mut link = None;
@@ -616,7 +616,7 @@ impl Tool for TerminalTool {
             self.open_link(link, ui, cx);
         }
         if self.assistant.open {
-            let theme = hs_ui::theme::Theme::by_name(&s.settings.read().appearance.theme);
+            let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
             let ctx = self
                 .session
                 .as_ref()
@@ -650,9 +650,30 @@ impl Tool for TerminalTool {
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
-                    self.assistant.ui(ui, s, &theme, "terminal");
+                    self.assistant.can_insert = self.session.is_some();
+                    let out = self.assistant.ui(ui, s, &theme, "terminal");
+                    if let Some(block) = out.use_block
+                        && let Some(session) = &self.session
+                    {
+                        // Typed, not run: the user presses Enter after review.
+                        session.write(block.trim_end().as_bytes());
+                    }
                 });
         }
+    }
+
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        let mut out = Vec::new();
+        if let Some(session) = &self.session {
+            let screen = session.visible_text(200);
+            if !screen.trim().is_empty() {
+                out.push(hs_core::tool::Speakable::new("Terminal screen", screen));
+            }
+        }
+        if let Some(a) = self.assistant.last_answer() {
+            out.push(hs_core::tool::Speakable::new("Assistant's last answer", a));
+        }
+        out
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {

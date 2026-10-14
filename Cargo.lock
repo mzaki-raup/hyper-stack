@@ -6937,6 +6937,7 @@ dependencies = [
  "hs-core",
  "hs-editor",
  "hs-ui",
+ "image",
  "mysql_async",
  "parking_lot",
  "rfd",

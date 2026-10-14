@@ -19,11 +19,77 @@ struct Running {
     abort: tokio::task::AbortHandle,
 }
 
+/// What the user asked the panel to do with an answer this frame. The
+/// panel itself never touches the host tool; the tool applies the block.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct AssistantOutput {
+    /// A fenced code block from an answer the user clicked **Insert** on.
+    pub use_block: Option<String>,
+}
+
+/// A piece of an answer: prose, or a fenced code block with its language.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Segment {
+    Text(String),
+    Code { lang: String, body: String },
+}
+
+/// Split Markdown into prose and fenced code blocks (``` or ~~~ fences).
+/// An unterminated fence runs to the end, which is what a streaming answer
+/// looks like mid-way.
+pub fn split_fences(text: &str) -> Vec<Segment> {
+    let mut out = Vec::new();
+    let mut prose = String::new();
+    let mut code: Option<(String, String, String)> = None; // fence, lang, body
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_end_matches(['\n', '\r']);
+        match &mut code {
+            None => {
+                let t = trimmed.trim_start();
+                if let Some(fence) = ["```", "~~~"].iter().find(|f| t.starts_with(*f)) {
+                    if !prose.trim().is_empty() {
+                        out.push(Segment::Text(prose.trim_end().to_string()));
+                    }
+                    prose.clear();
+                    let lang = t[fence.len()..].trim().to_string();
+                    code = Some((fence.to_string(), lang, String::new()));
+                } else {
+                    prose.push_str(line);
+                }
+            }
+            Some((fence, lang, body)) => {
+                if trimmed.trim_start().starts_with(fence.as_str()) {
+                    out.push(Segment::Code {
+                        lang: lang.clone(),
+                        body: body.trim_end_matches(['\n', '\r']).to_string(),
+                    });
+                    code = None;
+                } else {
+                    body.push_str(line);
+                }
+            }
+        }
+    }
+    if let Some((_, lang, body)) = code {
+        out.push(Segment::Code {
+            lang,
+            body: body.trim_end_matches(['\n', '\r']).to_string(),
+        });
+    }
+    if !prose.trim().is_empty() {
+        out.push(Segment::Text(prose.trim_end().to_string()));
+    }
+    out
+}
+
 /// Tool-agnostic assistant. It discusses explicitly supplied context but
 /// never edits a buffer or invokes host tool actions.
 #[derive(Default)]
 pub struct AssistantPanel {
     pub open: bool,
+    /// Whether answers offer an **Insert** button (the host tool has a
+    /// place to put a command or query). Copy is always offered.
+    pub can_insert: bool,
     tool: String,
     context: String,
     context_label: String,
@@ -141,7 +207,23 @@ impl AssistantPanel {
         });
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, s: &Services, theme: &crate::theme::Theme, tool: &str) {
+    /// The assistant's latest complete answer, for read-aloud and copy.
+    pub fn last_answer(&self) -> Option<&str> {
+        self.turns
+            .iter()
+            .rev()
+            .find(|(role, text)| *role == Role::Assistant && !text.is_empty())
+            .map(|(_, text)| text.as_str())
+    }
+
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        theme: &crate::theme::Theme,
+        tool: &str,
+    ) -> AssistantOutput {
+        let mut output = AssistantOutput::default();
         self.tool = tool.to_string();
         if let Some(r) = &self.running {
             let (text, done) = {
@@ -199,7 +281,7 @@ impl AssistantPanel {
         if providers.is_empty() {
             ui.add_space(8.0);
             crate::form::note(ui, theme, crate::icons::INFO, &s.t("ai-setup-hint"));
-            return;
+            return output;
         }
         ui.horizontal(|ui| {
             let selected = providers
@@ -306,13 +388,120 @@ impl AssistantPanel {
                             );
                             if text.is_empty() && self.running.is_some() {
                                 ui.spinner();
-                            } else {
+                            } else if *role == Role::User {
                                 ui.add(egui::Label::new(text).wrap());
+                            } else {
+                                for (n, seg) in split_fences(text).into_iter().enumerate() {
+                                    match seg {
+                                        Segment::Text(t) => {
+                                            ui.add(egui::Label::new(t).wrap());
+                                        }
+                                        Segment::Code { lang, body } => {
+                                            ui.push_id(n, |ui| {
+                                                if let Some(action) = code_block(
+                                                    ui,
+                                                    s,
+                                                    theme,
+                                                    &lang,
+                                                    &body,
+                                                    self.can_insert,
+                                                ) {
+                                                    output.use_block = Some(action);
+                                                }
+                                            });
+                                        }
+                                    }
+                                }
                             }
                         });
                     ui.add_space(6.0);
                 }
             });
+        output
+    }
+}
+
+/// A fenced block from an answer: monospace body with Copy and, when the
+/// host tool can take it, Insert. Returns the body when Insert is clicked.
+fn code_block(
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &crate::theme::Theme,
+    lang: &str,
+    body: &str,
+    can_insert: bool,
+) -> Option<String> {
+    let mut used = None;
+    egui::Frame::new()
+        .fill(theme.window_bg)
+        .stroke(egui::Stroke::new(1.0, theme.border))
+        .corner_radius(egui::CornerRadius::same(4))
+        .inner_margin(egui::Margin::same(6))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(if lang.is_empty() { "code" } else { lang })
+                        .small()
+                        .color(theme.text_muted),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if can_insert
+                        && ui
+                            .small_button(format!(
+                                "{} {}",
+                                crate::icons::ph::ARROW_LINE_DOWN,
+                                s.t("ai-insert-block")
+                            ))
+                            .on_hover_text(s.t("ai-insert-block-tip"))
+                            .clicked()
+                    {
+                        used = Some(body.to_string());
+                    }
+                    if ui
+                        .small_button(format!("{} {}", crate::icons::COPY, s.t("ai-copy-block")))
+                        .clicked()
+                    {
+                        ui.ctx().copy_text(body.to_string());
+                    }
+                });
+            });
+            ui.add(egui::Label::new(egui::RichText::new(body).monospace()).wrap());
+        });
+    used
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fences_split_into_prose_and_code_with_language() {
+        let text = "Run this:\n```bash\nls -la\necho done\n```\nThen check.\n";
+        let segs = split_fences(text);
+        assert_eq!(
+            segs,
+            vec![
+                Segment::Text("Run this:".into()),
+                Segment::Code {
+                    lang: "bash".into(),
+                    body: "ls -la\necho done".into()
+                },
+                Segment::Text("Then check.".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn unterminated_fence_is_a_code_block_while_streaming() {
+        let segs = split_fences("```sql\nSELECT 1");
+        assert_eq!(
+            segs,
+            vec![Segment::Code {
+                lang: "sql".into(),
+                body: "SELECT 1".into()
+            }]
+        );
+        assert_eq!(split_fences("plain"), vec![Segment::Text("plain".into())]);
     }
 }
 

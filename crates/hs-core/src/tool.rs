@@ -94,6 +94,24 @@ pub struct QuickOpenItem {
     pub subtitle: String,
 }
 
+/// A piece of text a tool can offer to be read aloud (Accessibility → Read
+/// Aloud): the editor's selection, the terminal screen, a table cell, the
+/// assistant's last answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Speakable {
+    pub label: String,
+    pub text: String,
+}
+
+impl Speakable {
+    pub fn new(label: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            text: text.into(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloseDecision {
     Close,
@@ -233,6 +251,12 @@ pub trait Tool: Send {
 
     /// Items for the quick-open palette (project files, saved queries, …).
     fn quick_open_items(&self) -> Vec<QuickOpenItem> {
+        Vec::new()
+    }
+
+    /// Texts this tab can read aloud, most specific first (selection before
+    /// whole file). Empty when nothing is readable.
+    fn speakable(&self) -> Vec<Speakable> {
         Vec::new()
     }
 

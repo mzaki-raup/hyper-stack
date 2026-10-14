@@ -189,7 +189,7 @@ static NEXT_DOC: AtomicU64 = AtomicU64::new(1);
 impl Doc {
     fn new(s: &Services) -> Self {
         let st = s.settings.read();
-        let dark = Theme::by_name(&st.appearance.theme).dark;
+        let dark = Theme::from_settings(&st.appearance).dark;
         let mut view = EditorView::new(
             egui::Id::new(("hs-editor", hs_core::new_id())),
             languages::plain(),
@@ -830,8 +830,7 @@ impl EditorTool {
     }
 
     fn theme(s: &Services) -> (Theme, EditorTheme) {
-        let name = s.settings.read().appearance.theme.clone();
-        let ui_theme = Theme::by_name(&name);
+        let ui_theme = Theme::from_settings(&s.settings.read().appearance);
         let ed = EditorTheme::for_theme(&ui_theme);
         (ui_theme, ed)
     }
@@ -1638,6 +1637,49 @@ impl EditorTool {
         }
     }
 
+    /// The full path of the active file, under the file tabs and separated
+    /// from the code by a rule. Click copies it; untitled buffers say so.
+    fn path_row(&self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        let d = self.doc();
+        let text = d
+            .path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| s.t("editor-untitled"));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .inner_margin(egui::Margin {
+                left: 10,
+                right: 8,
+                top: 3,
+                bottom: 3,
+            })
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(ph::FILE_TEXT).color(theme.text_muted));
+                    let r = ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&text).small().color(theme.text_muted),
+                        )
+                        .truncate()
+                        .selectable(false)
+                        .sense(egui::Sense::click()),
+                    );
+                    if r.on_hover_text(s.t("editor-path-row-tip")).clicked() {
+                        ui.ctx().copy_text(text.clone());
+                    }
+                });
+            });
+        let rect = ui.available_rect_before_wrap();
+        ui.painter().hline(
+            rect.x_range(),
+            rect.top(),
+            egui::Stroke::new(1.0, theme.border),
+        );
+        ui.add_space(1.0);
+    }
+
     fn close_dialog(&mut self, ui: &mut egui::Ui, s: &Services) {
         let Some(target) = self.confirm_close else {
             return;
@@ -2263,6 +2305,7 @@ impl Tool for EditorTool {
                 d.view.line_marks = m;
             }
         }
+        self.path_row(ui, s, &theme);
         self.doc_mut().disk_banner(ui, s);
         let mut encoding_error = None;
         egui::Panel::bottom(self.id.with("status"))
@@ -2304,6 +2347,26 @@ impl Tool for EditorTool {
         if r.save_requested {
             self.save(cx);
         }
+    }
+
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        let mut out = Vec::new();
+        let d = self.doc();
+        let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
+        if !sel.trim().is_empty() {
+            out.push(hs_core::tool::Speakable::new("Selection", sel));
+        }
+        let text = d.buf.text();
+        if !text.trim().is_empty() {
+            out.push(hs_core::tool::Speakable::new(
+                format!("File: {}", d.file_name()),
+                text,
+            ));
+        }
+        if let Some(a) = self.ai.last_answer() {
+            out.push(hs_core::tool::Speakable::new("Assistant's last answer", a));
+        }
+        out
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {

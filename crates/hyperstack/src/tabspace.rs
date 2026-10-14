@@ -61,7 +61,7 @@ impl TabItem for TabView {
         self.pinned
     }
     fn can_unpin(&self) -> bool {
-        self.factory_id != "settings"
+        !crate::app::is_mandatory(&self.factory_id)
     }
     fn dirty(&self) -> bool {
         self.dirty

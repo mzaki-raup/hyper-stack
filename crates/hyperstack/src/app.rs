@@ -29,6 +29,7 @@ use crate::dock::{self, DockState};
 use crate::launcher::{self, LauncherState};
 use crate::settings_ui::{self, SettingsEffect, SharedSettings};
 use crate::tabspace::TabSpace;
+use crate::tools::home::{HomeRequest, SharedHome};
 
 /// The workspace create/delete modal.
 #[derive(Default)]
@@ -94,6 +95,14 @@ enum VaultDialog {
     ChangeMaster,
 }
 
+/// Settings export/import waits for the master password first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PortableDialog {
+    None,
+    Export,
+    Import,
+}
+
 pub struct HyperStackApp {
     services: Services,
     registry: Registry,
@@ -127,6 +136,9 @@ pub struct HyperStackApp {
     update_badge: Option<String>,
     notifications_open: bool,
     notifications_opened_this_frame: bool,
+    home: SharedHome,
+    tts: hs_core::tts::Tts,
+    portable: PortableDialog,
 }
 
 impl HyperStackApp {
@@ -149,8 +161,9 @@ impl HyperStackApp {
             }
         };
         let services = boot.services;
-        let theme = Theme::by_name(&services.settings.read().appearance.theme);
-        theme.apply(&cc.egui_ctx);
+        hs_ui::theme::sync_system(&cc.egui_ctx);
+        let theme = Theme::from_settings(&services.settings.read().appearance);
+        hs_ui::theme::install(&cc.egui_ctx, &services.settings.read().appearance);
         hs_ui::fonts::install(&cc.egui_ctx, &font_choice(&services));
         hs_ui::theme::apply_font_size(
             &cc.egui_ctx,
@@ -160,7 +173,18 @@ impl HyperStackApp {
             .set_zoom_factor(services.settings.read().appearance.ui_zoom);
 
         let settings_hub = SharedSettings::default();
-        let factories = crate::tools::factories(settings_hub.clone());
+        let home_hub = SharedHome::default();
+        let factories = crate::tools::factories(settings_hub.clone(), home_hub.clone());
+        home_hub.lock().tools = factories.iter().map(|f| f.descriptor().clone()).collect();
+        settings_hub.lock().state.rail_tools = factories
+            .iter()
+            .map(|f| {
+                (
+                    f.descriptor().id.to_string(),
+                    services.t(f.descriptor().title_key),
+                )
+            })
+            .collect();
         let mut app = Self {
             fallback_notice_open: services.paths.fallback_reason.is_some()
                 && services.settings.read().general.show_fallback_notice,
@@ -194,6 +218,9 @@ impl HyperStackApp {
             update_badge: None,
             notifications_open: false,
             notifications_opened_this_frame: false,
+            home: home_hub,
+            tts: hs_core::tts::Tts::new(),
+            portable: PortableDialog::None,
         };
         if let Some(e) = boot.settings_error {
             app.toasts.push(ToastLevel::Warning, e);
@@ -326,14 +353,12 @@ impl HyperStackApp {
 
     fn restore_layout(&mut self) {
         let mut layout = self.services.workspace.read().load_layout();
-        if layout.tabs.iter().any(|t| t.tool == "hello") {
-            self.settings_ui.lock().state.page = settings_ui::Page::Welcome;
-        }
-        // Settings is now a pinned global tab, not a workspace tab. Remove
-        // it and the legacy Welcome tab from saved layouts before restoring.
+        // Home and Settings are pinned app surfaces, not workspace tabs.
+        // Remove them and the legacy Welcome tab from saved layouts before
+        // restoring; they are re-created below.
         layout
             .tabs
-            .retain(|t| t.tool != "settings" && t.tool != "hello");
+            .retain(|t| !is_mandatory(&t.tool) && t.tool != "hello");
         if layout
             .active
             .is_some_and(|a| !layout.tabs.iter().any(|t| t.id == a))
@@ -374,10 +399,19 @@ impl HyperStackApp {
         if let Some(env) = layout.active_environment {
             self.services.environments.write().active = Some(env);
         }
-        // Settings is always present in every workspace and pinned. It is a
-        // global app surface, not part of the workspace's saved layout.
-        // Only one copy can survive a malformed/old layout.
-        for fid in SINGLE_INSTANCE {
+        self.ensure_mandatory_tabs(restored_active);
+        self.group = self
+            .active_factory()
+            .as_deref()
+            .map(|f| group_of(f).to_string());
+    }
+
+    /// Home and Settings are present in every workspace, pinned, once. They
+    /// are app surfaces, not part of the workspace's saved layout. Opening
+    /// them must not steal focus from a restored work tab; on an empty
+    /// layout Home is the landing tab.
+    fn ensure_mandatory_tabs(&mut self, restored_active: Option<u64>) {
+        for fid in MANDATORY {
             let ids: Vec<u64> = self
                 .tabs
                 .tabs
@@ -388,33 +422,36 @@ impl HyperStackApp {
             for id in ids.iter().skip(1) {
                 self.tabs.close(*id);
             }
-        }
-        let settings_id = self
-            .tabs
-            .tabs
-            .iter()
-            .find(|t| t.factory_id == "settings")
-            .map(|t| t.id)
-            .or_else(|| {
-                let i = self.factory_index("settings")?;
+            let id = ids.first().copied().or_else(|| {
+                let i = self.factory_index(fid)?;
                 Some(
                     self.tabs
                         .open(self.factories[i].as_ref(), &self.services, None),
                 )
             });
-        if let Some(id) = settings_id {
-            self.tabs.set_pinned(id, true);
-            // Opening the mandatory Settings tab must not steal focus from
-            // the previously restored workspace tab. On a new/empty layout,
-            // Settings remains the active landing tab.
-            if let Some(active) = restored_active {
-                self.tabs.activate(active);
+            if let Some(id) = id {
+                self.tabs.set_pinned(id, true);
             }
         }
-        self.group = self
-            .active_factory()
-            .as_deref()
-            .map(|f| group_of(f).to_string());
+        // Home sits first in the strip, Settings right after it.
+        for (want, fid) in MANDATORY.iter().enumerate() {
+            if let Some(at) = self.tabs.tabs.iter().position(|t| t.factory_id == *fid)
+                && at != want
+                && want < self.tabs.tabs.len()
+            {
+                self.tabs.reorder(at, want);
+            }
+        }
+        let landing = restored_active.or_else(|| {
+            self.tabs
+                .tabs
+                .iter()
+                .find(|t| t.factory_id == "home")
+                .map(|t| t.id)
+        });
+        if let Some(active) = landing {
+            self.tabs.activate(active);
+        }
     }
 
     /// Factory id of the active tab.
@@ -499,12 +536,12 @@ impl HyperStackApp {
             .to_layout(self.services.environments.read().active.clone());
         layout
             .tabs
-            .retain(|t| t.tool != "settings" && t.tool != "hello");
+            .retain(|t| !is_mandatory(&t.tool) && t.tool != "hello");
         if layout.active.is_some_and(|active| {
             self.tabs
                 .tabs
                 .iter()
-                .any(|t| t.id == active && (t.factory_id == "settings" || t.factory_id == "hello"))
+                .any(|t| t.id == active && is_mandatory(&t.factory_id))
         }) {
             layout.active = layout.tabs.first().map(|t| t.id);
         }
@@ -593,8 +630,8 @@ impl HyperStackApp {
     /// Open a tool for `request`; with `reuse`, a tab that already shows the
     /// item (or would take it, `Tool::uri_affinity`) gets it instead.
     fn open_tool_in(&mut self, factory_id: &str, request: Option<OpenRequest>, reuse: bool) {
-        // Settings is a single tab: a second request focuses the existing one.
-        if SINGLE_INSTANCE.contains(&factory_id)
+        // Home and Settings are single tabs: a second request focuses them.
+        if is_mandatory(factory_id)
             && let Some(id) = self
                 .tabs
                 .tabs
@@ -728,7 +765,7 @@ impl HyperStackApp {
             .tabs
             .tabs
             .iter()
-            .any(|t| t.id == id && t.factory_id == "settings")
+            .any(|t| t.id == id && is_mandatory(&t.factory_id))
         {
             return;
         }
@@ -797,6 +834,8 @@ impl HyperStackApp {
             }
             "terminal.new" => self.open_tool("terminal", None),
             "app.settings" => self.open_settings(None),
+            "home.show" => self.select_group("home"),
+            "tts.stop" => self.tts.stop(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "ws.new" => {
                 self.workspace_dialog = WorkspaceDialog::New {
@@ -1092,12 +1131,12 @@ impl HyperStackApp {
                     }
                 }
                 SettingsEffect::ThemeChanged => {
-                    let (name, zoom) = {
+                    let (appearance, zoom) = {
                         let s = self.services.settings.read();
-                        (s.appearance.theme.clone(), s.appearance.ui_zoom)
+                        (s.appearance.clone(), s.appearance.ui_zoom)
                     };
-                    self.theme = Theme::by_name(&name);
-                    self.theme.apply(ctx);
+                    self.theme = Theme::from_settings(&appearance);
+                    hs_ui::theme::install(ctx, &appearance);
                     hs_ui::theme::apply_font_size(
                         ctx,
                         self.services.settings.read().appearance.ui_font_size,
@@ -1180,6 +1219,47 @@ impl HyperStackApp {
                 }
                 SettingsEffect::WorkspaceLogoChanged => ctx.request_repaint(),
                 SettingsEffect::Toast(level, text) => self.toasts.push(level, text),
+                SettingsEffect::ExportSettings => {
+                    self.portable = PortableDialog::Export;
+                    self.password.reset();
+                }
+                SettingsEffect::ImportSettings => {
+                    self.portable = PortableDialog::Import;
+                    self.password.reset();
+                }
+                SettingsEffect::SpeakSample(text) => {
+                    let rate = self.services.settings.read().accessibility.tts_rate;
+                    if let Err(e) = self.tts.speak(&text, rate) {
+                        self.toasts.push(ToastLevel::Error, e);
+                    }
+                }
+                SettingsEffect::StopSpeaking => self.tts.stop(),
+                SettingsEffect::SyncEnvironments { from, to } => {
+                    let result = (|| {
+                        let src = self.registry.peek(&self.services.paths, &from)?;
+                        let dst = self.registry.peek(&self.services.paths, &to)?;
+                        Registry::clone_environments(&src, &dst)
+                    })();
+                    match result {
+                        Ok(n) => {
+                            let current = self.services.workspace.read().meta.name.clone();
+                            if to == current {
+                                let dir = self.services.workspace.read().environments_dir();
+                                *self.services.environments.write() =
+                                    hs_core::environments::Environments::load(&dir);
+                                self.services.events.publish(Event::EnvironmentsChanged);
+                            }
+                            self.toasts.push(
+                                ToastLevel::Success,
+                                self.services.i18n.t_args(
+                                    "settings-workspace-envs-copied",
+                                    &[("count", &n.to_string()), ("to", &to)],
+                                ),
+                            );
+                        }
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                }
             }
         }
     }
@@ -1677,6 +1757,9 @@ impl HyperStackApp {
                                 },
                             });
                         }
+                        if s.settings.read().accessibility.tts_enabled {
+                            self.tts_menu(ui);
+                        }
                         if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::BELL, 20.0, false)
                             .tip(s.t("notifications"))
                             .clicked()
@@ -1797,7 +1880,7 @@ impl HyperStackApp {
                         .tabs
                         .tabs
                         .iter()
-                        .any(|t| t.id == id && t.factory_id == "settings");
+                        .any(|t| t.id == id && is_mandatory(&t.factory_id));
                     if !is_settings {
                         self.tabs.set_pinned(id, false);
                     }
@@ -1808,7 +1891,7 @@ impl HyperStackApp {
                         .get_mut(id)
                         .map(|t| (t.factory_id.clone(), t.tool.save_state()));
                     if let Some((fid, state)) = dup
-                        && !SINGLE_INSTANCE.contains(&fid.as_str())
+                        && !is_mandatory(&fid)
                         && let Some(i) = self.factory_index(&fid)
                     {
                         self.tabs
@@ -1887,45 +1970,73 @@ impl HyperStackApp {
         self.pending_actions.extend(actions);
     }
 
+    /// The activity rail (docs/04 §1): Home first, the tools in the order
+    /// from Settings → Appearance → Activity Rail, then the sidebar toggle and
+    /// Settings at the bottom. Labels under the icons are optional.
     fn rail(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        ui.vertical_centered(|ui| {
-            ui.add_space(6.0);
-            let theme = self.theme.clone();
-            if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::SIDEBAR, 20.0, self.sidebar_open)
-                .tip(s.t("sidebar-toggle"))
+        let (labels, order) = {
+            let st = s.settings.read();
+            (st.appearance.rail_labels, st.appearance.rail_order.clone())
+        };
+        let theme = self.theme.clone();
+        let descs: Vec<(&'static str, &'static str, String)> = self
+            .factories
+            .iter()
+            .map(|f| {
+                (
+                    f.descriptor().id,
+                    f.descriptor().icon,
+                    s.t(f.descriptor().title_key),
+                )
+            })
+            .collect();
+        let ids: Vec<&'static str> = descs.iter().map(|d| d.0).collect();
+        let ordered = rail_order(&ids, &order);
+        let item = |this: &mut Self, ui: &mut egui::Ui, id: &str| {
+            let Some((_, icon, title)) = descs.iter().find(|d| d.0 == id) else {
+                return;
+            };
+            let active = this.group.as_deref() == Some(group_of(id));
+            let count = this.tabs.tabs.iter().filter(|t| t.factory_id == id).count();
+            let tip = if count > 1 && !is_mandatory(id) {
+                format!("{title} ({count})")
+            } else {
+                title.clone()
+            };
+            if rail_item(ui, &theme, icon, title, active, labels)
+                .tip(tip)
                 .clicked()
             {
-                self.sidebar_open = !self.sidebar_open;
+                this.select_group(id);
             }
+        };
+        ui.vertical_centered(|ui| {
             ui.add_space(6.0);
-            let descs: Vec<(&'static str, &'static str, String)> = self
-                .factories
-                .iter()
-                .map(|f| {
-                    (
-                        f.descriptor().id,
-                        f.descriptor().icon,
-                        s.t(f.descriptor().title_key),
-                    )
-                })
-                .collect();
-            for (id, icon, title) in descs {
-                let active = self.group.as_deref() == Some(group_of(id));
-                let count = self.tabs.tabs.iter().filter(|t| t.factory_id == id).count();
-                let title = if count > 0 {
-                    format!("{title} ({count})")
-                } else {
-                    title
-                };
-                if hs_ui::form::icon_button(ui, &theme, icon, 24.0, active)
-                    .tip(title)
-                    .clicked()
-                {
-                    self.select_group(id);
-                }
-                ui.add_space(4.0);
+            item(self, ui, "home");
+            ui.add_space(6.0);
+            for id in ordered.iter().filter(|id| !is_mandatory(id)) {
+                item(self, ui, id);
+                ui.add_space(if labels { 2.0 } else { 4.0 });
             }
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                ui.add_space(8.0);
+                item(self, ui, "settings");
+                ui.add_space(4.0);
+                if rail_item(
+                    ui,
+                    &theme,
+                    hs_ui::icons::SIDEBAR,
+                    &s.t("sidebar"),
+                    self.sidebar_open,
+                    labels,
+                )
+                .tip(s.t("sidebar-toggle"))
+                .clicked()
+                {
+                    self.sidebar_open = !self.sidebar_open;
+                }
+            });
         });
     }
 
@@ -2122,6 +2233,218 @@ impl HyperStackApp {
             });
     }
 
+    fn handle_home_request(&mut self, r: HomeRequest) {
+        match r {
+            HomeRequest::OpenTool(id) => self.open_tool(&id, None),
+            HomeRequest::ReopenClosed(i) => self.reopen_closed(Some(i)),
+            HomeRequest::OpenConnection { tool, id } => {
+                self.open_tool(&tool, Some(OpenRequest::Connection { id }))
+            }
+            HomeRequest::OpenFolderAsProject => {
+                self.open_tool("editor", None);
+                self.run_action("file.open_folder");
+            }
+            HomeRequest::NewConnection => {
+                self.open_settings(Some(settings_ui::Page::Connections));
+                self.settings_ui.lock().state.conn_draft = None;
+                self.settings_ui.lock().state.conn_selected = None;
+            }
+            HomeRequest::NewWorkspace => self.run_action("ws.new"),
+            HomeRequest::SwitchWorkspace(name) => self.run_action(&format!("ws:{name}")),
+            HomeRequest::OpenSettingsPage(key) => {
+                self.open_settings(settings_ui::Page::by_key(key));
+            }
+            HomeRequest::RunAction(a) => self.run_action(a),
+        }
+    }
+
+    /// The Read Aloud menu in the title bar: what the active tab offers,
+    /// plus Stop while something is being read.
+    fn tts_menu(&mut self, ui: &mut egui::Ui) {
+        let s = self.services.clone();
+        let theme = self.theme.clone();
+        let speaking = self.tts.is_speaking();
+        let items: Vec<hs_core::tool::Speakable> = self
+            .tabs
+            .active
+            .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+            .map(|t| t.tool.speakable())
+            .unwrap_or_default();
+        let icon = if speaking {
+            hs_ui::icons::ph::SPEAKER_HIGH
+        } else {
+            hs_ui::icons::ph::SPEAKER_NONE
+        };
+        let button = egui::Button::new(egui::RichText::new(icon).size(20.0).color(if speaking {
+            theme.accent
+        } else {
+            theme.text
+        }))
+        .frame(false);
+        let r = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+            ui.set_min_width(240.0);
+            ui.label(
+                egui::RichText::new(s.t("tts-menu-title"))
+                    .strong()
+                    .color(theme.text_muted),
+            );
+            if items.is_empty() {
+                ui.label(egui::RichText::new(s.t("tts-nothing")).color(theme.text_muted));
+            }
+            let rate = s.settings.read().accessibility.tts_rate;
+            for it in &items {
+                let words = it.text.split_whitespace().count();
+                let label = s.i18n.t_args(
+                    "tts-read-item",
+                    &[("label", &it.label), ("words", &words.to_string())],
+                );
+                if ui.button(label).clicked() {
+                    if let Err(e) = self.tts.speak(&it.text, rate) {
+                        self.toasts.push(ToastLevel::Error, e);
+                    }
+                    ui.close();
+                }
+            }
+            if speaking {
+                ui.separator();
+                if ui
+                    .button(format!("{} {}", hs_ui::icons::ph::STOP, s.t("tts-stop")))
+                    .clicked()
+                {
+                    self.tts.stop();
+                    ui.close();
+                }
+            }
+            ui.separator();
+            if ui.button(s.t("tts-settings")).clicked() {
+                self.open_settings(Some(settings_ui::Page::Accessibility));
+                ui.close();
+            }
+        });
+        r.0.tip(s.t("tts-tip"));
+    }
+
+    /// Settings export/import: confirm the master password, then pick the
+    /// file. The bundle holds settings and shortcuts, never secrets.
+    fn portable_dialogs(&mut self, ctx: &egui::Context) {
+        if self.portable == PortableDialog::None {
+            return;
+        }
+        let s = self.services.clone();
+        let exporting = self.portable == PortableDialog::Export;
+        let labels = PasswordLabels {
+            title: &s.t(if exporting {
+                "settings-export-title"
+            } else {
+                "settings-import-title"
+            }),
+            body: &s.t("settings-portable-password-body"),
+            password: &s.t("vault-password"),
+            confirm: None,
+            ok: &s.t("ok"),
+            cancel: &s.t("cancel"),
+            mismatch: &s.t("vault-wrong"),
+        };
+        match dialog::password(ctx, &self.theme, &mut self.password, &labels) {
+            Some(Ok(pw)) => {
+                if !s.secrets.exists() {
+                    self.toasts
+                        .push(ToastLevel::Error, s.t("settings-portable-no-vault"));
+                    self.password = PasswordDialogState::default();
+                    self.portable = PortableDialog::None;
+                    return;
+                }
+                if s.secrets.unlock(&SecretString::from(pw)).is_err() {
+                    self.password.error = Some(s.t("vault-wrong"));
+                    self.password.password.clear();
+                    return;
+                }
+                self.services.events.publish(Event::VaultUnlocked);
+                self.password = PasswordDialogState::default();
+                self.portable = PortableDialog::None;
+                if exporting {
+                    self.export_settings();
+                } else {
+                    self.import_settings(ctx);
+                }
+            }
+            Some(Err(())) => {
+                self.password = PasswordDialogState::default();
+                self.portable = PortableDialog::None;
+            }
+            None => {}
+        }
+    }
+
+    fn export_settings(&mut self) {
+        let s = self.services.clone();
+        let Some(path) = rfd::FileDialog::new()
+            .set_file_name("hyperstack-settings.toml")
+            .add_filter("HyperStack settings", &["toml"])
+            .save_file()
+        else {
+            return;
+        };
+        let bundle = hs_core::portable::export(
+            &s.settings.read(),
+            &s.shortcuts.read(),
+            &s.version.to_string(),
+        );
+        match hs_core::portable::write(&path, &bundle) {
+            Ok(()) => self.toasts.push(
+                ToastLevel::Success,
+                s.i18n.t_args(
+                    "settings-exported",
+                    &[("path", &path.display().to_string())],
+                ),
+            ),
+            Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+        }
+    }
+
+    fn import_settings(&mut self, ctx: &egui::Context) {
+        let s = self.services.clone();
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("HyperStack settings", &["toml"])
+            .pick_file()
+        else {
+            return;
+        };
+        let bundle = match hs_core::portable::read(&path) {
+            Ok(b) => b,
+            Err(e) => {
+                self.toasts.push(ToastLevel::Error, e.to_string());
+                return;
+            }
+        };
+        let report = {
+            let mut settings = s.settings.write();
+            let mut keymap = s.shortcuts.write();
+            hs_core::portable::import(&bundle, &mut settings, &mut keymap)
+        };
+        if let Err(e) = s.save_settings() {
+            self.toasts.push(ToastLevel::Error, e.to_string());
+        }
+        if let Err(e) = s.shortcuts.read().save(&s.paths.shortcuts_file()) {
+            self.toasts.push(ToastLevel::Error, e.to_string());
+        }
+        self.apply_settings_effects(
+            vec![SettingsEffect::ThemeChanged, SettingsEffect::FontsChanged],
+            ctx,
+        );
+        self.toasts.push(
+            ToastLevel::Success,
+            s.i18n.t_args(
+                "settings-imported",
+                &[
+                    ("added", &report.providers_added.to_string()),
+                    ("updated", &report.providers_updated.to_string()),
+                    ("keys", &report.shortcuts_set.to_string()),
+                ],
+            ),
+        );
+    }
+
     fn notification_popup(&mut self, ctx: &egui::Context) {
         if !self.notifications_open {
             return;
@@ -2246,6 +2569,16 @@ impl eframe::App for HyperStackApp {
             }
         }
         self.poll_updater(ctx);
+        // System mode follows the OS: when its preference flips, our own
+        // palette (tabs, sidebar, terminal colours) has to flip with egui's.
+        if hs_ui::theme::sync_system(ctx)
+            && self.services.settings.read().appearance.mode == "system"
+        {
+            let appearance = self.services.settings.read().appearance.clone();
+            self.theme = Theme::from_settings(&appearance);
+            hs_ui::theme::install(ctx, &appearance);
+            self.services.events.publish(Event::ThemeChanged);
+        }
         // Idle tracking for the vault relock.
         if ctx.input(|i| !i.events.is_empty() || i.pointer.any_down()) {
             self.last_input = Instant::now();
@@ -2312,8 +2645,13 @@ impl eframe::App for HyperStackApp {
                 self.env_banner(ui);
                 self.toolbar(ui);
             });
+        let rail_w = if self.services.settings.read().appearance.rail_labels {
+            RAIL_WIDTH_LABELS
+        } else {
+            RAIL_WIDTH
+        };
         egui::Panel::left("hs-rail")
-            .exact_size(56.0)
+            .exact_size(rail_w)
             .resizable(false)
             .show(root, |ui| self.rail(ui));
         if self.sidebar_open {
@@ -2362,7 +2700,27 @@ impl eframe::App for HyperStackApp {
                 self.tabs.dirty = true;
             }
         }
+        {
+            // What only the shell knows and the Home page shows.
+            let mut hub = self.home.lock();
+            hub.closed = self
+                .tabs
+                .closed
+                .iter()
+                .enumerate()
+                .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone()))
+                .collect();
+            hub.workspaces = self.registry.names();
+            if !hub.workspaces.iter().any(|n| n == "default") {
+                hub.workspaces.insert(0, "default".into());
+            }
+        }
         egui::CentralPanel::default().show(root, |ui| self.main_area(ui));
+        let home_requests = std::mem::take(&mut self.home.lock().requests);
+        for r in home_requests {
+            self.handle_home_request(r);
+        }
+        self.portable_dialogs(ctx);
 
         // Overlays.
         let labels = PaletteLabels {
@@ -2588,17 +2946,108 @@ fn notification_popup_should_close(just_opened: bool, clicked_elsewhere: bool) -
     !just_opened && clicked_elsewhere
 }
 
-/// Tools that never open twice: a second request focuses the existing tab.
-const SINGLE_INSTANCE: &[&str] = &["settings"];
+/// Tabs every workspace always has, pinned, in this strip order: they never
+/// open twice and cannot be closed or unpinned.
+const MANDATORY: &[&str] = &["home", "settings"];
+
+pub(crate) fn is_mandatory(factory_id: &str) -> bool {
+    MANDATORY.contains(&factory_id)
+}
 
 /// The rail group a tool's tabs show in.
 fn group_of(factory_id: &str) -> &str {
     factory_id
 }
 
+const RAIL_WIDTH: f32 = 56.0;
+const RAIL_WIDTH_LABELS: f32 = 78.0;
+
+/// Tool ids in rail order: the saved order first (ids it names that still
+/// exist), then every other tool in its default order. Home and Settings
+/// are placed by the rail itself, so they are left out here.
+pub(crate) fn rail_order<'a>(defaults: &[&'a str], saved: &[String]) -> Vec<&'a str> {
+    let mut out: Vec<&str> = saved
+        .iter()
+        .filter_map(|id| defaults.iter().copied().find(|d| *d == id))
+        .filter(|id| !is_mandatory(id))
+        .collect();
+    for d in defaults {
+        if !is_mandatory(d) && !out.contains(d) {
+            out.push(d);
+        }
+    }
+    out
+}
+
+/// One rail entry: a 24 px icon, optionally with the tool's name under it.
+fn rail_item(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: &str,
+    label: &str,
+    active: bool,
+    show_label: bool,
+) -> egui::Response {
+    if !show_label {
+        return hs_ui::form::icon_button(ui, theme, icon, 24.0, active);
+    }
+    let size = egui::vec2(RAIL_WIDTH_LABELS - 8.0, 50.0);
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    let fill = if active {
+        theme.accent.linear_multiply(0.30)
+    } else if r.hovered() {
+        theme.surface_hover
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    if fill != egui::Color32::TRANSPARENT {
+        ui.painter()
+            .rect_filled(rect, egui::CornerRadius::same(6), fill);
+    }
+    let col = if active || r.hovered() {
+        theme.accent
+    } else {
+        theme.text_muted
+    };
+    ui.painter().text(
+        egui::pos2(rect.center().x, rect.top() + 17.0),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(22.0),
+        col,
+    );
+    let galley = ui.painter().layout(
+        label.to_string(),
+        egui::FontId::proportional(10.0),
+        if active { theme.text } else { theme.text_muted },
+        size.x - 4.0,
+    );
+    let text_rect = egui::Align2::CENTER_TOP.anchor_size(
+        egui::pos2(rect.center().x, rect.top() + 31.0),
+        galley.size(),
+    );
+    ui.painter().galley(text_rect.min, galley, theme.text);
+    r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, label));
+    r.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::notification_popup_should_close;
+    use super::{notification_popup_should_close, rail_order};
+
+    #[test]
+    fn rail_order_keeps_saved_order_then_defaults_and_skips_mandatory() {
+        let defaults = ["home", "editor", "terminal", "ssh", "settings"];
+        let saved = vec!["ssh".to_string(), "gone".to_string(), "home".to_string()];
+        assert_eq!(
+            rail_order(&defaults, &saved),
+            vec!["ssh", "editor", "terminal"]
+        );
+        assert_eq!(
+            rail_order(&defaults, &[]),
+            vec!["editor", "terminal", "ssh"]
+        );
+    }
 
     #[test]
     fn notification_popup_ignores_its_opening_click_but_dismisses_outside_clicks() {

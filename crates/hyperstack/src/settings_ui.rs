@@ -20,9 +20,9 @@ use tool_db::profile::DbFields;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Page {
     #[default]
-    Welcome,
     General,
     Appearance,
+    Accessibility,
     Workspace,
     Shortcuts,
     Environments,
@@ -37,9 +37,9 @@ pub enum Page {
 impl Page {
     pub fn all() -> [(Page, &'static str); 12] {
         [
-            (Page::Welcome, "settings-welcome"),
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
+            (Page::Accessibility, "settings-accessibility"),
             (Page::Workspace, "settings-workspace"),
             (Page::Environments, "settings-environments"),
             (Page::Security, "settings-security"),
@@ -55,9 +55,9 @@ impl Page {
     fn icon(self) -> &'static str {
         use hs_ui::icons::ph;
         match self {
-            Page::Welcome => ph::HAND_WAVING,
             Page::General => ph::SLIDERS_HORIZONTAL,
             Page::Appearance => ph::PALETTE,
+            Page::Accessibility => ph::PERSON_ARMS_SPREAD,
             Page::Workspace => ph::FOLDERS,
             Page::Shortcuts => ph::KEYBOARD,
             Page::Environments => ph::GLOBE_HEMISPHERE_WEST,
@@ -84,6 +84,10 @@ impl Page {
         if key == "settings-data" {
             return Some(Page::About);
         }
+        // Settings → Welcome moved to the Home tab (2026-10-15).
+        if key == "settings-welcome" {
+            return Some(Page::General);
+        }
         Page::all().iter().find(|(_, k)| *k == key).map(|(p, _)| *p)
     }
 }
@@ -100,7 +104,7 @@ impl Default for SettingsHub {
     fn default() -> Self {
         Self {
             state: SettingsState {
-                page: Page::Welcome,
+                page: Page::General,
                 ..Default::default()
             },
             effects: Vec::new(),
@@ -125,6 +129,10 @@ pub struct SettingsState {
     /// Workspace page: the name being edited and which workspace it belongs
     /// to, so switching workspaces does not carry a stale draft over.
     pub ws_name: Option<(String, String)>,
+    /// Workspace page: the other workspace whose environments are compared.
+    pub ws_compare: String,
+    /// Appearance page: (tool id, title) of every tool, for the rail order.
+    pub rail_tools: Vec<(String, String)>,
 }
 
 /// The "Copy Variables From…" dialog on the Environments page: which source
@@ -157,6 +165,19 @@ pub enum SettingsEffect {
     /// The workspace logo changed on disk: drop the cached image.
     WorkspaceLogoChanged,
     Toast(hs_core::tool::ToastLevel, String),
+    /// Settings → General → Export: the shell confirms the master password
+    /// and picks the file.
+    ExportSettings,
+    ImportSettings,
+    /// Accessibility → Read Aloud: read this text with the configured voice.
+    SpeakSample(String),
+    StopSpeaking,
+    /// Copy the environments `from` lacks into `to` (names that exist are
+    /// skipped). Either may be the open workspace.
+    SyncEnvironments {
+        from: String,
+        to: String,
+    },
 }
 
 /// The category list (drawn in the sidebar of the Settings tab).
@@ -194,9 +215,9 @@ pub fn page(
     effects: &mut Vec<SettingsEffect>,
 ) {
     match state.page {
-        Page::Welcome => welcome(ui, theme, services, effects),
         Page::General => general(ui, theme, services, effects),
-        Page::Appearance => appearance(ui, theme, services, effects),
+        Page::Appearance => appearance(ui, theme, services, state, effects),
+        Page::Accessibility => accessibility(ui, theme, services, effects),
         Page::Workspace => workspace(ui, theme, services, state, effects),
         Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
         Page::Environments => environments(ui, theme, services, state, effects),
@@ -210,52 +231,6 @@ pub fn page(
 }
 
 // ---------------------------------------------------------------------------
-
-/// The first page of Settings: what HyperStack is, this build, and the keys
-/// worth knowing. It replaced the separate Welcome tab (2026-10-14).
-fn welcome(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
-    form::page_title(ui, theme, &s.t("app-name"), Some(&s.t("app-tagline")));
-    form::section(ui, theme, &s.t("settings-welcome"), |ui| {
-        form::hint(ui, theme, &s.t("tool-hello-body"));
-        ui.add_space(8.0);
-        form::field_grid(ui, "welcome-grid", |ui| {
-            form::label(ui, &s.t("settings-about-version"));
-            ui.monospace(s.version.to_string());
-            ui.end_row();
-            form::label(ui, &s.t("settings-data-folder"));
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(s.paths.root().display().to_string()).monospace(),
-                )
-                .wrap(),
-            );
-            ui.end_row();
-            form::label(ui, &s.t("workspace-switch"));
-            ui.label(s.workspace.read().meta.name.clone());
-            ui.end_row();
-        });
-    });
-    form::section(ui, theme, &s.t("settings-shortcuts"), |ui| {
-        let km = s.shortcuts.read();
-        form::field_grid(ui, "welcome-keys", |ui| {
-            for action in [
-                "tab.new",
-                "palette.commands",
-                "palette.quick_open",
-                "view.dock",
-                "app.settings",
-            ] {
-                form::label(ui, action);
-                match km.get(action) {
-                    Some(c) => ui.monospace(c.display()),
-                    None => ui.label("—"),
-                };
-                ui.end_row();
-            }
-        });
-    });
-    let _ = effects;
-}
 
 /// Name, logo and folder of the workspace that is open. The logo can be
 /// changed here after creation, not only in the New Workspace dialog.
@@ -374,6 +349,145 @@ fn workspace(
         },
     );
 
+    form::section(ui, theme, &s.t("settings-workspace-section-envs"), |ui| {
+        form::hint(ui, theme, &s.t("settings-workspace-envs-hint"));
+        ui.add_space(6.0);
+        let registry = hs_core::workspace::Registry::load(&s.paths);
+        let others: Vec<String> = registry
+            .names()
+            .into_iter()
+            .chain(std::iter::once("default".to_string()))
+            .filter(|n| *n != current)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if others.is_empty() {
+            form::hint(ui, theme, &s.t("settings-workspace-envs-none"));
+        } else {
+            if !others.contains(&state.ws_compare) {
+                state.ws_compare = others[0].clone();
+            }
+            form::field_grid(ui, "ws-compare", |ui| {
+                form::label(ui, &s.t("settings-workspace-compare-with"));
+                egui::ComboBox::from_id_salt("ws-compare-with")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(state.ws_compare.clone())
+                    .show_ui(ui, |ui| {
+                        for n in &others {
+                            ui.selectable_value(&mut state.ws_compare, n.clone(), n);
+                        }
+                    });
+                ui.end_row();
+            });
+            ui.add_space(6.0);
+            let here: Vec<(String, usize, bool)> = s
+                .environments
+                .read()
+                .all()
+                .iter()
+                .map(|e| (e.name.clone(), e.variables.len(), e.protected))
+                .collect();
+            let there: Vec<(String, usize, bool)> = registry
+                .peek(&s.paths, &state.ws_compare)
+                .map(|ws| {
+                    hs_core::environments::Environments::load(&ws.environments_dir())
+                        .all()
+                        .iter()
+                        .map(|e| (e.name.clone(), e.variables.len(), e.protected))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut names: Vec<String> = here
+                .iter()
+                .chain(there.iter())
+                .map(|(n, _, _)| n.clone())
+                .collect();
+            names.sort();
+            names.dedup();
+            egui::Grid::new("ws-env-compare")
+                .striped(true)
+                .min_col_width(120.0)
+                .show(ui, |ui| {
+                    ui.label(egui::RichText::new(s.t("env-name")).strong());
+                    ui.label(egui::RichText::new(&current).strong());
+                    ui.label(egui::RichText::new(&state.ws_compare).strong());
+                    ui.end_row();
+                    let cell = |ui: &mut egui::Ui, e: Option<&(String, usize, bool)>| match e {
+                        Some((_, vars, protected)) => {
+                            ui.label(format!(
+                                "{} {}{}",
+                                hs_ui::icons::CHECK,
+                                s.i18n.t_args(
+                                    "settings-workspace-env-vars",
+                                    &[("count", &vars.to_string())]
+                                ),
+                                if *protected { " 🔒" } else { "" }
+                            ));
+                        }
+                        None => {
+                            ui.colored_label(theme.text_muted, "—");
+                        }
+                    };
+                    for n in &names {
+                        ui.label(n);
+                        cell(ui, here.iter().find(|(x, _, _)| x == n));
+                        cell(ui, there.iter().find(|(x, _, _)| x == n));
+                        ui.end_row();
+                    }
+                });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let missing_here = names
+                    .iter()
+                    .filter(|n| !here.iter().any(|(x, _, _)| x == *n))
+                    .count();
+                let missing_there = names
+                    .iter()
+                    .filter(|n| !there.iter().any(|(x, _, _)| x == *n))
+                    .count();
+                if ui
+                    .add_enabled(
+                        missing_here > 0,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                            s.i18n.t_args(
+                                "settings-workspace-copy-here",
+                                &[("count", &missing_here.to_string())]
+                            )
+                        )),
+                    )
+                    .clicked()
+                {
+                    effects.push(SettingsEffect::SyncEnvironments {
+                        from: state.ws_compare.clone(),
+                        to: current.clone(),
+                    });
+                }
+                if ui
+                    .add_enabled(
+                        missing_there > 0,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::UPLOAD_SIMPLE,
+                            s.i18n.t_args(
+                                "settings-workspace-copy-there",
+                                &[("count", &missing_there.to_string())]
+                            )
+                        )),
+                    )
+                    .clicked()
+                {
+                    effects.push(SettingsEffect::SyncEnvironments {
+                        from: current.clone(),
+                        to: state.ws_compare.clone(),
+                    });
+                }
+            });
+            form::hint(ui, theme, &s.t("settings-workspace-sync-hint"));
+        }
+    });
+
     form::section(ui, theme, &s.t("settings-workspace-section-folder"), |ui| {
         ui.add(
             egui::Label::new(egui::RichText::new(root.display().to_string()).monospace()).wrap(),
@@ -459,6 +573,113 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 s.t("settings-restore-tabs"),
             )
             .changed();
+    });
+    drop(settings);
+    form::section(ui, theme, &s.t("settings-section-portable"), |ui| {
+        form::hint(ui, theme, &s.t("settings-portable-hint"));
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::EXPORT,
+                    s.t("settings-export")
+                ))
+                .clicked()
+            {
+                effects.push(SettingsEffect::ExportSettings);
+            }
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                    s.t("settings-import")
+                ))
+                .clicked()
+            {
+                effects.push(SettingsEffect::ImportSettings);
+            }
+        });
+        form::hint(ui, theme, &s.t("settings-portable-merge-hint"));
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+/// Settings → Accessibility: read aloud through the operating system's
+/// voice, and reduced motion.
+fn accessibility(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-accessibility"),
+        Some(&s.t("settings-accessibility-sub")),
+    );
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-section-tts"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.accessibility.tts_enabled,
+                s.t("settings-tts-enabled"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-tts-enabled-hint"));
+        ui.add_space(6.0);
+        form::field_grid(ui, "tts-grid", |ui| {
+            form::label(ui, &s.t("settings-tts-rate"));
+            changed |= ui
+                .add(egui::Slider::new(
+                    &mut settings.accessibility.tts_rate,
+                    -10..=10,
+                ))
+                .changed();
+            ui.end_row();
+        });
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::SPEAKER_HIGH,
+                    s.t("settings-tts-test")
+                ))
+                .clicked()
+            {
+                effects.push(SettingsEffect::SpeakSample(s.t("settings-tts-sample")));
+            }
+            if ui
+                .button(format!("{} {}", hs_ui::icons::ph::STOP, s.t("tts-stop")))
+                .clicked()
+            {
+                effects.push(SettingsEffect::StopSpeaking);
+            }
+        });
+        if !hs_core::tts::Tts::available() {
+            ui.add_space(6.0);
+            form::note(
+                ui,
+                theme,
+                hs_ui::icons::WARNING,
+                &s.t("settings-tts-unavailable"),
+            );
+        }
+        form::hint(ui, theme, &s.t("settings-tts-hint"));
+    });
+    form::section(ui, theme, &s.t("settings-section-motion"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.accessibility.reduce_motion,
+                s.t("settings-reduce-motion"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-reduce-motion-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -726,7 +947,13 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
     }
 }
 
-fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+fn appearance(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
     let mut settings = s.settings.write();
     let mut changed = false;
     let mut theme_changed = false;
@@ -739,50 +966,87 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
 
     form::section(ui, theme, &s.t("settings-section-colors"), |ui| {
         form::field_grid(ui, "appearance-colors", |ui| {
-            form::label(ui, &s.t("settings-color-scheme"));
-            let current = Theme::by_name(&settings.appearance.theme).name;
-            egui::ComboBox::from_id_salt("color-scheme")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(current.clone())
-                .show_ui(ui, |ui| {
-                    for (id, name, dark) in Theme::schemes() {
-                        let label = format!(
-                            "{}  {}",
-                            if *dark {
-                                hs_ui::icons::ph::MOON
-                            } else {
-                                hs_ui::icons::ph::SUN
-                            },
-                            name
-                        );
-                        if ui
-                            .selectable_label(settings.appearance.theme == *id, label)
-                            .clicked()
-                        {
-                            settings.appearance.theme = (*id).to_string();
-                            theme_changed = true;
+            form::label(ui, &s.t("settings-theme-mode"));
+            ui.horizontal(|ui| {
+                let mode = settings.appearance.mode.clone();
+                let legacy_dark = Theme::by_name(&settings.appearance.theme).dark;
+                for (id, key) in [
+                    ("system", "settings-theme-system"),
+                    ("dark", "settings-theme-dark"),
+                    ("light", "settings-theme-light"),
+                ] {
+                    // An empty mode (older settings) reads as the darkness of the scheme.
+                    let selected = mode == id
+                        || (mode.is_empty() && id == "dark" && legacy_dark)
+                        || (mode.is_empty() && id == "light" && !legacy_dark);
+                    if ui.selectable_label(selected, s.t(key)).clicked() && !selected {
+                        if mode.is_empty() && !legacy_dark {
+                            // Keep the light scheme the user had before modes existed.
+                            settings.appearance.light_theme = settings.appearance.theme.clone();
+                            settings.appearance.theme = "dark".into();
                         }
+                        settings.appearance.mode = id.to_string();
+                        theme_changed = true;
                     }
-                });
+                }
+            });
             ui.end_row();
+            for (dark_slot, label_key, salt) in [
+                (true, "settings-dark-scheme", "dark-scheme"),
+                (false, "settings-light-scheme", "light-scheme"),
+            ] {
+                form::label(ui, &s.t(label_key));
+                let slot = if dark_slot {
+                    &mut settings.appearance.theme
+                } else {
+                    &mut settings.appearance.light_theme
+                };
+                let current = Theme::by_name(slot).name;
+                egui::ComboBox::from_id_salt(salt)
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(current)
+                    .show_ui(ui, |ui| {
+                        for (id, name, dark) in Theme::schemes() {
+                            if *dark != dark_slot {
+                                continue;
+                            }
+                            if ui.selectable_label(slot == id, *name).clicked() {
+                                *slot = (*id).to_string();
+                                theme_changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+            }
         });
+        form::hint(ui, theme, &s.t("settings-theme-mode-hint"));
         ui.add_space(10.0);
-        // Every scheme as a clickable row of its own swatches.
+        // Every scheme as a clickable row of its own swatches. Clicking a
+        // dark scheme selects it for dark mode (and switches to dark mode
+        // unless the OS is in charge); a light one likewise for light mode.
         ui.label(
             egui::RichText::new(s.t("settings-color-palette"))
                 .size(13.0)
                 .color(theme.text_muted),
         );
         ui.add_space(6.0);
+        let active_id = hs_ui::theme::scheme_id(&settings.appearance).to_string();
         for (id, name, dark) in Theme::schemes() {
             let scheme = Theme::by_name(id);
-            let selected = settings.appearance.theme == *id;
+            let selected = active_id == *id;
+            let in_slot = if *dark {
+                settings.appearance.theme == *id
+            } else {
+                settings.appearance.light_theme == *id
+            };
             let (rect, resp) = ui.allocate_exact_size(
                 egui::vec2(ui.available_width().min(520.0), 30.0),
                 egui::Sense::click(),
             );
             let fill = if selected {
                 theme.accent.linear_multiply(0.30)
+            } else if in_slot {
+                theme.accent.linear_multiply(0.12)
             } else if resp.hovered() {
                 theme.surface_hover
             } else {
@@ -834,7 +1098,17 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
                 .clicked()
                 && !selected
             {
-                settings.appearance.theme = (*id).to_string();
+                if *dark {
+                    settings.appearance.theme = (*id).to_string();
+                    if settings.appearance.mode != "system" {
+                        settings.appearance.mode = "dark".into();
+                    }
+                } else {
+                    settings.appearance.light_theme = (*id).to_string();
+                    if settings.appearance.mode != "system" {
+                        settings.appearance.mode = "light".into();
+                    }
+                }
                 theme_changed = true;
             }
             ui.add_space(2.0);
@@ -907,6 +1181,68 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("settings-min-file-tab-width-hint"));
+    });
+
+    form::section(ui, theme, &s.t("settings-section-rail"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.appearance.rail_labels,
+                s.t("settings-rail-labels"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-rail-labels-hint"));
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(s.t("settings-rail-order"))
+                .size(13.0)
+                .color(theme.text_muted),
+        );
+        ui.add_space(4.0);
+        // The movable tools in their current rail order; Home and Settings
+        // are fixed at the ends and not listed.
+        let ids: Vec<&str> = state.rail_tools.iter().map(|(id, _)| id.as_str()).collect();
+        let mut order: Vec<String> = crate::app::rail_order(&ids, &settings.appearance.rail_order)
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let mut moved = None;
+        for (i, id) in order.iter().enumerate() {
+            let title = state
+                .rail_tools
+                .iter()
+                .find(|(t, _)| t == id)
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| id.clone());
+            ui.horizontal(|ui| {
+                ui.set_min_width(300.0);
+                ui.add_enabled_ui(i > 0, |ui| {
+                    if ui
+                        .small_button(hs_ui::icons::ph::ARROW_UP)
+                        .on_hover_text(s.t("settings-rail-move-up"))
+                        .clicked()
+                    {
+                        moved = Some((i, i - 1));
+                    }
+                });
+                ui.add_enabled_ui(i + 1 < order.len(), |ui| {
+                    if ui
+                        .small_button(hs_ui::icons::ph::ARROW_DOWN)
+                        .on_hover_text(s.t("settings-rail-move-down"))
+                        .clicked()
+                    {
+                        moved = Some((i, i + 1));
+                    }
+                });
+                ui.label(title);
+            });
+        }
+        if let Some((from, to)) = moved {
+            let t = order.remove(from);
+            order.insert(to, t);
+            settings.appearance.rail_order = order;
+            changed = true;
+        }
+        form::hint(ui, theme, &s.t("settings-rail-order-hint"));
     });
 
     if theme_changed {

@@ -11,6 +11,8 @@
 //! - [`tunnels`] — the SSH port-forward service interface
 //! - [`objstore`] — SigV4 and the S3 client
 //! - [`ai`] — the optional AI assistant client (1min.AI, OpenAI-compatible)
+//! - [`tts`] — read-aloud through the OS voice; [`sniff`] — what a blob is
+//! - [`portable`] — settings export/import bundles
 //! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
 pub mod ai;
@@ -23,13 +25,16 @@ pub mod jobs;
 pub mod logging;
 pub mod objstore;
 pub mod paths;
+pub mod portable;
 pub mod runtime;
 pub mod secrets;
 pub mod services;
 pub mod settings;
 pub mod shortcuts;
+pub mod sniff;
 pub mod storage;
 pub mod tool;
+pub mod tts;
 pub mod tunnels;
 pub mod update;
 pub mod updater;

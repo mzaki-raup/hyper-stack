@@ -84,7 +84,7 @@ user points a workspace at a repo's `.hyperstack/` folder:
 │   ├── db/orders-staging.toml
 │   ├── ssh/web-01.toml
 │   ├── s3/assets.toml
-│   ├── api/shop-api.toml
+│   ├── api/                         # API client (2026-10-15): collections/<id>.json, globals.json, history.jsonlshop-api.toml
 │   └── docker/local.toml
 ├── api/
 │   └── shop/                    # one collection = one folder (Bruno-style)
@@ -328,3 +328,26 @@ forward migrations on load and writes the new version; a backup copy
 Because a portable folder may be opened by an older executable (two sticks,
 two versions), files written by a newer schema are opened read-only with a
 clear message instead of being downgraded silently.
+
+## Addendum (2026-10-15): new settings sections and the settings bundle
+
+`settings.toml` gained `[appearance] mode`, `light_theme`, `rail_labels`,
+`rail_order`, `min_file_tab_width`; `[accessibility] tts_enabled`,
+`tts_rate`, `reduce_motion`; `[browser] home_url`, `adblock`, `javascript`,
+`dark`, `blocklist`. An empty `mode` means "whatever `theme` is" (settings
+written before modes existed), so old files keep their look.
+
+Settings → General → Export writes a **settings bundle**: one TOML file
+holding `settings` (every section) and `shortcuts` (action → combo), plus
+the exporting version and time. It never contains secrets: AI provider
+keys are vault references and a typed key that was never stored is
+dropped. Import overwrites the sections the bundle carries, keeps the
+machine's sidebar width, dock height and last update check, merges AI
+providers by id (existing updated, new appended) and sets each shortcut
+the bundle names. Both directions ask for the master password.
+
+The API client keeps its collections as one JSON file each under
+`<workspace>/api/collections/`, globals in `api/globals.json` and the last
+200 sends in `api/history.jsonl`; values may be `secret:<id>` references
+that only the vault resolves at send time.
+

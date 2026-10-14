@@ -23,25 +23,34 @@ single window organised as a **multi-row, multi-tab workspace**, where every too
 shares the same connection profiles, environments, secrets store, command palette
 and theme.
 
-> **Status:** Phase 0 (foundation), M1 and M2 implemented, with M3 under way:
-> the workspace shell with workspaces as projects (create, clone, switch,
-> delete), portable data folder, vault, environments, settings (as a tab, with
-> bundled and system fonts), a terminal with scrollback search and Ctrl+click
-> links, a code editor holding several projects (each with its own row of
-> file tabs) and Markdown preview (with native
-> Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port
-> forwarding, an S3 browser for AWS and S3-compatible stores, a SQL client for
-> PostgreSQL, MySQL/MariaDB and SQLite, an optional AI assistant in the
-> editor (1min.AI, LM Studio, Ollama or any OpenAI-compatible service), plus
-> review-only AI help in Terminal, SSH, SQL and S3 that sends only the
-> displayed context after the user submits a question and never executes
-> commands or changes data, and the in-app updater with signed releases.
-> NoSQL, Redis, API client, Git and logs follow in the next
-> milestones per
-> [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
-> (Rust + egui file manager) serves as a **reference only**: HyperStack studies
-> how it solved the multi-row tab strip, terminal, SSH/SFTP, S3 and Git status,
-> then writes its own implementation. No code is copied or shared.
+> **Status:** Phase 0 (foundation), M1 and M2 implemented, M3 under way and
+> the first parts of M4 and M5 landed (2026-10-15): the workspace shell with
+> workspaces as projects (create with a logo, clone, rename, switch, delete),
+> a pinned **Home** dashboard and a pinned Settings tab in every workspace,
+> portable data folder, vault, environments, theme modes (System / Dark /
+> Light with a scheme for each), accessibility (Read Aloud), settings
+> import/export, a terminal with scrollback search and Ctrl+click links, a
+> code editor holding several projects (each with its own row of file tabs,
+> the file's full path under them, Run with F5, Git status, diffs and
+> history) and Markdown preview with native Mermaid diagrams, an SSH + SFTP
+> tool with a synced dual pane and port forwarding, an S3 browser for AWS
+> and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB and
+> SQLite with a cell viewer that previews pictures and documents, an **API
+> client** with collections, JavaScript scripts (`pm` API) and Postman
+> import/export, **Devtools** (Base64, hashes, JWT, Firebase tokens,
+> Jasypt, PKI messages), a **Graphics** tool (convert, resize, extend,
+> adjust, icons), an embedded **Browser** (WebView2, ad and script
+> blocking, forced dark, inspect, print), **Snip** and **Print…** for every
+> tab, an optional AI assistant in the editor (1min.AI, LM Studio, Ollama
+> or any OpenAI-compatible service) and a review-only assistant in
+> Terminal, SSH, SQL, S3, API client and Graphics whose code blocks can be
+> inserted but never run, and the in-app updater with signed releases.
+> NoSQL, Redis, the Git write side and logs follow in the next milestones
+> per [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
+> `../eden-explorer` (Rust + egui file manager) serves as a **reference
+> only**: HyperStack studies how it solved the multi-row tab strip,
+> terminal, SSH/SFTP, S3 and Git status, then writes its own
+> implementation. No code is copied or shared.
 
 ---
 
@@ -55,8 +64,8 @@ made.
 
 | | |
 |---|---|
-| ![Welcome tab](docs/screenshots/welcome.png) | ![Launcher](docs/screenshots/launcher.png) |
-| **Welcome** (Settings → Welcome) — version, build and the portable data folder in use | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
+| ![Home tab](docs/screenshots/home.png) | ![Launcher](docs/screenshots/launcher.png) |
+| **Home** — the pinned first tab of every workspace: Get Started cards, workspaces, tools, recent tabs, pinned connections, keys | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
@@ -155,18 +164,64 @@ Open opens the searchable tools, connections and project items palette.
 | ![DB connection form](docs/screenshots/connection-db-form.png) | |
 | **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile | |
 
+### API client
+
+| | |
+|---|---|
+| ![API client](docs/screenshots/api-client.png) | ![API client scripts](docs/screenshots/api-client-scripts.png) |
+| **Requests** — method, URL with `{{variables}}`, params, headers, body (JSON, text, XML, form, multipart, binary), auth (inherit, basic, bearer, API key); response as pretty, raw or preview with headers, cookies, tests and console; Copy as curl, Import curl; history | **Scripts** — pre-request and post-response JavaScript with the `pm` API (`pm.environment`, `pm.globals`, `pm.collectionVariables`, `pm.request`, `pm.response`, `pm.test`, `pm.expect`, `console`), snippets, collection libraries; Postman v2.1 collections and environments import and export |
+
+Collections are JSON files in the workspace; variables resolve through the
+collection, the active environment (vault secrets only when sending) and
+globals. A non-GET request to a protected environment asks first.
+
+### Devtools
+
+| | |
+|---|---|
+| ![JWT](docs/screenshots/devtools-jwt.png) | ![Hashes](docs/screenshots/devtools-hashes.png) |
+| **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256) | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
+| ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
+| **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
+
+Also **Base64** (auto-detect, picture/text/document preview, data URI,
+Basic auth header) and **Firebase tokens** (custom, access and ID tokens
+from a service account). Keys typed into a utility are never saved.
+
+### Graphics
+
+| | |
+|---|---|
+| ![Graphics](docs/screenshots/graphics.png) | ![Graphics operations](docs/screenshots/graphics-ops.png) |
+| **Pictures** open from the editor's project tree or a dialog; zoom on a checkerboard; convert between PNG, JPEG, WebP, BMP, GIF and ICO; multi-size ICO export; icon frame extraction | **Operations** — resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen, each removable; review-only AI assistant |
+
+### Browser
+
+| | |
+|---|---|
+| ![Browser](docs/screenshots/browser.png) | |
+| **Browser** — WebView2 pages in multi-row tabs: address bar with search fallback, back/forward/reload/home, per-page ad and tracker blocking, JavaScript switch, forced dark rendering, zoom, Inspect, Print; pages restored per workspace; Shift+click a terminal link to open it here (Windows) | |
+
 ### Settings
 
 | | |
 |---|---|
 | ![General](docs/screenshots/settings-general.png) | ![Appearance](docs/screenshots/settings-appearance.png) |
-| **General** — startup workspace, language, restore tabs | **Appearance** — colour scheme, interface font, zoom, tab sizing |
-| ![Security](docs/screenshots/settings-security.png) | ![Terminal settings](docs/screenshots/settings-terminal.png) |
-| **Security** — vault state, auto-lock, clipboard clearing | **Terminal** — default shell, scrollback, font, copy/paste behaviour |
-| ![Editor settings](docs/screenshots/settings-editor.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
-| **Editor** — font, right-click copy/paste, reload, save hooks | **Shortcuts** — every action rebindable |
-| ![About and updates](docs/screenshots/settings-about.png) | |
-| **About** — version, data folder (Open Data Folder, in Eden Explorer when installed), update channel and policy, Check Now, signing key | |
+| **General** — startup workspace, restore tabs, language; export and import settings and shortcuts behind the master password | **Appearance** — System / Dark / Light mode with a scheme for each (clickable swatches), interface font and size, UI zoom, tab widths, activity rail order and labels |
+| ![Accessibility](docs/screenshots/settings-accessibility.png) | ![Workspace](docs/screenshots/settings-workspace.png) |
+| **Accessibility** — Read Aloud through the OS voice (a title-bar button lists what the active tab can read), speech rate, reduce motion | **Workspace** — rename, logo, folder, compare environments with another workspace and copy the missing ones |
+| ![Security](docs/screenshots/settings-security.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
+| **Security** — vault status, relock timer, clipboard clearing, change the master password | **Shortcuts** — every action rebindable; conflicts listed |
+| ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
+| **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload |
+| ![About](docs/screenshots/settings-about.png) | |
+| **About** — version, update channel, Check Now, release notes, data folder | |
+
+Every tab can be **snipped** to a PNG (Ctrl+Alt+S, camera menu) or
+**printed** (Ctrl+Alt+P) as an HTML page with a Light/Dark switch that
+opens in your browser: code with its highlighting, the Markdown preview,
+a query with its result table, a console screen, an S3 listing, a request
+with its response, a picture.
 
 ## Why
 
@@ -224,6 +279,8 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Terminal | [tools/terminal.md](docs/tools/terminal.md) | Yes |
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Partly |
+| [docs/tools/graphics.md](docs/tools/graphics.md) | Graphics: pictures, operations, formats, icons |
+| [docs/tools/browser.md](docs/tools/browser.md) | Browser: WebView2 pages, blocking, dark mode, devtools |
 
 ## Build and run
 

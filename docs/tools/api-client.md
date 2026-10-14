@@ -1,6 +1,49 @@
 # Tool spec — API client
 
-**Crate:** `tool-api` · **Priority:** P0 (REST, collections, environments, importers) · P1 (scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs) · P2 (gRPC, mock server) · **Status:** draft
+**Crate:** `tool-api` · **Priority:** P0 (REST, collections, environments, importers) · P1 (scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs) · P2 (gRPC, mock server) · **Status:** P0 and the scripting part of P1 implemented (2026-10-15); see §0
+
+## 0. What is implemented (2026-10-15)
+
+- **Requests**: method, URL with `{{variables}}`, params, headers, body
+  (none, JSON, text, XML, form, multipart with file parts, binary file),
+  auth (inherit, none, basic, bearer, API key in header or query), docs,
+  pre-request and post-response scripts. Send (Enter in the URL field or
+  F5), cancel, Copy as curl, Import curl.
+- **Collections and folders** as one JSON file per collection under
+  `<workspace>/api/collections/<id>.json` (not `.req.toml` per request as
+  §7 planned: one file imports and exports Postman cleanly and keeps a
+  tree in order). Collection variables, collection and folder auth and
+  scripts (inherited outermost first), collection **libraries** (pasted
+  JavaScript evaluated before every script). Rename, duplicate, delete,
+  New Folder, Save As into a collection or folder, filter.
+- **Variables**: local (runtime) → active HyperStack environment (with its
+  parents and the built-ins `{{$uuid}}`, `{{$timestamp}}`, …) → collection
+  → globals (`<workspace>/api/globals.json`). `secret:` references resolve
+  through the vault only when the request is built; unresolved names block
+  the send with their list.
+- **Scripts** in JavaScript on Boa with the `pm` API (ADR-020):
+  environment / globals / collectionVariables / variables, `pm.request`
+  editable before sending, `pm.response`, `pm.test`, `pm.expect`,
+  `console`. A Snippets menu inserts the common patterns. Results show in
+  the response's Tests and Console tabs; variable changes are saved where
+  they belong.
+- **Response**: status, time, size, HTTP version, remote address; body as
+  Pretty (highlighted JSON/XML/HTML/text), Raw, or Preview (pictures as
+  pictures, HTML as sanitised text); headers; cookies; Save…, Copy.
+- **Import/export**: Postman v2.1 collections (folders, requests, auth,
+  bodies incl. GraphQL as JSON, scripts) and Postman environments (into a
+  HyperStack environment); export a collection as Postman v2.1.
+- **History** (`<workspace>/api/history.jsonl`, last 200), one click
+  re-opens an entry as a draft.
+- **Guards**: a non-GET request against a protected environment asks
+  first, naming the environment, method and URL.
+- **AI**: the shared review-only assistant sees the request and the last
+  response; Insert puts a code block into the body or the post-response
+  script.
+
+Not yet: OAuth 2 flows, AWS SigV4 and digest auth, `api` connections
+(§14), the collection runner, WebSocket/SSE/GraphQL/gRPC, cookie jar,
+proxies and client certificates, response diff, `pm.sendRequest`.
 
 ## 1. Purpose
 

@@ -2045,6 +2045,8 @@ impl HyperStackApp {
                 .clicked()
             {
                 this.select_group(id);
+                // The strip and main area change next frame; make sure it comes.
+                ui.ctx().request_repaint();
             }
         };
         ui.vertical_centered(|ui| {

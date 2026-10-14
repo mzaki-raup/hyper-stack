@@ -29,14 +29,19 @@
 Regions, top to bottom:
 
 1. **Title bar**: app logo and name, workspace switcher (including the
-   selected workspace logo), environment switcher, notification bell, Settings,
-   Quick Open, vault control, and window controls. The notification bell opens
-   retained toast history; it does not open the bottom dock.
+   selected workspace logo), environment switcher, Quick Open, notification
+   bell, Snip/Print menu (camera), Read Aloud (speaker, when enabled in
+   Settings → Accessibility), vault control, Settings, and window controls.
+   The notification bell opens retained toast history; it does not open the
+   bottom dock.
 2. **Tab space** — one or more rows of tabs. Every tab is a tool instance.
 3. **Environment banner + tool toolbar** — a thin coloured stripe (theme colour
    per environment; red default for production) and the active tool's own
    toolbar row.
-4. **Activity rail** (left, 56 px, 26 px icons) — one icon per tool; the rail is the
+4. **Activity rail** (left, 56 px, or 78 px with labels) — **Home** first,
+   then one icon per tool in the order from Settings → Appearance →
+   Activity Rail (optionally with the tool's name under the icon), and the
+   sidebar toggle and Settings pinned at the bottom; the rail is the
    component switcher: the tab space shows only the tabs of the selected
    component (editor tabs, or terminal tabs, or settings, …), the icon's
    tooltip carries that component's tab count, and clicking an icon shows its
@@ -132,7 +137,17 @@ Ratios persist. Maximum nesting depth 3 to keep the UI sane.
   windows are not required for v1 (one workspace per process; second instance
   opens a second process).
 
-## 3. Launcher (new tab page)
+## 3. Home tab and launcher
+
+**Home** is a mandatory pinned tab, first in every workspace (owner's
+request, 2026-10-15): the app name and build, Get Started cards (Open Folder
+as Project, New Connection, New Terminal, New Workspace, Environments, Quick
+Open), the workspaces as chips, then the launcher content below (tools by
+category, recently closed tabs, pinned connections) and the keys worth
+knowing. It replaced the Welcome tab and Settings → Welcome. Like Settings,
+it cannot be closed or unpinned and is not part of the saved layout.
+
+The launcher content is also what an empty tab space shows:
 
 Shown by `+`, Ctrl+T, and when the last tab is closed.
 
@@ -222,7 +237,28 @@ Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):
 Tool-specific maps live in each tool spec. Conflicts are shown in the
 shortcuts page.
 
+## 7b. Snip, Print and Read Aloud
+
+Every tab can be **snipped** (Ctrl+Alt+S, or the camera menu): egui takes a
+screenshot, the shell crops it to the tab's rectangle (or keeps the window),
+copies the picture to the clipboard and offers to save a PNG. **Print…**
+(Ctrl+Alt+P) asks the tool for an HTML export (`Tool::printable`: code with
+its highlighting, the Markdown preview with Mermaid, a query with its
+result table, a console screen, an S3 listing, a request with its
+response, a picture), wraps it in a page with a Light/Dark switch and a
+Print button, writes it under `HyperStackData/tmp/` and opens the browser.
+**Read Aloud** (Settings → Accessibility) lists the texts the active tab
+offers (`Tool::speakable`: selection, file, screen, cell, query, the
+assistant's last answer) and reads one through the operating system's
+voice.
+
 ## 8. Theming
+
+Settings → Appearance has a **mode** (System, Dark, Light) and one scheme
+for each of dark and light. The shell pins egui's theme preference to the
+mode and fills both of egui's visuals slots with the chosen palette, so the
+choice survives a restart regardless of what the OS reports; System mode
+hands egui both palettes and follows the OS switch live (ADR-022).
 
 - Theme system: dark/light base, prebuilt themes, custom palette editor with
   live preview, accent/secondary derivation, font picker (same feature set
@@ -244,18 +280,22 @@ shortcuts page.
 
 ## 9. Settings categories
 
-One Settings tab is always open and pinned in every workspace. It is an
-application-level surface, not part of a workspace's saved tab layout, and
-cannot be closed or unpinned. The category list is its sidebar and the page is
-the tab body. Settings → Welcome replaces the legacy standalone Welcome tab;
-old layouts containing that tab migrate to the Welcome page. Opening Settings
-again focuses the existing tab. Owner's request, 2026-10-14.
+One Settings tab is always open and pinned in every workspace (right after
+Home). It is an application-level surface, not part of a workspace's saved
+tab layout, and cannot be closed or unpinned. The category list is its
+sidebar and the page is the tab body. Opening Settings again focuses the
+existing tab. Owner's request, 2026-10-14; Welcome moved to the Home tab on
+2026-10-15.
 
-Order: Welcome · General (startup workspace, restore tabs, language) ·
-Appearance · Workspace (name, icon and folder for the open workspace) ·
-Environments · Security · Connections · Terminal · Editor · AI Assistant
-(providers, models, Cascade rounds; ADR-019) · Shortcuts · About, which also
-holds **Updates** (installed version with sha/date/channel, channel, automatic
+Order: General (startup workspace, restore tabs, language, settings
+import/export) · Appearance (theme mode and the dark and light schemes,
+clickable swatches, interface font, tabs, activity rail order and labels)
+· Accessibility (Read Aloud through the OS voice, speech rate, reduce
+motion) · Workspace (name, logo, folder, environment compare and sync with
+another workspace) · Environments · Security · Connections · Terminal ·
+Editor · Browser (home page, blocking and script defaults, extra blocked
+hosts) · AI Assistant (providers, models, Cascade rounds; ADR-019) ·
+Shortcuts · About, which also holds **Updates** (installed version with sha/date/channel, channel, automatic
 check, check now, release notes, download/install, revert; see
 [09](09-ci-cd-and-updates.md) §5.1). The About → Installed card also shows the
 data folder with **Open Data Folder**, which opens it in Eden Explorer when

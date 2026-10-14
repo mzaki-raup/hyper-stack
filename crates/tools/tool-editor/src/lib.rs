@@ -1818,6 +1818,7 @@ impl EditorTool {
                                 cwd: Some(dir.to_string_lossy().to_string()),
                                 host: None,
                                 profile: None,
+                                command: None,
                             }),
                         );
                         close = true;
@@ -2029,6 +2030,119 @@ impl EditorTool {
     }
 }
 
+impl EditorTool {
+    /// What Run would do for the active file: the project's own runner
+    /// when the root has one, else the interpreter for the file type.
+    fn run_plan(&self) -> Option<(PathBuf, String)> {
+        let d = self.doc();
+        let path = d.path.as_ref()?;
+        run_plan(path, self.projects[self.active].root.as_deref())
+    }
+
+    /// Run the active file or project in a new terminal tab (F5).
+    fn run_current(&mut self, cx: &mut ToolContext) {
+        let Some((cwd, cmd)) = self.run_plan() else {
+            cx.toast(ToastLevel::Info, cx.services.t("editor-run-none"));
+            return;
+        };
+        cx.open_new_tab(
+            "terminal",
+            Some(OpenRequest::Terminal {
+                cwd: Some(cwd.to_string_lossy().to_string()),
+                host: None,
+                profile: None,
+                command: Some(cmd),
+            }),
+        );
+    }
+}
+
+/// The command that runs `path`: a project runner found at `root` (Cargo,
+/// npm, Make, Gradle, Maven, Go) wins over the file's interpreter.
+pub fn run_plan(path: &Path, root: Option<&Path>) -> Option<(PathBuf, String)> {
+    let file = path.file_name()?.to_string_lossy().to_string();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let dir = path.parent().map(Path::to_path_buf)?;
+    let q = |p: &Path| {
+        let t = p.to_string_lossy().to_string();
+        if t.contains(' ') {
+            format!("\"{t}\"")
+        } else {
+            t
+        }
+    };
+    if let Some(root) = root {
+        let has = |n: &str| root.join(n).is_file();
+        let project = match ext.as_str() {
+            "rs" if has("Cargo.toml") => Some("cargo run".to_string()),
+            "go" if has("go.mod") => Some("go run .".to_string()),
+            "java" | "kt" if has("gradlew") || has("build.gradle") || has("build.gradle.kts") => {
+                Some(
+                    if cfg!(windows) {
+                        "gradlew.bat run"
+                    } else {
+                        "./gradlew run"
+                    }
+                    .to_string(),
+                )
+            }
+            "java" if has("pom.xml") => Some("mvn -q compile exec:java".to_string()),
+            "js" | "ts" | "jsx" | "tsx" | "mjs" if has("package.json") => {
+                Some("npm start".to_string())
+            }
+            "cs" if std::fs::read_dir(root).ok().is_some_and(|rd| {
+                rd.flatten()
+                    .any(|e| e.path().extension().is_some_and(|x| x == "csproj"))
+            }) =>
+            {
+                Some("dotnet run".to_string())
+            }
+            _ => None,
+        };
+        if let Some(cmd) = project {
+            return Some((root.to_path_buf(), cmd));
+        }
+        if file.eq_ignore_ascii_case("makefile") {
+            return Some((dir, "make".into()));
+        }
+        if file == "package.json" {
+            return Some((dir, "npm start".into()));
+        }
+        if file == "Cargo.toml" {
+            return Some((dir, "cargo run".into()));
+        }
+    }
+    let cmd = match ext.as_str() {
+        "py" => format!("python {}", q(path)),
+        "js" | "mjs" | "cjs" => format!("node {}", q(path)),
+        "ts" => format!("npx tsx {}", q(path)),
+        "sh" | "bash" => format!("bash {}", q(path)),
+        "ps1" => format!("pwsh -File {}", q(path)),
+        "bat" | "cmd" => q(path),
+        "rb" => format!("ruby {}", q(path)),
+        "php" => format!("php {}", q(path)),
+        "go" => format!("go run {}", q(path)),
+        "rs" => format!(
+            "rustc {} -o {} && {}",
+            q(path),
+            q(&dir.join(format!("{}.exe", path.file_stem()?.to_string_lossy()))),
+            q(&dir.join(format!("{}.exe", path.file_stem()?.to_string_lossy())))
+        ),
+        "java" => format!("java {}", q(path)),
+        "kts" => format!("kotlinc -script {}", q(path)),
+        "lua" => format!("lua {}", q(path)),
+        "pl" => format!("perl {}", q(path)),
+        "r" => format!("Rscript {}", q(path)),
+        "sql" => return None,
+        _ => return None,
+    };
+    Some((dir, cmd))
+}
+
 impl Tool for EditorTool {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
@@ -2102,6 +2216,16 @@ impl Tool for EditorTool {
             let d = self.doc_mut();
             d.view.goto_open = true;
             d.view.goto_text.clear();
+        }
+        if let Some((_, cmd)) = self.run_plan() {
+            ui.separator();
+            if ui
+                .button(format!("{} {}", ph::PLAY, s.t("editor-run")))
+                .tip(s.i18n.t_args("editor-run-tip", &[("command", &cmd)]))
+                .clicked()
+            {
+                self.run_current(cx);
+            }
         }
         ui.separator();
         let mut ai_open = self.ai.open;
@@ -2440,6 +2564,7 @@ impl Tool for EditorTool {
                 Some("editor.preview"),
             ),
             c("editor.terminal_here", "Editor: Open Terminal Here", None),
+            c("editor.run", "Editor: Run File or Project", Some("run.alt")),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
             c(
                 "git.source_control",
@@ -2522,6 +2647,7 @@ impl Tool for EditorTool {
                 };
                 self.ai.quick(s, &mut ed, prompt);
             }
+            "editor.run" | "run.alt" => self.run_current(cx),
             "editor.terminal_here" => {
                 let dir = self
                     .doc()
@@ -2535,6 +2661,7 @@ impl Tool for EditorTool {
                         cwd: dir.map(|d| d.to_string_lossy().to_string()),
                         host: None,
                         profile: None,
+                        command: None,
                     }),
                 );
             }
@@ -3023,5 +3150,25 @@ mod tests {
     fn sizes() {
         assert_eq!(human_size(512), "512 B");
         assert_eq!(human_size(3 * 1024 * 1024), "3.0 MB");
+    }
+}
+
+#[cfg(test)]
+mod run_plan_tests {
+    use super::run_plan;
+    use std::path::Path;
+
+    #[test]
+    fn project_runner_wins_over_file_interpreter() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("Cargo.toml"), "[package]").unwrap();
+        let src = tmp.path().join("src").join("main.rs");
+        let (cwd, cmd) = run_plan(&src, Some(tmp.path())).unwrap();
+        assert_eq!(cwd, tmp.path());
+        assert_eq!(cmd, "cargo run");
+        let (cwd, cmd) = run_plan(Path::new("C:/x/tool.py"), None).unwrap();
+        assert_eq!(cwd, Path::new("C:/x"));
+        assert_eq!(cmd, "python C:/x/tool.py");
+        assert!(run_plan(Path::new("C:/x/notes.txt"), None).is_none());
     }
 }

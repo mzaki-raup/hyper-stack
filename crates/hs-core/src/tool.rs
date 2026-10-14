@@ -82,6 +82,8 @@ pub enum OpenRequest {
         cwd: Option<String>,
         host: Option<String>,
         profile: Option<String>,
+        /// Typed into the new shell once it runs (the editor's Run).
+        command: Option<String>,
     },
     /// A web address for the browser tool (Shift+click on a link elsewhere).
     Url {

@@ -50,6 +50,8 @@ struct State {
 
 pub struct TerminalTool {
     state: State,
+    /// A command handed over with the open request, typed when the shell is up.
+    pending_command: Option<String>,
     profiles: Arc<Vec<ShellProfile>>,
     session: Option<Session>,
     view: TerminalView,
@@ -80,6 +82,7 @@ impl TerminalTool {
         let font_size = services.settings.read().terminal.font_size;
         let mut t = Self {
             state,
+            pending_command: None,
             profiles,
             session: None,
             view: TerminalView::new(egui::Id::new(("hs-terminal", hs_core::new_id())), font_size),
@@ -355,6 +358,7 @@ impl TerminalTool {
                             cwd: Some(f.to_string_lossy().to_string()),
                             host: None,
                             profile: self.state.profile.clone(),
+                            command: None,
                         }),
                     ),
                     Some(f) => cx.open(
@@ -463,6 +467,7 @@ impl Tool for TerminalTool {
                         .map(|p| p.to_string_lossy().to_string()),
                     host: None,
                     profile: Some(id),
+                    command: None,
                 }),
             );
         }
@@ -537,6 +542,7 @@ impl Tool for TerminalTool {
                         cwd: None,
                         host: None,
                         profile: Some(p.id.clone()),
+                        command: None,
                     }),
                 );
             }
@@ -553,6 +559,12 @@ impl Tool for TerminalTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if let Some(cmd) = self.pending_command.take() {
+            match &self.session {
+                Some(sess) => sess.write(format!("{cmd}\r").as_bytes()),
+                None => self.pending_command = Some(cmd),
+            }
+        }
         let s = cx.services;
         if let Some(sess) = &mut self.session {
             for ev in sess.drain_events() {
@@ -755,6 +767,7 @@ impl Tool for TerminalTool {
                             .map(|p| p.to_string_lossy().to_string()),
                         host: None,
                         profile: self.state.profile.clone(),
+                        command: None,
                     }),
                 );
                 true
@@ -775,7 +788,12 @@ impl Tool for TerminalTool {
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {
         match item {
-            OpenRequest::Terminal { cwd, profile, .. } => {
+            OpenRequest::Terminal {
+                cwd,
+                profile,
+                command,
+                ..
+            } => {
                 if let Some(p) = profile {
                     self.state.profile = Some(p);
                 }
@@ -784,6 +802,7 @@ impl Tool for TerminalTool {
                 }
                 self.session = None;
                 self.start(cx.services);
+                self.pending_command = command;
                 true
             }
             OpenRequest::File { uri, .. } => {

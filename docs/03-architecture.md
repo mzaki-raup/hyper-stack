@@ -47,7 +47,8 @@ hyper-stack/
 ├── Cargo.toml                      # [workspace], shared [workspace.dependencies]
 ├── crates/
 │   ├── hyperstack/                 # bin. eframe App, main window, tab space, launcher,
-│   │                               # settings UI, dock, palette wiring, tool registry
+│   │                               # settings UI, dock, palette wiring, tool registry,
+│   │                               # tools/home.rs (Home tab), browser_host.rs (WebView2 views)
 │   ├── hs-core/                    # no egui dependency except for small shared types
 │   │   ├── tool.rs                 # Tool trait, ToolDescriptor, ToolContext
 │   │   ├── services.rs             # Services handle (Arc of everything below)
@@ -62,6 +63,7 @@ hyper-stack/
 │   │   ├── i18n/                   # Fluent loader
 │   │   ├── update/                 # version info, release check, manifest + signature verify,
 │   │   │                           # download job, rename-and-relaunch install, revert
+│   │   ├── tts.rs, sniff.rs, html.rs, portable.rs   # read-aloud, content sniffing, Print… pages, settings bundles
 │   │   └── runtime.rs              # tokio runtime bootstrap, UI wake-up handle
 │   ├── hs-ui/                      # egui widgets with no tool knowledge
 │   │   ├── tabs.rs                 # multi-row tab strip (ported compute_tab_layout)
@@ -80,12 +82,14 @@ hyper-stack/
 │       ├── tool-nosql/             # documents: + src/drivers/{mongodb,couchdb,elasticsearch,dynamodb,cassandra}.rs
 │       ├── tool-redis/             # key browser, type viewers, console, pub/sub, server info
 │       ├── tool-logs/              # log tail viewer: sources, index, filters, parsers
-│       ├── tool-api/
+│       ├── tool-api/               # requests, collections (JSON), Postman import/export, script.rs (Boa `pm` shim), send.rs
+│       ├── tool-browser/           # browser chrome and page model; the native views live in hyperstack::browser_host
+│       ├── tool-graphics/          # picture viewer/editor: ops.rs (pure image operations), ICO assembly
 │       ├── tool-ssh/
 │       ├── tool-s3/
 │       ├── tool-git/
 │       ├── tool-terminal/
-│       ├── tool-devtools/
+│       ├── tool-devtools/          # Base64, hashes, JWT, Firebase tokens, Jasypt, PKI messages (crypto.rs primitives)
 │       └── tool-containers/
 ├── assets/
 │   ├── icon/                       # app icon: hyperstack.png (512 master), hyperstack.ico, hyperstack-<size>.png

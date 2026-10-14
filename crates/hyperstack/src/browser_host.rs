@@ -237,6 +237,8 @@ mod imp {
                                     if v.visible {
                                         v.visible = false;
                                         let _ = v.webview.set_visible(false);
+                                        refocus_parent(frame);
+                                        ctx.request_repaint();
                                     }
                                 }
                             }
@@ -275,15 +277,38 @@ mod imp {
             for id in gone {
                 self.views.remove(&id);
             }
+            let mut hid_any = false;
             for (id, v) in self.views.iter_mut() {
                 if !shown.contains(id) && v.visible {
                     v.visible = false;
                     let _ = v.webview.set_visible(false);
+                    hid_any = true;
                 }
+            }
+            if hid_any {
+                refocus_parent(frame);
+                ctx.request_repaint();
             }
             hub.events.append(&mut self.events.lock());
             if !hub.events.is_empty() {
                 ctx.request_repaint();
+            }
+        }
+    }
+
+    /// Give keyboard focus back to the main window: a WebView2 child keeps
+    /// it even when hidden, and every keystroke would vanish into it.
+    fn refocus_parent(frame: &eframe::Frame) {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        if let Ok(h) = frame.window_handle()
+            && let RawWindowHandle::Win32(w) = h.as_raw()
+        {
+            unsafe extern "system" {
+                fn SetFocus(hwnd: isize) -> isize;
+            }
+            // SAFETY: a plain user32 call with the window's own handle.
+            unsafe {
+                SetFocus(w.hwnd.get());
             }
         }
     }

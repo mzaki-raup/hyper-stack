@@ -81,13 +81,13 @@ in the e2e test).
 - [ ] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with completion, guards
 
 ### M4 · API client + Git (6 w)
-- [ ] `tool-api`: request editor (params/headers/body/auth incl. OAuth2 client-credentials and auth-code with local redirect listener, AWS SigV4), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export
-- [ ] Collections as folder of `.req.toml`, variables with scopes, importers Postman/Insomnia/Bruno/OpenAPI
+- [x] `tool-api`: request editor (params/headers/body/auth: basic, bearer, API key; OAuth2 and SigV4 pending), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export — 2026-10-15
+- [x] Collections (one JSON file each), variables with scopes, Postman v2.1 import/export; JavaScript `pm` scripts on Boa — 2026-10-15 (Insomnia/Bruno/OpenAPI importers pending)
 - [ ] `tool-git`: repo detection in project tree, status via `gix`, stage/unstage file + hunk, diff viewer on `hs-editor`, commit, branches, stash list, fetch/pull/push via git CLI with progress, credential helper passthrough, protected-remote guard
 
 ### M5 · Logs + Devtools core (4 w)
 - [ ] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/combined/multi-line stack traces), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources
-- [ ] `tool-devtools`: JSON/YAML/TOML/XML format+convert+query, JWT, Base64/URL/hex, regex tester, cron builder, UUID/ULID/hash, timestamp converter, text diff (on `hs-editor`)
+- [ ] `tool-devtools`: JSON/YAML/TOML/XML format+convert+query, regex tester, cron builder, UUID/ULID, timestamp converter, text diff (on `hs-editor`) — JWT, Base64, hashes/HMAC, Jasypt, PKI messages and Firebase tokens done 2026-10-15
 
 ### M6 · Hardening and 1.0 (4 w)
 - [ ] Protected environments across all tools; e2e secret-grep test; `cargo deny` clean
@@ -122,7 +122,9 @@ in the e2e test).
 - [ ] Git forge integration: GitHub/GitLab/Forgejo PRs, issues, CI status
 - [ ] Plugin API (WASM via `wasmtime`): devtools utilities and importers first
 - [ ] Detachable tabs (multiple viewports), session audit log, presentation mode
-- [x] Optional AI assistant (bring your own service) in the editor (ADR-019); SQL/regex/shell helpers to follow
+- [x] Optional AI assistant (bring your own service) in the editor (ADR-019); review-only assistant with Insert in Terminal, SSH, SQL, S3, API client and Graphics (2026-10-15)
+- [x] Graphics tool (`tool-graphics`) and embedded Browser (`tool-browser`, WebView2 on Windows) — owner's requests, 2026-10-15
+- [x] Home tab, theme modes, Read Aloud, Snip/Print, settings bundles — 2026-10-15 (ADR-022)
 
 ## Release cadence
 

@@ -55,3 +55,4 @@ winresource = "0.1"
 # release; other platforms build the tool without a page area.
 [target.'cfg(windows)'.dependencies]
 wry = { version = "0.57", default-features = false }
+raw-window-handle = "0.6"

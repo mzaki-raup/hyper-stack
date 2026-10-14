@@ -165,3 +165,23 @@ properties:
   summary of what is and is not protected.
 - Logs rotate daily, keep 7 days by default, never contain secrets (redaction
   layer), and the Output panel shows what would be written.
+
+## Addendum (2026-10-15): scripts, browser, devtools, exports
+
+- **API client scripts** run in Boa with no host I/O (no `fetch`, timers
+  or files) and a loop/recursion limit. They see variable *references*,
+  never vault values: `secret:` strings resolve only in the send pipeline.
+  A non-GET request to a protected environment asks first.
+- **Browser**: navigation to a blocklisted host is refused by the view's
+  navigation handler; ad containers are hidden by style. WebView2 keeps
+  its own cookies and cache outside `HyperStackData/`; **Clear Browsing
+  Data** empties them. Pages are restored from `layout.json` (URLs and
+  titles only).
+- **Devtools**: keys, passwords and tokens typed into a utility stay in
+  that tab; only the open utility is saved. The Firebase utility talks to
+  Google only when its two network buttons are pressed.
+- **Settings bundles** carry no secrets (vault references only) and need
+  the master password to export or import.
+- **Read Aloud** sends text to a local child process (Windows Speech,
+  `say`, espeak-ng); nothing leaves the machine.
+

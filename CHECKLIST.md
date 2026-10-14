@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-14 (desktop UI smoke check pending for workspace/settings polish)
+Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API client, graphics, browser, snip/print verified in the running app)
 
 ## Planning
 
@@ -136,8 +136,27 @@ Last updated: 2026-10-14 (desktop UI smoke check pending for workspace/settings 
 
 | Item | State | Notes |
 |---|---|---|
-| Workspace selected logo, post-create workspace name/logo editing, fixed Workspace settings route | In-Progress | Implemented; build/tests pass. Exercise in the running desktop app before marking complete. |
-| Persistent pinned Settings tab, Welcome page migration, Quick Open popup, notification history, app logo | In-Progress | Implemented; Quick Open opening-click has an egui_kittest. Desktop smoke check remains. |
-| Clickable appearance palettes and editor file-tab width setting | In-Progress | Implemented; compile/clippy pass. Verify settings interaction in the running app. |
-| Project-root tab deduplication and encoding selection/reopen | In-Progress | Path-affinity test and encoding tests pass. Verify UI flow in the running app. |
-| Reusable AI assistant across terminal, SSH, SQL, S3 and API tools | In-Progress | Shared review-only panel implemented in terminal, SSH, SQL and S3; context is sent only on explicit submit and cannot trigger tool actions. API client is not implemented. Release build and workspace tests pass; desktop interaction plus screenshots/GIF are still pending because no visual capture is available in this session. |
+| Workspace selected logo, post-create workspace name/logo editing, fixed Workspace settings route | Completed | 2026-10-15: created a workspace with a logo in the running app; the logo shows on the switcher button and in the list; Settings → Workspace renames and replaces the logo |
+| Persistent pinned Settings tab, Welcome page migration, Quick Open popup, notification history, app logo | Completed | 2026-10-15: Welcome now lives on the Home tab; Settings and Home are pinned and present in every workspace |
+| Clickable appearance palettes and editor file-tab width setting | Completed | 2026-10-15: swatches pick the scheme for their mode; theme mode persists across restart (checked twice with the harness) |
+| Project-root tab deduplication and encoding selection/reopen | Completed | 2026-10-15 |
+| Reusable AI assistant across terminal, SSH, SQL, S3 and API tools | Completed | 2026-10-15: shared panel in Terminal, SSH, SQL, S3, API client and Graphics; fenced blocks get Copy/Insert |
+
+## Owner's requests (2026-10-15)
+
+| Item | State | Notes |
+|---|---|---|
+| Theme mode System/Dark/Light persisted on Windows 10 | Completed | ADR-022; both egui visuals slots filled |
+| Home tab first in the rail; sidebar toggle and Settings at the bottom; rail labels and order setting | Completed | Settings → Appearance → Activity Rail |
+| Accessibility settings page with Read Aloud (TTS) and reduce motion | Completed | `hs_core::tts`, `Tool::speakable` |
+| Settings import/export behind the master password | Completed | `hs_core::portable` bundle |
+| Workspace settings between Appearance and Environments: rename, logo, environment compare/sync | Completed | Accessibility sits between Appearance and Workspace |
+| Editor: full file path row under the file tabs | Completed | click copies |
+| Editor: run/debug/language features (Zed-inspired) | In-Progress | Run (F5) for files and projects done; LSP completion/diagnostics and a debugger are not started |
+| Database cell viewer previews pictures and documents | Completed | `hs_core::sniff` |
+| Devtools: Jasypt, JWT, Firebase tokens, PKI messages, hashes, Base64 | Completed | `tool-devtools`, 19 unit tests with known answers |
+| API client (Postman-like, import/export, JavaScript scripts, variables, auth, snippets, libraries) | Completed (P0 + scripts) | `tool-api` on Boa; runner, OAuth 2, WebSocket/GraphQL pending |
+| Graphics tool with AI assistant | Completed | `tool-graphics`; AI enhancement through a provider pending |
+| Browser with ad/script blocking, inspect, forced dark, per-workspace tabs, Shift+click links | Completed (Windows) | `tool-browser` + `browser_host` (WebView2); other platforms pending |
+| Print/snip of web, Markdown, console, code, query and result, S3 listing | Completed | Snip (PNG) and Print… (HTML) for every tool; Redis has no tool yet |
+| Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

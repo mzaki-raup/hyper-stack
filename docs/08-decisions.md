@@ -449,3 +449,104 @@ prepared locally and shown in a collapsed preview; nothing is sent until the
 user submits a question. The assistant cannot edit files, execute SQL, run
 shell commands, or invoke storage actions. API assistance will be added when
 the API client exists; that tool is not implemented yet.
+
+**Amended 2026-10-15.** Every assistant answer renders fenced code blocks
+with **Copy** and, where the tool has a place for it, **Insert**: the
+terminal and SSH shell receive the block as typed input (the user presses
+Enter), the SQL editor and the API client's body or script take it at the
+cursor. Insert never runs anything. The API client and the graphics tool
+use the same panel (graphics with Insert disabled).
+
+## ADR-020 · API client scripts run JavaScript on Boa with a `pm` shim
+
+**Context.** [tools/api-client.md](tools/api-client.md) planned Rhai for
+pre-request and test scripts. On 2026-10-15 the owner asked for a client
+"almost exactly like Postman" with **custom JavaScript** to store variables
+in the environment, pre/post request scripts and pasted library code, and
+for Postman import/export, which carries `pm.*` scripts verbatim.
+
+**Decision.**
+- Scripts are JavaScript, executed by the pure-Rust **Boa** engine
+  (`boa_engine`, default features off) inside the send pipeline on the
+  runtime's blocking pool, with a loop-iteration and recursion limit and
+  no host I/O: there is no `fetch`, no timers, no file access.
+- The `pm` object is written in JavaScript (`tool_api::script::PRELUDE`)
+  over four host functions (`__hs_get/__hs_set/__hs_unset/__hs_test` plus
+  `__hs_log`) that read and write the variable scopes through a
+  thread-local host record. It covers what day-to-day scripts use:
+  `pm.environment / globals / collectionVariables / variables`,
+  `pm.request` (editable before sending), `pm.response` with
+  `json()/text()/to.have.status()`, `pm.test`, `pm.expect` with a small
+  chai subset, `console.log`, and the legacy `postman.*` setters.
+- Scripts never see secrets: a value that is a `secret:` reference stays a
+  reference in the scopes and is resolved by the vault only when the
+  request is built. Variable changes are written where they belong
+  (globals file, collection file, the active HyperStack environment).
+- Collection **libraries** (pasted JavaScript) are evaluated before every
+  script of the collection, which is how `require`-less helper code and
+  pure-JS libraries are shared.
+
+**Consequences.** Boa adds a few minutes to a clean build and about 10 MB
+to the executable; in exchange Postman collections run unchanged for the
+common patterns. `pm.sendRequest` and the collection runner are not there
+yet (they need the runtime inside scripts and a Job) and throw a clear
+error. Rhai is not used.
+
+## ADR-021 · The browser tool uses a native child web view owned by the shell
+
+**Context.** egui cannot render HTML. The owner asked (2026-10-15) for a
+multi-tab browser with ad blocking, a JavaScript switch, inspect element and
+forced dark mode, with tabs restored per workspace and links from other
+tools opening in it.
+
+**Decision.**
+- `tool-browser` is a normal tool that draws only the chrome and persists
+  the pages; the page itself is a **WebView2 child window** created by
+  `wry` from the window handle `eframe::Frame` exposes, owned by
+  `hyperstack::browser_host`. The tool and the host talk through a shared
+  hub (desired rectangle, pages and commands one way; titles, URLs,
+  loading, blocked navigations and new-window requests the other way).
+- The host positions the view over the tool's page area every frame and
+  hides it whenever the tab is not visible or a modal is open, since a
+  native window always paints above egui.
+- Blocking is a navigation blocklist (bundled list plus settings) and
+  cosmetic hiding by an initialization script; forced dark is a CSS
+  inversion injected the same way; JavaScript off rebuilds the view.
+- `wry` is a Windows-only dependency of the binary for now; the tool
+  crate has no platform code and compiles everywhere, showing a notice
+  where no native view exists.
+
+**Consequences.** The page cannot be split or detached like egui content,
+drop-down menus over the page area are covered by it, and subresource ads
+are hidden rather than blocked. The rest of the application stays pure
+egui, and removing the feature is deleting one module and one dependency.
+
+## ADR-022 · Home tab, theme modes, Read Aloud and Snip/Print live in the shell
+
+**Context.** Owner's requests of 2026-10-15: a pinned welcome/dashboard
+surface in the activity rail, a dark/light/system mode that survives a
+restart on Windows 10, text-to-speech, picture or print export of every
+tool's content, settings import/export behind the master password, and a
+configurable activity rail.
+
+**Decision.**
+- **Home** (`hyperstack::tools::home`) is a mandatory pinned tab first in
+  every workspace, like Settings; it talks to the shell through a hub
+  because it needs what only the shell knows (recently closed tabs, the
+  registry). Settings → Welcome is gone.
+- **Theme mode**: `appearance.mode` (`system`/`dark`/`light`) with a dark
+  and a light scheme. The shell pins egui's theme preference and fills
+  *both* of egui's visuals slots with the chosen palette, so a late or
+  contradicting system-theme report (Windows 10) can no longer swap our
+  palette for egui's default one; System mode gives egui both palettes.
+- **Read Aloud** uses the operating system's voice through a child
+  process (`hs_core::tts`); tools offer texts through `Tool::speakable`.
+- **Snip** uses egui's own screenshot (cropped to the tab's rectangle),
+  **Print…** writes an HTML page (`Tool::printable`) under `tmp/` and opens
+  the browser, whose print dialog does paper and PDF.
+- Settings and shortcuts export as one TOML bundle with no secrets;
+  import merges providers by id and sets shortcuts one by one; both
+  re-ask the master password.
+
+**Consequences.** Two mandatory tabs per workspace; the status bar counts
+only work tabs. Printing depends on an installed browser.

@@ -44,3 +44,22 @@ so requires an interactive desktop/Xvfb capture session with the relevant
 connection and test-provider setup. When recaptured, add dedicated shots for
 terminal, SSH, SQL and S3 assistant panels, plus an updated walkthrough GIF;
 retain current filenames and README links for existing shots.
+
+## 2026-10-15 set: Home, settings pages, Devtools, API client, Graphics, Browser
+
+`home.png`, `settings-general.png`, `settings-appearance.png`,
+`settings-accessibility.png`, `settings-workspace.png`,
+`devtools-hashes.png`, `devtools-jwt.png`, `devtools-jasypt.png`,
+`devtools-pki.png`, `api-client.png`, `api-client-scripts.png`,
+`graphics.png`, `graphics-ops.png` and `browser.png` were captured on
+Windows 11 from the debug build with the harness in
+`scripts/gui-smoke.ps1` (`start`, `keys`, `click`, `shot`): `Start-Process
+HyperStack.exe --data-dir <scratch>`, `SetProcessDPIAware`, the window
+moved to 0,0 and sized 1400×900, keystrokes through `SendKeys`, clicks
+through `mouse_event` at window-relative coordinates, and
+`Graphics.CopyFromScreen` of `GetWindowRect` (so the 8 px invisible
+border is part of each PNG). The theme is HyperStack Dark; the API client
+shot shows a real `GET https://httpbin.org/json`, the browser shot the
+DuckDuckGo home page in a WebView2 child view, the JWT shot the jwt.io
+sample token. The walkthrough GIF (`hyperstack-demo.gif`) still shows the
+0.17 flows and has not been re-recorded.

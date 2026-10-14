@@ -9,16 +9,25 @@ environments and secrets across every tool.
 **Status: Phase 0 (foundation), M1 (terminal with search and links,
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
-(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. The
-editor gives every project folder its own window tab with a multi-row
-strip of file tabs inside, shows Git status, diffs and history
-(`hs-git`, read-only over the git CLI), and carries an optional AI assistant (ADR-019: 1min.AI or any
-OpenAI-compatible service such as LM Studio, `hs-core::ai`); Terminal, SSH,
-SQL and S3 also have a review-only assistant that sends explicitly selected
-context only after the user submits a question.** The
-Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
-`hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
-`tools/tool-s3`, `tools/tool-db`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. On
+2026-10-15 the shell gained a pinned **Home** tab, theme modes, an
+Accessibility page (Read Aloud), settings import/export, Snip and Print…,
+and four tools landed: the **API client** (`tool-api`, Postman-compatible,
+JavaScript `pm` scripts on Boa), **Devtools** (`tool-devtools`: Base64,
+hashes, JWT, Firebase tokens, Jasypt, PKI messages), **Graphics**
+(`tool-graphics`) and the **Browser** (`tool-browser` + WebView2 host in
+the binary, Windows only). The editor gives every project folder its own
+window tab with a multi-row strip of file tabs inside, shows the file's
+path under them, runs files and projects (F5), shows Git status, diffs and
+history (`hs-git`, read-only over the git CLI), and carries an optional AI
+assistant (ADR-019: 1min.AI or any OpenAI-compatible service such as LM
+Studio, `hs-core::ai`); Terminal, SSH, SQL, S3, API client and Graphics
+have a review-only assistant whose code blocks can be inserted but never
+run.** The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
+`hs-editor`, `hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`,
+`tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
+`tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
+`hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -522,6 +531,50 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - Its docs host (`docs.1min.ai`) and `chatplayground.ai` do not resolve from
   the cloud sandbox; test against a local mock server that speaks both SSE
   formats (the OpenAI one ends with `data: [DONE]`).
+
+### Shell (2026-10-15)
+- `Theme::apply` used to call `ctx.set_visuals`, which writes only the
+  visuals slot of egui's *current* theme; with `ThemePreference::System`
+  Windows 10 reported its theme after the first frame and egui switched to
+  its default light visuals, so a saved dark scheme looked lost. Pin the
+  preference (`ctx.set_theme`) and fill both slots (`set_visuals_of`) —
+  `hs_ui::theme::install` does; never call `set_visuals` directly.
+- Home and Settings are mandatory pinned tabs (`app::MANDATORY`). They are
+  stripped from saved layouts and re-created by `ensure_mandatory_tabs`;
+  anything that counts, closes or unpins tabs must skip them.
+- The GUI smoke harness (`scratchpad/gui.ps1` pattern: `Start-Process` with
+  `--data-dir`, `SetProcessDPIAware`, `MoveWindow 0,0,1400,900`, SendKeys
+  and `mouse_event`): the first click after a native file dialog closes
+  only re-activates the window, so click twice or screenshot after each
+  click; `GetWindowRect` includes the invisible 8 px border, so a stray
+  glyph at the very edge of a screenshot is the desktop behind the window.
+- Two `cargo` invocations on one target folder serialise on the build
+  lock; a background `cargo test` started before a new crate is registered
+  fails on that crate's missing module, so re-run after registering.
+- A running `HyperStack.exe` keeps `target/debug/HyperStack.exe` locked;
+  `Stop-Process -Name HyperStack` before `cargo build`.
+
+### API client (tool-api)
+- Boa's native closures must be `Copy`; host state goes through a
+  `thread_local!` record (`script::HOST`) written before `run` and read
+  after. `JsValue::to_json` needs a `&mut Context`; strings come out as
+  `to_std_string_escaped()`.
+- `serde_json::Value::Object` is a BTreeMap: re-serialising a JWT header
+  or payload reorders keys and changes the signature input. Compact the
+  user's text instead (`jwt::compact_json`) when it already validates.
+- The workspace `reqwest` has no `form` or `multipart` feature:
+  `send::form_body` and `send::multipart` build those bodies by hand.
+
+### Browser (tool-browser + browser_host)
+- A WebView2 child window paints above everything egui draws. The host
+  must hide the view whenever a modal, the palette or a popup is open
+  (`overlay` in `app.rs`) and whenever the tab is not visible; the tool
+  reports its rectangle every frame and the host clears it after use.
+- `wry` is a `[target.'cfg(windows)'.dependencies]` entry of the binary
+  only; the tool crate must stay free of platform code so Linux clippy
+  passes.
+- JavaScript on/off is fixed at view creation: flipping it rebuilds the
+  view (`Cmd` handling in `BrowserHost::sync`).
 
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was

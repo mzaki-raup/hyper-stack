@@ -103,6 +103,7 @@ pub struct ApiTool {
     pub(crate) sent_title: String,
     /// Text to copy on the next frame (commands have no `egui::Context`).
     pub(crate) copy_pending: Option<String>,
+    pub(crate) assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 impl ApiTool {
@@ -131,6 +132,7 @@ impl ApiTool {
             show_history: false,
             sent_title: String::new(),
             copy_pending: None,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             state,
         };
         // Reopen the saved request, else the draft.
@@ -945,7 +947,110 @@ impl Tool for ApiTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         self.poll(cx);
         let theme = Theme::from_settings(&cx.services.settings.read().appearance);
-        ui::main(self, ui, cx, &theme);
+        let full = ui.available_rect_before_wrap();
+        let main_rect = if self.assistant.open {
+            egui::Rect::from_min_max(full.min, egui::pos2(full.right() - 390.0, full.bottom()))
+        } else {
+            full
+        };
+        let mut main_ui = ui.new_child(egui::UiBuilder::new().max_rect(main_rect));
+        main_ui.set_clip_rect(main_rect);
+        ui::main(self, &mut main_ui, cx, &theme);
+        if self.assistant.open {
+            let s = cx.services;
+            let mut context = format!(
+                "Request: {} {}\nHeaders: {}\nBody ({:?}):\n{}",
+                self.request.method,
+                self.request.url,
+                self.request
+                    .headers
+                    .iter()
+                    .filter(|h| h.enabled)
+                    .map(|h| format!("{}: {}", h.key, h.value))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                self.request.body.kind,
+                self.body_view.text()
+            );
+            if let Some(Outcome {
+                exchange: Ok(ex),
+                tests,
+                script_error,
+                ..
+            }) = &self.last
+            {
+                let body = String::from_utf8_lossy(&ex.body);
+                let shown: String = body.chars().take(4000).collect();
+                context.push_str(&format!(
+                    "\n\nLast response: {} {} in {} ms\n{}\nTests: {} passed / {}\nScript error: {}",
+                    ex.status,
+                    ex.status_text,
+                    ex.millis,
+                    shown,
+                    tests.iter().filter(|t| t.passed).count(),
+                    tests.len(),
+                    script_error.clone().unwrap_or_else(|| "none".into())
+                ));
+            }
+            self.assistant
+                .set_context("API request and response", context);
+            let panel = egui::Rect::from_min_max(
+                egui::pos2(full.right() - 390.0, full.top()),
+                full.right_bottom(),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(panel)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .show(&mut child, |ui| {
+                    ui.set_min_width(370.0);
+                    self.assistant.can_insert = true;
+                    let out = self.assistant.ui(ui, s, &theme, "API client");
+                    if let Some(block) = out.use_block {
+                        // Into what the user is editing: a script tab takes
+                        // the block as script, anything else as the body.
+                        match self.state.req_tab {
+                            4 => {
+                                let target = &mut self.request.post_script;
+                                if !target.is_empty() && !target.ends_with('\n') {
+                                    target.push('\n');
+                                }
+                                target.push_str(&block);
+                            }
+                            _ => {
+                                let kind = if block.trim_start().starts_with('{')
+                                    || block.trim_start().starts_with('[')
+                                {
+                                    BodyKind::Json
+                                } else {
+                                    BodyKind::Text
+                                };
+                                if self.request.body.kind == BodyKind::None {
+                                    self.request.body.kind = kind;
+                                }
+                                self.body_view.set_text(&block, self.request.body.kind);
+                                self.state.req_tab = 2;
+                            }
+                        }
+                    }
+                });
+        }
+    }
+
+    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        if ui
+            .button(format!("{} AI", ph::SPARKLE))
+            .on_hover_text(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("API client");
+        }
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
@@ -971,6 +1076,7 @@ impl Tool for ApiTool {
             ),
             c("api.curl", "API: Import curl Command…", None),
             c("api.copy_curl", "API: Copy as curl", None),
+            c("api.ai", "AI: Toggle Assistant", None),
         ]
     }
 
@@ -999,6 +1105,10 @@ impl Tool for ApiTool {
             }
             "api.curl" => {
                 self.curl_import = Some(String::new());
+                true
+            }
+            "api.ai" => {
+                self.assistant.toggle("API client");
                 true
             }
             "api.copy_curl" => {
@@ -1104,6 +1214,9 @@ impl Tool for ApiTool {
 
     fn speakable(&self) -> Vec<Speakable> {
         let mut out = Vec::new();
+        if let Some(a) = self.assistant.last_answer() {
+            out.push(Speakable::new("Assistant's last answer", a));
+        }
         if let Some(Outcome {
             exchange: Ok(ex), ..
         }) = &self.last

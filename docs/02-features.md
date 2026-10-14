@@ -24,7 +24,14 @@ suggestion.
 | Bottom dock: Output, Jobs, Problems, Terminal | P0 | M | Collapsible, per-workspace |
 | Left activity rail: tool icons + per-tool sidebar (project tree, schema, collections, hosts, buckets) | P0 | M | |
 | Jobs panel: every background task with progress, cancel, log | P0 | M | Transfers, long queries, pushes, uploads |
-| Notifications / toasts with history | P0 | S | |
+| Notifications / toasts with history | P0 | S | Done: the title-bar bell opens the retained history |
+| **Home tab**: pinned dashboard first in every workspace (get-started cards, workspaces, tools, recent tabs, pinned connections, keys) | P0 | S | Done 2026-10-15; replaced the Welcome tab |
+| Theme **mode** System / Dark / Light with a dark and a light scheme, persisted across restarts (Windows 10 included) | P0 | S | Done 2026-10-15 (ADR-022) |
+| Activity rail: tool order and optional labels under the icons; sidebar toggle and Settings at the bottom | P1 | S | Done 2026-10-15 |
+| **Accessibility**: Read Aloud through the OS voice (title-bar button lists what the active tab can read), reduce motion | P1 | S | Done 2026-10-15 |
+| **Snip** (tab or window to PNG and clipboard) and **Print…** (HTML export of code, Markdown, query and result, console, listing, response; opens in the browser for paper/PDF) | P1 | S | Done 2026-10-15 |
+| Settings and shortcuts **export/import** as one bundle, master password required, providers merged by id | P1 | S | Done 2026-10-15 |
+| Workspace settings page: rename, logo, compare environments with another workspace and copy the missing ones | P1 | S | Done 2026-10-15 |
 | Settings window with categories, search, import/export | P0 | M | |
 | Themes: dark/light, prebuilt, custom palette editor, live preview | P0 | M | |
 | Rebindable shortcuts with a shortcuts page | P0 | S | TOML keymap |
@@ -138,7 +145,8 @@ suggestion.
 | Collections and folders saved as files; environments and variables with `{{var}}` | P0 | M |
 | Response viewer: pretty/raw/preview, headers, cookies, timing waterfall, size | P0 | M |
 | History, duplicate, "copy as curl", import from curl | P0 | S |
-| Import Postman v2.1, Insomnia, Bruno, OpenAPI 3; export OpenAPI/Postman | P0 | M |
+| Import Postman v2.1, Insomnia, Bruno, OpenAPI 3; export OpenAPI/Postman | P0 | M | Postman v2.1 collections and environments import, Postman export: done 2026-10-15 |
+| JavaScript pre-request and test scripts with the `pm` API, collection libraries, snippets | P1 | L | Done 2026-10-15 (ADR-020) |
 | Tests/assertions per request (status, JSON path, header, time) and pre-request scripts in an embedded scripting language (Rhai) | P1 | L |
 | Collection runner with data files and a report | P1 | M |
 | WebSocket and Server-Sent Events client | P1 | M |
@@ -208,6 +216,26 @@ suggestion.
 | Compose projects: up/down/logs per service | P1 | M |
 | Kubernetes: contexts, namespaces, pods, logs, exec, port-forward, describe, apply YAML | P2 | L |
 | Remote Docker over SSH | P1 | S |
+
+## 9b. Browser (requested) — [spec](tools/browser.md)
+
+| Feature | Priority | Effort |
+|---|---|---|
+| Multi-row page tabs, address bar with search fallback, back/forward/reload/home, zoom | P1 | M |
+| Ad and tracker blocking (navigation blocklist + cosmetic hiding), per-page JavaScript switch, forced dark rendering | P1 | M |
+| Inspect (developer tools), Print, Clear Browsing Data | P1 | S |
+| Pages restored per workspace; Shift+click on a terminal link opens it here | P1 | S |
+| Platforms other than Windows (webkit2gtk / WKWebView through `wry`) | P2 | M |
+
+## 9c. Graphics (requested) — [spec](tools/graphics.md)
+
+| Feature | Priority | Effort |
+|---|---|---|
+| Open pictures from the editor tree or a dialog; view with zoom on a checkerboard | P1 | S |
+| Resize, scale, extend canvas, crop, rotate, flip; brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen — as a removable operation list | P1 | M |
+| Convert between PNG, JPEG, WebP, BMP, GIF, ICO; multi-size ICO export; icon frame extraction | P1 | S |
+| Review-only AI assistant on the picture's metadata and operations | P1 | S |
+| AI enhancement/outpainting through a provider | P2 | M |
 
 ## 10. Devtools drawer (suggested) — [spec](tools/devtools.md)
 

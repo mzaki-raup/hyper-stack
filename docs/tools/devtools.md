@@ -1,6 +1,24 @@
 # Tool spec — Devtools drawer
 
-**Crate:** `tool-devtools` · **Priority:** P0 (core utilities) · P1 (network tools, process viewer, snippets, .env editor, scratchpad) · **Status:** draft
+**Crate:** `tool-devtools` · **Priority:** P0 (core utilities) · P1 (network tools, process viewer, snippets, .env editor, scratchpad) · **Status:** first utilities implemented (2026-10-15); see §0
+
+## 0. What is implemented (2026-10-15)
+
+One tool with the utilities listed in its sidebar by category; a tab shows
+one utility and can switch. Inputs are never saved (only which utility is
+open); every computation is a pure function with known-answer tests.
+
+| Category | Utility | What it does |
+|---|---|---|
+| Encoding | **Base64** | Decode standard/URL-safe with or without padding or a `data:` URI, auto-detected; the result is shown as a picture, as text, or named as a document (PDF, ZIP/Office, …) with Save As; hex dump; encode text or a file (URL-safe, no padding) with the data URI; Basic authentication header from user and password |
+| Encoding | **Hashes** | MD5, SHA-1, SHA-256/384/512, SHA3-256/512, BLAKE3, CRC32 of text (optionally minified JSON) or a file, as hex or Base64, HMAC with a key, compare field that turns the matching row green; a column table with bit lengths and copy buttons |
+| Tokens | **JWT** | Decode with claim explanations (`exp`/`iat`/`nbf` as local time, expired / not yet valid), verify with an HMAC secret or a public key (PEM or Java's Base64), sign a token for testing: HS256/384/512, RS256/384/512, ES256 |
+| Tokens | **Firebase Tokens** | From a service-account JSON: custom token for a uid with claims (offline), OAuth 2 access token for the Google APIs (one request), ID token by signing in with the custom token and the Web API key (one request) |
+| Cryptography | **Jasypt** | `PBEWithMD5AndDES` (PBKDF1-MD5, DES-CBC) and `PBEWITHHMACSHA512ANDAES_256` (PBKDF2-HMAC-SHA512, AES-256-CBC) with jasypt's `salt ‖ IV ‖ ciphertext` layout (salt and IV sizes adjustable), Base64 or hex, `ENC(…)` wrapper; plus the legacy `DataEncryptor` (DES/ECB with the first 8 bytes of a key string, AES/ECB with a 16-character key, MD5 as Base64) |
+| Cryptography | **PKI Messages** | The gateway flow: sign with the sender's RSA key (`SHA256withRSA`) and encrypt with AES-256-GCM under `SHA-256(sharedKeyUuid)` (12-byte IV prepended); decrypt and verify on the other side. Flow 1 (device → server) and Flow 2 (server → device) with the device/target key pairs, producing and reading the `{deviceId, bucketUri, encryptedMsg, signatureStr}` payload |
+
+Text handed over from another tool (`OpenRequest::Text`) lands in the open
+utility's input. Keys and passwords typed here stay in the tab.
 
 ## 1. Purpose
 

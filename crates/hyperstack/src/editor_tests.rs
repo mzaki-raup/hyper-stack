@@ -79,6 +79,17 @@ fn one_tab_per_project_with_its_files_inside() {
     // it; not another project or a file elsewhere.
     assert_eq!(t.uri_affinity(&p(&a.join("a.rs"))), Some(0));
     assert_eq!(t.uri_affinity(&p(&a)), Some(0));
+    assert_eq!(
+        t.uri_affinity(&p(&a.join("sub/.."))),
+        Some(0),
+        "a normalized spelling of an existing project root has exact affinity"
+    );
+    #[cfg(windows)]
+    assert_eq!(
+        t.uri_affinity(&p(&a.join("sub\\.."))),
+        Some(0),
+        "Windows-style separator variants still identify the same project root"
+    );
     assert_eq!(t.uri_affinity(&p(&a.join("sub/b.rs"))), Some(3));
     assert_eq!(t.uri_affinity(&p(&b)), None);
     assert_eq!(t.uri_affinity(&p(&other.join("o.txt"))), None);

@@ -13,7 +13,9 @@ with tunnels, S3) implemented; M3 under way: the SQL database tool
 editor gives every project folder its own window tab with a multi-row
 strip of file tabs inside, shows Git status, diffs and history
 (`hs-git`, read-only over the git CLI), and carries an optional AI assistant (ADR-019: 1min.AI or any
-OpenAI-compatible service such as LM Studio, `hs-core::ai`).** The
+OpenAI-compatible service such as LM Studio, `hs-core::ai`); Terminal, SSH,
+SQL and S3 also have a review-only assistant that sends explicitly selected
+context only after the user submits a question.** The
 Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`, `hs-editor`,
 `hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`, `tools/tool-ssh`,
 `tools/tool-s3`, `tools/tool-db`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
@@ -353,6 +355,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so
   keep `HyperStackData/update/` on the same volume as the exe.
+- `std::fs::canonicalize` prefixes Windows paths with `\\?\`; strip that
+  prefix before storing or comparing editor project roots, or saved paths and
+  test/request URIs no longer match.
+- BOM-less UTF-16 BE is ambiguous with other byte sequences; do not guess it
+  during automatic decode. Offer an explicit encoding choice to reopen the
+  original bytes instead.
 
 ### egui / eframe 0.35
 - `eframe::App` has `fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame)`,

@@ -91,12 +91,17 @@ workspace-delete-title = Delete Workspace
 workspace-delete-body = Remove the workspace "{ $name }" from the list?
 workspace-delete-files = Also delete its files (environments, connections, layout)
 workspace-deleted = Workspace "{ $name }" removed.
-workspace-name = Workspace Name
 palette-placeholder = Type a command…
 quick-open-placeholder = Open a file, connection, query or request…
 palette-no-results = Nothing matches.
 notifications = Notifications
 notifications-none = No notifications yet.
+notifications-clear = Clear All
+notifications-title = Recent Notifications
+notifications-seconds-ago = { $n ->
+    [one] { $n } second ago
+   *[other] { $n } seconds ago
+}
 cancel = Cancel
 ok = OK
 save = Save
@@ -161,6 +166,18 @@ status-jobs-tip = Background Jobs
 terminal-open-in-new-tab = Open in a New Tab
 settings-updates = Updates
 settings-appearance = Appearance
+settings-workspace = Workspace
+settings-workspace-sub = Name, logo and folder of the workspace that is open now.
+settings-workspace-section-identity = Identity
+settings-workspace-section-folder = Folder
+settings-workspace-rename = Rename Workspace
+settings-workspace-default-name-hint = The built-in Default workspace cannot be renamed, but you can still set its logo.
+settings-workspace-renamed = Workspace renamed to "{ $name }".
+settings-workspace-logo-set = Logo updated.
+settings-workspace-logo-removed = Logo removed.
+settings-workspace-open-folder = Open Workspace Folder
+settings-workspace-folder-hint = Everything this workspace owns lives here: environments, connections, saved queries and the layout.
+settings-welcome = Welcome
 settings-shortcuts = Shortcuts
 settings-environments = Environments
 settings-connections = Connections
@@ -183,7 +200,10 @@ settings-fonts-scanning = Scanning installed fonts…
 settings-fonts-none = No installed fonts found.
 settings-ui-zoom-hint = Scales the whole window, including the terminal and the editor (Ctrl+= and Ctrl+-).
 settings-min-tab-width = Minimum Tab Width
+settings-min-file-tab-width = Minimum File Tab Width
+settings-min-file-tab-width-hint = Width of the file tabs inside an editor project tab, before they wrap onto another row.
 settings-tab-gap = Tab Gap
+settings-color-palette = Palette
 settings-ui-zoom = UI Zoom
 settings-shortcut-action = Action
 settings-shortcut-binding = Shortcut
@@ -356,6 +376,8 @@ editor-saved = Saved { $name }
 editor-save-failed = Could not save { $name }: { $error }
 editor-open-failed = Could not open { $name }: { $error }
 editor-position = Ln { $line }, Col { $col }
+editor-reopen-with-encoding = Reopen From Disk With Encoding
+editor-reopen-with-encoding-hint = Reopen is available only for a saved file without unsaved edits.
 editor-selected = { $n } selected
 editor-spaces = Spaces: { $n }
 editor-tabs = Tabs
@@ -698,11 +720,11 @@ db-rolled-back = Transaction rolled back.
 
 ## AI assistant (settings)
 settings-ai = AI Assistant
-settings-ai-sub = Services the editor's assistant can ask. Keys are kept in the vault.
+settings-ai-sub = Services the AI assistants can ask. Keys are kept in the vault.
 ai-section-cascade = Cascade
 ai-max-rounds = Maximum Rounds
 ai-max-rounds-hint = How many edit rounds Cascade may run on its own before it stops and waits for you.
-ai-privacy-note = The assistant sends the open file or your selection to the service you choose. Use a local server such as LM Studio or Ollama for code that must not leave this machine.
+ai-privacy-note = An assistant sends only the context shown in its panel after you submit a question. The editor can share its file or selection; Terminal, SSH, SQL and S3 share their displayed context. Use a local server such as LM Studio or Ollama for data that must not leave this machine.
 ai-add = Add Provider
 ai-none = No providers yet.
 ai-select-hint = Select a provider or add one.
@@ -735,6 +757,11 @@ ai-remove = Remove
 
 ## AI assistant (editor panel)
 ai-assistant = AI Assistant
+ai-shared-button-tip = Ask for help with the current tool context. Nothing is sent until you ask.
+ai-shared-input-hint = Ask about this context… (Ctrl+Enter sends)
+ai-shared-empty = Ask for help with a query, command, error or configuration. The selected context is included only when you send a message.
+ai-context-shared-label = Context: { $label }
+ai-context-shared-note = This context is included in the next request to your selected AI provider. Review it before sending.
 ai-toggle-tip = Chat about the open file or the selection, review it and let the model change it.
 ai-close = Close the assistant
 ai-new-chat = Start a new chat

@@ -124,6 +124,7 @@ pub struct S3Tool {
     dialog: Option<DialogState>,
     /// The profile's environment (drives the banner and the delete guard).
     env_id: Option<String>,
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 impl S3Tool {
@@ -137,6 +138,7 @@ impl S3Tool {
             table: TableState::default(),
             dialog: None,
             env_id: None,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         };
         if t.state.conn_id.is_some() {
             t.connect(services);
@@ -1009,6 +1011,13 @@ impl Tool for S3Tool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let in_bucket = self.state.bucket.is_some() && self.client.is_some();
+        if ui
+            .button(format!("{} AI", ph::SPARKLE))
+            .tip(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("S3");
+        }
         let selected = self.selected_row();
         let is_object = matches!(selected, Some(Row::Object(_)));
         let btn = |ui: &mut egui::Ui, enabled: bool, icon: &str, key: &str| {
@@ -1237,6 +1246,53 @@ impl Tool for S3Tool {
             self.browser(ui, cx, &theme);
         }
         self.dialogs(ui, cx, &theme);
+        if self.assistant.open {
+            let selected = self
+                .selected_row()
+                .map(|row| match row {
+                    Row::Folder(prefix) => format!("Folder prefix: {prefix}"),
+                    Row::Object(object) => format!(
+                        "Object key: {}\nSize: {} bytes\nETag: {}",
+                        object.key, object.size, object.etag
+                    ),
+                })
+                .unwrap_or_default();
+            let profile = self
+                .state
+                .conn_id
+                .as_ref()
+                .and_then(|id| s.connections.read().by_id(id).map(|p| p.name.clone()))
+                .unwrap_or_else(|| "(none)".into());
+            let listing_error = match &self.shared.lock().objects {
+                Load::Failed(e) => e.clone(),
+                _ => "(none)".into(),
+            };
+            let context = format!(
+                "Profile: {profile}\nBucket: {}\nPrefix: {}\nSelected item:\n{}\n\nLast listing error: {listing_error}",
+                self.state.bucket.as_deref().unwrap_or("(none)"),
+                self.state.prefix,
+                selected
+            );
+            self.assistant.set_context("S3 selection", context);
+            let rect = ui.available_rect_before_wrap();
+            let panel = egui::Rect::from_min_max(
+                egui::pos2(rect.right() - 390.0, rect.top()),
+                rect.right_bottom(),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(panel)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .show(&mut child, |ui| {
+                    ui.set_min_width(370.0);
+                    self.assistant.ui(ui, s, &theme, "S3");
+                });
+        }
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
@@ -1246,6 +1302,7 @@ impl Tool for S3Tool {
             shortcut_action: None,
         };
         vec![
+            c("s3.ai", "AI: Toggle Assistant"),
             c("s3.refresh", "S3: Refresh"),
             c("s3.up", "S3: Parent Folder"),
             c("s3.upload", "S3: Upload Files"),
@@ -1259,6 +1316,7 @@ impl Tool for S3Tool {
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         match id {
+            "s3.ai" => self.assistant.toggle("S3"),
             "s3.refresh" | "run.alt" => {
                 self.load_buckets(s);
                 self.load_objects(s, None);

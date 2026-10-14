@@ -115,7 +115,10 @@ deleted, and a delete only ever removes files inside
 A workspace logo is an image file stored in the workspace folder as
 `icon.<ext>` (PNG, ICO, JPG, BMP, GIF, WEBP or SVG). Because it lives inside
 the portable folder, copying the workspace to another machine carries its logo.
-The menu and the switcher show it.
+The menu and the selected workspace switcher button show it. Settings →
+Workspace can change or remove the icon after creation and rename any registered
+workspace except the built-in `default`; renaming updates workspace metadata and
+the registry without moving its folder.
 
 ## 2. Core entities
 

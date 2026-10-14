@@ -88,6 +88,15 @@ same day). Two multi-row tab strips:
 - One `notify` watcher per tab: the project root recursively, the folders
   of open files outside it non-recursively. Quick open (Ctrl+P) lists the
   project's files.
+- Project roots are unique across the window: opening the same folder again
+  (including a normalized alternate path) focuses its existing editor tab.
+- The minimum width of file tabs inside a project is configurable under
+  Settings → Appearance → Tabs (default 160 px, range 80–320 px).
+- The status bar's encoding menu controls the encoding used when saving.
+  UTF-8, UTF-8 BOM, UTF-16 LE/BE with or without BOM, and Windows-1252 are
+  supported. **Reopen From Disk With Encoding** re-decodes a clean saved file;
+  it is disabled while edits are unsaved. BOMs and BOM-less UTF-16 LE are
+  detected automatically; BOM-less UTF-16 BE must be selected manually.
 - The AI assistant panel is one per editor tab and works on the active file.
 - **Git** (docs/tools/git.md §3a): branch and change letters in the tree, a
   Source Control list in the sidebar (switch at its top), diffs and history

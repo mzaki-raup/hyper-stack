@@ -118,6 +118,14 @@ OSC 52 allow.
 
 ## 7. Tests
 
+## 8. AI assistant (implemented 2026-10-14)
+
+The toolbar's **AI** button opens the shared review-only assistant. It can
+discuss the visible terminal screen (up to 80 rows), but it cannot submit
+commands or access scrollback that is not currently visible. Context is shown
+in the panel and sent only after the user submits a question. The panel uses
+the providers configured in Settings → AI Assistant.
+
 alacritty's parser is tested upstream; we add snapshot tests of grid
 rendering (colours, wide chars, cursor), key-encoding tables, link detection
 regexes, PTY spawn on each OS in CI (echo round-trip, resize), profile

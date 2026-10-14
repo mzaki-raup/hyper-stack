@@ -1,5 +1,6 @@
 //! HyperStack shared egui widgets. Nothing here knows about a specific tool.
 
+pub mod ai_assistant;
 pub mod badge;
 pub mod dialog;
 pub mod env_banner;

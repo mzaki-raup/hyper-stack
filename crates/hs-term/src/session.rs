@@ -235,6 +235,30 @@ impl Session {
         (self.cols, self.rows)
     }
 
+    /// Plain-text view of visible terminal rows for an explicitly requested
+    /// assistant context. Control sequences and styling are omitted.
+    pub fn visible_text(&self, max_rows: usize) -> String {
+        let term = self.term.lock();
+        let grid = term.grid();
+        let rows = (0..self.rows as usize).take(max_rows);
+        rows.map(|row| {
+            let line = alacritty_terminal::index::Line(row as i32);
+            (0..self.cols as usize)
+                .map(|col| {
+                    grid[alacritty_terminal::index::Point::new(
+                        line,
+                        alacritty_terminal::index::Column(col),
+                    )]
+                    .c
+                })
+                .collect::<String>()
+                .trim_end()
+                .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+
     pub fn exited(&self) -> Option<u32> {
         self.exited
             .load(Ordering::Relaxed)

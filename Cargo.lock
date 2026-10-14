@@ -2889,8 +2889,13 @@ dependencies = [
  "egui-phosphor",
  "egui_extras",
  "egui_kittest",
+ "futures-util",
  "hs-core",
+ "parking_lot",
+ "reqwest",
+ "secrecy",
  "serde",
+ "tokio",
  "ttf-parser",
 ]
 
@@ -6975,12 +6980,14 @@ version = "0.17.0"
 dependencies = [
  "egui",
  "hs-core",
+ "hs-editor",
  "hs-ui",
  "parking_lot",
  "rfd",
  "secrecy",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6990,6 +6997,7 @@ dependencies = [
  "chrono",
  "egui",
  "hs-core",
+ "hs-editor",
  "hs-ssh",
  "hs-term",
  "hs-ui",
@@ -7008,6 +7016,7 @@ version = "0.17.0"
 dependencies = [
  "egui",
  "hs-core",
+ "hs-editor",
  "hs-term",
  "hs-ui",
  "serde",

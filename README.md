@@ -32,9 +32,11 @@ and theme.
 > Mermaid diagrams), an SSH + SFTP tool with a synced dual pane and port
 > forwarding, an S3 browser for AWS and S3-compatible stores, a SQL client for
 > PostgreSQL, MySQL/MariaDB and SQLite, an optional AI assistant in the
-> editor (1min.AI, LM Studio, Ollama or any OpenAI-compatible service), and
-> the in-app updater with signed
-> releases. NoSQL, Redis, API client, Git and logs follow in the next
+> editor (1min.AI, LM Studio, Ollama or any OpenAI-compatible service), plus
+> review-only AI help in Terminal, SSH, SQL and S3 that sends only the
+> displayed context after the user submits a question and never executes
+> commands or changes data, and the in-app updater with signed releases.
+> NoSQL, Redis, API client, Git and logs follow in the next
 > milestones per
 > [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project: `../eden-explorer`
 > (Rust + egui file manager) serves as a **reference only**: HyperStack studies
@@ -54,7 +56,7 @@ made.
 | | |
 |---|---|
 | ![Welcome tab](docs/screenshots/welcome.png) | ![Launcher](docs/screenshots/launcher.png) |
-| **Welcome** — version, build and the portable data folder in use | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
+| **Welcome** (Settings → Welcome) — version, build and the portable data folder in use | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
@@ -65,11 +67,16 @@ made.
 | | |
 |---|---|
 | ![Workspace menu](docs/screenshots/workspace-menu.png) | ![New workspace](docs/screenshots/workspace-new.png) |
-| **Workspace switcher** in the title bar | **New workspace** — name, logo, and copy environments/connections from another |
+| **Workspace switcher** in the title bar, with the selected workspace logo | **New workspace** — name, logo, and copy environments/connections from another |
 | ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |
 | **Environment switcher** — colour-coded, protected ones marked | **Protected Production** — red banner and frame on every tab |
 | ![Environments settings](docs/screenshots/settings-environments.png) | |
 | **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault) | |
+
+Settings is always open as a pinned tab in each workspace. Settings → Workspace
+lets you rename a non-default workspace and set or remove its logo after
+creation. The title-bar notification bell opens recent notifications; Quick
+Open opens the searchable tools, connections and project items palette.
 
 ### Secret vault and connections
 
@@ -86,10 +93,11 @@ made.
 |---|---|
 | ![Editor](docs/screenshots/editor.png) | ![Markdown preview](docs/screenshots/editor-markdown-preview.png) |
 | **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
+| **Encoding** — choose UTF-8/UTF-8 BOM, UTF-16 LE/BE with or without BOM, or Windows-1252 per file; reopen a clean file from disk to decode with a different encoding. | |
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
 | ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
-| **Projects as tabs** — every folder you open is its own window tab, and inside it the project's files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. Files from outside the projects (a terminal Ctrl+click) collect in an **Other Files** tab. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks the file tabs. | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
+| **Projects as tabs** — each project root has one window tab; opening the same root again focuses it. Inside it, files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. File-tab minimum width is configurable in Settings → Appearance. Files from outside the projects (a terminal Ctrl+click) collect in an **Other Files** tab. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks the file tabs. | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![Git in the project tree](docs/screenshots/editor-git-tree.png) | ![Git diff](docs/screenshots/editor-git-diff.png) |

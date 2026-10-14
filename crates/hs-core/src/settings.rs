@@ -41,6 +41,8 @@ pub struct Appearance {
     /// Interface font id (`hs_ui::fonts`): "" = default, "system:<family>" for an installed font.
     pub ui_font: String,
     pub min_tab_width: f32,
+    /// Minimum width of a file tab inside an editor project tab.
+    pub min_file_tab_width: f32,
     pub tab_gap: f32,
     pub sidebar_width: f32,
     pub dock_height: f32,
@@ -221,6 +223,7 @@ impl Default for Appearance {
             ui_font_size: 14.0,
             ui_font: String::new(),
             min_tab_width: 140.0,
+            min_file_tab_width: 160.0,
             tab_gap: 4.0,
             sidebar_width: 260.0,
             dock_height: 220.0,
@@ -284,6 +287,7 @@ mod tests {
         std::fs::write(&p, "schema = 1\n[appearance]\nmin_tab_width = 200.0\n").unwrap();
         let s2 = Settings::load(&p).unwrap();
         assert_eq!(s2.appearance.min_tab_width, 200.0);
+        assert_eq!(s2.appearance.min_file_tab_width, 160.0);
         assert_eq!(s2.appearance.tab_gap, 4.0);
         assert_eq!(s2.general.startup_workspace, "default");
     }

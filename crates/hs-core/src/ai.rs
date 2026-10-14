@@ -681,6 +681,28 @@ pub fn code_system_prompt() -> String {
         .to_string()
 }
 
+/// System instructions for conversational help in tools that do not edit a
+/// source buffer. Never ask the model to run commands or perform actions: the
+/// host tool remains under the user's control.
+pub fn assistant_system_prompt(tool: &str) -> String {
+    format!(
+        "You are HyperStack's {tool} assistant. Help explain, troubleshoot, and draft scripts, queries, or configuration using only context the user chose to share. Be concise, state assumptions, and point out risky or destructive operations before suggesting them. Never claim to have executed a command, query, request, or storage operation. Return suggestions for the user to review and apply manually."
+    )
+}
+
+#[cfg(test)]
+mod assistant_prompt_tests {
+    use super::assistant_system_prompt;
+
+    #[test]
+    fn shared_assistant_is_review_only_and_does_not_claim_actions() {
+        let prompt = assistant_system_prompt("SQL");
+        assert!(prompt.contains("SQL assistant"));
+        assert!(prompt.contains("Never claim to have executed"));
+        assert!(prompt.contains("review and apply manually"));
+    }
+}
+
 /// The user message that carries the editor's context.
 pub fn context_message(
     file_label: &str,

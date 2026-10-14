@@ -138,6 +138,7 @@ pub struct SshTool {
     /// The last connect failed only because the vault was locked: retry as
     /// soon as it is unlocked (a tab restored at start-up hits this).
     waiting_for_vault: bool,
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 /// `ssh -L` as a form: local port (empty = any free one) → remote host:port
@@ -180,6 +181,7 @@ impl SshTool {
             conn_name: String::new(),
             tunnel_form: None,
             waiting_for_vault: false,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         };
         if t.state.conn_id.is_some() {
             t.connect(services);
@@ -1124,6 +1126,13 @@ impl Tool for SshTool {
         }
         ui.toggle_value(&mut self.state.sync_cwd, s.t("ssh-sync-cwd"))
             .tip(s.t("ssh-sync-cwd-hint"));
+        if ui
+            .button(format!("{} AI", ph::SPARKLE))
+            .tip(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("SSH");
+        }
         if let Some(sess) = &self.session {
             let (c, r) = sess.size();
             ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
@@ -1363,6 +1372,40 @@ impl Tool for SshTool {
             }
         }
         ui.allocate_rect(full, egui::Sense::hover());
+        if self.assistant.open {
+            let remote_path = self.shared.lock().remote.path.clone();
+            let visible = self
+                .session
+                .as_ref()
+                .map(|session| session.visible_text(80))
+                .unwrap_or_default();
+            let error = match &self.status {
+                Status::Failed(e) => e.clone(),
+                _ => "(none)".into(),
+            };
+            let ctx_text = format!(
+                "Host: {}\nStatus: {:?}\nRemote directory: {}\nLast SSH error: {}\n\nRecent visible remote shell output:\n{}",
+                self.conn_name, self.status, remote_path, error, visible
+            );
+            self.assistant.set_context("SSH session", ctx_text);
+            let panel = egui::Rect::from_min_size(
+                egui::pos2(term_rect.right() - 390.0, term_rect.top()),
+                egui::vec2(390.0, term_rect.height()),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(panel)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .show(&mut child, |ui| {
+                    ui.set_min_width(370.0);
+                    self.assistant.ui(ui, s, &theme, "SSH");
+                });
+        }
         if self.status == Status::Connecting || self.shared.lock().remote.loading {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(200));
@@ -1376,6 +1419,7 @@ impl Tool for SshTool {
             shortcut_action: None,
         };
         vec![
+            c("ssh.ai", "AI: Toggle Assistant"),
             c("ssh.connect", "SSH: Connect"),
             c("ssh.disconnect", "SSH: Disconnect"),
             c("ssh.refresh", "SSH: Refresh Files"),
@@ -1386,6 +1430,7 @@ impl Tool for SshTool {
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "ssh.ai" => self.assistant.toggle("SSH"),
             "ssh.connect" => self.connect(cx.services),
             "ssh.disconnect" => self.disconnect(),
             "ssh.refresh" => self.refresh(cx.services),

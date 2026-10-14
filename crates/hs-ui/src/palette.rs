@@ -27,6 +27,9 @@ pub struct PaletteState {
     pub query: String,
     pub selected: usize,
     just_opened: bool,
+    /// Suppress the outside-click handler on the same frame that opened the
+    /// popup (for example, a click on the Quick Open toolbar button).
+    opened_this_frame: bool,
 }
 
 impl Default for PaletteState {
@@ -37,6 +40,7 @@ impl Default for PaletteState {
             query: String::new(),
             selected: 0,
             just_opened: false,
+            opened_this_frame: false,
         }
     }
 }
@@ -48,6 +52,7 @@ impl PaletteState {
         self.query.clear();
         self.selected = 0;
         self.just_opened = true;
+        self.opened_this_frame = true;
     }
     pub fn close(&mut self) {
         self.open = false;
@@ -242,7 +247,9 @@ pub fn show(
                     });
             });
     });
-    if response.response.clicked_elsewhere()
+    let just_opened = std::mem::take(&mut state.opened_this_frame);
+    if !just_opened
+        && response.response.clicked_elsewhere()
         && !ctx.input(|i| {
             i.pointer.any_pressed()
                 && response
@@ -257,4 +264,46 @@ pub fn show(
         state.close();
     }
     chosen
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    #[derive(Default)]
+    struct State {
+        palette: PaletteState,
+    }
+
+    #[test]
+    fn opening_quick_open_from_a_button_does_not_close_on_the_same_click() {
+        let theme = Theme::dark();
+        let labels = PaletteLabels {
+            placeholder_commands: "Type a command…".into(),
+            placeholder_quick_open: "Quick Open".into(),
+            no_results: "Nothing matches.".into(),
+        };
+        let items = [PaletteItem {
+            id: "open:editor".into(),
+            title: "Editor".into(),
+            subtitle: None,
+            icon: None,
+            shortcut: None,
+        }];
+        let mut harness = Harness::new_ui_state(
+            |ui, state: &mut State| {
+                if ui.button("Quick Open").clicked() {
+                    state.palette.open(PaletteMode::QuickOpen);
+                }
+                show(ui.ctx(), &theme, &mut state.palette, &items, &labels);
+            },
+            State::default(),
+        );
+        harness.run();
+        harness.get_by_label("Quick Open").click();
+        harness.run();
+        assert!(harness.state().palette.open);
+    }
 }

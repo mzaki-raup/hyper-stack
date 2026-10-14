@@ -20,8 +20,10 @@ use tool_db::profile::DbFields;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Page {
     #[default]
+    Welcome,
     General,
     Appearance,
+    Workspace,
     Shortcuts,
     Environments,
     Connections,
@@ -33,10 +35,12 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 10] {
+    pub fn all() -> [(Page, &'static str); 12] {
         [
+            (Page::Welcome, "settings-welcome"),
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
+            (Page::Workspace, "settings-workspace"),
             (Page::Environments, "settings-environments"),
             (Page::Security, "settings-security"),
             (Page::Connections, "settings-connections"),
@@ -51,8 +55,10 @@ impl Page {
     fn icon(self) -> &'static str {
         use hs_ui::icons::ph;
         match self {
+            Page::Welcome => ph::HAND_WAVING,
             Page::General => ph::SLIDERS_HORIZONTAL,
             Page::Appearance => ph::PALETTE,
+            Page::Workspace => ph::FOLDERS,
             Page::Shortcuts => ph::KEYBOARD,
             Page::Environments => ph::GLOBE_HEMISPHERE_WEST,
             Page::Connections => ph::PLUGS_CONNECTED,
@@ -85,10 +91,21 @@ impl Page {
 /// Settings state plus the effects the pages produced this frame, shared
 /// between the shell (which applies effects) and the Settings tab (which
 /// draws the pages).
-#[derive(Default)]
 pub struct SettingsHub {
     pub state: SettingsState,
     pub effects: Vec<SettingsEffect>,
+}
+
+impl Default for SettingsHub {
+    fn default() -> Self {
+        Self {
+            state: SettingsState {
+                page: Page::Welcome,
+                ..Default::default()
+            },
+            effects: Vec::new(),
+        }
+    }
 }
 
 pub type SharedSettings = std::sync::Arc<parking_lot::Mutex<SettingsHub>>;
@@ -105,6 +122,9 @@ pub struct SettingsState {
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
     pub ai: crate::settings_ai::AiPageState,
+    /// Workspace page: the name being edited and which workspace it belongs
+    /// to, so switching workspaces does not carry a stale draft over.
+    pub ws_name: Option<(String, String)>,
 }
 
 /// The "Copy Variables From…" dialog on the Environments page: which source
@@ -132,6 +152,10 @@ pub enum SettingsEffect {
     ChangeMasterPassword,
     EnvironmentsChanged,
     ConnectionsChanged,
+    /// Rename the open workspace (the shell owns the registry).
+    RenameWorkspace(String),
+    /// The workspace logo changed on disk: drop the cached image.
+    WorkspaceLogoChanged,
     Toast(hs_core::tool::ToastLevel, String),
 }
 
@@ -170,8 +194,10 @@ pub fn page(
     effects: &mut Vec<SettingsEffect>,
 ) {
     match state.page {
+        Page::Welcome => welcome(ui, theme, services, effects),
         Page::General => general(ui, theme, services, effects),
         Page::Appearance => appearance(ui, theme, services, effects),
+        Page::Workspace => workspace(ui, theme, services, state, effects),
         Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
         Page::Environments => environments(ui, theme, services, state, effects),
         Page::Connections => connections(ui, theme, services, state, effects),
@@ -184,6 +210,188 @@ pub fn page(
 }
 
 // ---------------------------------------------------------------------------
+
+/// The first page of Settings: what HyperStack is, this build, and the keys
+/// worth knowing. It replaced the separate Welcome tab (2026-10-14).
+fn welcome(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    form::page_title(ui, theme, &s.t("app-name"), Some(&s.t("app-tagline")));
+    form::section(ui, theme, &s.t("settings-welcome"), |ui| {
+        form::hint(ui, theme, &s.t("tool-hello-body"));
+        ui.add_space(8.0);
+        form::field_grid(ui, "welcome-grid", |ui| {
+            form::label(ui, &s.t("settings-about-version"));
+            ui.monospace(s.version.to_string());
+            ui.end_row();
+            form::label(ui, &s.t("settings-data-folder"));
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(s.paths.root().display().to_string()).monospace(),
+                )
+                .wrap(),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("workspace-switch"));
+            ui.label(s.workspace.read().meta.name.clone());
+            ui.end_row();
+        });
+    });
+    form::section(ui, theme, &s.t("settings-shortcuts"), |ui| {
+        let km = s.shortcuts.read();
+        form::field_grid(ui, "welcome-keys", |ui| {
+            for action in [
+                "tab.new",
+                "palette.commands",
+                "palette.quick_open",
+                "view.dock",
+                "app.settings",
+            ] {
+                form::label(ui, action);
+                match km.get(action) {
+                    Some(c) => ui.monospace(c.display()),
+                    None => ui.label("—"),
+                };
+                ui.end_row();
+            }
+        });
+    });
+    let _ = effects;
+}
+
+/// Name, logo and folder of the workspace that is open. The logo can be
+/// changed here after creation, not only in the New Workspace dialog.
+fn workspace(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-workspace"),
+        Some(&s.t("settings-workspace-sub")),
+    );
+    let current = s.workspace.read().meta.name.clone();
+    let root = s.workspace.read().root().to_path_buf();
+    // The draft follows the open workspace; switching discards an edit.
+    let draft = match &mut state.ws_name {
+        Some((ws, _)) if *ws == current => state.ws_name.as_mut().map(|(_, n)| n).unwrap(),
+        _ => {
+            state.ws_name = Some((current.clone(), current.clone()));
+            state.ws_name.as_mut().map(|(_, n)| n).unwrap()
+        }
+    };
+
+    form::section(
+        ui,
+        theme,
+        &s.t("settings-workspace-section-identity"),
+        |ui| {
+            form::field_grid(ui, "ws-identity", |ui| {
+                form::label(ui, &s.t("workspace-name"));
+                ui.vertical(|ui| {
+                    form::text_field(ui, draft, &s.t("workspace-name-hint"));
+                    let changed = draft.trim() != current && !draft.trim().is_empty();
+                    if ui
+                        .add_enabled(
+                            changed && current != "default",
+                            egui::Button::new(s.t("settings-workspace-rename")),
+                        )
+                        .clicked()
+                    {
+                        effects.push(SettingsEffect::RenameWorkspace(draft.trim().to_string()));
+                    }
+                    if current == "default" {
+                        form::hint(ui, theme, &s.t("settings-workspace-default-name-hint"));
+                    }
+                });
+                ui.end_row();
+                form::label(ui, &s.t("workspace-logo"));
+                ui.vertical(|ui| {
+                    ui.horizontal(|ui| {
+                        let (rect, _) =
+                            ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 6.0, theme.surface);
+                        match hs_core::workspace::workspace_icon_file(&root)
+                            .and_then(|p| crate::app::logo_image(&p))
+                        {
+                            Some(img) => img
+                                .fit_to_exact_size(egui::vec2(40.0, 40.0))
+                                .paint_at(ui, rect.shrink(2.0)),
+                            None => {
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    hs_ui::icons::WORKSPACE,
+                                    egui::FontId::proportional(22.0),
+                                    theme.text_muted,
+                                );
+                            }
+                        }
+                        ui.add_space(8.0);
+                        if ui.button(s.t("workspace-logo-choose")).clicked()
+                            && let Some(p) = rfd::FileDialog::new()
+                                .add_filter("Image", hs_core::workspace::ICON_EXTS)
+                                .pick_file()
+                        {
+                            match hs_core::workspace::set_workspace_icon(&root, &p) {
+                                Ok(_) => {
+                                    effects.push(SettingsEffect::WorkspaceLogoChanged);
+                                    effects.push(SettingsEffect::Toast(
+                                        hs_core::tool::ToastLevel::Success,
+                                        s.t("settings-workspace-logo-set"),
+                                    ));
+                                }
+                                Err(e) => effects.push(SettingsEffect::Toast(
+                                    hs_core::tool::ToastLevel::Error,
+                                    e.to_string(),
+                                )),
+                            }
+                        }
+                        if let Some(existing) = hs_core::workspace::workspace_icon_file(&root)
+                            && ui.button(s.t("workspace-logo-remove")).clicked()
+                        {
+                            match std::fs::remove_file(&existing) {
+                                Ok(()) => {
+                                    effects.push(SettingsEffect::WorkspaceLogoChanged);
+                                    effects.push(SettingsEffect::Toast(
+                                        hs_core::tool::ToastLevel::Success,
+                                        s.t("settings-workspace-logo-removed"),
+                                    ));
+                                }
+                                Err(e) => effects.push(SettingsEffect::Toast(
+                                    hs_core::tool::ToastLevel::Error,
+                                    e.to_string(),
+                                )),
+                            }
+                        }
+                    });
+                    form::hint(ui, theme, &s.t("workspace-logo-hint"));
+                });
+                ui.end_row();
+            });
+        },
+    );
+
+    form::section(ui, theme, &s.t("settings-workspace-section-folder"), |ui| {
+        ui.add(
+            egui::Label::new(egui::RichText::new(root.display().to_string()).monospace()).wrap(),
+        );
+        ui.add_space(6.0);
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FOLDER_OPEN,
+                s.t("settings-workspace-open-folder")
+            ))
+            .clicked()
+        {
+            open_folder(s, &root);
+        }
+        form::hint(ui, theme, &s.t("settings-workspace-folder-hint"));
+    });
+}
 
 fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     form::page_title(
@@ -558,29 +766,80 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
                 });
             ui.end_row();
         });
+        ui.add_space(10.0);
+        // Every scheme as a clickable row of its own swatches.
+        ui.label(
+            egui::RichText::new(s.t("settings-color-palette"))
+                .size(13.0)
+                .color(theme.text_muted),
+        );
         ui.add_space(6.0);
-        // Swatches of the selected scheme.
-        ui.horizontal(|ui| {
+        for (id, name, dark) in Theme::schemes() {
+            let scheme = Theme::by_name(id);
+            let selected = settings.appearance.theme == *id;
+            let (rect, resp) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width().min(520.0), 30.0),
+                egui::Sense::click(),
+            );
+            let fill = if selected {
+                theme.accent.linear_multiply(0.30)
+            } else if resp.hovered() {
+                theme.surface_hover
+            } else {
+                egui::Color32::TRANSPARENT
+            };
+            if fill != egui::Color32::TRANSPARENT {
+                ui.painter()
+                    .rect_filled(rect, egui::CornerRadius::same(6), fill);
+            }
+            let mut x = rect.left() + 8.0;
             for c in [
-                theme.window_bg,
-                theme.panel_bg,
-                theme.surface,
-                theme.accent,
-                theme.secondary,
-                theme.success,
-                theme.warning,
-                theme.error,
+                scheme.window_bg,
+                scheme.surface,
+                scheme.accent,
+                scheme.warning,
             ] {
-                let (r, _) = ui.allocate_exact_size(egui::vec2(28.0, 18.0), egui::Sense::hover());
-                ui.painter().rect_filled(r, egui::CornerRadius::same(3), c);
+                let sw = egui::Rect::from_min_size(
+                    egui::pos2(x, rect.center().y - 7.0),
+                    egui::vec2(16.0, 14.0),
+                );
+                ui.painter().rect_filled(sw, egui::CornerRadius::same(3), c);
                 ui.painter().rect_stroke(
-                    r,
+                    sw,
                     egui::CornerRadius::same(3),
                     egui::Stroke::new(1.0, theme.border),
                     egui::StrokeKind::Inside,
                 );
+                x += 20.0;
             }
-        });
+            ui.painter().text(
+                egui::pos2(x + 8.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                format!(
+                    "{}  {name}",
+                    if *dark {
+                        hs_ui::icons::ph::MOON
+                    } else {
+                        hs_ui::icons::ph::SUN
+                    }
+                ),
+                egui::FontId::proportional(13.5),
+                if selected { theme.accent } else { theme.text },
+            );
+            resp.widget_info(|| {
+                egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, *name)
+            });
+            if resp
+                .on_hover_cursor(egui::CursorIcon::PointingHand)
+                .clicked()
+                && !selected
+            {
+                settings.appearance.theme = (*id).to_string();
+                theme_changed = true;
+            }
+            ui.add_space(2.0);
+        }
+        ui.add_space(4.0);
         form::hint(ui, theme, &s.t("settings-color-scheme-hint"));
     });
 
@@ -633,12 +892,21 @@ fn appearance(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<
                 )
                 .changed();
             ui.end_row();
+            form::label(ui, &s.t("settings-min-file-tab-width"));
+            changed |= ui
+                .add(
+                    egui::Slider::new(&mut settings.appearance.min_file_tab_width, 80.0..=320.0)
+                        .suffix(" px"),
+                )
+                .changed();
+            ui.end_row();
             form::label(ui, &s.t("settings-tab-gap"));
             changed |= ui
                 .add(egui::Slider::new(&mut settings.appearance.tab_gap, 0.0..=24.0).suffix(" px"))
                 .changed();
             ui.end_row();
         });
+        form::hint(ui, theme, &s.t("settings-min-file-tab-width-hint"));
     });
 
     if theme_changed {

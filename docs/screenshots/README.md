@@ -16,25 +16,31 @@ Images used by the top-level [README](../../README.md). They show HyperStack
   `deploy`) so the shell and SFTP pane are real; the shell prompt sets the
   xterm title, which is what **Follow Shell Folder** reads.
 - The S3 shots use moto's S3 server (`moto_server -p 5055`, keys
-  `testing`/`testing`) seeded with a few buckets; the profiles were
-  imported through the tool's "Import AWS Profiles" from a `~/.aws` pair
-  pointing at it. The tunnel shot forwards a local port through the same
-  OpenSSH server to a small HTTP service.
-- The database shots and `database-walkthrough.gif` (12 fps x11grab →
-  10 fps, 1200 px GIF) use a local PostgreSQL 16 and MariaDB 10.11 seeded
-  with a small shop schema (customers, products, 600 orders, order items,
-  an `audit` schema), and a SQLite copy of it. The PostgreSQL and MariaDB
-  profiles were created through Settings → Connections by pasting a URL
-  (the password went into the vault); "orders (production)" points at the
-  same database under the protected Production environment, and
-  "orders via web-01" tunnels through the local OpenSSH server.
+  `testing`/`testing`) seeded with a few buckets; the profiles were imported
+  through the tool's "Import AWS Profiles" from a `~/.aws` pair pointing at it.
+  The tunnel shot forwards a local port through the same OpenSSH server to a
+  small HTTP service.
+- The database shots and `database-walkthrough.gif` (12 fps x11grab → 10 fps,
+  1200 px GIF) use a local PostgreSQL 16 and MariaDB 10.11 seeded with a small
+  shop schema (customers, products, 600 orders, order items, an `audit`
+  schema), and a SQLite copy of it. The PostgreSQL and MariaDB profiles were
+  created through Settings → Connections by pasting a URL (the password went
+  into the vault); "orders (production)" points at the same database under the
+  protected Production environment, and "orders via web-01" tunnels through
+  the local OpenSSH server.
 - `hyperstack-demo.gif` is an `ffmpeg x11grab` recording of one scripted run
   (vault unlock → launcher → terminal with search and a Ctrl+clicked
-  `path:line` → editor at that line → Markdown preview with a Mermaid
-  diagram → SSH/SFTP and a new tunnel → S3 bucket browsing and a presigned
-  URL → Production environment),
-  converted at 10 fps, 1200 px wide with a generated palette.
+  `path:line` → editor at that line → Markdown preview with a Mermaid diagram
+  → SSH/SFTP and a new tunnel → S3 bucket browsing and a presigned URL →
+  Production environment), converted at 10 fps, 1200 px wide with a generated
+  palette.
 - PNGs are quantised to 256 colours to keep the repository small.
 
-Retake them when the UI changes visibly; keep the file names, the README
-links to them.
+## AI assistant imagery
+
+The AI assistant now appears in the terminal, SSH, SQL and S3 toolbars. The
+existing screenshots and GIFs have **not** yet been retaken for this UI: doing
+so requires an interactive desktop/Xvfb capture session with the relevant
+connection and test-provider setup. When recaptured, add dedicated shots for
+terminal, SSH, SQL and S3 assistant panels, plus an updated walkthrough GIF;
+retain current filenames and README links for existing shots.

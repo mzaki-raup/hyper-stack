@@ -224,6 +224,7 @@ pub struct DbTool {
     catalog_cached: bool,
     /// The saved query's name (from its header), for the tab title.
     query_name: Option<String>,
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 fn char_to_byte(text: &str, ci: usize) -> usize {
@@ -342,6 +343,7 @@ impl DbTool {
             saved: Vec::new(),
             catalog_cached: false,
             query_name: None,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             state,
         };
         if let Some(rel) = t.state.query_file.clone() {
@@ -2183,6 +2185,13 @@ impl Tool for DbTool {
             self.run(RunMode::Explain, s);
         }
         drop(km);
+        if ui
+            .button(format!("{} AI", ph::SPARKLE))
+            .tip(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("SQL");
+        }
         ui.separator();
         let tx_label = if self.state.manual_tx {
             s.t("db-tx-manual")
@@ -2721,6 +2730,41 @@ impl DbTool {
         self.results_panel(ui, cx, &theme);
         self.completion_popup(ui, &theme);
         self.dialogs(ui, cx, &theme);
+        if self.assistant.open {
+            let query = self.buf.text();
+            let last_error = self
+                .shared
+                .lock()
+                .results
+                .last()
+                .and_then(|r| r.error.as_ref().map(ToString::to_string));
+            let context = format!(
+                "Connection: {}\nEngine: {:?}\nQuery:\n{}\n\nLast query error: {}",
+                self.conn_name,
+                self.engine,
+                query,
+                last_error.unwrap_or_else(|| "(none)".into())
+            );
+            self.assistant.set_context("SQL workspace", context);
+            let rect = ui.available_rect_before_wrap();
+            let panel = egui::Rect::from_min_max(
+                egui::pos2(rect.right() - 390.0, rect.top()),
+                rect.right_bottom(),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(panel)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .show(&mut child, |ui| {
+                    ui.set_min_width(370.0);
+                    self.assistant.ui(ui, s, &theme, "SQL");
+                });
+        }
     }
 
     fn command_list(&self) -> Vec<CommandDescriptor> {
@@ -2730,6 +2774,7 @@ impl DbTool {
             shortcut_action: sc.map(str::to_string),
         };
         vec![
+            c("db.ai", "AI: Toggle Assistant", None),
             c("run", "Database: Run Statement", Some("run")),
             c(
                 "db.run_script",
@@ -2760,6 +2805,7 @@ impl DbTool {
     fn command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         match id {
+            "db.ai" => self.assistant.toggle("SQL"),
             "run" => self.run(RunMode::Current, s),
             "db.run_script" | "run.alt" => self.run(RunMode::Script, s),
             "db.explain" => self.run(RunMode::Explain, s),

@@ -442,3 +442,10 @@ and wants self-hosted LM Studio with several models as well.
 (the settings page says so and suggests a local server). Edits are applied
 to the buffer, never saved without the user. Other tools (SQL "explain this
 query") can reuse `hs-core::ai` later.
+
+**Amended 2026-10-14.** Terminal, SSH, SQL and S3 use a shared
+`hs-ui::ai_assistant::AssistantPanel` for review-only help. Context is
+prepared locally and shown in a collapsed preview; nothing is sent until the
+user submits a question. The assistant cannot edit files, execute SQL, run
+shell commands, or invoke storage actions. API assistance will be added when
+the API client exists; that tool is not implemented yet.

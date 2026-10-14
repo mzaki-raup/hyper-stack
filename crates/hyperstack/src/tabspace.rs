@@ -60,6 +60,9 @@ impl TabItem for TabView {
     fn pinned(&self) -> bool {
         self.pinned
     }
+    fn can_unpin(&self) -> bool {
+        self.factory_id != "settings"
+    }
     fn dirty(&self) -> bool {
         self.dirty
     }

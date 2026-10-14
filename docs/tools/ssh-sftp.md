@@ -174,6 +174,14 @@ PowerShell remoting are out of scope.
 
 ## 12. Tests
 
+## 13. AI assistant (implemented 2026-10-14)
+
+The SSH toolbar's **AI** button opens review-only help for the SSH host,
+connection state, remote folder and visible shell screen (up to 80 rows). It
+does not run shell commands, perform SFTP actions, or inspect hidden data.
+The context preview lets the user check what will be included; provider access
+happens only after a question is submitted.
+
 `russh` integration against an OpenSSH container (password, key, agent, jump,
 host key change), SFTP operations and resume after a forced disconnect, config
 importer fixtures (including `Include`, `Match` ignored with a note), terminal

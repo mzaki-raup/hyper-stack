@@ -1,7 +1,6 @@
 //! Built-in Phase 0 tools that prove the plumbing. Real tools live in their
 //! own crates from M1 on.
 
-pub mod hello;
 pub mod scratchpad;
 pub mod settings;
 
@@ -18,6 +17,5 @@ pub fn factories(settings: SharedSettings) -> Vec<Box<dyn ToolFactory>> {
         Box::new(tool_db::DbFactory),
         Box::new(scratchpad::ScratchpadFactory),
         Box::new(settings::SettingsFactory { hub: settings }),
-        Box::new(hello::HelloFactory),
     ]
 }

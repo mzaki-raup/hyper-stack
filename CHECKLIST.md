@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid preview)
+Last updated: 2026-10-14 (desktop UI smoke check pending for workspace/settings polish)
 
 ## Planning
 
@@ -131,3 +131,13 @@ Last updated: 2026-10-11 (M1 complete: terminal search and links, Mermaid previe
 | Plugin API (WASM) | Pending | |
 | Detachable tabs, audit log, presentation mode | Pending | |
 | macOS runner and bundle, aarch64 builds | Pending | |
+
+## UI follow-up (2026-10-14)
+
+| Item | State | Notes |
+|---|---|---|
+| Workspace selected logo, post-create workspace name/logo editing, fixed Workspace settings route | In-Progress | Implemented; build/tests pass. Exercise in the running desktop app before marking complete. |
+| Persistent pinned Settings tab, Welcome page migration, Quick Open popup, notification history, app logo | In-Progress | Implemented; Quick Open opening-click has an egui_kittest. Desktop smoke check remains. |
+| Clickable appearance palettes and editor file-tab width setting | In-Progress | Implemented; compile/clippy pass. Verify settings interaction in the running app. |
+| Project-root tab deduplication and encoding selection/reopen | In-Progress | Path-affinity test and encoding tests pass. Verify UI flow in the running app. |
+| Reusable AI assistant across terminal, SSH, SQL, S3 and API tools | In-Progress | Shared review-only panel implemented in terminal, SSH, SQL and S3; context is sent only on explicit submit and cannot trigger tool actions. API client is not implemented. Release build and workspace tests pass; desktop interaction plus screenshots/GIF are still pending because no visual capture is available in this session. |

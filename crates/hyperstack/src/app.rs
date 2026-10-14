@@ -50,17 +50,40 @@ enum WorkspaceDialog {
 }
 
 /// An `egui` image for a logo file, read as bytes and decoded by the installed
-/// PNG/SVG loaders (keyed by the path so it is cached after the first frame).
+/// PNG/SVG loaders. The cache key carries the file's size and mtime so replacing the
+/// logo shows the new image instead of the cached old one.
 /// Returns `None` when the file is missing or unreadable.
-fn logo_image(path: &std::path::Path) -> Option<egui::Image<'static>> {
+pub(crate) fn logo_image(path: &std::path::Path) -> Option<egui::Image<'static>> {
     let bytes = std::fs::read(path).ok()?;
-    let uri = path.display().to_string().replace('\\', "/");
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    let content_hash = hasher.finish();
+    let stamp = std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let uri = format!(
+        "{}?v={stamp}-{}-{content_hash:x}",
+        path.display().to_string().replace('\\', "/"),
+        bytes.len()
+    );
     Some(egui::Image::from_bytes(uri, bytes))
 }
 
 /// The workspace logo image for a workspace folder, if it has one.
 fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'static>> {
     logo_image(&hs_core::workspace::workspace_icon_file(root)?)
+}
+
+/// The application icon, shown beside the name in the top bar.
+fn app_logo() -> egui::Image<'static> {
+    egui::Image::from_bytes(
+        "bytes://hyperstack-logo.png",
+        include_bytes!("../../../assets/icon/hyperstack-64.png").as_slice(),
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +125,8 @@ pub struct HyperStackApp {
     confirm_revert: bool,
     workspace_dialog: WorkspaceDialog,
     update_badge: Option<String>,
+    notifications_open: bool,
+    notifications_opened_this_frame: bool,
 }
 
 impl HyperStackApp {
@@ -167,6 +192,8 @@ impl HyperStackApp {
             confirm_revert: false,
             workspace_dialog: WorkspaceDialog::None,
             update_badge: None,
+            notifications_open: false,
+            notifications_opened_this_frame: false,
         };
         if let Some(e) = boot.settings_error {
             app.toasts.push(ToastLevel::Warning, e);
@@ -298,7 +325,40 @@ impl HyperStackApp {
     }
 
     fn restore_layout(&mut self) {
-        let layout = self.services.workspace.read().load_layout();
+        let mut layout = self.services.workspace.read().load_layout();
+        if layout.tabs.iter().any(|t| t.tool == "hello") {
+            self.settings_ui.lock().state.page = settings_ui::Page::Welcome;
+        }
+        // Settings is now a pinned global tab, not a workspace tab. Remove
+        // it and the legacy Welcome tab from saved layouts before restoring.
+        layout
+            .tabs
+            .retain(|t| t.tool != "settings" && t.tool != "hello");
+        if layout
+            .active
+            .is_some_and(|a| !layout.tabs.iter().any(|t| t.id == a))
+        {
+            layout.active = layout.tabs.first().map(|t| t.id);
+        }
+        if let Some(node) = layout.split.take() {
+            fn collect(node: &hs_core::workspace::LayoutNode, out: &mut Vec<u64>) {
+                match node {
+                    hs_core::workspace::LayoutNode::Leaf { tab } => out.push(*tab),
+                    hs_core::workspace::LayoutNode::Split { a, b, .. } => {
+                        collect(a, out);
+                        collect(b, out);
+                    }
+                }
+            }
+            let mut leaves = Vec::new();
+            collect(&node, &mut leaves);
+            if leaves
+                .iter()
+                .all(|id| layout.tabs.iter().any(|t| t.id == *id))
+            {
+                layout.split = Some(node);
+            }
+        }
         let restore_tabs = self.services.settings.read().general.restore_tabs;
         if restore_tabs {
             let map: HashMap<String, &dyn ToolFactory> = self
@@ -308,18 +368,15 @@ impl HyperStackApp {
                 .collect();
             self.tabs.restore(&layout, &map, &self.services);
         }
+        let restored_active = self.tabs.active;
         self.sidebar_open = layout.sidebar_open || layout.tabs.is_empty();
         self.dock_open = layout.dock_open;
         if let Some(env) = layout.active_environment {
             self.services.environments.write().active = Some(env);
         }
-        if self.tabs.tabs.is_empty()
-            && let Some(i) = self.factory_index("hello")
-        {
-            self.tabs
-                .open(self.factories[i].as_ref(), &self.services, None);
-        }
-        // Only one Settings / Welcome tab survives a restore.
+        // Settings is always present in every workspace and pinned. It is a
+        // global app surface, not part of the workspace's saved layout.
+        // Only one copy can survive a malformed/old layout.
         for fid in SINGLE_INSTANCE {
             let ids: Vec<u64> = self
                 .tabs
@@ -330,6 +387,28 @@ impl HyperStackApp {
                 .collect();
             for id in ids.iter().skip(1) {
                 self.tabs.close(*id);
+            }
+        }
+        let settings_id = self
+            .tabs
+            .tabs
+            .iter()
+            .find(|t| t.factory_id == "settings")
+            .map(|t| t.id)
+            .or_else(|| {
+                let i = self.factory_index("settings")?;
+                Some(
+                    self.tabs
+                        .open(self.factories[i].as_ref(), &self.services, None),
+                )
+            });
+        if let Some(id) = settings_id {
+            self.tabs.set_pinned(id, true);
+            // Opening the mandatory Settings tab must not steal focus from
+            // the previously restored workspace tab. On a new/empty layout,
+            // Settings remains the active landing tab.
+            if let Some(active) = restored_active {
+                self.tabs.activate(active);
             }
         }
         self.group = self
@@ -418,6 +497,35 @@ impl HyperStackApp {
         let mut layout = self
             .tabs
             .to_layout(self.services.environments.read().active.clone());
+        layout
+            .tabs
+            .retain(|t| t.tool != "settings" && t.tool != "hello");
+        if layout.active.is_some_and(|active| {
+            self.tabs
+                .tabs
+                .iter()
+                .any(|t| t.id == active && (t.factory_id == "settings" || t.factory_id == "hello"))
+        }) {
+            layout.active = layout.tabs.first().map(|t| t.id);
+        }
+        if layout.split.as_ref().is_some_and(|node| {
+            fn has_only_saved_leaves(
+                node: &hs_core::workspace::LayoutNode,
+                tabs: &[hs_core::workspace::LayoutTab],
+            ) -> bool {
+                match node {
+                    hs_core::workspace::LayoutNode::Leaf { tab } => {
+                        tabs.iter().any(|t| t.id == *tab)
+                    }
+                    hs_core::workspace::LayoutNode::Split { a, b, .. } => {
+                        has_only_saved_leaves(a, tabs) && has_only_saved_leaves(b, tabs)
+                    }
+                }
+            }
+            !has_only_saved_leaves(node, &layout.tabs)
+        }) {
+            layout.split = None;
+        }
         layout.sidebar_open = self.sidebar_open;
         layout.dock_open = self.dock_open;
         if let Err(e) = self.services.workspace.read().save_layout(&layout) {
@@ -430,6 +538,7 @@ impl HyperStackApp {
 
     /// Settings live in one tab: focus it if open, else open it; optionally jump to a page.
     fn open_settings(&mut self, page: Option<settings_ui::Page>) {
+        self.group = Some("settings".into());
         if let Some(p) = page {
             self.settings_ui.lock().state.page = p;
         }
@@ -484,7 +593,7 @@ impl HyperStackApp {
     /// Open a tool for `request`; with `reuse`, a tab that already shows the
     /// item (or would take it, `Tool::uri_affinity`) gets it instead.
     fn open_tool_in(&mut self, factory_id: &str, request: Option<OpenRequest>, reuse: bool) {
-        // Settings and Welcome are single tabs: a second request focuses the existing one.
+        // Settings is a single tab: a second request focuses the existing one.
         if SINGLE_INSTANCE.contains(&factory_id)
             && let Some(id) = self
                 .tabs
@@ -495,6 +604,23 @@ impl HyperStackApp {
         {
             self.group = Some(group_of(factory_id).to_string());
             self.tabs.activate(id);
+            return;
+        }
+        // Project roots are unique in the main window even when an editor
+        // action would normally force a new tab. File tabs may be duplicated
+        // deliberately; project roots may not.
+        if factory_id == "editor"
+            && let Some(OpenRequest::File { uri, .. }) = &request
+            && std::path::Path::new(uri.strip_prefix("file://").unwrap_or(uri)).is_dir()
+            && let Some(id) = self
+                .tabs
+                .tabs
+                .iter()
+                .filter(|t| t.factory_id == "editor")
+                .find(|t| t.tool.uri_affinity(uri) == Some(0))
+                .map(|t| t.id)
+        {
+            self.focus_and_open(id, factory_id, request);
             return;
         }
         // One tab per file: a request for something a tab of this tool already
@@ -598,6 +724,14 @@ impl HyperStackApp {
     }
 
     fn close_tab(&mut self, id: u64, force: bool) {
+        if self
+            .tabs
+            .tabs
+            .iter()
+            .any(|t| t.id == id && t.factory_id == "settings")
+        {
+            return;
+        }
         let needs_confirm = self
             .tabs
             .get_mut(id)
@@ -1012,6 +1146,39 @@ impl HyperStackApp {
                     self.toasts
                         .push(ToastLevel::Success, self.services.t("toast-saved"));
                 }
+                SettingsEffect::RenameWorkspace(name) => {
+                    let old_name = self.services.workspace.read().meta.name.clone();
+                    let result = self.registry.rename_open(
+                        &self.services.paths,
+                        &mut self.services.workspace.write(),
+                        &name,
+                    );
+                    match result {
+                        Ok(()) => {
+                            if self.services.settings.read().general.startup_workspace == old_name {
+                                self.services.settings.write().general.startup_workspace =
+                                    name.clone();
+                            }
+                            self.settings_ui.lock().state.ws_name =
+                                Some((name.clone(), name.clone()));
+                            self.services
+                                .events
+                                .publish(Event::WorkspaceSwitched { name: name.clone() });
+                            if let Err(e) = self.services.save_settings() {
+                                self.toasts.push(ToastLevel::Error, e.to_string());
+                            } else {
+                                self.toasts.push(
+                                    ToastLevel::Success,
+                                    self.services
+                                        .i18n
+                                        .t_args("settings-workspace-renamed", &[("name", &name)]),
+                                );
+                            }
+                        }
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                }
+                SettingsEffect::WorkspaceLogoChanged => ctx.request_repaint(),
                 SettingsEffect::Toast(level, text) => self.toasts.push(level, text),
             }
         }
@@ -1327,6 +1494,7 @@ impl HyperStackApp {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
+                    ui.add(app_logo().fit_to_exact_size(egui::vec2(22.0, 22.0)));
                     ui.label(
                         egui::RichText::new(s.t("app-name"))
                             .strong()
@@ -1334,15 +1502,23 @@ impl HyperStackApp {
                             .color(self.theme.accent),
                     );
                     ui.add_space(8.0);
-                    // Workspace switcher
+                    // Workspace switcher.
                     let ws_name = s.workspace.read().meta.name.clone();
                     let ws_root = s.workspace.read().root().to_path_buf();
-                    if let Some(img) = ws_logo_image(&ws_root) {
-                        ui.add(img.fit_to_exact_size(egui::vec2(18.0, 18.0)));
+                    let ws_logo = ws_logo_image(&ws_root);
+                    let workspace_button = match ws_logo {
+                        Some(image) => egui::Button::image_and_text(
+                            image.fit_to_exact_size(egui::vec2(18.0, 18.0)),
+                            ws_name.clone(),
+                        ),
+                        None => {
+                            egui::Button::new(format!("{}  {ws_name}", hs_ui::icons::WORKSPACE))
+                        }
                     }
-                    egui::ComboBox::from_id_salt("ws")
-                        .selected_text(format!("{} {}", hs_ui::icons::WORKSPACE, ws_name))
-                        .show_ui(ui, |ui| {
+                    .right_text(hs_ui::icons::CARET_DOWN);
+                    egui::containers::menu::MenuButton::from_button(workspace_button).ui(
+                        ui,
+                        |ui| {
                             let rows: Vec<(String, std::path::PathBuf)> = self
                                 .registry
                                 .workspaces
@@ -1400,7 +1576,8 @@ impl HyperStackApp {
                                     id: "ws.new".into(),
                                 });
                             }
-                        });
+                        },
+                    );
                     // Environment switcher
                     let (active_name, active_col, active_protected) = {
                         let envs = s.environments.read();
@@ -1504,8 +1681,8 @@ impl HyperStackApp {
                             .tip(s.t("notifications"))
                             .clicked()
                         {
-                            self.dock_open = true;
-                            self.dock.tab = dock::DockTab::Output;
+                            self.notifications_open = !self.notifications_open;
+                            self.notifications_opened_this_frame = self.notifications_open;
                         }
                         if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::SEARCH, 20.0, false)
                             .tip(s.t("quick-open"))
@@ -1615,7 +1792,16 @@ impl HyperStackApp {
                 }
                 TabMenuAction::CopyPath => {}
                 TabMenuAction::Pin => self.tabs.set_pinned(id, true),
-                TabMenuAction::Unpin => self.tabs.set_pinned(id, false),
+                TabMenuAction::Unpin => {
+                    let is_settings = self
+                        .tabs
+                        .tabs
+                        .iter()
+                        .any(|t| t.id == id && t.factory_id == "settings");
+                    if !is_settings {
+                        self.tabs.set_pinned(id, false);
+                    }
+                }
                 TabMenuAction::Duplicate => {
                     let dup = self
                         .tabs
@@ -1725,9 +1911,6 @@ impl HyperStackApp {
                 })
                 .collect();
             for (id, icon, title) in descs {
-                if id == "hello" {
-                    continue; // Welcome shares the Settings group
-                }
                 let active = self.group.as_deref() == Some(group_of(id));
                 let count = self.tabs.tabs.iter().filter(|t| t.factory_id == id).count();
                 let title = if count > 0 {
@@ -1937,6 +2120,106 @@ impl HyperStackApp {
                     });
                 });
             });
+    }
+
+    fn notification_popup(&mut self, ctx: &egui::Context) {
+        if !self.notifications_open {
+            return;
+        }
+        let theme = self.theme.clone();
+        let mut close = false;
+        let mut clear = false;
+        let just_opened = std::mem::take(&mut self.notifications_opened_this_frame);
+        let response = egui::Area::new(egui::Id::new("hs-notifications"))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-12.0, 48.0))
+            .show(ctx, |ui| {
+                egui::Frame::new()
+                    .fill(theme.panel_bg)
+                    .stroke(egui::Stroke::new(1.0, theme.border))
+                    .corner_radius(egui::CornerRadius::same(8))
+                    .inner_margin(egui::Margin::same(10))
+                    .shadow(egui::epaint::Shadow {
+                        offset: [0, 3],
+                        blur: 12,
+                        spread: 0,
+                        color: Color32::from_black_alpha(100),
+                    })
+                    .show(ui, |ui| {
+                        ui.set_width(360.0);
+                        ui.horizontal(|ui| {
+                            ui.heading(self.services.t("notifications-title"));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.small_button(hs_ui::icons::TAB_CLOSE).clicked() {
+                                        close = true;
+                                    }
+                                    if ui
+                                        .small_button(self.services.t("notifications-clear"))
+                                        .clicked()
+                                    {
+                                        clear = true;
+                                    }
+                                },
+                            );
+                        });
+                        ui.separator();
+                        let history = &self.toasts.history;
+                        if history.is_empty() {
+                            ui.colored_label(
+                                theme.text_muted,
+                                self.services.t("notifications-none"),
+                            );
+                        } else {
+                            egui::ScrollArea::vertical()
+                                .max_height(360.0)
+                                .show(ui, |ui| {
+                                    for item in history.iter().rev().take(100) {
+                                        let (icon, colour) = match item.level {
+                                            ToastLevel::Info => {
+                                                (hs_ui::icons::INFO, theme.secondary)
+                                            }
+                                            ToastLevel::Success => {
+                                                (hs_ui::icons::CHECK, theme.success)
+                                            }
+                                            ToastLevel::Warning => {
+                                                (hs_ui::icons::WARNING, theme.warning)
+                                            }
+                                            ToastLevel::Error => (hs_ui::icons::ERROR, theme.error),
+                                        };
+                                        ui.horizontal_top(|ui| {
+                                            ui.colored_label(colour, icon);
+                                            ui.vertical(|ui| {
+                                                ui.add(egui::Label::new(&item.text).wrap());
+                                                let elapsed =
+                                                    item.at.elapsed().as_secs().to_string();
+                                                let relative = self.services.i18n.t_args(
+                                                    "notifications-seconds-ago",
+                                                    &[("n", &elapsed)],
+                                                );
+                                                ui.label(
+                                                    egui::RichText::new(relative)
+                                                        .small()
+                                                        .color(theme.text_muted),
+                                                );
+                                            });
+                                        });
+                                        ui.separator();
+                                    }
+                                });
+                        }
+                    });
+            });
+        if notification_popup_should_close(just_opened, response.response.clicked_elsewhere()) {
+            close = true;
+        }
+        if clear {
+            self.toasts.clear();
+        }
+        if close {
+            self.notifications_open = false;
+        }
     }
 }
 
@@ -2241,6 +2524,7 @@ impl eframe::App for HyperStackApp {
         self.vault_dialogs(ctx);
         self.workspace_dialogs(ctx);
         self.handle_pending_actions();
+        self.notification_popup(ctx);
         self.toasts.show(ctx, &self.theme);
 
         // Layout persistence: debounced, and on close.
@@ -2300,13 +2584,26 @@ fn normalize_uri(uri: &str) -> String {
     }
 }
 
-/// Tools that never open twice: a second request focuses the existing tab.
-const SINGLE_INSTANCE: &[&str] = &["settings", "hello"];
+fn notification_popup_should_close(just_opened: bool, clicked_elsewhere: bool) -> bool {
+    !just_opened && clicked_elsewhere
+}
 
-/// The rail group a tool's tabs show in (Welcome shares the Settings group).
+/// Tools that never open twice: a second request focuses the existing tab.
+const SINGLE_INSTANCE: &[&str] = &["settings"];
+
+/// The rail group a tool's tabs show in.
 fn group_of(factory_id: &str) -> &str {
-    match factory_id {
-        "hello" => "settings",
-        other => other,
+    factory_id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::notification_popup_should_close;
+
+    #[test]
+    fn notification_popup_ignores_its_opening_click_but_dismisses_outside_clicks() {
+        assert!(!notification_popup_should_close(true, true));
+        assert!(notification_popup_should_close(false, true));
+        assert!(!notification_popup_should_close(false, false));
     }
 }

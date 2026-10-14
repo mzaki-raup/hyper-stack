@@ -11,9 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- AI: shared review-only assistant in Terminal, SSH, SQL and S3, with per-tool context previews and explicit send; no commands or data-changing actions are executed. API client is not implemented yet.
+- Screenshots: marked the current screenshot set as predating the new AI panels; recapture requires the desktop/Xvfb fixture environment.
 - Git view in the editor (read-only, via the installed `git`): the project root shows the branch with ahead/behind, changed files carry coloured letters and folders with changes a dot; a **Source Control** switch in the sidebar (Ctrl+Shift+G) lists conflicts, staged, changed and untracked files; clicking one shows its diff inline or side by side (Up/Down to step, Esc to go back); **History** (Ctrl+Shift+H) lists commits with branch and tag chips and shows each commit's message, files and diffs; the gutter marks added, modified and removed lines while you type. Status refreshes on file and `.git` changes. New crate `hs-git`.
 - Editor: one window tab per project. Each opened folder is its own tab titled with the folder name, and inside it the project's open files are a second, multi-row strip of file tabs (close, reorder, Close Others / to the Left / to the Right, Copy Path, + for a new file). Files from outside the projects collect in an Other Files tab. This replaces Settings → Editor → Open Files In (Separate Tabs / Project Rows); a tab saved with several projects reopens them as separate tabs.
-- (nothing yet)
+- Workspace: selected logo appears beside the workspace name; the Workspace settings page can rename workspaces and update/remove their logos after creation. Renaming also repairs the registry's last-opened marker.
+- Settings: one pinned Settings tab is kept open in each workspace without stealing focus from a restored work tab; the old Welcome tab is now Settings → Welcome. Added clickable colour-scheme swatches and a configurable minimum width for editor file tabs.
+- Editor: opening an existing project root focuses its existing tab, including normalized Windows paths. Encoding choices now distinguish UTF-16 LE/BE with and without BOM; clean files can be re-opened with an explicitly selected encoding.
+- Shell: Quick Open no longer closes on its opening click. The notification bell opens retained notification history, dismisses on outside click, and has Clear All instead of opening the bottom dock; the app logo is shown beside HyperStack.
 
 ## 0.17.0 — 2026-10-12
 

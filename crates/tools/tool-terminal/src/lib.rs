@@ -60,6 +60,7 @@ pub struct TerminalTool {
     find: Find,
     /// Give the terminal keyboard focus on the next frame.
     pending_focus: Option<egui::Id>,
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 /// The search bar (Ctrl+Shift+F): query, options and the hits in the grid.
@@ -88,6 +89,7 @@ impl TerminalTool {
             tab_id_hint: 0,
             find: Find::default(),
             pending_focus: None,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         };
         t.apply_settings(services);
         t.start(services);
@@ -497,6 +499,13 @@ impl Tool for TerminalTool {
         {
             self.open_find();
         }
+        if ui
+            .button(format!("{} AI", hs_ui::icons::ph::SPARKLE))
+            .tip(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("terminal");
+        }
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
@@ -606,10 +615,53 @@ impl Tool for TerminalTool {
         if let Some(link) = link {
             self.open_link(link, ui, cx);
         }
+        if self.assistant.open {
+            let theme = hs_ui::theme::Theme::by_name(&s.settings.read().appearance.theme);
+            let ctx = self
+                .session
+                .as_ref()
+                .map(|session| {
+                    format!(
+                        "Recent visible terminal output:\n{}",
+                        session.visible_text(80)
+                    )
+                })
+                .unwrap_or_else(|| {
+                    format!(
+                        "Terminal session title: {}\nExit code: {:?}",
+                        self.title(),
+                        self.exit_code
+                    )
+                });
+            self.assistant.set_context("terminal state", ctx);
+            let rect = ui.available_rect_before_wrap();
+            let panel = egui::Rect::from_min_max(
+                egui::pos2(rect.right() - 390.0, rect.top()),
+                rect.right_bottom(),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(panel)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            egui::Frame::new()
+                .fill(theme.panel_bg)
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .show(&mut child, |ui| {
+                    ui.set_min_width(370.0);
+                    self.assistant.ui(ui, s, &theme, "terminal");
+                });
+        }
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
         vec![
+            CommandDescriptor {
+                id: "terminal.ai".into(),
+                title: "AI: Toggle Assistant".into(),
+                shortcut_action: None,
+            },
             CommandDescriptor {
                 id: "terminal.restart".into(),
                 title: "Terminal: Restart".into(),
@@ -635,6 +687,10 @@ impl Tool for TerminalTool {
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "terminal.ai" => {
+                self.assistant.toggle("terminal");
+                true
+            }
             "terminal.restart" => {
                 self.session = None;
                 self.start(cx.services);

@@ -34,6 +34,12 @@ impl Toasts {
         self.live.push(t);
     }
 
+    /// Clear the retained notification history and its visible toasts.
+    pub fn clear(&mut self) {
+        self.history.clear();
+        self.live.clear();
+    }
+
     pub fn show(&mut self, ctx: &egui::Context, theme: &Theme) {
         let ttl = |l: ToastLevel| match l {
             ToastLevel::Error => Duration::from_secs(8),

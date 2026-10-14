@@ -12,7 +12,9 @@ pub enum Encoding {
     Utf8,
     Utf8Bom,
     Utf16Le,
+    Utf16LeBom,
     Utf16Be,
+    Utf16BeBom,
     Windows1252,
 }
 
@@ -22,16 +24,20 @@ impl Encoding {
             Self::Utf8 => "UTF-8",
             Self::Utf8Bom => "UTF-8 BOM",
             Self::Utf16Le => "UTF-16 LE",
+            Self::Utf16LeBom => "UTF-16 LE BOM",
             Self::Utf16Be => "UTF-16 BE",
+            Self::Utf16BeBom => "UTF-16 BE BOM",
             Self::Windows1252 => "Windows-1252",
         }
     }
-    pub fn all() -> [Encoding; 5] {
+    pub fn all() -> [Encoding; 7] {
         [
             Self::Utf8,
             Self::Utf8Bom,
             Self::Utf16Le,
+            Self::Utf16LeBom,
             Self::Utf16Be,
+            Self::Utf16BeBom,
             Self::Windows1252,
         ]
     }
@@ -133,6 +139,38 @@ impl Buffer {
         let mut b = Self::from_text(&text);
         b.encoding = encoding;
         b
+    }
+
+    /// Decode bytes using the explicitly selected encoding rather than BOM
+    /// detection/heuristics. A matching BOM is consumed; a different BOM is
+    /// treated as content, as expected when forcing an encoding.
+    pub fn from_bytes_with_encoding(bytes: &[u8], encoding: Encoding) -> Self {
+        let body = match encoding {
+            Encoding::Utf8 | Encoding::Utf8Bom if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) => {
+                &bytes[3..]
+            }
+            Encoding::Utf16LeBom if bytes.starts_with(&[0xFF, 0xFE]) => &bytes[2..],
+            Encoding::Utf16BeBom if bytes.starts_with(&[0xFE, 0xFF]) => &bytes[2..],
+            _ => bytes,
+        };
+        let text = match encoding {
+            Encoding::Utf8 | Encoding::Utf8Bom => String::from_utf8_lossy(body).into_owned(),
+            Encoding::Utf16Le | Encoding::Utf16LeBom => encoding_rs::UTF_16LE
+                .decode_without_bom_handling(body)
+                .0
+                .into_owned(),
+            Encoding::Utf16Be | Encoding::Utf16BeBom => encoding_rs::UTF_16BE
+                .decode_without_bom_handling(body)
+                .0
+                .into_owned(),
+            Encoding::Windows1252 => encoding_rs::WINDOWS_1252
+                .decode_without_bom_handling(body)
+                .0
+                .into_owned(),
+        };
+        let mut buffer = Self::from_text(&text);
+        buffer.encoding = encoding;
+        buffer
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -466,11 +504,11 @@ fn decode(bytes: &[u8]) -> (String, Encoding) {
     }
     if bytes.starts_with(&[0xFF, 0xFE]) {
         let (s, _) = encoding_rs::UTF_16LE.decode_without_bom_handling(&bytes[2..]);
-        return (s.to_string(), Encoding::Utf16Le);
+        return (s.to_string(), Encoding::Utf16LeBom);
     }
     if bytes.starts_with(&[0xFE, 0xFF]) {
         let (s, _) = encoding_rs::UTF_16BE.decode_without_bom_handling(&bytes[2..]);
-        return (s.to_string(), Encoding::Utf16Be);
+        return (s.to_string(), Encoding::Utf16BeBom);
     }
     if let Ok(s) = std::str::from_utf8(bytes) {
         return (s.to_string(), Encoding::Utf8);
@@ -502,11 +540,21 @@ fn encode(text: &str, encoding: Encoding) -> Vec<u8> {
             v
         }
         Encoding::Utf16Le => {
+            let mut v = Vec::new();
+            v.extend(text.encode_utf16().flat_map(|u| u.to_le_bytes()));
+            v
+        }
+        Encoding::Utf16LeBom => {
             let mut v = vec![0xFF, 0xFE];
             v.extend(text.encode_utf16().flat_map(|u| u.to_le_bytes()));
             v
         }
         Encoding::Utf16Be => {
+            let mut v = Vec::new();
+            v.extend(text.encode_utf16().flat_map(|u| u.to_be_bytes()));
+            v
+        }
+        Encoding::Utf16BeBom => {
             let mut v = vec![0xFE, 0xFF];
             v.extend(text.encode_utf16().flat_map(|u| u.to_be_bytes()));
             v
@@ -539,7 +587,11 @@ mod tests {
             let mut b = Buffer::from_text("héllo\nwörld");
             b.encoding = enc;
             let bytes = b.to_bytes();
-            let back = Buffer::from_bytes(&bytes);
+            let back = if matches!(enc, Encoding::Utf16Le | Encoding::Utf16Be) {
+                Buffer::from_bytes_with_encoding(&bytes, enc)
+            } else {
+                Buffer::from_bytes(&bytes)
+            };
             assert_eq!(back.text(), "héllo\nwörld", "{enc:?}");
             assert_eq!(back.encoding, enc, "{enc:?}");
         }
@@ -547,6 +599,15 @@ mod tests {
         let b = Buffer::from_bytes(&latin);
         assert_eq!(b.encoding, Encoding::Windows1252);
         assert_eq!(b.text(), "caf\u{e9}");
+    }
+
+    #[test]
+    fn explicitly_selected_encoding_redecodes_bytes() {
+        let bytes = encode("café\n", Encoding::Utf16BeBom);
+        let b = Buffer::from_bytes_with_encoding(&bytes, Encoding::Utf16BeBom);
+        assert_eq!(b.text(), "café\n");
+        assert_eq!(b.encoding, Encoding::Utf16BeBom);
+        assert_eq!(b.to_bytes(), bytes);
     }
 
     #[test]

@@ -24,6 +24,11 @@ pub trait TabItem {
     fn title(&self) -> String;
     fn icon(&self) -> &str;
     fn pinned(&self) -> bool;
+    /// Whether this tab may be unpinned from the strip (for mandatory app
+    /// tabs such as Settings).
+    fn can_unpin(&self) -> bool {
+        true
+    }
     fn dirty(&self) -> bool {
         false
     }
@@ -428,7 +433,9 @@ impl TabStrip<'_> {
                 return;
             }
             if pinned {
-                pick(ui, &labels.unpin, TabMenuAction::Unpin);
+                if tab.can_unpin() {
+                    pick(ui, &labels.unpin, TabMenuAction::Unpin);
+                }
             } else {
                 pick(ui, &labels.pin, TabMenuAction::Pin);
             }

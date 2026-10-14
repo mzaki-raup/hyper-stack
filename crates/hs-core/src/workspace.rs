@@ -245,6 +245,62 @@ impl Registry {
         name == "default" || self.workspaces.iter().any(|w| w.name == name)
     }
 
+    /// Rename a registered workspace without moving its folder. The path is
+    /// stable, so external project folders and relative registry entries keep
+    /// working. Also updates the metadata in the currently open workspace.
+    pub fn rename_open(
+        &mut self,
+        paths: &DataDir,
+        workspace: &mut Workspace,
+        new_name: &str,
+    ) -> storage::Result<()> {
+        let new_name = new_name.trim();
+        if new_name.is_empty() {
+            return Err(storage::StorageError::Message(
+                "the workspace needs a name".into(),
+            ));
+        }
+        let old_name = workspace.meta.name.clone();
+        if new_name == old_name {
+            return Ok(());
+        }
+        if old_name == "default" {
+            return Err(storage::StorageError::Message(
+                "the built-in default workspace cannot be renamed".into(),
+            ));
+        }
+        if self.workspaces.iter().any(|w| w.name == new_name) {
+            return Err(storage::StorageError::Message(format!(
+                "a workspace named \"{new_name}\" already exists"
+            )));
+        }
+        let previous_last_opened = self.last_opened.clone();
+        let previous = workspace.meta.name.clone();
+        workspace.meta.name = new_name.to_string();
+        if let Err(e) = workspace.save_meta() {
+            workspace.meta.name = previous;
+            return Err(e);
+        }
+        if let Some(entry) = self.workspaces.iter_mut().find(|w| w.name == old_name) {
+            entry.name = new_name.to_string();
+        }
+        // This workspace is the one currently being renamed, so the registry
+        // should point its last-opened marker at its new name even if the old
+        // marker was stale (startup preferences can open a different entry).
+        self.last_opened = new_name.to_string();
+        if let Err(e) = self.save(paths) {
+            // Best-effort rollback of the file and in-memory state.
+            workspace.meta.name = old_name.clone();
+            let _ = workspace.save_meta();
+            if let Some(entry) = self.workspaces.iter_mut().find(|w| w.name == new_name) {
+                entry.name = old_name.clone();
+            }
+            self.last_opened = previous_last_opened;
+            return Err(e);
+        }
+        Ok(())
+    }
+
     pub fn names(&self) -> Vec<String> {
         self.workspaces.iter().map(|w| w.name.clone()).collect()
     }
@@ -414,5 +470,33 @@ mod tests {
         assert_eq!(back.tabs, layout.tabs);
         assert_eq!(back.split, layout.split);
         assert!(ws.root().join(".gitignore").exists());
+    }
+
+    #[test]
+    fn renaming_workspace_updates_registry_and_metadata_without_moving_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = DataDir::resolve(Some(tmp.path())).unwrap();
+        let mut registry = Registry::load(&paths);
+        let default = registry.open(&paths, "default").unwrap();
+        let mut ws = registry
+            .create(&paths, "Shop API", Some(&default), None)
+            .unwrap();
+        registry.last_opened = "some stale entry".into();
+        let folder = ws.root().to_path_buf();
+        registry.rename_open(&paths, &mut ws, "Orders API").unwrap();
+        assert_eq!(ws.meta.name, "Orders API");
+        assert_eq!(ws.root(), folder);
+        let loaded = Registry::load(&paths);
+        assert_eq!(loaded.last_opened, "Orders API");
+        assert!(
+            loaded
+                .workspaces
+                .iter()
+                .any(|w| { w.name == "Orders API" && paths.resolve_path(&w.path) == folder })
+        );
+        assert!(!loaded.workspaces.iter().any(|w| w.name == "Shop API"));
+        let metadata: WorkspaceMeta =
+            storage::read_toml_versioned(&folder.join("workspace.toml"), SCHEMA).unwrap();
+        assert_eq!(metadata.name, "Orders API");
     }
 }

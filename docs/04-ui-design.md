@@ -28,8 +28,10 @@
 
 Regions, top to bottom:
 
-1. **Title bar** (custom-drawn): app menu, workspace switcher,
-   environment switcher, notification bell, settings, window controls.
+1. **Title bar**: app logo and name, workspace switcher (including the
+   selected workspace logo), environment switcher, notification bell, Settings,
+   Quick Open, vault control, and window controls. The notification bell opens
+   retained toast history; it does not open the bottom dock.
 2. **Tab space** — one or more rows of tabs. Every tab is a tool instance.
 3. **Environment banner + tool toolbar** — a thin coloured stripe (theme colour
    per environment; red default for production) and the active tool's own
@@ -242,28 +244,27 @@ shortcuts page.
 
 ## 9. Settings categories
 
-Settings open as a regular tab (one at a time; opening it again focuses the
-existing tab): the category list is the tab's sidebar, the page is the tab
-body, so settings can sit next to the tool being configured and survive a
-restart like any other tab. Owner's request, 2026-10-11.
+One Settings tab is always open and pinned in every workspace. It is an
+application-level surface, not part of a workspace's saved tab layout, and
+cannot be closed or unpinned. The category list is its sidebar and the page is
+the tab body. Settings → Welcome replaces the legacy standalone Welcome tab;
+old layouts containing that tab migrate to the Welcome page. Opening Settings
+again focuses the existing tab. Owner's request, 2026-10-14.
 
-Order: General (startup workspace, restore tabs, language) · Appearance ·
+Order: Welcome · General (startup workspace, restore tabs, language) ·
+Appearance · Workspace (name, icon and folder for the open workspace) ·
 Environments · Security · Connections · Terminal · Editor · AI Assistant
-(providers, models, Cascade rounds; ADR-019) · Shortcuts · About, which also holds **Updates** (installed version with
-sha/date/channel, channel, automatic check, check now, release notes,
-download/install, revert; see [09](09-ci-cd-and-updates.md) §5.1). The About
-→ Installed card also shows the data folder with **Open Data Folder**, which
-opens it as a new tab in Eden Explorer when that is running or installed
-(found on the running process, `PATH`, beside HyperStack or in the usual
-program folders) and in the system file manager otherwise; there is no
-separate Data page any more (owner's request, 2026-10-11).
-Appearance
-(theme, interface font and size, tab min width, tab gap, density; the terminal and editor pages carry their own font and size: three bundled Nerd Font Mono families, see `assets/fonts/README.md`, plus any font installed on the machine, so a proprietary font such as Anthropic Sans can be used when present without ever being shipped) · Shortcuts · Environments ·
-Connections · Editor · Terminal · Database · API client · SSH/SFTP · S3 · Git ·
-Security (secret store: vault or OS keyring, master password, remember on this
-PC, lock after idle, clipboard clearing, encrypt history) · Data (export /
-import / reset per section, data folder location and "open data folder") ·
-About.
+(providers, models, Cascade rounds; ADR-019) · Shortcuts · About, which also
+holds **Updates** (installed version with sha/date/channel, channel, automatic
+check, check now, release notes, download/install, revert; see
+[09](09-ci-cd-and-updates.md) §5.1). The About → Installed card also shows the
+data folder with **Open Data Folder**, which opens it in Eden Explorer when
+that is running or installed, or in the system file manager otherwise; there
+is no separate Data page any more (owner's request, 2026-10-11). Appearance
+includes clickable color-scheme swatches, interface font and size, window-tab
+width, editor file-tab width, and tab gap. The terminal and editor pages carry
+their own font and size; three bundled Nerd Font Mono families are listed in
+`assets/fonts/README.md`, along with fonts installed on the machine.
 
 ### 9.1 Visual rules
 

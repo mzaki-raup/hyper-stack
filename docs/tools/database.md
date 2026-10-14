@@ -190,6 +190,13 @@ arrays, UUID, binary); grid tests on 1 M synthetic rows.
 
 ## 15. Implementation status (M3, 2026-10-12)
 
+### AI assistant (implemented 2026-10-14)
+
+The SQL toolbar's **AI** button opens review-only help with the current
+connection, database engine, SQL buffer and latest query error. It cannot run
+or change the SQL. Context is previewed in the panel and is sent only when the
+user submits a question.
+
 What exists, and where it differs from the sections above:
 
 - **Drivers** (`tool-db::driver`): one `DbSession` trait object per tab

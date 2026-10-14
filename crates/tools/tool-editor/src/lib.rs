@@ -348,6 +348,24 @@ impl Doc {
         }
     }
 
+    fn reopen_with_encoding(&mut self, encoding: Encoding) -> Result<(), String> {
+        let Some(path) = self.path.clone() else {
+            return Err("This document has no file on disk to reopen.".into());
+        };
+        let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+        let pos = self.cursors.primary().head;
+        self.buf = Buffer::from_bytes_with_encoding(&bytes, encoding);
+        self.cursors
+            .set_single(Cursor::at(pos.min(self.buf.len_chars())));
+        self.buf.mark_saved();
+        self.saved_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
+        self.disk = DiskState::Clean;
+        self.preview_cache.0 = u64::MAX;
+        self.preview = self.preview && self.view.language.is_markdown;
+        self.view.scroll_to_cursor();
+        Ok(())
+    }
+
     fn on_disk_event(&mut self, kind: &notify::EventKind, auto_reload: bool, s: &Services) {
         let Some(path) = self.path.clone() else {
             return;
@@ -382,7 +400,8 @@ impl Doc {
         self.view.right_click_copy_paste = st.editor.right_click_copy_paste;
     }
 
-    fn status_row(&mut self, ui: &mut egui::Ui, s: &Services) {
+    fn status_row(&mut self, ui: &mut egui::Ui, s: &Services) -> Option<String> {
+        let mut reopen_error = None;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
             let c = self.cursors.primary();
@@ -463,6 +482,33 @@ impl Doc {
                             ui.close();
                         }
                     }
+                    ui.separator();
+                    ui.menu_button(s.t("editor-reopen-with-encoding"), |ui| {
+                        let can_reopen = self.path.is_some() && !self.buf.dirty();
+                        for enc in Encoding::all() {
+                            if ui
+                                .add_enabled(
+                                    can_reopen,
+                                    egui::Button::new(enc.label())
+                                        .selected(self.buf.encoding == enc),
+                                )
+                                .clicked()
+                            {
+                                if let Err(e) = self.reopen_with_encoding(enc) {
+                                    reopen_error = Some(e);
+                                }
+                                ui.close();
+                            }
+                        }
+                        if !can_reopen {
+                            ui.separator();
+                            ui.label(
+                                egui::RichText::new(s.t("editor-reopen-with-encoding-hint"))
+                                    .small()
+                                    .weak(),
+                            );
+                        }
+                    });
                 });
                 // Indentation.
                 let indent_label = if self.view.tab_inserts_spaces {
@@ -498,6 +544,7 @@ impl Doc {
                 });
             });
         });
+        reopen_error
     }
 
     fn disk_banner(&mut self, ui: &mut egui::Ui, s: &Services) {
@@ -855,17 +902,22 @@ impl EditorTool {
         self.projects.iter().enumerate().find_map(|(pi, p)| {
             p.docs
                 .iter()
-                .position(|d| d.path.as_deref() == Some(path))
+                .position(|d| {
+                    d.path
+                        .as_deref()
+                        .is_some_and(|opened| same_path(opened, path))
+                })
                 .map(|di| (pi, di))
         })
     }
 
     /// Add `root` as a project (or find it) and make it the one new files go to.
     fn add_project(&mut self, root: PathBuf) -> usize {
+        let root = normalize_path(std::fs::canonicalize(&root).unwrap_or(root));
         if let Some(i) = self
             .projects
             .iter()
-            .position(|p| p.root.as_ref() == Some(&root))
+            .position(|p| p.root.as_deref().is_some_and(|old| same_path(old, &root)))
         {
             return i;
         }
@@ -1000,8 +1052,9 @@ impl EditorTool {
     /// it here when it belongs here, otherwise let the shell route it to
     /// its project's tab, the Other Files tab or a new tab.
     fn open_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
+        let path = normalize_path(std::fs::canonicalize(&path).unwrap_or(path));
         let here = if path.is_dir() {
-            self.is_empty_tab() || self.root() == Some(path.as_path())
+            self.is_empty_tab() || self.root().is_some_and(|r| same_path(r, &path))
         } else {
             self.find_doc(&path).is_some()
                 || self.root().is_some_and(|r| path.starts_with(r))
@@ -1024,8 +1077,9 @@ impl EditorTool {
 
     /// Open `path` in this tab (the shell routed it here, or it belongs here).
     fn take_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
+        let path = normalize_path(std::fs::canonicalize(&path).unwrap_or(path));
         if path.is_dir() {
-            if self.root() == Some(path.as_path()) {
+            if self.root().is_some_and(|r| same_path(r, &path)) {
                 return;
             }
             if !self.is_empty_tab() {
@@ -1529,11 +1583,12 @@ impl EditorTool {
             split_down: String::new(),
             copy_path: s.t("editor-copy-path"),
         };
+        let min_width = s.settings.read().appearance.min_file_tab_width;
         let r = ui
             .push_id(self.id.with("file-tabs"), |ui| {
                 hs_ui::tabs::TabStrip {
                     theme,
-                    min_width: 120.0,
+                    min_width,
                     gap: 2.0,
                     active,
                     visible: &[],
@@ -2209,10 +2264,14 @@ impl Tool for EditorTool {
             }
         }
         self.doc_mut().disk_banner(ui, s);
+        let mut encoding_error = None;
         egui::Panel::bottom(self.id.with("status"))
             .exact_size(22.0)
             .resizable(false)
-            .show(ui, |ui| self.doc_mut().status_row(ui, s));
+            .show(ui, |ui| encoding_error = self.doc_mut().status_row(ui, s));
+        if let Some(error) = encoding_error {
+            cx.toast(ToastLevel::Error, error);
+        }
         if self.ai.open {
             let file_label = self.ai_file_label();
             let pa = self.active;
@@ -2396,15 +2455,21 @@ impl Tool for EditorTool {
     }
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
-        let path = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
-        if self.find_doc(path).is_some() {
+        let raw_path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
+        let path = normalize_path(std::fs::canonicalize(&raw_path).unwrap_or(raw_path.clone()));
+        if self.find_doc(&path).is_some() {
             return Some(0);
         }
         match self.root() {
-            Some(r) if path == r => Some(0),
+            Some(r) if same_path(&path, r) => Some(0),
             // The project holding the file; of nested projects the
             // innermost (fewest folders between it and the file).
-            Some(r) if !path.is_dir() && path.starts_with(r) => {
+            Some(r) if !path.is_dir() && (path.starts_with(r) || raw_path.starts_with(r)) => {
+                let path = if raw_path.starts_with(r) {
+                    &raw_path
+                } else {
+                    &path
+                };
                 let depth = path.strip_prefix(r).map_or(0, |p| p.components().count());
                 Some((1 + depth).min(150) as u8)
             }
@@ -2534,6 +2599,30 @@ impl Tool for EditorTool {
             }
         }
     }
+}
+
+/// Compare project paths after filesystem canonicalization where possible;
+/// Windows paths are case-insensitive and may arrive with mixed separators.
+fn same_path(a: &Path, b: &Path) -> bool {
+    let a = normalize_path(std::fs::canonicalize(a).unwrap_or_else(|_| a.to_path_buf()));
+    let b = normalize_path(std::fs::canonicalize(b).unwrap_or_else(|_| b.to_path_buf()));
+    let a = a.to_string_lossy().replace('\\', "/");
+    let b = b.to_string_lossy().replace('\\', "/");
+    if cfg!(windows) {
+        a.eq_ignore_ascii_case(&b)
+    } else {
+        a == b
+    }
+}
+
+fn normalize_path(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        if let Some(path) = path.to_string_lossy().strip_prefix(r"\\?\") {
+            return PathBuf::from(path);
+        }
+    }
+    path
 }
 
 const LANGUAGE_MENU: &[(&str, &str)] = &[

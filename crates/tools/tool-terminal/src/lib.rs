@@ -324,7 +324,14 @@ impl TerminalTool {
 
     fn open_link(&self, target: LinkTarget, ui: &egui::Ui, cx: &mut ToolContext) {
         match target {
-            LinkTarget::Url(url) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
+            LinkTarget::Url(url) => {
+                // Shift+click opens the link in HyperStack's own browser.
+                if ui.input(|i| i.modifiers.shift) {
+                    cx.open("browser", Some(OpenRequest::Url { url }));
+                } else {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                }
+            }
             LinkTarget::Path { path, line, .. } => {
                 let p = if let Some(rest) = path.strip_prefix("~/") {
                     home_dir()

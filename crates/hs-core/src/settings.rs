@@ -20,6 +20,32 @@ pub struct Settings {
     pub editor: Editor,
     pub ai: Ai,
     pub accessibility: Accessibility,
+    pub browser: Browser,
+}
+
+/// Settings → Browser: defaults for new pages.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Browser {
+    pub home_url: String,
+    pub adblock: bool,
+    pub javascript: bool,
+    /// Force a dark rendering on every page by default.
+    pub dark: bool,
+    /// Extra hosts to refuse, one per entry, in addition to the bundled list.
+    pub blocklist: Vec<String>,
+}
+
+impl Default for Browser {
+    fn default() -> Self {
+        Self {
+            home_url: "https://duckduckgo.com".into(),
+            adblock: true,
+            javascript: true,
+            dark: false,
+            blocklist: Vec::new(),
+        }
+    }
 }
 
 /// Settings → Accessibility. Everything off by default.
@@ -109,6 +135,7 @@ impl Default for Settings {
             editor: Editor::default(),
             ai: Ai::default(),
             accessibility: Accessibility::default(),
+            browser: Browser::default(),
         }
     }
 }

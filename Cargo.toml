@@ -16,6 +16,7 @@ members = [
   "crates/tools/tool-devtools",
   "crates/tools/tool-api",
   "crates/tools/tool-graphics",
+  "crates/tools/tool-browser",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -45,6 +46,7 @@ tool-db = { path = "crates/tools/tool-db" }
 tool-devtools = { path = "crates/tools/tool-devtools" }
 tool-api = { path = "crates/tools/tool-api" }
 tool-graphics = { path = "crates/tools/tool-graphics" }
+tool-browser = { path = "crates/tools/tool-browser" }
 
 # UI
 eframe = "0.35"

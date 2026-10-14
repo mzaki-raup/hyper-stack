@@ -83,6 +83,10 @@ pub enum OpenRequest {
         host: Option<String>,
         profile: Option<String>,
     },
+    /// A web address for the browser tool (Shift+click on a link elsewhere).
+    Url {
+        url: String,
+    },
 }
 
 /// A file-like item a tool contributes to Ctrl+P. `id` is handed back to the

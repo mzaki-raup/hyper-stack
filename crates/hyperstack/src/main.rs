@@ -4,6 +4,7 @@
 
 mod app;
 mod bootstrap;
+mod browser_host;
 mod dock;
 #[cfg(test)]
 mod editor_tests;

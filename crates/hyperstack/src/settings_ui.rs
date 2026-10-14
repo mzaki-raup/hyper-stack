@@ -30,12 +30,13 @@ pub enum Page {
     Security,
     Terminal,
     Editor,
+    Browser,
     Ai,
     About,
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 12] {
+    pub fn all() -> [(Page, &'static str); 13] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -46,6 +47,7 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Terminal, "settings-terminal"),
             (Page::Editor, "settings-editor"),
+            (Page::Browser, "settings-browser"),
             (Page::Ai, "settings-ai"),
             (Page::Shortcuts, "settings-shortcuts"),
             (Page::About, "settings-about"),
@@ -65,6 +67,7 @@ impl Page {
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
+            Page::Browser => ph::GLOBE,
             Page::Ai => ph::SPARKLE,
             Page::About => ph::INFO,
         }
@@ -225,6 +228,7 @@ pub fn page(
         Page::Security => security(ui, theme, services, effects),
         Page::Terminal => terminal(ui, theme, services, effects),
         Page::Editor => editor(ui, theme, services, effects),
+        Page::Browser => browser(ui, theme, services, effects),
         Page::Ai => crate::settings_ai::page(ui, theme, services, &mut state.ai, effects),
         Page::About => about(ui, theme, services, effects),
     }
@@ -2267,6 +2271,67 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             )
             .changed();
     });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+/// Settings → Browser: defaults for new pages and the extra blocklist.
+fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-browser"),
+        Some(&s.t("settings-browser-sub")),
+    );
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-browser-section-pages"), |ui| {
+        form::field_grid(ui, "browser-grid", |ui| {
+            form::label(ui, &s.t("settings-browser-home"));
+            changed |= form::text_field(ui, &mut settings.browser.home_url, "https://…").changed();
+            ui.end_row();
+        });
+        changed |= ui
+            .checkbox(
+                &mut settings.browser.adblock,
+                s.t("settings-browser-adblock"),
+            )
+            .changed();
+        changed |= ui
+            .checkbox(&mut settings.browser.javascript, s.t("settings-browser-js"))
+            .changed();
+        changed |= ui
+            .checkbox(&mut settings.browser.dark, s.t("settings-browser-dark"))
+            .changed();
+        form::hint(ui, theme, &s.t("settings-browser-pages-hint"));
+    });
+    form::section(
+        ui,
+        theme,
+        &s.t("settings-browser-section-blocklist"),
+        |ui| {
+            let mut text = settings.browser.blocklist.join("\n");
+            if ui
+                .add(
+                    egui::TextEdit::multiline(&mut text)
+                        .hint_text("ads.example.com")
+                        .font(egui::TextStyle::Monospace)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(6),
+                )
+                .changed()
+            {
+                settings.browser.blocklist = text
+                    .lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect();
+                changed = true;
+            }
+            form::hint(ui, theme, &s.t("settings-browser-blocklist-hint"));
+        },
+    );
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }

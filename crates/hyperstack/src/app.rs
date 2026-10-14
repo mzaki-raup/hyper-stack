@@ -143,6 +143,8 @@ pub struct HyperStackApp {
     main_rect: egui::Rect,
     /// A URL to open in the browser at the end of the frame (Print…).
     pending_open_url: Option<String>,
+    browser_hub: tool_browser::SharedBrowser,
+    browser_host: crate::browser_host::BrowserHost,
     /// A screenshot was requested; crop to the tab (`false`) or keep the window.
     snip: Option<bool>,
 }
@@ -180,7 +182,9 @@ impl HyperStackApp {
 
         let settings_hub = SharedSettings::default();
         let home_hub = SharedHome::default();
-        let factories = crate::tools::factories(settings_hub.clone(), home_hub.clone());
+        let browser_hub = crate::browser_host::new_hub();
+        let factories =
+            crate::tools::factories(settings_hub.clone(), home_hub.clone(), browser_hub.clone());
         home_hub.lock().tools = factories.iter().map(|f| f.descriptor().clone()).collect();
         settings_hub.lock().state.rail_tools = factories
             .iter()
@@ -229,6 +233,8 @@ impl HyperStackApp {
             portable: PortableDialog::None,
             main_rect: egui::Rect::NOTHING,
             pending_open_url: None,
+            browser_hub,
+            browser_host: crate::browser_host::BrowserHost::default(),
             snip: None,
         };
         if let Some(e) = boot.settings_error {
@@ -605,7 +611,13 @@ impl HyperStackApp {
     /// file locations (relative to the workspace folder) to the editor.
     fn open_terminal_link(&mut self, link: hs_term::links::LinkTarget, ctx: &egui::Context) {
         match link {
-            hs_term::links::LinkTarget::Url(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            hs_term::links::LinkTarget::Url(url) => {
+                if ctx.input(|i| i.modifiers.shift) {
+                    self.open_tool("browser", Some(OpenRequest::Url { url }));
+                } else {
+                    ctx.open_url(egui::OpenUrl::new_tab(url));
+                }
+            }
             hs_term::links::LinkTarget::Path { path, line, .. } => {
                 let p = std::path::PathBuf::from(&path);
                 let p = if p.is_absolute() {
@@ -664,6 +676,18 @@ impl HyperStackApp {
                 .iter()
                 .filter(|t| t.factory_id == "editor")
                 .find(|t| t.tool.uri_affinity(uri) == Some(0))
+                .map(|t| t.id)
+        {
+            self.focus_and_open(id, factory_id, request);
+            return;
+        }
+        // A web address goes to the browser tab that exists (as a new page).
+        if let Some(OpenRequest::Url { .. }) = &request
+            && let Some(id) = self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| t.factory_id == "browser")
                 .map(|t| t.id)
         {
             self.focus_and_open(id, factory_id, request);
@@ -2725,7 +2749,7 @@ impl HyperStackApp {
 }
 
 impl eframe::App for HyperStackApp {
-    fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
         if !self.first_frame_done {
@@ -2903,6 +2927,19 @@ impl eframe::App for HyperStackApp {
         if let Some(url) = self.pending_open_url.take() {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
+        // Native web views sit above egui: hide them under any modal.
+        let overlay = self.palette.open
+            || self.vault_dialog != VaultDialog::None
+            || !matches!(self.workspace_dialog, WorkspaceDialog::None)
+            || self.portable != PortableDialog::None
+            || self.confirm_close.is_some()
+            || self.confirm_revert
+            || self.notifications_open
+            || self.fallback_notice_open
+            || self.settings_ui.lock().state.confirm_delete.is_some();
+        let blocklist = self.services.settings.read().browser.blocklist.clone();
+        self.browser_host
+            .sync(frame, ctx, &self.browser_hub, overlay, &blocklist);
 
         // Overlays.
         let labels = PaletteLabels {

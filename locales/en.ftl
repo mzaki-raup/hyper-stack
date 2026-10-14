@@ -1203,3 +1203,36 @@ gfx-save-as = Save As…
 gfx-saved = Saved to { $path }.
 gfx-zoom-fit = Fit
 
+## Browser
+tool-browser = Browser
+browser-new-tab = New Page
+browser-copy-url = Copy URL
+browser-back = Back
+browser-forward = Forward
+browser-reload = Reload
+browser-stop = Stop
+browser-home = Home
+browser-go = Go
+browser-address-hint = Address or search…
+browser-js-tip = JavaScript on this page (off rebuilds the page without scripts)
+browser-adblock-tip = Block ad and tracker hosts and hide ad containers on this page
+browser-dark-tip = Force a dark rendering of this page
+browser-zoom-out = Zoom out
+browser-zoom-in = Zoom in
+browser-devtools = Inspect (developer tools)
+browser-print = Print this page
+browser-loading = Loading…
+browser-blocked = Blocked { $count }: { $url }
+browser-unavailable = The page area needs a native web view, which this build does not have.
+browser-empty = Type an address above, or Shift+click a link in the terminal.
+settings-browser = Browser
+settings-browser-sub = Defaults for new pages and the hosts to refuse.
+settings-browser-section-pages = New Pages
+settings-browser-home = Home Page
+settings-browser-adblock = Block Ads and Trackers
+settings-browser-js = JavaScript Enabled
+settings-browser-dark = Force Dark Rendering
+settings-browser-pages-hint = Each page keeps its own switches in the toolbar; these are the starting values. Pages are restored with the workspace.
+settings-browser-section-blocklist = Extra Blocked Hosts
+settings-browser-blocklist-hint = One host per line, in addition to the bundled list of ad and tracker domains. Subdomains are blocked too. Navigation to these hosts is refused and counted; embedded ads are hidden by style.
+

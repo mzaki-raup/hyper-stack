@@ -11,7 +11,11 @@ use crate::settings_ui::SharedSettings;
 use home::SharedHome;
 
 /// Every tool, in default rail order: Home first, Settings last.
-pub fn factories(settings: SharedSettings, home: SharedHome) -> Vec<Box<dyn ToolFactory>> {
+pub fn factories(
+    settings: SharedSettings,
+    home: SharedHome,
+    browser: tool_browser::SharedBrowser,
+) -> Vec<Box<dyn ToolFactory>> {
     vec![
         Box::new(home::HomeFactory { hub: home }),
         Box::new(tool_editor::EditorFactory),
@@ -20,6 +24,7 @@ pub fn factories(settings: SharedSettings, home: SharedHome) -> Vec<Box<dyn Tool
         Box::new(tool_s3::S3Factory),
         Box::new(tool_db::DbFactory),
         Box::new(tool_api::ApiFactory),
+        Box::new(tool_browser::BrowserFactory { hub: browser }),
         Box::new(tool_graphics::GraphicsFactory),
         Box::new(tool_devtools::DevtoolsFactory),
         Box::new(scratchpad::ScratchpadFactory),

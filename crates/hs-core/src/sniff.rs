@@ -4,6 +4,17 @@
 //! picture is shown as a picture and a PDF is offered as a file instead of
 //! a hex dump.
 
+/// Extensions of pictures the graphics tool opens; the editor hands these
+/// over instead of showing bytes.
+pub const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "bmp", "gif", "ico"];
+
+/// Whether a path has a picture extension (see [`IMAGE_EXTS`]).
+pub fn is_image_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| IMAGE_EXTS.contains(&e.to_ascii_lowercase().as_str()))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     /// A raster image egui can decode (PNG, JPEG, GIF, BMP, WEBP, ICO).

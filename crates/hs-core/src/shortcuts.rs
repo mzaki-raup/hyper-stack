@@ -223,6 +223,8 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("vault.lock", "Ctrl+Shift+L"),
     ("zoom.in", "Ctrl+="),
     ("zoom.out", "Ctrl+-"),
+    ("snip.tab", "Ctrl+Alt+S"),
+    ("print.tab", "Ctrl+Alt+P"),
 ];
 
 impl Keymap {

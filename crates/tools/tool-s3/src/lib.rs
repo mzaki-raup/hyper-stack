@@ -1302,6 +1302,44 @@ impl Tool for S3Tool {
             .unwrap_or_default()
     }
 
+    fn printable(&self) -> Option<hs_core::tool::Printable> {
+        let sh = self.shared.lock();
+        let Load::Ready((objects, prefixes, _)) = &sh.objects else {
+            return None;
+        };
+        let headers = ["Key", "Size", "Modified", "Storage class"]
+            .map(String::from)
+            .to_vec();
+        let mut rows: Vec<Vec<String>> = prefixes
+            .iter()
+            .map(|p| {
+                vec![
+                    format!("{p}/"),
+                    String::new(),
+                    String::new(),
+                    "folder".into(),
+                ]
+            })
+            .collect();
+        rows.extend(objects.iter().map(|o| {
+            vec![
+                o.key.clone(),
+                o.size.to_string(),
+                o.modified.clone(),
+                o.storage_class.clone(),
+            ]
+        }));
+        Some(hs_core::tool::Printable {
+            title: format!(
+                "s3://{}/{}",
+                self.state.bucket.clone().unwrap_or_default(),
+                self.state.prefix
+            ),
+            subtitle: "S3 listing".into(),
+            html: hs_core::html::table(&headers, &rows),
+        })
+    }
+
     fn commands(&self) -> Vec<CommandDescriptor> {
         let c = |id: &str, title: &str| CommandDescriptor {
             id: id.into(),

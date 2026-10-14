@@ -13,6 +13,9 @@ members = [
   "crates/tools/tool-ssh",
   "crates/tools/tool-s3",
   "crates/tools/tool-db",
+  "crates/tools/tool-devtools",
+  "crates/tools/tool-api",
+  "crates/tools/tool-graphics",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -39,6 +42,9 @@ hs-git = { path = "crates/hs-git" }
 tool-ssh = { path = "crates/tools/tool-ssh" }
 tool-s3 = { path = "crates/tools/tool-s3" }
 tool-db = { path = "crates/tools/tool-db" }
+tool-devtools = { path = "crates/tools/tool-devtools" }
+tool-api = { path = "crates/tools/tool-api" }
+tool-graphics = { path = "crates/tools/tool-graphics" }
 
 # UI
 eframe = "0.35"
@@ -103,7 +109,7 @@ alacritty_terminal = "0.26"
 ropey = "1.6"
 syntect = { version = "5", default-features = false, features = ["parsing", "default-syntaxes", "default-themes", "regex-fancy", "html"] }
 encoding_rs = "0.8"
-pulldown-cmark = { version = "0.13", default-features = false }
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 rfd = "0.17"
 notify = "8"
 tempfile = "3"

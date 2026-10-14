@@ -1052,6 +1052,18 @@ impl EditorTool {
     /// its project's tab, the Other Files tab or a new tab.
     fn open_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
         let path = normalize_path(std::fs::canonicalize(&path).unwrap_or(path));
+        // Pictures open in the graphics tool, not as bytes in a buffer.
+        if path.is_file() && hs_core::sniff::is_image_path(&path) {
+            cx.open(
+                "graphics",
+                Some(OpenRequest::File {
+                    uri: path.to_string_lossy().to_string(),
+                    line: None,
+                }),
+            );
+            self.select_in_tree();
+            return;
+        }
         let here = if path.is_dir() {
             self.is_empty_tab() || self.root().is_some_and(|r| same_path(r, &path))
         } else {
@@ -2367,6 +2379,27 @@ impl Tool for EditorTool {
             out.push(hs_core::tool::Speakable::new("Assistant's last answer", a));
         }
         out
+    }
+
+    fn printable(&self) -> Option<hs_core::tool::Printable> {
+        let d = self.doc();
+        let text = d.buf.text();
+        let title = d.file_name();
+        let subtitle = d
+            .path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default();
+        let html = if d.preview && d.view.language.is_markdown {
+            hs_editor::markdown::to_html(&text)
+        } else {
+            hs_editor::highlight::to_html(&text, &d.view.language, false)
+        };
+        Some(hs_core::tool::Printable {
+            title,
+            subtitle,
+            html,
+        })
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {

@@ -470,6 +470,14 @@ fn code_block(
     used
 }
 
+impl Drop for AssistantPanel {
+    fn drop(&mut self) {
+        if let Some(r) = self.running.take() {
+            r.abort.abort();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,13 +510,5 @@ mod tests {
             }]
         );
         assert_eq!(split_fences("plain"), vec![Segment::Text("plain".into())]);
-    }
-}
-
-impl Drop for AssistantPanel {
-    fn drop(&mut self) {
-        if let Some(r) = self.running.take() {
-            r.abort.abort();
-        }
     }
 }

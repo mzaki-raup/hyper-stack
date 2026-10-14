@@ -139,6 +139,12 @@ pub struct HyperStackApp {
     home: SharedHome,
     tts: hs_core::tts::Tts,
     portable: PortableDialog,
+    /// Where the active tab's content was drawn this frame, for Snip.
+    main_rect: egui::Rect,
+    /// A URL to open in the browser at the end of the frame (Print…).
+    pending_open_url: Option<String>,
+    /// A screenshot was requested; crop to the tab (`false`) or keep the window.
+    snip: Option<bool>,
 }
 
 impl HyperStackApp {
@@ -221,6 +227,9 @@ impl HyperStackApp {
             home: home_hub,
             tts: hs_core::tts::Tts::new(),
             portable: PortableDialog::None,
+            main_rect: egui::Rect::NOTHING,
+            pending_open_url: None,
+            snip: None,
         };
         if let Some(e) = boot.settings_error {
             app.toasts.push(ToastLevel::Warning, e);
@@ -836,6 +845,8 @@ impl HyperStackApp {
             "app.settings" => self.open_settings(None),
             "home.show" => self.select_group("home"),
             "tts.stop" => self.tts.stop(),
+            "snip.tab" | "snip.window" => self.request_snip(action == "snip.window"),
+            "print.tab" => self.print_active(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "ws.new" => {
                 self.workspace_dialog = WorkspaceDialog::New {
@@ -1760,6 +1771,7 @@ impl HyperStackApp {
                         if s.settings.read().accessibility.tts_enabled {
                             self.tts_menu(ui);
                         }
+                        self.snip_menu(ui);
                         if hs_ui::form::icon_button(ui, &theme, hs_ui::icons::BELL, 20.0, false)
                             .tip(s.t("notifications"))
                             .clicked()
@@ -2106,6 +2118,7 @@ impl HyperStackApp {
             })
         };
         let rect = ui.available_rect_before_wrap();
+        self.main_rect = rect;
         let theme = self.theme.clone();
         let mut activate = None;
         if let Some(mut split) = self.tabs.split.take() {
@@ -2204,10 +2217,21 @@ impl HyperStackApp {
                             self.dock_open = true;
                             self.dock.tab = dock::DockTab::Jobs;
                         }
-                        ui.label(muted(s.i18n.t_args(
-                            "tab-count",
-                            &[("n", &self.tabs.tabs.len().to_string())],
-                        )));
+                        ui.label(muted(
+                            s.i18n.t_args(
+                                "tab-count",
+                                &[(
+                                    "n",
+                                    &self
+                                        .tabs
+                                        .tabs
+                                        .iter()
+                                        .filter(|t| !is_mandatory(&t.factory_id))
+                                        .count()
+                                        .to_string(),
+                                )],
+                            ),
+                        ));
                         if let Some(v) = &self.update_badge {
                             let label = egui::RichText::new(format!(
                                 "{} {} {v}",
@@ -2445,6 +2469,160 @@ impl HyperStackApp {
         );
     }
 
+    /// Snip: ask for a screenshot; `finish_snip` crops and delivers it on
+    /// the next frame. Mandatory tabs have nothing worth snipping but
+    /// snip fine anyway.
+    fn request_snip(&mut self, whole_window: bool) {
+        self.snip = Some(whole_window);
+    }
+
+    fn finish_snip(&mut self, ctx: &egui::Context) {
+        let shot = ctx.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                egui::Event::Screenshot { image, .. } => Some(image.clone()),
+                _ => None,
+            })
+        });
+        let got_shot = shot.is_some();
+        if let Some(image) = shot
+            && let Some(whole) = self.snip.take()
+        {
+            let ppp = ctx.pixels_per_point();
+            let cropped = if whole || self.main_rect == egui::Rect::NOTHING {
+                (*image).clone()
+            } else {
+                image.region(&self.main_rect, Some(ppp))
+            };
+            ctx.copy_image(cropped.clone());
+            let s = self.services.clone();
+            let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+            let title = self
+                .tabs
+                .active
+                .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+                .map(|t| hs_core::storage::slug(&t.tool.title()))
+                .unwrap_or_else(|| "hyperstack".into());
+            let picked = rfd::FileDialog::new()
+                .set_file_name(format!("{title}-{stamp}.png"))
+                .add_filter("PNG image", &["png"])
+                .save_file();
+            match picked {
+                Some(path) => match save_png(&cropped, &path) {
+                    Ok(()) => self.toasts.push(
+                        ToastLevel::Success,
+                        s.i18n
+                            .t_args("snip-saved", &[("path", &path.display().to_string())]),
+                    ),
+                    Err(e) => self.toasts.push(ToastLevel::Error, e),
+                },
+                None => self.toasts.push(ToastLevel::Info, s.t("snip-copied")),
+            }
+        } else if self.snip.is_some() && !got_shot {
+            // Request once; eframe answers with Event::Screenshot next frame.
+            if !ctx.memory(|m| {
+                m.data
+                    .get_temp::<bool>(egui::Id::new("hs-snip-asked"))
+                    .unwrap_or(false)
+            }) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+                ctx.memory_mut(|m| m.data.insert_temp(egui::Id::new("hs-snip-asked"), true));
+            }
+            ctx.request_repaint();
+        }
+        if self.snip.is_none() {
+            ctx.memory_mut(|m| m.data.remove::<bool>(egui::Id::new("hs-snip-asked")));
+        }
+    }
+
+    /// Print…: the active tab's HTML export, written under `tmp/` and opened
+    /// in the browser (which prints to paper or PDF).
+    fn print_active(&mut self) {
+        let s = self.services.clone();
+        let printable = self
+            .tabs
+            .active
+            .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+            .and_then(|t| t.tool.printable());
+        let Some(p) = printable else {
+            self.toasts.push(ToastLevel::Info, s.t("print-nothing"));
+            return;
+        };
+        let dark = self.theme.dark;
+        let page = hs_core::html::document(&p.title, &p.subtitle, &p.html, dark);
+        let dir = s.paths.tmp();
+        let _ = std::fs::create_dir_all(&dir);
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let path = dir.join(format!(
+            "print-{}-{stamp}.html",
+            hs_core::storage::slug(&p.title)
+        ));
+        if let Err(e) = std::fs::write(&path, page) {
+            self.toasts.push(ToastLevel::Error, e.to_string());
+            return;
+        }
+        let url = format!("file:///{}", path.display().to_string().replace('\\', "/"));
+        self.pending_open_url = Some(url);
+        self.toasts.push(ToastLevel::Success, s.t("print-opened"));
+    }
+
+    /// Snip and Print menu in the title bar.
+    fn snip_menu(&mut self, ui: &mut egui::Ui) {
+        let s = self.services.clone();
+        let theme = self.theme.clone();
+        let button = egui::Button::new(
+            egui::RichText::new(hs_ui::icons::ph::CAMERA)
+                .size(20.0)
+                .color(theme.text),
+        )
+        .frame(false);
+        let r = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+            ui.set_min_width(220.0);
+            let km = s.shortcuts.read();
+            let key = |a: &str| {
+                km.get(a)
+                    .map(|c| format!("  {}", c.display()))
+                    .unwrap_or_default()
+            };
+            if ui
+                .button(format!(
+                    "{} {}{}",
+                    hs_ui::icons::ph::CROP,
+                    s.t("snip-tab"),
+                    key("snip.tab")
+                ))
+                .clicked()
+            {
+                self.request_snip(false);
+                ui.close();
+            }
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::APP_WINDOW,
+                    s.t("snip-window")
+                ))
+                .clicked()
+            {
+                self.request_snip(true);
+                ui.close();
+            }
+            ui.separator();
+            if ui
+                .button(format!(
+                    "{} {}{}",
+                    hs_ui::icons::ph::PRINTER,
+                    s.t("print-tab"),
+                    key("print.tab")
+                ))
+                .clicked()
+            {
+                self.print_active();
+                ui.close();
+            }
+        });
+        r.0.tip(s.t("snip-tip"));
+    }
+
     fn notification_popup(&mut self, ctx: &egui::Context) {
         if !self.notifications_open {
             return;
@@ -2569,6 +2747,7 @@ impl eframe::App for HyperStackApp {
             }
         }
         self.poll_updater(ctx);
+        self.finish_snip(ctx);
         // System mode follows the OS: when its preference flips, our own
         // palette (tabs, sidebar, terminal colours) has to flip with egui's.
         if hs_ui::theme::sync_system(ctx)
@@ -2721,6 +2900,9 @@ impl eframe::App for HyperStackApp {
             self.handle_home_request(r);
         }
         self.portable_dialogs(ctx);
+        if let Some(url) = self.pending_open_url.take() {
+            ctx.open_url(egui::OpenUrl::new_tab(url));
+        }
 
         // Overlays.
         let labels = PaletteLabels {
@@ -2957,6 +3139,14 @@ pub(crate) fn is_mandatory(factory_id: &str) -> bool {
 /// The rail group a tool's tabs show in.
 fn group_of(factory_id: &str) -> &str {
     factory_id
+}
+
+/// Write an egui image as PNG.
+fn save_png(img: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {
+    let [w, h] = img.size;
+    let buf = image::RgbaImage::from_raw(w as u32, h as u32, img.as_raw().to_vec())
+        .ok_or_else(|| "image buffer size mismatch".to_string())?;
+    buf.save(path).map_err(|e| e.to_string())
 }
 
 const RAIL_WIDTH: f32 = 56.0;

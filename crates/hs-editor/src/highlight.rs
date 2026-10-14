@@ -195,6 +195,20 @@ impl LineHighlighter {
     }
 }
 
+/// The text as highlighted HTML (inline colours from the editor's syntect
+/// theme), for Print…. Plain `<pre>` when the language has no syntax.
+pub fn to_html(text: &str, lang: &Language, dark: bool) -> String {
+    let ss = syntax_set();
+    let syntax = ss
+        .find_syntax_by_token(lang.syntax_token)
+        .or_else(|| ss.find_syntax_by_name(lang.name));
+    match syntax {
+        Some(syntax) => syntect::html::highlighted_html_for_string(text, ss, syntax, theme(dark))
+            .unwrap_or_else(|_| format!("<pre>{}</pre>", crate::markdown::escape_html(text))),
+        None => format!("<pre>{}</pre>", crate::markdown::escape_html(text)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

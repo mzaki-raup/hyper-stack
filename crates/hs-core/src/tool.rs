@@ -112,6 +112,16 @@ impl Speakable {
     }
 }
 
+/// What a tool hands the shell for Print… (docs/04 §11): a title, a
+/// subtitle (connection, path, environment) and an HTML body built with
+/// `crate::html`. The shell wraps it in a page and opens it in the browser.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Printable {
+    pub title: String,
+    pub subtitle: String,
+    pub html: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloseDecision {
     Close,
@@ -258,6 +268,13 @@ pub trait Tool: Send {
     /// whole file). Empty when nothing is readable.
     fn speakable(&self) -> Vec<Speakable> {
         Vec::new()
+    }
+
+    /// What Print… exports for this tab: code, a Markdown preview, a query
+    /// with its result table, a console screen, a listing. `None` when the
+    /// tab has nothing printable (Snip still captures it as a picture).
+    fn printable(&self) -> Option<Printable> {
+        None
     }
 
     /// Persistence for workspace restore. Must not include secrets.

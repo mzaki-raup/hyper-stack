@@ -1,0 +1,25 @@
+[package]
+name = "tool-graphics"
+description = "HyperStack graphics tool: view, convert, resize, extend, adjust and export images and icons"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+rfd = { workspace = true }
+tracing = { workspace = true }
+image = { workspace = true }
+base64 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -19,6 +19,9 @@ pub fn factories(settings: SharedSettings, home: SharedHome) -> Vec<Box<dyn Tool
         Box::new(tool_ssh::SshFactory),
         Box::new(tool_s3::S3Factory),
         Box::new(tool_db::DbFactory),
+        Box::new(tool_api::ApiFactory),
+        Box::new(tool_graphics::GraphicsFactory),
+        Box::new(tool_devtools::DevtoolsFactory),
         Box::new(scratchpad::ScratchpadFactory),
         Box::new(settings::SettingsFactory { hub: settings }),
     ]

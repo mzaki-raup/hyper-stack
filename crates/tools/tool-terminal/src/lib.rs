@@ -676,6 +676,16 @@ impl Tool for TerminalTool {
         out
     }
 
+    fn printable(&self) -> Option<hs_core::tool::Printable> {
+        let session = self.session.as_ref()?;
+        let screen = session.visible_text(10_000);
+        Some(hs_core::tool::Printable {
+            title: self.title().to_string(),
+            subtitle: "Terminal".into(),
+            html: hs_core::html::pre(&screen),
+        })
+    }
+
     fn commands(&self) -> Vec<CommandDescriptor> {
         vec![
             CommandDescriptor {

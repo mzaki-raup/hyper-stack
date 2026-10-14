@@ -412,6 +412,37 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
     blocks
 }
 
+/// Minimal HTML escaping for the export helpers.
+pub fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Markdown as HTML for Print…, with tables, strikethrough, task lists and
+/// footnotes on. Mermaid fences become `<pre class="mermaid">` blocks, which
+/// the page renders with mermaid.js when it is online and shows as text
+/// otherwise.
+pub fn to_html(text: &str) -> String {
+    use pulldown_cmark::{Options, Parser, html};
+    let mut opts = Options::empty();
+    opts.insert(Options::ENABLE_TABLES);
+    opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
+    opts.insert(Options::ENABLE_FOOTNOTES);
+    let parser = Parser::new_ext(text, opts);
+    let mut out = String::with_capacity(text.len() * 2);
+    html::push_html(&mut out, parser);
+    let out = out.replace(
+        "<pre><code class=\"language-mermaid\">",
+        "<pre class=\"mermaid\"><code class=\"language-mermaid\">",
+    );
+    format!(
+        "<div class=\"md\">{out}</div>\n<script type=\"module\">try {{ const m = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'); for (const el of document.querySelectorAll('pre.mermaid')) {{ el.textContent = el.textContent; }} m.default.initialize({{ startOnLoad: true, theme: document.documentElement.dataset.scheme === 'dark' ? 'dark' : 'default' }}); }} catch (e) {{ }}</script>"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

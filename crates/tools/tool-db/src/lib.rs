@@ -2649,6 +2649,50 @@ impl Tool for DbTool {
         out
     }
 
+    fn printable(&self) -> Option<hs_core::tool::Printable> {
+        let sh = self.shared.lock();
+        let mut html = String::new();
+        let query = self.buf.text();
+        if !query.trim().is_empty() {
+            html.push_str("<h2>Query</h2>");
+            html.push_str(&hs_core::html::pre(&query));
+        }
+        for r in &sh.results {
+            if r.columns.is_empty() && r.error.is_none() {
+                continue;
+            }
+            html.push_str("<h2>Result</h2>");
+            html.push_str(&hs_core::html::pre(&r.sql));
+            if let Some(e) = &r.error {
+                html.push_str(&format!(
+                    "<p style=\"color:#c62a2a\">{}</p>",
+                    hs_core::html::escape(&e.to_string())
+                ));
+            }
+            if !r.columns.is_empty() {
+                let headers: Vec<String> = r.columns.iter().map(|c| c.name.clone()).collect();
+                let rows: Vec<Vec<String>> = r
+                    .rows
+                    .iter()
+                    .take(5000)
+                    .map(|row| row.iter().map(|v| v.display()).collect())
+                    .collect();
+                html.push_str(&hs_core::html::table(&headers, &rows));
+                if r.rows.len() > 5000 {
+                    html.push_str("<p>… first 5000 rows</p>");
+                }
+            }
+        }
+        if html.is_empty() {
+            return None;
+        }
+        Some(hs_core::tool::Printable {
+            title: format!("SQL · {}", self.conn_name),
+            subtitle: format!("{:?}", self.engine),
+            html,
+        })
+    }
+
     fn commands(&self) -> Vec<CommandDescriptor> {
         self.command_list()
     }

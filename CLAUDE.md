@@ -595,6 +595,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   passes.
 - JavaScript on/off is fixed at view creation: flipping it rebuilds the
   view (`Cmd` handling in `BrowserHost::sync`).
+- `wry::WebView::open_devtools` exists only under `debug_assertions` or
+  the `devtools` cargo feature; a debug build, clippy and the tests all
+  pass without it and only the CI *release* build fails (run 61). The
+  binary enables `features = ["devtools"]`; a local
+  `cargo build --release --locked -p hyperstack` is the check that
+  catches this class of error before pushing.
 
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was

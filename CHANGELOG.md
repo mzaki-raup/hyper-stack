@@ -29,6 +29,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Devtools: one tab per utility (the sidebar opens or focuses it), inputs come back after a restart, and a typed key, password or service account can be moved into the vault with **Save to Environment…**, which leaves a `{{name}}` reference behind; every field expands `{{variables}}` (vault secrets included) when it runs.
 - Variable peek: any field that holds a `{{variable}}` (devtools, the API client URL) gets an eye button that lists each reference's value with Copy; vault secrets stay masked until Reveal.
 - Shell: tool state that changes without a tab-strip change (a devtools field, an API draft) is written to `layout.json` within a few seconds, so a crash or a forced stop loses little.
+- Build: the browser host enables wry's `devtools` feature, so **Inspect** compiles in release builds too (the CI release build failed on `open_devtools`).
 - Tests: the editor project-tab test builds its expected paths from the canonical temp folder, so it passes on the CI runner whose `%TEMP%` is spelled `C:\WINDOWS\SystemTemp`.
 
 - AI: shared review-only assistant in Terminal, SSH, SQL and S3, with per-tool context previews and explicit send; no commands or data-changing actions are executed. API client is not implemented yet.

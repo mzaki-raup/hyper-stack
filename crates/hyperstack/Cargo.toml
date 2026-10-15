@@ -54,5 +54,5 @@ winresource = "0.1"
 # Native web views for the browser tool (WebView2). Windows only in this
 # release; other platforms build the tool without a page area.
 [target.'cfg(windows)'.dependencies]
-wry = { version = "0.57", default-features = false }
+wry = { version = "0.57", default-features = false, features = ["devtools"] }
 raw-window-handle = "0.6"

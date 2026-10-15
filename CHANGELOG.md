@@ -41,6 +41,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Editor: opening an existing project root focuses its existing tab, including normalized Windows paths. Encoding choices now distinguish UTF-16 LE/BE with and without BOM; clean files can be re-opened with an explicitly selected encoding.
 - Shell: Quick Open no longer closes on its opening click. The notification bell opens retained notification history, dismisses on outside click, and has Clear All instead of opening the bottom dock; the app logo is shown beside HyperStack.
 
+## 0.18.0 — 2026-10-12
+
+### Added
+
+- Git view in the editor: tree status, Source Control, diffs, history (8746f145)
+- One window tab per project with a multi-row strip of file tabs (ca9199a7)
+
 ## 0.17.0 — 2026-10-12
 
 ### Added

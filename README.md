@@ -102,7 +102,7 @@ Open opens the searchable tools, connections and project items palette.
 | | |
 |---|---|
 | ![Editor](docs/screenshots/editor.png) | ![Markdown preview](docs/screenshots/editor-markdown-preview.png) |
-| **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language); with a language server installed (rust-analyzer, typescript-language-server, pyright, gopls, clangd, …): completion as you type, hover, diagnostics and a Problems panel, go to definition (F12), references, rename (F2) and formatting | **Markdown preview** side by side (Ctrl+Shift+M) |
+| **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language); with a language server installed (rust-analyzer, typescript-language-server, pyright, gopls, clangd, …): completion as you type, hover, diagnostics and a Problems panel, go to definition (F12), references, rename (F2) and formatting; with a debug adapter installed (CodeLLDB, lldb-dap, debugpy, delve, netcoredbg): breakpoints, stepping, variables, call stack and a console | **Markdown preview** side by side (Ctrl+Shift+M) |
 | **Encoding** — choose UTF-8/UTF-8 BOM, UTF-16 LE/BE with or without BOM, or Windows-1252 per file; reopen a clean file from disk to decode with a different encoding. | |
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
@@ -112,6 +112,8 @@ Open opens the searchable tools, connections and project items palette.
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![Completion from rust-analyzer](docs/screenshots/editor-lsp-completion.png) | ![Problems panel](docs/screenshots/editor-lsp-problems.png) |
 | **Language server features** — completion as you type with documentation, hover, go to definition, references, rename and format through any installed LSP server (Settings → Editor → Language Servers shows which are found) | **Problems panel** (Ctrl+Shift+J) — diagnostics as underlines in the text, listed with file and line; the status bar counts errors and warnings |
+| ![Debugger paused at a breakpoint](docs/screenshots/editor-debug.png) | ![Call stack](docs/screenshots/editor-debug-stack.png) |
+| **Debugger** — breakpoints in the gutter (F9), the stopped line with an arrow, Continue/Step controls (F5, F10, F11), and the Variables tab of the debug panel; adapters (CodeLLDB, lldb-dap, debugpy, delve, netcoredbg) are installed by you, configurations come from `.hyperstack/debug.json`, `.vscode/launch.json` or are generated | **Call Stack** — frames of the paused thread; clicking one shows its variables and line |
 | ![Git in the project tree](docs/screenshots/editor-git-tree.png) | ![Git diff](docs/screenshots/editor-git-diff.png) |
 | **Git in the editor** — the branch on the project, change letters and colours in the tree, change markers in the gutter as you type | **Source Control** (Ctrl+Shift+G) — staged, changed and untracked files; diffs inline or side by side; Up/Down steps through them |
 | ![Git history](docs/screenshots/editor-git-history.png) | |

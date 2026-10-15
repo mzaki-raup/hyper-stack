@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Editor: a debugger through an installed debug adapter (new `hs-dap` crate, ADR-024): the toolbar's Debug button lists configurations from `.hyperstack/debug.json`, `.vscode/launch.json` or generated for Cargo, Python and Go projects; breakpoints by clicking the gutter or F9 (saved with the layout); Continue, Pause, Step Over/Into/Out, Restart and Stop (F5, F10, F11, Shift+F11, Shift+F5); the stopped line is marked in the gutter; a bottom panel (Ctrl+Shift+D) shows the console with an expression line, variables, the call stack and the breakpoints. Adapters: CodeLLDB, lldb-dap, GDB, debugpy, delve, netcoredbg; Settings → Editor → Debug Adapters shows which are installed and lets a command be replaced.
 
 ## 0.24.0 — 2026-10-15
 

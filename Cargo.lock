@@ -3184,6 +3184,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-dap"
+version = "0.24.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "hs-editor"
 version = "0.24.0"
 dependencies = [
@@ -3406,6 +3415,7 @@ dependencies = [
  "egui_extras",
  "egui_kittest",
  "hs-core",
+ "hs-dap",
  "hs-editor",
  "hs-lsp",
  "hs-ssh",
@@ -7735,6 +7745,7 @@ dependencies = [
  "chrono",
  "egui",
  "hs-core",
+ "hs-dap",
  "hs-editor",
  "hs-git",
  "hs-lsp",

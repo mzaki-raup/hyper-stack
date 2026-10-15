@@ -29,6 +29,7 @@ use hs_ui::theme::Theme;
 use hs_ui::tree::{TreeNode, TreeState};
 
 mod ai_panel;
+mod debug;
 mod git_view;
 mod lsp;
 use notify::Watcher;
@@ -84,6 +85,9 @@ struct State {
     /// Diffs side by side rather than inline.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     side_by_side: bool,
+    /// Breakpoints per file (1-based lines).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    breakpoints: Vec<(PathBuf, Vec<u32>)>,
     // The layout before several projects: one file and one folder per tab.
     // Read once to migrate, never written.
     #[serde(default, skip_serializing)]
@@ -793,6 +797,8 @@ pub struct EditorTool {
     /// Language servers for this tab's project (completion, diagnostics,
     /// navigation).
     lsp: lsp::Lsp,
+    /// The debug session, breakpoints and the debug panel.
+    debug: debug::Debugger,
 }
 
 impl EditorTool {
@@ -804,6 +810,8 @@ impl EditorTool {
         drop(st);
         let id = egui::Id::new(("hs-editor-tool", hs_core::new_id()));
         let lsp = lsp::Lsp::new(services, id);
+        let mut debug = debug::Debugger::new(services, id);
+        debug.restore_breakpoints(&state.breakpoints);
         let mut t = Self {
             projects: Vec::new(),
             active: 0,
@@ -824,6 +832,7 @@ impl EditorTool {
             split_off: Vec::new(),
             git: git_view::Git::new(state.source_control, state.side_by_side),
             lsp,
+            debug,
         };
         t.start_watch(services);
         // One project per tab: keep the active one, hand the rest to tabs
@@ -2157,8 +2166,30 @@ impl EditorTool {
         run_plan(path, self.projects[self.active].root.as_deref())
     }
 
-    /// Run the active file or project in a new terminal tab (F5).
+    /// Ctrl+F5: continue a stopped session, start the last configuration
+    /// again, or open the picker.
+    fn debug_start(&mut self, cx: &mut ToolContext) {
+        match self.debug.state() {
+            Some(debug::State::Stopped) => self.debug.continue_(),
+            Some(st) if st != debug::State::Ended => {}
+            _ => {
+                let root = self.projects[self.active].root.clone();
+                let file = self.doc().path.clone();
+                self.debug.refresh_configs(root.as_deref(), file.as_deref());
+                if !self.debug.start_last(cx.services) {
+                    self.debug.picker_open = true;
+                }
+            }
+        }
+    }
+
+    /// Run the active file or project in a new terminal tab (F5), or
+    /// continue a stopped debug session.
     fn run_current(&mut self, cx: &mut ToolContext) {
+        if self.debug.state() == Some(debug::State::Stopped) {
+            self.debug.continue_();
+            return;
+        }
         let Some((cwd, cmd)) = self.run_plan() else {
             cx.toast(ToastLevel::Info, cx.services.t("editor-run-none"));
             return;
@@ -2344,6 +2375,14 @@ impl Tool for EditorTool {
             {
                 self.run_current(cx);
             }
+        }
+        {
+            let (theme, _) = Self::theme(s);
+            let root = self.projects[self.active].root.clone();
+            let file = self.doc().path.clone();
+            ui.separator();
+            self.debug
+                .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
         }
         ui.separator();
         let mut ai_open = self.ai.open;
@@ -2560,6 +2599,8 @@ impl Tool for EditorTool {
         self.lsp.poll(s);
         self.lsp_sync_docs();
         self.lsp_apply_actions(cx);
+        self.debug.poll(s);
+        self.debug_apply_actions(cx);
         let (theme, ed_theme) = Self::theme(s);
         self.file_tabs(ui, s, &theme);
         if self.git.has_main() {
@@ -2604,6 +2645,14 @@ impl Tool for EditorTool {
         if let Some(error) = encoding_error {
             cx.toast(ToastLevel::Error, error);
         }
+        if self.debug.panel_open {
+            let root = self.projects[self.active].root.clone();
+            egui::Panel::bottom(self.id.with("debug"))
+                .default_size(200.0)
+                .size_range(80.0..=600.0)
+                .resizable(true)
+                .show(ui, |ui| self.debug.panel_ui(ui, s, &theme, root.as_deref()));
+        }
         if self.lsp.panel_open {
             let root = self.projects[self.active].root.clone();
             egui::Panel::bottom(self.id.with("problems"))
@@ -2642,11 +2691,25 @@ impl Tool for EditorTool {
                 .show(ui, |ui| d.preview_ui(ui, ed_theme.dark, &theme));
         }
         match d.path.clone() {
-            Some(path) => d.view.squiggles = self.lsp.squiggles(&path, &d.buf),
-            None => d.view.squiggles.clear(),
+            Some(path) => {
+                d.view.squiggles = self.lsp.squiggles(&path, &d.buf);
+                let (bps, exec) = self.debug.marks(&path);
+                d.view.breakpoints = bps;
+                d.view.exec_line = exec;
+            }
+            None => {
+                d.view.squiggles.clear();
+                d.view.breakpoints.clear();
+                d.view.exec_line = None;
+            }
         }
         let r = d.view.show(ui, &mut d.buf, &mut d.cursors, &ed_theme);
         let path = d.path.clone();
+        if let Some(line) = r.gutter_clicked
+            && let Some(p) = &path
+        {
+            self.debug.toggle_breakpoint(p, line as u32 + 1);
+        }
         self.lsp.after_show(
             ui,
             s,
@@ -2774,6 +2837,33 @@ impl Tool for EditorTool {
                 "Editor: Toggle Problems",
                 Some("editor.problems"),
             ),
+            c(
+                "debug.start",
+                "Debug: Start or Continue",
+                Some("debug.start"),
+            ),
+            c("debug.stop", "Debug: Stop", Some("debug.stop")),
+            c(
+                "debug.step_over",
+                "Debug: Step Over",
+                Some("debug.step_over"),
+            ),
+            c(
+                "debug.step_into",
+                "Debug: Step Into",
+                Some("debug.step_into"),
+            ),
+            c("debug.step_out", "Debug: Step Out", Some("debug.step_out")),
+            c(
+                "debug.toggle_breakpoint",
+                "Debug: Toggle Breakpoint",
+                Some("debug.toggle_breakpoint"),
+            ),
+            c(
+                "debug.panel",
+                "Debug: Toggle Debug Panel",
+                Some("debug.panel"),
+            ),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
             c(
                 "git.source_control",
@@ -2867,6 +2957,19 @@ impl Tool for EditorTool {
                 }
             }
             "editor.problems" => self.lsp.toggle_problems(),
+            "debug.start" => self.debug_start(cx),
+            "debug.stop" => self.debug.stop(),
+            "debug.step_over" => self.debug.step_over(),
+            "debug.step_into" => self.debug.step_into(),
+            "debug.step_out" => self.debug.step_out(),
+            "debug.toggle_breakpoint" => {
+                let d = self.doc();
+                if let Some(path) = d.path.clone() {
+                    let line = d.buf.char_to_line_col(d.cursors.primary().head).0 as u32 + 1;
+                    self.debug.toggle_breakpoint(&path, line);
+                }
+            }
+            "debug.panel" => self.debug.panel_open = !self.debug.panel_open,
             "git.source_control" => self.git.sidebar = !self.git.sidebar,
             "git.history" => {
                 let path = self
@@ -3027,6 +3130,7 @@ impl Tool for EditorTool {
             active: self.active,
             source_control: self.git.sidebar,
             side_by_side: self.git.side_by_side,
+            breakpoints: self.debug.saved_breakpoints(),
             ..Default::default()
         };
         serde_json::to_value(&st).unwrap_or_default()
@@ -3067,6 +3171,7 @@ impl Tool for EditorTool {
             self.final_newline = st.editor.insert_final_newline;
             drop(st);
             self.lsp.reconfigure(cx.services);
+            self.debug.read_settings(cx.services);
             for p in &mut self.projects {
                 for d in &mut p.docs {
                     d.apply_settings(cx.services);
@@ -3440,6 +3545,19 @@ impl EditorTool {
                     }
                 }
                 lsp::LspAction::Toast(level, text) => cx.toast(level, text),
+            }
+        }
+    }
+
+    /// Carry out what the debugger asked for.
+    fn debug_apply_actions(&mut self, cx: &mut ToolContext) {
+        for a in self.debug.take_actions() {
+            match a {
+                debug::DebugAction::GoTo { path, line } => {
+                    self.open_path(path, Some(line), cx);
+                }
+                debug::DebugAction::Open(path) => self.open_path(path, None, cx),
+                debug::DebugAction::Toast(level, text) => cx.toast(level, text),
             }
         }
     }

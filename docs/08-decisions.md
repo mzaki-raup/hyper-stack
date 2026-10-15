@@ -586,3 +586,35 @@ status bar says what is missing and how to get it. One server process per
 project root and language per editor tab (tabs are projects), stopped when
 the tab closes. Incremental sync, code actions and semantic tokens are
 later additions behind the same client.
+
+## ADR-024 · Debugging through installed debug adapters (DAP client in `hs-dap`)
+
+**Status.** Accepted, 2026-10-16.
+
+**Context.** The same owner request as ADR-023 asked for debugging. Zed
+implements the Debug Adapter Protocol and ships or downloads adapters per
+language; HyperStack must stay a portable exe and cannot carry CodeLLDB
+(tens of megabytes) or a Python.
+
+**Decision.**
+- `hs-dap` mirrors `hs-lsp`: `Content-Length` framing, a reader thread,
+  callbacks for responses and a channel of events drained per frame, only
+  the protocol slice the panel shows typed. Adapters that listen on TCP
+  (CodeLLDB, delve) are started with a free port and the client polls the
+  port until it answers, all on a thread.
+- Adapters are installed by the user; a registry maps each to its command
+  and install line, Settings can replace the command, and `launch.json`
+  `type` names map onto the same registry so VS Code configurations work
+  unchanged. `.hyperstack/debug.json` uses Zed's shape so examples from
+  Zed's documentation apply.
+- The client does not implement `runInTerminal`: generated configurations
+  keep the debuggee's console inside the editor, which every supported
+  adapter offers, and a configuration that insists on a terminal gets a
+  clear message.
+- Breakpoints are plain line breakpoints saved with the tab's layout;
+  conditions, logpoints and watches wait for a request.
+
+**Consequences.** Debugging works where an adapter is installed and says
+what is missing otherwise. One session per editor tab. The build step is
+a child process with its output in the console; nothing runs in the
+shell's terminal tool.

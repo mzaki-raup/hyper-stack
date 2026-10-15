@@ -61,6 +61,7 @@ suggestion.
 | Snippets, format-on-save via external formatter | P1 | M |
 | Diff editor (two-way, and three-way for merges) | P1 | L |
 | LSP client: completion, hover, diagnostics with a Problems panel, go to definition, references, rename, formatting; servers installed by the user, any stdio server configurable per language (done 2026-10-15, `hs-lsp`) | P1 | L |
+| Debugger: DAP client with breakpoints, stepping, variables, call stack and console; CodeLLDB/lldb-dap/GDB, debugpy, delve, netcoredbg installed by the user; `.hyperstack/debug.json` and `.vscode/launch.json` (done 2026-10-16, `hs-dap`) | P1 | L |
 | Hex editor mode | P2 | M |
 
 ## 3. Database client (requested) — [spec](tools/database.md)

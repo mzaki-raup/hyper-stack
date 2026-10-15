@@ -31,9 +31,13 @@ toggle (`hs_core::stt`, offline Windows Speech, typed into the input); the
 editor is an **LSP client** (`hs-lsp`, ADR-023): completion, hover,
 diagnostics, definition, references, rename and formatting through
 language servers the user installs (Settings → Editor → Language
-Servers).**
+Servers), and a **DAP client** (`hs-dap`, ADR-024): breakpoints,
+stepping, variables, call stack and console through installed debug
+adapters (CodeLLDB, lldb-dap, GDB, debugpy, delve, netcoredbg), with
+configurations from `.hyperstack/debug.json`, `.vscode/launch.json` or
+generated for Cargo, Python and Go projects.**
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
-`hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `tools/tool-terminal`, `tools/tool-editor`,
+`hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
 `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
@@ -390,6 +394,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `std::fs::canonicalize` prefixes Windows paths with `\\?\`; strip that
   prefix before storing or comparing editor project roots, or saved paths and
   test/request URIs no longer match.
+- `cargo test --workspace` on this machine can die with "the paging file
+  is too small" (os error 1455) and then "found invalid metadata files for
+  crate …" on every later run: the parallel test build exhausts the
+  Windows *commit limit* (RAM plus a small page file), not physical RAM,
+  and a rustc killed mid-write leaves corrupt `.rmeta`/`.rlib` files
+  behind. Delete `target/debug` and run with `-j 4`; the CI runner's
+  release job OOM (run 79) was the same thing with the machine busy.
 - The runner service's `%TEMP%` is `C:\WINDOWS\SystemTemp` (upper case,
   LocalSystem), while `canonicalize` returns `C:\Windows\…`; a test that
   compares an editor-reported path with one built from `temp_dir()` passes
@@ -717,6 +728,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   with `$ErrorActionPreference = 'stop'`, so this failed `ci.yml` in three
   seconds before any Rust step. Always `$x = $null` before `[ref]$x`, and
   reproduce workflow snippets locally under `Stop` before pushing.
+
+### Patch scripts
+- A text-replace script re-run after a partial failure inserted the
+  editor's debug toolbar block twice (the first run had applied the early
+  steps). The symptom was indirect: the configuration picker closed
+  itself, because the second toolbar instance saw the opening click as a
+  click outside *its* popup. A "skip when the new text is present" guard
+  is not enough when the new text starts with the old one; check the
+  inserted marker alone, and `grep -c` the markers after any re-run.
 
 ### Rust / build
 - Merging a release bump (`chore(release): vX.Y.Z`) into a branch that

@@ -109,6 +109,9 @@ pub struct EditorResponse {
     pub clicked: bool,
     /// Ctrl+click placed the cursor (go to definition).
     pub ctrl_clicked: bool,
+    /// A click in the gutter (left of the line numbers): the 0-based line
+    /// (toggles a breakpoint).
+    pub gutter_clicked: Option<usize>,
 }
 
 /// A diagnostic underline: a char range and how serious it is.
@@ -179,6 +182,12 @@ pub struct EditorView {
     /// A popup (completion) owns the navigation keys: the view reports
     /// them in `EditorResponse::popup_keys` instead of acting on them.
     pub popup_open: bool,
+    /// 0-based lines with a breakpoint, drawn as dots in the gutter; the
+    /// bool says whether the adapter verified it.
+    pub breakpoints: Vec<(usize, bool)>,
+    /// The line the debugger stopped on (0-based), highlighted with an
+    /// arrow in the gutter.
+    pub exec_line: Option<usize>,
     /// Change markers at the gutter's left edge, indexed by line (the Git
     /// changes against the last commit). Lines past the end have none.
     pub line_marks: Vec<Option<LineMark>>,
@@ -211,6 +220,8 @@ impl EditorView {
             error_ranges: Vec::new(),
             squiggles: Vec::new(),
             popup_open: false,
+            breakpoints: Vec::new(),
+            exec_line: None,
             line_marks: Vec::new(),
             cursor_rect: None,
             highlighter,
@@ -278,7 +289,7 @@ impl EditorView {
 
         let (font, cell) = self.cell(ui);
         let gutter_w = if self.show_gutter {
-            (buf.len_lines().max(1).to_string().len() as f32 + 1.0) * cell.x + GUTTER_PAD
+            (buf.len_lines().max(1).to_string().len() as f32 + 2.5) * cell.x + GUTTER_PAD
         } else {
             4.0
         };
@@ -353,8 +364,20 @@ impl EditorView {
                 self.dragging = false;
                 cursors.normalise(buf.len_chars());
             }
+            let gutter_click = response.clicked()
+                && self.show_gutter
+                && response
+                    .interact_pointer_pos()
+                    .is_some_and(|p| p.x < text_x - GUTTER_PAD / 2.0);
+            if gutter_click && let Some(p) = response.interact_pointer_pos() {
+                let line = ((p.y - origin.y) / cell.y).floor().max(0.0) as usize;
+                if line < total_lines {
+                    resp.gutter_clicked = Some(line);
+                }
+            }
             if response.clicked()
                 && !self.dragging
+                && !gutter_click
                 && let Some(p) = response.interact_pointer_pos()
             {
                 let at = pos_to_char(p);
@@ -488,6 +511,16 @@ impl EditorView {
                         theme.current_line,
                     );
                 }
+                if self.exec_line == Some(line) {
+                    painter.rect_filled(
+                        Rect::from_min_size(
+                            Pos2::new(text_x - 2.0, y),
+                            Vec2::new(viewport.width().max(content_size.x), cell.y),
+                        ),
+                        CornerRadius::ZERO,
+                        theme.warning.linear_multiply(0.22),
+                    );
+                }
                 // Selection.
                 for c in &cursors.list {
                     if !c.has_selection() {
@@ -574,6 +607,35 @@ impl EditorView {
                                 m.colour(),
                             );
                         }
+                    }
+                }
+                // Breakpoint dot and the execution arrow, left of the number.
+                if self.show_gutter {
+                    let cx = origin.x + 6.0 + cell.x * 0.5;
+                    let cy = y + cell.y / 2.0;
+                    if let Some((_, verified)) = self.breakpoints.iter().find(|(l, _)| *l == line) {
+                        let r = (cell.y * 0.28).clamp(3.0, 6.0);
+                        if *verified {
+                            painter.circle_filled(Pos2::new(cx, cy), r, theme.error);
+                        } else {
+                            painter.circle_stroke(
+                                Pos2::new(cx, cy),
+                                r,
+                                egui::Stroke::new(1.5, theme.error),
+                            );
+                        }
+                    }
+                    if self.exec_line == Some(line) {
+                        let w = (cell.y * 0.35).clamp(4.0, 7.0);
+                        painter.add(egui::Shape::convex_polygon(
+                            vec![
+                                Pos2::new(cx - w * 0.6, cy - w),
+                                Pos2::new(cx + w, cy),
+                                Pos2::new(cx - w * 0.6, cy + w),
+                            ],
+                            theme.warning,
+                            egui::Stroke::NONE,
+                        ));
                     }
                 }
                 // Gutter number.

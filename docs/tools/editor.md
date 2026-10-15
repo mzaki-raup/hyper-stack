@@ -242,6 +242,8 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+Space · Ctrl+Shift+Space | completions · hover for the symbol at the cursor (§11) |
 | F12 · Shift+F12 · Ctrl+click | go to definition · references · go to definition |
 | F2 · Shift+Alt+F · Ctrl+Shift+J | rename symbol · format document · Problems panel |
+| Ctrl+F5 · F9 · Ctrl+Shift+D | start or continue debugging · toggle breakpoint · debug panel (§12) |
+| F5 (paused) · F10 · F11 · Shift+F11 · Shift+F5 | continue · step over · step into · step out · stop |
 | Alt+Z | toggle word wrap |
 
 ## 8. Settings
@@ -351,11 +353,50 @@ an LSP client (`hs-lsp`, ADR-023) and the user installs the servers.
   actions, semantic tokens, inlay hints, workspace symbols, and servers
   over TCP. Files over the read-only threshold are never sent to a server.
 
-## 12. Debugger (planned)
+## 12. Debugger (DAP, 2026-10-16)
 
-The next step of the same request: a Debug Adapter Protocol client
-(`hs-dap`) with launch configurations read from `.hyperstack/debug.json`
-and `.vscode/launch.json`, generated ones for Cargo, Python and Go
-projects, breakpoints in the gutter, continue/step controls, call stack,
-variables and a debug console. Adapters (CodeLLDB, debugpy, delve) are
-installed by the user, like language servers.
+The second half of the Zed-inspired request: a Debug Adapter Protocol
+client (`hs-dap`, ADR-024). Adapters are installed by the user, like
+language servers.
+
+- **Adapters** (`hs_dap::adapters::ADAPTERS`): CodeLLDB (`codelldb
+  --port {port}`, TCP) and lldb-dap or GDB 14 (`gdb -i dap`) for Rust, C
+  and C++; debugpy (`python -m debugpy.adapter`) for Python; delve (`dlv
+  dap --listen 127.0.0.1:{port}`) for Go; netcoredbg for C#. Settings →
+  Editor → Debug Adapters shows each adapter's command, arguments and
+  whether it is on `PATH`, with the install line when it is not; the
+  command can be replaced (a virtual environment's `python`, a CodeLLDB
+  unpacked from the VS Code extension).
+- **Configurations** (the toolbar's **Debug** button, Ctrl+F5): the
+  picker lists `.hyperstack/debug.json` (Zed's shape: `label`, `adapter`,
+  `request`, `program`, `cwd`, `args`, `env`, a `build` step with
+  `command`/`args`; `${workspaceFolder}`, `${file}` and `$ZED_WORKTREE_ROOT`
+  are substituted), `.vscode/launch.json` (`name`, `type` mapped to an
+  adapter: `lldb`, `python`, `go`, `coreclr`, …; comments and trailing
+  commas allowed) and generated ones: a Cargo package (`cargo build`,
+  then the binary under `target/debug` with the first installed adapter),
+  the open Python file, a Go module. **Edit debug.json…** creates the file
+  from the generated entries and opens it.
+- **Session**: a build step runs first, its output in the console; the
+  adapter is started on a thread (stdio, or a TCP port polled until it
+  listens), `initialize` → `launch`/`attach` → on `initialized` every
+  breakpoint, the adapter's default exception filters and
+  `configurationDone`. `runInTerminal` is refused: generated
+  configurations keep the program's console inside the editor
+  (`console: internalConsole`, CodeLLDB `terminal: console`).
+- **Breakpoints**: click left of a line number or press F9 (the cursor's
+  line); red dots, hollow until the adapter verifies them. They are sent
+  to a running session at once and saved with the tab's layout.
+- **Stepping**: Continue (F5 while paused, or Ctrl+F5), Pause, Step Over
+  (F10), Step Into (F11), Step Out (Shift+F11), Restart, Stop (Shift+F5)
+  in the toolbar while a session runs. A stop highlights the frame's line
+  with an arrow in the gutter and opens its file.
+- **Panel** (Ctrl+Shift+D, a bottom panel): **Console** (program output,
+  adapter messages, and an expression line evaluated in the selected
+  frame), **Variables** (scopes with their variables; values with
+  children expand on click and are fetched then), **Call Stack** (frames;
+  clicking one selects it and jumps to its line), **Breakpoints** (every
+  breakpoint with a remove button).
+- **Out of scope for now**: conditional and logpoint breakpoints,
+  attach pickers, hover evaluation, watch expressions, several sessions
+  at once, and adapters that need a terminal.

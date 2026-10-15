@@ -196,6 +196,20 @@ pub struct Editor {
     pub completion_on_type: bool,
     /// Per-language changes to the built-in server table.
     pub language_servers: Vec<LanguageServer>,
+    /// Per-adapter changes to the built-in debug adapter table.
+    pub debug_adapters: Vec<DebugAdapter>,
+}
+
+/// One debug adapter as the user set it (Settings → Editor → Debug
+/// Adapters): an empty `command` keeps the built-in one, `args` are split
+/// on whitespace (`{port}` stands for the port of a TCP adapter).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct DebugAdapter {
+    pub id: String,
+    pub command: String,
+    pub args: String,
+    pub enabled: bool,
 }
 
 /// One language's server as the user set it (Settings → Editor →
@@ -282,6 +296,7 @@ impl Default for Editor {
             lsp_enabled: true,
             completion_on_type: true,
             language_servers: Vec::new(),
+            debug_adapters: Vec::new(),
         }
     }
 }

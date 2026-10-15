@@ -2379,9 +2379,128 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
         ui.add_space(4.0);
         changed |= language_server_table(ui, theme, s, &mut settings.editor.language_servers);
     });
+    form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
+        form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
+        ui.add_space(4.0);
+        changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters);
+    });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }
+}
+
+/// One row per debug adapter: command and arguments (empty keeps the
+/// built-in ones), on/off, and whether the command is on PATH.
+fn debug_adapter_table(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    rows: &mut Vec<hs_core::settings::DebugAdapter>,
+) -> bool {
+    use hs_core::settings::DebugAdapter;
+    let cache_id = egui::Id::new("settings-dap-path-cache");
+    let mut cache: std::collections::HashMap<String, bool> = ui
+        .ctx()
+        .data_mut(|d| d.get_temp(cache_id))
+        .unwrap_or_default();
+    let mut changed = false;
+    egui::Grid::new("settings-dap-table")
+        .num_columns(5)
+        .spacing([12.0, 6.0])
+        .striped(true)
+        .show(ui, |ui| {
+            for key in [
+                "settings-editor-dap-adapter",
+                "settings-editor-lsp-command",
+                "settings-editor-lsp-args",
+                "settings-editor-lsp-enabled",
+                "settings-editor-lsp-status",
+            ] {
+                ui.label(
+                    egui::RichText::new(s.t(key))
+                        .strong()
+                        .color(theme.text_muted),
+                );
+            }
+            ui.end_row();
+            for spec in hs_dap::adapters::ADAPTERS {
+                let idx = rows.iter().position(|a| a.id == spec.id);
+                let mut row = idx
+                    .map(|i| rows[i].clone())
+                    .unwrap_or_else(|| DebugAdapter {
+                        id: spec.id.to_string(),
+                        command: String::new(),
+                        args: String::new(),
+                        enabled: true,
+                    });
+                ui.label(format!("{}  ({})", spec.id, spec.languages.join(", ")));
+                let r1 = ui.add(
+                    egui::TextEdit::singleline(&mut row.command)
+                        .hint_text(spec.command)
+                        .desired_width(200.0),
+                );
+                let r2 = ui.add(
+                    egui::TextEdit::singleline(&mut row.args)
+                        .hint_text(spec.args.join(" "))
+                        .desired_width(160.0),
+                );
+                let r3 = ui.checkbox(&mut row.enabled, "");
+                let command = if row.command.trim().is_empty() {
+                    spec.command.to_string()
+                } else {
+                    row.command.trim().to_string()
+                };
+                if !row.enabled {
+                    ui.label(
+                        egui::RichText::new(s.t("settings-editor-lsp-off")).color(theme.text_muted),
+                    );
+                } else {
+                    let found = *cache
+                        .entry(command.clone())
+                        .or_insert_with(|| hs_dap::adapters::on_path(&command).is_some());
+                    if found {
+                        ui.colored_label(
+                            theme.success,
+                            format!(
+                                "{} {}",
+                                hs_ui::icons::CHECK,
+                                s.t("settings-editor-lsp-found")
+                            ),
+                        );
+                    } else {
+                        ui.colored_label(
+                            theme.warning,
+                            format!(
+                                "{} {}",
+                                hs_ui::icons::WARNING,
+                                s.t("settings-editor-lsp-not-found")
+                            ),
+                        )
+                        .tip(s.i18n.t_args(
+                            "settings-editor-lsp-install-tip",
+                            &[("command", spec.install)],
+                        ));
+                    }
+                }
+                ui.end_row();
+                if r1.changed() || r2.changed() || r3.changed() {
+                    changed = true;
+                    cache.clear();
+                    let is_default =
+                        row.command.trim().is_empty() && row.args.trim().is_empty() && row.enabled;
+                    match (idx, is_default) {
+                        (Some(i), true) => {
+                            rows.remove(i);
+                        }
+                        (Some(i), false) => rows[i] = row,
+                        (None, true) => {}
+                        (None, false) => rows.push(row),
+                    }
+                }
+            }
+        });
+    ui.ctx().data_mut(|d| d.insert_temp(cache_id, cache));
+    changed
 }
 
 /// One row per language the editor knows a server for: command and

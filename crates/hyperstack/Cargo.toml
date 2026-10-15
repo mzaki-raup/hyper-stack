@@ -19,6 +19,7 @@ hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-editor = { workspace = true }
 hs-lsp = { workspace = true }
+hs-dap = { workspace = true }
 hs-term = { workspace = true }
 tool-terminal = { workspace = true }
 tool-editor = { workspace = true }

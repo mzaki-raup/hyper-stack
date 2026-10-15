@@ -61,7 +61,10 @@ assistant; the phrase was played through the speakers with Read Aloud,
 hence the garbled words), `editor-lsp-completion.png` and
 `editor-lsp-problems.png` (rust-analyzer serving a small Cargo project:
 the completion list filtered by typing with the item's documentation
-beside it, and the Problems panel under the diagnostics' underlines) and
+beside it, and the Problems panel under the diagnostics' underlines),
+`editor-debug.png` and `editor-debug-stack.png` (debugpy paused at a
+breakpoint in a small Python file: the stopped line, the Variables tab
+with the frame's locals, and the Call Stack tab) and
 `browser.png` were captured on
 Windows 11 from the debug build with the harness in
 `scripts/gui-smoke.ps1` (`start`, `keys`, `click`, `shot`): `Start-Process

@@ -47,6 +47,19 @@ fn requests(actions: &[hs_core::tool::Action], new_tab: bool) -> Vec<String> {
 #[test]
 fn one_tab_per_project_with_its_files_inside() {
     let tmp = std::env::temp_dir().join(format!("hs-editor-projects-{}", hs_core::new_id()));
+    std::fs::create_dir_all(&tmp).unwrap();
+    // The editor reports canonical paths; on the CI runner `%TEMP%` is
+    // spelled `C:\WINDOWS\SystemTemp` while the volume says `C:\Windows`,
+    // so expected paths are built from the canonical folder (without the
+    // `\\?\` prefix `canonicalize` adds on Windows).
+    let canonical = std::fs::canonicalize(&tmp).unwrap();
+    let canonical = canonical.to_string_lossy().to_string();
+    let tmp = std::path::PathBuf::from(
+        canonical
+            .strip_prefix(r"\\?\")
+            .unwrap_or(&canonical)
+            .to_string(),
+    );
     let (a, b, other) = (tmp.join("alpha"), tmp.join("beta"), tmp.join("loose"));
     std::fs::create_dir_all(a.join("sub")).unwrap();
     std::fs::create_dir_all(&b).unwrap();

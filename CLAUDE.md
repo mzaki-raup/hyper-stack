@@ -367,6 +367,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `std::fs::canonicalize` prefixes Windows paths with `\\?\`; strip that
   prefix before storing or comparing editor project roots, or saved paths and
   test/request URIs no longer match.
+- The runner service's `%TEMP%` is `C:\WINDOWS\SystemTemp` (upper case,
+  LocalSystem), while `canonicalize` returns `C:\Windows\…`; a test that
+  compares an editor-reported path with one built from `temp_dir()` passes
+  locally and fails on CI. Build expected paths from the canonical folder
+  (`crates/hyperstack/src/editor_tests.rs`), or compare case-insensitively.
 - BOM-less UTF-16 BE is ambiguous with other byte sequences; do not guess it
   during automatic decode. Offer an explicit encoding choice to reopen the
   original bytes instead.

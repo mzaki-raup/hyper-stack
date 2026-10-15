@@ -676,6 +676,34 @@ fn accessibility(
         }
         form::hint(ui, theme, &s.t("settings-tts-hint"));
     });
+    form::section(ui, theme, &s.t("settings-section-stt"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.accessibility.stt_enabled,
+                s.t("settings-stt-enabled"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-stt-enabled-hint"));
+        if !hs_core::stt::Stt::available() {
+            form::note(
+                ui,
+                theme,
+                hs_ui::icons::INFO,
+                &s.t("settings-stt-unavailable"),
+            );
+        }
+        ui.add_space(6.0);
+        form::field_grid(ui, "stt-grid", |ui| {
+            form::label(ui, &s.t("settings-stt-language"));
+            changed |= form::text_field(
+                ui,
+                &mut settings.accessibility.stt_language,
+                &s.t("settings-stt-language-hint"),
+            )
+            .changed();
+            ui.end_row();
+        });
+    });
     form::section(ui, theme, &s.t("settings-section-motion"), |ui| {
         changed |= ui
             .checkbox(

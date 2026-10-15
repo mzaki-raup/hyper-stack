@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- AI assistants: a **microphone toggle** beside Send in every assistant (editor, Terminal, SSH, SQL, S3, API client, Graphics, Scratchpad). Speech to text runs through the operating system's own dictation engine (`hs_core::stt`, Windows Speech in a PowerShell child, nothing leaves the machine); recognised phrases are typed into the input box and nothing is sent until Send. Settings → Accessibility → Speech to Text turns it off or sets the language; platforms without an engine hide the button.
 - Graphics: the crop placeholder resizes from every edge and corner (the grip was judged from where egui first reported the drag, 10 px past the press, so the top and bottom edges read as "move"); a crop rectangle left over from a bigger picture is clamped to the current one.
 - Graphics: the Adjust sliders preview on the picture as they move (a live layer over the committed operations, re-rendered 60 ms after the last change); Apply commits one slider's value as an operation and resets it, saving commits them all first; blur and sharpen start at 0 (off).
 - Graphics: Grayscale and Invert are toggles that show their state and take the operation back off the list on a second click.

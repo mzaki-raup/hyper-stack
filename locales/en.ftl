@@ -259,6 +259,16 @@ tts-read-item = { $label } ({ $words } words)
 tts-stop = Stop Reading
 tts-settings = Accessibility Settings…
 tts-tip = Read text from this tab aloud (Settings → Accessibility).
+ai-listening = Listening…
+ai-mic-tip = Dictate into the input box through the system's speech recognition; nothing is sent until you press Send.
+ai-mic-stop-tip = Stop listening.
+ai-mic-error = Speech recognition stopped: { $error }
+settings-section-stt = Speech to Text
+settings-stt-enabled = Show the Microphone in AI Assistants
+settings-stt-enabled-hint = Dictation through the operating system's own engine (Windows Speech); phrases are typed into the assistant's input box and nothing is sent until you press Send. Nothing leaves the machine.
+settings-stt-unavailable = No dictation engine on this platform yet; the microphone stays hidden.
+settings-stt-language = Language
+settings-stt-language-hint = e.g. en-US; empty = the engine's default
 settings-shortcuts = Shortcuts
 settings-environments = Environments
 settings-connections = Connections

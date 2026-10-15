@@ -188,4 +188,10 @@ properties:
   the master password to export or import.
 - **Read Aloud** sends text to a local child process (Windows Speech,
   `say`, espeak-ng); nothing leaves the machine.
+- **Speech to text** (the assistants' microphone) likewise runs the
+  operating system's dictation engine as a local child process; audio is
+  never recorded to disk or sent anywhere, and the recognised text only
+  lands in the input box the user then edits and sends, or not. The
+  language setting is validated to a culture name before it reaches the
+  PowerShell command line.
 

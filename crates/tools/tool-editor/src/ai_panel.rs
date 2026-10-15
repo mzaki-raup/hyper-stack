@@ -133,6 +133,10 @@ pub struct AiPanel {
     /// Cascade rounds run since the user last asked something.
     rounds: u32,
     focus_input: bool,
+    /// Speech to text for the input box (the microphone toggle).
+    stt: hs_core::stt::Stt,
+    /// A microphone error, shown under the input for a few seconds.
+    notice: Option<(String, std::time::Instant)>,
     stick_to_bottom: bool,
 }
 
@@ -579,7 +583,22 @@ impl AiPanel {
                     {
                         send_now = true;
                     }
+                    if let Some(e) =
+                        hs_ui::mic::mic_button(ui, theme, s, &self.stt, &mut self.input)
+                    {
+                        self.notice = Some((e, std::time::Instant::now()));
+                    }
                 });
+                if let Some((text, at)) = &self.notice {
+                    if at.elapsed() > std::time::Duration::from_secs(8) {
+                        self.notice = None;
+                    } else {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(text).color(theme.error).small())
+                                .wrap(),
+                        );
+                    }
+                }
                 ui.add_space(4.0);
             });
         if send_now && self.running.is_none() {

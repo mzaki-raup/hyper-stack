@@ -193,6 +193,14 @@ open at line, replace across files with preview (P1).
   in the background, cached).
 - **Status bar**: Ln/Col, selection count, indentation, encoding (clickable to
   convert), EOL, language (clickable to override), URI.
+- **Minified JSON** (Settings → Editor → Lay Out Minified JSON When
+  Opening, on by default): a JSON file that arrives on one line or with a
+  line over 400 characters (a source map, a minified payload) is indented
+  as it opens, as one undoable edit. `.map` counts as JSON for
+  highlighting. The file on disk is untouched until the user saves, and
+  the tab shows the unsaved dot to say the buffer differs from it; Ctrl+Z
+  restores the original line. A file that is already laid out is left
+  exactly as it is.
 - **Markdown preview** (Ctrl+Shift+M, because egui turns Ctrl+Shift+V into
   a paste): `pulldown-cmark` rendered to egui with a native Mermaid subset
   (flowchart, sequence), side-by-side with scroll sync (P1).
@@ -344,6 +352,13 @@ an LSP client (`hs-lsp`, ADR-023) and the user installs the servers.
   another project goes to that project's tab). F2 renames the symbol
   across the project: open files are edited in place, other files are
   rewritten on disk. Shift+Alt+F formats the document through the server.
+- **Installing a server**: when the language has a known server that is
+  not on `PATH`, the status bar and Settings → Editor → Language Servers
+  show an **Install** button. It opens a terminal tab and runs the
+  server's install command (`rustup component add rust-analyzer`, `npm
+  install -g …`, `pip install pyright`, …), or opens the download page
+  when installation is platform-specific (clangd, jdtls, lua-language-
+  server, …). The same button sits beside a missing debug adapter.
 - **Status bar**: the server for the active file with its state
   (starting, a `$/progress` message such as rust-analyzer's "Indexing
   37%", ready, or stopped with the last stderr line), or, when the

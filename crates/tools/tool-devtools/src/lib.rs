@@ -11,7 +11,9 @@ pub mod hash;
 pub mod jasypt;
 pub mod jwt;
 pub mod pki;
+pub mod url_tool;
 mod util;
+pub mod yaml;
 
 use std::borrow::Cow;
 
@@ -36,6 +38,8 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
 pub enum Utility {
     #[default]
     Base64,
+    Url,
+    Yaml,
     Hash,
     Jwt,
     Firebase,
@@ -45,8 +49,15 @@ pub enum Utility {
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 6] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 8] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
+        (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
+        (
+            Utility::Yaml,
+            "dt-cat-encoding",
+            "dt-yaml",
+            ph::TREE_STRUCTURE,
+        ),
         (Utility::Hash, "dt-cat-encoding", "dt-hash", ph::FINGERPRINT),
         (
             Utility::Jwt,
@@ -61,6 +72,8 @@ impl Utility {
     pub fn key(self) -> &'static str {
         match self {
             Utility::Base64 => "base64",
+            Utility::Url => "url",
+            Utility::Yaml => "yaml",
             Utility::Hash => "hash",
             Utility::Jwt => "jwt",
             Utility::Firebase => "firebase",
@@ -122,6 +135,8 @@ impl ToolFactory for DevtoolsFactory {
             // Named before the first frame so a restored strip reads right.
             title: services.t(utility.title_key()),
             base64: part(&restore, "base64"),
+            url: part(&restore, "url"),
+            yaml: part(&restore, "yaml"),
             hash: part(&restore, "hash"),
             jwt: part(&restore, "jwt"),
             firebase: part(&restore, "firebase"),
@@ -135,6 +150,8 @@ pub struct DevtoolsTool {
     utility: Utility,
     title: String,
     base64: base64_tool::State,
+    url: url_tool::State,
+    yaml: yaml::State,
     hash: hash::State,
     jwt: jwt::State,
     firebase: firebase::State,
@@ -209,6 +226,8 @@ impl Tool for DevtoolsTool {
                         ui.set_min_width(ui.available_width());
                         match self.utility {
                             Utility::Base64 => base64_tool::ui(&mut self.base64, ui, s, &theme),
+                            Utility::Url => url_tool::ui(&mut self.url, ui, s, &theme),
+                            Utility::Yaml => yaml::ui(&mut self.yaml, ui, s, &theme),
                             Utility::Hash => hash::ui(&mut self.hash, ui, s, &theme),
                             Utility::Jwt => jwt::ui(&mut self.jwt, ui, s, &theme),
                             Utility::Firebase => firebase::ui(&mut self.firebase, ui, s, &theme),
@@ -284,6 +303,8 @@ impl Tool for DevtoolsTool {
             OpenRequest::Text { body, .. } => {
                 match self.utility {
                     Utility::Base64 => self.base64.input = body,
+                    Utility::Url => self.url.input = body,
+                    Utility::Yaml => self.yaml.input = body,
                     Utility::Hash => self.hash.input = body,
                     Utility::Jwt => self.jwt.token = body,
                     Utility::Firebase => self.firebase.service_json = body,
@@ -320,6 +341,8 @@ impl Tool for DevtoolsTool {
         serde_json::json!({
             "utility": self.utility.key(),
             "base64": self.base64.for_save(),
+            "url": self.url,
+            "yaml": self.yaml,
             "hash": self.hash.for_save(),
             "jwt": self.jwt.for_save(),
             "firebase": self.firebase.for_save(),

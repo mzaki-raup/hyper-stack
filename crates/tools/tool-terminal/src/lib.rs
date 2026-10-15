@@ -512,7 +512,11 @@ impl Tool for TerminalTool {
             self.open_find();
         }
         if ui
-            .button(format!("{} AI", hs_ui::icons::ph::SPARKLE))
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::SPARKLE,
+                s.t("ai-assistant")
+            ))
             .tip(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -653,6 +657,9 @@ impl Tool for TerminalTool {
                     )
                 });
             self.assistant.set_context("terminal state", ctx);
+            if self.assistant.quick_actions.is_empty() {
+                self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
+            }
             let rect = ui.available_rect_before_wrap();
             let panel = egui::Rect::from_min_max(
                 egui::pos2(rect.right() - 390.0, rect.top()),
@@ -670,12 +677,17 @@ impl Tool for TerminalTool {
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
                     self.assistant.can_insert = self.session.is_some();
+                    self.assistant.can_run = self.session.is_some();
                     let out = self.assistant.ui(ui, s, &theme, "terminal");
                     if let Some(block) = out.use_block
                         && let Some(session) = &self.session
                     {
-                        // Typed, not run: the user presses Enter after review.
+                        // Insert types it for review; Insert and Run adds the
+                        // Return the user would press (ADR-019).
                         session.write(block.trim_end().as_bytes());
+                        if out.run {
+                            session.write(b"\r");
+                        }
                     }
                 });
         }

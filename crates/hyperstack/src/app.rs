@@ -1282,6 +1282,23 @@ impl HyperStackApp {
                     }
                 }
                 SettingsEffect::StopSpeaking => self.tts.stop(),
+                SettingsEffect::RunInTerminal(command) => {
+                    self.open_tool(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd: None,
+                            host: None,
+                            profile: None,
+                            command: Some(command.clone()),
+                        }),
+                    );
+                    let msg = self
+                        .services
+                        .i18n
+                        .t_args("settings-install-running", &[("command", &command)]);
+                    self.toasts.push(ToastLevel::Info, msg);
+                }
+                SettingsEffect::OpenUrl(url) => self.pending_open_url = Some(url),
                 SettingsEffect::SyncEnvironments { from, to } => {
                     let result = (|| {
                         let src = self.registry.peek(&self.services.paths, &from)?;

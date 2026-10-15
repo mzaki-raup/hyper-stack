@@ -1230,7 +1230,7 @@ impl Tool for GraphicsTool {
         }
         ui.separator();
         if ui
-            .button(format!("{} AI", ph::SPARKLE))
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
             .tip(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -1338,6 +1338,14 @@ impl Tool for GraphicsTool {
                 }
             );
             self.assistant.set_context("graphics state", context);
+            if self.assistant.quick_actions.is_empty() {
+                use hs_ui::ai_assistant::QuickAction;
+                self.assistant.quick_actions = vec![
+                    QuickAction::new(s, "ai-qa-image-explain", "ai-qa-image-explain-prompt", ""),
+                    QuickAction::new(s, "ai-qa-image-edits", "ai-qa-image-edits-prompt", ""),
+                    QuickAction::new(s, "ai-qa-image-export", "ai-qa-image-export-prompt", ""),
+                ];
+            }
             let panel = egui::Rect::from_min_max(
                 egui::pos2(full.right() - 390.0, full.top()),
                 full.right_bottom(),

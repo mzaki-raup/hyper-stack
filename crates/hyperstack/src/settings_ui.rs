@@ -138,6 +138,39 @@ pub struct SettingsState {
     pub rail_tools: Vec<(String, String)>,
 }
 
+/// A workspace's logo, or `None` when it has none set.
+fn ws_logo(
+    s: &Services,
+    registry: &hs_core::workspace::Registry,
+    name: &str,
+) -> Option<egui::Image<'static>> {
+    registry
+        .workspaces
+        .iter()
+        .find(|w| w.name == name)
+        .map(|w| s.paths.resolve_path(&w.path))
+        .and_then(|root| crate::app::ws_logo_image(&root))
+}
+
+/// Draw a workspace's logo (the folder glyph when it has none) at `size`.
+/// Every place that names a workspace shows the same mark.
+fn ws_icon(
+    ui: &mut egui::Ui,
+    s: &Services,
+    registry: &hs_core::workspace::Registry,
+    name: &str,
+    size: f32,
+) {
+    match ws_logo(s, registry, name) {
+        Some(img) => {
+            ui.add(img.fit_to_exact_size(egui::vec2(size, size)));
+        }
+        None => {
+            ui.label(hs_ui::icons::WORKSPACE);
+        }
+    }
+}
+
 /// The "Copy Variables From…" dialog on the Environments page: which source
 /// workspace and environment to copy from, and which of its keys are ticked.
 #[derive(Default)]
@@ -174,6 +207,11 @@ pub enum SettingsEffect {
     /// and picks the file.
     ExportSettings,
     ImportSettings,
+    /// Settings → Editor: install a language server or debug adapter by
+    /// running its command in a new terminal tab.
+    RunInTerminal(String),
+    /// Settings → Editor: open a download page in the browser.
+    OpenUrl(String),
     /// Accessibility → Read Aloud: read this text with the configured voice.
     SpeakSample(String),
     StopSpeaking,
@@ -400,39 +438,15 @@ fn workspace(
             }
             form::field_grid(ui, "ws-compare", |ui| {
                 form::label(ui, &s.t("settings-workspace-compare-with"));
-                let registry = hs_core::workspace::Registry::load(&s.paths);
-                let root_of = |name: &str| -> Option<std::path::PathBuf> {
-                    registry
-                        .workspaces
-                        .iter()
-                        .find(|w| w.name == name)
-                        .map(|w| s.paths.resolve_path(&w.path))
-                };
-                let logo_of =
-                    |name: &str| root_of(name).and_then(|r| crate::app::ws_logo_image(&r));
                 ui.horizontal(|ui| {
-                    match logo_of(&state.ws_compare) {
-                        Some(img) => {
-                            ui.add(img.fit_to_exact_size(egui::vec2(18.0, 18.0)));
-                        }
-                        None => {
-                            ui.label(hs_ui::icons::WORKSPACE);
-                        }
-                    }
+                    ws_icon(ui, s, &registry, &state.ws_compare, 18.0);
                     egui::ComboBox::from_id_salt("ws-compare-with")
                         .width(form::FIELD_MIN_WIDTH)
                         .selected_text(state.ws_compare.clone())
                         .show_ui(ui, |ui| {
                             for n in &others {
                                 ui.horizontal(|ui| {
-                                    match logo_of(n) {
-                                        Some(img) => {
-                                            ui.add(img.fit_to_exact_size(egui::vec2(16.0, 16.0)));
-                                        }
-                                        None => {
-                                            ui.label(hs_ui::icons::WORKSPACE);
-                                        }
-                                    }
+                                    ws_icon(ui, s, &registry, n, 16.0);
                                     ui.selectable_value(&mut state.ws_compare, n.clone(), n);
                                 });
                             }
@@ -470,8 +484,14 @@ fn workspace(
                 .min_col_width(120.0)
                 .show(ui, |ui| {
                     ui.label(egui::RichText::new(s.t("env-name")).strong());
-                    ui.label(egui::RichText::new(&current).strong());
-                    ui.label(egui::RichText::new(&state.ws_compare).strong());
+                    // Each column is headed by its workspace, with the
+                    // same mark the switcher and Home show.
+                    for name in [&current, &state.ws_compare] {
+                        ui.horizontal(|ui| {
+                            ws_icon(ui, s, &registry, name, 16.0);
+                            ui.label(egui::RichText::new(name).strong());
+                        });
+                    }
                     ui.end_row();
                     let cell = |ui: &mut egui::Ui, e: Option<&(String, usize, bool)>| match e {
                         Some((_, vars, protected)) => {
@@ -580,25 +600,28 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
     form::section(ui, theme, &s.t("settings-section-startup"), |ui| {
         form::field_grid(ui, "general-grid", |ui| {
             form::label(ui, &s.t("settings-startup-workspace"));
-            let names: Vec<String> = hs_core::workspace::Registry::load(&s.paths)
-                .workspaces
-                .iter()
-                .map(|w| w.name.clone())
-                .collect();
-            egui::ComboBox::from_id_salt("startup-ws")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(settings.general.startup_workspace.clone())
-                .show_ui(ui, |ui| {
-                    for n in names {
-                        if ui
-                            .selectable_label(settings.general.startup_workspace == n, &n)
-                            .clicked()
-                        {
-                            settings.general.startup_workspace = n;
-                            changed = true;
+            let registry = hs_core::workspace::Registry::load(&s.paths);
+            let names: Vec<String> = registry.workspaces.iter().map(|w| w.name.clone()).collect();
+            ui.horizontal(|ui| {
+                ws_icon(ui, s, &registry, &settings.general.startup_workspace, 18.0);
+                egui::ComboBox::from_id_salt("startup-ws")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(settings.general.startup_workspace.clone())
+                    .show_ui(ui, |ui| {
+                        for n in names {
+                            ui.horizontal(|ui| {
+                                ws_icon(ui, s, &registry, &n, 16.0);
+                                if ui
+                                    .selectable_label(settings.general.startup_workspace == n, &n)
+                                    .clicked()
+                                {
+                                    settings.general.startup_workspace = n.clone();
+                                    changed = true;
+                                }
+                            });
                         }
-                    }
-                });
+                    });
+            });
             ui.end_row();
             form::label(ui, &s.t("settings-language"));
             let mut lang = settings.general.language.clone();
@@ -2349,6 +2372,13 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
                 s.t("settings-editor-auto-reload"),
             )
             .changed();
+        changed |= ui
+            .checkbox(
+                &mut settings.editor.format_minified_on_open,
+                s.t("settings-editor-format-minified"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-editor-format-minified-hint"));
         form::hint(ui, theme, &s.t("settings-terminal-right-click-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-on-save"), |ui| {
@@ -2377,15 +2407,53 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             .changed();
         form::hint(ui, theme, &s.t("settings-editor-lsp-hint"));
         ui.add_space(4.0);
-        changed |= language_server_table(ui, theme, s, &mut settings.editor.language_servers);
+        changed |=
+            language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
     });
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
         ui.add_space(4.0);
-        changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters);
+        changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters, effects);
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+/// The button beside a "Not found" row: run the install command in a
+/// terminal tab, or open the download page when no single command works
+/// on every platform.
+fn install_button(
+    ui: &mut egui::Ui,
+    s: &Services,
+    command: &str,
+    url: &str,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    if command.is_empty() && url.is_empty() {
+        return;
+    }
+    let tip = if command.is_empty() {
+        s.i18n
+            .t_args("editor-lsp-install-page-tip", &[("url", url)])
+    } else {
+        s.i18n
+            .t_args("editor-lsp-install-run-tip", &[("command", command)])
+    };
+    if ui
+        .small_button(format!(
+            "{} {}",
+            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+            s.t("editor-lsp-install")
+        ))
+        .tip(tip)
+        .clicked()
+    {
+        if command.is_empty() {
+            effects.push(SettingsEffect::OpenUrl(url.to_string()));
+        } else {
+            effects.push(SettingsEffect::RunInTerminal(command.to_string()));
+        }
     }
 }
 
@@ -2396,6 +2464,7 @@ fn debug_adapter_table(
     theme: &Theme,
     s: &Services,
     rows: &mut Vec<hs_core::settings::DebugAdapter>,
+    effects: &mut Vec<SettingsEffect>,
 ) -> bool {
     use hs_core::settings::DebugAdapter;
     let cache_id = egui::Id::new("settings-dap-path-cache");
@@ -2468,18 +2537,21 @@ fn debug_adapter_table(
                             ),
                         );
                     } else {
-                        ui.colored_label(
-                            theme.warning,
-                            format!(
-                                "{} {}",
-                                hs_ui::icons::WARNING,
-                                s.t("settings-editor-lsp-not-found")
-                            ),
-                        )
-                        .tip(s.i18n.t_args(
-                            "settings-editor-lsp-install-tip",
-                            &[("command", spec.install)],
-                        ));
+                        ui.horizontal(|ui| {
+                            ui.colored_label(
+                                theme.warning,
+                                format!(
+                                    "{} {}",
+                                    hs_ui::icons::WARNING,
+                                    s.t("settings-editor-lsp-not-found")
+                                ),
+                            )
+                            .tip(s.i18n.t_args(
+                                "settings-editor-lsp-install-tip",
+                                &[("command", spec.install)],
+                            ));
+                            install_button(ui, s, spec.install_command, spec.install_url, effects);
+                        });
                     }
                 }
                 ui.end_row();
@@ -2511,6 +2583,7 @@ fn language_server_table(
     theme: &Theme,
     s: &Services,
     rows: &mut Vec<hs_core::settings::LanguageServer>,
+    effects: &mut Vec<SettingsEffect>,
 ) -> bool {
     use hs_core::settings::LanguageServer;
     // PATH lookups are not free: remember them per command for the page.
@@ -2589,18 +2662,21 @@ fn language_server_table(
                             ),
                         );
                     } else {
-                        ui.colored_label(
-                            theme.warning,
-                            format!(
-                                "{} {}",
-                                hs_ui::icons::WARNING,
-                                s.t("settings-editor-lsp-not-found")
-                            ),
-                        )
-                        .tip(s.i18n.t_args(
-                            "settings-editor-lsp-install-tip",
-                            &[("command", spec.install)],
-                        ));
+                        ui.horizontal(|ui| {
+                            ui.colored_label(
+                                theme.warning,
+                                format!(
+                                    "{} {}",
+                                    hs_ui::icons::WARNING,
+                                    s.t("settings-editor-lsp-not-found")
+                                ),
+                            )
+                            .tip(s.i18n.t_args(
+                                "settings-editor-lsp-install-tip",
+                                &[("command", spec.install)],
+                            ));
+                            install_button(ui, s, spec.install_command, spec.install_url, effects);
+                        });
                     }
                 }
                 ui.end_row();

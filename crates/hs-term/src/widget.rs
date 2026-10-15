@@ -81,7 +81,15 @@ impl TermTheme {
         t.background = theme.window_bg;
         t.foreground = theme.text;
         t.cursor = theme.text;
-        t.selection = theme.accent.linear_multiply(0.35);
+        // `linear_multiply` scales the alpha *and* the colour, which left
+        // a selection over a dark background almost invisible. Keep the
+        // accent at full strength and set the alpha on its own.
+        t.selection = Color32::from_rgba_unmultiplied(
+            theme.accent.r(),
+            theme.accent.g(),
+            theme.accent.b(),
+            if theme.dark { 140 } else { 105 },
+        );
         t
     }
 
@@ -90,7 +98,7 @@ impl TermTheme {
             background: Color32::from_rgb(0x15, 0x15, 0x1A),
             foreground: Color32::from_rgb(0xE6, 0xE6, 0xEA),
             cursor: Color32::from_rgb(0xE6, 0xE6, 0xEA),
-            selection: Color32::from_rgba_unmultiplied(0x9A, 0x4D, 0xF0, 90),
+            selection: Color32::from_rgba_unmultiplied(0x9A, 0x4D, 0xF0, 140),
             palette: ANSI_DARK,
         }
     }
@@ -103,7 +111,7 @@ impl TermTheme {
             background: Color32::from_rgb(0xFF, 0xFF, 0xFF),
             foreground: Color32::from_rgb(0x1E, 0x1E, 0x24),
             cursor: Color32::from_rgb(0x1E, 0x1E, 0x24),
-            selection: Color32::from_rgba_unmultiplied(0x72, 0x00, 0xCA, 60),
+            selection: Color32::from_rgba_unmultiplied(0x72, 0x00, 0xCA, 105),
             palette: p,
         }
     }
@@ -208,26 +216,32 @@ impl TerminalView {
             (Point::new(line, Column(col.min(cols as usize - 1))), side)
         };
         if response.drag_started() {
-            if let Some(pos) = response.interact_pointer_pos() {
+            self.dragging = response.interact_pointer_pos().is_some();
+        }
+        if (response.drag_started() || response.dragged()) && self.dragging {
+            // `drag_started` only fires once the pointer has passed egui's
+            // threshold, and `interact_pointer_pos` is by then a few pixels
+            // along: anchoring there loses the character the user pressed
+            // on. Anchor at the press itself, and keep that cell inside the
+            // selection by taking the anchor's side from the drag direction
+            // (the moving end keeps the half-cell rule, which is what
+            // picking a character with the pointer feels like).
+            let press = ui.input(|i| i.pointer.press_origin());
+            if let (Some(press), Some(pos)) = (press, response.interact_pointer_pos()) {
                 let mut t = session.term.lock();
                 let off = t.grid().display_offset();
-                let (p, side) = to_point(pos, off);
+                let (anchor, _) = to_point(press, off);
+                let (head, head_side) = to_point(pos, off);
+                let forward = (head.line, head.column) >= (anchor.line, anchor.column);
+                let anchor_side = if forward { Side::Left } else { Side::Right };
                 let ty = if ui.input(|i| i.modifiers.alt) {
                     SelectionType::Block
                 } else {
                     SelectionType::Simple
                 };
-                t.selection = Some(Selection::new(ty, p, side));
-                self.dragging = true;
-            }
-        } else if response.dragged() && self.dragging {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let mut t = session.term.lock();
-                let off = t.grid().display_offset();
-                let (p, side) = to_point(pos, off);
-                if let Some(sel) = t.selection.as_mut() {
-                    sel.update(p, side);
-                }
+                let mut sel = Selection::new(ty, anchor, anchor_side);
+                sel.update(head, head_side);
+                t.selection = Some(sel);
             }
         } else if response.drag_stopped() && self.dragging {
             self.dragging = false;
@@ -505,6 +519,9 @@ impl TerminalView {
             let selected = selection.as_ref().is_some_and(|s| s.contains(point));
             if selected {
                 bg = blend(bg, theme.selection);
+                // Keep the cell's own colour when it still reads against
+                // the highlight, otherwise switch to black or white.
+                fg = readable(fg, bg);
             } else if let Some(&(_, _, _, cur)) = hits
                 .iter()
                 .find(|h| h.0 == point.line.0 && (h.1..h.2).contains(&point.column.0))
@@ -643,9 +660,48 @@ impl TerminalView {
     }
 }
 
+/// Relative luminance (WCAG 2.1), for contrast decisions.
+fn luminance(c: Color32) -> f32 {
+    let ch = |v: u8| {
+        let v = v as f32 / 255.0;
+        if v <= 0.03928 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * ch(c.r()) + 0.7152 * ch(c.g()) + 0.0722 * ch(c.b())
+}
+
+/// WCAG contrast ratio, 1.0 (identical) to 21.0 (black on white).
+fn contrast(a: Color32, b: Color32) -> f32 {
+    let (x, y) = (luminance(a), luminance(b));
+    let (hi, lo) = if x > y { (x, y) } else { (y, x) };
+    (hi + 0.05) / (lo + 0.05)
+}
+
+/// `fg` when it is legible on `bg`, else black or white, whichever is.
+/// 3.0 is the WCAG AA floor for large text, which is what a terminal
+/// cell at a readable font size is.
+fn readable(fg: Color32, bg: Color32) -> Color32 {
+    if contrast(fg, bg) >= 3.0 {
+        return fg;
+    }
+    if contrast(Color32::WHITE, bg) >= contrast(Color32::BLACK, bg) {
+        Color32::WHITE
+    } else {
+        Color32::BLACK
+    }
+}
+
+/// `over` composited on an opaque `base`. `Color32` keeps its channels
+/// **premultiplied** by the alpha, so the overlay is added as it is and
+/// only the base is faded. Multiplying `over` by alpha again (what this
+/// did before) dimmed every highlight twice and left the selection and
+/// the search hits barely visible.
 fn blend(base: Color32, over: Color32) -> Color32 {
     let a = over.a() as f32 / 255.0;
-    let ch = |b: u8, o: u8| ((b as f32) * (1.0 - a) + (o as f32) * a) as u8;
+    let ch = |b: u8, o: u8| ((b as f32) * (1.0 - a) + o as f32).min(255.0) as u8;
     Color32::from_rgb(
         ch(base.r(), over.r()),
         ch(base.g(), over.g()),
@@ -655,6 +711,53 @@ fn blend(base: Color32, over: Color32) -> Color32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn blend_treats_the_overlay_as_premultiplied() {
+        let base = Color32::from_rgb(0x15, 0x15, 0x1A);
+        let over = Color32::from_rgba_unmultiplied(0x9A, 0x4D, 0xF0, 140);
+        let out = blend(base, over);
+        // Half-opaque purple over near-black: about half the purple.
+        assert!(out.r() > 0x50 && out.r() < 0x6A, "{out:?}");
+        assert!(out.b() > 0x80, "{out:?}");
+        // The ends stay exact.
+        assert_eq!(blend(base, Color32::TRANSPARENT), base);
+        let solid = Color32::from_rgb(0x20, 0x30, 0x40);
+        assert_eq!(blend(base, solid), solid);
+    }
+
+    #[test]
+    fn selection_is_visible_and_keeps_text_readable() {
+        for dark in [true, false] {
+            let app = if dark {
+                hs_ui::theme::Theme::dark()
+            } else {
+                hs_ui::theme::Theme::light()
+            };
+            let t = TermTheme::for_theme(&app);
+            let bg = blend(t.background, t.selection);
+            // The highlight has to be obvious against the unselected
+            // background: the old `linear_multiply` wash was not.
+            assert!(
+                contrast(bg, t.background) >= 1.35,
+                "dark={dark}: selection barely differs from the background ({:?} vs {:?})",
+                bg,
+                t.background
+            );
+            // And the text on it stays legible, whatever colour the cell had.
+            for fg in [
+                t.foreground,
+                t.palette[4],
+                t.palette[0],
+                Color32::from_rgb(0x30, 0x30, 0x40),
+            ] {
+                assert!(
+                    contrast(readable(fg, bg), bg) >= 3.0,
+                    "dark={dark}: {fg:?} is unreadable on the selection"
+                );
+            }
+        }
+    }
+
     use super::*;
 
     #[test]

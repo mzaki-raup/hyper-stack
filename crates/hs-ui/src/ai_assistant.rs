@@ -23,11 +23,40 @@ struct Running {
 /// panel itself never touches the host tool; the tool applies the block.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct AssistantOutput {
-    /// A fenced code block from an answer the user clicked **Insert** (or
-    /// **Apply**, for the host's action language) on.
+    /// A fenced code block from an answer the user clicked **Insert**,
+    /// **Insert and Run** or **Apply** (the host's action language) on.
     pub use_block: Option<String>,
     /// The fence language of that block (`hs-api`, `sql`, …).
     pub use_block_lang: String,
+    /// The user clicked **Insert and Run**: the host carries the block
+    /// out through its own Run path, with the guards that path has.
+    pub run: bool,
+}
+
+/// A one-click prompt the host tool offers under the chat (the editor's
+/// Explain / Review / Improve). Both strings are already translated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuickAction {
+    pub label: String,
+    /// What is sent as the user's message.
+    pub prompt: String,
+    /// Hover text; empty for none.
+    pub tip: String,
+}
+
+impl QuickAction {
+    /// A quick action from a label key and a prompt key in `en.ftl`.
+    pub fn new(s: &Services, label_key: &str, prompt_key: &str, tip_key: &str) -> Self {
+        Self {
+            label: s.t(label_key),
+            prompt: s.t(prompt_key),
+            tip: if tip_key.is_empty() {
+                String::new()
+            } else {
+                s.t(tip_key)
+            },
+        }
+    }
 }
 
 /// A piece of an answer: prose, or a fenced code block with its language.
@@ -85,6 +114,17 @@ pub fn split_fences(text: &str) -> Vec<Segment> {
     out
 }
 
+/// The one-click prompts a shell surface offers: the terminal and SSH
+/// ask the same things of their output.
+pub fn shell_actions(s: &Services) -> Vec<QuickAction> {
+    vec![
+        QuickAction::new(s, "ai-qa-explain-output", "ai-qa-explain-output-prompt", ""),
+        QuickAction::new(s, "ai-qa-explain-error", "ai-qa-explain-error-prompt", ""),
+        QuickAction::new(s, "ai-qa-next-command", "ai-qa-next-command-prompt", ""),
+        QuickAction::new(s, "ai-qa-summarise", "ai-qa-summarise-prompt", ""),
+    ]
+}
+
 /// Tool-agnostic assistant. It discusses explicitly supplied context but
 /// never edits a buffer or invokes host tool actions.
 #[derive(Default)]
@@ -93,6 +133,12 @@ pub struct AssistantPanel {
     /// Whether answers offer an **Insert** button (the host tool has a
     /// place to put a command or query). Copy is always offered.
     pub can_insert: bool,
+    /// Whether answers also offer **Insert and Run**: the host puts the
+    /// block where it belongs and runs it the way its own Run button
+    /// does, guards included (ADR-019).
+    pub can_run: bool,
+    /// One-click prompts for this tool, set by the host every frame.
+    pub quick_actions: Vec<QuickAction>,
     /// A fence language the host tool treats as actions (the API client's
     /// `hs-api`): such blocks get an **Apply** button instead of Insert.
     pub action_lang: Option<String>,
@@ -112,6 +158,11 @@ pub struct AssistantPanel {
     stt: hs_core::stt::Stt,
     /// A microphone error, shown under the input for a few seconds.
     notice: Option<(String, std::time::Instant)>,
+    /// Frame time of the last quick action. egui lays a panel out twice
+    /// when its size changes, and `Response::clicked()` is pointer state
+    /// rather than an event, so the second pass sees the same click: an
+    /// action that re-fills the input would send itself twice.
+    last_quick_at: Option<f64>,
 }
 
 impl AssistantPanel {
@@ -119,6 +170,9 @@ impl AssistantPanel {
         self.open = !self.open;
         self.tool = tool.to_string();
         self.focus_input = self.open;
+        // The host fills these again on the next frame it draws, so a
+        // language change is picked up without a per-frame rebuild.
+        self.quick_actions.clear();
     }
 
     /// Set context for the next explicit user request. This method never
@@ -273,7 +327,16 @@ impl AssistantPanel {
                 ))
                 .strong(),
             );
+            // Right to left, so the close button is added first and sits
+            // rightmost: the strip reads "new chat, close" like the editor's.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(crate::icons::ph::X)
+                    .on_hover_text(s.t("ai-close"))
+                    .clicked()
+                {
+                    self.open = false;
+                }
                 if ui
                     .small_button(crate::icons::ph::BROOM)
                     .on_hover_text(s.t("ai-new-chat"))
@@ -283,13 +346,6 @@ impl AssistantPanel {
                         r.abort.abort();
                     }
                     self.turns.clear();
-                }
-                if ui
-                    .small_button(crate::icons::ph::X)
-                    .on_hover_text(s.t("ai-close"))
-                    .clicked()
-                {
-                    self.open = false;
                 }
             });
         });
@@ -343,6 +399,30 @@ impl AssistantPanel {
         egui::Panel::bottom(ui.id().with("assistant-input"))
             .resizable(false)
             .show(ui, |ui| {
+                if !self.quick_actions.is_empty() && self.running.is_none() {
+                    let now = ui.input(|i| i.time);
+                    let fresh = self.last_quick_at != Some(now);
+                    // The row wraps: a narrow panel must not grow to fit it.
+                    ui.scope(|ui| {
+                        ui.set_max_width(ui.available_width());
+                        ui.horizontal_wrapped(|ui| {
+                            for a in &self.quick_actions {
+                                let b = ui.small_button(&a.label);
+                                let b = if a.tip.is_empty() {
+                                    b
+                                } else {
+                                    b.on_hover_text(&a.tip)
+                                };
+                                if b.clicked() && fresh {
+                                    self.last_quick_at = Some(now);
+                                    self.input = a.prompt.clone();
+                                    send = true;
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
                 let r = ui.add(
                     egui::TextEdit::multiline(&mut self.input)
                         .hint_text(s.t("ai-shared-input-hint"))
@@ -432,17 +512,19 @@ impl AssistantPanel {
                                                 .as_deref()
                                                 .is_some_and(|l| l.eq_ignore_ascii_case(&lang));
                                             ui.push_id(n, |ui| {
-                                                if let Some(action) = code_block(
+                                                if let Some((action, run)) = code_block(
                                                     ui,
                                                     s,
                                                     theme,
                                                     &lang,
                                                     &body,
                                                     self.can_insert || is_action,
+                                                    self.can_run && !is_action,
                                                     is_action,
                                                 ) {
                                                     output.use_block = Some(action);
                                                     output.use_block_lang = lang.clone();
+                                                    output.run = run;
                                                 }
                                             });
                                         }
@@ -458,7 +540,9 @@ impl AssistantPanel {
 }
 
 /// A fenced block from an answer: monospace body with Copy and, when the
-/// host tool can take it, Insert. Returns the body when Insert is clicked.
+/// host tool can take it, Insert and (for a tool that runs things)
+/// Insert and Run. Returns the body and whether it should be run.
+#[allow(clippy::too_many_arguments)]
 fn code_block(
     ui: &mut egui::Ui,
     s: &Services,
@@ -466,8 +550,9 @@ fn code_block(
     lang: &str,
     body: &str,
     can_insert: bool,
+    can_run: bool,
     is_action: bool,
-) -> Option<String> {
+) -> Option<(String, bool)> {
     let mut used = None;
     egui::Frame::new()
         .fill(theme.window_bg)
@@ -482,6 +567,18 @@ fn code_block(
                         .color(theme.text_muted),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Rightmost first: Copy · Insert · Insert and Run.
+                    if can_run
+                        && crate::form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", crate::icons::ph::PLAY, s.t("ai-insert-run-block")),
+                        )
+                        .on_hover_text(s.t("ai-insert-run-block-tip"))
+                        .clicked()
+                    {
+                        used = Some((body.to_string(), true));
+                    }
                     if can_insert {
                         let (icon, label, tip) = if is_action {
                             (
@@ -502,7 +599,7 @@ fn code_block(
                             ui.small_button(format!("{icon} {label}"))
                         };
                         if button.on_hover_text(tip).clicked() {
-                            used = Some(body.to_string());
+                            used = Some((body.to_string(), false));
                         }
                     }
                     if ui

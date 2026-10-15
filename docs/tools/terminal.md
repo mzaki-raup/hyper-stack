@@ -120,13 +120,31 @@ OSC 52 allow.
 
 ## 7. Tests
 
+## 7a. Selecting text (2026-10-16)
+
+A drag anchors the selection at the pixel the mouse went **down** on
+(`pointer.press_origin()`), not where egui first reports a drag: the
+latter is already past the drag threshold, which used to drop the first
+character. The anchor cell is always inside the selection — its side is
+taken from the drag direction — while the moving end keeps the half-cell
+rule, so a character is picked up once the pointer is past its middle.
+The selection is cleared on resize, because its grid points would
+otherwise land on unrelated cells after a reflow.
+
 ## 8. AI assistant (implemented 2026-10-14)
 
-The toolbar's **AI** button opens the shared review-only assistant. It can
-discuss the visible terminal screen (up to 80 rows), but it cannot submit
-commands or access scrollback that is not currently visible. Context is shown
-in the panel and sent only after the user submits a question. The panel uses
-the providers configured in Settings → AI Assistant.
+The toolbar's **AI Assistant** button opens the shared assistant. It can
+discuss the visible terminal screen (up to 80 rows), but it cannot read
+scrollback that is not currently visible. Context is shown in the panel and
+sent only after the user submits a question. The panel uses the providers
+configured in Settings → AI Assistant.
+
+Under the chat sit the quick actions **Explain Output**, **Explain the
+Error**, **Suggest a Command** and **Summarise**: each fills the input with
+its prompt and sends it. A fenced block in an answer offers **Copy**,
+**Insert** (typed into the shell, the user presses Return) and **Insert and
+Run** (typed with the Return added), as agreed in ADR-019's 2026-10-16
+amendment.
 
 alacritty's parser is tested upstream; we add snapshot tests of grid
 rendering (colours, wide chars, cursor), key-encoding tables, link detection

@@ -1127,7 +1127,7 @@ impl Tool for SshTool {
         ui.toggle_value(&mut self.state.sync_cwd, s.t("ssh-sync-cwd"))
             .tip(s.t("ssh-sync-cwd-hint"));
         if ui
-            .button(format!("{} AI", ph::SPARKLE))
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
             .tip(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -1388,6 +1388,9 @@ impl Tool for SshTool {
                 self.conn_name, self.status, remote_path, error, visible
             );
             self.assistant.set_context("SSH session", ctx_text);
+            if self.assistant.quick_actions.is_empty() {
+                self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
+            }
             let panel = egui::Rect::from_min_size(
                 egui::pos2(term_rect.right() - 390.0, term_rect.top()),
                 egui::vec2(390.0, term_rect.height()),
@@ -1404,12 +1407,17 @@ impl Tool for SshTool {
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
                     self.assistant.can_insert = self.session.is_some();
+                    self.assistant.can_run = self.session.is_some();
                     let out = self.assistant.ui(ui, s, &theme, "SSH");
                     if let Some(block) = out.use_block
                         && let Some(session) = &self.session
                     {
-                        // Typed into the remote shell, not run.
+                        // Typed into the remote shell; Insert and Run adds
+                        // the Return (ADR-019).
                         session.write(block.trim_end().as_bytes());
+                        if out.run {
+                            session.write(b"\r");
+                        }
                     }
                 });
         }

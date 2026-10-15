@@ -1515,17 +1515,19 @@ impl DbTool {
         let mut image_size = None;
         let text = match v {
             Value::Null => "NULL".to_string(),
-            Value::Text(t) => serde_json::from_str::<serde_json::Value>(t)
-                .ok()
-                .filter(|j| j.is_object() || j.is_array())
-                .and_then(|j| serde_json::to_string_pretty(&j).ok())
-                .unwrap_or_else(|| t.clone()),
+            // A JSON or XML column is laid out to be read. The text is
+            // re-indented, never re-serialised, so the column's key order
+            // and its numbers survive.
+            Value::Text(t) => hs_core::fmt::pretty_auto(t).unwrap_or_else(|| t.clone()),
             Value::Bytes(b) => {
                 // A picture is shown as a picture, text as text, a document
                 // is named and offered as a file; the rest is a hex dump.
                 let sn = hs_core::sniff::sniff(b);
                 let shown = match sn.kind {
-                    hs_core::sniff::Kind::Text => String::from_utf8_lossy(b).into_owned(),
+                    hs_core::sniff::Kind::Text => {
+                        let text = String::from_utf8_lossy(b).into_owned();
+                        hs_core::fmt::pretty_auto(&text).unwrap_or(text)
+                    }
                     _ => hs_core::sniff::hex_dump(b, 4096),
                 };
                 if sn.kind == hs_core::sniff::Kind::Image && b.len() <= 64 * 1024 * 1024 {
@@ -2275,7 +2277,7 @@ impl Tool for DbTool {
         }
         drop(km);
         if ui
-            .button(format!("{} AI", ph::SPARKLE))
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
             .tip(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -2885,6 +2887,7 @@ impl DbTool {
         self.results_panel(ui, cx, &theme);
         self.completion_popup(ui, &theme);
         self.dialogs(ui, cx, &theme);
+        let mut run_block: Option<String> = None;
         if self.assistant.open {
             let query = self.buf.text();
             let last_error = self
@@ -2901,6 +2904,16 @@ impl DbTool {
                 last_error.unwrap_or_else(|| "(none)".into())
             );
             self.assistant.set_context("SQL workspace", context);
+            if self.assistant.quick_actions.is_empty() {
+                use hs_ui::ai_assistant::QuickAction;
+                self.assistant.quick_actions = vec![
+                    QuickAction::new(s, "ai-qa-select-all", "ai-qa-select-all-prompt", ""),
+                    QuickAction::new(s, "ai-qa-count", "ai-qa-count-prompt", ""),
+                    QuickAction::new(s, "ai-qa-select-ordered", "ai-qa-select-ordered-prompt", ""),
+                    QuickAction::new(s, "ai-qa-explain-query", "ai-qa-explain-query-prompt", ""),
+                    QuickAction::new(s, "ai-qa-improve-query", "ai-qa-improve-query-prompt", ""),
+                ];
+            }
             let rect = ui.available_rect_before_wrap();
             let panel = egui::Rect::from_min_max(
                 egui::pos2(rect.right() - 390.0, rect.top()),
@@ -2918,9 +2931,12 @@ impl DbTool {
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
                     self.assistant.can_insert = true;
+                    self.assistant.can_run = self.ready();
                     let out = self.assistant.ui(ui, s, &theme, "SQL");
                     if let Some(block) = out.use_block {
-                        // Into the SQL editor at the cursor; Run stays with the user.
+                        // Into the SQL editor at the cursor; Insert and Run
+                        // then sends exactly that text through the same
+                        // guards as the Run button (ADR-019).
                         self.view.insert_at_cursors(
                             &mut self.buf,
                             &mut self.cursors,
@@ -2928,8 +2944,17 @@ impl DbTool {
                             EditKind::Other,
                         );
                         self.view.scroll_to_cursor();
+                        if out.run {
+                            run_block = Some(block);
+                        }
                     }
                 });
+        }
+        if let Some(block) = run_block {
+            // Exactly the inserted text, through the classify-and-confirm
+            // path the Run button uses: a protected environment, a
+            // dangerous statement or a read-only profile still stops it.
+            self.run_text(&block, usize::MAX, false, None, s);
         }
     }
 

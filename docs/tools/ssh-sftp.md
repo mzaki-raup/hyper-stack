@@ -176,7 +176,12 @@ PowerShell remoting are out of scope.
 
 ## 13. AI assistant (implemented 2026-10-14)
 
-The SSH toolbar's **AI** button opens review-only help for the SSH host,
+The SSH toolbar's **AI Assistant** button offers the same quick actions as
+the terminal (Explain Output, Explain the Error, Suggest a Command,
+Summarise) and the same **Insert** / **Insert and Run** on a block, which
+types it into the remote shell with or without the Return.
+
+It opens help for the SSH host,
 connection state, remote folder and visible shell screen (up to 80 rows). It
 does not run shell commands, perform SFTP actions, or inspect hidden data.
 The context preview lets the user check what will be included; provider access

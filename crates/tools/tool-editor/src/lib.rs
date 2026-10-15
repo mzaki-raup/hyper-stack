@@ -272,7 +272,32 @@ impl Doc {
         self.disk = DiskState::Clean;
         self.path = Some(path.to_path_buf());
         self.preview = self.preview && self.view.language.is_markdown;
+        if services.settings.read().editor.format_minified_on_open {
+            self.lay_out_minified();
+        }
         Ok(())
+    }
+
+    /// A JSON file that arrives on one line (a source map, a minified
+    /// payload) cannot be read: lay it out as one undoable edit. The file
+    /// on disk is untouched until the user saves, and the tab shows the
+    /// unsaved dot to say so. Files that are already laid out, and every
+    /// other language, are left exactly as they are.
+    fn lay_out_minified(&mut self) {
+        if self.view.read_only || self.view.language.syntax_token != "json" {
+            return;
+        }
+        let lines = self.buf.len_lines();
+        let longest = self.buf.max_line_chars();
+        if lines > 2 && longest <= 400 {
+            return;
+        }
+        let text = self.buf.text();
+        let Some(pretty) = hs_core::fmt::pretty_json(&text) else {
+            return;
+        };
+        self.view
+            .replace_all_text(&mut self.buf, &mut self.cursors, &pretty);
     }
 
     fn set_text(&mut self, text: &str, name_hint: Option<&str>) {
@@ -409,11 +434,12 @@ impl Doc {
         &mut self,
         ui: &mut egui::Ui,
         s: &Services,
-        lsp: Option<&(String, String, bool)>,
+        lsp: Option<&lsp::LspStatus>,
         counts: (usize, usize),
-    ) -> (Option<String>, bool) {
+    ) -> StatusRow {
         let mut reopen_error = None;
         let mut problems_clicked = false;
+        let mut install_clicked = false;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
             let c = self.cursors.primary();
@@ -459,22 +485,46 @@ impl Doc {
                     problems_clicked = true;
                 }
             }
-            if let Some((text, tip, busy)) = lsp {
+            if let Some(st) = lsp {
                 // A progress message can carry a long path: keep it short.
                 ui.scope(|ui| {
                     ui.set_max_width(260.0);
                     ui.add(
-                        egui::Label::new(small(text.clone()).weak())
+                        egui::Label::new(small(st.text.clone()).weak())
                             .truncate()
                             .selectable(false),
                     )
                     .tip(format!(
-                        "{text}
+                        "{}
 
-{tip}"
+{}",
+                        st.text, st.tip
                     ));
                 });
-                if *busy {
+                if let Some(install) = &st.install {
+                    let label = small(format!(
+                        "{} {}",
+                        ph::DOWNLOAD_SIMPLE,
+                        s.t("editor-lsp-install")
+                    ));
+                    let tip = if install.command.is_empty() {
+                        s.i18n
+                            .t_args("editor-lsp-install-page-tip", &[("url", &install.url)])
+                    } else {
+                        s.i18n.t_args(
+                            "editor-lsp-install-run-tip",
+                            &[("command", &install.command)],
+                        )
+                    };
+                    if ui
+                        .add(egui::Button::new(label.color(theme_accent(s))).frame(false))
+                        .tip(tip)
+                        .clicked()
+                    {
+                        install_clicked = true;
+                    }
+                }
+                if st.busy {
                     ui.ctx().request_repaint_after(Duration::from_millis(400));
                 }
             }
@@ -596,7 +646,11 @@ impl Doc {
                 });
             });
         });
-        (reopen_error, problems_clicked)
+        StatusRow {
+            encoding_error: reopen_error,
+            problems_clicked,
+            install_clicked,
+        }
     }
 
     fn disk_banner(&mut self, ui: &mut egui::Ui, s: &Services) {
@@ -762,6 +816,22 @@ enum CloseTarget {
     /// The files left (`true`) or right of one.
     Side(usize, usize, bool),
     Project(usize),
+}
+
+/// What the status bar's buttons were asked for this frame.
+#[derive(Default)]
+struct StatusRow {
+    /// Reopening with another encoding failed.
+    encoding_error: Option<String>,
+    problems_clicked: bool,
+    /// The language server is missing and the user asked to install it.
+    install_clicked: bool,
+}
+
+/// The accent of the current scheme (the status bar builds its own
+/// labels and has no `Theme` to hand).
+fn theme_accent(s: &Services) -> egui::Color32 {
+    Theme::from_settings(&s.settings.read().appearance).accent
 }
 
 /// The outcome of a folder ZIP written on a worker: the archive path and
@@ -2622,7 +2692,6 @@ impl Tool for EditorTool {
         }
         self.path_row(ui, s, &theme);
         self.doc_mut().disk_banner(ui, s);
-        let mut encoding_error = None;
         let lsp_badge = {
             let pa = self.active;
             let p = &self.projects[pa];
@@ -2630,17 +2699,21 @@ impl Tool for EditorTool {
             self.lsp.status(s, d.path.as_deref(), d.view.language.name)
         };
         let counts = self.lsp.counts();
-        let mut problems_clicked = false;
+        let mut status = StatusRow::default();
         egui::Panel::bottom(self.id.with("status"))
             .exact_size(22.0)
             .resizable(false)
             .show(ui, |ui| {
-                let (err, clicked) = self.doc_mut().status_row(ui, s, lsp_badge.as_ref(), counts);
-                encoding_error = err;
-                problems_clicked = clicked;
+                status = self.doc_mut().status_row(ui, s, lsp_badge.as_ref(), counts);
             });
-        if problems_clicked {
+        let encoding_error = status.encoding_error.take();
+        if status.problems_clicked {
             self.lsp.toggle_problems();
+        }
+        if status.install_clicked
+            && let Some(install) = lsp_badge.as_ref().and_then(|b| b.install.clone())
+        {
+            self.install_language_server(&install, ui, cx);
         }
         if let Some(error) = encoding_error {
             cx.toast(ToastLevel::Error, error);
@@ -3549,6 +3622,40 @@ impl EditorTool {
         }
     }
 
+    /// Install a missing language server: run its command in a new
+    /// terminal tab, or open its download page when no single command
+    /// works on every platform.
+    fn install_language_server(
+        &mut self,
+        install: &lsp::Install,
+        ui: &egui::Ui,
+        cx: &mut ToolContext,
+    ) {
+        if !install.command.is_empty() {
+            let cwd = self.projects[self.active]
+                .root
+                .clone()
+                .map(|r| r.to_string_lossy().to_string());
+            cx.open_new_tab(
+                "terminal",
+                Some(OpenRequest::Terminal {
+                    cwd,
+                    host: None,
+                    profile: None,
+                    command: Some(install.command.clone()),
+                }),
+            );
+            let msg = cx.services.i18n.t_args(
+                "editor-lsp-installing",
+                &[("server", &install.server), ("command", &install.command)],
+            );
+            cx.toast(ToastLevel::Info, msg);
+        } else if !install.url.is_empty() {
+            ui.ctx()
+                .open_url(egui::OpenUrl::new_tab(install.url.clone()));
+        }
+    }
+
     /// Carry out what the debugger asked for.
     fn debug_apply_actions(&mut self, cx: &mut ToolContext) {
         for a in self.debug.take_actions() {
@@ -3693,5 +3800,36 @@ mod zip_tests {
             .unwrap();
         assert_eq!(body, "fn main() {}\n");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod minified_tests {
+    use hs_editor::Buffer;
+
+    /// What `Doc::lay_out_minified` decides, without a `Services`: a JSON
+    /// file on one line is laid out, a tidy one is left alone.
+    fn is_minified(text: &str) -> bool {
+        let mut buf = Buffer::from_text(text);
+        buf.len_lines() <= 2 || buf.max_line_chars() > 400
+    }
+
+    #[test]
+    fn only_a_minified_json_file_is_laid_out_on_open() {
+        let map = r#"{"version":3,"sources":["a.ts"],"mappings":"AAAA,SAAS"}"#;
+        assert!(is_minified(map));
+        assert!(hs_core::fmt::pretty_json(map).is_some());
+
+        let tidy = "{\n  \"a\": 1,\n  \"b\": [\n    1\n  ]\n}\n";
+        assert!(!is_minified(tidy), "an already laid-out file is left alone");
+
+        let long_line = format!("{{\"k\":\"{}\"}}\n\n\n", "x".repeat(500));
+        assert!(is_minified(&long_line), "one very long line counts too");
+    }
+
+    #[test]
+    fn source_maps_are_json_for_the_highlighter() {
+        assert_eq!(hs_editor::languages::detect("bundle.js.map").name, "JSON");
+        assert_eq!(hs_editor::languages::detect("app.json").name, "JSON");
     }
 }

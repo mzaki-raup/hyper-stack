@@ -57,6 +57,18 @@ impl BodyEditor {
             _ => "txt",
         }));
     }
+    /// Load a body and lay it out: a request that arrived on one line
+    /// (an import, an assistant block, a paste) is readable at once.
+    /// Typing is never reformatted under the cursor; only loading is.
+    pub fn set_text_pretty(&mut self, text: &str, kind: BodyKind) {
+        let pretty = match kind {
+            BodyKind::Json => hs_core::fmt::pretty_json(text),
+            BodyKind::Xml => hs_core::fmt::pretty_xml(text),
+            _ => None,
+        };
+        self.set_text(pretty.as_deref().unwrap_or(text), kind);
+    }
+
     pub fn text(&self) -> String {
         self.buf.text()
     }
@@ -125,16 +137,19 @@ impl ResponseView {
         let text = String::from_utf8_lossy(&ex.body).into_owned();
         let (pretty, ext) = if ct.contains("json") || sn.ext == "json" {
             (
-                serde_json::from_str::<serde_json::Value>(&text)
-                    .ok()
-                    .and_then(|v| serde_json::to_string_pretty(&v).ok())
-                    .unwrap_or_else(|| text.clone()),
+                hs_core::fmt::pretty_json(&text).unwrap_or_else(|| text.clone()),
                 "json",
             )
         } else if ct.contains("xml") || sn.ext == "xml" {
-            (text.clone(), "xml")
+            (
+                hs_core::fmt::pretty_xml(&text).unwrap_or_else(|| text.clone()),
+                "xml",
+            )
         } else if ct.contains("html") {
-            (text.clone(), "html")
+            (
+                hs_core::fmt::pretty_xml(&text).unwrap_or_else(|| text.clone()),
+                "html",
+            )
         } else {
             (text.clone(), "txt")
         };
@@ -549,7 +564,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                     let text = h.request.body.text.clone();
                     t.request = h.request;
                     t.request.id = hs_core::new_id();
-                    t.body_view.set_text(&text, kind);
+                    t.body_view.set_text_pretty(&text, kind);
                 }
             }
         }
@@ -905,7 +920,8 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             {
                 t.request.body.kind = k;
                 let text = t.body_view.text();
-                t.body_view.set_text(&text, k);
+                // Switching to JSON or XML lays out what is there.
+                t.body_view.set_text_pretty(&text, k);
             }
         }
         if !matches!(t.request.body.kind, BodyKind::None | BodyKind::Binary)
@@ -933,14 +949,25 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 Err(e) => t.copy_pending_toast = Some((ToastLevel::Error, e)),
             }
         }
-        if matches!(t.request.body.kind, BodyKind::Json)
-            && ui.small_button(s.t("api-body-format")).clicked()
+        if matches!(t.request.body.kind, BodyKind::Json | BodyKind::Xml)
+            && ui
+                .small_button(s.t("api-body-format"))
+                .on_hover_text(s.t("api-body-format-tip"))
+                .clicked()
         {
             let text = t.body_view.text();
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text)
-                && let Ok(p) = serde_json::to_string_pretty(&v)
-            {
-                t.body_view.set_text(&p, BodyKind::Json);
+            let kind = t.request.body.kind;
+            let pretty = match kind {
+                BodyKind::Xml => hs_core::fmt::pretty_xml(&text),
+                _ => hs_core::fmt::pretty_json(&text),
+            };
+            match pretty {
+                Some(p) => t.body_view.set_text(&p, kind),
+                // Malformed, or already laid out: say so rather than
+                // silently doing nothing.
+                None => {
+                    t.copy_pending_toast = Some((ToastLevel::Info, s.t("api-body-format-failed")));
+                }
             }
         }
     });

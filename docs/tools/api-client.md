@@ -27,6 +27,13 @@
   `console`. A Snippets menu inserts the common patterns. Results show in
   the response's Tests and Console tabs; variable changes are saved where
   they belong.
+- **Formatting**: a JSON or XML body is laid out when it is loaded (opening
+  a request, importing, an assistant block, loading from history) and when
+  the body kind is switched; **Format** does it on demand and says so when
+  there is nothing to do. The response body is laid out the same way for
+  JSON, XML and HTML. Keys, values and numbers are never rewritten: only
+  whitespace changes (`hs_core::fmt` re-indents the text rather than
+  re-serialising it, because `serde_json::Value` sorts object keys).
 - **Download**: the request body (JSON, XML or text) saves to a file from
   the Body tab; the response body has Save…
 - **Response**: status, time, size, HTTP version, remote address; body as
@@ -39,7 +46,11 @@
   re-opens an entry as a draft.
 - **Guards**: a non-GET request against a protected environment asks
   first, naming the environment, method and URL.
-- **AI**: the shared assistant sees the request, the last response and
+- **AI Assistant**: quick actions write a **Pre-request Script**, a
+  **Post-response Script**, a script that saves response values to
+  environment, collection or global variables, **Generate Tests**,
+  **Explain Response** and **Write Docs**; each answers with an `hs-api`
+  block the user applies. The shared assistant sees the request, the last response and
   the collection tree (names only). It can **act on the client**: its
   system prompt (`assist::system_prompt`) describes a JSON action schema
   and asks for one fenced `hs-api` block per answer; the block shows an

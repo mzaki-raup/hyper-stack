@@ -19,6 +19,12 @@ pub struct ServerSpec {
     pub args: &'static [&'static str],
     /// How to install it, shown in Settings when it is missing.
     pub install: &'static str,
+    /// A command that installs it on every platform HyperStack runs on,
+    /// empty when installation is platform-specific (then `install_url`
+    /// is the only route offered).
+    pub install_command: &'static str,
+    /// The download or documentation page.
+    pub install_url: &'static str,
 }
 
 pub const DEFAULTS: &[ServerSpec] = &[
@@ -29,6 +35,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "rust-analyzer",
         args: &[],
         install: "rustup component add rust-analyzer",
+        install_command: "rustup component add rust-analyzer",
+        install_url: "https://rust-analyzer.github.io",
     },
     ServerSpec {
         language: "TypeScript",
@@ -37,6 +45,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "typescript-language-server",
         args: &["--stdio"],
         install: "npm install -g typescript-language-server typescript",
+        install_command: "npm install -g typescript-language-server typescript",
+        install_url: "https://github.com/typescript-language-server/typescript-language-server",
     },
     ServerSpec {
         language: "JavaScript",
@@ -45,6 +55,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "typescript-language-server",
         args: &["--stdio"],
         install: "npm install -g typescript-language-server typescript",
+        install_command: "npm install -g typescript-language-server typescript",
+        install_url: "https://github.com/typescript-language-server/typescript-language-server",
     },
     ServerSpec {
         language: "Python",
@@ -53,6 +65,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "pyright-langserver",
         args: &["--stdio"],
         install: "pip install pyright   (or: npm install -g pyright)",
+        install_command: "pip install pyright",
+        install_url: "https://github.com/microsoft/pyright",
     },
     ServerSpec {
         language: "Go",
@@ -61,6 +75,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "gopls",
         args: &[],
         install: "go install golang.org/x/tools/gopls@latest",
+        install_command: "go install golang.org/x/tools/gopls@latest",
+        install_url: "https://pkg.go.dev/golang.org/x/tools/gopls",
     },
     ServerSpec {
         language: "C",
@@ -69,6 +85,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "clangd",
         args: &[],
         install: "LLVM (winget install LLVM.LLVM / apt install clangd)",
+        install_command: "",
+        install_url: "https://clangd.llvm.org/installation",
     },
     ServerSpec {
         language: "C++",
@@ -77,6 +95,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "clangd",
         args: &[],
         install: "LLVM (winget install LLVM.LLVM / apt install clangd)",
+        install_command: "",
+        install_url: "https://clangd.llvm.org/installation",
     },
     ServerSpec {
         language: "Java",
@@ -85,6 +105,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "jdtls",
         args: &[],
         install: "Eclipse JDT Language Server (jdtls on PATH)",
+        install_command: "",
+        install_url: "https://github.com/eclipse-jdtls/eclipse.jdt.ls",
     },
     ServerSpec {
         language: "Kotlin",
@@ -93,6 +115,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "kotlin-language-server",
         args: &[],
         install: "github.com/fwcd/kotlin-language-server releases",
+        install_command: "",
+        install_url: "https://github.com/fwcd/kotlin-language-server/releases",
     },
     ServerSpec {
         language: "C#",
@@ -101,6 +125,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "csharp-ls",
         args: &[],
         install: "dotnet tool install -g csharp-ls",
+        install_command: "dotnet tool install -g csharp-ls",
+        install_url: "https://github.com/razzmatazz/csharp-language-server",
     },
     ServerSpec {
         language: "JSON",
@@ -109,6 +135,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "vscode-json-language-server",
         args: &["--stdio"],
         install: "npm install -g vscode-langservers-extracted",
+        install_command: "npm install -g vscode-langservers-extracted",
+        install_url: "https://github.com/hrsh7th/vscode-langservers-extracted",
     },
     ServerSpec {
         language: "YAML",
@@ -117,6 +145,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "yaml-language-server",
         args: &["--stdio"],
         install: "npm install -g yaml-language-server",
+        install_command: "npm install -g yaml-language-server",
+        install_url: "https://github.com/redhat-developer/yaml-language-server",
     },
     ServerSpec {
         language: "TOML",
@@ -125,6 +155,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "taplo",
         args: &["lsp", "stdio"],
         install: "cargo install taplo-cli",
+        install_command: "cargo install taplo-cli --features lsp",
+        install_url: "https://taplo.tamasfe.dev",
     },
     ServerSpec {
         language: "HTML",
@@ -133,6 +165,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "vscode-html-language-server",
         args: &["--stdio"],
         install: "npm install -g vscode-langservers-extracted",
+        install_command: "npm install -g vscode-langservers-extracted",
+        install_url: "https://github.com/hrsh7th/vscode-langservers-extracted",
     },
     ServerSpec {
         language: "CSS",
@@ -141,6 +175,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "vscode-css-language-server",
         args: &["--stdio"],
         install: "npm install -g vscode-langservers-extracted",
+        install_command: "npm install -g vscode-langservers-extracted",
+        install_url: "https://github.com/hrsh7th/vscode-langservers-extracted",
     },
     ServerSpec {
         language: "SCSS",
@@ -149,6 +185,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "vscode-css-language-server",
         args: &["--stdio"],
         install: "npm install -g vscode-langservers-extracted",
+        install_command: "npm install -g vscode-langservers-extracted",
+        install_url: "https://github.com/hrsh7th/vscode-langservers-extracted",
     },
     ServerSpec {
         language: "PHP",
@@ -157,6 +195,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "intelephense",
         args: &["--stdio"],
         install: "npm install -g intelephense",
+        install_command: "npm install -g intelephense",
+        install_url: "https://intelephense.com",
     },
     ServerSpec {
         language: "Ruby",
@@ -165,6 +205,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "solargraph",
         args: &["stdio"],
         install: "gem install solargraph",
+        install_command: "gem install solargraph",
+        install_url: "https://solargraph.org",
     },
     ServerSpec {
         language: "Lua",
@@ -173,6 +215,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "lua-language-server",
         args: &[],
         install: "github.com/LuaLS/lua-language-server releases",
+        install_command: "",
+        install_url: "https://github.com/LuaLS/lua-language-server/releases",
     },
     ServerSpec {
         language: "Shell",
@@ -181,6 +225,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "bash-language-server",
         args: &["start"],
         install: "npm install -g bash-language-server",
+        install_command: "npm install -g bash-language-server",
+        install_url: "https://github.com/bash-lsp/bash-language-server",
     },
     ServerSpec {
         language: "PowerShell",
@@ -189,6 +235,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "",
         args: &[],
         install: "PowerShell Editor Services: set the command in Settings → Editor → Language Servers",
+        install_command: "",
+        install_url: "https://github.com/PowerShell/PowerShellEditorServices",
     },
     ServerSpec {
         language: "Dockerfile",
@@ -197,6 +245,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "docker-langserver",
         args: &["--stdio"],
         install: "npm install -g dockerfile-language-server-nodejs",
+        install_command: "npm install -g dockerfile-language-server-nodejs",
+        install_url: "https://github.com/rcjsuen/dockerfile-language-server-nodejs",
     },
     ServerSpec {
         language: "HCL",
@@ -205,6 +255,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "terraform-ls",
         args: &["serve"],
         install: "github.com/hashicorp/terraform-ls releases",
+        install_command: "",
+        install_url: "https://github.com/hashicorp/terraform-ls/releases",
     },
     ServerSpec {
         language: "Markdown",
@@ -213,6 +265,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "marksman",
         args: &["server"],
         install: "github.com/artempyanykh/marksman releases",
+        install_command: "",
+        install_url: "https://github.com/artempyanykh/marksman/releases",
     },
     ServerSpec {
         language: "Swift",
@@ -221,6 +275,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "sourcekit-lsp",
         args: &[],
         install: "ships with the Swift toolchain",
+        install_command: "",
+        install_url: "https://github.com/swiftlang/sourcekit-lsp",
     },
     ServerSpec {
         language: "Scala",
@@ -229,6 +285,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "metals",
         args: &[],
         install: "coursier install metals",
+        install_command: "coursier install metals",
+        install_url: "https://scalameta.org/metals",
     },
     ServerSpec {
         language: "GraphQL",
@@ -237,6 +295,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "graphql-lsp",
         args: &["server", "-m", "stream"],
         install: "npm install -g graphql-language-service-cli",
+        install_command: "npm install -g graphql-language-service-cli",
+        install_url: "https://github.com/graphql/graphiql/tree/main/packages/graphql-language-service-cli",
     },
     ServerSpec {
         language: "SQL",
@@ -245,6 +305,8 @@ pub const DEFAULTS: &[ServerSpec] = &[
         command: "sqls",
         args: &[],
         install: "go install github.com/sqls-server/sqls@latest",
+        install_command: "go install github.com/sqls-server/sqls@latest",
+        install_url: "https://github.com/sqls-server/sqls",
     },
 ];
 
@@ -281,6 +343,11 @@ pub struct Resolved {
     pub command: String,
     pub args: Vec<String>,
     pub install: String,
+    /// A command that installs the server, empty when there is none for
+    /// every platform.
+    pub install_command: String,
+    /// The server's download or documentation page.
+    pub install_url: String,
     /// Where the command was found; `None` when it is not installed.
     pub path: Option<PathBuf>,
 }
@@ -313,6 +380,10 @@ pub fn resolve(language: &str, overrides: &[Override]) -> Option<Resolved> {
         command,
         args,
         install: spec.map(|s| s.install.to_string()).unwrap_or_default(),
+        install_command: spec
+            .map(|s| s.install_command.to_string())
+            .unwrap_or_default(),
+        install_url: spec.map(|s| s.install_url.to_string()).unwrap_or_default(),
         path,
     })
 }
@@ -392,6 +463,26 @@ mod tests {
         }];
         assert_eq!(resolve("PowerShell", &ps).unwrap().args.len(), 2);
         assert_eq!(language_id("Plain Text"), "plaintext");
+    }
+
+    #[test]
+    fn every_server_says_how_to_install_itself() {
+        for spec in DEFAULTS {
+            assert!(!spec.install.is_empty(), "{}: no install text", spec.id);
+            assert!(
+                !spec.install_command.is_empty() || !spec.install_url.is_empty(),
+                "{}: neither a command nor a page to install from",
+                spec.id
+            );
+            assert!(
+                spec.install_url.is_empty() || spec.install_url.starts_with("https://"),
+                "{}: install page is not https",
+                spec.id
+            );
+        }
+        let r = resolve("Rust", &[]).unwrap();
+        assert_eq!(r.install_command, "rustup component add rust-analyzer");
+        assert!(r.install_url.starts_with("https://"));
     }
 
     #[test]

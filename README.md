@@ -37,8 +37,8 @@ and theme.
 > and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB and
 > SQLite with a cell viewer that previews pictures and documents, an **API
 > client** with collections, JavaScript scripts (`pm` API) and Postman
-> import/export, **Devtools** (Base64, hashes, JWT, Firebase tokens,
-> Jasypt, PKI messages; one tab per utility, inputs persisted, secrets
+> import/export, **Devtools** (Base64, URL encoding, hashes, JWT, Firebase
+> tokens, Jasypt, PKI messages; one tab per utility, inputs persisted, secrets
 > saved to the environment vault and used as `{{variables}}`), a **Graphics** tool (convert, resize, extend,
 > adjust, icons), an embedded **Browser** (WebView2, ad and script
 > blocking, forced dark, inspect, print), **Snip** and **Print…** for every
@@ -194,8 +194,10 @@ globals. A non-GET request to a protected environment asks first.
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
 
 Also **Base64** (auto-detect, picture/text/document preview, data URI,
-Basic auth header) and **Firebase tokens** (custom, access and ID tokens
-from a service account). Keys typed into a utility are never saved.
+Basic auth header), **URL** (percent-encode and decode a component, a whole
+URL or form data, with a table of the URL's parts) and **Firebase tokens**
+(custom, access and ID tokens from a service account). Keys typed into a
+utility are never saved.
 
 ### Graphics
 

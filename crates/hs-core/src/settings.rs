@@ -190,6 +190,9 @@ pub struct Editor {
     pub insert_final_newline: bool,
     /// Reload an unmodified buffer silently when the file changes on disk.
     pub auto_reload: bool,
+    /// Lay out a JSON file that arrives on one line (a source map, a
+    /// minified payload) when it is opened.
+    pub format_minified_on_open: bool,
     /// Start language servers for the languages that have one on `PATH`.
     pub lsp_enabled: bool,
     /// Open the completion list while typing (Ctrl+Space always works).
@@ -293,6 +296,7 @@ impl Default for Editor {
             trim_trailing_whitespace: false,
             insert_final_newline: false,
             auto_reload: true,
+            format_minified_on_open: true,
             lsp_enabled: true,
             completion_on_type: true,
             language_servers: Vec::new(),

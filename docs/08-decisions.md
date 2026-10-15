@@ -457,6 +457,26 @@ Enter), the SQL editor and the API client's body or script take it at the
 cursor. Insert never runs anything. The API client and the graphics tool
 use the same panel (graphics with Insert disabled).
 
+**Amended 2026-10-16** (owner's request). Two changes to the above:
+
+- Every assistant offers the tool's own **quick actions** under the chat,
+  the way the editor offers Explain / Review / Improve: the terminal and
+  SSH explain output or an error and suggest a command, SQL writes a
+  select, a count or an ordered select and reviews the open query, the API
+  client writes pre-request and post-response scripts (including one that
+  stores response values as environment, collection or global variables),
+  tests and docs, S3 explains a selection and writes a CLI command or a
+  policy, graphics suggests edits. A quick action fills the input and
+  sends it; nothing is sent before that click.
+- A block can also be **Insert and Run** where the tool has a Run of its
+  own: the terminal and SSH add the Return the user would press, and the
+  SQL editor sends exactly the inserted text through the same
+  classify-and-confirm path as the Run button, so a protected
+  environment, a dangerous statement or a read-only profile still stops
+  it. Insert on its own still runs nothing, and the API client keeps
+  Apply for its `hs-api` action blocks. The owner asked for this
+  explicitly; the panel is no longer review-only for tools that execute.
+
 ## ADR-020 · API client scripts run JavaScript on Boa with a `pm` shim
 
 **Context.** [tools/api-client.md](tools/api-client.md) planned Rhai for

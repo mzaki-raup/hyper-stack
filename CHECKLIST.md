@@ -174,4 +174,14 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Download for editor files/folders (ZIP), notes, API bodies, devtools outputs | Completed | `hs_core::download`, `tool-editor::zip_dir` |
 | Rail labels on by default | Completed | `appearance.rail_labels = true` |
 | Delete any workspace (default included) with its data, one must remain; logos wherever a workspace is named | Completed | `Registry::remove`/`startup_name`, switcher, Settings → Workspace |
+| AI assistant quick actions in every tool; Insert and Run through each tool's own guarded Run | Completed | `hs_ui::ai_assistant::QuickAction`, ADR-019 amended 2026-10-16 |
+| Assistant header and toolbar wording the same in every tool | Completed | Start a New Chat / Close Assistant; "AI Assistant" |
+| Terminal and SSH selection readable (premultiplied blend, contrast, cleared on resize) | Completed | `hs_term::widget::blend`/`readable`, `Session::resize` |
+| API client and devtools lay out JSON and XML without reordering keys | Completed | `hs_core::fmt`, `ResponseView`, `BodyView::set_text_pretty` |
+| Devtools URL encoder/decoder with scopes and a parts table | Completed | `tool-devtools::url_tool`, 5 tests |
+| Install button for a missing language server or debug adapter | Completed | registry `install_command`/`install_url`, status bar and Settings |
+| Workspace logo in the Startup Workspace dropdown and the environment compare headers | Completed | `settings_ui::ws_icon` |
+| Devtools YAML checker and YAML ↔ properties converter | Completed | `tool-devtools::yaml`, 6 tests |
+| Editor lays out minified JSON and source maps on open | Completed | `Doc::lay_out_minified`, setting, `.map` = JSON |
+| Terminal and SSH drag selects from the pressed character | Completed | `press_origin` anchor, direction-aware side |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

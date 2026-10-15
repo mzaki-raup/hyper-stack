@@ -225,9 +225,14 @@ impl Session {
         }
         self.cols = cols;
         self.rows = rows;
-        self.term
-            .lock()
-            .resize(TermSize::new(cols as usize, rows as usize));
+        let mut term = self.term.lock();
+        // A selection is a range of grid points: after a reflow those
+        // points mean other cells, so it would highlight a block of
+        // unrelated text (visible since the highlight itself became
+        // readable). Every terminal drops the selection on resize.
+        term.selection = None;
+        term.resize(TermSize::new(cols as usize, rows as usize));
+        drop(term);
         self.pty.lock().resize(cols, rows);
     }
 

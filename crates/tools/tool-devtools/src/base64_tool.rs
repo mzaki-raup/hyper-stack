@@ -147,7 +147,10 @@ fn decode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 }
                 Kind::Text => {
                     let text = String::from_utf8_lossy(bytes).into_owned();
-                    util::output(ui, s, theme, &s.t("dt-base64-text"), &text, 10);
+                    // A decoded payload is very often JSON or XML on one
+                    // line: lay it out so it can be read.
+                    let shown = hs_core::fmt::pretty_auto(&text).unwrap_or(text);
+                    util::output(ui, s, theme, &s.t("dt-base64-text"), &shown, 10);
                 }
                 _ => {}
             }

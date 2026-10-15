@@ -236,7 +236,7 @@ impl ApiTool {
             self.state.request_id = Some(id.to_string());
             self.state.draft = None;
             self.saved = Some(r.clone());
-            self.body_view.set_text(&r.body.text, r.body.kind);
+            self.body_view.set_text_pretty(&r.body.text, r.body.kind);
             self.request = r;
             self.last = None;
         }
@@ -1072,6 +1072,22 @@ impl Tool for ApiTool {
                 self.assistant.action_lang = Some(assist::LANG.to_string());
                 self.assistant_key = Some(key);
             }
+            if self.assistant.quick_actions.is_empty() {
+                use hs_ui::ai_assistant::QuickAction;
+                self.assistant.quick_actions = vec![
+                    QuickAction::new(s, "ai-qa-pre-script", "ai-qa-pre-script-prompt", ""),
+                    QuickAction::new(s, "ai-qa-post-script", "ai-qa-post-script-prompt", ""),
+                    QuickAction::new(s, "ai-qa-save-vars", "ai-qa-save-vars-prompt", ""),
+                    QuickAction::new(s, "ai-qa-tests", "ai-qa-tests-prompt", ""),
+                    QuickAction::new(
+                        s,
+                        "ai-qa-explain-response",
+                        "ai-qa-explain-response-prompt",
+                        "",
+                    ),
+                    QuickAction::new(s, "ai-qa-docs", "ai-qa-docs-prompt", ""),
+                ];
+            }
             let panel = egui::Rect::from_min_max(
                 egui::pos2(full.right() - 390.0, full.top()),
                 full.right_bottom(),
@@ -1124,7 +1140,8 @@ impl Tool for ApiTool {
                                 if self.request.body.kind == BodyKind::None {
                                     self.request.body.kind = kind;
                                 }
-                                self.body_view.set_text(&block, self.request.body.kind);
+                                self.body_view
+                                    .set_text_pretty(&block, self.request.body.kind);
                                 self.state.req_tab = 2;
                             }
                         }
@@ -1136,7 +1153,7 @@ impl Tool for ApiTool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         if ui
-            .button(format!("{} AI", ph::SPARKLE))
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
             .on_hover_text(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -1275,7 +1292,7 @@ impl Tool for ApiTool {
                         } else {
                             BodyKind::Text
                         };
-                        self.body_view.set_text(&b, self.request.body.kind);
+                        self.body_view.set_text_pretty(&b, self.request.body.kind);
                     }
                     true
                 } else {

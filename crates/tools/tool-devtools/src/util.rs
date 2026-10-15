@@ -195,10 +195,9 @@ pub fn result(
     }
 }
 
-/// Pretty JSON when the text parses, else the text unchanged.
+/// Pretty JSON when the text parses, else the text unchanged. The keys
+/// keep the order the server sent them in (`hs_core::fmt` re-indents the
+/// text instead of round-tripping it through a sorted map).
 pub fn pretty_json(text: &str) -> String {
-    serde_json::from_str::<serde_json::Value>(text)
-        .ok()
-        .and_then(|v| serde_json::to_string_pretty(&v).ok())
-        .unwrap_or_else(|| text.to_string())
+    hs_core::fmt::pretty_json(text).unwrap_or_else(|| text.to_string())
 }

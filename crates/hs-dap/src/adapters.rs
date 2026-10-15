@@ -31,6 +31,11 @@ pub struct AdapterSpec {
     pub args: &'static [&'static str],
     pub transport: Transport,
     pub install: &'static str,
+    /// A command that installs it on every platform HyperStack runs on,
+    /// empty when installation is platform-specific.
+    pub install_command: &'static str,
+    /// The download or documentation page.
+    pub install_url: &'static str,
 }
 
 pub const ADAPTERS: &[AdapterSpec] = &[
@@ -42,6 +47,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &["--port", "{port}"],
         transport: Transport::Tcp,
         install: "github.com/vadimcn/codelldb/releases (unpack the vsix; adapter/codelldb on PATH)",
+        install_command: "",
+        install_url: "https://github.com/vadimcn/codelldb/releases",
     },
     AdapterSpec {
         id: "lldb-dap",
@@ -51,6 +58,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &[],
         transport: Transport::Stdio,
         install: "LLVM (winget install LLVM.LLVM / apt install lldb)",
+        install_command: "",
+        install_url: "https://lldb.llvm.org/resources/lldbdap.html",
     },
     AdapterSpec {
         id: "gdb",
@@ -60,6 +69,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &["-i", "dap"],
         transport: Transport::Stdio,
         install: "GDB 14 or newer",
+        install_command: "",
+        install_url: "https://sourceware.org/gdb/",
     },
     AdapterSpec {
         id: "debugpy",
@@ -69,6 +80,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &["-m", "debugpy.adapter"],
         transport: Transport::Stdio,
         install: "pip install debugpy",
+        install_command: "pip install debugpy",
+        install_url: "https://github.com/microsoft/debugpy",
     },
     AdapterSpec {
         id: "delve",
@@ -78,6 +91,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &["dap", "--listen", "127.0.0.1:{port}"],
         transport: Transport::Tcp,
         install: "go install github.com/go-delve/delve/cmd/dlv@latest",
+        install_command: "go install github.com/go-delve/delve/cmd/dlv@latest",
+        install_url: "https://github.com/go-delve/delve",
     },
     AdapterSpec {
         id: "netcoredbg",
@@ -87,6 +102,8 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         args: &["--interpreter=vscode"],
         transport: Transport::Stdio,
         install: "github.com/Samsung/netcoredbg/releases",
+        install_command: "",
+        install_url: "https://github.com/Samsung/netcoredbg/releases",
     },
 ];
 
@@ -737,6 +754,23 @@ mod tests {
         let v: Value = serde_json::from_str(&strip_comments(text)).unwrap();
         assert_eq!(v["a"], json!([1, 2]));
         assert_eq!(v["b"], json!("//not"));
+    }
+
+    #[test]
+    fn every_adapter_says_how_to_install_itself() {
+        for spec in ADAPTERS {
+            assert!(!spec.install.is_empty(), "{}: no install text", spec.id);
+            assert!(
+                !spec.install_command.is_empty() || !spec.install_url.is_empty(),
+                "{}: neither a command nor a page to install from",
+                spec.id
+            );
+            assert!(
+                spec.install_url.is_empty() || spec.install_url.starts_with("https://"),
+                "{}: install page is not https",
+                spec.id
+            );
+        }
     }
 
     #[test]

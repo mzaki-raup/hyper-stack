@@ -266,4 +266,4 @@ suggestion.
 | Import/export of everything except secrets as a folder of files; put `.hyperstack/` in a repo to share with a team | P0 | S |
 | Global search across saved queries, requests, hosts, buckets, snippets | P1 | M |
 | Plugin API (WASM, limited to devtools and importers first) | P2 | L |
-| Optional AI assistant (bring your own service: 1min.AI, OpenAI-compatible, local LM Studio/Ollama): editor chat, review, edit blocks applied as diffs, Cascade rounds (ADR-019); review-only assistant in terminal, SSH, SQL and S3 uses explicitly shared context and never executes actions | P1 | M |
+| Optional AI assistant (bring your own service: 1min.AI, OpenAI-compatible, local LM Studio/Ollama): editor chat, review, edit blocks applied as diffs, Cascade rounds (ADR-019); assistant in terminal, SSH, SQL, S3, API client and graphics uses explicitly shared context, offers per-tool quick actions, and can Insert or Insert and Run a block through the tool's own guarded Run (ADR-019, amended 2026-10-16) | P1 | M |

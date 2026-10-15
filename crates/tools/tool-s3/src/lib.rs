@@ -1012,7 +1012,7 @@ impl Tool for S3Tool {
         let s = cx.services;
         let in_bucket = self.state.bucket.is_some() && self.client.is_some();
         if ui
-            .button(format!("{} AI", ph::SPARKLE))
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
             .tip(s.t("ai-shared-button-tip"))
             .clicked()
         {
@@ -1274,6 +1274,19 @@ impl Tool for S3Tool {
                 selected
             );
             self.assistant.set_context("S3 selection", context);
+            if self.assistant.quick_actions.is_empty() {
+                use hs_ui::ai_assistant::QuickAction;
+                self.assistant.quick_actions = vec![
+                    QuickAction::new(
+                        s,
+                        "ai-qa-explain-selection",
+                        "ai-qa-explain-selection-prompt",
+                        "",
+                    ),
+                    QuickAction::new(s, "ai-qa-aws-cli", "ai-qa-aws-cli-prompt", ""),
+                    QuickAction::new(s, "ai-qa-bucket-policy", "ai-qa-bucket-policy-prompt", ""),
+                ];
+            }
             let rect = ui.available_rect_before_wrap();
             let panel = egui::Rect::from_min_max(
                 egui::pos2(rect.right() - 390.0, rect.top()),

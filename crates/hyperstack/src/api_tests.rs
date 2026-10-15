@@ -64,7 +64,13 @@ fn assistant_block_builds_a_collection_and_fills_the_open_request() {
     assert_eq!(r.headers[0].value, "application/json");
     assert!(!r.params[0].enabled);
     assert_eq!(r.body.kind, BodyKind::Json);
-    assert_eq!(r.body.text, "{\"sku\":\"A1\"}");
+    // A JSON body the assistant sets is laid out as it lands (2026-10-16).
+    assert_eq!(
+        r.body.text,
+        "{
+  \"sku\": \"A1\"
+}"
+    );
     assert_eq!(r.auth.kind, AuthKind::Bearer);
     assert_eq!(r.auth.token, "{{token}}");
     assert!(r.post_script.contains("pm.test"));

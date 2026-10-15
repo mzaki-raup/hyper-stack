@@ -27,7 +27,9 @@ run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
 per-workspace collection of Markdown notes (sidebar list, pinning, one tab
 per note, source + preview, assistant); every assistant has a microphone
-toggle (`hs_core::stt`, offline Windows Speech, typed into the input); the
+toggle (`hs_core::stt`, offline Windows Speech, typed into the input),
+per-tool quick actions and **Insert and Run** for the tools that execute
+(ADR-019 as amended); the
 editor is an **LSP client** (`hs-lsp`, ADR-023): completion, hover,
 diagnostics, definition, references, rename and formatting through
 language servers the user installs (Settings → Editor → Language
@@ -423,6 +425,22 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   few pixels from where the button went down. A hit test for grips or
   handles must use `ui.input(|i| i.pointer.press_origin())`, or an edge
   drag reads as "move" (`tool-graphics::crop_overlay`).
+- egui lays a frame out twice when a panel's size changes
+  (`request_discard`), and `Response::clicked()` is pointer *state*, not
+  an event: the second pass sees the same click. A button whose handler
+  re-fills the input it then sends (the assistant's quick actions) fires
+  twice unless it is deduped by `ui.input(|i| i.time)`, which is the same
+  value in both passes. Key events are not repeated; clicks are.
+- `Color32` keeps its channels premultiplied by the alpha, so compositing
+  is `base * (1 - a) + over`, not `base * (1 - a) + over * a`. Doing the
+  latter (`hs_term::widget::blend` before 2026-10-16) dims an overlay
+  twice and leaves a selection or a search hit barely visible, and
+  `Color32::linear_multiply` dims the colour *and* the alpha, so it is
+  the wrong way to make a translucent highlight: set the alpha with
+  `from_rgba_unmultiplied` instead.
+- A terminal selection is a range of grid points, so it has to be cleared
+  on resize: after a reflow those points mean other cells and the
+  highlight lands on unrelated text.
 - A `Label::truncate()` inside an `egui::Grid` shrinks to whatever width
   the column had last frame (self-fulfilling), so wrap it in a scope with
   `set_min_width`/`set_max_width`. And `Area` responses report
@@ -737,6 +755,17 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   click outside *its* popup. A "skip when the new text is present" guard
   is not enough when the new text starts with the old one; check the
   inserted marker alone, and `grep -c` the markers after any re-run.
+
+### Patch scripts (continued)
+- Re-running a half-applied patch script duplicates whatever its earlier
+  steps already did (two `LspStatus` definitions, two toolbar blocks).
+  Make each step idempotent by testing for a marker that exists *only*
+  after that step, never the first line of the replacement (which usually
+  appears in the anchor too), and write each step to disk as it succeeds
+  rather than at the end.
+- A shell heredoc is the wrong carrier for a script containing quotes and
+  backslashes: write the script to a file with the Write tool and run it.
+  Two lost patches this session were quoting accidents, not logic errors.
 
 ### Rust / build
 - Merging a release bump (`chore(release): vX.Y.Z`) into a branch that

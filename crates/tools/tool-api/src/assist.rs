@@ -495,8 +495,11 @@ impl ApiTool {
                     }
                     BodyKind::Binary => self.request.body.file = text.trim().to_string(),
                     _ => {
-                        self.request.body.text = text.clone();
-                        self.body_view.set_text(text, k);
+                        // Lay the body out, then keep exactly what the
+                        // box shows: the saved request and the editor
+                        // never disagree.
+                        self.body_view.set_text_pretty(text, k);
+                        self.request.body.text = self.body_view.text();
                     }
                 }
                 Ok(Some(2))

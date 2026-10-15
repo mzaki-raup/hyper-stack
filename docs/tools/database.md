@@ -190,12 +190,26 @@ arrays, UUID, binary); grid tests on 1 M synthetic rows.
 
 ## 15. Implementation status (M3, 2026-10-12)
 
+### Cell viewer formatting (2026-10-16)
+
+A text cell that holds JSON or XML is laid out in the viewer, and so is a
+`bytes` column that sniffs as text. The text is re-indented rather than
+re-serialised, so the column's key order, its numbers and its duplicate
+keys are exactly what the database returned.
+
 ### AI assistant (implemented 2026-10-14)
 
-The SQL toolbar's **AI** button opens review-only help with the current
-connection, database engine, SQL buffer and latest query error. It cannot run
-or change the SQL. Context is previewed in the panel and is sent only when the
-user submits a question.
+The SQL toolbar's **AI Assistant** button opens help with the current
+connection, database engine, SQL buffer and latest query error. Context is
+previewed in the panel and is sent only when the user submits a question.
+
+Quick actions under the chat: **Select All**, **Count Rows**, **Select
+Ordered**, **Explain Query** and **Improve Query**. A SQL block offers Copy,
+**Insert** (at the cursor) and **Insert and Run**, which sends exactly the
+inserted text through `run_text` — the same classification, confirmation and
+protected-environment guards as the Run button, so nothing bypasses them
+(ADR-019, amended 2026-10-16). Insert and Run is hidden until the tab has a
+connection.
 
 What exists, and where it differs from the sections above:
 

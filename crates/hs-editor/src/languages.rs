@@ -69,7 +69,10 @@ pub fn by_extension(ext: &str) -> Language {
         "rs" => lang!("Rust", "rs", Some("//"), c, 4, false),
         "ts" | "tsx" | "mts" | "cts" => lang!("TypeScript", "ts", Some("//"), c, 2, false),
         "js" | "jsx" | "mjs" | "cjs" => lang!("JavaScript", "js", Some("//"), c, 2, false),
-        "json" | "jsonc" | "json5" | "har" => lang!("JSON", "json", Some("//"), c, 2, false),
+        // `.map` is a source map: JSON on one line.
+        "json" | "jsonc" | "json5" | "har" | "map" => {
+            lang!("JSON", "json", Some("//"), c, 2, false)
+        }
         "yaml" | "yml" => lang!("YAML", "yaml", Some("#"), None, 2, false),
         "toml" => lang!("TOML", "toml", Some("#"), None, 2, false),
         "ini" | "cfg" | "conf" | "properties" => lang!("INI", "ini", Some("#"), None, 2, false),

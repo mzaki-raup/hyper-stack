@@ -72,6 +72,29 @@ pub enum LspAction {
     Toast(ToastLevel, String),
 }
 
+/// What the status bar says about the active file's language server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LspStatus {
+    pub text: String,
+    pub tip: String,
+    /// Starting, indexing: the status bar keeps repainting.
+    pub busy: bool,
+    /// The language has a known server that is not installed: how to get
+    /// it. `None` when a server is running or none is known.
+    pub install: Option<Install>,
+}
+
+/// How to install a server that is missing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Install {
+    pub server: String,
+    /// A command to run in a terminal; empty when there is none that
+    /// works on every platform.
+    pub command: String,
+    /// The download or documentation page; empty when there is none.
+    pub url: String,
+}
+
 /// A location for the References list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Loc {
@@ -1732,12 +1755,7 @@ impl Lsp {
     /// The status-bar segment for a file: the server's state, or how to
     /// install one: `(text, tooltip, busy)`. `None` when there is nothing
     /// to say (servers off, a language without one).
-    pub fn status(
-        &self,
-        s: &Services,
-        path: Option<&Path>,
-        language: &str,
-    ) -> Option<(String, String, bool)> {
+    pub fn status(&self, s: &Services, path: Option<&Path>, language: &str) -> Option<LspStatus> {
         if !self.enabled {
             return None;
         }
@@ -1760,16 +1778,21 @@ impl Lsp {
                 "editor-lsp-tip",
                 &[("server", &srv.spec.id), ("command", &srv.spec.command)],
             );
-            return Some((text, tip, busy));
+            return Some(LspStatus {
+                text,
+                tip,
+                busy,
+                install: None,
+            });
         }
         let spec = hs_lsp::registry::resolve(language, &self.overrides)?;
         if spec.path.is_some() {
             // Installed, but this file has no server session (no project).
             return None;
         }
-        Some((
-            format!("{} {}", ph::WARNING, spec.id),
-            s.i18n.t_args(
+        Some(LspStatus {
+            text: format!("{} {}", ph::WARNING, spec.id),
+            tip: s.i18n.t_args(
                 "editor-lsp-missing-tip",
                 &[
                     ("language", language),
@@ -1777,8 +1800,13 @@ impl Lsp {
                     ("install", &spec.install),
                 ],
             ),
-            false,
-        ))
+            busy: false,
+            install: Some(Install {
+                server: spec.id.clone(),
+                command: spec.install_command.clone(),
+                url: spec.install_url.clone(),
+            }),
+        })
     }
 }
 

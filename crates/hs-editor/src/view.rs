@@ -41,7 +41,15 @@ impl EditorTheme {
         t.gutter_fg = theme.text_muted;
         t.text = theme.text;
         t.cursor = theme.text;
-        t.selection = theme.accent.linear_multiply(0.35);
+        // Full-strength accent at a set alpha; `linear_multiply` would
+        // dim the colour as well and leave the selection barely visible
+        // (the same defect the terminal had).
+        t.selection = Color32::from_rgba_unmultiplied(
+            theme.accent.r(),
+            theme.accent.g(),
+            theme.accent.b(),
+            if theme.dark { 120 } else { 90 },
+        );
         t.bracket = theme.secondary.linear_multiply(0.45);
         t.find_match = theme.warning.linear_multiply(0.35);
         t.find_current = theme.warning.linear_multiply(0.65);

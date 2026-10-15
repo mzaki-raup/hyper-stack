@@ -46,7 +46,8 @@ on dark themes.
 
 ## 4. AI assistant
 
-The review-only `hs_ui::ai_assistant::AssistantPanel` (toolbar **AI**)
+The `hs_ui::ai_assistant::AssistantPanel` (toolbar **AI Assistant**, quick
+actions Explain This Image, Suggest Edits, Best Export Format)
 receives the picture's metadata and the operation list, never the pixels,
 so it can suggest what to do ("make it 512 px wide, then sharpen") for the
 user to apply by hand. Insert is disabled in this tool.

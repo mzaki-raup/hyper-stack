@@ -12,6 +12,7 @@
 //! - [`objstore`] — SigV4 and the S3 client
 //! - [`ai`] — the optional AI assistant client (1min.AI, OpenAI-compatible)
 //! - [`tts`] — read-aloud through the OS voice; [`sniff`] — what a blob is
+//! - [`fmt`] — pretty-printing JSON and XML for the tools that show them
 //! - [`portable`] — settings export/import bundles; [`html`] — Print… pages
 //! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
@@ -20,6 +21,7 @@ pub mod connections;
 pub mod download;
 pub mod environments;
 pub mod events;
+pub mod fmt;
 pub mod fuzzy;
 pub mod html;
 pub mod i18n;

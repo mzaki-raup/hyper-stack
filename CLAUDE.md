@@ -338,6 +338,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   of name/body that lands before that derivation is overwritten. Upload assets
   first, PATCH metadata last, then GET in a loop until the forge reports the
   body and every asset (`.forgejo/workflows/release.yml` does this).
+- `POST /releases` right after the tag push can fail with an empty error
+  body while the forge derives its own row for the tag (release run 66,
+  v0.20.0): the tag and the bump commit were on `main`, no release existed,
+  and a re-run would have planned nothing. The publish step now retries
+  fetch-or-create, and the plan step passes an unpublished newest tag to
+  `next-release.ps1 -Republish` so the next push to `main` publishes it.
 - A PowerShell step with a non-terminating error carries on and the job goes
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every

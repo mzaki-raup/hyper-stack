@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- CI: a release job that tags and pushes but fails to create the release row no longer strands the tag: creating the row is retried, and the next push to main re-plans and publishes an unpublished newest tag (`next-release.ps1 -Republish`).
 
 ## 0.20.0 — 2026-10-15
 

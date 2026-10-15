@@ -37,19 +37,19 @@ BeforeAll {
   function Add-Tag([string]$Repo, [string]$Tag) { git -C $Repo tag $Tag }
 
   # Runs the script and returns @{ version; tag; channel; previous; notes }.
-  function Invoke-Plan([string]$Repo, [string]$Channel = "stable") {
+  function Invoke-Plan([string]$Repo, [string]$Channel = "stable", [string]$Republish = "") {
     $out = Join-Path $Repo ".git/OUT"
     Remove-Item $out -ErrorAction SilentlyContinue
     $env:GITHUB_OUTPUT = $out
     Push-Location $Repo
     try {
-      $null = & $script:Pwsh -NoProfile -NonInteractive -File $script:Script -Channel $Channel -NotesFile "$Repo/.git/notes.md" 2>&1
+      $null = & $script:Pwsh -NoProfile -NonInteractive -File $script:Script -Channel $Channel -NotesFile "$Repo/.git/notes.md" -Republish $Republish 2>&1
       if ($LASTEXITCODE -ne 0) { throw "next-release.ps1 exited ${LASTEXITCODE}" }
     } finally {
       Pop-Location
       Remove-Item Env:GITHUB_OUTPUT
     }
-    $plan = @{ version = ""; tag = ""; channel = ""; previous = ""; notes = "" }
+    $plan = @{ version = ""; tag = ""; channel = ""; previous = ""; republish = ""; notes = "" }
     foreach ($line in Get-Content $out) {
       $k, $v = $line -split '=', 2
       $plan[$k] = $v
@@ -62,6 +62,39 @@ BeforeAll {
 Describe "next-release.ps1" {
   BeforeEach { $script:Repo = New-FixtureRepo }
   AfterEach { Remove-Item -Recurse -Force $script:Repo -ErrorAction SilentlyContinue }
+
+  Context "republishing a tag that has no release" {
+    It "plans the orphaned tag again when nothing new warrants a release" {
+      Add-Commits $Repo @("feat: first", "chore(release): v0.2.0 [skip ci]")
+      Add-Tag $Repo "v0.2.0"
+      Add-Commits $Repo @("ci: retry the release creation")
+      Set-Content (Join-Path $Repo "CHANGELOG.md") "# Changelog`n`n## Unreleased`n`n- (nothing yet)`n`n## 0.2.0 - 2026-01-01`n`n### Added`n`n- First (abcdef12)`n"
+      $p = Invoke-Plan $Repo -Republish "v0.2.0"
+      $p.version | Should -Be "0.2.0"
+      $p.tag | Should -Be "v0.2.0"
+      $p.republish | Should -Be "true"
+      $p.notes | Should -Match "First"
+    }
+
+    It "prefers a new release over the republish" {
+      Add-Commits $Repo @("feat: first")
+      Add-Tag $Repo "v0.2.0"
+      Add-Commits $Repo @("feat: second")
+      $p = Invoke-Plan $Repo -Republish "v0.2.0"
+      $p.version | Should -Be "0.3.0"
+      $p.republish | Should -Be "false"
+    }
+
+    It "ignores a republish request for a tag that is not the newest" {
+      Add-Commits $Repo @("feat: first")
+      Add-Tag $Repo "v0.2.0"
+      Add-Commits $Repo @("fix: second")
+      Add-Tag $Repo "v0.2.1"
+      Add-Commits $Repo @("docs: later")
+      $p = Invoke-Plan $Repo -Republish "v0.2.0"
+      $p.version | Should -Be ""
+    }
+  }
 
   Context "first release (no tag yet)" {
     It "uses the first version for any release-worthy commit" {

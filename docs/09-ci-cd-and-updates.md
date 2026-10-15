@@ -21,7 +21,8 @@
 | One self-hosted **Windows** runner | Windows builds first; Linux via cross-compilation on the same runner (Phase 2); macOS needs a Mac runner (Phase 3) |
 | The runner cannot fetch published actions from `code.forgejo.org` (forgejo#2809) and has no Node | Workflows use **no `uses:` steps**; checkout is a few lines of `git` with the job token in an `http.extraheader`, never written to `.git/config` |
 | The runner's working copy persists between jobs and is emptied on entry | `ci.yml` must not run on `main` while `release.yml` runs there; `main` is only reached through branches CI has already checked, and the release job re-runs the checks |
-| The forge derives a release row from a pushed tag **asynchronously** | Create or fetch the release, upload assets, **then** PATCH the metadata, and confirm in a loop |
+| The forge derives a release row from a pushed tag **asynchronously** | Create or fetch the release, upload assets, **then** PATCH the metadata, and confirm in a loop. Creating the row can also *fail* with an empty error while the derivation is under way (run 66), so fetch-or-create is retried |
+| A job can tag and push, then die before publishing | The plan step asks the forge whether the newest tag has a published release; if not, `next-release.ps1 -Republish <tag>` plans that version again (notes from `CHANGELOG.md`, bump and tag steps skipped) and the next push to `main` publishes it |
 | A job can go green having uploaded nothing (PowerShell non-terminating errors) | `$ErrorActionPreference = "Stop"`, assert that every contracted asset exists locally **and** on the forge before the job ends |
 | Tag author email decides the release's owner ("Ghost" otherwise) | Tagger identity is `HyperStack Release <owner@zacx.net>` |
 

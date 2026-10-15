@@ -28,15 +28,25 @@
     tag       v<version>
     channel   stable | beta
     previous  the tag it is measured from, or empty on a first release
+    republish true when the plan re-publishes an existing tag (see -Republish)
 
   Notes go to -NotesFile as Markdown (Added / Fixed / Changed / Security).
   Nothing else is modified, so this is safe to run locally at any time.
+
+  -Republish <tag>: the workflow passes the channel's newest tag when the forge
+  has no published release for it (a release job that tagged and pushed but
+  died before publishing). When nothing new warrants a release, that version is
+  planned again with republish=true and its notes read back out of
+  CHANGELOG.md, so the next push to main publishes the tag instead of leaving
+  it orphaned. A new release-worthy commit still wins and supersedes it.
 #>
 param(
   [ValidateSet("stable", "beta")][string]$Channel = "stable",
   # Used when no tag exists yet. Phase 0 exits with 0.1.0.
   [string]$FirstVersion = "0.1.0",
-  [string]$NotesFile = "release/notes.md"
+  [string]$NotesFile = "release/notes.md",
+  # The channel's newest tag when it has no published release yet.
+  [string]$Republish = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -122,10 +132,39 @@ $security = @($security | Where-Object { $_ })
 # no new release-worthy commit since the previous beta plans nothing.
 $worthy = ($added.Count + $fixed.Count + $changed.Count + $security.Count) -gt 0
 if ((-not $worthy -and -not $forcedHere) -or ($bump -eq 0 -and -not $forced)) {
+  if ($Republish -and $previous -and ($Republish -eq $previous)) {
+    # The newest tag was pushed by a job that never published it: plan that
+    # version again, building the current HEAD (which differs from the tag
+    # only by commits that cut no release), with the notes the CHANGELOG
+    # already carries for it.
+    $version = $Republish -replace '^v', ''
+    New-Item -ItemType Directory -Force (Split-Path $NotesFile -Parent) | Out-Null
+    $section = Join-Path $PSScriptRoot "changelog-section.ps1"
+    $written = $false
+    if ((Test-Path $section) -and (Test-Path "CHANGELOG.md")) {
+      try {
+        & $section -Version $version -ChangelogFile "CHANGELOG.md" -OutFile $NotesFile
+        $written = (Test-Path $NotesFile) -and -not [string]::IsNullOrWhiteSpace((Get-Content $NotesFile -Raw))
+      } catch { $written = $false }
+    }
+    if (-not $written) { "### Changed`n`n- Release $version`n" | Set-Content $NotesFile -Encoding utf8 }
+    Write-Host "Channel      : $Channel"
+    Write-Host "Previous tag : $previous"
+    Write-Host "Republish    : $Republish has no published release; planning it again"
+    Write-Host "Next version : $version"
+    Write-Host "Notes        : $NotesFile"
+    Set-Output "version"   $version
+    Set-Output "tag"       $Republish
+    Set-Output "channel"   $Channel
+    Set-Output "previous"  $previous
+    Set-Output "republish" "true"
+    exit 0
+  }
   Write-Host "No commits since $(if ($previous) { $previous } else { 'the beginning' }) warrant a release."
   Set-Output "version" ""
   Set-Output "tag" ""
   Set-Output "channel" $Channel
+  Set-Output "republish" "false"
   exit 0
 }
 
@@ -170,8 +209,9 @@ Write-Host "Bump         : $(if ($forced) { "forced to $forced" } else { $levels
 Write-Host "Next version : $version"
 Write-Host "Notes        : $NotesFile"
 
-Set-Output "version"  $version
-Set-Output "tag"      "v$version"
-Set-Output "channel"  $Channel
-Set-Output "previous" $previous
+Set-Output "version"   $version
+Set-Output "tag"       "v$version"
+Set-Output "channel"   $Channel
+Set-Output "previous"  $previous
+Set-Output "republish" "false"
 exit 0

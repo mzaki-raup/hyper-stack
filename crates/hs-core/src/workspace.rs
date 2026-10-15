@@ -257,7 +257,20 @@ impl Registry {
     }
 
     pub fn exists(&self, name: &str) -> bool {
-        name == "default" || self.workspaces.iter().any(|w| w.name == name)
+        self.workspaces.iter().any(|w| w.name == name)
+    }
+
+    /// The workspace to open at startup when none is configured: the one
+    /// opened last, else the first registered, else the built-in default
+    /// (created on demand).
+    pub fn startup_name(&self) -> String {
+        if !self.last_opened.is_empty() && self.exists(&self.last_opened) {
+            return self.last_opened.clone();
+        }
+        self.workspaces
+            .first()
+            .map(|w| w.name.clone())
+            .unwrap_or_else(|| "default".into())
     }
 
     /// Rename a registered workspace without moving its folder. The path is
@@ -386,15 +399,26 @@ impl Registry {
         name: &str,
         delete_files: bool,
     ) -> storage::Result<()> {
-        if name == "default" {
+        // Any workspace can be deleted, the built-in default included, as
+        // long as one remains: the app always has a workspace open.
+        if !self.workspaces.iter().any(|w| w.name == name) {
+            return Err(storage::StorageError::Message(format!(
+                "no workspace named \"{name}\""
+            )));
+        }
+        if self.workspaces.len() <= 1 {
             return Err(storage::StorageError::Message(
-                "the default workspace cannot be removed".into(),
+                "the last workspace cannot be deleted; create another one first".into(),
             ));
         }
         let entry = self.workspaces.iter().find(|w| w.name == name).cloned();
         self.workspaces.retain(|w| w.name != name);
         if self.last_opened == name {
-            self.last_opened = "default".into();
+            self.last_opened = self
+                .workspaces
+                .first()
+                .map(|w| w.name.clone())
+                .unwrap_or_default();
         }
         if delete_files && let Some(e) = entry {
             let root = paths.resolve_path(&e.path);
@@ -454,6 +478,25 @@ fn copy_dir_contents(from: &Path, to: &Path) -> storage::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn any_workspace_but_the_last_can_be_deleted() {
+        let dir = std::env::temp_dir().join(format!("hs-ws-del-{}", crate::new_id()));
+        let paths = crate::paths::DataDir::resolve(Some(&dir)).unwrap();
+        let mut reg = Registry::load(&paths);
+        reg.open(&paths, "default").unwrap();
+        assert!(
+            reg.remove(&paths, "default", true).is_err(),
+            "the last one stays"
+        );
+        reg.open(&paths, "shop").unwrap();
+        assert!(reg.remove(&paths, "default", true).is_ok());
+        assert!(!reg.exists("default"));
+        assert_eq!(reg.startup_name(), "shop");
+        assert!(!paths.workspaces_dir().join("default").exists());
+        assert!(reg.remove(&paths, "shop", false).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn default_workspace_is_created_registered_and_layout_round_trips() {

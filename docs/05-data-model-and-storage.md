@@ -287,6 +287,14 @@ tool  = "ssh"; state = { connection = "01J9ZXA…" }
 tool  = "api"; state = { request = "01J9ZXF…" }
 ```
 
+**Deleting a workspace** (`Registry::remove`) drops its registry entry
+and, when asked, its folder under `workspaces/` (never an external folder
+the user registered). Any workspace can go, the built-in `default`
+included, but never the last one: the app always has a workspace open,
+and `Registry::startup_name` picks the last-opened or first registered
+one when the configured startup workspace is gone. Deleting the open
+workspace switches to another first.
+
 `layout.json` is the serialised `TabSpace`: tab list (factory id + `save_state`
 JSON), active id, split tree, sidebar/dock sizes, active environment. It is
 written one second after a strip change (open, close, reorder, activate), on

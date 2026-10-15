@@ -165,6 +165,8 @@ pub enum SettingsEffect {
     ConnectionsChanged,
     /// Rename the open workspace (the shell owns the registry).
     RenameWorkspace(String),
+    /// Delete the open workspace after the shell's confirmation.
+    DeleteWorkspace,
     /// The workspace logo changed on disk: drop the cached image.
     WorkspaceLogoChanged,
     Toast(hs_core::tool::ToastLevel, String),
@@ -349,6 +351,32 @@ fn workspace(
                     form::hint(ui, theme, &s.t("workspace-logo-hint"));
                 });
                 ui.end_row();
+                form::label(ui, &s.t("settings-workspace-delete-label"));
+                ui.vertical(|ui| {
+                    let others = hs_core::workspace::Registry::load(&s.paths)
+                        .names()
+                        .into_iter()
+                        .filter(|n| n != &current)
+                        .count();
+                    if ui
+                        .add_enabled(
+                            others > 0,
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("settings-workspace-delete")
+                                ))
+                                .color(theme.error),
+                            ),
+                        )
+                        .clicked()
+                    {
+                        effects.push(SettingsEffect::DeleteWorkspace);
+                    }
+                    form::hint(ui, theme, &s.t("settings-workspace-delete-hint"));
+                });
+                ui.end_row();
             });
         },
     );
@@ -360,7 +388,6 @@ fn workspace(
         let others: Vec<String> = registry
             .names()
             .into_iter()
-            .chain(std::iter::once("default".to_string()))
             .filter(|n| *n != current)
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
@@ -373,14 +400,44 @@ fn workspace(
             }
             form::field_grid(ui, "ws-compare", |ui| {
                 form::label(ui, &s.t("settings-workspace-compare-with"));
-                egui::ComboBox::from_id_salt("ws-compare-with")
-                    .width(form::FIELD_MIN_WIDTH)
-                    .selected_text(state.ws_compare.clone())
-                    .show_ui(ui, |ui| {
-                        for n in &others {
-                            ui.selectable_value(&mut state.ws_compare, n.clone(), n);
+                let registry = hs_core::workspace::Registry::load(&s.paths);
+                let root_of = |name: &str| -> Option<std::path::PathBuf> {
+                    registry
+                        .workspaces
+                        .iter()
+                        .find(|w| w.name == name)
+                        .map(|w| s.paths.resolve_path(&w.path))
+                };
+                let logo_of =
+                    |name: &str| root_of(name).and_then(|r| crate::app::ws_logo_image(&r));
+                ui.horizontal(|ui| {
+                    match logo_of(&state.ws_compare) {
+                        Some(img) => {
+                            ui.add(img.fit_to_exact_size(egui::vec2(18.0, 18.0)));
                         }
-                    });
+                        None => {
+                            ui.label(hs_ui::icons::WORKSPACE);
+                        }
+                    }
+                    egui::ComboBox::from_id_salt("ws-compare-with")
+                        .width(form::FIELD_MIN_WIDTH)
+                        .selected_text(state.ws_compare.clone())
+                        .show_ui(ui, |ui| {
+                            for n in &others {
+                                ui.horizontal(|ui| {
+                                    match logo_of(n) {
+                                        Some(img) => {
+                                            ui.add(img.fit_to_exact_size(egui::vec2(16.0, 16.0)));
+                                        }
+                                        None => {
+                                            ui.label(hs_ui::icons::WORKSPACE);
+                                        }
+                                    }
+                                    ui.selectable_value(&mut state.ws_compare, n.clone(), n);
+                                });
+                            }
+                        });
+                });
                 ui.end_row();
             });
             ui.add_space(6.0);

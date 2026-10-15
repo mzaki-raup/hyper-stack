@@ -34,8 +34,10 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let runtime = AppRuntime::new(waker).map_err(|e| e.to_string())?;
     let jobs = Jobs::new(runtime.clone());
     let mut registry = Registry::load(&paths);
-    let name = if settings.general.startup_workspace.is_empty() {
-        "default".to_string()
+    let name = if settings.general.startup_workspace.is_empty()
+        || !registry.exists(&settings.general.startup_workspace)
+    {
+        registry.startup_name()
     } else {
         settings.general.startup_workspace.clone()
     };

@@ -152,7 +152,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Settings import/export behind the master password | Completed | `hs_core::portable` bundle |
 | Workspace settings between Appearance and Environments: rename, logo, environment compare/sync | Completed | Accessibility sits between Appearance and Workspace |
 | Editor: full file path row under the file tabs | Completed | click copies |
-| Editor: run/debug/language features (Zed-inspired) | In-Progress | Run (F5) for files and projects done; LSP completion/diagnostics and a debugger are not started |
+| Editor: run/debug/language features (Zed-inspired) | In-Progress | Run (F5) done; LSP client (`hs-lsp`): completion, hover, diagnostics/Problems, definition, references, rename, format, server table in Settings (2026-10-15); the debugger (DAP) is next |
 | Database cell viewer previews pictures and documents | Completed | `hs_core::sniff` |
 | Devtools: Jasypt, JWT, Firebase tokens, PKI messages, hashes, Base64 | Completed | `tool-devtools`, 19 unit tests with known answers |
 | API client (Postman-like, import/export, JavaScript scripts, variables, auth, snippets, libraries) | Completed (P0 + scripts) | `tool-api` on Boa; runner, OAuth 2, WebSocket/GraphQL pending |

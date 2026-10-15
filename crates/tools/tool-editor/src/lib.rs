@@ -30,6 +30,7 @@ use hs_ui::tree::{TreeNode, TreeState};
 
 mod ai_panel;
 mod git_view;
+mod lsp;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 
@@ -400,8 +401,15 @@ impl Doc {
         self.view.right_click_copy_paste = st.editor.right_click_copy_paste;
     }
 
-    fn status_row(&mut self, ui: &mut egui::Ui, s: &Services) -> Option<String> {
+    fn status_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        lsp: Option<&(String, String, bool)>,
+        counts: (usize, usize),
+    ) -> (Option<String>, bool) {
         let mut reopen_error = None;
+        let mut problems_clicked = false;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 14.0;
             let c = self.cursors.primary();
@@ -431,14 +439,54 @@ impl Doc {
             }
             let small = |t: String| egui::RichText::new(t).size(12.0);
             ui.label(small(pos));
+            if counts.0 + counts.1 > 0 || lsp.is_some() {
+                let text = format!(
+                    "{} {}  {} {}",
+                    ph::X_CIRCLE,
+                    counts.0,
+                    ph::WARNING,
+                    counts.1
+                );
+                if ui
+                    .add(egui::Button::new(small(text)).frame(false))
+                    .tip(s.t("editor-problems-tip"))
+                    .clicked()
+                {
+                    problems_clicked = true;
+                }
+            }
+            if let Some((text, tip, busy)) = lsp {
+                // A progress message can carry a long path: keep it short.
+                ui.scope(|ui| {
+                    ui.set_max_width(260.0);
+                    ui.add(
+                        egui::Label::new(small(text.clone()).weak())
+                            .truncate()
+                            .selectable(false),
+                    )
+                    .tip(format!(
+                        "{text}
+
+{tip}"
+                    ));
+                });
+                if *busy {
+                    ui.ctx().request_repaint_after(Duration::from_millis(400));
+                }
+            }
             if let Some(r) = &self.read_only_reason {
                 ui.colored_label(egui::Color32::from_rgb(0xD9, 0xB0, 0x2A), small(r.clone()));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(p) = &self.path {
-                    ui.add(
-                        egui::Label::new(small(p.to_string_lossy().to_string()).weak()).truncate(),
-                    );
+                    // The path takes what is left after the other segments.
+                    ui.scope(|ui| {
+                        ui.set_max_width((ui.available_width() - 320.0).max(80.0));
+                        ui.add(
+                            egui::Label::new(small(p.to_string_lossy().to_string()).weak())
+                                .truncate(),
+                        );
+                    });
                 }
                 // Language.
                 let lang_name = self.view.language.name.to_string();
@@ -544,7 +592,7 @@ impl Doc {
                 });
             });
         });
-        reopen_error
+        (reopen_error, problems_clicked)
     }
 
     fn disk_banner(&mut self, ui: &mut egui::Ui, s: &Services) {
@@ -742,6 +790,9 @@ pub struct EditorTool {
     /// they move to tabs of their own on the first frame.
     split_off: Vec<ProjectState>,
     git: git_view::Git,
+    /// Language servers for this tab's project (completion, diagnostics,
+    /// navigation).
+    lsp: lsp::Lsp,
 }
 
 impl EditorTool {
@@ -751,6 +802,8 @@ impl EditorTool {
         let trim_trailing = st.editor.trim_trailing_whitespace;
         let final_newline = st.editor.insert_final_newline;
         drop(st);
+        let id = egui::Id::new(("hs-editor-tool", hs_core::new_id()));
+        let lsp = lsp::Lsp::new(services, id);
         let mut t = Self {
             projects: Vec::new(),
             active: 0,
@@ -765,11 +818,12 @@ impl EditorTool {
             prompt: None,
             confirm_delete: None,
             confirm_close: None,
-            id: egui::Id::new(("hs-editor-tool", hs_core::new_id())),
+            id,
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
             split_off: Vec::new(),
             git: git_view::Git::new(state.source_control, state.side_by_side),
+            lsp,
         };
         t.start_watch(services);
         // One project per tab: keep the active one, hand the rest to tabs
@@ -1247,7 +1301,7 @@ impl EditorTool {
         d.prepare_save(trim, final_nl);
         let bytes = d.buf.to_bytes();
         let name = d.file_name();
-        match hs_core::storage::write_atomic(&path, &bytes) {
+        let saved = match hs_core::storage::write_atomic(&path, &bytes) {
             Ok(()) => {
                 d.buf.mark_saved();
                 d.saved_mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok();
@@ -1267,7 +1321,14 @@ impl EditorTool {
                 cx.toast(ToastLevel::Error, msg);
                 false
             }
+        };
+        if saved {
+            let pa = self.active;
+            let p = &self.projects[pa];
+            let d = &p.docs[p.active];
+            self.lsp.saved(&path, &d.buf);
         }
+        saved
     }
 
     fn save_as(&mut self, cx: &mut ToolContext) -> bool {
@@ -2496,6 +2557,9 @@ impl Tool for EditorTool {
         self.delete_dialog(ui, cx);
         self.close_dialog(ui, s);
         self.ensure_doc(s);
+        self.lsp.poll(s);
+        self.lsp_sync_docs();
+        self.lsp_apply_actions(cx);
         let (theme, ed_theme) = Self::theme(s);
         self.file_tabs(ui, s, &theme);
         if self.git.has_main() {
@@ -2518,12 +2582,35 @@ impl Tool for EditorTool {
         self.path_row(ui, s, &theme);
         self.doc_mut().disk_banner(ui, s);
         let mut encoding_error = None;
+        let lsp_badge = {
+            let pa = self.active;
+            let p = &self.projects[pa];
+            let d = &p.docs[p.active];
+            self.lsp.status(s, d.path.as_deref(), d.view.language.name)
+        };
+        let counts = self.lsp.counts();
+        let mut problems_clicked = false;
         egui::Panel::bottom(self.id.with("status"))
             .exact_size(22.0)
             .resizable(false)
-            .show(ui, |ui| encoding_error = self.doc_mut().status_row(ui, s));
+            .show(ui, |ui| {
+                let (err, clicked) = self.doc_mut().status_row(ui, s, lsp_badge.as_ref(), counts);
+                encoding_error = err;
+                problems_clicked = clicked;
+            });
+        if problems_clicked {
+            self.lsp.toggle_problems();
+        }
         if let Some(error) = encoding_error {
             cx.toast(ToastLevel::Error, error);
+        }
+        if self.lsp.panel_open {
+            let root = self.projects[self.active].root.clone();
+            egui::Panel::bottom(self.id.with("problems"))
+                .default_size(170.0)
+                .size_range(80.0..=600.0)
+                .resizable(true)
+                .show(ui, |ui| self.lsp.panel_ui(ui, s, &theme, root.as_deref()));
         }
         if self.ai.open {
             let file_label = self.ai_file_label();
@@ -2544,7 +2631,8 @@ impl Tool for EditorTool {
                 .resizable(true)
                 .show(ui, |ui| ai.ui(ui, s, &theme, &mut ed));
         }
-        let d = self.doc_mut();
+        let (pa, pd) = (self.active, self.projects[self.active].active);
+        let d = &mut self.projects[pa].docs[pd];
         if d.preview && d.view.language.is_markdown {
             let w = ui.available_width() / 2.0;
             egui::Panel::right(d.view.id.with("preview"))
@@ -2553,7 +2641,23 @@ impl Tool for EditorTool {
                 .resizable(true)
                 .show(ui, |ui| d.preview_ui(ui, ed_theme.dark, &theme));
         }
+        match d.path.clone() {
+            Some(path) => d.view.squiggles = self.lsp.squiggles(&path, &d.buf),
+            None => d.view.squiggles.clear(),
+        }
         let r = d.view.show(ui, &mut d.buf, &mut d.cursors, &ed_theme);
+        let path = d.path.clone();
+        self.lsp.after_show(
+            ui,
+            s,
+            &theme,
+            path.as_deref(),
+            &mut d.buf,
+            &mut d.cursors,
+            &mut d.view,
+            &r,
+        );
+        self.lsp_apply_actions(cx);
         if r.save_requested {
             self.save(cx);
         }
@@ -2639,6 +2743,37 @@ impl Tool for EditorTool {
             ),
             c("editor.terminal_here", "Editor: Open Terminal Here", None),
             c("editor.run", "Editor: Run File or Project", Some("run.alt")),
+            c(
+                "editor.complete",
+                "Editor: Show Completions",
+                Some("editor.complete"),
+            ),
+            c("editor.hover", "Editor: Show Hover", Some("editor.hover")),
+            c(
+                "editor.definition",
+                "Editor: Go to Definition",
+                Some("editor.definition"),
+            ),
+            c(
+                "editor.references",
+                "Editor: Find References",
+                Some("editor.references"),
+            ),
+            c(
+                "editor.rename_symbol",
+                "Editor: Rename Symbol",
+                Some("editor.rename_symbol"),
+            ),
+            c(
+                "editor.format",
+                "Editor: Format Document",
+                Some("editor.format"),
+            ),
+            c(
+                "editor.problems",
+                "Editor: Toggle Problems",
+                Some("editor.problems"),
+            ),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
             c(
                 "git.source_control",
@@ -2690,6 +2825,48 @@ impl Tool for EditorTool {
                 }
             }
             "editor.ai" => self.ai.toggle(),
+            "editor.complete" => {
+                if let Some((path, d)) = Self::lsp_target(&self.projects, self.active) {
+                    self.lsp.request_completion(&path, &d.buf, &d.cursors, None);
+                }
+            }
+            "editor.hover" => {
+                if let Some((path, d)) = Self::lsp_target(&self.projects, self.active) {
+                    self.lsp
+                        .request_hover_at_cursor(&path, &d.buf, &d.cursors, &d.view);
+                }
+            }
+            "editor.definition" => {
+                if let Some((path, d)) = Self::lsp_target(&self.projects, self.active) {
+                    self.lsp
+                        .request_definition(&path, &d.buf, d.cursors.primary().head);
+                }
+            }
+            "editor.references" => {
+                if let Some((path, d)) = Self::lsp_target(&self.projects, self.active) {
+                    self.lsp
+                        .request_references(&path, &d.buf, d.cursors.primary().head);
+                }
+            }
+            "editor.rename_symbol" => {
+                let ok = match Self::lsp_target(&self.projects, self.active) {
+                    Some((path, d)) => self.lsp.start_rename(&path, &d.buf, &d.cursors),
+                    None => false,
+                };
+                if !ok {
+                    cx.toast(ToastLevel::Info, s.t("editor-rename-none"));
+                }
+            }
+            "editor.format" => {
+                let ok = match Self::lsp_target(&self.projects, self.active) {
+                    Some((path, d)) => self.lsp.request_formatting(&path, &d.buf, &d.view),
+                    None => false,
+                };
+                if !ok {
+                    cx.toast(ToastLevel::Info, s.t("editor-format-none"));
+                }
+            }
+            "editor.problems" => self.lsp.toggle_problems(),
             "git.source_control" => self.git.sidebar = !self.git.sidebar,
             "git.history" => {
                 let path = self
@@ -2889,6 +3066,7 @@ impl Tool for EditorTool {
             self.trim_trailing = st.editor.trim_trailing_whitespace;
             self.final_newline = st.editor.insert_final_newline;
             drop(st);
+            self.lsp.reconfigure(cx.services);
             for p in &mut self.projects {
                 for d in &mut p.docs {
                     d.apply_settings(cx.services);
@@ -3195,6 +3373,84 @@ pub fn zip_dir(dir: &Path, target: &Path) -> Result<usize, String> {
     }
     zip.finish().map_err(|e| e.to_string())?;
     Ok(count)
+}
+
+impl EditorTool {
+    /// Tell the language servers about every open file: new ones are
+    /// opened, closed ones closed, edited ones synced (debounced).
+    fn lsp_sync_docs(&mut self) {
+        let mut open: Vec<PathBuf> = Vec::new();
+        for p in &self.projects {
+            for d in &p.docs {
+                let Some(path) = &d.path else { continue };
+                open.push(path.clone());
+                if !d.view.read_only && !self.lsp.knows(path) {
+                    self.lsp
+                        .open_doc(path, d.view.language.name, &d.buf.text(), p.root.as_deref());
+                }
+                self.lsp.sync(path, &d.buf);
+            }
+        }
+        self.lsp.retain_open(&open);
+    }
+
+    /// Carry out what the language server asked for.
+    fn lsp_apply_actions(&mut self, cx: &mut ToolContext) {
+        for a in self.lsp.take_actions() {
+            match a {
+                lsp::LspAction::GoTo {
+                    path,
+                    line,
+                    col,
+                    enc,
+                } => {
+                    self.open_path(path.clone(), Some(line + 1), cx);
+                    if let Some((pi, di)) = self.find_doc(&path) {
+                        let d = &mut self.projects[pi].docs[di];
+                        let text = d.buf.line_text(line as usize);
+                        let c = hs_lsp::text::col_from_lsp(
+                            text.trim_end_matches(['\r', '\n']),
+                            col,
+                            enc,
+                        );
+                        let pos = d.buf.line_col_to_char(line as usize, c);
+                        d.cursors.set_single(Cursor::at(pos));
+                        d.view.scroll_to_cursor();
+                    }
+                }
+                lsp::LspAction::ApplyEdits { path, edits, enc } => {
+                    if let Some((pi, di)) = self.find_doc(&path) {
+                        let d = &mut self.projects[pi].docs[di];
+                        let chars =
+                            hs_lsp::text::edits_to_chars(&lsp::BufLines(&d.buf), &edits, enc);
+                        d.view.apply_edits(&mut d.buf, &mut d.cursors, &chars, None);
+                    } else {
+                        match std::fs::read_to_string(&path) {
+                            Ok(old) => {
+                                let new = hs_lsp::text::apply_edits(&old, &edits, enc);
+                                if new != old
+                                    && let Err(e) =
+                                        hs_core::storage::write_atomic(&path, new.as_bytes())
+                                {
+                                    cx.toast(ToastLevel::Error, e.to_string());
+                                }
+                            }
+                            Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+                        }
+                    }
+                }
+                lsp::LspAction::Toast(level, text) => cx.toast(level, text),
+            }
+        }
+    }
+
+    /// The active file for a language-server request (borrows only the
+    /// projects, so `self.lsp` stays free).
+    fn lsp_target(projects: &[Project], active: usize) -> Option<(PathBuf, &Doc)> {
+        let p = &projects[active];
+        let d = &p.docs[p.active];
+        Some((d.path.clone()?, d))
+    }
 }
 
 #[cfg(test)]

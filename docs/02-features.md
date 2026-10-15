@@ -60,7 +60,7 @@ suggestion.
 | Tree-sitter for folding, structural selection, better highlighting | P1 | L |
 | Snippets, format-on-save via external formatter | P1 | M |
 | Diff editor (two-way, and three-way for merges) | P1 | L |
-| LSP client (completion, hover, diagnostics) | P2 | L |
+| LSP client: completion, hover, diagnostics with a Problems panel, go to definition, references, rename, formatting; servers installed by the user, any stdio server configurable per language (done 2026-10-15, `hs-lsp`) | P1 | L |
 | Hex editor mode | P2 | M |
 
 ## 3. Database client (requested) — [spec](tools/database.md)

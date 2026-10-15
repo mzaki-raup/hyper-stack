@@ -27,9 +27,13 @@ run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
 per-workspace collection of Markdown notes (sidebar list, pinning, one tab
 per note, source + preview, assistant); every assistant has a microphone
-toggle (`hs_core::stt`, offline Windows Speech, typed into the input).**
+toggle (`hs_core::stt`, offline Windows Speech, typed into the input); the
+editor is an **LSP client** (`hs-lsp`, ADR-023): completion, hover,
+diagnostics, definition, references, rename and formatting through
+language servers the user installs (Settings → Editor → Language
+Servers).**
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
-`hs-editor`, `hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`,
+`hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
 `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate

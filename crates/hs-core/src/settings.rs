@@ -190,6 +190,24 @@ pub struct Editor {
     pub insert_final_newline: bool,
     /// Reload an unmodified buffer silently when the file changes on disk.
     pub auto_reload: bool,
+    /// Start language servers for the languages that have one on `PATH`.
+    pub lsp_enabled: bool,
+    /// Open the completion list while typing (Ctrl+Space always works).
+    pub completion_on_type: bool,
+    /// Per-language changes to the built-in server table.
+    pub language_servers: Vec<LanguageServer>,
+}
+
+/// One language's server as the user set it (Settings → Editor →
+/// Language Servers): an empty `command` keeps the built-in one, `args`
+/// are split on whitespace.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct LanguageServer {
+    pub language: String,
+    pub command: String,
+    pub args: String,
+    pub enabled: bool,
 }
 
 /// The optional AI assistant (ADR-019): the services it may call. Nothing
@@ -261,6 +279,9 @@ impl Default for Editor {
             trim_trailing_whitespace: false,
             insert_final_newline: false,
             auto_reload: true,
+            lsp_enabled: true,
+            completion_on_type: true,
+            language_servers: Vec::new(),
         }
     }
 }

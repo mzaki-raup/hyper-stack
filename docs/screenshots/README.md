@@ -58,7 +58,11 @@ local mock model), `graphics.png`, `graphics-ops.png`, `graphics-crop.png`
 (the crop placeholder), `scratchpad.png`, `scratchpad-ai.png`,
 `ai-dictation.png` (the microphone toggle listening in the API client's
 assistant; the phrase was played through the speakers with Read Aloud,
-hence the garbled words) and `browser.png` were captured on
+hence the garbled words), `editor-lsp-completion.png` and
+`editor-lsp-problems.png` (rust-analyzer serving a small Cargo project:
+the completion list filtered by typing with the item's documentation
+beside it, and the Problems panel under the diagnostics' underlines) and
+`browser.png` were captured on
 Windows 11 from the debug build with the harness in
 `scripts/gui-smoke.ps1` (`start`, `keys`, `click`, `shot`): `Start-Process
 HyperStack.exe --data-dir <scratch>`, `SetProcessDPIAware`, the window

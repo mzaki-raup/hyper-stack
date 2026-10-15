@@ -550,3 +550,39 @@ configurable activity rail.
 
 **Consequences.** Two mandatory tabs per workspace; the status bar counts
 only work tabs. Printing depends on an installed browser.
+
+## ADR-023 · Language features through installed language servers (LSP client in `hs-lsp`)
+
+**Status.** Accepted, 2026-10-15.
+
+**Context.** The owner asked for Zed-like coding features (intellisense,
+navigation) in the editor. Zed bundles and downloads language servers per
+language and wraps each in an extension; its code is GPL-licensed and is a
+reference only here (project rule). HyperStack is a portable single exe
+that must not write outside its folder, and bundling one server per
+language (rust-analyzer alone is 40 MB) would not fit the app.
+
+**Decision.**
+- `hs-lsp` is a small client written here: JSON-RPC 2.0 over the server's
+  stdio with `Content-Length` framing, one reader thread per server,
+  callbacks for replies and a channel of events the editor drains once per
+  frame. Only the slice of the protocol the editor uses is typed; the rest
+  stays `serde_json::Value`. No `lsp-types`/`url` dependency: the types the
+  editor needs fit in one file, and the client controls its own
+  compatibility.
+- Servers are **not bundled or downloaded**. A registry maps each editor
+  language to the conventional command and its install line; the command
+  is looked up on `PATH` (with `PATHEXT`, so npm `.cmd` shims count). The
+  user can replace any language's command in Settings, which is the
+  "extension" mechanism: any server that speaks LSP over stdio.
+- Documents are synced as full text, debounced, because every server
+  supports it and the editor's buffers are small enough; the client asks
+  for UTF-8 positions and converts UTF-16 (the default) itself.
+- Replies never block the UI thread: requests carry a sequence number and
+  stale answers are dropped.
+
+**Consequences.** Features depend on what the user installed, and the
+status bar says what is missing and how to get it. One server process per
+project root and language per editor tab (tabs are projects), stopped when
+the tab closes. Incremental sync, code actions and semantic tokens are
+later additions behind the same client.

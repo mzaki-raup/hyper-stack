@@ -14,6 +14,7 @@ hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-editor = { workspace = true }
 hs-git = { workspace = true }
+hs-lsp = { workspace = true }
 chrono = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }

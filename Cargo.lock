@@ -3210,6 +3210,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-lsp"
+version = "0.23.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "hs-ssh"
 version = "0.23.0"
 dependencies = [
@@ -3398,6 +3407,7 @@ dependencies = [
  "egui_kittest",
  "hs-core",
  "hs-editor",
+ "hs-lsp",
  "hs-ssh",
  "hs-term",
  "hs-ui",
@@ -7727,6 +7737,7 @@ dependencies = [
  "hs-core",
  "hs-editor",
  "hs-git",
+ "hs-lsp",
  "hs-ui",
  "notify",
  "parking_lot",

@@ -18,8 +18,9 @@ source files — locally, over SFTP, or in S3. It also powers every other text
 surface in HyperStack (SQL editor, request bodies, JSON viewer, diff, log
 record view, console input).
 
-Not a goal: replacing VS Code or an IDE. No debugger, no build integration, no
-LSP in v1.
+Not a goal: replacing VS Code or an IDE. Language features come from an
+installed language server (§11), never from a bundled one; there is no
+debugger yet (§12 is the plan).
 
 ## 2. User stories
 
@@ -238,6 +239,9 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+F4 | close the active file (Ctrl+W closes the whole editor tab) |
 | Ctrl+Alt+PgDn / Ctrl+Alt+PgUp | next / previous file tab |
 | Ctrl+Shift+G / Ctrl+Shift+H | Source Control in the sidebar / repository history (docs/tools/git.md §3a) |
+| Ctrl+Space · Ctrl+Shift+Space | completions · hover for the symbol at the cursor (§11) |
+| F12 · Shift+F12 · Ctrl+click | go to definition · references · go to definition |
+| F2 · Shift+Alt+F · Ctrl+Shift+J | rename symbol · format document · Problems panel |
 | Alt+Z | toggle word wrap |
 
 ## 8. Settings
@@ -290,3 +294,68 @@ format on save, file exclusions for search, large-file threshold.
   applies, or Settings → AI Assistant → Maximum Rounds (default 4).
 - The request streams on the runtime; Stop aborts it. Read-only buffers
   refuse edits. Keys come from the vault (unlock first).
+
+## 11. Language servers (LSP, 2026-10-15)
+
+Zed-inspired language features without a bundled toolchain: the editor is
+an LSP client (`hs-lsp`, ADR-023) and the user installs the servers.
+
+- **Which server**: `hs_lsp::registry::DEFAULTS` maps an editor language
+  to the usual server command (`rust-analyzer`, `typescript-language-server
+  --stdio`, `pyright-langserver --stdio`, `gopls`, `clangd`, `jdtls`,
+  `vscode-json-language-server --stdio`, `yaml-language-server --stdio`,
+  `taplo lsp stdio`, `bash-language-server start`, `intelephense`,
+  `solargraph stdio`, `lua-language-server`, `marksman server`, …) and
+  how to install it. Settings → Editor → Language Servers lists every
+  language with its command, arguments, an on/off switch and whether the
+  command is on `PATH`; an empty command keeps the built-in one, and any
+  server speaking LSP over stdio can be entered, which is how a language
+  "extension" is added. Nothing is downloaded.
+- **Lifecycle**: one server process per server id and project root,
+  started when the first file of that language opens in the tab, stopped
+  with `shutdown`/`exit` when the tab closes or the settings table changes
+  (then every open file is re-registered). `initialize` advertises UTF-8
+  and UTF-16 position encodings and the server's answer decides how
+  columns are converted (`hs_lsp::text`). Documents are synced as full
+  text 150 ms after the last keystroke, and always right before a request
+  that depends on the text.
+- **Completion**: as you type an identifier or a server trigger character
+  (`.`, `::`), or on Ctrl+Space. The list opens at the caret: kind icon,
+  label, detail; the selected item's documentation beside it. Up/Down,
+  Page Up/Down move, Enter or Tab accept, Escape closes, typing filters
+  (prefix, then substring, then subsequence; `sortText` orders). Accepting
+  applies the item's `textEdit` or inserts its text, plus
+  `additionalTextEdits` (auto-imports), as one undo step; snippets are
+  reduced to plain text with the cursor at `$0`. While the list is open the
+  view hands those keys to it (`EditorView::popup_open`).
+- **Hover**: rest the mouse on a symbol for 550 ms, or Ctrl+Shift+Space
+  at the cursor (stays until Escape, a key or a click). Markdown is
+  rendered with the Markdown preview's renderer, fenced code highlighted.
+- **Diagnostics**: `publishDiagnostics` draws wavy underlines by severity
+  (error, warning, info, hint); the message shows as a tooltip under the
+  mouse. The status bar counts errors and warnings and opens the
+  **Problems** panel (Ctrl+Shift+J), a bottom panel listing every
+  diagnostic of the tab's open files with file, line and column; a click
+  jumps there. The same panel shows **References** (Shift+F12).
+- **Navigation**: F12 or Ctrl+click goes to the definition (the first
+  location; another file opens through the shell's routing, so a file of
+  another project goes to that project's tab). F2 renames the symbol
+  across the project: open files are edited in place, other files are
+  rewritten on disk. Shift+Alt+F formats the document through the server.
+- **Status bar**: the server for the active file with its state
+  (starting, a `$/progress` message such as rust-analyzer's "Indexing
+  37%", ready, or stopped with the last stderr line), or, when the
+  language has a known server that is not installed, a warning whose
+  tooltip carries the install command.
+- **Out of scope for now**: incremental sync, signature help, code
+  actions, semantic tokens, inlay hints, workspace symbols, and servers
+  over TCP. Files over the read-only threshold are never sent to a server.
+
+## 12. Debugger (planned)
+
+The next step of the same request: a Debug Adapter Protocol client
+(`hs-dap`) with launch configurations read from `.hyperstack/debug.json`
+and `.vscode/launch.json`, generated ones for Cargo, Python and Go
+projects, breakpoints in the gutter, continue/step controls, call stack,
+variables and a debug console. Adapters (CodeLLDB, debugpy, delve) are
+installed by the user, like language servers.

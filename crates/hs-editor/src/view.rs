@@ -23,6 +23,8 @@ pub struct EditorTheme {
     pub find_match: Color32,
     pub find_current: Color32,
     pub error: Color32,
+    pub warning: Color32,
+    pub info: Color32,
     pub dark: bool,
 }
 
@@ -44,6 +46,8 @@ impl EditorTheme {
         t.find_match = theme.warning.linear_multiply(0.35);
         t.find_current = theme.warning.linear_multiply(0.65);
         t.error = theme.error;
+        t.warning = theme.warning;
+        t.info = theme.secondary;
         t
     }
 
@@ -60,6 +64,8 @@ impl EditorTheme {
             find_match: Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 90),
             find_current: Color32::from_rgba_unmultiplied(0xD9, 0xB0, 0x2A, 170),
             error: Color32::from_rgb(0xF0, 0x5A, 0x5A),
+            warning: Color32::from_rgb(0xD9, 0xB0, 0x2A),
+            info: Color32::from_rgb(0x3F, 0x9C, 0xEE),
             dark: true,
         }
     }
@@ -76,6 +82,8 @@ impl EditorTheme {
             find_match: Color32::from_rgba_unmultiplied(0xA7, 0x87, 0x00, 70),
             find_current: Color32::from_rgba_unmultiplied(0xA7, 0x87, 0x00, 150),
             error: Color32::from_rgb(0xC8, 0x1E, 0x1E),
+            warning: Color32::from_rgb(0xA7, 0x87, 0x00),
+            info: Color32::from_rgb(0x00, 0x75, 0xD3),
             dark: false,
         }
     }
@@ -87,6 +95,36 @@ pub struct EditorResponse {
     pub save_requested: bool,
     pub focused: bool,
     pub copied: Option<String>,
+    /// Text typed this frame (the last `Text` event), for completion
+    /// triggers.
+    pub typed: Option<String>,
+    /// Keys the view left alone because [`EditorView::popup_open`] was set:
+    /// arrows, Page Up/Down, Enter, Tab and Escape, in order.
+    pub popup_keys: Vec<egui::Key>,
+    /// The char under the mouse and where the mouse is, while it is over
+    /// the text (hover requests).
+    pub hover_char: Option<usize>,
+    pub hover_pos: Option<Pos2>,
+    /// A plain click in the text (closes popups).
+    pub clicked: bool,
+    /// Ctrl+click placed the cursor (go to definition).
+    pub ctrl_clicked: bool,
+}
+
+/// A diagnostic underline: a char range and how serious it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Squiggle {
+    pub start: usize,
+    pub end: usize,
+    pub level: SquiggleLevel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SquiggleLevel {
+    Error,
+    Warning,
+    Info,
+    Hint,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -136,6 +174,11 @@ pub struct EditorView {
     pub right_click_copy_paste: bool,
     /// Character ranges underlined as errors (SQL error position, …).
     pub error_ranges: Vec<(usize, usize)>,
+    /// Diagnostics from a language server, underlined by severity.
+    pub squiggles: Vec<Squiggle>,
+    /// A popup (completion) owns the navigation keys: the view reports
+    /// them in `EditorResponse::popup_keys` instead of acting on them.
+    pub popup_open: bool,
     /// Change markers at the gutter's left edge, indexed by line (the Git
     /// changes against the last commit). Lines past the end have none.
     pub line_marks: Vec<Option<LineMark>>,
@@ -166,6 +209,8 @@ impl EditorView {
             goto_text: String::new(),
             right_click_copy_paste: true,
             error_ranges: Vec::new(),
+            squiggles: Vec::new(),
+            popup_open: false,
             line_marks: Vec::new(),
             cursor_rect: None,
             highlighter,
@@ -320,7 +365,9 @@ impl EditorView {
                     cursors.list.last_mut().unwrap().head = at;
                 } else {
                     cursors.set_single(Cursor::at(at));
+                    resp.ctrl_clicked = mods.command;
                 }
+                resp.clicked = true;
                 cursors.normalise(buf.len_chars());
                 self.blink_start = ui.input(|i| i.time);
             }
@@ -370,6 +417,13 @@ impl EditorView {
                 if dy.abs() > 0.0 {
                     self.font_size = (self.font_size + dy.signum() * 1.0).clamp(8.0, 40.0);
                 }
+            }
+            if response.hovered()
+                && let Some(p) = ui.input(|i| i.pointer.hover_pos())
+                && p.x >= text_x
+            {
+                resp.hover_char = Some(pos_to_char(p));
+                resp.hover_pos = Some(p);
             }
 
             // Keyboard.
@@ -596,6 +650,23 @@ impl EditorView {
                     pts.push(Pos2::new(x1, base));
                     painter.add(egui::Shape::line(pts, egui::Stroke::new(1.2, theme.error)));
                 }
+                // Diagnostics.
+                for sq in &self.squiggles {
+                    if sq.end < line_start || sq.start > line_start + line_len {
+                        continue;
+                    }
+                    let a = sq.start.max(line_start) - line_start;
+                    let b = sq.end.min(line_start + line_len) - line_start;
+                    let x0 = text_x + a as f32 * cell.x;
+                    let x1 = text_x + b.max(a + 1) as f32 * cell.x;
+                    let colour = match sq.level {
+                        SquiggleLevel::Error => theme.error,
+                        SquiggleLevel::Warning => theme.warning,
+                        SquiggleLevel::Info => theme.info,
+                        SquiggleLevel::Hint => theme.gutter_fg,
+                    };
+                    wave(&painter, x0, x1, y + cell.y - 2.0, colour);
+                }
                 // Cursors.
                 if focused && blink_on {
                     for c in &cursors.list {
@@ -794,6 +865,50 @@ impl EditorView {
         self.last_version = buf.version();
     }
 
+    /// Apply char-range edits (`start`, `end`, replacement), given
+    /// last-first so earlier offsets stay valid, as one undo step; the
+    /// cursor lands at `cursor` when given (a completion's final position),
+    /// else stays where it was, shifted by the edits.
+    pub fn apply_edits(
+        &mut self,
+        buf: &mut Buffer,
+        cursors: &mut Cursors,
+        edits: &[(usize, usize, String)],
+        cursor: Option<usize>,
+    ) {
+        if self.read_only || edits.is_empty() {
+            return;
+        }
+        let before = cursors.snapshot();
+        let mut min_line = usize::MAX;
+        let mut list = Vec::with_capacity(edits.len());
+        let mut head = cursors.primary().head;
+        for (s, e, text) in edits {
+            let s = (*s).min(buf.len_chars());
+            let e = (*e).min(buf.len_chars()).max(s);
+            min_line = min_line.min(buf.char_to_line_col(s).0);
+            let n = text.chars().count();
+            if head >= e {
+                head = head + n - (e - s);
+            } else if head > s {
+                head = s + n;
+            }
+            list.push(Edit {
+                pos: s,
+                removed: buf.slice(s, e),
+                inserted: text.clone(),
+            });
+        }
+        let after = cursor.unwrap_or(head);
+        buf.apply(list, EditKind::Other, before, vec![(after, after)]);
+        cursors.set_single(Cursor::at(after.min(buf.len_chars())));
+        if min_line != usize::MAX {
+            self.highlighter.invalidate_from(min_line);
+        }
+        self.last_version = buf.version();
+        self.scroll_to_cursor = true;
+    }
+
     fn lines_of_selection(buf: &Buffer, c: &Cursor) -> (usize, usize) {
         let (s, e) = c.range();
         let (ls, _) = buf.char_to_line_col(s);
@@ -896,6 +1011,7 @@ impl EditorView {
                     if ui.input(|i| i.modifiers.alt) {
                         continue;
                     }
+                    resp.typed = Some(t.clone());
                     let open = match t.as_str() {
                         "(" => Some(")"),
                         "[" => Some("]"),
@@ -961,6 +1077,23 @@ impl EditorView {
                     let ctrl = m.command;
                     let shift = m.shift;
                     let alt = m.alt;
+                    if self.popup_open
+                        && !ctrl
+                        && !alt
+                        && matches!(
+                            key,
+                            K::ArrowUp
+                                | K::ArrowDown
+                                | K::PageUp
+                                | K::PageDown
+                                | K::Enter
+                                | K::Tab
+                                | K::Escape
+                        )
+                    {
+                        resp.popup_keys.push(key);
+                        continue;
+                    }
                     match key {
                         K::ArrowLeft => cursors.move_all(
                             buf,
@@ -1467,6 +1600,20 @@ impl EditorView {
             }
         });
     }
+}
+
+/// A wavy underline from `x0` to `x1` with its baseline at `base`.
+fn wave(painter: &egui::Painter, x0: f32, x1: f32, base: f32, colour: Color32) {
+    let mut pts = Vec::new();
+    let mut x = x0;
+    let mut up = false;
+    while x < x1 {
+        pts.push(Pos2::new(x, if up { base - 2.0 } else { base }));
+        x += 2.0;
+        up = !up;
+    }
+    pts.push(Pos2::new(x1, base));
+    painter.add(egui::Shape::line(pts, egui::Stroke::new(1.2, colour)));
 }
 
 /// Selected text across cursors, joined with newlines.

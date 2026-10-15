@@ -25,6 +25,7 @@ flowchart TB
         UI["hs-ui<br/>tab strip · data table · tree · split · palette · theme widgets"]
         Editor["hs-editor<br/>rope buffer · highlighting · editor widget · diff"]
         GitCore["hs-git<br/>status · diffs · log · branches (git CLI)"]
+        Lsp["hs-lsp<br/>LSP client · server registry · text edits"]
         TermCore["hs-term<br/>terminal grid · PTY · SSH shell transport"]
         Core["hs-core<br/>Tool trait · Services · workspace model · connections<br/>environments · secrets · jobs · events · settings · i18n · storage"]
     end
@@ -75,6 +76,7 @@ hyper-stack/
 │   │   ├── toast.rs, dialog.rs, badge.rs, env_banner.rs, icons.rs
 │   ├── hs-editor/                  # ropey buffer, syntect highlighting, editor widget, diff
 │   ├── hs-git/                     # Git read side over the git CLI: status, diffs, log, branches, line changes
+│   ├── hs-lsp/                     # Language Server Protocol client: JSON-RPC over stdio, server registry, position encodings
 │   ├── hs-term/                    # alacritty_terminal grid, portable-pty, russh shell
 │   └── tools/
 │       ├── tool-editor/

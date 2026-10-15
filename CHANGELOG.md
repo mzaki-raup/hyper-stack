@@ -11,17 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Devtools: a **YAML** utility checks a document (each mistake with its line: tabs used to indent, a line that is not `key: value`, a key set twice, an over-indented line, an unclosed quote) and converts YAML ↔ Java `.properties` both ways, lists included. Anchors, aliases, tags and flow maps are reported rather than guessed at.
-- Editor: a JSON file that arrives on one line (a source map, a minified payload) is laid out when it opens, as one undoable edit that leaves the file on disk alone; `.map` is highlighted as JSON. Settings → Editor → Lay Out Minified JSON When Opening turns it off.
-- Terminal and SSH: dragging to select no longer loses the first character. The anchor is taken from where the mouse went down rather than from where egui first reports a drag, and the pressed cell is always inside the selection.
-- Database: a JSON or XML cell is laid out in the cell viewer, with the column's key order kept.
-- AI assistant: every tool now offers its own one-click prompts under the chat (terminal and SSH: Explain Output, Explain the Error, Suggest a Command, Summarise; SQL: Select All, Count Rows, Select Ordered, Explain Query, Improve Query; API client: pre-request and post-response scripts, save response values to environment, collection or global variables, tests, explain, docs; S3 and Graphics likewise), and a code block can be used with **Insert and Run** as well as Copy and Insert. Insert and Run types the Return in the terminal and SSH, and in SQL sends exactly the inserted text through the Run button's guards, so a protected environment or a dangerous statement still asks first (ADR-019, amended).
-- AI assistant: the panel header reads the same everywhere now (Start a New Chat, then Close Assistant, as in the editor) and every toolbar button says "AI Assistant" rather than "AI".
-- Terminal and SSH: a selected region is readable again. `blend` treated egui's premultiplied colours as unmultiplied, which dimmed the selection and the search hits twice; selected text also switches to black or white when its own colour would not read on the highlight, and a resize clears the selection instead of leaving a block of unrelated cells highlighted. The editor's selection had the same washed-out formula and is fixed with it.
-- API client: JSON and XML bodies are laid out when they are loaded (opening a request, an import, an assistant block, history) and when the body kind changes; Format now covers XML and says when there is nothing to do; the response viewer lays out XML and HTML as well as JSON. Nothing is re-serialised, so keys, numbers and duplicate keys survive (new `hs_core::fmt`).
-- Devtools: a **URL** utility encodes and decodes percent escapes in three scopes (one component, a whole URL, or form data with `+` for spaces), with an optional strict mode, invalid escapes kept as they are, and a parts table that splits a URL into scheme, host, path, query parameters and fragment with their values decoded. Decoded Base64 that turns out to be JSON or XML is laid out too.
-- Editor: a language server that is not installed gets an **Install** button in the status bar and in Settings → Editor → Language Servers; it runs the server's install command in a terminal tab, or opens its download page when installation is platform-specific. Debug adapters get the same button.
-- Settings: the Startup Workspace dropdown and the Environments compare table headers show each workspace's logo (the folder glyph when it has none), like the switcher and Home.
+- (nothing yet)
+
+## 0.26.0 — 2026-10-15
+
+### Added
+
+- Assistant quick actions and Insert and Run, URL and YAML devtools, readable terminal selection (6f54e785)
 
 ## 0.25.0 — 2026-10-15
 

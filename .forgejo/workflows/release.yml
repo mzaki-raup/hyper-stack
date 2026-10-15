@@ -67,6 +67,8 @@ jobs:
       # started), so documentation pushes stay green and publish nothing.
       - name: Plan the release
         id: plan
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference = "Stop"
           if (-not (Test-Path Cargo.toml)) {
@@ -76,7 +78,23 @@ jobs:
             exit 0
           }
           $channel = if ("${{ github.ref_name }}" -eq "beta") { "beta" } else { "stable" }
-          pwsh -NoProfile -File scripts/next-release.ps1 -Channel $channel
+          # A release job that tagged and pushed but died before publishing
+          # leaves a tag with no release; plan that version again so the next
+          # push to main publishes it (scripts/next-release.ps1 -Republish).
+          $republish = ""
+          $pattern = if ($channel -eq "beta") { '^v\d+\.\d+\.\d+(-beta\.\d+)?$' } else { '^v\d+\.\d+\.\d+$' }
+          $latest = @(git tag --list "v*" --sort=-v:refname | Where-Object { $_ -match $pattern }) | Select-Object -First 1
+          if ($latest) {
+            $api = "${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
+            $headers = @{ Authorization = "token $env:TOKEN" }
+            $published = $false
+            try {
+              $r = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/tags/$([uri]::EscapeDataString($latest))"
+              $published = -not $r.draft
+            } catch { $published = $false }
+            if (-not $published) { $republish = $latest; Write-Host "$latest has no published release." }
+          }
+          pwsh -NoProfile -File scripts/next-release.ps1 -Channel $channel -Republish $republish
 
       - name: Rust toolchain
         if: steps.plan.outputs.version != ''
@@ -108,7 +126,7 @@ jobs:
       # Before the build, so the binary reports the released version. Nothing
       # is pushed until the build and packaging succeed.
       - name: Set the version, update the changelog, commit and tag locally
-        if: steps.plan.outputs.version != ''
+        if: steps.plan.outputs.version != '' && steps.plan.outputs.republish != 'true'
         run: |
           $ErrorActionPreference = "Stop"
           pwsh -NoProfile -File scripts/update-version.ps1 -Version ${{ steps.plan.outputs.version }} -NotesFile release/notes.md
@@ -133,7 +151,7 @@ jobs:
           pwsh -NoProfile -File scripts/build-and-package.ps1 -Version ${{ steps.plan.outputs.version }} -Channel ${{ steps.plan.outputs.channel }}
 
       - name: Push the version commit and the tag
-        if: steps.plan.outputs.version != ''
+        if: steps.plan.outputs.version != '' && steps.plan.outputs.republish != 'true'
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -166,15 +184,24 @@ jobs:
           # so a PATCH that lands before it is clobbered. Reuse or create the
           # row, upload the assets, apply the metadata LAST, then confirm in a
           # loop rather than once.
+          # Creating the row right after the tag push can fail while the
+          # forge is still deriving its own row for the tag (run 66: an
+          # empty error body), so fetch-or-create is retried a few times.
           $release = $null
-          try { $release = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/tags/$([uri]::EscapeDataString($tag))" } catch { }
-          if (-not $release) {
-            $body = @{ tag_name = $tag; name = "HyperStack $version"; body = $notes; draft = $true; prerelease = $prerelease } | ConvertTo-Json -Depth 4
-            $release = Invoke-RestMethod -Method Post -Headers $headers -ContentType 'application/json' -Uri "$api/releases" -Body $body
-            Write-Host "Created release $($release.id)"
-          } else {
-            Write-Host "The forge already has a release for $tag (id $($release.id))"
+          for ($try = 1; $try -le 8 -and -not $release; $try++) {
+            try { $release = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/tags/$([uri]::EscapeDataString($tag))" } catch { $release = $null }
+            if ($release) { Write-Host "The forge already has a release for $tag (id $($release.id))"; break }
+            try {
+              $body = @{ tag_name = $tag; name = "HyperStack $version"; body = $notes; draft = $true; prerelease = $prerelease } | ConvertTo-Json -Depth 4
+              $release = Invoke-RestMethod -Method Post -Headers $headers -ContentType 'application/json' -Uri "$api/releases" -Body $body
+              Write-Host "Created release $($release.id)"
+            } catch {
+              Write-Host "Attempt ${try}: creating the release failed: $($_.Exception.Message)"
+              $release = $null
+              Start-Sleep -Seconds 5
+            }
           }
+          if (-not $release) { throw "Could not fetch or create the release row for $tag." }
 
           $expected = @(Get-ChildItem release/dist -File | ForEach-Object { $_.Name })
           foreach ($file in Get-ChildItem release/dist -File) {

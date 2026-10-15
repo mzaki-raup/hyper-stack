@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- CI: a release job that tags and pushes but fails to create the release row no longer strands the tag: creating the row is retried, and the next push to main re-plans and publishes an unpublished newest tag (`next-release.ps1 -Republish`).
 - Title bar: Read Aloud, Snip/Print, the bell, Quick Open, the vault and Settings are the same square icon button with the same gap (`hs_ui::form::icon_menu`).
 - Graphics: the sidebar is laid out in aligned rows (label, controls, Apply) with group headings; the Adjust sliders run full width under their label with the value and Apply beside it; a **crop placeholder** on the canvas (Select on Canvas) can be moved by its inside, resized by its edges and corners or drawn afresh, and the X/Y/W/H boxes follow.
 - Scratchpad: a collection of Markdown notes per workspace (`<workspace>/notes/<id>.md`), listed in the sidebar newest first with search, **pinned notes** on top (right-click or the toolbar pin), one tab per note, autosave 1.5 s after typing stops, source and preview side by side (or either alone), and an **AI assistant** whose Markdown, Mermaid and bash blocks insert at the cursor.

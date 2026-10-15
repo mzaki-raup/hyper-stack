@@ -18,6 +18,7 @@ pub mod tip;
 pub mod toast;
 pub mod tree;
 pub mod varfield;
+pub mod varpeek;
 
 pub use egui;
 pub use egui_extras;

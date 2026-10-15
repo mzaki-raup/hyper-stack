@@ -28,6 +28,18 @@ pub fn references(text: &str) -> Vec<String> {
     out
 }
 
+/// A click this frame that landed outside `rect` (the popup). `Response::
+/// clicked_elsewhere` on the Area closed the popup when one of its own
+/// buttons was clicked, so the rect is tested directly.
+fn clicked_outside(ui: &egui::Ui, rect: egui::Rect) -> bool {
+    ui.input(|i| {
+        i.pointer.any_click()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|p| !rect.expand(4.0).contains(p))
+    })
+}
+
 #[derive(Clone, Default)]
 struct PeekState {
     open: bool,
@@ -41,7 +53,7 @@ pub fn var_peek(
     ui: &mut egui::Ui,
     theme: &Theme,
     s: &Services,
-    id_salt: impl std::hash::Hash,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
     text: &str,
 ) {
     let refs = references(text);
@@ -67,53 +79,72 @@ pub fn var_peek(
                     .fill(theme.surface)
                     .stroke(egui::Stroke::new(1.0, theme.border))
                     .show(ui, |ui| {
-                        ui.set_min_width(320.0);
-                        ui.set_max_width(520.0);
+                        ui.set_min_width(420.0);
+                        ui.set_max_width(560.0);
                         ui.horizontal(|ui| {
                             ui.label(
                                 egui::RichText::new(s.t("var-peek-title"))
                                     .strong()
                                     .color(theme.text_muted),
                             );
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button(ph::X).clicked() {
-                                    st.open = false;
-                                }
-                                let label = if st.revealed {
-                                    s.t("var-peek-hide")
-                                } else {
-                                    s.t("var-peek-reveal")
-                                };
-                                if ui.small_button(label).clicked() {
-                                    st.revealed = !st.revealed;
-                                }
-                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.small_button(ph::X).clicked() {
+                                        st.open = false;
+                                    }
+                                    let label = if st.revealed {
+                                        s.t("var-peek-hide")
+                                    } else {
+                                        s.t("var-peek-reveal")
+                                    };
+                                    if ui.small_button(label).clicked() {
+                                        st.revealed = !st.revealed;
+                                    }
+                                },
+                            );
                         });
                         egui::Grid::new(id.with("grid"))
                             .num_columns(3)
                             .spacing([10.0, 4.0])
                             .show(ui, |ui| {
                                 for name in &refs {
-                                    ui.label(egui::RichText::new(format!("{{{{{name}}}}}")).monospace());
-                                    let (shown, copy): (String, Option<String>) = match s.peek_var(name) {
-                                        VarPeek::Unset => (s.t("var-peek-unset"), None),
-                                        VarPeek::Plain(v) => (v.clone(), Some(v)),
-                                        VarPeek::Locked => (s.t("var-peek-locked"), None),
-                                        VarPeek::Secret(v) => {
-                                            if st.revealed {
-                                                (v.clone(), Some(v))
-                                            } else {
-                                                ("••••••••".into(), Some(v))
-                                            }
-                                        }
-                                    };
-                                    ui.add(
-                                        egui::Label::new(egui::RichText::new(shown).monospace())
-                                            .truncate(),
+                                    ui.label(
+                                        egui::RichText::new(format!("{{{{{name}}}}}")).monospace(),
                                     );
+                                    let (shown, copy): (String, Option<String>) =
+                                        match s.peek_var(name) {
+                                            VarPeek::Unset => (s.t("var-peek-unset"), None),
+                                            VarPeek::Plain(v) => (v.clone(), Some(v)),
+                                            VarPeek::Locked => (s.t("var-peek-locked"), None),
+                                            VarPeek::Secret(v) => {
+                                                if st.revealed {
+                                                    (v.clone(), Some(v))
+                                                } else {
+                                                    ("••••••••".into(), Some(v))
+                                                }
+                                            }
+                                        };
+                                    // A truncating label inside a Grid shrinks to
+                                    // whatever width the column had last frame, so
+                                    // give it a fixed width instead.
+                                    ui.scope(|ui| {
+                                        ui.set_min_width(300.0);
+                                        ui.set_max_width(300.0);
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(shown).monospace(),
+                                            )
+                                            .truncate(),
+                                        );
+                                    });
                                     match copy {
                                         Some(v) => {
-                                            if ui.small_button(ph::COPY).tip(s.t("var-peek-copy")).clicked() {
+                                            if ui
+                                                .small_button(ph::COPY)
+                                                .tip(s.t("var-peek-copy"))
+                                                .clicked()
+                                            {
                                                 ui.ctx().copy_text(v);
                                             }
                                         }
@@ -126,7 +157,7 @@ pub fn var_peek(
                             });
                     });
             });
-        if area.response.clicked_elsewhere() && !button.clicked() {
+        if clicked_outside(ui, area.response.rect) && !button.clicked() {
             st.open = false;
         }
     }
@@ -147,14 +178,17 @@ pub fn save_to_env_button(
     ui: &mut egui::Ui,
     theme: &Theme,
     s: &Services,
-    id_salt: impl std::hash::Hash,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
     value: &mut String,
 ) -> Option<String> {
     let id = egui::Id::new(("hs-save-env", ui.id(), id_salt));
     let mut st = ui.data_mut(|d| d.get_temp::<SaveState>(id).unwrap_or_default());
     let has_value = !value.trim().is_empty() && references(value).is_empty();
     let button = ui
-        .add_enabled(has_value, egui::Button::new(format!("{} {}", ph::LOCK_KEY, s.t("var-save-env"))).small())
+        .add_enabled(
+            has_value,
+            egui::Button::new(format!("{} {}", ph::LOCK_KEY, s.t("var-save-env"))).small(),
+        )
         .tip(s.t("var-save-env-tip"));
     if button.clicked() {
         st.open = !st.open;
@@ -217,12 +251,25 @@ pub fn save_to_env_button(
             } else if s.environments.read().active.is_none() {
                 st.error = Some(s.t("var-save-env-no-env"));
             } else {
-                let label = format!("{}/{}", s.environments.read().active_env().map(|e| e.name.clone()).unwrap_or_default(), name);
+                let label = format!(
+                    "{}/{}",
+                    s.environments
+                        .read()
+                        .active_env()
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    name
+                );
                 match s.secrets.create(&label, &SecretString::from(value.clone())) {
-                    Ok(r) => match s.environments.write().set_var(None, &name, &r.to_string_ref()) {
+                    Ok(r) => match s
+                        .environments
+                        .write()
+                        .set_var(None, &name, &r.to_string_ref())
+                    {
                         Ok(()) => {
                             *value = format!("{{{{{name}}}}}");
-                            s.events.publish(hs_core::events::Event::EnvironmentsChanged);
+                            s.events
+                                .publish(hs_core::events::Event::EnvironmentsChanged);
                             saved = Some(s.i18n.t_args("var-save-env-done", &[("name", &name)]));
                             st.open = false;
                             st.name.clear();
@@ -233,7 +280,7 @@ pub fn save_to_env_button(
                 }
             }
         }
-        if area.response.clicked_elsewhere() && !button.clicked() {
+        if clicked_outside(ui, area.response.rect) && !button.clicked() {
             st.open = false;
         }
     }

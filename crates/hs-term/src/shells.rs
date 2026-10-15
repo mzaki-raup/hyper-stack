@@ -59,7 +59,6 @@ pub fn detect() -> Vec<ShellProfile> {
     out
 }
 
-#[cfg(windows)]
 fn on_path(exe: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     for dir in std::env::split_paths(&path) {
@@ -121,6 +120,33 @@ fn detect_windows(out: &mut Vec<ShellProfile>) {
             &[],
         ));
     }
+    // Nushell: PATH, the MSI/winget install, cargo install, scoop.
+    let home = std::env::var("USERPROFILE").unwrap_or_default();
+    let nu = on_path("nu.exe")
+        .or_else(|| {
+            Some(PathBuf::from(format!(r"{local}\Programs\nu\bin\nu.exe"))).filter(|p| p.is_file())
+        })
+        .or_else(|| {
+            Some(PathBuf::from(format!(r"{home}\.cargo\bin\nu.exe"))).filter(|p| p.is_file())
+        })
+        .or_else(|| {
+            Some(PathBuf::from(format!(r"{home}\scoop\shims\nu.exe"))).filter(|p| p.is_file())
+        })
+        .or_else(|| {
+            Some(PathBuf::from(format!(
+                r"{local}\Microsoft\WinGet\Links\nu.exe"
+            )))
+            .filter(|p| p.is_file())
+        });
+    if let Some(p) = nu {
+        out.push(ShellProfile::new(
+            "nu",
+            "Nushell",
+            "",
+            p.to_string_lossy(),
+            &[],
+        ));
+    }
     for base in [&pf, &pf86] {
         let bash = PathBuf::from(format!(r"{base}\Git\bin\bash.exe"));
         if bash.is_file() {
@@ -174,6 +200,17 @@ fn detect_unix(out: &mut Vec<ShellProfile>) {
             "",
             sh.clone(),
             &["-l"],
+        ));
+    }
+    if let Some(nu) = on_path("nu")
+        && !out.iter().any(|p| p.exe == nu.to_string_lossy())
+    {
+        out.push(ShellProfile::new(
+            "nu",
+            "Nushell",
+            "",
+            nu.to_string_lossy(),
+            &[],
         ));
     }
     for (exe, name) in [

@@ -177,9 +177,13 @@ properties:
   its own cookies and cache outside `HyperStackData/`; **Clear Browsing
   Data** empties them. Pages are restored from `layout.json` (URLs and
   titles only).
-- **Devtools**: keys, passwords and tokens typed into a utility stay in
-  that tab; only the open utility is saved. The Firebase utility talks to
-  Google only when its two network buttons are pressed.
+- **Devtools**: inputs are saved with the tab, except keys, passwords,
+  tokens and service accounts, which are written only as `{{references}}`
+  to environment variables (a typed secret is blanked by `for_save()`).
+  **Save to Environment…** is the sanctioned way to keep one: it goes into
+  the vault and the field keeps the reference. The peek popup masks vault
+  values until Reveal and never writes them anywhere. The Firebase utility
+  talks to Google only when its two network buttons are pressed.
 - **Settings bundles** carry no secrets (vault references only) and need
   the master password to export or import.
 - **Read Aloud** sends text to a local child process (Windows Speech,

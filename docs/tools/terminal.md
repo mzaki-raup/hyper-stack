@@ -65,7 +65,9 @@ Font fallback) but no code is taken from them.
   steps to the older hit, Shift+Enter to the newer, Escape closes and
   returns to the bottom. Like links, matching is per grid row.
 - **Shell profiles**: detection of PowerShell 7/5, cmd (with Clink if
-  present), Git Bash, WSL distributions, MSYS2; on Unix `$SHELL`, bash, zsh,
+  present), **Nushell** (PATH, `%LOCALAPPDATA%\Programs\nu`, `~/.cargo/bin`,
+  scoop shims, WinGet links; listed between Command Prompt and Git Bash),
+  Git Bash, WSL distributions, MSYS2; on Unix `$SHELL`, bash, zsh,
   fish, nushell; profile fields: executable, args, env, cwd policy (project /
   last / fixed), icon, colour scheme, font override, startup command; loads
   the user's profile so prompts (Oh My Posh, Starship) work.

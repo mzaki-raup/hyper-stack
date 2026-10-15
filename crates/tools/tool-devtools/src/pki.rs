@@ -11,6 +11,7 @@
 use hs_core::Services;
 use hs_ui::form;
 use hs_ui::theme::Theme;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::{
     self, SigAlg, aes_gcm_decrypt, aes_gcm_encrypt, b64_decode, b64_encode, key_from_uuid,
@@ -60,14 +61,15 @@ pub fn open(
     Ok((plain, valid))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Flow {
     #[default]
     Request,
     Response,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub device_private: String,
     pub device_public: String,
@@ -77,9 +79,21 @@ pub struct State {
     pub shared_key: String,
     pub flow: Flow,
     pub plain: String,
+    #[serde(skip)]
     pub sealed: Option<Result<String, String>>,
     pub payload_in: String,
+    #[serde(skip)]
     pub opened: Option<Result<String, String>>,
+}
+
+impl State {
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.device_private = crate::keep_reference(&c.device_private);
+        c.target_private = crate::keep_reference(&c.target_private);
+        c.shared_key = crate::keep_reference(&c.shared_key);
+        c
+    }
 }
 
 fn payload_json(device_id: &str, plain: &str, encrypted: &str, signature: &str) -> String {
@@ -112,24 +126,39 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         form::hint(ui, theme, &s.t("dt-pki-keys-hint"));
         form::field_grid(ui, "pki-ids", |ui| {
             form::label(ui, &s.t("dt-pki-device-id"));
-            form::text_field(ui, &mut st.device_id, "");
+            util::line(ui, s, theme, &mut st.device_id, "");
             ui.end_row();
             form::label(ui, &s.t("dt-pki-shared-key"));
-            form::text_field(ui, &mut st.shared_key, &s.t("dt-pki-shared-key-hint"));
+            util::secret_line(
+                ui,
+                s,
+                theme,
+                &mut st.shared_key,
+                &s.t("dt-pki-shared-key-hint"),
+            );
             ui.end_row();
             form::label(ui, &s.t("dt-pki-derived-key"));
             if st.shared_key.trim().is_empty() {
                 ui.label("—");
             } else {
-                ui.monospace(b64_encode(&key_from_uuid(st.shared_key.trim())));
+                match util::expand(s, st.shared_key.trim()) {
+                    Ok(v) => {
+                        ui.monospace(b64_encode(&key_from_uuid(v.trim())));
+                    }
+                    Err(e) => {
+                        ui.colored_label(theme.error, e);
+                    }
+                }
             }
             ui.end_row();
         });
         ui.add_space(6.0);
         ui.columns(2, |cols| {
             cols[0].label(egui::RichText::new(s.t("dt-pki-device-private")).strong());
-            util::input(
+            util::secret_input(
                 &mut cols[0],
+                s,
+                theme,
                 &mut st.device_private,
                 "PKCS#8 / PEM / Base64",
                 4,
@@ -137,13 +166,17 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             cols[0].label(egui::RichText::new(s.t("dt-pki-device-public")).strong());
             util::input(
                 &mut cols[0],
+                s,
+                theme,
                 &mut st.device_public,
                 "X.509 / PEM / Base64",
                 4,
             );
             cols[1].label(egui::RichText::new(s.t("dt-pki-target-private")).strong());
-            util::input(
+            util::secret_input(
                 &mut cols[1],
+                s,
+                theme,
                 &mut st.target_private,
                 "PKCS#8 / PEM / Base64",
                 4,
@@ -151,6 +184,8 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             cols[1].label(egui::RichText::new(s.t("dt-pki-target-public")).strong());
             util::input(
                 &mut cols[1],
+                s,
+                theme,
                 &mut st.target_public,
                 "X.509 / PEM / Base64",
                 4,
@@ -176,31 +211,43 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         ),
     };
     form::section(ui, theme, &seal_title, |ui| {
-        util::input(ui, &mut st.plain, &s.t("dt-pki-plain-hint"), 5);
+        util::input(ui, s, theme, &mut st.plain, &s.t("dt-pki-plain-hint"), 5);
         if form::primary_button(ui, theme, &s.t("dt-pki-seal")).clicked() {
             st.sealed = Some(
-                seal(&seal_key, &st.shared_key, &st.plain)
-                    .map(|(enc, sig)| payload_json(&st.device_id, &st.plain, &enc, &sig)),
+                util::expand(s, &seal_key)
+                    .and_then(|k| Ok((k, util::expand(s, &st.shared_key)?)))
+                    .and_then(|(k, shared)| {
+                        let plain = util::expand(s, &st.plain)?;
+                        let device = util::expand(s, &st.device_id)?;
+                        seal(&k, &shared, &plain)
+                            .map(|(enc, sig)| payload_json(&device, &plain, &enc, &sig))
+                    }),
             );
         }
         util::result(ui, s, theme, &s.t("dt-pki-sealed"), &st.sealed, 8);
     });
     form::section(ui, theme, &open_title, |ui| {
-        util::input(ui, &mut st.payload_in, &s.t("dt-pki-payload-hint"), 5);
+        util::input(
+            ui,
+            s,
+            theme,
+            &mut st.payload_in,
+            &s.t("dt-pki-payload-hint"),
+            5,
+        );
         if form::primary_button(ui, theme, &s.t("dt-pki-open")).clicked() {
             let (enc, sig) = parse_payload(&st.payload_in);
-            st.opened = Some(
-                open(&open_key, &st.shared_key, &enc, &sig).map(|(plain, valid)| {
-                    let mut obj = serde_json::Map::new();
-                    obj.insert(
-                        "decryptedMsg".into(),
-                        serde_json::from_str(&plain).unwrap_or(serde_json::Value::String(plain)),
-                    );
-                    obj.insert("signatureValid".into(), valid.into());
-                    serde_json::to_string_pretty(&serde_json::Value::Object(obj))
-                        .unwrap_or_default()
-                }),
-            );
+            let open_key = util::expand(s, &open_key).unwrap_or_default();
+            let shared = util::expand(s, &st.shared_key).unwrap_or_default();
+            st.opened = Some(open(&open_key, &shared, &enc, &sig).map(|(plain, valid)| {
+                let mut obj = serde_json::Map::new();
+                obj.insert(
+                    "decryptedMsg".into(),
+                    serde_json::from_str(&plain).unwrap_or(serde_json::Value::String(plain)),
+                );
+                obj.insert("signatureValid".into(), valid.into());
+                serde_json::to_string_pretty(&serde_json::Value::Object(obj)).unwrap_or_default()
+            }));
         }
         if let Some(Ok(text)) = &st.opened {
             if text.contains("\"signatureValid\": true") {

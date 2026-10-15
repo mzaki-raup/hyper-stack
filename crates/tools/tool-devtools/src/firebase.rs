@@ -10,6 +10,7 @@ use hs_core::Services;
 use hs_ui::form;
 use hs_ui::theme::Theme;
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::b64url_encode;
 use crate::jwt::{self, Alg};
@@ -103,18 +104,34 @@ pub fn access_token_assertion(sa: &ServiceAccount, scopes: &str) -> Result<Strin
 
 type Pending = Arc<Mutex<Option<Result<String, String>>>>;
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub service_json: String,
     pub uid: String,
     pub claims: String,
     pub ttl_minutes: i64,
+    #[serde(skip)]
     pub custom: Option<Result<String, String>>,
     pub scopes: String,
+    #[serde(skip)]
     pub access: Option<Result<String, String>>,
+    #[serde(skip)]
     pub access_pending: Option<Pending>,
     pub web_api_key: String,
+    #[serde(skip)]
     pub id_token: Option<Result<String, String>>,
+    #[serde(skip)]
     pub id_pending: Option<Pending>,
+}
+
+impl State {
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.service_json = crate::keep_reference(&c.service_json);
+        c.web_api_key = crate::keep_reference(&c.web_api_key);
+        c
+    }
 }
 
 impl Default for State {
@@ -233,8 +250,10 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         Some(&s.t("dt-firebase-sub")),
     );
     form::section(ui, theme, &s.t("dt-firebase-account"), |ui| {
-        util::input(
+        util::secret_input(
             ui,
+            s,
+            theme,
             &mut st.service_json,
             &s.t("dt-firebase-account-hint"),
             5,
@@ -253,7 +272,9 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         {
             st.service_json = text;
         }
-        match parse_service_account(&st.service_json) {
+        let service_json =
+            util::expand(s, &st.service_json).unwrap_or_else(|_| st.service_json.clone());
+        match parse_service_account(&service_json) {
             Ok(sa) => {
                 ui.label(
                     egui::RichText::new(format!("{} · {}", sa.project_id, sa.client_email))
@@ -265,14 +286,16 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         }
         form::hint(ui, theme, &s.t("dt-firebase-privacy"));
     });
-    let sa = parse_service_account(&st.service_json).ok();
+    let service_json =
+        util::expand(s, &st.service_json).unwrap_or_else(|_| st.service_json.clone());
+    let sa = parse_service_account(&service_json).ok();
     form::section(ui, theme, &s.t("dt-firebase-custom"), |ui| {
         form::field_grid(ui, "fb-custom", |ui| {
             form::label(ui, "uid");
             form::text_field(ui, &mut st.uid, "");
             ui.end_row();
             form::label(ui, &s.t("dt-firebase-claims"));
-            util::input(ui, &mut st.claims, "{}", 2);
+            util::input(ui, s, theme, &mut st.claims, "{}", 2);
             ui.end_row();
             form::label(ui, &s.t("dt-firebase-ttl"));
             ui.add(
@@ -357,7 +380,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-firebase-id"), |ui| {
         form::field_grid(ui, "fb-id", |ui| {
             form::label(ui, &s.t("dt-firebase-web-key"));
-            form::secret_field(ui, &mut st.web_api_key, "", 320.0);
+            util::secret_line(ui, s, theme, &mut st.web_api_key, "");
             ui.end_row();
         });
         let custom = st.custom.as_ref().and_then(|c| c.as_ref().ok().cloned());
@@ -376,7 +399,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     s,
                     format!(
                         "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key={}",
-                        st.web_api_key.trim()
+                        util::expand(s, st.web_api_key.trim()).unwrap_or_default()
                     ),
                     serde_json::json!({ "token": token, "returnSecureToken": true }),
                 ));

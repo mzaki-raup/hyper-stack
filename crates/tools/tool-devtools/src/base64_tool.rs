@@ -6,11 +6,12 @@ use hs_core::Services;
 use hs_core::sniff::{self, Kind};
 use hs_ui::form;
 use hs_ui::theme::Theme;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::{b64_decode, b64_encode, b64url_encode};
 use crate::util;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
     Decode,
@@ -18,10 +19,12 @@ pub enum Mode {
     BasicAuth,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub mode: Mode,
     pub input: String,
+    #[serde(skip)]
     pub file: Option<(std::path::PathBuf, Vec<u8>)>,
     pub url_safe: bool,
     pub no_padding: bool,
@@ -29,7 +32,17 @@ pub struct State {
     pub pass: String,
     /// Decoded bytes of the last input, so the preview is not re-decoded
     /// every frame.
+    #[serde(skip)]
     decoded: Option<(u64, Result<Vec<u8>, String>)>,
+}
+
+impl State {
+    /// What is saved with the tab: secrets only as `{{references}}`.
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.pass = crate::keep_reference(&c.pass);
+        c
+    }
 }
 
 fn hash_of(text: &str) -> u64 {
@@ -56,7 +69,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 
 fn decode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-input"), |ui| {
-        util::input(ui, &mut st.input, &s.t("dt-base64-decode-hint"), 6);
+        util::input(
+            ui,
+            s,
+            theme,
+            &mut st.input,
+            &s.t("dt-base64-decode-hint"),
+            6,
+        );
         form::hint(ui, theme, &s.t("dt-base64-auto-hint"));
     });
     let key = hash_of(&st.input);
@@ -163,7 +183,14 @@ fn encode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
             }
             None => {
-                util::input(ui, &mut st.input, &s.t("dt-base64-encode-hint"), 6);
+                util::input(
+                    ui,
+                    s,
+                    theme,
+                    &mut st.input,
+                    &s.t("dt-base64-encode-hint"),
+                    6,
+                );
                 if ui
                     .button(format!(
                         "{} {}",
@@ -216,14 +243,16 @@ fn basic(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-base64-basic"), |ui| {
         form::field_grid(ui, "basic-auth", |ui| {
             form::label(ui, &s.t("dt-base64-user"));
-            form::text_field(ui, &mut st.user, "");
+            util::line(ui, s, theme, &mut st.user, "");
             ui.end_row();
             form::label(ui, &s.t("dt-base64-pass"));
-            form::secret_field(ui, &mut st.pass, "", 320.0);
+            util::secret_line(ui, s, theme, &mut st.pass, "");
             ui.end_row();
         });
         if !st.user.is_empty() {
-            let token = b64_encode(format!("{}:{}", st.user, st.pass).as_bytes());
+            let user = util::expand(s, &st.user).unwrap_or_default();
+            let pass = util::expand(s, &st.pass).unwrap_or_default();
+            let token = b64_encode(format!("{user}:{pass}").as_bytes());
             ui.add_space(6.0);
             util::output(ui, s, theme, "Authorization", &format!("Basic {token}"), 1);
             util::output(

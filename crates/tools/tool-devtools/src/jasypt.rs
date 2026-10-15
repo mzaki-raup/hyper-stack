@@ -21,6 +21,7 @@ use hs_core::Services;
 use hs_ui::form;
 use hs_ui::theme::Theme;
 use md5::Digest;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::{
     self, b64_decode, b64_encode, cbc_decrypt, cbc_encrypt, ecb_decrypt, ecb_encrypt, hex_decode,
@@ -28,7 +29,7 @@ use crate::crypto::{
 };
 use crate::util;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Algo {
     Md5Des,
     HmacSha512Aes256,
@@ -43,7 +44,8 @@ impl Algo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub algo: Algo,
     pub iterations: u32,
@@ -203,18 +205,32 @@ pub fn legacy_md5_b64(text: &str) -> String {
 
 // ---- UI -----------------------------------------------------------------------
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub cfg: Config,
     pub password: String,
     pub plain: String,
+    #[serde(skip)]
     pub encrypted_out: Option<Result<String, String>>,
     pub cipher_in: String,
+    #[serde(skip)]
     pub decrypted_out: Option<Result<String, String>>,
     pub legacy_des_key: String,
     pub legacy_aes_key: String,
     pub legacy_in: String,
+    #[serde(skip)]
     pub legacy_out: Option<Result<String, String>>,
+}
+
+impl State {
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.password = crate::keep_reference(&c.password);
+        c.legacy_des_key = crate::keep_reference(&c.legacy_des_key);
+        c.legacy_aes_key = crate::keep_reference(&c.legacy_aes_key);
+        c
+    }
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
@@ -235,7 +251,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-password"));
-            form::secret_field(ui, &mut st.password, &s.t("dt-jasypt-password-hint"), 320.0);
+            util::secret_line(
+                ui,
+                s,
+                theme,
+                &mut st.password,
+                &s.t("dt-jasypt-password-hint"),
+            );
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-iterations"));
             ui.add(egui::DragValue::new(&mut st.cfg.iterations).range(1..=100_000));
@@ -257,9 +279,10 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         form::hint(ui, theme, &s.t("dt-jasypt-layout-hint"));
     });
     form::section(ui, theme, &s.t("dt-encrypt"), |ui| {
-        util::input(ui, &mut st.plain, &s.t("dt-jasypt-plain-hint"), 3);
+        util::input(ui, s, theme, &mut st.plain, &s.t("dt-jasypt-plain-hint"), 3);
         if form::primary_button(ui, theme, &s.t("dt-encrypt")).clicked() {
-            st.encrypted_out = Some(encrypt(&st.cfg, &st.password, &st.plain));
+            st.encrypted_out =
+                Some(util::expand(s, &st.password).and_then(|pw| encrypt(&st.cfg, &pw, &st.plain)));
         }
         util::result(
             ui,
@@ -271,9 +294,18 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         );
     });
     form::section(ui, theme, &s.t("dt-decrypt"), |ui| {
-        util::input(ui, &mut st.cipher_in, &s.t("dt-jasypt-cipher-hint"), 3);
+        util::input(
+            ui,
+            s,
+            theme,
+            &mut st.cipher_in,
+            &s.t("dt-jasypt-cipher-hint"),
+            3,
+        );
         if form::primary_button(ui, theme, &s.t("dt-decrypt")).clicked() {
-            st.decrypted_out = Some(decrypt(&st.cfg, &st.password, &st.cipher_in));
+            st.decrypted_out = Some(
+                util::expand(s, &st.password).and_then(|pw| decrypt(&st.cfg, &pw, &st.cipher_in)),
+            );
         }
         util::result(
             ui,
@@ -288,30 +320,44 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         form::hint(ui, theme, &s.t("dt-jasypt-legacy-hint"));
         form::field_grid(ui, "jasypt-legacy", |ui| {
             form::label(ui, &s.t("dt-jasypt-des-key"));
-            form::secret_field(ui, &mut st.legacy_des_key, "", 320.0);
+            util::secret_line(ui, s, theme, &mut st.legacy_des_key, "");
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-aes-key"));
-            form::secret_field(ui, &mut st.legacy_aes_key, "", 320.0);
+            util::secret_line(ui, s, theme, &mut st.legacy_aes_key, "");
             ui.end_row();
         });
         util::input(
             ui,
+            s,
+            theme,
             &mut st.legacy_in,
             &s.t("dt-jasypt-legacy-input-hint"),
             3,
         );
         ui.horizontal_wrapped(|ui| {
             if ui.button(s.t("dt-jasypt-des-encrypt")).clicked() {
-                st.legacy_out = Some(legacy_des(&st.legacy_des_key, &st.legacy_in, false));
+                st.legacy_out = Some(
+                    util::expand(s, &st.legacy_des_key)
+                        .and_then(|k| legacy_des(&k, &st.legacy_in, false)),
+                );
             }
             if ui.button(s.t("dt-jasypt-des-decrypt")).clicked() {
-                st.legacy_out = Some(legacy_des(&st.legacy_des_key, &st.legacy_in, true));
+                st.legacy_out = Some(
+                    util::expand(s, &st.legacy_des_key)
+                        .and_then(|k| legacy_des(&k, &st.legacy_in, true)),
+                );
             }
             if ui.button(s.t("dt-jasypt-aes-encrypt")).clicked() {
-                st.legacy_out = Some(legacy_aes(&st.legacy_aes_key, &st.legacy_in, false));
+                st.legacy_out = Some(
+                    util::expand(s, &st.legacy_aes_key)
+                        .and_then(|k| legacy_aes(&k, &st.legacy_in, false)),
+                );
             }
             if ui.button(s.t("dt-jasypt-aes-decrypt")).clicked() {
-                st.legacy_out = Some(legacy_aes(&st.legacy_aes_key, &st.legacy_in, true));
+                st.legacy_out = Some(
+                    util::expand(s, &st.legacy_aes_key)
+                        .and_then(|k| legacy_aes(&k, &st.legacy_in, true)),
+                );
             }
             if ui.button(s.t("dt-jasypt-md5")).clicked() {
                 st.legacy_out = Some(Ok(legacy_md5_b64(&st.legacy_in)));

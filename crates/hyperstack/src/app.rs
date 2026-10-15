@@ -127,6 +127,10 @@ pub struct HyperStackApp {
     confirm_close: Option<u64>,
     last_input: Instant,
     last_layout_save: Instant,
+    /// Hash of the tab states last written, so tool inputs that change
+    /// without touching the strip (a devtools field, an API draft) are
+    /// persisted too (polled every few seconds).
+    layout_fingerprint: u64,
     layout_dirty_since: Option<Instant>,
     pending_actions: Vec<Action>,
     fallback_notice_open: bool,
@@ -220,6 +224,7 @@ impl HyperStackApp {
             confirm_close: None,
             last_input: Instant::now(),
             last_layout_save: Instant::now(),
+            layout_fingerprint: 0,
             layout_dirty_since: None,
             pending_actions: Vec::new(),
             first_frame_done: false,
@@ -580,6 +585,7 @@ impl HyperStackApp {
         }
         layout.sidebar_open = self.sidebar_open;
         layout.dock_open = self.dock_open;
+        self.layout_fingerprint = layout_fingerprint(&layout);
         if let Err(e) = self.services.workspace.read().save_layout(&layout) {
             tracing::warn!("layout not saved: {e}");
         }
@@ -3119,6 +3125,21 @@ impl eframe::App for HyperStackApp {
             self.save_layout();
             self.save_window_state(ctx);
         }
+        // Tool inputs change without touching the strip (a devtools field,
+        // an API draft): every few seconds compare the saved states with
+        // what was last written, so a crash or a kill loses little.
+        if self.layout_dirty_since.is_none()
+            && self.last_layout_save.elapsed() > Duration::from_secs(5)
+        {
+            let layout = self
+                .tabs
+                .to_layout(self.services.environments.read().active.clone());
+            if layout_fingerprint(&layout) != self.layout_fingerprint {
+                self.save_layout();
+            } else {
+                self.last_layout_save = Instant::now();
+            }
+        }
         // Window moves/resizes do not dirty the layout; poll them once a second.
         if self.window_poll.elapsed() > Duration::from_secs(1) {
             self.window_poll = Instant::now();
@@ -3209,6 +3230,18 @@ pub(crate) fn rail_order<'a>(defaults: &[&'a str], saved: &[String]) -> Vec<&'a 
 }
 
 /// One rail entry: a 24 px icon, optionally with the tool's name under it.
+/// What `save_layout` would write for the tabs, hashed: the probe for
+/// tool state that changed without a strip change.
+fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    serde_json::to_string(&layout.tabs)
+        .unwrap_or_default()
+        .hash(&mut h);
+    layout.active.hash(&mut h);
+    h.finish()
+}
+
 fn rail_item(
     ui: &mut egui::Ui,
     theme: &Theme,

@@ -6,6 +6,7 @@ use hs_core::Services;
 use hs_ui::form;
 use hs_ui::theme::Theme;
 use md5::Digest;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::{b64_encode, hex_encode};
 use crate::util;
@@ -99,17 +100,19 @@ pub fn hmac(algo: Algo, key: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Output {
     #[default]
     Hex,
     Base64,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub input: String,
     /// A file chosen instead of the text, with its name.
+    #[serde(skip)]
     pub file: Option<(std::path::PathBuf, Vec<u8>)>,
     pub hmac_key: String,
     pub use_hmac: bool,
@@ -119,6 +122,12 @@ pub struct State {
 }
 
 impl State {
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.hmac_key = crate::keep_reference(&c.hmac_key);
+        c
+    }
+
     fn data(&self) -> Vec<u8> {
         if let Some((_, bytes)) = &self.file {
             return bytes.clone();
@@ -150,7 +159,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
             }
             None => {
-                util::input(ui, &mut st.input, &s.t("dt-hash-input-hint"), 5);
+                util::input(ui, s, theme, &mut st.input, &s.t("dt-hash-input-hint"), 5);
                 ui.horizontal(|ui| {
                     if ui
                         .button(format!(
@@ -174,12 +183,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         ui.horizontal(|ui| {
             ui.checkbox(&mut st.use_hmac, s.t("dt-hash-hmac"));
             if st.use_hmac {
-                ui.add(
-                    egui::TextEdit::singleline(&mut st.hmac_key)
-                        .hint_text(s.t("dt-hash-hmac-key"))
-                        .password(true)
-                        .desired_width(260.0),
-                );
+                util::secret_line(ui, s, theme, &mut st.hmac_key, &s.t("dt-hash-hmac-key"));
             }
             ui.separator();
             ui.selectable_value(&mut st.output, Output::Hex, "hex");
@@ -198,11 +202,12 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         });
         ui.add_space(6.0);
         let expected = st.expected.trim().to_ascii_lowercase();
+        let hmac_key = util::expand(s, &st.hmac_key).unwrap_or_default();
         let rows: Vec<(Algo, Option<Vec<u8>>)> = Algo::ALL
             .into_iter()
             .map(|algo| {
                 let bytes = if st.use_hmac {
-                    hmac(algo, st.hmac_key.as_bytes(), &data)
+                    hmac(algo, hmac_key.as_bytes(), &data)
                 } else {
                     Some(digest(algo, &data))
                 };

@@ -285,7 +285,12 @@ tool  = "api"; state = { request = "01J9ZXF…" }
 ```
 
 `layout.json` is the serialised `TabSpace`: tab list (factory id + `save_state`
-JSON), active id, split tree, sidebar/dock sizes, active environment.
+JSON), active id, split tree, sidebar/dock sizes, active environment. It is
+written one second after a strip change (open, close, reorder, activate), on
+close, and whenever a five-second poll finds that a tab's `save_state` differs
+from what was last written (a devtools field, an API draft), so a crash or a
+forced stop loses at most a few seconds of input. Tools keep secrets out of
+`save_state` (devtools writes only `{{references}}`).
 
 ## 3. History database (SQLite)
 

@@ -735,7 +735,7 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                     }
                 }
             });
-        let w = (ui.available_width() - 230.0).max(200.0);
+        let w = (ui.available_width() - 262.0).max(200.0);
         let out = hs_ui::varfield::var_field_width(
             ui,
             theme,
@@ -745,6 +745,7 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
             &vars,
             w,
         );
+        hs_ui::varpeek::var_peek(ui, theme, s, "api-url-peek", &t.request.url);
         if let Some((k, v)) = out.add_var
             && let Err(e) = s.environments.write().set_var(None, &k, &v)
         {

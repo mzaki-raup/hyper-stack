@@ -6,11 +6,12 @@ use hmac::{Hmac, Mac};
 use hs_core::Services;
 use hs_ui::form;
 use hs_ui::theme::Theme;
+use serde::{Deserialize, Serialize};
 
 use crate::crypto::{self, SigAlg, b64_decode, b64url_encode};
 use crate::util;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Alg {
     HS256,
     HS384,
@@ -261,13 +262,15 @@ fn human_duration(secs: i64) -> String {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
     Decode,
     Encode,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct State {
     pub mode: Mode,
     pub token: String,
@@ -275,7 +278,16 @@ pub struct State {
     pub alg: Alg,
     pub header: String,
     pub payload: String,
+    #[serde(skip)]
     pub encoded: Option<Result<String, String>>,
+}
+
+impl State {
+    pub fn for_save(&self) -> State {
+        let mut c = self.clone();
+        c.key = crate::keep_reference(&c.key);
+        c
+    }
 }
 
 impl Default for State {
@@ -309,22 +321,17 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     }
 }
 
-fn key_field(st: &mut State, ui: &mut egui::Ui, s: &Services, hmac: bool) {
+fn key_field(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme, hmac: bool) {
     if hmac {
-        ui.add(
-            egui::TextEdit::singleline(&mut st.key)
-                .hint_text(s.t("dt-jwt-secret-hint"))
-                .password(true)
-                .desired_width(f32::INFINITY),
-        );
+        util::secret_line(ui, s, theme, &mut st.key, &s.t("dt-jwt-secret-hint"));
     } else {
-        util::input(ui, &mut st.key, &s.t("dt-jwt-key-hint"), 4);
+        util::secret_input(ui, s, theme, &mut st.key, &s.t("dt-jwt-key-hint"), 4);
     }
 }
 
 fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-jwt-token"), |ui| {
-        util::input(ui, &mut st.token, &s.t("dt-jwt-token-hint"), 4);
+        util::input(ui, s, theme, &mut st.token, &s.t("dt-jwt-token-hint"), 4);
     });
     if st.token.trim().is_empty() {
         return;
@@ -375,9 +382,9 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         match decoded.alg {
             Some(alg) => {
                 ui.label(s.i18n.t_args("dt-jwt-alg-is", &[("alg", alg.name())]));
-                key_field(st, ui, s, alg.is_hmac());
+                key_field(st, ui, s, theme, alg.is_hmac());
                 if !st.key.trim().is_empty() {
-                    match verify(&decoded, &st.key) {
+                    match util::expand(s, &st.key).and_then(|k| verify(&decoded, &k)) {
                         Ok(true) => util::ok(ui, theme, &s.t("dt-jwt-valid")),
                         Ok(false) => util::error(ui, theme, &s.t("dt-jwt-invalid")),
                         Err(e) => util::error(ui, theme, &e),
@@ -409,13 +416,13 @@ fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .strong()
                 .color(theme.text_muted),
         );
-        util::input(ui, &mut st.header, "", 3);
+        util::input(ui, s, theme, &mut st.header, "", 3);
         ui.label(
             egui::RichText::new(s.t("dt-jwt-payload"))
                 .strong()
                 .color(theme.text_muted),
         );
-        util::input(ui, &mut st.payload, "", 6);
+        util::input(ui, s, theme, &mut st.payload, "", 6);
         ui.label(
             egui::RichText::new(if st.alg.is_hmac() {
                 s.t("dt-jwt-secret")
@@ -426,10 +433,12 @@ fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             .color(theme.text_muted),
         );
         let hmac = st.alg.is_hmac();
-        key_field(st, ui, s, hmac);
+        key_field(st, ui, s, theme, hmac);
         ui.add_space(6.0);
         if form::primary_button(ui, theme, &s.t("dt-jwt-sign")).clicked() {
-            st.encoded = Some(encode(st.alg, &st.header, &st.payload, &st.key));
+            st.encoded = Some(
+                util::expand(s, &st.key).and_then(|k| encode(st.alg, &st.header, &st.payload, &k)),
+            );
         }
         ui.add_space(6.0);
         util::result(ui, s, theme, &s.t("dt-jwt-token"), &st.encoded, 4);

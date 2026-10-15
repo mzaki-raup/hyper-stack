@@ -49,7 +49,9 @@ retain current filenames and README links for existing shots.
 
 `home.png`, `settings-general.png`, `settings-appearance.png`,
 `settings-accessibility.png`, `settings-workspace.png`,
-`devtools-hashes.png`, `devtools-jwt.png`, `devtools-jasypt.png`,
+`devtools-hashes.png`, `devtools-jwt.png` (with the variable peek popup
+revealed), `devtools-jasypt.png`, `terminal-shells.png` (Nushell between
+Command Prompt and Git Bash),
 `devtools-pki.png`, `api-client.png`, `api-client-scripts.png`,
 `graphics.png`, `graphics-ops.png` and `browser.png` were captured on
 Windows 11 from the debug build with the harness in

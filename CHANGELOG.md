@@ -25,6 +25,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Graphics (new tool): open pictures from the editor or a dialog; resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen as a removable operation list; convert between PNG, JPEG, WebP, BMP, GIF and ICO; icon frame extraction and multi-size ICO export.
 - Browser (new tool, Windows): WebView2 pages in multi-row tabs with an address bar, back/forward/reload/home, per-page ad and tracker blocking (bundled blocklist plus Settings → Browser, cosmetic hiding), JavaScript switch, forced dark rendering, zoom, Inspect, Print, Clear Browsing Data; pages restored per workspace; Shift+click on a terminal link opens it here.
 - Shell: the status bar counts work tabs only; the terminal can be opened with a command to type.
+- Terminal: Nushell is detected (PATH, the MSI/winget install, `cargo install`, scoop) and listed between Command Prompt and Git Bash in the shell list and the dropdown.
+- Devtools: one tab per utility (the sidebar opens or focuses it), inputs come back after a restart, and a typed key, password or service account can be moved into the vault with **Save to Environment…**, which leaves a `{{name}}` reference behind; every field expands `{{variables}}` (vault secrets included) when it runs.
+- Variable peek: any field that holds a `{{variable}}` (devtools, the API client URL) gets an eye button that lists each reference's value with Copy; vault secrets stay masked until Reveal.
+- Shell: tool state that changes without a tab-strip change (a devtools field, an API draft) is written to `layout.json` within a few seconds, so a crash or a forced stop loses little.
 
 - AI: shared review-only assistant in Terminal, SSH, SQL and S3, with per-tool context previews and explicit send; no commands or data-changing actions are executed. API client is not implemented yet.
 - Screenshots: marked the current screenshot set as predating the new AI panels; recapture requires the desktop/Xvfb fixture environment.

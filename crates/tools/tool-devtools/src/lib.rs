@@ -83,28 +83,50 @@ impl Utility {
     }
 }
 
+/// A secret field's value for persistence: a `{{reference}}` survives, a
+/// typed secret does not.
+pub fn keep_reference(value: &str) -> String {
+    let t = value.trim();
+    if t.starts_with("{{") && t.ends_with("}}") && !t[2..].contains("{{") {
+        t.to_string()
+    } else {
+        String::new()
+    }
+}
+
 pub struct DevtoolsFactory;
 
 impl ToolFactory for DevtoolsFactory {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
-    fn create(&self, _services: &Services, restore: Option<serde_json::Value>) -> Box<dyn Tool> {
+    fn create(&self, services: &Services, restore: Option<serde_json::Value>) -> Box<dyn Tool> {
         let utility = restore
             .as_ref()
             .and_then(|v| v.get("utility"))
             .and_then(|v| v.as_str())
             .and_then(Utility::by_key)
             .unwrap_or_default();
+        fn part<T: Default + serde::de::DeserializeOwned>(
+            restore: &Option<serde_json::Value>,
+            key: &str,
+        ) -> T {
+            restore
+                .as_ref()
+                .and_then(|v| v.get(key))
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default()
+        }
         Box::new(DevtoolsTool {
             utility,
-            title: String::new(),
-            base64: Default::default(),
-            hash: Default::default(),
-            jwt: Default::default(),
-            firebase: Default::default(),
-            jasypt: Default::default(),
-            pki: Default::default(),
+            // Named before the first frame so a restored strip reads right.
+            title: services.t(utility.title_key()),
+            base64: part(&restore, "base64"),
+            hash: part(&restore, "hash"),
+            jwt: part(&restore, "jwt"),
+            firebase: part(&restore, "firebase"),
+            jasypt: part(&restore, "jasypt"),
+            pki: part(&restore, "pki"),
         })
     }
 }
@@ -155,8 +177,18 @@ impl Tool for DevtoolsTool {
                 );
                 last_cat = cat;
             }
-            if form::list_row(ui, &theme, self.utility == u, icon, &s.t(title), None).clicked() {
-                self.utility = u;
+            // Each utility has its own tab: clicking another one focuses
+            // that tab, or opens it.
+            if form::list_row(ui, &theme, self.utility == u, icon, &s.t(title), None).clicked()
+                && u != self.utility
+            {
+                cx.open(
+                    "devtools",
+                    Some(OpenRequest::File {
+                        uri: format!("devtools://{}", u.key()),
+                        line: None,
+                    }),
+                );
             }
             ui.add_space(2.0);
         }
@@ -208,19 +240,47 @@ impl Tool for DevtoolsTool {
             .collect()
     }
 
-    fn run_command(&mut self, id: &str, _cx: &mut ToolContext) -> bool {
+    fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         if let Some(key) = id.strip_prefix("devtools.")
             && let Some(u) = Utility::by_key(key)
         {
-            self.utility = u;
+            if u != self.utility {
+                cx.open(
+                    "devtools",
+                    Some(OpenRequest::File {
+                        uri: format!("devtools://{}", u.key()),
+                        line: None,
+                    }),
+                );
+            }
             return true;
         }
         false
     }
 
+    fn current_uri(&self) -> Option<String> {
+        Some(format!("devtools://{}", self.utility.key()))
+    }
+
+    /// Only the tab showing the same utility takes a `devtools://` request;
+    /// any other utility gets a tab of its own.
+    fn uri_affinity(&self, uri: &str) -> Option<u8> {
+        let key = uri.strip_prefix("devtools://")?;
+        (Utility::by_key(key) == Some(self.utility)).then_some(0)
+    }
+
     /// Text handed over from another tool lands in the current utility's input.
     fn open(&mut self, item: OpenRequest, _cx: &mut ToolContext) -> bool {
         match item {
+            OpenRequest::File { uri, .. } => {
+                match uri.strip_prefix("devtools://").and_then(Utility::by_key) {
+                    Some(u) => {
+                        self.utility = u;
+                        true
+                    }
+                    None => false,
+                }
+            }
             OpenRequest::Text { body, .. } => {
                 match self.utility {
                     Utility::Base64 => self.base64.input = body,
@@ -252,8 +312,32 @@ impl Tool for DevtoolsTool {
             .unwrap_or_default()
     }
 
-    /// Only which utility is open; inputs may hold keys and are never saved.
+    /// The utility and its inputs come back after a restart. Keys, passwords
+    /// and service accounts are saved only when they are `{{references}}`
+    /// to environment variables (which live in the vault); a typed secret
+    /// is dropped.
     fn save_state(&self) -> serde_json::Value {
-        serde_json::json!({ "utility": self.utility.key() })
+        serde_json::json!({
+            "utility": self.utility.key(),
+            "base64": self.base64.for_save(),
+            "hash": self.hash.for_save(),
+            "jwt": self.jwt.for_save(),
+            "firebase": self.firebase.for_save(),
+            "jasypt": self.jasypt.for_save(),
+            "pki": self.pki.for_save(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keep_reference;
+
+    #[test]
+    fn typed_secrets_are_dropped_but_references_kept() {
+        assert_eq!(keep_reference("{{api_key}}"), "{{api_key}}");
+        assert_eq!(keep_reference("  {{ k }} "), "{{ k }}");
+        assert_eq!(keep_reference("sk-live-123"), "");
+        assert_eq!(keep_reference("{{a}} and {{b}}"), "");
     }
 }

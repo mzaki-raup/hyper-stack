@@ -4,9 +4,30 @@
 
 ## 0. What is implemented (2026-10-15)
 
-One tool with the utilities listed in its sidebar by category; a tab shows
-one utility and can switch. Inputs are never saved (only which utility is
-open); every computation is a pure function with known-answer tests.
+One tool with the utilities listed in its sidebar by category; **each
+utility has its own tab** (`devtools://<key>`): clicking a utility in the
+sidebar, or its palette command, focuses the tab that shows it or opens one.
+Inputs are part of the tab's `save_state` and come back after a restart,
+with one rule: a key, password, token or service account is saved **only
+when it is a `{{reference}}`** to an environment variable; a typed secret
+is dropped (`for_save()` in each module, `keep_reference`). Every
+computation is a pure function with known-answer tests.
+
+Secret fields carry two helpers from `hs_ui::varpeek`:
+
+- **Save to Environment…** moves the typed value into the vault as a
+  variable of the active environment (`secrets.create` → `set_var`), leaves
+  `{{name}}` in the field and publishes `EnvironmentsChanged`. It needs an
+  unlocked vault and an active environment, and says so otherwise.
+- **Peek** (the eye, shown when the text references a variable) lists each
+  `{{name}}` with its value and a Copy button; vault secrets are masked
+  until **Reveal**, and a locked vault is reported instead of a value.
+
+Values are expanded when a utility runs (`Services::expand`: `{{}}`
+substitution through the environment chain, then `secret:<id>` resolution
+through the vault), so a Firebase service account, a PEM key or a Jasypt
+password can live in an environment and be shared by every utility. A
+missing variable or a locked vault stops the operation with that message.
 
 | Category | Utility | What it does |
 |---|---|---|
@@ -18,7 +39,7 @@ open); every computation is a pure function with known-answer tests.
 | Cryptography | **PKI Messages** | The gateway flow: sign with the sender's RSA key (`SHA256withRSA`) and encrypt with AES-256-GCM under `SHA-256(sharedKeyUuid)` (12-byte IV prepended); decrypt and verify on the other side. Flow 1 (device → server) and Flow 2 (server → device) with the device/target key pairs, producing and reading the `{deviceId, bucketUri, encryptedMsg, signatureStr}` payload |
 
 Text handed over from another tool (`OpenRequest::Text`) lands in the open
-utility's input. Keys and passwords typed here stay in the tab.
+utility's input.
 
 ## 1. Purpose
 

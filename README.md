@@ -38,7 +38,8 @@ and theme.
 > SQLite with a cell viewer that previews pictures and documents, an **API
 > client** with collections, JavaScript scripts (`pm` API) and Postman
 > import/export, **Devtools** (Base64, hashes, JWT, Firebase tokens,
-> Jasypt, PKI messages), a **Graphics** tool (convert, resize, extend,
+> Jasypt, PKI messages; one tab per utility, inputs persisted, secrets
+> saved to the environment vault and used as `{{variables}}`), a **Graphics** tool (convert, resize, extend,
 > adjust, icons), an embedded **Browser** (WebView2, ad and script
 > blocking, forced dark, inspect, print), **Snip** and **Print…** for every
 > tab, an optional AI assistant in the editor (1min.AI, LM Studio, Ollama
@@ -121,6 +122,7 @@ Open opens the searchable tools, connections and project items palette.
 | | |
 |---|---|
 | ![Terminal](docs/screenshots/terminal.png) | ![Terminal search](docs/screenshots/terminal-search.png) |
+| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | |
 | **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | **Search** (Ctrl+Shift+F) — plain or regex, match case, every hit highlighted, "n of m" |
 | ![Ctrl+click a file location](docs/screenshots/terminal-links.png) | |
 | **Links** — hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor | |
@@ -180,7 +182,7 @@ globals. A non-GET request to a protected environment asks first.
 | | |
 |---|---|
 | ![JWT](docs/screenshots/devtools-jwt.png) | ![Hashes](docs/screenshots/devtools-hashes.png) |
-| **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256) | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
+| **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) and the `{{reference}}` peeked | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
 | ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
 

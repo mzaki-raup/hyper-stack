@@ -372,6 +372,21 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   original bytes instead.
 
 ### egui / eframe 0.35
+- `egui::Id::new(x)` needs `x: Hash + Debug`; a helper taking
+  `id_salt: impl Hash` must add `+ std::fmt::Debug` (or use
+  `Id::new(base).with(salt)`), or the build fails on that bound.
+- Never nest two context locks: `ui.data_mut(|d| … ui.input(|i| …) …)`
+  takes the `ContextImpl` write lock and then asks for it again, and in a
+  debug build epaint panics after ten seconds ("Failed to acquire RwLock
+  write"). Read `ui.input` into a local first, then call `data_mut`.
+- A `Label::truncate()` inside an `egui::Grid` shrinks to whatever width
+  the column had last frame (self-fulfilling), so wrap it in a scope with
+  `set_min_width`/`set_max_width`. And `Area` responses report
+  `clicked_elsewhere()` for clicks on the area's own buttons; test the
+  click against `response.rect` yourself (`hs_ui::varpeek`).
+- A GUI test with the PowerShell harness: a crash is invisible unless the
+  exe is started from Bash with `2> err.txt` (`RUST_BACKTRACE=1`); the log
+  file only carries tracing output, not panics.
 - `eframe::App` has `fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame)`,
   not `update(ctx, frame)`; get the context with `ui.ctx()`. Panels are
   `egui::Panel::top/bottom/left/right(id)` with `.exact_size`, `.default_size`,

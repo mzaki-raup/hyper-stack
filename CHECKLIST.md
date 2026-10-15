@@ -169,4 +169,8 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Performance pass over the new code | Completed | per-frame digests/verification/parsing cached; assistant context rebuilt on change |
 | Graphics: crop placeholder resizes from every edge/corner; live Adjust sliders; Grayscale/Invert toggles | Completed | press-origin grip test, preview layer, `fix/graphics-crop-live-adjust` |
 | Speech to text toggle in every AI assistant (offline Windows Speech) | Completed | `hs_core::stt`, `hs_ui::mic`; macOS/Linux engines pending |
+| Dictation keeps the phrase in flight on stop; listening time cap | Completed | continuous `RecognizeAsync`, `stop` on stdin, `stt_max_secs` |
+| Home workspace cards larger with the workspace logo | Completed | `home::workspace_card` |
+| Download for editor files/folders (ZIP), notes, API bodies, devtools outputs | Completed | `hs_core::download`, `tool-editor::zip_dir` |
+| Rail labels on by default | Completed | `appearance.rail_labels = true` |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

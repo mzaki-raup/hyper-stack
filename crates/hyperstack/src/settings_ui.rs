@@ -702,7 +702,16 @@ fn accessibility(
             )
             .changed();
             ui.end_row();
+            form::label(ui, &s.t("settings-stt-max"));
+            changed |= ui
+                .add(
+                    egui::Slider::new(&mut settings.accessibility.stt_max_secs, 5..=600)
+                        .suffix(" s"),
+                )
+                .changed();
+            ui.end_row();
         });
+        form::hint(ui, theme, &s.t("settings-stt-max-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-motion"), |ui| {
         changed |= ui

@@ -258,9 +258,15 @@ the operating system's dictation engine runs in a child process
 (`hs_core::stt`; Windows Speech with its dictation grammar, one recognised
 phrase per stdout line) and each phrase is appended to the input box, so
 the user can read and edit before pressing Send. Nothing is sent to a
-model by the microphone. Settings → Accessibility → Speech to Text hides
-the toggle or sets the recogniser language; a platform without an engine
-never shows it. An engine error (no microphone, no recogniser for the
+model by the microphone. The engine listens continuously; the button
+shows a countdown and the session ends on its own after **Stop After**
+(Settings → Accessibility → Speech to Text, default 60 s). Stopping is
+graceful: the host writes `stop` to the engine's stdin, the engine
+finishes the phrase in flight, prints it and an end mark, and the panel
+keeps draining until the child has exited (a "Finishing…" state), so a
+phrase spoken just before Stop still lands. Settings → Accessibility →
+Speech to Text hides the toggle or sets the recogniser language; a
+platform without an engine never shows it. An engine error (no microphone, no recogniser for the
 language) is shown under the input for a few seconds.
 
 **Read Aloud** (Settings → Accessibility) lists the texts the active tab

@@ -712,6 +712,10 @@ enum CloseTarget {
     Project(usize),
 }
 
+/// The outcome of a folder ZIP written on a worker: the archive path and
+/// its file count, or the error; `None` while it is still running.
+type ZipSlot = std::sync::Arc<parking_lot::Mutex<Option<Result<(PathBuf, usize), String>>>>;
+
 pub struct EditorTool {
     projects: Vec<Project>,
     /// Index into `projects`; that project always has an open file.
@@ -725,6 +729,8 @@ pub struct EditorTool {
     tree: TreeState,
     watch: Option<Watch>,
 
+    /// A folder download in progress: the worker's outcome, once.
+    zip_result: Option<ZipSlot>,
     menu: Option<(PathBuf, egui::Pos2)>,
     prompt: Option<Prompt>,
     confirm_delete: Option<PathBuf>,
@@ -755,6 +761,7 @@ impl EditorTool {
             tree: TreeState::default(),
             watch: None,
             menu: None,
+            zip_result: None,
             prompt: None,
             confirm_delete: None,
             confirm_close: None,
@@ -1770,6 +1777,37 @@ impl EditorTool {
         }
     }
 
+    /// Zip a folder to a place the user picks. The archive is written on a
+    /// worker; the toast arrives through `zip_result` when it is done.
+    fn download_zip(&mut self, dir: &Path, cx: &mut ToolContext) {
+        let name = dir
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "folder".into());
+        let Some(target) = rfd::FileDialog::new()
+            .set_file_name(format!("{name}.zip"))
+            .add_filter("ZIP", &["zip"])
+            .save_file()
+        else {
+            return;
+        };
+        let slot = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        self.zip_result = Some(slot.clone());
+        let src = dir.to_path_buf();
+        let waker = cx.services.runtime.waker();
+        cx.toast(
+            ToastLevel::Info,
+            cx.services
+                .i18n
+                .t_args("editor-download-zipping", &[("name", &name)]),
+        );
+        std::thread::spawn(move || {
+            let result = zip_dir(&src, &target).map(|n| (target, n));
+            *slot.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
     fn context_menu(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let Some((path, pos)) = self.menu.clone() else {
             return;
@@ -1866,6 +1904,25 @@ impl EditorTool {
                         }
                     }
                     ui.separator();
+                    if is_dir {
+                        if item(ui, s.t("editor-download-zip")) {
+                            self.download_zip(&path, cx);
+                            close = true;
+                        }
+                    } else if item(ui, s.t("editor-download")) {
+                        match hs_core::download::save_copy(&path) {
+                            Ok(Some(to)) => cx.toast(
+                                ToastLevel::Success,
+                                s.i18n.t_args(
+                                    "download-saved",
+                                    &[("path", &to.display().to_string())],
+                                ),
+                            ),
+                            Ok(None) => {}
+                            Err(e) => cx.toast(ToastLevel::Error, e),
+                        }
+                        close = true;
+                    }
                     if item(ui, s.t("editor-copy-path")) {
                         ui.ctx().copy_text(path.to_string_lossy().to_string());
                         close = true;
@@ -2394,6 +2451,23 @@ impl Tool for EditorTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let zipped = self.zip_result.as_ref().and_then(|slot| slot.lock().take());
+        if let Some(result) = zipped {
+            self.zip_result = None;
+            match result {
+                Ok((path, n)) => cx.toast(
+                    ToastLevel::Success,
+                    cx.services.i18n.t_args(
+                        "editor-download-zipped",
+                        &[
+                            ("count", &n.to_string()),
+                            ("path", &path.display().to_string()),
+                        ],
+                    ),
+                ),
+                Err(e) => cx.toast(ToastLevel::Error, e),
+            }
+        }
         let s = cx.services;
         self.tab_id = cx.tab_id;
         let had_split = !self.split_off.is_empty();
@@ -3079,6 +3153,50 @@ fn reveal(path: &Path) {
     }
 }
 
+/// Write `dir` (recursively, `.git` skipped) as a deflate ZIP at `target`.
+/// Returns the number of files stored.
+pub fn zip_dir(dir: &Path, target: &Path) -> Result<usize, String> {
+    use std::io::Write;
+    let file = std::fs::File::create(target).map_err(|e| format!("{}: {e}", target.display()))?;
+    let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
+    let opts = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+    let base = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "folder".into());
+    let mut count = 0usize;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let mut entries: Vec<_> = std::fs::read_dir(&d)
+            .map_err(|e| format!("{}: {e}", d.display()))?
+            .flatten()
+            .collect();
+        entries.sort_by_key(|e| e.file_name());
+        for e in entries {
+            let p = e.path();
+            let rel = p.strip_prefix(dir).unwrap_or(&p);
+            let name = format!("{base}/{}", rel.to_string_lossy().replace('\\', "/"));
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n == ".git") {
+                    continue;
+                }
+                zip.add_directory(format!("{name}/"), opts)
+                    .map_err(|e| e.to_string())?;
+                stack.push(p);
+            } else if p.is_file() {
+                zip.start_file(name, opts).map_err(|e| e.to_string())?;
+                let bytes = std::fs::read(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+                zip.write_all(&bytes).map_err(|e| e.to_string())?;
+                count += 1;
+            }
+        }
+    }
+    zip.finish().map_err(|e| e.to_string())?;
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3170,5 +3288,36 @@ mod run_plan_tests {
         assert_eq!(cwd, Path::new("C:/x"));
         assert_eq!(cmd, "python C:/x/tool.py");
         assert!(run_plan(Path::new("C:/x/notes.txt"), None).is_none());
+    }
+}
+
+#[cfg(test)]
+mod zip_tests {
+    use super::zip_dir;
+
+    #[test]
+    fn a_folder_zips_recursively_without_its_git_dir() {
+        let dir = std::env::temp_dir().join(format!("hs-zip-{}", hs_core::new_id()));
+        std::fs::create_dir_all(dir.join("proj/src")).unwrap();
+        std::fs::create_dir_all(dir.join("proj/.git")).unwrap();
+        std::fs::write(dir.join("proj/README.md"), "# hi\n").unwrap();
+        std::fs::write(dir.join("proj/src/main.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(dir.join("proj/.git/HEAD"), "ref: refs/heads/main\n").unwrap();
+        let target = dir.join("proj.zip");
+        let n = zip_dir(&dir.join("proj"), &target).unwrap();
+        assert_eq!(n, 2);
+        let file = std::fs::File::open(&target).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let names: Vec<String> = (0..archive.len())
+            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            .collect();
+        assert!(names.contains(&"proj/README.md".to_string()));
+        assert!(names.contains(&"proj/src/main.rs".to_string()));
+        assert!(names.iter().all(|n| !n.contains(".git")));
+        let mut body = String::new();
+        std::io::Read::read_to_string(&mut archive.by_name("proj/src/main.rs").unwrap(), &mut body)
+            .unwrap();
+        assert_eq!(body, "fn main() {}\n");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

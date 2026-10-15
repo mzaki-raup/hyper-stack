@@ -23,6 +23,9 @@ Secret fields carry two helpers from `hs_ui::varpeek`:
   `{{name}}` with its value and a Copy button; vault secrets are masked
   until **Reveal**, and a locked vault is reported instead of a value.
 
+Every output box (`util::output`) has Copy and **Download…**, which saves
+the text as a `.json`, `.xml` or `.txt` file named after the box.
+
 Values are expanded when a utility runs (`Services::expand`: `{{}}`
 substitution through the environment chain, then `secret:<id>` resolution
 through the vault), so a Firebase service account, a PEM key or a Jasypt

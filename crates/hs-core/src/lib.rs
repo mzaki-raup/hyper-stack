@@ -17,6 +17,7 @@
 
 pub mod ai;
 pub mod connections;
+pub mod download;
 pub mod environments;
 pub mod events;
 pub mod fuzzy;

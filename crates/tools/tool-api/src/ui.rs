@@ -710,6 +710,9 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
     if let Some(text) = t.copy_pending.take() {
         ui.ctx().copy_text(text);
     }
+    if let Some((level, text)) = t.copy_pending_toast.take() {
+        cx.toast(level, text);
+    }
     // URL row.
     let vars: Vec<(String, String)> = {
         let mut v = s.environments.read().available_vars(None);
@@ -903,6 +906,31 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 t.request.body.kind = k;
                 let text = t.body_view.text();
                 t.body_view.set_text(&text, k);
+            }
+        }
+        if !matches!(t.request.body.kind, BodyKind::None | BodyKind::Binary)
+            && ui
+                .small_button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
+                .on_hover_text(s.t("api-body-download-tip"))
+                .clicked()
+        {
+            let ext = match t.request.body.kind {
+                BodyKind::Json => "json",
+                BodyKind::Xml => "xml",
+                _ => "txt",
+            };
+            let name = format!("{}.{ext}", hs_core::download::safe_name(&t.request.name));
+            let text = t.body_view.text();
+            match hs_core::download::save_bytes(&name, text.as_bytes()) {
+                Ok(Some(p)) => {
+                    t.copy_pending_toast = Some((
+                        ToastLevel::Success,
+                        s.i18n
+                            .t_args("download-saved", &[("path", &p.display().to_string())]),
+                    ))
+                }
+                Ok(None) => {}
+                Err(e) => t.copy_pending_toast = Some((ToastLevel::Error, e)),
             }
         }
         if matches!(t.request.body.kind, BodyKind::Json)

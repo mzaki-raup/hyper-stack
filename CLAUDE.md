@@ -655,6 +655,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   error ("An expression was expected after '('"); build the constructor
   without the parentheses when there are no arguments (`hs_core::stt`
   learned this from a stderr line that only said `At line:1 char:163`).
+- Synchronous `SpeechRecognitionEngine.Recognize()` cannot be interrupted:
+  a kill between "stop speaking" and the result loses the phrase. Use
+  `RecognizeAsync(Multiple)` with `Register-ObjectEvent` + `Wait-Event`,
+  a `ReadAsync` on stdin as the stop signal, and `RecognizeAsyncStop()`
+  before exiting, so the last phrase is printed first (`hs_core::stt`).
+- `egui::SelectableLabel` is gone in 0.35; `egui::Button::selectable(on,
+  text)` is the replacement, and it takes `add_enabled` like any button.
 - A recogniser error leaves its message on stderr in PowerShell's
   multi-line format; keep the first non-empty line for the UI and log the
   rest.

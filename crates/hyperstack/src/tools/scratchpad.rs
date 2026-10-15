@@ -512,6 +512,27 @@ impl Tool for Scratchpad {
             }
         }
         if ui
+            .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
+            .on_hover_text(s.t("scratchpad-download-tip"))
+            .clicked()
+        {
+            let name = format!(
+                "{}.md",
+                hs_core::download::safe_name(
+                    &title_of(&self.state.text).unwrap_or_else(|| "note".into())
+                )
+            );
+            match hs_core::download::save_bytes(&name, self.state.text.as_bytes()) {
+                Ok(Some(p)) => cx.toast(
+                    ToastLevel::Success,
+                    s.i18n
+                        .t_args("download-saved", &[("path", &p.display().to_string())]),
+                ),
+                Ok(None) => {}
+                Err(e) => cx.toast(ToastLevel::Error, e),
+            }
+        }
+        if ui
             .selectable_label(self.assistant.open, format!("{} AI", ph::SPARKLE))
             .on_hover_text(s.t("scratchpad-ai-tip"))
             .clicked()

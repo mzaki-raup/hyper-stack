@@ -104,6 +104,8 @@ pub struct ApiTool {
     pub(crate) sent_title: String,
     /// Text to copy on the next frame (commands have no `egui::Context`).
     pub(crate) copy_pending: Option<String>,
+    /// A toast raised by a UI helper that had no `ToolContext`.
+    pub(crate) copy_pending_toast: Option<(ToastLevel, String)>,
     pub(crate) assistant: hs_ui::ai_assistant::AssistantPanel,
     /// What the assistant's context was last built from, so the (long)
     /// context and schema strings are rebuilt only when something changed.
@@ -177,6 +179,7 @@ impl ApiTool {
             show_history: false,
             sent_title: String::new(),
             copy_pending: None,
+            copy_pending_toast: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             assistant_key: None,
             state,

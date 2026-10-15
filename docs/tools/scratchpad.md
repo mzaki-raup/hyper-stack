@@ -34,7 +34,8 @@ saved travels in the layout as a draft.
   tab per note**, and an empty new tab takes the first note opened into
   it.
 - **Toolbar**: Source only / Source and preview / Preview only, Save, the
-  pin toggle for the open note, **AI**, and the save state.
+  pin toggle for the open note, **Download…** (the note as a `.md` file
+  named after its title), **AI**, and the save state.
 - **Tab**: source on the left (monospace editor), the rendered preview on
   the right (`hs_editor::markdown::render`: headings, lists, `- [ ]`
   checklists, tables, code, Mermaid diagrams), split by a draggable

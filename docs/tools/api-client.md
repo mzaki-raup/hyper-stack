@@ -27,6 +27,8 @@
   `console`. A Snippets menu inserts the common patterns. Results show in
   the response's Tests and Console tabs; variable changes are saved where
   they belong.
+- **Download**: the request body (JSON, XML or text) saves to a file from
+  the Body tab; the response body has Save…
 - **Response**: status, time, size, HTTP version, remote address; body as
   Pretty (highlighted JSON/XML/HTML/text), Raw, or Preview (pictures as
   pictures, HTML as sanitised text); headers; cookies; Save…, Copy.

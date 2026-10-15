@@ -303,7 +303,9 @@ fn action_card(
 fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub) {
     section_title(ui, theme, &s.t("home-workspaces"));
     let current = s.workspace.read().meta.name.clone();
+    let workspaces_dir = s.paths.workspaces_dir();
     ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
         for name in hub.workspaces.clone() {
             let selected = name == current;
             let fill = if selected {
@@ -311,31 +313,89 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
             } else {
                 theme.surface
             };
-            let text = format!("{}  {name}", hs_ui::icons::WORKSPACE);
-            if hs_ui::badge::badge_button(ui, &text, fill, theme.text)
-                .on_hover_text(if selected {
+            // The workspace's own logo when it has one, else the folder.
+            let logo = hs_core::workspace::workspace_icon_file(&workspaces_dir.join(&name))
+                .and_then(|p| crate::app::logo_image(&p));
+            let r =
+                workspace_card(ui, theme, &name, logo, fill, selected).on_hover_text(if selected {
                     s.t("home-workspace-current")
                 } else {
                     s.t("home-workspace-switch")
-                })
-                .clicked()
-                && !selected
-            {
+                });
+            if r.clicked() && !selected {
                 hub.requests.push(HomeRequest::SwitchWorkspace(name));
             }
         }
-        if hs_ui::badge::badge_button(
-            ui,
-            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("workspace-new")),
-            theme.surface,
-            theme.text_muted,
-        )
-        .clicked()
+        if workspace_card(ui, theme, &s.t("workspace-new"), None, theme.surface, false)
+            .on_hover_text(s.t("home-new-workspace-tip"))
+            .clicked()
         {
             hub.requests.push(HomeRequest::NewWorkspace);
         }
     });
     ui.add_space(8.0);
+}
+
+/// One workspace in the list: a 26 px logo (or the folder glyph) and the
+/// name at 15 px on a pill that highlights the open workspace.
+fn workspace_card(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    name: &str,
+    logo: Option<egui::Image<'static>>,
+    fill: egui::Color32,
+    selected: bool,
+) -> egui::Response {
+    let icon_px = 26.0;
+    let resp = egui::Frame::new()
+        .fill(fill)
+        .stroke(egui::Stroke::new(
+            1.0,
+            if selected { theme.accent } else { theme.border },
+        ))
+        .corner_radius(egui::CornerRadius::same(8))
+        .inner_margin(egui::Margin::symmetric(14, 9))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                match logo {
+                    Some(img) => {
+                        ui.add(
+                            img.fit_to_exact_size(egui::vec2(icon_px, icon_px))
+                                .corner_radius(4.0),
+                        );
+                    }
+                    None => {
+                        ui.label(
+                            egui::RichText::new(hs_ui::icons::WORKSPACE)
+                                .size(icon_px * 0.85)
+                                .color(if selected {
+                                    theme.text
+                                } else {
+                                    theme.text_muted
+                                }),
+                        );
+                    }
+                }
+                ui.label(
+                    egui::RichText::new(name)
+                        .size(15.0)
+                        .strong()
+                        .color(theme.text),
+                );
+            });
+        })
+        .response;
+    let resp = resp.interact(egui::Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_stroke(
+            resp.rect,
+            egui::CornerRadius::same(8),
+            egui::Stroke::new(1.0, theme.accent),
+            egui::StrokeKind::Outside,
+        );
+    }
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
 fn keys(ui: &mut egui::Ui, theme: &Theme, s: &Services) {

@@ -523,7 +523,7 @@ impl Drop for AssistantPanel {
         if let Some(r) = self.running.take() {
             r.abort.abort();
         }
-        self.stt.stop();
+        self.stt.abort();
     }
 }
 

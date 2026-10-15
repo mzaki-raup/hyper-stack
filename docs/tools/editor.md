@@ -2,6 +2,13 @@
 
 **Crates:** `hs-editor` (engine + widget) and `tool-editor` (tab, project tree, VFS) · **Priority:** P0 · **Status:** v1 implemented in M1 (local files, Markdown preview with native Mermaid flowcharts and sequence diagrams; no VFS/diff/minimap yet)
 
+## 0a. Download (2026-10-15)
+
+The project tree's context menu offers **Download…** for a file (a copy
+to a place the user picks) and **Download as ZIP…** for a folder: the
+archive is written on a worker thread (`zip_dir`, deflate, `.git`
+skipped) and a toast reports the file count and path when it is done.
+
 ## 1. Purpose
 
 A lightweight editor for the files developers and operators actually touch

@@ -11,7 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Dictation: stopping no longer loses the phrase being recognised. The engine runs in continuous mode and a stop (the button, or the host closing) finishes the phrase in flight and drains it before exiting; the session also ends on its own after Settings → Accessibility → Speech to Text → Stop After (default 60 s) and the countdown shows beside the button.
+- Home: the workspace list uses larger cards (26 px icon, 15 px name) and shows a workspace's own logo when one is set, the folder glyph otherwise.
+- Download…: a file or a folder (as a ZIP, written on a worker, `.git` skipped) from the editor's project tree, the open note in the Scratchpad, the request body in the API client, and every output box in Devtools (JWT, Jasypt, PKI, Base64, …). The response body, database cells and decoded Base64 already had Save.
+- Activity rail: tool names under the icons are on by default for a fresh settings file.
 
 ## 0.21.0 — 2026-10-15
 

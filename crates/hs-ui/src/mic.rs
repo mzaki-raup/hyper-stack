@@ -10,7 +10,7 @@ use crate::theme::Theme;
 use crate::tip::TipExt;
 
 /// Draw the toggle (when the setting allows it and an engine exists) and
-/// move what was heard into `input`. Returns an error to toast, if the
+/// move what was heard into `input`. Returns an error to show, if the
 /// engine stopped on its own.
 pub fn mic_button(
     ui: &mut egui::Ui,
@@ -19,41 +19,56 @@ pub fn mic_button(
     stt: &Stt,
     input: &mut String,
 ) -> Option<String> {
-    let (enabled, language) = {
+    let (enabled, language, max_secs) = {
         let a = &s.settings.read().accessibility;
-        (a.stt_enabled, a.stt_language.clone())
+        (a.stt_enabled, a.stt_language.clone(), a.stt_max_secs)
     };
     if !enabled || !Stt::available() {
         return None;
     }
     let listening = stt.is_listening();
+    let active = stt.is_active();
     let mut error = None;
     let label = if listening {
-        egui::RichText::new(format!("{} {}", ph::MICROPHONE, s.t("ai-listening")))
-            .color(theme.error)
+        let left = stt.remaining_secs().unwrap_or(0);
+        egui::RichText::new(format!(
+            "{} {} {left}s",
+            ph::MICROPHONE,
+            s.t("ai-listening")
+        ))
+        .color(theme.error)
+    } else if active {
+        egui::RichText::new(format!("{} {}", ph::MICROPHONE, s.t("ai-mic-finishing")))
+            .color(theme.text_muted)
     } else {
         egui::RichText::new(ph::MICROPHONE_SLASH).color(theme.text_muted)
     };
-    let r = ui.selectable_label(listening, label).tip(s.t(if listening {
-        "ai-mic-stop-tip"
-    } else {
-        "ai-mic-tip"
-    }));
+    let r = ui
+        .add_enabled(
+            listening || !active,
+            egui::Button::selectable(listening, label),
+        )
+        .tip(s.t(if listening {
+            "ai-mic-stop-tip"
+        } else {
+            "ai-mic-tip"
+        }));
     if r.clicked() {
         if listening {
             stt.stop();
-        } else if let Err(e) = stt.start(&language) {
+        } else if let Err(e) = stt.start(&language, max_secs) {
             error = Some(e);
         }
     }
-    if listening {
+    if active {
+        // Phrases arrive from a thread (also while a stop drains the last
+        // one); poll until the session is reaped.
         for phrase in stt.take_heard() {
             if !input.is_empty() && !input.ends_with(char::is_whitespace) {
                 input.push(' ');
             }
             input.push_str(&phrase);
         }
-        // Phrases arrive from a thread; poll while listening.
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(150));
     }

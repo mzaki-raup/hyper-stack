@@ -64,6 +64,9 @@ pub struct Accessibility {
     pub stt_enabled: bool,
     /// Recogniser culture such as `en-US`; empty = the engine's default.
     pub stt_language: String,
+    /// A listening session ends on its own after this many seconds
+    /// (5–600), so a forgotten microphone does not stay open.
+    pub stt_max_secs: u32,
 }
 
 impl Default for Accessibility {
@@ -74,6 +77,7 @@ impl Default for Accessibility {
             reduce_motion: false,
             stt_enabled: true,
             stt_language: String::new(),
+            stt_max_secs: 60,
         }
     }
 }
@@ -300,7 +304,7 @@ impl Default for Appearance {
             sidebar_width: 260.0,
             dock_height: 220.0,
             ui_zoom: 1.0,
-            rail_labels: false,
+            rail_labels: true,
             rail_order: Vec::new(),
         }
     }

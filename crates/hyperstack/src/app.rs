@@ -75,7 +75,7 @@ pub(crate) fn logo_image(path: &std::path::Path) -> Option<egui::Image<'static>>
 }
 
 /// The workspace logo image for a workspace folder, if it has one.
-fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'static>> {
+pub(crate) fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'static>> {
     logo_image(&hs_core::workspace::workspace_icon_file(root)?)
 }
 
@@ -1226,6 +1226,13 @@ impl HyperStackApp {
                     self.toasts
                         .push(ToastLevel::Success, self.services.t("toast-saved"));
                 }
+                SettingsEffect::DeleteWorkspace => {
+                    let name = self.services.workspace.read().meta.name.clone();
+                    self.workspace_dialog = WorkspaceDialog::ConfirmDelete {
+                        name,
+                        delete_files: true,
+                    };
+                }
                 SettingsEffect::RenameWorkspace(name) => {
                     let old_name = self.services.workspace.read().meta.name.clone();
                     let result = self.registry.rename_open(
@@ -1488,12 +1495,37 @@ impl HyperStackApp {
     }
 
     fn delete_workspace(&mut self, name: &str, delete_files: bool) {
+        let remaining: Vec<String> = self
+            .registry
+            .names()
+            .into_iter()
+            .filter(|n| n != name)
+            .collect();
+        let Some(next) = remaining.first().cloned() else {
+            self.toasts
+                .push(ToastLevel::Error, self.services.t("workspace-delete-last"));
+            return;
+        };
         let switch_away = self.services.workspace.read().meta.name == name;
         if switch_away {
             self.save_layout();
-            let _ = bootstrap::switch_workspace(&self.services, &mut self.registry, "default");
+            if let Err(e) = bootstrap::switch_workspace(&self.services, &mut self.registry, &next) {
+                self.toasts.push(ToastLevel::Error, e);
+                return;
+            }
             self.tabs = TabSpace::new();
             self.restore_layout();
+        }
+        // A startup preference pointing at the deleted workspace would
+        // fail at the next launch; the registry's own fallback takes over.
+        if self.services.settings.read().general.startup_workspace == name {
+            self.services
+                .settings
+                .write()
+                .general
+                .startup_workspace
+                .clear();
+            let _ = self.services.save_settings();
         }
         match self
             .registry
@@ -1646,6 +1678,8 @@ impl HyperStackApp {
                                 .iter()
                                 .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
                                 .collect();
+                            // One workspace must always remain.
+                            let can_delete = rows.len() > 1;
                             for (n, root) in rows {
                                 ui.horizontal(|ui| {
                                     match ws_logo_image(&root) {
@@ -1663,7 +1697,7 @@ impl HyperStackApp {
                                             id: format!("ws:{n}"),
                                         });
                                     }
-                                    if n != "default" {
+                                    if can_delete {
                                         ui.with_layout(
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
@@ -2910,9 +2944,6 @@ impl eframe::App for HyperStackApp {
                 .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone()))
                 .collect();
             hub.workspaces = self.registry.names();
-            if !hub.workspaces.iter().any(|n| n == "default") {
-                hub.workspaces.insert(0, "default".into());
-            }
         }
         egui::CentralPanel::default().show(root, |ui| self.main_area(ui));
         let home_requests = std::mem::take(&mut self.home.lock().requests);

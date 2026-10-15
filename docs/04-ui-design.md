@@ -237,6 +237,11 @@ Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):
 Tool-specific maps live in each tool spec. Conflicts are shown in the
 shortcuts page.
 
+The workspace switcher shows each workspace with its own logo (the
+folder glyph when none is set) and a trash icon on every row while more
+than one workspace exists; the same logo appears on the Home cards and
+beside the Compare With list in Settings → Workspace.
+
 Every control on the right of the title bar is the same 38 px square
 (`hs_ui::form::icon_button`; the two menus use `icon_menu`, which opens an
 `egui::Popup::menu` on that same square), so the row keeps one rhythm

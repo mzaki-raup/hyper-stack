@@ -173,4 +173,5 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Home workspace cards larger with the workspace logo | Completed | `home::workspace_card` |
 | Download for editor files/folders (ZIP), notes, API bodies, devtools outputs | Completed | `hs_core::download`, `tool-editor::zip_dir` |
 | Rail labels on by default | Completed | `appearance.rail_labels = true` |
+| Delete any workspace (default included) with its data, one must remain; logos wherever a workspace is named | Completed | `Registry::remove`/`startup_name`, switcher, Settings → Workspace |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

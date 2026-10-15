@@ -346,6 +346,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   and a re-run would have planned nothing. The publish step now retries
   fetch-or-create, and the plan step passes an unpublished newest tag to
   `next-release.ps1 -Republish` so the next push to `main` publishes it.
+- The release job can die in `cargo test` with `rustc-LLVM ERROR: out of
+  memory` / `STATUS_ILLEGAL_INSTRUCTION` (run 79, 2026-10-15) when the
+  development machine is busy: the runner is this machine, and the test
+  build compiles every crate's test binary in parallel. Nothing is bumped,
+  tagged or published before that step, so the fix is to re-run the job
+  from the Actions page (or push a `docs:` commit, which re-plans the same
+  version); check nothing heavy is running locally first. A failing CI on
+  the same commit minutes earlier would mean a real error instead.
 - A PowerShell step with a non-terminating error carries on and the job goes
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every

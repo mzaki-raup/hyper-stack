@@ -55,8 +55,10 @@ Command Prompt and Git Bash),
 `devtools-pki.png`, `api-client.png`, `api-client-scripts.png`,
 `api-client-ai.png` (an `hs-api` action block with Apply, answered by a
 local mock model), `graphics.png`, `graphics-ops.png`, `graphics-crop.png`
-(the crop placeholder), `scratchpad.png`, `scratchpad-ai.png` and
-`browser.png` were captured on
+(the crop placeholder), `scratchpad.png`, `scratchpad-ai.png`,
+`ai-dictation.png` (the microphone toggle listening in the API client's
+assistant; the phrase was played through the speakers with Read Aloud,
+hence the garbled words) and `browser.png` were captured on
 Windows 11 from the debug build with the harness in
 `scripts/gui-smoke.ps1` (`start`, `keys`, `click`, `shot`): `Start-Process
 HyperStack.exe --data-dir <scratch>`, `SetProcessDPIAware`, the window

@@ -167,4 +167,6 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Scratchpad: notes collection with sidebar list, pinning, one tab per note, dual pane, AI assistant | Completed | `docs/tools/scratchpad.md` |
 | API client assistant that fills the client (collections, requests, fields, scripts, docs) | Completed | `tool-api::assist`, `hs-api` blocks with Apply; `api_tests.rs` |
 | Performance pass over the new code | Completed | per-frame digests/verification/parsing cached; assistant context rebuilt on change |
+| Graphics: crop placeholder resizes from every edge/corner; live Adjust sliders; Grayscale/Invert toggles | Completed | press-origin grip test, preview layer, `fix/graphics-crop-live-adjust` |
+| Speech to text toggle in every AI assistant (offline Windows Speech) | Completed | `hs_core::stt`, `hs_ui::mic`; macOS/Linux engines pending |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

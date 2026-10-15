@@ -9,6 +9,7 @@ pub mod fonts;
 pub mod form;
 pub mod icons;
 pub mod kv_editor;
+pub mod mic;
 pub mod palette;
 pub mod split;
 pub mod table;

@@ -48,8 +48,9 @@ impl Default for Browser {
     }
 }
 
-/// Settings → Accessibility. Everything off by default.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+/// Settings → Accessibility. Read Aloud and reduced motion are off by
+/// default; the assistants' microphone is on wherever an engine exists.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Accessibility {
     /// Show the Read Aloud button in the title bar.
@@ -58,6 +59,23 @@ pub struct Accessibility {
     pub tts_rate: i32,
     /// Skip toast slide and spinner animation.
     pub reduce_motion: bool,
+    /// Show the microphone toggle in the AI assistants (speech to text
+    /// through the operating system's dictation engine).
+    pub stt_enabled: bool,
+    /// Recogniser culture such as `en-US`; empty = the engine's default.
+    pub stt_language: String,
+}
+
+impl Default for Accessibility {
+    fn default() -> Self {
+        Self {
+            tts_enabled: false,
+            tts_rate: 0,
+            reduce_motion: false,
+            stt_enabled: true,
+            stt_language: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

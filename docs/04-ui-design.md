@@ -252,6 +252,17 @@ its highlighting, the Markdown preview with Mermaid, a query with its
 result table, a console screen, an S3 listing, a request with its
 response, a picture), wraps it in a page with a Light/Dark switch and a
 Print button, writes it under `HyperStackData/tmp/` and opens the browser.
+**Speech to text** is the other direction: every AI assistant has a
+microphone toggle beside Send (`hs_ui::mic::mic_button`). While it is on,
+the operating system's dictation engine runs in a child process
+(`hs_core::stt`; Windows Speech with its dictation grammar, one recognised
+phrase per stdout line) and each phrase is appended to the input box, so
+the user can read and edit before pressing Send. Nothing is sent to a
+model by the microphone. Settings → Accessibility → Speech to Text hides
+the toggle or sets the recogniser language; a platform without an engine
+never shows it. An engine error (no microphone, no recogniser for the
+language) is shown under the input for a few seconds.
+
 **Read Aloud** (Settings → Accessibility) lists the texts the active tab
 offers (`Tool::speakable`: selection, file, screen, cell, query, the
 assistant's last answer) and reads one through the operating system's

@@ -34,6 +34,7 @@ pub mod settings;
 pub mod shortcuts;
 pub mod sniff;
 pub mod storage;
+pub mod stt;
 pub mod tool;
 pub mod tts;
 pub mod tunnels;

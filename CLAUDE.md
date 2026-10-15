@@ -26,7 +26,9 @@ have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
 per-workspace collection of Markdown notes (sidebar list, pinning, one tab
-per note, source + preview, assistant).** The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
+per note, source + preview, assistant); every assistant has a microphone
+toggle (`hs_core::stt`, offline Windows Speech, typed into the input).**
+The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
@@ -649,6 +651,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   real terminal in M1.
 
 ### PowerShell scripts
+- `New-Object Some.Type()` with *empty* parentheses is a PowerShell parse
+  error ("An expression was expected after '('"); build the constructor
+  without the parentheses when there are no arguments (`hs_core::stt`
+  learned this from a stderr line that only said `At line:1 char:163`).
+- A recogniser error leaves its message on stderr in PowerShell's
+  multi-line format; keep the first non-empty line for the UI and log the
+  rest.
 - `"... $LASTEXITCODE: $x"` does not parse: a colon right after a variable name
   is read as a scope/drive prefix (`$env:`). Write `${LASTEXITCODE}:` inside
   strings. `ci.yml` parse-checks every script so this is caught before a

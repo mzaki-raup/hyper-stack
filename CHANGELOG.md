@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- AI assistants: a **microphone toggle** beside Send in every assistant (editor, Terminal, SSH, SQL, S3, API client, Graphics, Scratchpad). Speech to text runs through the operating system's own dictation engine (`hs_core::stt`, Windows Speech in a PowerShell child, nothing leaves the machine); recognised phrases are typed into the input box and nothing is sent until Send. Settings → Accessibility → Speech to Text turns it off or sets the language; platforms without an engine hide the button.
 
 ## 0.20.1 — 2026-10-15
 

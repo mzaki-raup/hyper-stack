@@ -108,6 +108,10 @@ pub struct AssistantPanel {
     turns: Vec<(Role, String)>,
     running: Option<Running>,
     focus_input: bool,
+    /// Speech to text for the input box (the microphone toggle).
+    stt: hs_core::stt::Stt,
+    /// A microphone error, shown under the input for a few seconds.
+    notice: Option<(String, std::time::Instant)>,
 }
 
 impl AssistantPanel {
@@ -365,7 +369,22 @@ impl AssistantPanel {
                     } else if crate::form::primary_button(ui, theme, &s.t("ai-send")).clicked() {
                         send = true;
                     }
+                    if let Some(e) =
+                        crate::mic::mic_button(ui, theme, s, &self.stt, &mut self.input)
+                    {
+                        self.notice = Some((e, std::time::Instant::now()));
+                    }
                 });
+                if let Some((text, at)) = &self.notice {
+                    if at.elapsed() > std::time::Duration::from_secs(8) {
+                        self.notice = None;
+                    } else {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(text).color(theme.error).small())
+                                .wrap(),
+                        );
+                    }
+                }
             });
         if send && self.running.is_none() {
             self.send(s);
@@ -504,6 +523,7 @@ impl Drop for AssistantPanel {
         if let Some(r) = self.running.take() {
             r.abort.abort();
         }
+        self.stt.stop();
     }
 }
 

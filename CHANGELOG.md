@@ -11,35 +11,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Home: a pinned dashboard tab first in every workspace (Get Started cards, workspaces, tools, recently closed tabs, pinned connections, keys); replaces the Welcome tab and Settings → Welcome.
-- Appearance: System / Dark / Light mode with a dark and a light scheme; the choice is pinned into both egui theme slots so it survives a restart on Windows 10; clicking a palette swatch selects the scheme for its mode; activity rail order and optional labels; the sidebar toggle and Settings sit at the bottom of the rail.
-- Accessibility (new settings page): Read Aloud through the operating system's voice with a title-bar button that lists what the active tab can read (selection, file, terminal screen, table cell, query, the assistant's last answer); speech rate; reduce motion.
-- General: export and import settings and shortcuts as one TOML bundle after confirming the master password (providers merged by id, no secrets).
-- Workspace settings: compare environments with another workspace and copy the missing ones either way.
-- AI assistant: fenced blocks in answers get Copy and Insert; Insert types into the terminal or SSH shell, or into the SQL editor and the API client's body or script, without running anything. The API client and the graphics tool have the assistant too.
-- Editor: full path of the active file under the file tabs (click copies); **Run** (F5) opens a terminal and runs the file or the project (Cargo, npm, Go, Gradle, Maven, .NET, Make, or the interpreter for the file type); pictures in the project tree open in the Graphics tool.
-- Database: the cell viewer shows pictures as pictures and text as text, names documents (PDF, ZIP/Office, …) and can save the bytes; the hex dump stays available.
-- Snip (Ctrl+Alt+S): the tab or the window as a PNG, copied and saved. Print… (Ctrl+Alt+P): HTML export of code, Markdown preview (Mermaid), query and result table, console screen, S3 listing, request and response, picture; opens in the browser with a Light/Dark switch for paper or PDF.
-- Devtools (new tool): Base64 with auto-detect and picture/text/document preview, data URI and Basic auth header; hashes/HMAC table with compare; JWT decode, verify and sign (HS*, RS*, ES256); Firebase custom, access and ID tokens from a service account; Jasypt (`PBEWithMD5AndDES`, `PBEWITHHMACSHA512ANDAES_256`, `ENC(…)`) and the legacy DES/AES/MD5 DataEncryptor; the gateway's PKI message flow (SHA256withRSA + AES-256-GCM).
-- API client (new tool): requests with params, headers, bodies (JSON, text, XML, form, multipart, binary), auth (inherit, basic, bearer, API key); collections and folders as JSON in the workspace; `{{variables}}` from collection, environment (vault secrets at send time) and globals; pre-request and post-response **JavaScript** with the `pm` API (environment/globals/collectionVariables/variables, request, response, test, expect, console) on Boa; collection libraries and snippets; Postman v2.1 collection and environment import, Postman export; curl import and Copy as curl; history; protected-environment confirmation; response body pretty/raw/preview, headers, cookies, tests, console.
-- Graphics (new tool): open pictures from the editor or a dialog; resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen as a removable operation list; convert between PNG, JPEG, WebP, BMP, GIF and ICO; icon frame extraction and multi-size ICO export.
-- Browser (new tool, Windows): WebView2 pages in multi-row tabs with an address bar, back/forward/reload/home, per-page ad and tracker blocking (bundled blocklist plus Settings → Browser, cosmetic hiding), JavaScript switch, forced dark rendering, zoom, Inspect, Print, Clear Browsing Data; pages restored per workspace; Shift+click on a terminal link opens it here.
-- Shell: the status bar counts work tabs only; the terminal can be opened with a command to type.
-- Terminal: Nushell is detected (PATH, the MSI/winget install, `cargo install`, scoop) and listed between Command Prompt and Git Bash in the shell list and the dropdown.
-- Devtools: one tab per utility (the sidebar opens or focuses it), inputs come back after a restart, and a typed key, password or service account can be moved into the vault with **Save to Environment…**, which leaves a `{{name}}` reference behind; every field expands `{{variables}}` (vault secrets included) when it runs.
-- Variable peek: any field that holds a `{{variable}}` (devtools, the API client URL) gets an eye button that lists each reference's value with Copy; vault secrets stay masked until Reveal.
-- Shell: tool state that changes without a tab-strip change (a devtools field, an API draft) is written to `layout.json` within a few seconds, so a crash or a forced stop loses little.
-- Build: the browser host enables wry's `devtools` feature, so **Inspect** compiles in release builds too (the CI release build failed on `open_devtools`).
-- Tests: the editor project-tab test builds its expected paths from the canonical temp folder, so it passes on the CI runner whose `%TEMP%` is spelled `C:\WINDOWS\SystemTemp`.
+- (nothing yet)
 
-- AI: shared review-only assistant in Terminal, SSH, SQL and S3, with per-tool context previews and explicit send; no commands or data-changing actions are executed. API client is not implemented yet.
-- Screenshots: marked the current screenshot set as predating the new AI panels; recapture requires the desktop/Xvfb fixture environment.
-- Git view in the editor (read-only, via the installed `git`): the project root shows the branch with ahead/behind, changed files carry coloured letters and folders with changes a dot; a **Source Control** switch in the sidebar (Ctrl+Shift+G) lists conflicts, staged, changed and untracked files; clicking one shows its diff inline or side by side (Up/Down to step, Esc to go back); **History** (Ctrl+Shift+H) lists commits with branch and tag chips and shows each commit's message, files and diffs; the gutter marks added, modified and removed lines while you type. Status refreshes on file and `.git` changes. New crate `hs-git`.
-- Editor: one window tab per project. Each opened folder is its own tab titled with the folder name, and inside it the project's open files are a second, multi-row strip of file tabs (close, reorder, Close Others / to the Left / to the Right, Copy Path, + for a new file). Files from outside the projects collect in an Other Files tab. This replaces Settings → Editor → Open Files In (Separate Tabs / Project Rows); a tab saved with several projects reopens them as separate tabs.
-- Workspace: selected logo appears beside the workspace name; the Workspace settings page can rename workspaces and update/remove their logos after creation. Renaming also repairs the registry's last-opened marker.
-- Settings: one pinned Settings tab is kept open in each workspace without stealing focus from a restored work tab; the old Welcome tab is now Settings → Welcome. Added clickable colour-scheme swatches and a configurable minimum width for editor file tabs.
-- Editor: opening an existing project root focuses its existing tab, including normalized Windows paths. Encoding choices now distinguish UTF-16 LE/BE with and without BOM; clean files can be re-opened with an explicitly selected encoding.
-- Shell: Quick Open no longer closes on its opening click. The notification bell opens retained notification history, dismisses on outside click, and has Clear All instead of opening the bottom dock; the app logo is shown beside HyperStack.
+## 0.19.0 — 2026-10-15
+
+### Added
+
+- Per-utility tabs, persisted inputs, secrets to the environment vault, variable peek; Nushell in the terminal (8f4a3b51)
+- Run (F5) for files and projects; API client AI assistant; docs, screenshots and harness for the 2026-10-15 work (41731182)
+- Embedded browser tool with WebView2 pages, ad and script blocking, forced dark mode, devtools and print (2f5c3b83)
+- Devtools (JWT, Jasypt, PKI messages, hashes, Base64, Firebase tokens), API client with Postman import/export and JavaScript scripts, Graphics tool, Snip and Print (0423b966)
+- Home tab, theme mode, rail order and labels, Read Aloud, settings import/export, AI Insert, DB binary preview (9824cee4)
+- Workspace logo in the switcher, pinned Settings tab with Welcome page, notification history, Quick Open fix, editor encodings, review-only AI assistant in Terminal, SSH, SQL and S3 (b5073a50)
+
+### Fixed
+
+- Enable wry's devtools feature so Inspect compiles in release builds (90f079fc)
+- Build the editor project-tab test's expected paths from the canonical temp folder (3c8bf729)
 
 ## 0.18.0 — 2026-10-12
 

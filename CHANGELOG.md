@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Editor: language features through an installed language server (new `hs-lsp` crate, ADR-023): completion as you type or on Ctrl+Space with documentation, hover (mouse or Ctrl+Shift+Space), diagnostics as wavy underlines with a Problems panel (Ctrl+Shift+J) and counts in the status bar, go to definition (F12, Ctrl+click), references (Shift+F12), rename symbol (F2) and format document (Shift+Alt+F). Servers are found on PATH (rust-analyzer, typescript-language-server, pyright, gopls, clangd, jdtls, yaml/json/html/css servers, taplo, bash-language-server, …); Settings → Editor → Language Servers shows which are installed, how to install the missing ones, and lets any language use another stdio server.
+- (nothing yet)
+
+## 0.24.0 — 2026-10-15
+
+### Added
+
+- Language server client: completion, hover, diagnostics, definition, references, rename, format (c0c38761)
 
 ## 0.23.0 — 2026-10-15
 

@@ -104,6 +104,13 @@ pub struct GraphicsTool {
     current: Option<DynamicImage>,
     texture: Option<egui::TextureHandle>,
     dirty: bool,
+    /// The picture after the committed operations; the Adjust sliders are
+    /// previewed on top of it without re-running the whole list.
+    base: Option<DynamicImage>,
+    /// A slider moved: re-render the preview layer (debounced a little so
+    /// a blur does not run on every pointer event).
+    preview_dirty: bool,
+    preview_at: Option<std::time::Instant>,
     zoom: f32,
     format: Format,
     quality: u8,
@@ -128,6 +135,9 @@ impl Default for GraphicsTool {
             current: None,
             texture: None,
             dirty: false,
+            base: None,
+            preview_dirty: false,
+            preview_at: None,
             zoom: 0.0,
             format: Format::Png,
             quality: 90,
@@ -135,8 +145,8 @@ impl Default for GraphicsTool {
                 keep_aspect: true,
                 scale: 2.0,
                 extend_colour: [255, 255, 255, 255],
-                blur: 1.5,
-                sharpen: 1.0,
+                blur: 0.0,
+                sharpen: 0.0,
                 ico_sizes: [true, false, true, true, false, false, true],
                 ..Default::default()
             },
@@ -181,15 +191,87 @@ impl GraphicsTool {
         self.dirty = true;
     }
 
-    fn refresh(&mut self, ctx: &egui::Context) {
-        if !self.dirty {
+    /// The Adjust sliders that are not at their neutral value, as the
+    /// operations they would commit, in panel order.
+    fn pending_ops(&self) -> Vec<Op> {
+        let c = &self.controls;
+        let mut out = Vec::new();
+        if c.brightness != 0 {
+            out.push(Op::Brightness {
+                value: c.brightness,
+            });
+        }
+        if c.contrast != 0.0 {
+            out.push(Op::Contrast { value: c.contrast });
+        }
+        if c.hue != 0 {
+            out.push(Op::Hue { degrees: c.hue });
+        }
+        if c.saturation != 0.0 {
+            out.push(Op::Saturation {
+                value: c.saturation,
+            });
+        }
+        if c.blur > 0.0 {
+            out.push(Op::Blur { sigma: c.blur });
+        }
+        if c.sharpen > 0.0 {
+            out.push(Op::Sharpen {
+                sigma: c.sharpen,
+                threshold: 2,
+            });
+        }
+        out
+    }
+
+    /// Turn the live slider preview into committed operations.
+    fn commit_pending(&mut self) {
+        let pending = self.pending_ops();
+        if pending.is_empty() {
             return;
         }
-        self.dirty = false;
-        let Some(orig) = &self.original else {
+        self.ops.extend(pending);
+        let c = &mut self.controls;
+        c.brightness = 0;
+        c.contrast = 0.0;
+        c.hue = 0;
+        c.saturation = 0.0;
+        c.blur = 0.0;
+        c.sharpen = 0.0;
+        self.dirty = true;
+    }
+
+    /// A slider moved: show it on the picture shortly.
+    fn preview_changed(&mut self) {
+        self.preview_dirty = true;
+        self.preview_at = Some(std::time::Instant::now());
+    }
+
+    fn refresh(&mut self, ctx: &egui::Context) {
+        const SETTLE: std::time::Duration = std::time::Duration::from_millis(60);
+        if self.dirty {
+            self.dirty = false;
+            self.base = self.original.as_ref().map(|o| ops::apply_all(o, &self.ops));
+            self.preview_dirty = true;
+            self.preview_at = None;
+        }
+        if !self.preview_dirty {
+            return;
+        }
+        if let Some(at) = self.preview_at {
+            let since = at.elapsed();
+            if since < SETTLE {
+                ctx.request_repaint_after(SETTLE - since);
+                return;
+            }
+        }
+        self.preview_dirty = false;
+        let Some(base) = &self.base else {
+            self.current = None;
+            self.texture = None;
             return;
         };
-        let img = ops::apply_all(orig, &self.ops);
+        let img = ops::apply_all(base, &self.pending_ops());
         let rgba = img.to_rgba8();
         let (w, h) = rgba.dimensions();
         let colour =
@@ -199,10 +281,17 @@ impl GraphicsTool {
             colour,
             egui::TextureOptions::LINEAR,
         ));
-        if let Some((w, h)) = Some(img.dimensions()) {
-            self.controls.width = w;
-            self.controls.height = h;
-        }
+        self.controls.width = w;
+        self.controls.height = h;
+        // The crop placeholder follows the picture: a rectangle left over
+        // from a bigger picture is clamped, an empty or out-of-range one
+        // becomes the whole picture.
+        let [x, y, cw, ch] = self.controls.crop;
+        self.controls.crop = if cw == 0 || ch == 0 || x >= w || y >= h {
+            [0, 0, w, h]
+        } else {
+            [x, y, cw.min(w - x), ch.min(h - y)]
+        };
         self.current = Some(img);
     }
 
@@ -226,6 +315,7 @@ impl GraphicsTool {
     }
 
     fn save_as(&mut self, cx: &mut ToolContext) {
+        self.commit_pending();
         let Some(img) = &self.current else {
             return;
         };
@@ -256,6 +346,7 @@ impl GraphicsTool {
     }
 
     fn save_ico(&mut self, cx: &mut ToolContext) {
+        self.commit_pending();
         let Some(img) = &self.current else {
             return;
         };
@@ -470,63 +561,95 @@ impl GraphicsTool {
         // Adjust
         form::section(ui, theme, &s.t("gfx-adjust"), |ui| {
             ui.add_enabled_ui(has, |ui| {
-                let mut pushed = None;
+                form::hint(ui, theme, &s.t("gfx-adjust-hint"));
+                let mut changed = false;
+                let mut commit: Option<usize> = None;
                 let c = &mut self.controls;
-                let (bv, cv, hv, sv, blv, shv) = (
-                    c.brightness,
-                    c.contrast,
-                    c.hue,
-                    c.saturation,
-                    c.blur,
-                    c.sharpen,
-                );
-                let rows: [(&str, String, egui::Slider<'_>, Op); 6] = [
+                let rows: [(&str, String, egui::Slider<'_>); 6] = [
                     (
                         "gfx-brightness",
                         c.brightness.to_string(),
                         egui::Slider::new(&mut c.brightness, -100..=100),
-                        Op::Brightness { value: bv },
                     ),
                     (
                         "gfx-contrast",
                         format!("{:.0}", c.contrast),
                         egui::Slider::new(&mut c.contrast, -100.0..=100.0),
-                        Op::Contrast { value: cv },
                     ),
                     (
                         "gfx-hue",
                         format!("{}°", c.hue),
                         egui::Slider::new(&mut c.hue, 0..=360),
-                        Op::Hue { degrees: hv },
                     ),
                     (
                         "gfx-saturation",
                         format!("{:.0}", c.saturation),
                         egui::Slider::new(&mut c.saturation, -100.0..=100.0),
-                        Op::Saturation { value: sv },
                     ),
                     (
                         "gfx-blur",
                         format!("{:.1}", c.blur),
-                        egui::Slider::new(&mut c.blur, 0.1..=20.0),
-                        Op::Blur { sigma: blv },
+                        egui::Slider::new(&mut c.blur, 0.0..=20.0),
                     ),
                     (
                         "gfx-sharpen",
                         format!("{:.1}", c.sharpen),
-                        egui::Slider::new(&mut c.sharpen, 0.1..=10.0),
-                        Op::Sharpen {
-                            sigma: shv,
-                            threshold: 2,
-                        },
+                        egui::Slider::new(&mut c.sharpen, 0.0..=10.0),
                     ),
                 ];
-                for (key, value, slider, op) in rows {
-                    if slider_block(ui, theme, &s.t(key), &value, &apply, slider) {
-                        pushed = Some(op);
+                for (i, (key, value, slider)) in rows.into_iter().enumerate() {
+                    let r = slider_block(ui, theme, &s.t(key), &value, &apply, slider);
+                    changed |= r.changed;
+                    if r.applied {
+                        commit = Some(i);
+                    }
+                }
+                if changed {
+                    self.preview_changed();
+                }
+                if let Some(i) = commit {
+                    // Commit this slider only: its operation joins the list
+                    // and the slider returns to neutral.
+                    let c = &mut self.controls;
+                    let op = match i {
+                        0 => (c.brightness != 0).then(|| {
+                            let v = std::mem::take(&mut c.brightness);
+                            Op::Brightness { value: v }
+                        }),
+                        1 => (c.contrast != 0.0).then(|| {
+                            let v = std::mem::take(&mut c.contrast);
+                            Op::Contrast { value: v }
+                        }),
+                        2 => (c.hue != 0).then(|| {
+                            let v = std::mem::take(&mut c.hue);
+                            Op::Hue { degrees: v }
+                        }),
+                        3 => (c.saturation != 0.0).then(|| {
+                            let v = std::mem::take(&mut c.saturation);
+                            Op::Saturation { value: v }
+                        }),
+                        4 => (c.blur > 0.0).then(|| {
+                            let v = std::mem::take(&mut c.blur);
+                            Op::Blur { sigma: v }
+                        }),
+                        _ => (c.sharpen > 0.0).then(|| {
+                            let v = std::mem::take(&mut c.sharpen);
+                            Op::Sharpen {
+                                sigma: v,
+                                threshold: 2,
+                            }
+                        }),
+                    };
+                    if let Some(op) = op {
+                        self.push(op);
                     }
                 }
                 ui.add_space(2.0);
+                // Grayscale and Invert are toggles: clicking again takes the
+                // operation back off the list.
+                let gray_on = self.ops.iter().any(|o| matches!(o, Op::Grayscale));
+                let inv_on = self.ops.iter().filter(|o| matches!(o, Op::Invert)).count() % 2 == 1;
+                let mut toggle: Option<Op> = None;
                 ui.horizontal(|ui| {
                     ui.add_sized(
                         [LABEL_W, 22.0],
@@ -534,15 +657,31 @@ impl GraphicsTool {
                             egui::RichText::new(s.t("gfx-colour")).color(theme.text_muted),
                         ),
                     );
-                    if ui.button(s.t("gfx-grayscale")).clicked() {
-                        pushed = Some(Op::Grayscale);
+                    if ui.selectable_label(gray_on, s.t("gfx-grayscale")).clicked() {
+                        toggle = Some(Op::Grayscale);
                     }
-                    if ui.button(s.t("gfx-invert")).clicked() {
-                        pushed = Some(Op::Invert);
+                    if ui.selectable_label(inv_on, s.t("gfx-invert")).clicked() {
+                        toggle = Some(Op::Invert);
                     }
                 });
-                if let Some(op) = pushed {
-                    self.push(op);
+                if let Some(op) = toggle {
+                    let last_is_same = self.ops.last().is_some_and(|o| *o == op);
+                    let on = match op {
+                        Op::Grayscale => gray_on,
+                        _ => inv_on,
+                    };
+                    if on && last_is_same {
+                        self.ops.pop();
+                        self.dirty = true;
+                    } else if on {
+                        // Switched on earlier in the list: take that one out.
+                        if let Some(i) = self.ops.iter().rposition(|o| *o == op) {
+                            self.ops.remove(i);
+                            self.dirty = true;
+                        }
+                    } else {
+                        self.push(op);
+                    }
                 }
             });
         });
@@ -648,7 +787,7 @@ impl GraphicsTool {
                 });
                 if self.format == Format::Jpeg {
                     let q = self.quality.to_string();
-                    slider_block(
+                    let _ = slider_block(
                         ui,
                         theme,
                         &s.t("gfx-quality"),
@@ -672,9 +811,18 @@ impl GraphicsTool {
     }
 }
 
+/// What a [`slider_block`] reported this frame.
+#[derive(Default, Clone, Copy)]
+struct SliderBlock {
+    /// The Apply button was clicked.
+    applied: bool,
+    /// The value moved (live preview).
+    changed: bool,
+}
+
 /// A slider that reads like a photo editor's: the label, the current
 /// value and the Apply button on one line, the slider itself full width
-/// underneath. Returns whether Apply was clicked (`apply` empty = none).
+/// underneath (`apply` empty = no button).
 fn slider_block(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -682,7 +830,7 @@ fn slider_block(
     value: &str,
     apply: &str,
     slider: egui::Slider<'_>,
-) -> bool {
+) -> SliderBlock {
     let mut clicked = false;
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(label).color(theme.text_muted));
@@ -699,9 +847,14 @@ fn slider_block(
     let v = ui.visuals_mut();
     v.widgets.inactive.bg_fill = theme.border;
     v.widgets.hovered.bg_fill = theme.surface_hover;
-    ui.add(slider.show_value(false).trailing_fill(true));
+    let changed = ui
+        .add(slider.show_value(false).trailing_fill(true))
+        .changed();
     ui.add_space(6.0);
-    clicked
+    SliderBlock {
+        applied: clicked,
+        changed,
+    }
 }
 
 /// Width of the label column in the sidebar rows.
@@ -815,8 +968,10 @@ impl GraphicsTool {
         let [cx, cy, cw, ch] = self.controls.crop;
         let rect = egui::Rect::from_min_max(to_screen(cx, cy), to_screen(cx + cw, cy + ch));
         let grip = 7.0;
+        // A little outside the picture too, so an edge grip that sits on
+        // the picture's own border can still be grabbed.
         let resp = ui.interact(
-            img_rect,
+            img_rect.expand(grip),
             ui.id().with("gfx-crop-drag"),
             egui::Sense::click_and_drag(),
         );
@@ -858,10 +1013,17 @@ impl GraphicsTool {
             };
             ui.ctx().set_cursor_icon(cursor);
         }
-        if resp.drag_started()
-            && let Some(p) = resp.interact_pointer_pos()
-        {
-            self.crop_drag = Some((zone_at(p), self.controls.crop, to_image(p)));
+        // egui reports a drag only once the pointer has moved past its
+        // threshold, so the grip is judged from where the button went down,
+        // not from where the pointer is by then (10 px off an edge reads as
+        // "move the whole rectangle" otherwise).
+        if resp.drag_started() {
+            let origin = ui
+                .input(|i| i.pointer.press_origin())
+                .or_else(|| resp.interact_pointer_pos());
+            if let Some(p) = origin {
+                self.crop_drag = Some((zone_at(p), self.controls.crop, to_image(p)));
+            }
         }
         if resp.dragged()
             && let Some((zone, start, from)) = self.crop_drag
@@ -1009,7 +1171,7 @@ impl Tool for GraphicsTool {
     }
 
     fn dirty(&self) -> bool {
-        !self.ops.is_empty()
+        !self.ops.is_empty() || !self.pending_ops().is_empty()
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {

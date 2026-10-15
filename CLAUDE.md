@@ -393,6 +393,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   takes the `ContextImpl` write lock and then asks for it again, and in a
   debug build epaint panics after ten seconds ("Failed to acquire RwLock
   write"). Read `ui.input` into a local first, then call `data_mut`.
+- `Response::drag_started()` fires only once the pointer has moved past
+  egui's drag threshold, and `interact_pointer_pos()` is then already a
+  few pixels from where the button went down. A hit test for grips or
+  handles must use `ui.input(|i| i.pointer.press_origin())`, or an edge
+  drag reads as "move" (`tool-graphics::crop_overlay`).
 - A `Label::truncate()` inside an `egui::Grid` shrinks to whatever width
   the column had last frame (self-fulfilling), so wrap it in a scope with
   `set_min_width`/`set_max_width`. And `Area` responses report

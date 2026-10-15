@@ -1223,6 +1223,7 @@ gfx-saturation = Saturation
 gfx-blur = Blur
 gfx-sharpen = Sharpen
 gfx-grayscale = Grayscale
+gfx-adjust-hint = Sliders preview on the picture as you move them; Apply keeps a value as an operation and resets its slider.
 gfx-invert = Invert
 gfx-operations = Operations
 gfx-no-ops = No operations yet. Everything you apply is listed here and can be removed.

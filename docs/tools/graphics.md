@@ -28,8 +28,8 @@ re-rendered from the original whenever the list changes
 
 | Group | Operations |
 |---|---|
-| Transform | Resize to a width and height (keep aspect), scale by a factor, extend the canvas by padding on each side with a fill colour, crop (with a **placeholder on the canvas**: Select on Canvas shows a rectangle with grips and rule-of-thirds guides; drag inside to move, an edge or corner to resize, outside to draw a new one; the X/Y/W/H boxes follow and Apply crops), rotate 90°/180°/270°, flip horizontally/vertically |
-| Adjust | Brightness, contrast, hue rotation, saturation, grayscale, invert, blur, sharpen (unsharp mask) |
+| Transform | Resize to a width and height (keep aspect), scale by a factor, extend the canvas by padding on each side with a fill colour, crop (with a **placeholder on the canvas**: Select on Canvas shows a rectangle with grips and rule-of-thirds guides; drag inside to move, an edge or corner to resize, outside to draw a new one; the X/Y/W/H boxes follow and Apply crops; the grip is judged from the press position and the rectangle is clamped to the current picture), rotate 90°/180°/270°, flip horizontally/vertically |
+| Adjust | Brightness, contrast, hue rotation, saturation, blur, sharpen (unsharp mask) as **live sliders**: moving one re-renders the picture (a preview layer on top of the committed operations, debounced 60 ms); Apply commits that slider's value as an operation and resets it; Save As / Save ICO commit the preview first. Grayscale and Invert are toggles (on/off state shown, a second click removes the operation) |
 | Icons | Pick a frame of a multi-size ICO to edit; build a multi-size ICO (16–256 px, PNG-compressed entries) from the current picture |
 | Export | Save as PNG, JPEG (quality), WebP, BMP, GIF or ICO |
 

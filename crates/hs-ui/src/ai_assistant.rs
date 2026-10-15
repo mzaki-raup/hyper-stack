@@ -23,8 +23,11 @@ struct Running {
 /// panel itself never touches the host tool; the tool applies the block.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct AssistantOutput {
-    /// A fenced code block from an answer the user clicked **Insert** on.
+    /// A fenced code block from an answer the user clicked **Insert** (or
+    /// **Apply**, for the host's action language) on.
     pub use_block: Option<String>,
+    /// The fence language of that block (`hs-api`, `sql`, …).
+    pub use_block_lang: String,
 }
 
 /// A piece of an answer: prose, or a fenced code block with its language.
@@ -90,6 +93,12 @@ pub struct AssistantPanel {
     /// Whether answers offer an **Insert** button (the host tool has a
     /// place to put a command or query). Copy is always offered.
     pub can_insert: bool,
+    /// A fence language the host tool treats as actions (the API client's
+    /// `hs-api`): such blocks get an **Apply** button instead of Insert.
+    pub action_lang: Option<String>,
+    /// Host-specific instructions appended to the system prompt (an action
+    /// schema, what is open). Set every frame; sent with the next message.
+    pub extra_system: String,
     tool: String,
     context: String,
     context_label: String,
@@ -169,14 +178,16 @@ impl AssistantPanel {
         };
         self.turns.push((Role::User, display_content));
         let cfg = provider.config(&self.model);
-        let mut messages = vec![Message::new(
-            Role::System,
-            ai::assistant_system_prompt(if self.tool.is_empty() {
-                "tool"
-            } else {
-                &self.tool
-            }),
-        )];
+        let mut system = ai::assistant_system_prompt(if self.tool.is_empty() {
+            "tool"
+        } else {
+            &self.tool
+        });
+        if !self.extra_system.trim().is_empty() {
+            system.push_str("\n\n");
+            system.push_str(self.extra_system.trim());
+        }
+        let mut messages = vec![Message::new(Role::System, system)];
         for (index, (role, content)) in self.turns.iter().enumerate() {
             let message_content = if index + 1 == self.turns.len() && *role == Role::User {
                 user_content.clone()
@@ -397,6 +408,10 @@ impl AssistantPanel {
                                             ui.add(egui::Label::new(t).wrap());
                                         }
                                         Segment::Code { lang, body } => {
+                                            let is_action = self
+                                                .action_lang
+                                                .as_deref()
+                                                .is_some_and(|l| l.eq_ignore_ascii_case(&lang));
                                             ui.push_id(n, |ui| {
                                                 if let Some(action) = code_block(
                                                     ui,
@@ -404,9 +419,11 @@ impl AssistantPanel {
                                                     theme,
                                                     &lang,
                                                     &body,
-                                                    self.can_insert,
+                                                    self.can_insert || is_action,
+                                                    is_action,
                                                 ) {
                                                     output.use_block = Some(action);
+                                                    output.use_block_lang = lang.clone();
                                                 }
                                             });
                                         }
@@ -430,6 +447,7 @@ fn code_block(
     lang: &str,
     body: &str,
     can_insert: bool,
+    is_action: bool,
 ) -> Option<String> {
     let mut used = None;
     egui::Frame::new()
@@ -445,17 +463,28 @@ fn code_block(
                         .color(theme.text_muted),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if can_insert
-                        && ui
-                            .small_button(format!(
-                                "{} {}",
+                    if can_insert {
+                        let (icon, label, tip) = if is_action {
+                            (
+                                crate::icons::ph::LIGHTNING,
+                                s.t("ai-apply-block"),
+                                s.t("ai-apply-block-tip"),
+                            )
+                        } else {
+                            (
                                 crate::icons::ph::ARROW_LINE_DOWN,
-                                s.t("ai-insert-block")
-                            ))
-                            .on_hover_text(s.t("ai-insert-block-tip"))
-                            .clicked()
-                    {
-                        used = Some(body.to_string());
+                                s.t("ai-insert-block"),
+                                s.t("ai-insert-block-tip"),
+                            )
+                        };
+                        let button = if is_action {
+                            crate::form::primary_button(ui, theme, &format!("{icon} {label}"))
+                        } else {
+                            ui.small_button(format!("{icon} {label}"))
+                        };
+                        if button.on_hover_text(tip).clicked() {
+                            used = Some(body.to_string());
+                        }
                     }
                     if ui
                         .small_button(format!("{} {}", crate::icons::COPY, s.t("ai-copy-block")))

@@ -253,7 +253,7 @@ suggestion.
 | Local process and port viewer (what is listening on :8080) | P1 | M |
 | Snippet manager (code, SQL, shell) with tags | P1 | M |
 | `.env` file editor with secret masking and environment linking | P1 | S |
-| Scratchpad notes (Markdown) per workspace | P1 | S |
+| Scratchpad notes (Markdown) per workspace — done 2026-10-15: notes collection, pinning, dual pane, AI assistant ([tools/scratchpad.md](tools/scratchpad.md)) | P1 | S |
 
 ## 11. Shared services (enablers)
 

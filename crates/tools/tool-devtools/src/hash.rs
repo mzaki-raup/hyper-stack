@@ -107,6 +107,9 @@ pub enum Output {
     Base64,
 }
 
+/// One row per algorithm: the digest, or `None` when HMAC does not apply.
+pub type DigestRows = Vec<(Algo, Option<Vec<u8>>)>;
+
 #[derive(Default, Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct State {
@@ -119,9 +122,35 @@ pub struct State {
     pub minify_json: bool,
     pub output: Output,
     pub expected: String,
+    /// Digests of the current input, keyed by a fingerprint of what they
+    /// were computed from, so a frame that changes nothing hashes nothing.
+    #[serde(skip)]
+    pub cache: Option<(u64, DigestRows)>,
 }
 
 impl State {
+    /// Cheap identity of the input: the text (or the file's path and size),
+    /// the options and the HMAC key as expanded.
+    fn fingerprint(&self, hmac_key: &str) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        match &self.file {
+            Some((path, bytes)) => {
+                1u8.hash(&mut h);
+                path.hash(&mut h);
+                bytes.len().hash(&mut h);
+            }
+            None => {
+                0u8.hash(&mut h);
+                self.input.hash(&mut h);
+            }
+        }
+        self.minify_json.hash(&mut h);
+        self.use_hmac.hash(&mut h);
+        hmac_key.hash(&mut h);
+        h.finish()
+    }
+
     pub fn for_save(&self) -> State {
         let mut c = self.clone();
         c.hmac_key = crate::keep_reference(&c.hmac_key);
@@ -190,7 +219,6 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.selectable_value(&mut st.output, Output::Base64, "Base64");
         });
     });
-    let data = st.data();
     form::section(ui, theme, &s.t("dt-hash-results"), |ui| {
         ui.horizontal(|ui| {
             ui.label(s.t("dt-hash-compare"));
@@ -202,18 +230,32 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         });
         ui.add_space(6.0);
         let expected = st.expected.trim().to_ascii_lowercase();
-        let hmac_key = util::expand(s, &st.hmac_key).unwrap_or_default();
-        let rows: Vec<(Algo, Option<Vec<u8>>)> = Algo::ALL
-            .into_iter()
-            .map(|algo| {
-                let bytes = if st.use_hmac {
-                    hmac(algo, hmac_key.as_bytes(), &data)
-                } else {
-                    Some(digest(algo, &data))
-                };
-                (algo, bytes)
-            })
-            .collect();
+        let hmac_key = if st.use_hmac {
+            util::expand(s, &st.hmac_key).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let fp = st.fingerprint(&hmac_key);
+        if st.cache.as_ref().map(|(k, _)| *k) != Some(fp) {
+            let data = st.data();
+            let rows = Algo::ALL
+                .into_iter()
+                .map(|algo| {
+                    let bytes = if st.use_hmac {
+                        hmac(algo, hmac_key.as_bytes(), &data)
+                    } else {
+                        Some(digest(algo, &data))
+                    };
+                    (algo, bytes)
+                })
+                .collect();
+            st.cache = Some((fp, rows));
+        }
+        let rows: Vec<(Algo, Option<Vec<u8>>)> = st
+            .cache
+            .as_ref()
+            .map(|(_, r)| r.clone())
+            .unwrap_or_default();
         egui_extras::TableBuilder::new(ui)
             .striped(true)
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))

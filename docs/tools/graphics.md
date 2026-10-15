@@ -28,7 +28,7 @@ re-rendered from the original whenever the list changes
 
 | Group | Operations |
 |---|---|
-| Transform | Resize to a width and height (keep aspect), scale by a factor, extend the canvas by padding on each side with a fill colour, crop, rotate 90°/180°/270°, flip horizontally/vertically |
+| Transform | Resize to a width and height (keep aspect), scale by a factor, extend the canvas by padding on each side with a fill colour, crop (with a **placeholder on the canvas**: Select on Canvas shows a rectangle with grips and rule-of-thirds guides; drag inside to move, an edge or corner to resize, outside to draw a new one; the X/Y/W/H boxes follow and Apply crops), rotate 90°/180°/270°, flip horizontally/vertically |
 | Adjust | Brightness, contrast, hue rotation, saturation, grayscale, invert, blur, sharpen (unsharp mask) |
 | Icons | Pick a frame of a multi-size ICO to edit; build a multi-size ICO (16–256 px, PNG-compressed entries) from the current picture |
 | Export | Save as PNG, JPEG (quality), WebP, BMP, GIF or ICO |
@@ -36,6 +36,13 @@ re-rendered from the original whenever the list changes
 The canvas shows the picture on a checkerboard (transparency), with Fit,
 100% and zoom buttons in the toolbar, and the info line
 `original → current · size · file name`.
+
+The sidebar is laid out on aligned rows (`Rows`, one `egui::Grid` per
+section: a fixed label column, the controls, an Apply column) under small
+group headings; long control rows wrap inside their column so the panel
+never grows. The Adjust group uses `slider_block`: label, current value and
+Apply on one line, the slider full width underneath, with a visible rail
+on dark themes.
 
 ## 4. AI assistant
 

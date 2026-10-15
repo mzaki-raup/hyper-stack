@@ -23,7 +23,10 @@ history (`hs-git`, read-only over the git CLI), and carries an optional AI
 assistant (ADR-019: 1min.AI or any OpenAI-compatible service such as LM
 Studio, `hs-core::ai`); Terminal, SSH, SQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
-run.** The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
+run; the API client's assistant can also **fill the client** through
+`hs-api` action blocks the user applies, and the **Scratchpad** is a
+per-workspace collection of Markdown notes (sidebar list, pinning, one tab
+per note, source + preview, assistant).** The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
@@ -392,6 +395,24 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A GUI test with the PowerShell harness: a crash is invisible unless the
   exe is started from Bash with `2> err.txt` (`RUST_BACKTRACE=1`); the log
   file only carries tracing output, not panics.
+- `ui.add_space` inside an `egui::Grid` panics ("add_space makes no sense
+  in a grid layout"), in the running app only: allocate an empty row with
+  `allocate_exact_size(vec2(1.0, h), Sense::hover())` instead
+  (`tool-graphics::Rows::space`).
+- A slider's inactive rail uses `visuals.widgets.inactive.bg_fill`, which
+  HyperStack's dark theme sets to the panel colour, so a slider at its
+  minimum looks like a lone box. Set that fill (and `hovered.bg_fill`) on
+  the slider's `Ui` and use `trailing_fill(true)`.
+- A non-wrapping `ui.horizontal` row inside a resizable side panel (seven
+  checkboxes, four drag values) is the runaway-width case again: give the
+  controls cell `set_max_width` and `horizontal_wrapped`.
+- The harness's screenshot can show a *stale* frame: egui repaints on
+  input, and a click's consequences (a tab switch, an inserted block) may
+  not be painted until the next event. `shot` now nudges the pointer by a
+  pixel first; read the state from files or logs when it matters.
+- `Stop-Process -Name HyperStack` kills the owner's own installed copy
+  too (`C:\Apps\hyper-stack`); stop the dev instance by pid
+  (`hs-gui.pid`) and pick it with `Where-Object Path -like "D:\WORKSPACES\*"`.
 - `eframe::App` has `fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame)`,
   not `update(ctx, frame)`; get the context with `ui.ctx()`. Panels are
   `egui::Panel::top/bottom/left/right(id)` with `.exact_size`, `.default_size`,

@@ -91,6 +91,9 @@ user points a workspace at a repo's `.hyperstack/` folder:
 │       ├── collection.toml
 │       ├── auth/login.req.toml
 │       └── orders/create-order.req.toml
+├── notes/                       # Scratchpad (2026-10-15): one Markdown note per file, pins.json
+│   ├── 01M4…D03.md
+│   └── pins.json
 ├── queries/
 │   └── orders-staging/top-customers.sql   # front-matter header for metadata
 ├── snippets/*.toml

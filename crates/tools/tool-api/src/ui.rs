@@ -60,6 +60,10 @@ impl BodyEditor {
     pub fn text(&self) -> String {
         self.buf.text()
     }
+    /// Bumps on every edit; cheaper than comparing the text.
+    pub fn version(&self) -> u64 {
+        self.buf.version()
+    }
     fn show(&mut self, ui: &mut egui::Ui, theme: &Theme) {
         let ed = EditorTheme::for_theme(theme);
         self.view.show(ui, &mut self.buf, &mut self.cursors, &ed);

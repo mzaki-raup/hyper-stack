@@ -80,6 +80,22 @@ struct Controls {
     ico_sizes: [bool; 7],
 }
 
+/// Which part of the crop placeholder a drag took hold of.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum CropGrip {
+    Move,
+    N,
+    S,
+    E,
+    W,
+    Ne,
+    Nw,
+    Se,
+    Sw,
+    /// A drag that started outside the rectangle draws a new one.
+    New,
+}
+
 pub struct GraphicsTool {
     path: Option<PathBuf>,
     original: Option<DynamicImage>,
@@ -95,6 +111,11 @@ pub struct GraphicsTool {
     frames: Vec<(u32, u32, DynamicImage)>,
     error: Option<String>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The crop placeholder is shown on the canvas and can be dragged.
+    crop_select: bool,
+    /// An active drag: the grip, the rectangle when it started and the
+    /// press position in image pixels.
+    crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
 }
 
 impl Default for GraphicsTool {
@@ -122,6 +143,8 @@ impl Default for GraphicsTool {
             frames: Vec::new(),
             error: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            crop_select: false,
+            crop_drag: None,
         }
     }
 }
@@ -269,27 +292,36 @@ impl GraphicsTool {
     fn sidebar_sections(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
         let has = self.original.is_some();
+        let apply = s.t("gfx-apply");
         // Transform
         form::section(ui, theme, &s.t("gfx-transform"), |ui| {
             ui.add_enabled_ui(has, |ui| {
-                ui.label(egui::RichText::new(s.t("gfx-resize")).strong());
-                ui.horizontal(|ui| {
-                    let before = (self.controls.width, self.controls.height);
+                Rows::show(ui, theme, "gfx-rows-transform", |rows| {
+                    rows.title(&s.t("gfx-resize"));
                     let (ow, oh) = self
                         .current
                         .as_ref()
                         .map(|i| i.dimensions())
                         .unwrap_or((1, 1));
-                    ui.add(
-                        egui::DragValue::new(&mut self.controls.width)
-                            .range(1..=20000)
-                            .prefix("W "),
-                    );
-                    ui.add(
-                        egui::DragValue::new(&mut self.controls.height)
-                            .range(1..=20000)
-                            .prefix("H "),
-                    );
+                    let before = (self.controls.width, self.controls.height);
+                    if rows.row(&s.t("gfx-size"), Some(&apply), |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut self.controls.width)
+                                .range(1..=20000)
+                                .prefix("W "),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut self.controls.height)
+                                .range(1..=20000)
+                                .prefix("H "),
+                        );
+                        ui.checkbox(&mut self.controls.keep_aspect, s.t("gfx-keep-aspect"));
+                    }) {
+                        self.push(Op::Resize {
+                            width: self.controls.width,
+                            height: self.controls.height,
+                        });
+                    }
                     if self.controls.keep_aspect {
                         if self.controls.width != before.0 {
                             self.controls.height = ((self.controls.width as f64) * (oh as f64)
@@ -303,51 +335,60 @@ impl GraphicsTool {
                                 .max(1.0) as u32;
                         }
                     }
-                    ui.checkbox(&mut self.controls.keep_aspect, s.t("gfx-keep-aspect"));
-                    if ui.button(s.t("gfx-apply")).clicked() {
-                        self.push(Op::Resize {
-                            width: self.controls.width,
-                            height: self.controls.height,
-                        });
-                    }
-                });
-                ui.horizontal(|ui| {
-                    ui.label(s.t("gfx-scale"));
-                    ui.add(
-                        egui::DragValue::new(&mut self.controls.scale)
-                            .range(0.05..=16.0)
-                            .speed(0.05)
-                            .suffix("×"),
-                    );
-                    if ui.button(s.t("gfx-apply")).clicked() {
+                    if rows.row(&s.t("gfx-scale"), Some(&apply), |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut self.controls.scale)
+                                .range(0.05..=16.0)
+                                .speed(0.05)
+                                .suffix("×"),
+                        );
+                        let (w, h) = (
+                            ((ow as f32) * self.controls.scale).round() as u32,
+                            ((oh as f32) * self.controls.scale).round() as u32,
+                        );
+                        ui.label(
+                            egui::RichText::new(format!("→ {w}×{h}"))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    }) {
                         self.push(Op::Scale {
                             factor: self.controls.scale,
                         });
                     }
-                });
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(s.t("gfx-extend")).strong());
-                ui.horizontal(|ui| {
-                    for (i, l) in ["L", "T", "R", "B"].iter().enumerate() {
-                        ui.add(
-                            egui::DragValue::new(&mut self.controls.extend[i])
-                                .range(0..=4000)
-                                .prefix(format!("{l} ")),
+                    rows.space(6.0);
+                    rows.title(&s.t("gfx-extend"));
+                    rows.row(&s.t("gfx-margins"), None, |ui| {
+                        for (i, l) in ["L", "T", "R", "B"].iter().enumerate() {
+                            ui.add(
+                                egui::DragValue::new(&mut self.controls.extend[i])
+                                    .range(0..=4000)
+                                    .prefix(format!("{l} ")),
+                            );
+                        }
+                    });
+                    if rows.row(&s.t("gfx-extend-colour"), Some(&apply), |ui| {
+                        let mut c = egui::Color32::from_rgba_unmultiplied(
+                            self.controls.extend_colour[0],
+                            self.controls.extend_colour[1],
+                            self.controls.extend_colour[2],
+                            self.controls.extend_colour[3],
                         );
-                    }
-                });
-                ui.horizontal(|ui| {
-                    let mut c = egui::Color32::from_rgba_unmultiplied(
-                        self.controls.extend_colour[0],
-                        self.controls.extend_colour[1],
-                        self.controls.extend_colour[2],
-                        self.controls.extend_colour[3],
-                    );
-                    if ui.color_edit_button_srgba(&mut c).changed() {
-                        self.controls.extend_colour = c.to_srgba_unmultiplied();
-                    }
-                    ui.label(s.t("gfx-extend-colour"));
-                    if ui.button(s.t("gfx-apply")).clicked() {
+                        if ui.color_edit_button_srgba(&mut c).changed() {
+                            self.controls.extend_colour = c.to_srgba_unmultiplied();
+                        }
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "#{:02X}{:02X}{:02X}",
+                                self.controls.extend_colour[0],
+                                self.controls.extend_colour[1],
+                                self.controls.extend_colour[2]
+                            ))
+                            .small()
+                            .monospace()
+                            .color(theme.text_muted),
+                        );
+                    }) {
                         let [l, t, r, b] = self.controls.extend;
                         self.push(Op::Extend {
                             left: l,
@@ -357,18 +398,36 @@ impl GraphicsTool {
                             colour: self.controls.extend_colour,
                         });
                     }
-                });
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(s.t("gfx-crop")).strong());
-                ui.horizontal(|ui| {
-                    for (i, l) in ["X", "Y", "W", "H"].iter().enumerate() {
-                        ui.add(
-                            egui::DragValue::new(&mut self.controls.crop[i])
-                                .range(0..=20000)
-                                .prefix(format!("{l} ")),
-                        );
-                    }
-                    if ui.button(s.t("gfx-apply")).clicked() {
+                    rows.space(6.0);
+                    rows.title(&s.t("gfx-crop"));
+                    let (iw, ih) = (ow, oh);
+                    rows.row(&s.t("gfx-crop-select"), None, |ui| {
+                        if ui
+                            .selectable_label(
+                                self.crop_select,
+                                format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
+                            )
+                            .on_hover_text(s.t("gfx-crop-on-canvas-tip"))
+                            .clicked()
+                        {
+                            self.crop_select = !self.crop_select;
+                            let [_, _, w, h] = self.controls.crop;
+                            if self.crop_select && (w == 0 || h == 0) {
+                                // Start from the whole picture, inset a little.
+                                let (mx, my) = (iw / 8, ih / 8);
+                                self.controls.crop = [mx, my, iw - 2 * mx, ih - 2 * my];
+                            }
+                        }
+                    });
+                    if rows.row(&s.t("gfx-area"), Some(&apply), |ui| {
+                        for (i, l) in ["X", "Y", "W", "H"].iter().enumerate() {
+                            ui.add(
+                                egui::DragValue::new(&mut self.controls.crop[i])
+                                    .range(0..=20000)
+                                    .prefix(format!("{l} ")),
+                            );
+                        }
+                    }) {
                         let [x, y, w, h] = self.controls.crop;
                         self.push(Op::Crop {
                             x,
@@ -376,20 +435,34 @@ impl GraphicsTool {
                             width: w.max(1),
                             height: h.max(1),
                         });
+                        self.crop_select = false;
                     }
-                });
-                ui.add_space(4.0);
-                ui.horizontal_wrapped(|ui| {
-                    for (icon, tip, op) in [
-                        (ph::ARROW_CLOCKWISE, "gfx-rotate-cw", Op::Rotate90),
-                        (ph::ARROW_COUNTER_CLOCKWISE, "gfx-rotate-ccw", Op::Rotate270),
-                        (ph::ARROWS_CLOCKWISE, "gfx-rotate-180", Op::Rotate180),
-                        (ph::ARROWS_HORIZONTAL, "gfx-flip-h", Op::FlipH),
-                        (ph::ARROWS_VERTICAL, "gfx-flip-v", Op::FlipV),
-                    ] {
-                        if ui.button(icon).on_hover_text(s.t(tip)).clicked() {
-                            self.push(op);
+                    rows.space(6.0);
+                    rows.title(&s.t("gfx-orientation"));
+                    let mut pushed = None;
+                    rows.row(&s.t("gfx-rotate"), None, |ui| {
+                        for (icon, tip, op) in [
+                            (ph::ARROW_CLOCKWISE, "gfx-rotate-cw", Op::Rotate90),
+                            (ph::ARROW_COUNTER_CLOCKWISE, "gfx-rotate-ccw", Op::Rotate270),
+                            (ph::ARROWS_CLOCKWISE, "gfx-rotate-180", Op::Rotate180),
+                        ] {
+                            if ui.button(icon).on_hover_text(s.t(tip)).clicked() {
+                                pushed = Some(op);
+                            }
                         }
+                    });
+                    rows.row(&s.t("gfx-flip"), None, |ui| {
+                        for (icon, tip, op) in [
+                            (ph::ARROWS_HORIZONTAL, "gfx-flip-h", Op::FlipH),
+                            (ph::ARROWS_VERTICAL, "gfx-flip-v", Op::FlipV),
+                        ] {
+                            if ui.button(icon).on_hover_text(s.t(tip)).clicked() {
+                                pushed = Some(op);
+                            }
+                        }
+                    });
+                    if let Some(op) = pushed {
+                        self.push(op);
                     }
                 });
             });
@@ -397,76 +470,80 @@ impl GraphicsTool {
         // Adjust
         form::section(ui, theme, &s.t("gfx-adjust"), |ui| {
             ui.add_enabled_ui(has, |ui| {
-                ui.spacing_mut().slider_width = (ui.available_width() - 190.0).max(80.0);
-                let mut row =
-                    |ui: &mut egui::Ui, label: &str, slider: egui::Slider<'_>, op: Op| -> bool {
-                        let mut apply = false;
-                        ui.horizontal(|ui| {
-                            ui.label(label);
-                            ui.add(slider);
-                            if ui.button(s.t("gfx-apply")).clicked() {
-                                apply = true;
-                            }
-                        });
-                        if apply {
-                            self.ops.push(op);
-                            self.dirty = true;
-                        }
-                        apply
-                    };
-                let b = self.controls.brightness;
-                row(
-                    ui,
-                    &s.t("gfx-brightness"),
-                    egui::Slider::new(&mut self.controls.brightness, -100..=100),
-                    Op::Brightness { value: b },
+                let mut pushed = None;
+                let c = &mut self.controls;
+                let (bv, cv, hv, sv, blv, shv) = (
+                    c.brightness,
+                    c.contrast,
+                    c.hue,
+                    c.saturation,
+                    c.blur,
+                    c.sharpen,
                 );
-                let c = self.controls.contrast;
-                row(
-                    ui,
-                    &s.t("gfx-contrast"),
-                    egui::Slider::new(&mut self.controls.contrast, -100.0..=100.0),
-                    Op::Contrast { value: c },
-                );
-                let h = self.controls.hue;
-                row(
-                    ui,
-                    &s.t("gfx-hue"),
-                    egui::Slider::new(&mut self.controls.hue, 0..=360).suffix("°"),
-                    Op::Hue { degrees: h },
-                );
-                let sat = self.controls.saturation;
-                row(
-                    ui,
-                    &s.t("gfx-saturation"),
-                    egui::Slider::new(&mut self.controls.saturation, -100.0..=100.0),
-                    Op::Saturation { value: sat },
-                );
-                let bl = self.controls.blur;
-                row(
-                    ui,
-                    &s.t("gfx-blur"),
-                    egui::Slider::new(&mut self.controls.blur, 0.1..=20.0),
-                    Op::Blur { sigma: bl },
-                );
-                let sh = self.controls.sharpen;
-                row(
-                    ui,
-                    &s.t("gfx-sharpen"),
-                    egui::Slider::new(&mut self.controls.sharpen, 0.1..=10.0),
-                    Op::Sharpen {
-                        sigma: sh,
-                        threshold: 2,
-                    },
-                );
+                let rows: [(&str, String, egui::Slider<'_>, Op); 6] = [
+                    (
+                        "gfx-brightness",
+                        c.brightness.to_string(),
+                        egui::Slider::new(&mut c.brightness, -100..=100),
+                        Op::Brightness { value: bv },
+                    ),
+                    (
+                        "gfx-contrast",
+                        format!("{:.0}", c.contrast),
+                        egui::Slider::new(&mut c.contrast, -100.0..=100.0),
+                        Op::Contrast { value: cv },
+                    ),
+                    (
+                        "gfx-hue",
+                        format!("{}°", c.hue),
+                        egui::Slider::new(&mut c.hue, 0..=360),
+                        Op::Hue { degrees: hv },
+                    ),
+                    (
+                        "gfx-saturation",
+                        format!("{:.0}", c.saturation),
+                        egui::Slider::new(&mut c.saturation, -100.0..=100.0),
+                        Op::Saturation { value: sv },
+                    ),
+                    (
+                        "gfx-blur",
+                        format!("{:.1}", c.blur),
+                        egui::Slider::new(&mut c.blur, 0.1..=20.0),
+                        Op::Blur { sigma: blv },
+                    ),
+                    (
+                        "gfx-sharpen",
+                        format!("{:.1}", c.sharpen),
+                        egui::Slider::new(&mut c.sharpen, 0.1..=10.0),
+                        Op::Sharpen {
+                            sigma: shv,
+                            threshold: 2,
+                        },
+                    ),
+                ];
+                for (key, value, slider, op) in rows {
+                    if slider_block(ui, theme, &s.t(key), &value, &apply, slider) {
+                        pushed = Some(op);
+                    }
+                }
+                ui.add_space(2.0);
                 ui.horizontal(|ui| {
+                    ui.add_sized(
+                        [LABEL_W, 22.0],
+                        egui::Label::new(
+                            egui::RichText::new(s.t("gfx-colour")).color(theme.text_muted),
+                        ),
+                    );
                     if ui.button(s.t("gfx-grayscale")).clicked() {
-                        self.push(Op::Grayscale);
+                        pushed = Some(Op::Grayscale);
                     }
                     if ui.button(s.t("gfx-invert")).clicked() {
-                        self.push(Op::Invert);
+                        pushed = Some(Op::Invert);
                     }
                 });
+                if let Some(op) = pushed {
+                    self.push(op);
+                }
             });
         });
         // Operations
@@ -477,9 +554,18 @@ impl GraphicsTool {
             let mut remove = None;
             for (i, op) in self.ops.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    ui.label(format!("{}. {}", i + 1, op.label()));
+                    ui.label(
+                        egui::RichText::new(format!("{}.", i + 1))
+                            .monospace()
+                            .color(theme.text_muted),
+                    );
+                    ui.label(op.label());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button(hs_ui::icons::TRASH).clicked() {
+                        if ui
+                            .small_button(hs_ui::icons::TRASH)
+                            .on_hover_text(s.t("gfx-remove-op"))
+                            .clicked()
+                        {
                             remove = Some(i);
                         }
                     });
@@ -489,53 +575,53 @@ impl GraphicsTool {
                 self.ops.remove(i);
                 self.dirty = true;
             }
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(!self.ops.is_empty(), egui::Button::new(s.t("gfx-undo")))
-                    .clicked()
-                {
-                    self.ops.pop();
-                    self.dirty = true;
-                }
-                if ui
-                    .add_enabled(!self.ops.is_empty(), egui::Button::new(s.t("gfx-reset")))
-                    .clicked()
-                {
-                    self.ops.clear();
-                    self.dirty = true;
-                }
-            });
+            if !self.ops.is_empty() {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if ui.button(s.t("gfx-undo")).clicked() {
+                        self.ops.pop();
+                        self.dirty = true;
+                    }
+                    if ui.button(s.t("gfx-reset")).clicked() {
+                        self.ops.clear();
+                        self.dirty = true;
+                    }
+                });
+            }
         });
         // Icons
         form::section(ui, theme, &s.t("gfx-icons"), |ui| {
             ui.add_enabled_ui(has, |ui| {
-                if self.frames.len() > 1 {
-                    ui.label(
-                        s.i18n
-                            .t_args("gfx-frames", &[("count", &self.frames.len().to_string())]),
-                    );
-                    let mut pick = None;
-                    ui.horizontal_wrapped(|ui| {
-                        for (i, (w, h, _)) in self.frames.iter().enumerate() {
-                            if ui.button(format!("{w}×{h}")).clicked() {
-                                pick = Some(i);
+                Rows::show(ui, theme, "gfx-rows-icons", |rows| {
+                    if self.frames.len() > 1 {
+                        let mut pick = None;
+                        rows.row(&s.t("gfx-frames-label"), None, |ui| {
+                            for (i, (w, h, _)) in self.frames.iter().enumerate() {
+                                if ui.small_button(format!("{w}×{h}")).clicked() {
+                                    pick = Some(i);
+                                }
                             }
+                        });
+                        rows.hint(
+                            &s.i18n
+                                .t_args("gfx-frames", &[("count", &self.frames.len().to_string())]),
+                        );
+                        if let Some(i) = pick {
+                            let img = self.frames[i].2.clone();
+                            self.original = Some(img);
+                            self.ops.clear();
+                            self.dirty = true;
+                        }
+                        rows.space(4.0);
+                    }
+                    rows.title(&s.t("gfx-make-ico"));
+                    rows.row(&s.t("gfx-sizes"), None, |ui| {
+                        for (i, size) in ICO_SIZES.iter().enumerate() {
+                            ui.checkbox(&mut self.controls.ico_sizes[i], size.to_string());
                         }
                     });
-                    if let Some(i) = pick {
-                        let img = self.frames[i].2.clone();
-                        self.original = Some(img);
-                        self.ops.clear();
-                        self.dirty = true;
-                    }
-                    ui.add_space(4.0);
-                }
-                ui.label(egui::RichText::new(s.t("gfx-make-ico")).strong());
-                ui.horizontal_wrapped(|ui| {
-                    for (i, size) in ICO_SIZES.iter().enumerate() {
-                        ui.checkbox(&mut self.controls.ico_sizes[i], size.to_string());
-                    }
                 });
+                ui.add_space(4.0);
                 if ui
                     .button(format!("{} {}", ph::FLOPPY_DISK, s.t("gfx-save-ico")))
                     .clicked()
@@ -548,19 +634,30 @@ impl GraphicsTool {
         // Export
         form::section(ui, theme, &s.t("gfx-export"), |ui| {
             ui.add_enabled_ui(has, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(s.t("gfx-format"));
-                    egui::ComboBox::from_id_salt("gfx-format")
-                        .selected_text(self.format.label())
-                        .show_ui(ui, |ui| {
-                            for f in Format::ALL {
-                                ui.selectable_value(&mut self.format, f, f.label());
-                            }
-                        });
+                Rows::show(ui, theme, "gfx-rows-export", |rows| {
+                    rows.row(&s.t("gfx-format"), None, |ui| {
+                        egui::ComboBox::from_id_salt("gfx-format")
+                            .width(120.0)
+                            .selected_text(self.format.label())
+                            .show_ui(ui, |ui| {
+                                for f in Format::ALL {
+                                    ui.selectable_value(&mut self.format, f, f.label());
+                                }
+                            });
+                    });
                 });
                 if self.format == Format::Jpeg {
-                    ui.add(egui::Slider::new(&mut self.quality, 1..=100).text(s.t("gfx-quality")));
+                    let q = self.quality.to_string();
+                    slider_block(
+                        ui,
+                        theme,
+                        &s.t("gfx-quality"),
+                        &q,
+                        "",
+                        egui::Slider::new(&mut self.quality, 1..=100),
+                    );
                 }
+                ui.add_space(4.0);
                 if form::primary_button(
                     ui,
                     theme,
@@ -572,6 +669,320 @@ impl GraphicsTool {
                 }
             });
         });
+    }
+}
+
+/// A slider that reads like a photo editor's: the label, the current
+/// value and the Apply button on one line, the slider itself full width
+/// underneath. Returns whether Apply was clicked (`apply` empty = none).
+fn slider_block(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    label: &str,
+    value: &str,
+    apply: &str,
+    slider: egui::Slider<'_>,
+) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(label).color(theme.text_muted));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if !apply.is_empty() {
+                clicked = ui.small_button(apply).clicked();
+            }
+            ui.label(egui::RichText::new(value).monospace());
+        });
+    });
+    ui.spacing_mut().slider_width = (ui.available_width() - 6.0).max(60.0);
+    // The theme's inactive fill matches the panel, which hides the rail;
+    // give the rail and the handle a visible fill for this widget only.
+    let v = ui.visuals_mut();
+    v.widgets.inactive.bg_fill = theme.border;
+    v.widgets.hovered.bg_fill = theme.surface_hover;
+    ui.add(slider.show_value(false).trailing_fill(true));
+    ui.add_space(6.0);
+    clicked
+}
+
+/// Width of the label column in the sidebar rows.
+const LABEL_W: f32 = 76.0;
+/// Room kept for the Apply button column.
+const APPLY_W: f32 = 56.0;
+
+/// Aligned rows inside a section: a label column, a controls column and
+/// a button column, laid out on one `egui::Grid` so every row lines up.
+struct Rows<'a> {
+    ui: &'a mut egui::Ui,
+    theme: &'a Theme,
+    width: f32,
+}
+
+impl Rows<'_> {
+    fn show(ui: &mut egui::Ui, theme: &Theme, id: &str, add_rows: impl FnOnce(&mut Rows<'_>)) {
+        let width = ui.available_width();
+        egui::Grid::new(id)
+            .num_columns(3)
+            .spacing([8.0, 6.0])
+            .show(ui, |ui| {
+                let mut rows = Rows { ui, theme, width };
+                add_rows(&mut rows);
+            });
+    }
+
+    /// Width of the controls column.
+    fn controls_width(&self) -> f32 {
+        (self.width - LABEL_W - APPLY_W - 16.0).max(120.0)
+    }
+
+    /// A bold group heading on its own row.
+    fn title(&mut self, text: &str) {
+        self.ui
+            .label(egui::RichText::new(text).strong().color(self.theme.text));
+        self.ui.label("");
+        self.ui.label("");
+        self.ui.end_row();
+    }
+
+    fn hint(&mut self, text: &str) {
+        self.ui.add(
+            egui::Label::new(
+                egui::RichText::new(text)
+                    .small()
+                    .color(self.theme.text_muted),
+            )
+            .wrap(),
+        );
+        self.ui.label("");
+        self.ui.label("");
+        self.ui.end_row();
+    }
+
+    /// An empty row of height `h` (`add_space` is not allowed in a grid).
+    fn space(&mut self, h: f32) {
+        self.ui
+            .allocate_exact_size(egui::vec2(1.0, h), egui::Sense::hover());
+        self.ui.label("");
+        self.ui.label("");
+        self.ui.end_row();
+    }
+
+    /// One row: label, controls, and (when `apply` is given) a button in
+    /// the last column. Returns whether that button was clicked.
+    fn row(
+        &mut self,
+        label: &str,
+        apply: Option<&str>,
+        controls: impl FnOnce(&mut egui::Ui),
+    ) -> bool {
+        let theme = self.theme;
+        self.ui.scope(|ui| {
+            ui.set_min_width(LABEL_W);
+            ui.set_max_width(LABEL_W);
+            ui.add(egui::Label::new(egui::RichText::new(label).color(theme.text_muted)).truncate())
+                .on_hover_text(label);
+        });
+        let controls_w = self.controls_width();
+        self.ui.scope(|ui| {
+            ui.set_max_width(controls_w);
+            ui.horizontal_wrapped(|ui| controls(ui));
+        });
+        let clicked = match apply {
+            Some(text) => self.ui.small_button(text).clicked(),
+            None => {
+                self.ui.label("");
+                false
+            }
+        };
+        self.ui.end_row();
+        clicked
+    }
+}
+
+impl GraphicsTool {
+    /// The crop placeholder: a rectangle over the picture that can be
+    /// moved by its inside and resized by its edges and corners; a drag
+    /// outside it draws a new one. Every change lands in the X/Y/W/H
+    /// inputs of the Crop group (image pixels).
+    fn crop_overlay(&mut self, ui: &mut egui::Ui, theme: &Theme, img_rect: egui::Rect, z: f32) {
+        let Some((iw, ih)) = self.current.as_ref().map(|i| i.dimensions()) else {
+            return;
+        };
+        let to_screen = |x: u32, y: u32| img_rect.min + egui::vec2(x as f32 * z, y as f32 * z);
+        let to_image = |p: egui::Pos2| {
+            let v = (p - img_rect.min) / z;
+            egui::pos2(v.x.clamp(0.0, iw as f32), v.y.clamp(0.0, ih as f32))
+        };
+        let [cx, cy, cw, ch] = self.controls.crop;
+        let rect = egui::Rect::from_min_max(to_screen(cx, cy), to_screen(cx + cw, cy + ch));
+        let grip = 7.0;
+        let resp = ui.interact(
+            img_rect,
+            ui.id().with("gfx-crop-drag"),
+            egui::Sense::click_and_drag(),
+        );
+
+        // Which grip is under the pointer (for the cursor and the drag).
+        let zone_at = |p: egui::Pos2| -> CropGrip {
+            let near = |a: f32, b: f32| (a - b).abs() <= grip;
+            let inside_x = p.x >= rect.left() - grip && p.x <= rect.right() + grip;
+            let inside_y = p.y >= rect.top() - grip && p.y <= rect.bottom() + grip;
+            if !(inside_x && inside_y) {
+                return CropGrip::New;
+            }
+            let (l, r, t, b) = (
+                near(p.x, rect.left()),
+                near(p.x, rect.right()),
+                near(p.y, rect.top()),
+                near(p.y, rect.bottom()),
+            );
+            match (l, r, t, b) {
+                (true, _, true, _) => CropGrip::Nw,
+                (_, true, true, _) => CropGrip::Ne,
+                (true, _, _, true) => CropGrip::Sw,
+                (_, true, _, true) => CropGrip::Se,
+                (true, _, _, _) => CropGrip::W,
+                (_, true, _, _) => CropGrip::E,
+                (_, _, true, _) => CropGrip::N,
+                (_, _, _, true) => CropGrip::S,
+                _ => CropGrip::Move,
+            }
+        };
+        if let Some(p) = resp.hover_pos() {
+            let cursor = match self.crop_drag.map(|d| d.0).unwrap_or_else(|| zone_at(p)) {
+                CropGrip::Move => egui::CursorIcon::Grab,
+                CropGrip::N | CropGrip::S => egui::CursorIcon::ResizeVertical,
+                CropGrip::E | CropGrip::W => egui::CursorIcon::ResizeHorizontal,
+                CropGrip::Ne | CropGrip::Sw => egui::CursorIcon::ResizeNeSw,
+                CropGrip::Nw | CropGrip::Se => egui::CursorIcon::ResizeNwSe,
+                CropGrip::New => egui::CursorIcon::Crosshair,
+            };
+            ui.ctx().set_cursor_icon(cursor);
+        }
+        if resp.drag_started()
+            && let Some(p) = resp.interact_pointer_pos()
+        {
+            self.crop_drag = Some((zone_at(p), self.controls.crop, to_image(p)));
+        }
+        if resp.dragged()
+            && let Some((zone, start, from)) = self.crop_drag
+            && let Some(p) = resp.interact_pointer_pos()
+        {
+            let now = to_image(p);
+            let (dx, dy) = (
+                (now.x - from.x).round() as i64,
+                (now.y - from.y).round() as i64,
+            );
+            let [sx, sy, sw, sh] = start.map(|v| v as i64);
+            let (iw, ih) = (iw as i64, ih as i64);
+            let (mut x0, mut y0, mut x1, mut y1) = (sx, sy, sx + sw, sy + sh);
+            match zone {
+                CropGrip::Move => {
+                    let dx = dx.clamp(-sx, iw - (sx + sw));
+                    let dy = dy.clamp(-sy, ih - (sy + sh));
+                    x0 += dx;
+                    x1 += dx;
+                    y0 += dy;
+                    y1 += dy;
+                }
+                CropGrip::N => y0 += dy,
+                CropGrip::S => y1 += dy,
+                CropGrip::W => x0 += dx,
+                CropGrip::E => x1 += dx,
+                CropGrip::Nw => {
+                    x0 += dx;
+                    y0 += dy;
+                }
+                CropGrip::Ne => {
+                    x1 += dx;
+                    y0 += dy;
+                }
+                CropGrip::Sw => {
+                    x0 += dx;
+                    y1 += dy;
+                }
+                CropGrip::Se => {
+                    x1 += dx;
+                    y1 += dy;
+                }
+                CropGrip::New => {
+                    x0 = from.x.round() as i64;
+                    y0 = from.y.round() as i64;
+                    x1 = now.x.round() as i64;
+                    y1 = now.y.round() as i64;
+                }
+            }
+            let (x0, x1) = (x0.min(x1).clamp(0, iw), x0.max(x1).clamp(0, iw));
+            let (y0, y1) = (y0.min(y1).clamp(0, ih), y0.max(y1).clamp(0, ih));
+            self.controls.crop = [
+                x0 as u32,
+                y0 as u32,
+                (x1 - x0).max(1) as u32,
+                (y1 - y0).max(1) as u32,
+            ];
+        }
+        if resp.drag_stopped() {
+            self.crop_drag = None;
+        }
+
+        // Paint: dim outside, outline, grips and the size.
+        let [cx, cy, cw, ch] = self.controls.crop;
+        let rect = egui::Rect::from_min_max(to_screen(cx, cy), to_screen(cx + cw, cy + ch));
+        let p = ui.painter();
+        let dim = egui::Color32::from_black_alpha(110);
+        for r in [
+            egui::Rect::from_min_max(img_rect.min, egui::pos2(img_rect.right(), rect.top())),
+            egui::Rect::from_min_max(egui::pos2(img_rect.left(), rect.bottom()), img_rect.max),
+            egui::Rect::from_min_max(egui::pos2(img_rect.left(), rect.top()), rect.left_bottom()),
+            egui::Rect::from_min_max(
+                rect.right_top(),
+                egui::pos2(img_rect.right(), rect.bottom()),
+            ),
+        ] {
+            p.rect_filled(r.intersect(img_rect), 0.0, dim);
+        }
+        p.rect_stroke(
+            rect,
+            0.0,
+            egui::Stroke::new(1.5, theme.accent),
+            egui::StrokeKind::Outside,
+        );
+        // Rule-of-thirds guides.
+        for i in 1..3 {
+            let f = i as f32 / 3.0;
+            let x = rect.left() + rect.width() * f;
+            let y = rect.top() + rect.height() * f;
+            p.line_segment(
+                [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+                egui::Stroke::new(0.5, theme.accent.linear_multiply(0.5)),
+            );
+            p.line_segment(
+                [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
+                egui::Stroke::new(0.5, theme.accent.linear_multiply(0.5)),
+            );
+        }
+        for c in [
+            rect.left_top(),
+            rect.center_top(),
+            rect.right_top(),
+            rect.left_center(),
+            rect.right_center(),
+            rect.left_bottom(),
+            rect.center_bottom(),
+            rect.right_bottom(),
+        ] {
+            p.rect_filled(
+                egui::Rect::from_center_size(c, egui::vec2(grip, grip)),
+                1.0,
+                theme.accent,
+            );
+        }
+        p.text(
+            rect.left_top() + egui::vec2(4.0, -4.0),
+            egui::Align2::LEFT_BOTTOM,
+            format!("{cw}×{ch} @ {cx},{cy}"),
+            egui::FontId::proportional(11.0),
+            theme.accent,
+        );
     }
 }
 
@@ -682,7 +1093,7 @@ impl Tool for GraphicsTool {
             egui::Rect::from_min_size(full.min, egui::vec2(canvas_w.max(100.0), full.height()));
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(canvas));
         child.set_clip_rect(canvas);
-        match &self.texture {
+        match self.texture.clone() {
             Some(tex) => {
                 let size = tex.size_vec2();
                 let fit = (canvas.width() / size.x)
@@ -739,6 +1150,9 @@ impl Tool for GraphicsTool {
                             egui::FontId::proportional(11.0),
                             theme.text_muted,
                         );
+                        if self.crop_select {
+                            self.crop_overlay(ui, &theme, img_rect, z);
+                        }
                     });
             }
             None => {

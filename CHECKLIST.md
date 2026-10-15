@@ -162,4 +162,9 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Terminal: Nushell between Command Prompt and Git Bash (auto-detected) | Completed | `hs_term::shells` (2026-10-15, request 3) |
 | Devtools: secrets into the environment/vault, variables usable everywhere, one tab per utility, inputs persisted | Completed | `hs_ui::varpeek`, `Services::expand`, `for_save()` keeps only `{{references}}` |
 | `{{variable}}` fields get a view/copy of the value | Completed | eye button → peek popup (devtools, API URL) |
+| Title-bar icon rhythm (Read Aloud beside Snip/Print) | Completed | `icon_menu` on `icon_button` (2026-10-15, request 4) |
+| Graphics sidebar tidy: aligned rows, full-width sliders, crop placeholder on the canvas | Completed | `Rows` grid helper, `slider_block`, `crop_overlay` |
+| Scratchpad: notes collection with sidebar list, pinning, one tab per note, dual pane, AI assistant | Completed | `docs/tools/scratchpad.md` |
+| API client assistant that fills the client (collections, requests, fields, scripts, docs) | Completed | `tool-api::assist`, `hs-api` blocks with Apply; `api_tests.rs` |
+| Performance pass over the new code | Completed | per-frame digests/verification/parsing cached; assistant context rebuilt on change |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

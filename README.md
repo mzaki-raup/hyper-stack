@@ -173,6 +173,9 @@ Open opens the searchable tools, connections and project items palette.
 | ![API client](docs/screenshots/api-client.png) | ![API client scripts](docs/screenshots/api-client-scripts.png) |
 | **Requests** — method, URL with `{{variables}}`, params, headers, body (JSON, text, XML, form, multipart, binary), auth (inherit, basic, bearer, API key); response as pretty, raw or preview with headers, cookies, tests and console; Copy as curl, Import curl; history | **Scripts** — pre-request and post-response JavaScript with the `pm` API (`pm.environment`, `pm.globals`, `pm.collectionVariables`, `pm.request`, `pm.response`, `pm.test`, `pm.expect`, `console`), snippets, collection libraries; Postman v2.1 collections and environments import and export |
 
+| ![API client AI assistant](docs/screenshots/api-client-ai.png) | |
+| **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send. | |
+
 Collections are JSON files in the workspace; variables resolve through the
 collection, the active environment (vault secrets only when sending) and
 globals. A non-GET request to a protected environment asks first.
@@ -195,7 +198,16 @@ from a service account). Keys typed into a utility are never saved.
 | | |
 |---|---|
 | ![Graphics](docs/screenshots/graphics.png) | ![Graphics operations](docs/screenshots/graphics-ops.png) |
+| ![Crop placeholder](docs/screenshots/graphics-crop.png) | |
+| **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow | |
 | **Pictures** open from the editor's project tree or a dialog; zoom on a checkerboard; convert between PNG, JPEG, WebP, BMP, GIF and ICO; multi-size ICO export; icon frame extraction | **Operations** — resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen, each removable; review-only AI assistant |
+
+### Scratchpad
+
+| | |
+|---|---|
+| ![Scratchpad](docs/screenshots/scratchpad.png) | ![Scratchpad AI assistant](docs/screenshots/scratchpad-ai.png) |
+| **Notes** — a collection of Markdown notes per workspace: the sidebar lists them newest first with pinned notes on top, one tab per note, source and preview side by side, saved 1.5 s after typing stops | **Assistant** — drafts checklists, tables, Mermaid diagrams and command fences; each block inserts at the cursor |
 
 ### Browser
 
@@ -281,7 +293,8 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Terminal | [tools/terminal.md](docs/tools/terminal.md) | Yes |
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Partly |
-| [docs/tools/graphics.md](docs/tools/graphics.md) | Graphics: pictures, operations, formats, icons |
+| [docs/tools/graphics.md](docs/tools/graphics.md) | Graphics: pictures, operations, formats, icons, crop placeholder |
+| [docs/tools/scratchpad.md](docs/tools/scratchpad.md) | Scratchpad: Markdown notes per workspace, pinning, dual pane, AI assistant |
 | [docs/tools/browser.md](docs/tools/browser.md) | Browser: WebView2 pages, blocking, dark mode, devtools |
 
 ## Build and run

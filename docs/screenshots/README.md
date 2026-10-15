@@ -53,7 +53,10 @@ retain current filenames and README links for existing shots.
 revealed), `devtools-jasypt.png`, `terminal-shells.png` (Nushell between
 Command Prompt and Git Bash),
 `devtools-pki.png`, `api-client.png`, `api-client-scripts.png`,
-`graphics.png`, `graphics-ops.png` and `browser.png` were captured on
+`api-client-ai.png` (an `hs-api` action block with Apply, answered by a
+local mock model), `graphics.png`, `graphics-ops.png`, `graphics-crop.png`
+(the crop placeholder), `scratchpad.png`, `scratchpad-ai.png` and
+`browser.png` were captured on
 Windows 11 from the debug build with the harness in
 `scripts/gui-smoke.ps1` (`start`, `keys`, `click`, `shot`): `Start-Process
 HyperStack.exe --data-dir <scratch>`, `SetProcessDPIAware`, the window
@@ -63,5 +66,7 @@ through `mouse_event` at window-relative coordinates, and
 border is part of each PNG). The theme is HyperStack Dark; the API client
 shot shows a real `GET https://httpbin.org/json`, the browser shot the
 DuckDuckGo home page in a WebView2 child view, the JWT shot the jwt.io
-sample token. The walkthrough GIF (`hyperstack-demo.gif`) still shows the
-0.17 flows and has not been re-recorded.
+sample token. The walkthrough GIF (`hyperstack-demo.gif`) is now a
+slideshow assembled with ImageMagick from the current screenshots
+(`magick -delay 150 -loop 0 <frames> -resize 1200x hyperstack-demo.gif`),
+one screen every 1.5 s, replacing the 0.17 screen recording.

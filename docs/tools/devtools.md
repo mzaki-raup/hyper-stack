@@ -110,7 +110,7 @@ individually ("JWT", "Cron") and can be pinned.
 |---|---|
 | **Snippets** | code/SQL/shell/command snippets with language, tags, `{{var}}` placeholders, search from quick-open, insert into editor/terminal/console |
 | **.env editor** | table view of `KEY=VALUE`, masking for secret-looking keys, compare two `.env` files, import as environment variables (secrets to the vault), export environment as `.env` (non-secret) |
-| **Scratchpad** | per-workspace Markdown notes with preview, auto-saved, checklist support |
+| **Scratchpad** | implemented as its own tool, see [scratchpad.md](scratchpad.md): per-workspace Markdown notes, preview, autosave, pinning, AI assistant |
 | **Clipboard history (P2)** | last N text items (opt-in, excluded for secrets copied from the app) |
 
 ## 3. Interaction model

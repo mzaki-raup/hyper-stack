@@ -2331,13 +2331,7 @@ impl HyperStackApp {
         } else {
             hs_ui::icons::ph::SPEAKER_NONE
         };
-        let button = egui::Button::new(egui::RichText::new(icon).size(20.0).color(if speaking {
-            theme.accent
-        } else {
-            theme.text
-        }))
-        .frame(false);
-        let r = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+        let r = hs_ui::form::icon_menu(ui, &theme, icon, 20.0, speaking, |ui| {
             ui.set_min_width(240.0);
             ui.label(
                 egui::RichText::new(s.t("tts-menu-title"))
@@ -2377,7 +2371,7 @@ impl HyperStackApp {
                 ui.close();
             }
         });
-        r.0.tip(s.t("tts-tip"));
+        r.tip(s.t("tts-tip"));
     }
 
     /// Settings export/import: confirm the master password, then pick the
@@ -2601,13 +2595,7 @@ impl HyperStackApp {
     fn snip_menu(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
         let theme = self.theme.clone();
-        let button = egui::Button::new(
-            egui::RichText::new(hs_ui::icons::ph::CAMERA)
-                .size(20.0)
-                .color(theme.text),
-        )
-        .frame(false);
-        let r = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+        let r = hs_ui::form::icon_menu(ui, &theme, hs_ui::icons::ph::CAMERA, 20.0, false, |ui| {
             ui.set_min_width(220.0);
             let km = s.shortcuts.read();
             let key = |a: &str| {
@@ -2652,7 +2640,7 @@ impl HyperStackApp {
                 ui.close();
             }
         });
-        r.0.tip(s.t("snip-tip"));
+        r.tip(s.t("snip-tip"));
     }
 
     fn notification_popup(&mut self, ctx: &egui::Context) {

@@ -2,6 +2,8 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(test)]
+mod api_tests;
 mod app;
 mod bootstrap;
 mod browser_host;

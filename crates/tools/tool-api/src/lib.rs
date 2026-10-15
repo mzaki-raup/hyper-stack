@@ -6,6 +6,7 @@
 //! resolve through collection variables, the active HyperStack
 //! environment (secrets from the vault at send time) and globals.
 
+pub mod assist;
 pub mod model;
 pub mod postman;
 pub mod script;
@@ -80,7 +81,7 @@ pub struct Outcome {
 type Pending = Arc<Mutex<Option<Outcome>>>;
 
 pub struct ApiTool {
-    state: State,
+    pub(crate) state: State,
     /// The request being edited (a copy of the saved one, or a draft).
     pub(crate) request: Request,
     /// The saved version, to show the dirty dot.
@@ -104,9 +105,53 @@ pub struct ApiTool {
     /// Text to copy on the next frame (commands have no `egui::Context`).
     pub(crate) copy_pending: Option<String>,
     pub(crate) assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// What the assistant's context was last built from, so the (long)
+    /// context and schema strings are rebuilt only when something changed.
+    assistant_key: Option<AssistantKey>,
+}
+
+/// Cheap fingerprint of everything the assistant context is built from.
+#[derive(PartialEq, Eq, Clone)]
+struct AssistantKey {
+    request: Request,
+    body_version: u64,
+    collections: Vec<(String, usize)>,
+    last: Option<(u16, u64)>,
+    location: String,
 }
 
 impl ApiTool {
+    /// A tool bound to the workspace's `api/` folder, for tests and hosts
+    /// that drive it without a tab.
+    pub fn new_in(s: &Services) -> Self {
+        Self::new(s, State::default())
+    }
+
+    /// The request being edited.
+    pub fn request(&self) -> &Request {
+        &self.request
+    }
+
+    /// The workspace's collections.
+    pub fn collections(&self) -> &[Collection] {
+        &self.collections
+    }
+
+    /// Apply an assistant action block (`hs-api` JSON) as the Apply button
+    /// does.
+    pub fn apply_assistant_block(
+        &mut self,
+        block: &str,
+        cx: &mut ToolContext,
+    ) -> Result<assist::Report, String> {
+        let actions = assist::parse(block)?;
+        Ok(self.apply_actions(&actions, cx))
+    }
+
+    pub(crate) fn globals_path(&self) -> PathBuf {
+        self.api_dir.join("globals.json")
+    }
+
     fn new(s: &Services, state: State) -> Self {
         let api_dir = s.workspace.read().root().join("api");
         let collections = Collection::load_all(&api_dir.join("collections"));
@@ -133,6 +178,7 @@ impl ApiTool {
             sent_title: String::new(),
             copy_pending: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            assistant_key: None,
             state,
         };
         // Reopen the saved request, else the draft.
@@ -958,42 +1004,71 @@ impl Tool for ApiTool {
         ui::main(self, &mut main_ui, cx, &theme);
         if self.assistant.open {
             let s = cx.services;
-            let mut context = format!(
-                "Request: {} {}\nHeaders: {}\nBody ({:?}):\n{}",
-                self.request.method,
-                self.request.url,
-                self.request
-                    .headers
+            let location = match (&self.state.collection, &self.state.request_id) {
+                (Some(cid), Some(_)) => self
+                    .collections
                     .iter()
-                    .filter(|h| h.enabled)
-                    .map(|h| format!("{}: {}", h.key, h.value))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                self.request.body.kind,
-                self.body_view.text()
-            );
-            if let Some(Outcome {
-                exchange: Ok(ex),
-                tests,
-                script_error,
-                ..
-            }) = &self.last
-            {
-                let body = String::from_utf8_lossy(&ex.body);
-                let shown: String = body.chars().take(4000).collect();
-                context.push_str(&format!(
-                    "\n\nLast response: {} {} in {} ms\n{}\nTests: {} passed / {}\nScript error: {}",
-                    ex.status,
-                    ex.status_text,
-                    ex.millis,
-                    shown,
-                    tests.iter().filter(|t| t.passed).count(),
-                    tests.len(),
-                    script_error.clone().unwrap_or_else(|| "none".into())
-                ));
+                    .find(|c| &c.id == cid)
+                    .map(|c| format!("in collection \"{}\"", c.name))
+                    .unwrap_or_else(|| "unsaved".into()),
+                _ => "unsaved".into(),
+            };
+            let key = AssistantKey {
+                request: self.request.clone(),
+                body_version: self.body_view.version(),
+                collections: self
+                    .collections
+                    .iter()
+                    .map(|c| (c.name.clone(), c.request_count()))
+                    .collect(),
+                last: self.last.as_ref().and_then(|o| match &o.exchange {
+                    Ok(ex) => Some((ex.status, ex.millis)),
+                    Err(_) => None,
+                }),
+                location,
+            };
+            if self.assistant_key.as_ref() != Some(&key) {
+                let mut context = format!(
+                    "Request: {} {}\nHeaders: {}\nBody ({:?}):\n{}",
+                    self.request.method,
+                    self.request.url,
+                    self.request
+                        .headers
+                        .iter()
+                        .filter(|h| h.enabled)
+                        .map(|h| format!("{}: {}", h.key, h.value))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    self.request.body.kind,
+                    self.body_view.text()
+                );
+                if let Some(Outcome {
+                    exchange: Ok(ex),
+                    tests,
+                    script_error,
+                    ..
+                }) = &self.last
+                {
+                    let body = String::from_utf8_lossy(&ex.body);
+                    let shown: String = body.chars().take(4000).collect();
+                    context.push_str(&format!(
+                        "\n\nLast response: {} {} in {} ms\n{}\nTests: {} passed / {}\nScript error: {}",
+                        ex.status,
+                        ex.status_text,
+                        ex.millis,
+                        shown,
+                        tests.iter().filter(|t| t.passed).count(),
+                        tests.len(),
+                        script_error.clone().unwrap_or_else(|| "none".into())
+                    ));
+                }
+                self.assistant
+                    .set_context("API request and response", context);
+                self.assistant.extra_system =
+                    assist::system_prompt(&self.collections, &self.request, &key.location);
+                self.assistant.action_lang = Some(assist::LANG.to_string());
+                self.assistant_key = Some(key);
             }
-            self.assistant
-                .set_context("API request and response", context);
             let panel = egui::Rect::from_min_max(
                 egui::pos2(full.right() - 390.0, full.top()),
                 full.right_bottom(),
@@ -1010,8 +1085,21 @@ impl Tool for ApiTool {
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
                     self.assistant.can_insert = true;
-                    let out = self.assistant.ui(ui, s, &theme, "API client");
-                    if let Some(block) = out.use_block {
+                    let mut out = self.assistant.ui(ui, s, &theme, "API client");
+                    let is_action = out.use_block_lang.eq_ignore_ascii_case(assist::LANG);
+                    if let Some(block) = out.use_block.take_if(|_| is_action) {
+                        // An action block: edit the request and collections
+                        // as the user would by hand (never sends).
+                        match assist::parse(&block) {
+                            Ok(actions) => {
+                                let rep = self.apply_actions(&actions, cx);
+                                let (level, text) = assist::summary(cx, &rep);
+                                cx.toast(level, text);
+                                self.assistant_key = None;
+                            }
+                            Err(e) => cx.toast(ToastLevel::Error, e),
+                        }
+                    } else if let Some(block) = out.use_block {
                         // Into what the user is editing: a script tab takes
                         // the block as script, anything else as the body.
                         match self.state.req_tab {

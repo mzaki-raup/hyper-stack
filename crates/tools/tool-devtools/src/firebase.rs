@@ -249,6 +249,11 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         &s.t("dt-firebase"),
         Some(&s.t("dt-firebase-sub")),
     );
+    // Parsed once per frame (the section shows it, the token buttons use
+    // it); a file loaded this frame shows up on the next one.
+    let parsed = parse_service_account(
+        &util::expand(s, &st.service_json).unwrap_or_else(|_| st.service_json.clone()),
+    );
     form::section(ui, theme, &s.t("dt-firebase-account"), |ui| {
         util::secret_input(
             ui,
@@ -272,23 +277,19 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         {
             st.service_json = text;
         }
-        let service_json =
-            util::expand(s, &st.service_json).unwrap_or_else(|_| st.service_json.clone());
-        match parse_service_account(&service_json) {
+        match &parsed {
             Ok(sa) => {
                 ui.label(
                     egui::RichText::new(format!("{} · {}", sa.project_id, sa.client_email))
                         .color(theme.text_muted),
                 );
             }
-            Err(e) if !st.service_json.trim().is_empty() => util::error(ui, theme, &e),
+            Err(e) if !st.service_json.trim().is_empty() => util::error(ui, theme, e),
             Err(_) => {}
         }
         form::hint(ui, theme, &s.t("dt-firebase-privacy"));
     });
-    let service_json =
-        util::expand(s, &st.service_json).unwrap_or_else(|_| st.service_json.clone());
-    let sa = parse_service_account(&service_json).ok();
+    let sa = parsed.ok();
     form::section(ui, theme, &s.t("dt-firebase-custom"), |ui| {
         form::field_grid(ui, "fb-custom", |ui| {
             form::label(ui, "uid");

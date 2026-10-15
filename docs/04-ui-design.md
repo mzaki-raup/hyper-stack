@@ -237,6 +237,11 @@ Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):
 Tool-specific maps live in each tool spec. Conflicts are shown in the
 shortcuts page.
 
+Every control on the right of the title bar is the same 38 px square
+(`hs_ui::form::icon_button`; the two menus use `icon_menu`, which opens an
+`egui::Popup::menu` on that same square), so the row keeps one rhythm
+whatever is enabled.
+
 ## 7b. Snip, Print and Read Aloud
 
 Every tab can be **snipped** (Ctrl+Alt+S, or the camera menu): egui takes a

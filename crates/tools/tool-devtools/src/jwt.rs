@@ -280,6 +280,10 @@ pub struct State {
     pub payload: String,
     #[serde(skip)]
     pub encoded: Option<Result<String, String>>,
+    /// The last verification, keyed by token and expanded key: RSA and
+    /// ECDSA checks are not repeated every frame.
+    #[serde(skip)]
+    pub verified: Option<(u64, Result<bool, String>)>,
 }
 
 impl State {
@@ -304,6 +308,7 @@ impl Default for State {
                 now + 3600
             ),
             encoded: None,
+            verified: None,
         }
     }
 }
@@ -384,10 +389,22 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 ui.label(s.i18n.t_args("dt-jwt-alg-is", &[("alg", alg.name())]));
                 key_field(st, ui, s, theme, alg.is_hmac());
                 if !st.key.trim().is_empty() {
-                    match util::expand(s, &st.key).and_then(|k| verify(&decoded, &k)) {
-                        Ok(true) => util::ok(ui, theme, &s.t("dt-jwt-valid")),
-                        Ok(false) => util::error(ui, theme, &s.t("dt-jwt-invalid")),
-                        Err(e) => util::error(ui, theme, &e),
+                    let expanded = util::expand(s, &st.key);
+                    let fp = {
+                        use std::hash::{Hash, Hasher};
+                        let mut h = std::collections::hash_map::DefaultHasher::new();
+                        st.token.hash(&mut h);
+                        expanded.hash(&mut h);
+                        h.finish()
+                    };
+                    if st.verified.as_ref().map(|(k, _)| *k) != Some(fp) {
+                        st.verified = Some((fp, expanded.and_then(|k| verify(&decoded, &k))));
+                    }
+                    match st.verified.as_ref().map(|(_, r)| r) {
+                        Some(Ok(true)) => util::ok(ui, theme, &s.t("dt-jwt-valid")),
+                        Some(Ok(false)) => util::error(ui, theme, &s.t("dt-jwt-invalid")),
+                        Some(Err(e)) => util::error(ui, theme, e),
+                        None => {}
                     }
                 }
             }

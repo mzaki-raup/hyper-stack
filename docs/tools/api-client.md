@@ -37,9 +37,19 @@
   re-opens an entry as a draft.
 - **Guards**: a non-GET request against a protected environment asks
   first, naming the environment, method and URL.
-- **AI**: the shared review-only assistant sees the request and the last
-  response; Insert puts a code block into the body or the post-response
-  script.
+- **AI**: the shared assistant sees the request, the last response and
+  the collection tree (names only). It can **act on the client**: its
+  system prompt (`assist::system_prompt`) describes a JSON action schema
+  and asks for one fenced `hs-api` block per answer; the block shows an
+  **Apply** button that edits the open request and the collections exactly
+  as the sidebar would (`assist::Action`: `new_collection`, `new_folder`,
+  `new_request`, `open_request`, `set_name`, `set_method`, `set_url`,
+  `set_param`/`remove_param`, `set_header`/`remove_header`, `set_body`,
+  `set_auth`, `set_script`, `set_docs`, `set_variable`, `save`). Every
+  action is attempted, failures are reported in the toast, the request tab
+  of the last change is focused, and applying the same block again reuses
+  the collection and request it made. Sending stays a user action. Plain
+  code blocks still Insert into the body or the post-response script.
 
 Not yet: OAuth 2 flows, AWS SigV4 and digest auth, `api` connections
 (§14), the collection runner, WebSocket/SSE/GraphQL/gRPC, cookie jar,

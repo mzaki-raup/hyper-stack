@@ -394,6 +394,20 @@ impl Collection {
         walk(&mut self.items, id)
     }
 
+    /// How many requests the tree holds (no allocation).
+    pub fn request_count(&self) -> usize {
+        fn walk(items: &[Item]) -> usize {
+            items
+                .iter()
+                .map(|it| match it {
+                    Item::Request(_) => 1,
+                    Item::Folder(f) => walk(&f.items),
+                })
+                .sum()
+        }
+        walk(&self.items)
+    }
+
     /// Every request in tree order with its folder path, for quick open.
     pub fn requests(&self) -> Vec<(Vec<String>, &Request)> {
         fn walk<'a>(

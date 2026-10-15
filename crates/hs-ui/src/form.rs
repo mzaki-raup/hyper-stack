@@ -287,6 +287,21 @@ pub fn icon_button(
 }
 
 /// A primary (accent-filled) button.
+/// An [`icon_button`] that opens a menu: the same square and hover as the
+/// plain icon buttons, so a row of them keeps an even rhythm.
+pub fn icon_menu(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: &str,
+    size: f32,
+    active: bool,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) -> egui::Response {
+    let r = icon_button(ui, theme, icon, size, active);
+    egui::Popup::menu(&r).show(add_contents);
+    r
+}
+
 pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
     ui.add(
         egui::Button::new(RichText::new(text).color(egui::Color32::WHITE))

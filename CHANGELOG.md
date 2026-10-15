@@ -11,7 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Title bar: Read Aloud, Snip/Print, the bell, Quick Open, the vault and Settings are the same square icon button with the same gap (`hs_ui::form::icon_menu`).
+- Graphics: the sidebar is laid out in aligned rows (label, controls, Apply) with group headings; the Adjust sliders run full width under their label with the value and Apply beside it; a **crop placeholder** on the canvas (Select on Canvas) can be moved by its inside, resized by its edges and corners or drawn afresh, and the X/Y/W/H boxes follow.
+- Scratchpad: a collection of Markdown notes per workspace (`<workspace>/notes/<id>.md`), listed in the sidebar newest first with search, **pinned notes** on top (right-click or the toolbar pin), one tab per note, autosave 1.5 s after typing stops, source and preview side by side (or either alone), and an **AI assistant** whose Markdown, Mermaid and bash blocks insert at the cursor.
+- API client: the assistant can act on the client. An answer's `hs-api` block (JSON actions: new collection/folder/request, open request, method, URL, params, headers, body, auth, scripts, docs, variables, save) gets an **Apply** button; applying edits the open request and the collections exactly as the sidebar would and never sends. Repeating a block reuses the collection and request it already made.
+- Performance: the hash utility digests an input once instead of every frame (and no longer clones a file's bytes per frame); the JWT utility verifies a signature once per token/key; the Firebase utility parses the service account once per frame; the API client rebuilds the assistant context only when the request, body, collections or last response changed.
 
 ## 0.19.0 — 2026-10-15
 

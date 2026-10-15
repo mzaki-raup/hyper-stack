@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Workspaces: any workspace can be deleted, the built-in Default included, as long as one remains (the switcher's trash icon and Settings → Workspace → Delete This Workspace…, confirmed, with its environments, connections, notes, collections and layout); deleting the open one switches to another, a startup preference pointing at it is cleared, and startup falls back to the last-opened or first registered workspace. The workspace logo shows wherever the name does: switcher button and list, Home cards, Settings → Workspace → Compare With.
+- (nothing yet)
+
+## 0.23.0 — 2026-10-15
+
+### Added
+
+- Delete any workspace but the last, default included; workspace logos wherever the name shows (b72f5ca1)
 
 ## 0.22.0 — 2026-10-15
 

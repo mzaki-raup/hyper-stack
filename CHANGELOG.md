@@ -23,8 +23,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   reordering one kind's list never disturbs another's.
 - The SFTP pane's actions moved from a bar under the listing into a
   right-click menu on the file or folder itself: Open in Editor, Rename,
-  Download, Copy, Copy Path, Delete, and Open Terminal Here for a folder.
-  Double-clicking the empty space below the listing goes up a level.
+  Download, Copy, Copy Path, Delete, Permissions… and Open Terminal Here
+  for a folder. Double-clicking the empty space below the listing goes up
+  a level, and the toolbar has **New File** beside New Folder.
+- A permissions dialog for a remote file or folder: owner, group, the mode
+  as a number and as nine boxes that agree with each other, with the
+  `rwxr-xr-x` form echoed. The mode is set over SFTP; owner and group are
+  sent as a `chown` into the shell, where the command and any error are in
+  front of the user, because SFTP wants numeric ids and usually root.
 - Tools can be kept out of the activity rail: Settings → Appearance →
   Activity Rail has a Show checkbox beside each one, next to the order
   arrows. Hiding a tool never makes it unreachable — saving a connection

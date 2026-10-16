@@ -4,6 +4,8 @@
 //! title) drives the browser, and navigating the browser sends `cd` to the
 //! shell. Hosts come from `kind = "ssh"` connection profiles.
 
+mod perms;
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -88,6 +90,14 @@ struct Entry {
     size: u64,
     mtime: Option<i64>,
     perms: String,
+    /// The numeric mode, for the permissions dialog. `perms` is the same
+    /// thing written for the eye; this is the one that can be edited.
+    mode: u32,
+    /// Owner and group as the server named them. SFTP v3 only promises the
+    /// numeric ids, so these can be empty and the dialog shows blanks
+    /// rather than inventing a name.
+    owner: String,
+    group: String,
 }
 
 #[derive(Default)]
@@ -130,6 +140,8 @@ pub struct SshTool {
     path_edit_synced: bool,
     rename: Option<(String, String)>,
     new_folder: Option<String>,
+    new_file: Option<String>,
+    perms: Option<PermsEdit>,
     /// Right-clicked entry (index into the listing) and the pointer, so the
     /// menu opens where the click was.
     entry_menu: Option<(usize, egui::Pos2)>,
@@ -179,6 +191,8 @@ impl SshTool {
             path_edit_synced: true,
             rename: None,
             new_folder: None,
+            new_file: None,
+            perms: None,
             entry_menu: None,
             confirm_delete: None,
             startup_sent: false,
@@ -594,6 +608,57 @@ impl SshTool {
                 self.new_folder = Some(name);
             }
         }
+        // New file: an empty file, named with its extension by the user.
+        if let Some(mut name) = self.new_file.take() {
+            let mut done = false;
+            let mut cancel = false;
+            let m = egui::Modal::new(self.view.id.with("touch")).show(ui.ctx(), |ui| {
+                ui.set_width(380.0);
+                ui.heading(s.t("ssh-new-file"));
+                ui.add_space(6.0);
+                let r = form::text_field(ui, &mut name, &s.t("ssh-new-file-hint"));
+                r.request_focus();
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    done = true;
+                }
+                ui.add_space(10.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if form::primary_button(ui, theme, &s.t("ok")).clicked() {
+                        done = true;
+                    }
+                    if ui.button(s.t("cancel")).clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+            if m.should_close() {
+                cancel = true;
+            }
+            if done && !name.trim().is_empty() {
+                let dir = self.shared.lock().remote.path.clone();
+                let path = Self::join(&dir, name.trim());
+                let done = self.after_job(
+                    s,
+                    s.i18n.t_args("ssh-file-created", &[("name", name.trim())]),
+                );
+                self.with_sftp(s, format!("Create {path}"), move |sftp, _h| async move {
+                    // Refuse to flatten something that is already there.
+                    let r = match sftp.try_exists(path.clone()).await {
+                        Ok(true) => {
+                            Err("a file or folder of that name is already here".to_string())
+                        }
+                        Ok(false) | Err(_) => sftp
+                            .write(path.clone(), &[])
+                            .await
+                            .map_err(|e| e.to_string()),
+                    };
+                    done(r.clone());
+                    r
+                });
+            } else if !done && !cancel {
+                self.new_file = Some(name);
+            }
+        }
         // Delete confirmation.
         if let Some(path) = self.confirm_delete.clone() {
             let name = path.rsplit('/').next().unwrap_or(&path).to_string();
@@ -690,6 +755,12 @@ impl SshTool {
                 .clicked()
             {
                 self.new_folder = Some(String::new());
+            }
+            if form::icon_button(ui, theme, ph::FILE_PLUS, 16.0, false)
+                .tip(s.t("ssh-new-file"))
+                .clicked()
+            {
+                self.new_file = Some(String::new());
             }
             if form::icon_button(ui, theme, ph::UPLOAD_SIMPLE, 16.0, false)
                 .tip(s.t("ssh-upload"))
@@ -827,6 +898,146 @@ impl SshTool {
 }
 
 impl SshTool {
+    /// View and change a remote entry's permissions, owner and group.
+    ///
+    /// The mode goes over SFTP, which is the one part every server allows
+    /// without a shell. Owner and group do not: SFTP wants numeric ids and
+    /// the change usually needs root, so those are sent as a `chown` in the
+    /// shell, where the user sees the command and its error if it fails.
+    fn perms_dialog(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some(mut e) = self.perms.take() else {
+            return;
+        };
+        let mut apply = false;
+        let mut cancel = false;
+        let m = egui::Modal::new(self.view.id.with("perms")).show(ui.ctx(), |ui| {
+            ui.set_width(430.0);
+            ui.heading(s.t("ssh-perms-title"));
+            ui.add_space(2.0);
+            ui.label(egui::RichText::new(&e.name).color(theme.text_muted).small());
+            ui.add_space(10.0);
+            form::field_grid(ui, "ssh-perms-grid", |ui| {
+                form::label(ui, &s.t("ssh-perms-owner"));
+                form::text_field(ui, &mut e.owner, &s.t("ssh-perms-owner"));
+                ui.end_row();
+                form::label(ui, &s.t("ssh-perms-group"));
+                form::text_field(ui, &mut e.group, &s.t("ssh-perms-group"));
+                ui.end_row();
+                form::label(ui, &s.t("ssh-perms-mode"));
+                // Typing a number ticks the boxes; anything that is not a
+                // mode leaves them alone rather than guessing.
+                if form::text_field(ui, &mut e.typed, "644").changed()
+                    && let Some(m) = perms::parse_octal(&e.typed)
+                {
+                    e.mode = m;
+                }
+                ui.end_row();
+            });
+            ui.add_space(8.0);
+            egui::Grid::new("ssh-perms-bits")
+                .num_columns(4)
+                .spacing([18.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label("");
+                    for key in ["ssh-perms-read", "ssh-perms-write", "ssh-perms-execute"] {
+                        ui.label(
+                            egui::RichText::new(s.t(key))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    }
+                    ui.end_row();
+                    for (who, key) in perms::Who::ALL.into_iter().zip([
+                        "ssh-perms-user",
+                        "ssh-perms-group-row",
+                        "ssh-perms-other",
+                    ]) {
+                        ui.label(s.t(key));
+                        for bit in perms::Bit::ALL {
+                            let mut on = perms::has(e.mode, who, bit);
+                            if ui.checkbox(&mut on, "").changed() {
+                                e.mode = perms::with(e.mode, who, bit, on);
+                                e.typed = perms::to_octal(e.mode);
+                            }
+                        }
+                        ui.end_row();
+                    }
+                });
+            ui.add_space(6.0);
+            ui.label(
+                egui::RichText::new(format!(
+                    "{}  {}",
+                    perms::to_octal(e.mode),
+                    perms::to_symbolic(e.mode)
+                ))
+                .monospace()
+                .color(theme.text_muted),
+            );
+            ui.add_space(12.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                    apply = true;
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    cancel = true;
+                }
+            });
+        });
+        if m.should_close() {
+            cancel = true;
+        }
+        if cancel {
+            return;
+        }
+        if !apply {
+            self.perms = Some(e);
+            return;
+        }
+        let (was_mode, was_owner, was_group) = e.was.clone();
+        if e.mode != was_mode {
+            let path = e.path.clone();
+            let mode = e.mode;
+            let done = self.after_job(
+                s,
+                s.i18n.t_args(
+                    "ssh-perms-changed",
+                    &[("name", &e.name), ("mode", &perms::to_octal(mode))],
+                ),
+            );
+            self.with_sftp(
+                s,
+                format!("chmod {} {path}", perms::to_octal(mode)),
+                move |sftp, _h| async move {
+                    let attrs = hs_ssh::FileAttributes {
+                        permissions: Some(mode),
+                        ..Default::default()
+                    };
+                    let r = sftp
+                        .set_metadata(path, attrs)
+                        .await
+                        .map_err(|e| e.to_string());
+                    done(r.clone());
+                    r
+                },
+            );
+        }
+        // Owner and group go through the shell, so the command and anything
+        // it says are in front of the user.
+        if (e.owner != was_owner || e.group != was_group)
+            && let Some(sess) = &self.session
+        {
+            let who = if e.group.trim().is_empty() {
+                e.owner.trim().to_string()
+            } else {
+                format!("{}:{}", e.owner.trim(), e.group.trim())
+            };
+            if !who.is_empty() && who != ":" {
+                sess.write(format!(" chown {} {}\n", who, hs_ssh::shell_quote(&e.path)).as_bytes());
+            }
+        }
+        let _ = e.is_dir;
+    }
+
     /// The right-click menu for a file or folder. Everything the pane can
     /// do to one entry lives here; the pane itself has no action bar.
     fn entry_menu(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -900,6 +1111,24 @@ impl SshTool {
                         .clicked()
                     {
                         self.confirm_delete = Some(target.clone());
+                        close = true;
+                    }
+                    ui.separator();
+                    if ui.button(s.t("ssh-perms")).clicked() {
+                        self.perms = Some(PermsEdit {
+                            path: target.clone(),
+                            name: e.name.clone(),
+                            is_dir: e.is_dir,
+                            mode: perms::permission_bits(e.mode),
+                            typed: perms::to_octal(e.mode),
+                            owner: e.owner.clone(),
+                            group: e.group.clone(),
+                            was: (
+                                perms::permission_bits(e.mode),
+                                e.owner.clone(),
+                                e.group.clone(),
+                            ),
+                        });
                         close = true;
                     }
                     if e.is_dir {
@@ -1454,6 +1683,7 @@ impl Tool for SshTool {
         self.hostkey_dialog(ui, &theme, s);
         self.prompts(ui, &theme, cx);
         self.entry_menu(ui, cx);
+        self.perms_dialog(ui, &theme, s);
 
         // Layout: a straight 50/50 split of the tool's width — file pane on the
         // left, shell on the right. Both panes are carved into fixed
@@ -1745,6 +1975,17 @@ async fn list_dir(
                         .permissions
                         .map(|p| format_perms(p & 0o7777, md.is_dir()))
                         .unwrap_or_default(),
+                    mode: md.permissions.unwrap_or(0),
+                    owner: md
+                        .user
+                        .clone()
+                        .or_else(|| md.uid.map(|u| u.to_string()))
+                        .unwrap_or_default(),
+                    group: md
+                        .group
+                        .clone()
+                        .or_else(|| md.gid.map(|g| g.to_string()))
+                        .unwrap_or_default(),
                     name,
                 }
             })
@@ -1789,6 +2030,22 @@ async fn remove_dir_recursive(sftp: &SftpSession, path: &str) -> Result<(), Stri
         }
     }
     sftp.remove_dir(path).await.map_err(|e| e.to_string())
+}
+
+/// The permissions dialog's working copy. `mode` is the nine bits being
+/// edited; `typed` is what is in the number field, which may not be a
+/// number yet while it is being typed.
+#[derive(Debug, Clone)]
+struct PermsEdit {
+    path: String,
+    name: String,
+    is_dir: bool,
+    mode: u32,
+    typed: String,
+    owner: String,
+    group: String,
+    /// What they were when the dialog opened, so only real changes are sent.
+    was: (u32, String, String),
 }
 
 /// Upload a file or a whole folder, keeping the folder's shape. Returns how

@@ -219,3 +219,33 @@ clipboard as *text* and only then emitting `Event::Paste`; a clipboard that
 holds files and no text produces no event at all, so the gesture would work
 for some sources and silently do nothing for Explorer. The buttons read
 `CF_HDROP` directly and always work.
+
+## 15. The file pane's actions (2026-10-17)
+
+Everything that can be done to one entry is in its **right-click menu**,
+not in a bar under the listing: Open in Editor and Download for a file,
+Rename, Copy (to the system clipboard), Copy Path, Delete, **Permissions…**,
+and Open Terminal Here for a folder, with separators between the groups.
+`hs_ui::table` reports the right-clicked row (`TableResponse::secondary`)
+and the pane draws the menu itself, so the table keeps no opinion about
+what a row means.
+
+Double-clicking the empty space below the listing goes up a level, the way
+a file manager does. The toolbar has **New File** beside New Folder, which
+creates an empty file and refuses to flatten a name that is already there.
+
+### Permissions
+
+The dialog shows the owner, the group, the mode as a number and the same
+mode as nine boxes; typing a number ticks the boxes and ticking a box
+changes the number, and the `rwxr-xr-x` form is echoed under them. Only
+the low nine bits are edited — setuid, setgid and the sticky bit are left
+exactly as they were. `tool-ssh::perms` holds the arithmetic and is tested
+over every one of the 512 modes.
+
+The mode is written with an SFTP `setstat`, which every server allows
+without a shell. **Owner and group are not**: SFTP v3 carries numeric ids
+and the change usually needs root, so those are sent as a `chown` into the
+shell, where the user sees the command run and reads any error it gives.
+The listing shows whatever the server named — a name when it sends one, the
+numeric id when it does not, and blank rather than a guess.

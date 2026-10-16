@@ -24,6 +24,9 @@ use tokio::sync::oneshot;
 pub use known_hosts::{KnownHosts, Verdict};
 pub use profile::SshFields;
 pub use russh_sftp::client::SftpSession;
+/// The attribute block an SFTP `setstat` carries: what the permissions
+/// dialog writes back.
+pub use russh_sftp::protocol::FileAttributes;
 pub use shell::{ShellReader, ShellTransport};
 
 #[derive(Debug, thiserror::Error)]

@@ -126,6 +126,8 @@ pub struct HyperStackApp {
     password: PasswordDialogState,
     confirm_close: Option<u64>,
     last_input: Instant,
+    /// When a secret copied from Settings → Security leaves the clipboard.
+    clear_clipboard_at: Option<Instant>,
     last_layout_save: Instant,
     /// Hash of the tab states last written, so tool inputs that change
     /// without touching the strip (a devtools field, an API draft) are
@@ -223,6 +225,7 @@ impl HyperStackApp {
             password: PasswordDialogState::default(),
             confirm_close: None,
             last_input: Instant::now(),
+            clear_clipboard_at: None,
             last_layout_save: Instant::now(),
             layout_fingerprint: 0,
             layout_dirty_since: None,
@@ -1355,6 +1358,23 @@ impl HyperStackApp {
                     self.toasts.push(ToastLevel::Info, msg);
                 }
                 SettingsEffect::OpenUrl(url) => self.pending_open_url = Some(url),
+                SettingsEffect::CopySecret(value) => {
+                    ctx.copy_text(value);
+                    let after = self
+                        .services
+                        .settings
+                        .read()
+                        .security
+                        .clear_clipboard_after_seconds;
+                    // 0 means "leave it alone", which is the only honest
+                    // reading of a zero timer.
+                    self.clear_clipboard_at =
+                        (after > 0).then(|| Instant::now() + Duration::from_secs(u64::from(after)));
+                    self.toasts.push(
+                        hs_core::tool::ToastLevel::Info,
+                        self.services.t("settings-cred-copied"),
+                    );
+                }
                 SettingsEffect::SyncEnvironments { from, to } => {
                     let result = (|| {
                         let src = self.registry.peek(&self.services.paths, &from)?;
@@ -2910,6 +2930,16 @@ impl eframe::App for HyperStackApp {
         // Idle tracking for the vault relock.
         if ctx.input(|i| !i.events.is_empty() || i.pointer.any_down()) {
             self.last_input = Instant::now();
+        }
+        // A copied secret does not sit on the clipboard for ever.
+        if let Some(at) = self.clear_clipboard_at
+            && Instant::now() >= at
+        {
+            ctx.copy_text(String::new());
+            self.clear_clipboard_at = None;
+        }
+        if self.clear_clipboard_at.is_some() {
+            ctx.request_repaint_after(Duration::from_millis(500));
         }
         let relock = self.services.settings.read().security.relock_after_minutes;
         if relock > 0

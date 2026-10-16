@@ -14,6 +14,17 @@ use crate::client::ConnectConfig;
 /// the spec and stored here; only standalone opens a session so far.
 pub const MODES: &[&str] = &["standalone", "sentinel", "cluster"];
 
+/// How a mode is written on screen. The stored value stays lower case;
+/// a list item is a name, so it is shown in Title Case.
+pub fn mode_label(mode: &str) -> &str {
+    match mode {
+        "standalone" => "Standalone",
+        "sentinel" => "Sentinel",
+        "cluster" => "Cluster",
+        other => other,
+    }
+}
+
 /// Default separator the key tree groups on.
 pub const DEFAULT_DELIMITER: &str = ":";
 

@@ -1152,13 +1152,17 @@ impl Tool for ApiTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        if ui
-            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-            .on_hover_text(s.t("ai-shared-button-tip"))
-            .clicked()
-        {
-            self.assistant.toggle("API client");
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .on_hover_text(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("API client");
+            }
+        });
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {

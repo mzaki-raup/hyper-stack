@@ -283,6 +283,13 @@ impl russh::server::Handler for ClientSession {
                     out.extend_from_slice(b"\r\n");
                     let line = std::mem::take(&mut self.line);
                     let line = line.trim();
+                    // A real shell swallows a comment line; this toy one has
+                    // to as well, or the SFTP pane's echoed commands (which
+                    // are comments on purpose) come back as errors.
+                    if line.starts_with('#') {
+                        out.extend(self.prompt());
+                        continue;
+                    }
                     if let Some(target) = line.strip_prefix("cd ") {
                         let target = target.trim().trim_matches('\'');
                         let p = Fs::normalize(if target.is_empty() { "~" } else { target });

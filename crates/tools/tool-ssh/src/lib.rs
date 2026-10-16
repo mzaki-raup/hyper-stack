@@ -326,6 +326,22 @@ impl SshTool {
         });
     }
 
+    /// Show an SFTP action in the shell pane, so the two halves of the tab
+    /// tell the same story: do it in the file pane, read the command for it
+    /// in the shell. It goes in as a **comment**, not a command — the action
+    /// has already happened over SFTP and running it a second time would be
+    /// wrong (deleting what was just deleted, say). `cd` is the exception and
+    /// is sent for real by `navigate`, because the shell's own working
+    /// directory really does have to move.
+    fn echo_sftp(&self, command: String) {
+        if !self.state.sync_cwd {
+            return;
+        }
+        if let Some(sess) = &self.session {
+            sess.write(format!(" # {command}\n").as_bytes());
+        }
+    }
+
     fn expand_tilde(&self, path: &str) -> String {
         if (path == "~" || path.starts_with("~/"))
             && let Some(home) = self.shared.lock().home.clone()
@@ -560,6 +576,11 @@ impl SshTool {
             if done && !name.trim().is_empty() {
                 let dir = Self::parent(&old);
                 let new = Self::join(&dir, name.trim());
+                self.echo_sftp(format!(
+                    "mv {} {}",
+                    hs_ssh::shell_quote(&old),
+                    hs_ssh::shell_quote(&new)
+                ));
                 let done = self.after_job(s, s.t("ssh-renamed"));
                 self.with_sftp(s, format!("Rename {old}"), move |sftp, _h| async move {
                     let r = sftp.rename(&old, &new).await.map_err(|e| e.to_string());
@@ -598,6 +619,7 @@ impl SshTool {
             if done && !name.trim().is_empty() {
                 let dir = self.shared.lock().remote.path.clone();
                 let path = Self::join(&dir, name.trim());
+                self.echo_sftp(format!("mkdir {}", hs_ssh::shell_quote(&path)));
                 let done = self.after_job(s, s.t("ssh-folder-created"));
                 self.with_sftp(s, format!("Create {path}"), move |sftp, _h| async move {
                     let r = sftp.create_dir(&path).await.map_err(|e| e.to_string());
@@ -637,6 +659,7 @@ impl SshTool {
             if done && !name.trim().is_empty() {
                 let dir = self.shared.lock().remote.path.clone();
                 let path = Self::join(&dir, name.trim());
+                self.echo_sftp(format!("touch {}", hs_ssh::shell_quote(&path)));
                 let done = self.after_job(
                     s,
                     s.i18n.t_args("ssh-file-created", &[("name", name.trim())]),
@@ -686,6 +709,11 @@ impl SshTool {
                         .entries
                         .iter()
                         .any(|e| e.name == name && e.is_dir);
+                    self.echo_sftp(format!(
+                        "rm {}{}",
+                        if is_dir { "-r " } else { "" },
+                        hs_ssh::shell_quote(&path)
+                    ));
                     let done = self.after_job(s, s.t("ssh-deleted"));
                     self.with_sftp(s, format!("Delete {path}"), move |sftp, _h| async move {
                         let r = if is_dir {
@@ -1014,6 +1042,11 @@ impl SshTool {
         if e.mode != was_mode {
             let path = e.path.clone();
             let mode = e.mode;
+            self.echo_sftp(format!(
+                "chmod {} {}",
+                perms::to_octal(mode),
+                hs_ssh::shell_quote(&path)
+            ));
             let done = self.after_job(
                 s,
                 s.i18n.t_args(
@@ -1578,17 +1611,22 @@ impl Tool for SshTool {
         }
         ui.toggle_value(&mut self.state.sync_cwd, s.t("ssh-sync-cwd"))
             .tip(s.t("ssh-sync-cwd-hint"));
-        if ui
-            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-            .tip(s.t("ai-shared-button-tip"))
-            .clicked()
-        {
-            self.assistant.toggle("SSH");
-        }
-        if let Some(sess) = &self.session {
-            let (c, r) = sess.size();
-            ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it
+            // sits in the same place: hard right of the toolbar, away
+            // from the buttons that act on what is selected.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .tip(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("SSH");
+            }
+            if let Some(sess) = &self.session {
+                let (c, r) = sess.size();
+                ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
+            }
+        });
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {

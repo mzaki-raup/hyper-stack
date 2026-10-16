@@ -532,13 +532,6 @@ impl Tool for Scratchpad {
                 Err(e) => cx.toast(ToastLevel::Error, e),
             }
         }
-        if ui
-            .selectable_label(self.assistant.open, format!("{} AI", ph::SPARKLE))
-            .on_hover_text(s.t("scratchpad-ai-tip"))
-            .clicked()
-        {
-            self.assistant.toggle("Scratchpad");
-        }
         let status = if self.dirty() {
             s.t("scratchpad-unsaved")
         } else if self.state.id.is_some() {
@@ -546,7 +539,21 @@ impl Tool for Scratchpad {
         } else {
             s.t("tool-scratchpad-hint")
         };
-        ui.label(egui::RichText::new(status).weak());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .selectable_label(
+                    self.assistant.open,
+                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+                )
+                .on_hover_text(s.t("scratchpad-ai-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("Scratchpad");
+            }
+            ui.label(egui::RichText::new(status).weak());
+        });
         if self.state.environment.is_none()
             && let Some(env) = cx.env_id
         {

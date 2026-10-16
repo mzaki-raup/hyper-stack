@@ -32,6 +32,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
 
+- **Credentials** in Settings → Security: every connection in the
+  workspace in one grid — name, type, connection string, host/URL, port,
+  username, password and key — with a copy button on each value. Passwords
+  are masked; uncovering one costs the master password, applies to that row
+  alone and covers itself again after 30 seconds. Copying a password is
+  gated the same way and now honours **Clear Clipboard After Copying a
+  Secret**, a setting that existed and did nothing before.
+
+- SFTP actions **show their command in the shell**. New Folder, New File,
+  Rename, Delete and Permissions write `mkdir`, `touch`, `mv`, `rm` and
+  `chmod` into the shell pane as comments, so the two halves of an SSH tab
+  tell the same story. They are comments on purpose: the action already
+  happened over SFTP.
+
 - **Test Connection** in Settings → Connections, between Save and Delete.
   It opens what is on the form with the real driver and says what the
   server replied — the version, or the error — so a profile can be proved
@@ -47,6 +61,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   existed, which is not a pin; it now lists the ones you chose.
 
 ### Changed
+
+- The **AI Assistant** button sits hard right on every tool's toolbar —
+  editor, terminal, SSH, SQL, S3, API client, Graphics and Scratchpad — so
+  it is in the same place wherever you are.
+
+- **Casing**: a parenthetical attached to a label now starts with a capital
+  ("None (Direct connection)", "Inspect (Developer tools, opens a window)",
+  "(Not set)"). One inside a running sentence stays lower case, which is
+  what sentence case means. The Redis Mode list shows names ("Standalone")
+  rather than the values it stores.
 
 - Each Devtools generator keeps **its own result**. The card is titled with
   the generator that made it and switching generator no longer throws away

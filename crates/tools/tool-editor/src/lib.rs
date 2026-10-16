@@ -2584,18 +2584,6 @@ impl Tool for EditorTool {
             self.debug
                 .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
         }
-        ui.separator();
-        let mut ai_open = self.ai.open;
-        if ui
-            .toggle_value(
-                &mut ai_open,
-                format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-            )
-            .tip(s.t("ai-toggle-tip"))
-            .clicked()
-        {
-            self.ai.toggle();
-        }
         if self.doc().view.language.is_markdown {
             ui.separator();
             let d = self.doc_mut();
@@ -2604,6 +2592,21 @@ impl Tool for EditorTool {
                 format!("{} {}", ph::EYE, s.t("editor-preview")),
             );
         }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            let mut ai_open = self.ai.open;
+            if ui
+                .toggle_value(
+                    &mut ai_open,
+                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+                )
+                .tip(s.t("ai-toggle-tip"))
+                .clicked()
+            {
+                self.ai.toggle();
+            }
+        });
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {

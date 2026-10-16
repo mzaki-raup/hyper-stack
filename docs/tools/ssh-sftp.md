@@ -257,3 +257,27 @@ and the change usually needs root, so those are sent as a `chown` into the
 shell, where the user sees the command run and reads any error it gives.
 The listing shows whatever the server named — a name when it sends one, the
 numeric id when it does not, and blank rather than a guess.
+
+## Addendum (2026-10-17): file actions show their command in the shell
+
+**Follow Shell Folder** now keeps both halves of the tab telling the same
+story. Opening a folder in the file pane still runs `cd` for real, because
+the shell's own working directory has to move. Every other SFTP action —
+New Folder, New File, Rename, Delete, Permissions — writes the command for
+what just happened into the shell as a **comment**:
+
+```
+dev@testbox:/home/dev$  # mkdir '/home/dev/releases'
+dev@testbox:/home/dev$  # touch '/home/dev/notes.txt'
+dev@testbox:/home/dev$  # chmod 646 '/home/dev/notes.txt'
+dev@testbox:/home/dev$  # rm '/home/dev/notes.txt'
+```
+
+A comment, not a command, and deliberately so: the action has already
+happened over SFTP, and running it a second time would at best be wasted and
+at worst destroy something (`rm` twice on a name reused in between). The
+shell swallows a `#` line and redraws its prompt, so the echo costs nothing
+and leaves the line discipline alone — which injecting text straight into
+the grid would not. Owner and group changes were already real `chown`
+commands and stay that way, because there is no SFTP operation for them.
+Owner's requirement, 2026-10-17.

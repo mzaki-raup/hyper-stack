@@ -1242,14 +1242,17 @@ impl Tool for GraphicsTool {
         if ui.button(ph::MAGNIFYING_GLASS_MINUS).clicked() {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } / 1.25).max(0.05);
         }
-        ui.separator();
-        if ui
-            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-            .tip(s.t("ai-shared-button-tip"))
-            .clicked()
-        {
-            self.assistant.toggle("graphics");
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .tip(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("graphics");
+            }
+        });
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

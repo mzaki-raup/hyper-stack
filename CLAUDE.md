@@ -107,6 +107,12 @@ in the same commit.
   lowercase). Sentence case for information and instructions: tooltips,
   hints and placeholders, dialog bodies, toasts, empty-state messages ("No
   background jobs.", "Type to search…"). Owner's rule, 2026-10-10.
+  **A parenthetical attached to a label is its own unit and starts with a
+  capital**: "None (Direct connection)", "Inspect (Developer tools, opens a
+  window)", "(Not set)". A parenthetical *inside* a running sentence is part
+  of that sentence and stays lower case ("Opens .hyperstack/debug.json in the
+  project (created with a template when missing)."), which is what sentence
+  case means. Owner's rule, 2026-10-17.
 - **Right-click copy/paste in text surfaces (PuTTY convention).** In the
   terminal and in every editor/text field we draw ourselves: right-click with
   a selection copies it to the clipboard and clears the selection; right-click

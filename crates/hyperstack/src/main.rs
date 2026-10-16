@@ -8,6 +8,7 @@ mod app;
 mod bootstrap;
 mod browser_host;
 mod conn_test;
+mod credentials;
 mod dock;
 #[cfg(test)]
 mod editor_tests;

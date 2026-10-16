@@ -443,3 +443,12 @@ so a profile can be proved before it is kept. Owner's requirement,
   host already in `known_hosts` authenticates fully.
 - A kind with no driver (an API collection) leaves the button disabled and
   says why, rather than passing a test it never ran.
+
+## Addendum (2026-10-17): the assistant sits hard right
+
+Every tool's **AI Assistant** button is the last thing on its toolbar, in a
+`right_to_left` group, so it is in the same place in the editor, the
+terminal, SSH, SQL, S3, the API client, Graphics and the Scratchpad. The
+buttons that act on what is selected keep the left; the assistant is a mode
+for the whole tab, not an action on a row, and it reads that way when it is
+not sitting among them. Owner's requirement, 2026-10-17.

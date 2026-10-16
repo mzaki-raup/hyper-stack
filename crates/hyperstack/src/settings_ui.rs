@@ -139,6 +139,15 @@ pub struct SettingsState {
     /// The Test Connection in flight (or its answer), and the connection it
     /// belongs to, so a slow server cannot report onto another profile.
     pub conn_test: Option<crate::conn_test::Test>,
+    /// Security page: the credentials row whose password is uncovered, and
+    /// the `ui.input().time` it goes back under. One row at a time, and it
+    /// lapses on its own — an uncovered password left on screen is the
+    /// thing this page must not leave behind.
+    pub reveal: Option<(String, f64)>,
+    /// The row waiting for the master password, and what has been typed.
+    pub reveal_ask: Option<(String, String)>,
+    /// Why the last attempt did not reveal anything.
+    pub reveal_error: Option<String>,
 }
 
 /// A workspace's logo, or `None` when it has none set.
@@ -217,6 +226,9 @@ pub enum SettingsEffect {
     OpenUrl(String),
     /// Accessibility → Read Aloud: read this text with the configured voice.
     SpeakSample(String),
+    /// Put a secret on the clipboard and start the clearing timer
+    /// (Settings → Security → Clear Clipboard After).
+    CopySecret(String),
     StopSpeaking,
     /// Copy the environments `from` lacks into `to` (names that exist are
     /// skipped). Either may be the open workspace.
@@ -268,7 +280,7 @@ pub fn page(
         Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
         Page::Environments => environments(ui, theme, services, state, effects),
         Page::Connections => connections(ui, theme, services, state, effects),
-        Page::Security => security(ui, theme, services, effects),
+        Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, effects),
         Page::Editor => editor(ui, theme, services, effects),
         Page::Browser => browser(ui, theme, services, effects),
@@ -2337,7 +2349,13 @@ fn connections(
     });
 }
 
-fn security(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+fn security(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
     form::page_title(
         ui,
         theme,
@@ -2395,6 +2413,265 @@ fn security(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
+    }
+    drop(settings);
+    credentials_section(ui, theme, s, state, effects);
+}
+
+/// How long one revealed password stays uncovered. Short on purpose: the
+/// reveal is for reading a value once, not for leaving it on the screen.
+const REVEAL_SECONDS: f64 = 30.0;
+
+fn credentials_section(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let now = ui.input(|i| i.time);
+    if let Some((_, until)) = &state.reveal {
+        if now >= *until {
+            state.reveal = None;
+        } else {
+            // The lapse is a promise, so it cannot wait for the next
+            // keystroke: ask for the frame that will cover it again.
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(250));
+        }
+    }
+    let rows = crate::credentials::rows(&s.connections.read());
+    form::section(ui, theme, &s.t("settings-credentials"), |ui| {
+        form::hint(ui, theme, &s.t("settings-credentials-hint"));
+        if rows.is_empty() {
+            ui.add_space(4.0);
+            form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-none"));
+            return;
+        }
+        ui.add_space(6.0);
+        // Eight columns do not fit a settings page, and squeezing them
+        // would hide the values this page exists to show.
+        egui::ScrollArea::horizontal()
+            .id_salt("sec-cred-scroll")
+            .show(ui, |ui| {
+                egui::Grid::new("sec-cred-grid")
+                    .num_columns(8)
+                    .spacing([14.0, 6.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for key in [
+                            "settings-cred-name",
+                            "settings-cred-type",
+                            "settings-cred-string",
+                            "settings-cred-host",
+                            "settings-cred-port",
+                            "settings-cred-user",
+                            "settings-cred-password",
+                            "settings-cred-key",
+                        ] {
+                            ui.label(
+                                egui::RichText::new(s.t(key))
+                                    .color(theme.text_muted)
+                                    .small(),
+                            );
+                        }
+                        ui.end_row();
+                        for r in &rows {
+                            ui.label(&r.name);
+                            ui.label(hs_core::connections::kind_label(&r.kind));
+                            cred_cell(ui, s, theme, &r.conn_string, effects);
+                            cred_cell(ui, s, theme, &r.host, effects);
+                            ui.label(&r.port);
+                            cred_cell(ui, s, theme, &r.user, effects);
+                            password_cell(ui, s, theme, state, r, now, effects);
+                            cred_cell(ui, s, theme, &r.key, effects);
+                            ui.end_row();
+                        }
+                    });
+            });
+    });
+    reveal_dialog(ui, theme, s, state, now);
+}
+
+/// A plain cell: the value, and a button that copies it.
+fn cred_cell(
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    value: &str,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    if value.is_empty() {
+        ui.label(egui::RichText::new("—").color(theme.text_muted));
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.add(egui::Label::new(value).selectable(false).truncate());
+        if ui
+            .small_button(hs_ui::icons::COPY)
+            .on_hover_text(s.t("dt-copy"))
+            .clicked()
+        {
+            ui.ctx().copy_text(value.to_string());
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Info,
+                s.t("settings-cred-copied"),
+            ));
+        }
+    });
+}
+
+fn password_cell(
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    state: &mut SettingsState,
+    row: &crate::credentials::Row,
+    now: f64,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use crate::credentials::Password;
+    match &row.password {
+        Password::None => {
+            ui.label(egui::RichText::new("—").color(theme.text_muted));
+        }
+        // A variable names an environment value; masking it would hide
+        // which one, which is the only thing worth reading here.
+        Password::Variable(v) => cred_cell(ui, s, theme, v, effects),
+        secret => {
+            let revealed = state
+                .reveal
+                .as_ref()
+                .is_some_and(|(id, until)| id == &row.id && now < *until);
+            // Read the value out of the vault for this frame only; nothing
+            // keeps plaintext while the page is open.
+            let shown = revealed.then(|| match secret {
+                // A reference the vault does not hold says so; an empty cell
+                // would read as "the password is blank".
+                Password::Vault(r) => s
+                    .secrets
+                    .get(r)
+                    .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+                    .map_err(|_| s.t("settings-cred-missing")),
+                Password::Plain(p) => Ok(p.clone()),
+                _ => Ok(String::new()),
+            });
+            ui.horizontal(|ui| {
+                match &shown {
+                    Some(Ok(v)) => {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(v).monospace()).selectable(false),
+                        );
+                    }
+                    Some(Err(e)) => {
+                        ui.colored_label(theme.error, e);
+                    }
+                    None => {
+                        ui.label(egui::RichText::new("••••••••").color(theme.text_muted));
+                    }
+                }
+                let eye = if revealed {
+                    hs_ui::icons::EYE_SLASH
+                } else {
+                    hs_ui::icons::EYE
+                };
+                if ui
+                    .small_button(eye)
+                    .on_hover_text(if revealed {
+                        s.t("settings-cred-hide")
+                    } else {
+                        s.t("settings-cred-reveal")
+                    })
+                    .clicked()
+                {
+                    if revealed {
+                        state.reveal = None;
+                    } else {
+                        state.reveal_ask = Some((row.id.clone(), String::new()));
+                        state.reveal_error = None;
+                    }
+                }
+                if ui
+                    .small_button(hs_ui::icons::COPY)
+                    .on_hover_text(s.t("dt-copy"))
+                    .clicked()
+                {
+                    match &shown {
+                        // Copying is a reveal by another route, so it is
+                        // gated the same way.
+                        None => {
+                            state.reveal_ask = Some((row.id.clone(), String::new()));
+                            state.reveal_error = None;
+                        }
+                        Some(Ok(v)) => effects.push(SettingsEffect::CopySecret(v.clone())),
+                        // Nothing to copy when the vault does not have it.
+                        Some(Err(_)) => {}
+                    }
+                }
+            });
+        }
+    }
+}
+
+/// The master-password prompt. Revealing a stored password asks for it
+/// every time: the vault being unlocked is not the same as the person at
+/// the keyboard being the owner.
+fn reveal_dialog(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    now: f64,
+) {
+    let Some((id, typed)) = &mut state.reveal_ask else {
+        return;
+    };
+    let id = id.clone();
+    let mut close = false;
+    let mut accept = false;
+    let modal = egui::Modal::new(egui::Id::new("hs-cred-reveal")).show(ui.ctx(), |ui| {
+        ui.set_width(380.0);
+        ui.heading(s.t("settings-cred-reveal"));
+        ui.add_space(4.0);
+        form::hint(ui, theme, &s.t("settings-cred-reveal-hint"));
+        ui.add_space(6.0);
+        let field = form::secret_field(ui, typed, &s.t("settings-cred-master-password"), 340.0);
+        if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            accept = true;
+        }
+        if ui.memory(|m| m.focused().is_none()) {
+            field.request_focus();
+        }
+        if let Some(e) = &state.reveal_error {
+            ui.add_space(4.0);
+            ui.colored_label(theme.error, e);
+        }
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            if ui.button(s.t("cancel")).clicked() {
+                close = true;
+            }
+            if form::primary_button(ui, theme, &s.t("settings-cred-reveal-go")).clicked() {
+                accept = true;
+            }
+        });
+    });
+    if modal.should_close() {
+        close = true;
+    }
+    if accept {
+        let master = secrecy::SecretString::from(typed.clone());
+        match s.secrets.unlock(&master) {
+            Ok(()) => {
+                state.reveal = Some((id, now + REVEAL_SECONDS));
+                close = true;
+            }
+            Err(_) => state.reveal_error = Some(s.t("settings-cred-wrong-password")),
+        }
+    }
+    if close {
+        state.reveal_ask = None;
+        state.reveal_error = None;
     }
 }
 
@@ -3563,7 +3840,7 @@ fn redis_form(
     draft: &mut ConnectionProfile,
     scratch: &mut String,
 ) {
-    use tool_redis::profile::{MODES, RedisFields, parse_url};
+    use tool_redis::profile::{MODES, RedisFields, mode_label, parse_url};
     let mut f = RedisFields::from_table(&draft.fields);
     let mut changed = false;
     let url_id = egui::Id::new(("redis-url", draft.id.clone()));
@@ -3618,10 +3895,10 @@ fn redis_form(
             form::label(ui, &s.t("conn-redis-mode"));
             egui::ComboBox::from_id_salt("redis-mode")
                 .width(form::FIELD_MIN_WIDTH)
-                .selected_text(f.mode.clone())
+                .selected_text(mode_label(&f.mode))
                 .show_ui(ui, |ui| {
                     for m in MODES {
-                        if ui.selectable_label(f.mode == *m, *m).clicked() {
+                        if ui.selectable_label(f.mode == *m, mode_label(m)).clicked() {
                             f.mode = (*m).to_string();
                             changed = true;
                         }

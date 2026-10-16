@@ -205,3 +205,29 @@ is limited to the front end's own origin, but while it is on **any process
 running as this user can speak the DevTools protocol to the browser tabs**
 and read or drive what is in them. The setting is therefore off by
 default; nothing else in HyperStack opens a listening port.
+
+## Addendum (2026-10-17): the credentials table
+
+Settings → Security lists every connection in the workspace in one grid —
+Connection Name, Type, Connection String, Host/URL, Port, Username, Password,
+Key — so one page answers "what is stored here, and where does it point"
+without opening six forms. Owner's requirement, 2026-10-17.
+
+- **Passwords are masked.** Uncovering one costs the **master password**,
+  even when the vault is already unlocked: an unlocked vault means the app
+  may use a secret, not that the person at the keyboard may read it.
+- **The reveal is per row and it lapses.** One row at a time, 30 seconds,
+  then it covers itself again; the page asks for the frame that does it, so
+  the lapse does not wait for the next keystroke. Owner's requirement.
+- **No plaintext is held in UI state.** A row carries the vault *reference*;
+  the value is read through `SecretStore` on each frame it is shown and
+  dropped with the frame (`crate::credentials`). A reference the vault does
+  not hold says so rather than showing an empty cell.
+- **Copying a password is a reveal by another route**, so it is gated the
+  same way, and it finally honours **Clear Clipboard After Copying a
+  Secret**: the shell arms a timer and empties the clipboard when it fires
+  (0 disables it). That setting existed and did nothing before this.
+- A `{{variable}}` in a password field is **not** masked — it names an
+  environment value rather than being one, and hiding it would hide the only
+  thing worth reading. Text sitting in a profile (which the forms refuse to
+  write) is masked like a vault secret.

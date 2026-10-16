@@ -40,3 +40,5 @@ pub const TRASH: &str = ph::TRASH;
 pub const COPY: &str = ph::COPY;
 pub const EDIT: &str = ph::PENCIL_SIMPLE;
 pub const ARROW_UP: &str = ph::ARROW_CIRCLE_UP;
+pub const EYE: &str = ph::EYE;
+pub const EYE_SLASH: &str = ph::EYE_SLASH;

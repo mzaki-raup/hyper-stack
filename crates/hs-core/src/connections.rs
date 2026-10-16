@@ -88,6 +88,12 @@ impl Default for ConnectionProfile {
     }
 }
 
+/// Whether a profile belongs to the view being reordered. No kinds means
+/// the whole list, as Settings → Connections shows it.
+fn in_view(kinds: &[&str], kind: &str) -> bool {
+    kinds.is_empty() || kinds.contains(&kind)
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Connections {
     dir: PathBuf,
@@ -160,18 +166,19 @@ impl Connections {
         Ok(())
     }
 
-    /// Move a profile within one kind's list (or the whole list when
-    /// `kind` is `None`), from row `from` to boundary `to`, and write the
-    /// files whose order changed.
+    /// Move a profile within the list a tool shows — the kinds it displays,
+    /// or every kind when `kinds` is empty — from row `from` to boundary
+    /// `to`, and write the files whose order changed.
     ///
     /// Only the profiles in that view are renumbered, over the positions
     /// they already occupy, so reordering the SSH hosts never disturbs
-    /// where the Redis connections sit.
-    pub fn reorder(&mut self, kind: Option<&str>, from: usize, to: usize) -> storage::Result<()> {
+    /// where the Redis connections sit. `kinds` must be in the same order
+    /// the list was built in, which is store order.
+    pub fn reorder(&mut self, kinds: &[&str], from: usize, to: usize) -> storage::Result<()> {
         let mut ids: Vec<String> = self
             .profiles
             .iter()
-            .filter(|c| kind.is_none_or(|k| c.kind == k))
+            .filter(|c| in_view(kinds, &c.kind))
             .map(|c| c.id.clone())
             .collect();
         if from >= ids.len() || to > ids.len() || to == from || to == from + 1 {
@@ -185,7 +192,7 @@ impl Connections {
         let mut slots: Vec<i32> = self
             .profiles
             .iter()
-            .filter(|c| kind.is_none_or(|k| c.kind == k))
+            .filter(|c| in_view(kinds, &c.kind))
             .map(|c| c.order)
             .collect();
         if slots.windows(2).any(|w| w[0] == w[1]) {
@@ -256,5 +263,68 @@ mod tests {
         let back = reloaded.by_id(&id).unwrap();
         assert_eq!(back.fields["db"]["engine"].as_str(), Some("postgres"));
         assert_eq!(reloaded.of_kind("db").count(), 1);
+    }
+
+    fn named(name: &str, kind: &str) -> ConnectionProfile {
+        ConnectionProfile {
+            name: name.into(),
+            kind: kind.into(),
+            ..Default::default()
+        }
+    }
+
+    fn names(c: &Connections, kinds: &[&str]) -> Vec<String> {
+        c.all()
+            .iter()
+            .filter(|p| in_view(kinds, &p.kind))
+            .map(|p| p.name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn reordering_one_kind_leaves_the_others_where_they_were() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut c = Connections::load(tmp.path());
+        for (n, k) in [
+            ("alpha", "ssh"),
+            ("bravo", "ssh"),
+            ("charlie", "ssh"),
+            ("delta", "redis"),
+            ("echo", "redis"),
+        ] {
+            c.upsert(named(n, k)).unwrap();
+        }
+        let redis_before = names(&c, &["redis"]);
+        // charlie to the top of the SSH list.
+        c.reorder(&["ssh"], 2, 0).unwrap();
+        assert_eq!(names(&c, &["ssh"]), ["charlie", "alpha", "bravo"]);
+        assert_eq!(names(&c, &["redis"]), redis_before, "redis was disturbed");
+
+        // The order survives a reload, which is the point of writing it.
+        let again = Connections::load(tmp.path());
+        assert_eq!(names(&again, &["ssh"]), ["charlie", "alpha", "bravo"]);
+    }
+
+    #[test]
+    fn a_view_of_several_kinds_reorders_across_them() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut c = Connections::load(tmp.path());
+        for (n, k) in [("m1", "mongodb"), ("c1", "couchdb"), ("m2", "mongodb")] {
+            c.upsert(named(n, k)).unwrap();
+        }
+        let kinds = ["mongodb", "couchdb"];
+        assert_eq!(names(&c, &kinds), ["c1", "m1", "m2"]);
+        c.reorder(&kinds, 2, 0).unwrap();
+        assert_eq!(names(&c, &kinds), ["m2", "c1", "m1"]);
+    }
+
+    #[test]
+    fn an_untouched_store_still_sorts_by_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut c = Connections::load(tmp.path());
+        for n in ["zulu", "alpha", "mike"] {
+            c.upsert(named(n, "ssh")).unwrap();
+        }
+        assert_eq!(names(&c, &["ssh"]), ["alpha", "mike", "zulu"]);
     }
 }

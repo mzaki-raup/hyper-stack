@@ -1270,7 +1270,7 @@ impl Tool for SshTool {
             ui.add_space(2.0);
         }
         if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-            if let Err(e) = s.connections.write().reorder(Some("ssh"), from, to) {
+            if let Err(e) = s.connections.write().reorder(&["ssh"], from, to) {
                 cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
             }
             ui.ctx().request_repaint();

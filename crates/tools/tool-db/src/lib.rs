@@ -2425,19 +2425,18 @@ impl Tool for DbTool {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                for (id, name, label) in profiles {
-                    let selected = self.state.conn_id.as_deref() == Some(&id);
-                    if form::list_row(ui, &theme, selected, ph::DATABASE, &name, Some(&label))
-                        .tip(s.t("db-open-profile"))
-                        .clicked()
-                    {
-                        if self.state.conn_id.is_none() {
-                            self.state.conn_id = Some(id);
-                            self.connect(s);
-                        } else if !selected {
-                            cx.open("db", Some(OpenRequest::Connection { id }));
+                let mut reorder = hs_ui::reorder::Reorder::new("db-profiles");
+                let mut open_profile: Option<(String, bool)> = None;
+                for (i, (id, name, label)) in profiles.iter().enumerate() {
+                    let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(ui, &theme, selected, ph::DATABASE, name, Some(label))
+                            .tip(s.t("db-open-profile"))
+                            .clicked()
+                        {
+                            open_profile = Some((id.clone(), selected));
                         }
-                    }
+                    });
                     ui.add_space(2.0);
                     if !selected {
                         continue;
@@ -2604,6 +2603,20 @@ impl Tool for DbTool {
                             }
                         }
                     });
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    if let Err(e) = s.connections.write().reorder(&["db"], from, to) {
+                        cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                    }
+                    ui.ctx().request_repaint();
+                }
+                if let Some((id, selected)) = open_profile {
+                    if self.state.conn_id.is_none() {
+                        self.state.conn_id = Some(id);
+                        self.connect(s);
+                    } else if !selected {
+                        cx.open("db", Some(OpenRequest::Connection { id }));
+                    }
                 }
             });
         self.tree_menu(ui, cx);

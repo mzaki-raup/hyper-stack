@@ -444,21 +444,20 @@ impl Tool for NoSqlTool {
                 id: "settings:connections".into(),
             });
         }
+        // One pass over the store, not one per kind, so the list is in the
+        // store's own order - which is what a dragged row renumbers.
         let profiles: Vec<(String, String, String)> = {
             let conns = s.connections.read();
-            KINDS
+            conns
+                .all()
                 .iter()
-                .flat_map(|k| {
-                    conns
-                        .of_kind(k)
-                        .map(|c| {
-                            (
-                                c.id.clone(),
-                                c.name.clone(),
-                                NoSqlFields::from_table(&c.kind, &c.fields).label(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
+                .filter(|c| KINDS.contains(&c.kind.as_str()))
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        NoSqlFields::from_table(&c.kind, &c.fields).label(),
+                    )
                 })
                 .collect()
         };
@@ -470,27 +469,40 @@ impl Tool for NoSqlTool {
             .id_salt("nosql-connections")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                for (id, name, label) in profiles {
-                    let selected = self.state.conn_id.as_deref() == Some(&id);
-                    if form::list_row(
-                        ui,
-                        &theme,
-                        selected,
-                        ph::TREE_STRUCTURE,
-                        &name,
-                        Some(&label),
-                    )
-                    .tip(s.t("nosql-open-profile"))
-                    .clicked()
-                    {
-                        if self.state.conn_id.is_none() {
-                            self.state.conn_id = Some(id);
-                            self.connect(s);
-                        } else if !selected {
-                            cx.open("nosql", Some(OpenRequest::Connection { id }));
+                let mut reorder = hs_ui::reorder::Reorder::new("nosql-profiles");
+                let mut open_profile: Option<(String, bool)> = None;
+                for (i, (id, name, label)) in profiles.iter().enumerate() {
+                    let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            &theme,
+                            selected,
+                            ph::TREE_STRUCTURE,
+                            name,
+                            Some(label),
+                        )
+                        .tip(s.t("nosql-open-profile"))
+                        .clicked()
+                        {
+                            open_profile = Some((id.clone(), selected));
                         }
-                    }
+                    });
                     ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    if let Err(e) = s.connections.write().reorder(KINDS, from, to) {
+                        cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                    }
+                    ui.ctx().request_repaint();
+                }
+                if let Some((id, selected)) = open_profile {
+                    if self.state.conn_id.is_none() {
+                        self.state.conn_id = Some(id);
+                        self.connect(s);
+                    } else if !selected {
+                        cx.open("nosql", Some(OpenRequest::Connection { id }));
+                    }
                 }
             });
         true

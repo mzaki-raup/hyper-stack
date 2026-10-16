@@ -1098,21 +1098,18 @@ impl Tool for S3Tool {
             form::note(ui, &theme, ph::LIGHTBULB, &s.t("s3-no-profiles"));
             return true;
         }
-        for (id, name, label) in profiles {
-            let selected = self.state.conn_id.as_deref() == Some(&id);
-            if form::list_row(ui, &theme, selected, ph::CLOUD, &name, Some(&label))
-                .tip(s.t("s3-open-profile"))
-                .clicked()
-            {
-                if self.state.conn_id.is_none() {
-                    self.state.conn_id = Some(id);
-                    self.state.bucket = None;
-                    self.state.prefix.clear();
-                    self.connect(s);
-                } else if !selected {
-                    cx.open("s3", Some(OpenRequest::Connection { id }));
+        let mut reorder = hs_ui::reorder::Reorder::new("s3-profiles");
+        let mut open_profile: Option<(String, bool)> = None;
+        for (i, (id, name, label)) in profiles.iter().enumerate() {
+            let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+            reorder.row(ui, i, |ui| {
+                if form::list_row(ui, &theme, selected, ph::CLOUD, name, Some(label))
+                    .tip(s.t("s3-open-profile"))
+                    .clicked()
+                {
+                    open_profile = Some((id.clone(), selected));
                 }
-            }
+            });
             ui.add_space(2.0);
             if selected {
                 let buckets: Vec<String> = match &self.shared.lock().buckets {
@@ -1144,6 +1141,22 @@ impl Tool for S3Tool {
                     self.open_bucket(s, b);
                 }
                 ui.add_space(6.0);
+            }
+        }
+        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+            if let Err(e) = s.connections.write().reorder(&["s3"], from, to) {
+                cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+            }
+            ui.ctx().request_repaint();
+        }
+        if let Some((id, selected)) = open_profile {
+            if self.state.conn_id.is_none() {
+                self.state.conn_id = Some(id);
+                self.state.bucket = None;
+                self.state.prefix.clear();
+                self.connect(s);
+            } else if !selected {
+                cx.open("s3", Some(OpenRequest::Connection { id }));
             }
         }
         ui.add_space(10.0);

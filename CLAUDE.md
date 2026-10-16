@@ -383,6 +383,26 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   steps are skipped on a republish). This forge has no rerun API -
   `POST /actions/runs/<id>/rerun` is 404 - so it is either that push or the
   Re-run button in the Actions page.
+- `git.zacx.net` is served through Cloudflare, which gives the origin about
+  **100 seconds** to answer and then cuts the request with a **524**. A
+  release asset is too big for that: the 34 MB archive needed six minutes
+  of retries to land and twice left the release a draft with only the
+  changelog attached (runs 92 and 95), and the 83 MB exe is also near the
+  free plan's 100 MB body cap. The forge answers the same API directly on
+  the local network, and the same upload takes **0.24 s** there. The
+  publish step reads that address from the `HS_FORGE_UPLOAD_URL`
+  repository secret and uses it for assets only; unset (as on GitHub) it
+  falls back to the public URL. A `Host` header carrying the public
+  hostname goes with it - repository routes 404 without it. The address
+  itself lives only in that secret: never write it into the tree, the
+  history is mirrored publicly.
+  The runner's own control channel goes through Cloudflare too and logs
+  the same resets all day (`failed to fetch task`, `UpdateLog`,
+  `UpdateTask` in `C:\Apps\gitea-runner\service-err.log`) - it retries,
+  so they are noise rather than failures, but that log is the place to
+  look when a job dies without a useful error, because this Forgejo has
+  no API for job logs (every `/actions/.../logs` route is a 404) and no
+  rerun endpoint either.
 - A PowerShell step with a non-terminating error carries on and the job goes
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every

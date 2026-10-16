@@ -185,6 +185,31 @@ format is newer than what the user's other copies understand.
 | `HS_MINISIGN_KEY` | contents of the minisign secret key (generated with `rsign generate --unencrypted`, see `keys/README.md`; `-W` keys still prompt for a password and cannot be used in CI) that signs `manifest.json`; the matching public key is committed as `keys/minisign.pub`, compiled into the app and printed in About |
 | `HS_SIGN_PFX`, `HS_SIGN_PFX_PASSWORD` (optional) | Authenticode code signing; without them the exe is unsigned and SmartScreen will warn on first run, which the README documents |
 | `HS_INTEGRATION` (optional) | enables container-backed integration tests when a Docker engine is available on the runner |
+| `HS_FORGE_UPLOAD_URL` (optional) | the forge's own base URL on the local network, used **for release asset uploads only**, to avoid the proxy in front of it (see below). Unset, uploads go to the public URL |
+
+### Where the assets are uploaded
+
+The forge is served through Cloudflare, which gives the origin about 100
+seconds to answer a request and cuts it with a **524** otherwise. A release
+asset is bigger than that budget: the 34 MB archive needed minutes of
+retries and twice ended the job with the release still a draft carrying
+only the changelog (release runs 92 and 95), and `HyperStack.exe` at 83 MB
+is also close to the free plan's 100 MB request-body cap.
+
+So the publish step sends the assets to the forge directly when
+`HS_FORGE_UPLOAD_URL` names its address on the local network, with a `Host`
+header carrying the public hostname so the proxy there routes to the same
+virtual host. Only the transport changes: the same forge, the same release
+row, the same published links, and the manifest is signed before any of
+this. The same archive takes 0.24 s on that route. Everything else in the
+job - checkout, the version push, the metadata PATCH - still goes to the
+public URL, as does the whole GitHub mirror workflow, where the secret is
+unset and must stay unset.
+
+The uploads also run through `curl` rather than `Invoke-RestMethod`,
+because it streams the file from disk and retries the transfer itself; the
+loop around it deletes a half-written asset before trying again, so a
+dropped connection cannot leave a truncated file attached.
 
 The active key pair was generated on 2026-10-10; its public half is
 `keys/minisign.pub` (key id `99C2A397C6491EAB`; an earlier `12CCB188A17A5843` key was retired unused). Key rotation: a new minisign

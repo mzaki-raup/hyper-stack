@@ -11,7 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- The release job uploads assets straight to the forge's own address when
+  the `HS_FORGE_UPLOAD_URL` secret names one, instead of through the
+  proxy in front of it, and retries an upload rather than giving up on the
+  first dropped connection. The proxy was cutting the 34 MB archive off
+  after about 100 seconds with a 524, which left v0.29.0 and v0.29.1 as
+  drafts carrying one file; the same archive takes a quarter of a second
+  on the direct route.
 
 ## 0.29.1 — 2026-10-16
 

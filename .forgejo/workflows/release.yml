@@ -168,12 +168,33 @@ jobs:
           # Forgejo hands the workflow a token with write access to this
           # repository; the API is Forgejo's /api/v1.
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: the forge's own address on the LAN, so assets do not
+          # go through Cloudflare. Cloudflare gives the origin about 100
+          # seconds to answer a request and cuts it with a 524 otherwise:
+          # the 34 MB zip needed six minutes of retries through it (runs 92
+          # and 95 died there), and took 0.24 s straight to the origin. The
+          # 83 MB exe is also close to the free plan's 100 MB body cap.
+          # Set it in the forge's repository secrets; it must stay unset on
+          # GitHub, where there is no such route.
+          UPLOAD_URL: ${{ secrets.HS_FORGE_UPLOAD_URL }}
         run: |
           # Without Stop, a non-terminating error carries on and the job can
           # go green having attached nothing.
           $ErrorActionPreference = "Stop"
           $api = "${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
           $headers = @{ Authorization = "token $env:TOKEN" }
+          # Assets go straight to the origin when a LAN address is
+          # configured. The Host header keeps the proxy routing to the same
+          # virtual host, so only the transport changes: the same forge,
+          # the same release, the same published links.
+          $vhost = ([uri]"${{ github.server_url }}").Host
+          $uploadApi = $api
+          $hostArg = @()
+          if ($env:UPLOAD_URL) {
+            $uploadApi = "$($env:UPLOAD_URL.TrimEnd('/'))/api/v1/repos/${{ github.repository }}"
+            $hostArg = @("-H", "Host: $vhost")
+            Write-Host "Assets go to $($env:UPLOAD_URL) as $vhost, not through the proxy."
+          }
           $tag = "${{ steps.plan.outputs.tag }}"
           $version = "${{ steps.plan.outputs.version }}"
           $prerelease = "${{ steps.plan.outputs.channel }}" -eq "beta"
@@ -203,27 +224,34 @@ jobs:
           }
           if (-not $release) { throw "Could not fetch or create the release row for $tag." }
 
-          # An upload can die mid-stream - "An existing connection was
-          # forcibly closed by the remote host" killed run 92 on the asset
-          # after the changelog - and the step then ends having attached
-          # part of the release. Give each file a few tries, with the
-          # duplicate check inside the loop so a half-written asset from the
-          # previous attempt is replaced rather than refused.
+          # git.zacx.net sits behind Cloudflare and the link to it drops
+          # connections all day - the runner's own control channel logs the
+          # same resets, 17 of them on the day of v0.29.1 - so a 34 MB asset
+          # often does not survive one try: runs 92 and 95 both died on the
+          # file after the changelog. Invoke-RestMethod buffers the body and
+          # gives up on the first reset; curl streams the file from disk and
+          # retries the transfer itself, and the loop around it covers a
+          # reset that lands between transfers.
+          $curl = Join-Path $env:SystemRoot "System32\curl.exe"
+          if (-not (Test-Path $curl)) { throw "curl.exe is missing; the asset upload needs it." }
           $expected = @(Get-ChildItem release/dist -File | ForEach-Object { $_.Name })
           foreach ($file in Get-ChildItem release/dist -File) {
             $sent = $false
             for ($try = 1; $try -le 5 -and -not $sent; $try++) {
               try {
+                # A half-written asset from a failed attempt is replaced,
+                # not refused.
                 $existing = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)/assets"
                 $dup = $existing | Where-Object { $_.name -eq $file.Name }
                 if ($dup) { Invoke-RestMethod -Method Delete -Headers $headers -Uri "$api/releases/$($release.id)/assets/$($dup.id)" | Out-Null }
-                $form = @{ attachment = Get-Item $file.FullName }
-                Invoke-RestMethod -Method Post -Headers $headers -Uri "$api/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))" -Form $form | Out-Null
+                $url = "$uploadApi/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))"
+                & $curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 --max-time 1800 @hostArg -H "Authorization: token $env:TOKEN" -F "attachment=@$($file.FullName)" $url | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "curl exited ${LASTEXITCODE}" }
                 $sent = $true
                 Write-Host "Uploaded $($file.Name)"
               } catch {
                 Write-Host "Attempt ${try} at $($file.Name) failed: $($_.Exception.Message)"
-                Start-Sleep -Seconds (5 * $try)
+                Start-Sleep -Seconds (15 * $try)
               }
             }
             if (-not $sent) { throw "Could not upload $($file.Name) after 5 attempts." }
@@ -232,9 +260,17 @@ jobs:
           $patch = @{ name = "HyperStack $version"; body = $notes; draft = $false; prerelease = $prerelease } | ConvertTo-Json -Depth 4
           $ok = $false
           for ($i = 0; $i -lt 10 -and -not $ok; $i++) {
-            Invoke-RestMethod -Method Patch -Headers $headers -ContentType 'application/json' -Uri "$api/releases/$($release.id)" -Body $patch | Out-Null
-            Start-Sleep -Seconds 3
-            $check = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)"
+            # A reset here used to end the step with every asset already
+            # uploaded; it is just another attempt.
+            try {
+              Invoke-RestMethod -Method Patch -Headers $headers -ContentType 'application/json' -Uri "$api/releases/$($release.id)" -Body $patch | Out-Null
+              Start-Sleep -Seconds 3
+              $check = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)"
+            } catch {
+              Write-Host "Attempt $($i + 1): the forge did not answer: $($_.Exception.Message)"
+              Start-Sleep -Seconds 10
+              continue
+            }
             $names = @($check.assets | ForEach-Object { $_.name })
             $missing = @($expected | Where-Object { $names -notcontains $_ })
             $ok = (-not $check.draft) -and ($check.body -eq $notes) -and ($missing.Count -eq 0)

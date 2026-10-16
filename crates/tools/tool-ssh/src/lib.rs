@@ -1254,27 +1254,34 @@ impl Tool for SshTool {
             form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-no-hosts"));
             return true;
         }
-        for (id, name, label) in hosts {
-            let selected = self.state.conn_id.as_deref() == Some(&id);
-            if form::list_row(
-                ui,
-                &theme,
-                selected,
-                ph::COMPUTER_TOWER,
-                &name,
-                Some(&label),
-            )
-            .tip(s.t("ssh-open-host"))
-            .clicked()
-            {
-                if self.state.conn_id.is_none() {
-                    self.state.conn_id = Some(id);
-                    self.connect(s);
-                } else if !selected {
-                    cx.open("ssh", Some(OpenRequest::Connection { id }));
+        // The order is the user's own; a row can be dragged to a new place.
+        let mut reorder = hs_ui::reorder::Reorder::new("ssh-hosts");
+        let mut open: Option<(String, bool)> = None;
+        for (i, (id, name, label)) in hosts.iter().enumerate() {
+            let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+            reorder.row(ui, i, |ui| {
+                if form::list_row(ui, &theme, selected, ph::COMPUTER_TOWER, name, Some(label))
+                    .tip(s.t("ssh-open-host"))
+                    .clicked()
+                {
+                    open = Some((id.clone(), selected));
                 }
-            }
+            });
             ui.add_space(2.0);
+        }
+        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+            if let Err(e) = s.connections.write().reorder(Some("ssh"), from, to) {
+                cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+            }
+            ui.ctx().request_repaint();
+        }
+        if let Some((id, selected)) = open {
+            if self.state.conn_id.is_none() {
+                self.state.conn_id = Some(id);
+                self.connect(s);
+            } else if !selected {
+                cx.open("ssh", Some(OpenRequest::Connection { id }));
+            }
         }
         ui.add_space(10.0);
         self.tunnels_section(ui, cx, &theme);

@@ -390,3 +390,26 @@ opens, and when it does its entry comes back:
 
 Both write the setting and persist it at once, so the rail is right on the
 next frame and after a restart.
+
+## Addendum (2026-10-17): dragging a row to reorder a list
+
+Every sidebar list is the user's own collection, and the order is part of
+how someone works, so one helper does it everywhere: `hs_ui::reorder`.
+
+- A row is a drag source and a drop target at once. While a row is held, a
+  2 px accent line with a nub at its left end shows the **boundary** it
+  would land on — between two rows, not on one, because "below the third"
+  and "on the third" are different intentions.
+- `Reorder::finish` reports `(from, to)` where `to` is that boundary in
+  `0..=len`; the list is never touched by the helper. `move_item` applies
+  it, and the caller saves wherever it keeps the order.
+- Dropping a row immediately above or below itself is a no-op, so a small
+  accidental drag does nothing.
+- The payload is a private type, so two lists on screen cannot accept each
+  other's rows.
+
+Connection profiles keep their place in an `order` field
+(`docs/05-data-model-and-storage.md`). `ConnectionStore::reorder` renumbers
+only the profiles in the view being dragged, over the order values they
+already occupy, so putting the SSH hosts in a new order never moves the
+Redis connections.

@@ -11,6 +11,7 @@ pub mod icons;
 pub mod kv_editor;
 pub mod mic;
 pub mod palette;
+pub mod reorder;
 pub mod split;
 pub mod table;
 pub mod tabs;

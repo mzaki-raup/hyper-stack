@@ -60,6 +60,11 @@ pub struct ConnectionProfile {
     pub colour: Option<String>,
     pub environment: Option<String>,
     pub read_only: bool,
+    /// Where this profile sits in the lists. Written by dragging a row;
+    /// profiles that have never been dragged share 0 and fall back to
+    /// sorting by name, which is what every list did before.
+    #[serde(default)]
+    pub order: i32,
     /// Kind-specific fields (`[db]`, `[ssh]`, …) plus optional `[tunnel]`.
     #[serde(flatten)]
     pub fields: toml::Table,
@@ -77,6 +82,7 @@ impl Default for ConnectionProfile {
             colour: None,
             environment: None,
             read_only: false,
+            order: 0,
             fields: toml::Table::new(),
         }
     }
@@ -108,7 +114,7 @@ impl Connections {
                 }
             }
         }
-        profiles.sort_by_key(|a| a.name.to_lowercase());
+        profiles.sort_by_key(|a| (a.order, a.name.to_lowercase()));
         Self {
             dir: dir.to_path_buf(),
             profiles,
@@ -149,7 +155,56 @@ impl Connections {
         storage::write_toml(&self.file_for(&c), &c)?;
         self.profiles.retain(|p| p.id != c.id);
         self.profiles.push(c);
-        self.profiles.sort_by_key(|a| a.name.to_lowercase());
+        self.profiles
+            .sort_by_key(|a| (a.order, a.name.to_lowercase()));
+        Ok(())
+    }
+
+    /// Move a profile within one kind's list (or the whole list when
+    /// `kind` is `None`), from row `from` to boundary `to`, and write the
+    /// files whose order changed.
+    ///
+    /// Only the profiles in that view are renumbered, over the positions
+    /// they already occupy, so reordering the SSH hosts never disturbs
+    /// where the Redis connections sit.
+    pub fn reorder(&mut self, kind: Option<&str>, from: usize, to: usize) -> storage::Result<()> {
+        let mut ids: Vec<String> = self
+            .profiles
+            .iter()
+            .filter(|c| kind.is_none_or(|k| c.kind == k))
+            .map(|c| c.id.clone())
+            .collect();
+        if from >= ids.len() || to > ids.len() || to == from || to == from + 1 {
+            return Ok(());
+        }
+        let id = ids.remove(from);
+        let at = if to > from { to - 1 } else { to };
+        ids.insert(at, id);
+        // The order values this view already uses, handed out in the new
+        // sequence. Ties on 0 (nothing dragged yet) become 0, 1, 2, …
+        let mut slots: Vec<i32> = self
+            .profiles
+            .iter()
+            .filter(|c| kind.is_none_or(|k| c.kind == k))
+            .map(|c| c.order)
+            .collect();
+        if slots.windows(2).any(|w| w[0] == w[1]) {
+            slots = (0..slots.len() as i32).collect();
+        }
+        let mut changed: Vec<ConnectionProfile> = Vec::new();
+        for (slot, id) in slots.into_iter().zip(ids) {
+            if let Some(c) = self.profiles.iter_mut().find(|c| c.id == id)
+                && c.order != slot
+            {
+                c.order = slot;
+                changed.push(c.clone());
+            }
+        }
+        for c in &changed {
+            storage::write_toml(&self.file_for(c), c)?;
+        }
+        self.profiles
+            .sort_by_key(|a| (a.order, a.name.to_lowercase()));
         Ok(())
     }
 

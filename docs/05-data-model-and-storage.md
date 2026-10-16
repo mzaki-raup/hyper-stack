@@ -143,6 +143,15 @@ tags      = ["shop", "staging"]
 colour    = "#3B82F6"
 environment = "staging"               # optional default environment binding
 read_only = false
+order     = 0                         # place in the lists; written by dragging a row
+
+`order` is what a dragged row writes (`docs/04-ui-design.md`). Profiles that
+have never been dragged share `0` and fall back to sorting by name, which is
+what every list did before the field existed, so an older data folder reads
+the same as it always did. `ConnectionStore::reorder` renumbers only the
+profiles in the view being dragged, over the order values that view already
+occupies, so the SSH hosts and the Redis connections keep out of each
+other's way.
 
 [db]
 engine   = "postgres"                 # postgres | mysql | mariadb | sqlite | mssql | clickhouse | duckdb

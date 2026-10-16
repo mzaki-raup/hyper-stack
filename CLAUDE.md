@@ -801,6 +801,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `GetWindowThreadProcessId` against the dev pid, before any click
   (`scratchpad/devclick.ps1`, `devshot.ps1`).
 
+- A connection profile's file name is derived from the profile's *name*
+  (`ConnectionStore::file_for` slugifies the profile's *name*), so a
+  hand-written fixture saved under any other file name is **duplicated**
+  the first time anything writes it: the store then holds two profiles
+  with the same id and every list shows both. Write fixtures through the
+  app, or name the file exactly `slug(name).toml`. Two confusing hours of
+  "the reorder wrote the wrong numbers" were this and nothing else.
+
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was
   locked, so the profile was saved with the typed password in its TOML. It

@@ -13,6 +13,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Lists can be put in the order you work in, by dragging a row with a line
+  showing where it would land. The SSH host list is the first; the other
+  connection lists, the shell profiles and the API collections follow.
+  A connection profile remembers its place in an `order` field, and
+  reordering one kind's list never disturbs another's.
 - Tools can be kept out of the activity rail: Settings → Appearance →
   Activity Rail has a Show checkbox beside each one, next to the order
   arrows. Hiding a tool never makes it unreachable — saving a connection

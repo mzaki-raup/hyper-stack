@@ -14,9 +14,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Lists can be put in the order you work in, by dragging a row with a line
-  showing where it would land. The SSH hosts, database connections, Redis
-  connections, NoSQL connections and S3 profiles take it; Settings →
-  Connections, the shell profiles and the API collections follow.
+  showing where it would land: the SSH hosts, database, Redis and NoSQL
+  connections, S3 profiles, the whole list in Settings → Connections, and
+  the shell profiles in the terminal sidebar. The API collections, which
+  nest, follow.
   A connection profile remembers its place in an `order` field, and
   reordering one kind's list never disturbs another's.
 - Tools can be kept out of the activity rail: Settings → Appearance →

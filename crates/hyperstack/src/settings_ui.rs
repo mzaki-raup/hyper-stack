@@ -2012,25 +2012,42 @@ fn connections(
                 if conns.is_empty() {
                     form::hint(ui, theme, &s.t("conn-none"));
                 }
-                for (id, kind, name) in conns {
-                    let selected = state.conn_selected.as_deref() == Some(&id);
-                    if form::list_row(
-                        ui,
-                        theme,
-                        selected,
-                        hs_ui::icons::ph::PLUGS_CONNECTED,
-                        &name,
-                        Some(hs_core::connections::kind_label(&kind)),
-                    )
-                    .clicked()
-                    {
-                        state.conn_selected = Some(id.clone());
-                        if let Some(c) = s.connections.read().by_id(&id) {
-                            let fields = toml::to_string_pretty(&c.fields).unwrap_or_default();
-                            state.conn_draft = Some((c.clone(), fields));
+                // The whole list, every kind together: dragging here is the
+                // order the tools' own sidebars inherit.
+                let mut reorder = hs_ui::reorder::Reorder::new("conn-list-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name)) in conns.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::ph::PLUGS_CONNECTED,
+                            name,
+                            Some(hs_core::connections::kind_label(kind)),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
                         }
-                    }
+                    });
                     ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(&[], from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick {
+                    state.conn_selected = Some(id.clone());
+                    if let Some(c) = s.connections.read().by_id(&id) {
+                        let fields = toml::to_string_pretty(&c.fields).unwrap_or_default();
+                        state.conn_draft = Some((c.clone(), fields));
+                    }
                 }
             });
         });

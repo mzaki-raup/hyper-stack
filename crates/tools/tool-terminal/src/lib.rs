@@ -534,23 +534,41 @@ impl Tool for TerminalTool {
                     .size(15.0),
             );
         });
-        let profiles = self.profiles.clone();
         let current = self.state.profile.clone().unwrap_or_default();
-        for p in profiles.iter() {
+        // Detected shells, in the order the user put them in.
+        let saved = s.settings.read().terminal.shell_order.clone();
+        let profiles = ordered_shells(&self.profiles, &saved);
+        let mut reorder = hs_ui::reorder::Reorder::new("terminal-shells");
+        let mut open_id: Option<String> = None;
+        for (i, p) in profiles.iter().enumerate() {
             let icon = shell_icon(&p.id);
-            let r = hs_ui::form::list_row(ui, &theme, p.id == current, icon, &p.name, Some(&p.exe));
-            if r.tip(s.t("terminal-open-in-new-tab")).clicked() {
-                cx.open(
-                    "terminal",
-                    Some(OpenRequest::Terminal {
-                        cwd: None,
-                        host: None,
-                        profile: Some(p.id.clone()),
-                        command: None,
-                    }),
-                );
-            }
+            reorder.row(ui, i, |ui| {
+                if hs_ui::form::list_row(ui, &theme, p.id == current, icon, &p.name, Some(&p.exe))
+                    .tip(s.t("terminal-open-in-new-tab"))
+                    .clicked()
+                {
+                    open_id = Some(p.id.clone());
+                }
+            });
             ui.add_space(2.0);
+        }
+        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+            let mut ids: Vec<String> = profiles.iter().map(|p| p.id.clone()).collect();
+            hs_ui::reorder::move_item(&mut ids, from, to);
+            s.settings.write().terminal.shell_order = ids;
+            let _ = s.save_settings();
+            ui.ctx().request_repaint();
+        }
+        if let Some(id) = open_id {
+            cx.open(
+                "terminal",
+                Some(OpenRequest::Terminal {
+                    cwd: None,
+                    host: None,
+                    profile: Some(id),
+                    command: None,
+                }),
+            );
         }
         ui.add_space(10.0);
         hs_ui::form::note(
@@ -845,6 +863,23 @@ fn home_dir() -> Option<PathBuf> {
 }
 
 /// A glyph per shell family for the sidebar list.
+/// Detected shells in the saved order: the ones named in `saved` first, in
+/// that order, then anything else as detected — so installing a new shell
+/// shows it without the saved list having to be rewritten, and uninstalling
+/// one leaves no gap.
+fn ordered_shells(detected: &[ShellProfile], saved: &[String]) -> Vec<ShellProfile> {
+    let mut out: Vec<ShellProfile> = saved
+        .iter()
+        .filter_map(|id| detected.iter().find(|p| p.id == *id).cloned())
+        .collect();
+    for p in detected {
+        if !out.iter().any(|q| q.id == p.id) {
+            out.push(p.clone());
+        }
+    }
+    out
+}
+
 fn shell_icon(id: &str) -> &'static str {
     use hs_ui::icons::ph;
     if id.starts_with("wsl:") {
@@ -857,5 +892,37 @@ fn shell_icon(id: &str) -> &'static str {
         ph::GIT_BRANCH
     } else {
         ph::TERMINAL
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    fn p(id: &str) -> ShellProfile {
+        ShellProfile::new(id, id, "", id, &[])
+    }
+
+    #[test]
+    fn a_saved_shell_order_is_followed_and_new_shells_still_appear() {
+        let detected = [p("pwsh"), p("cmd"), p("nu")];
+        let ids = |v: Vec<ShellProfile>| v.into_iter().map(|s| s.id).collect::<Vec<_>>();
+
+        // Nothing saved: detection order.
+        assert_eq!(ids(ordered_shells(&detected, &[])), ["pwsh", "cmd", "nu"]);
+
+        // Saved order wins, and a shell detected since then follows.
+        let saved = ["nu".to_string(), "pwsh".to_string()];
+        assert_eq!(
+            ids(ordered_shells(&detected, &saved)),
+            ["nu", "pwsh", "cmd"]
+        );
+
+        // A saved shell that is no longer installed leaves no gap.
+        let saved = ["gone".to_string(), "cmd".to_string()];
+        assert_eq!(
+            ids(ordered_shells(&detected, &saved)),
+            ["cmd", "pwsh", "nu"]
+        );
     }
 }

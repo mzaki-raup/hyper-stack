@@ -188,6 +188,10 @@ pub struct Terminal {
     pub right_click_copy_paste: bool,
     /// Ctrl+click opens URLs and `path:line:col` locations.
     pub link_detection: bool,
+    /// Shell profile ids in the order the sidebar lists them. Shells that
+    /// are not named here follow, in the order they were detected, so a
+    /// newly installed shell appears without the list being rewritten.
+    pub shell_order: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -335,6 +339,7 @@ impl Default for Terminal {
             copy_on_select: false,
             right_click_copy_paste: true,
             link_detection: true,
+            shell_order: Vec::new(),
         }
     }
 }

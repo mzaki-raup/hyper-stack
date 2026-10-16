@@ -62,6 +62,8 @@ pub struct State {
     pub pattern: String,
     pub tab: Tab,
     pub open_key: Option<String>,
+    /// The connections column is collapsed to give the key tree the width.
+    pub hide_connections: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -252,6 +254,15 @@ impl RedisTool {
             }
             Ok(cfg)
         };
+        // One line per connection, so a support log says which server a tab
+        // was on. Never the password: that is a vault reference here anyway.
+        tracing::info!(
+            "redis: connecting {} to {}:{}/{}",
+            self.conn_name,
+            fields.host,
+            fields.port,
+            fields.db
+        );
         let (tx, flag) = runner::spawn(
             &s.runtime,
             future,
@@ -310,6 +321,11 @@ fn tool_button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egu
     let r = form::icon_button(ui, theme, icon, 16.0, false);
     r.tip(label)
 }
+
+/// How wide the connections column is when it is open, and when collapsed
+/// to its toggle.
+const CONNECTIONS_COLUMN: f32 = 132.0;
+const COLLAPSED_COLUMN: f32 = 30.0;
 
 /// Rows for the table that shows a collection page.
 fn page_rows(page: &ValuePage) -> (Vec<ColumnSpec>, Vec<Vec<String>>) {
@@ -508,33 +524,214 @@ impl Tool for RedisTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        // No connection yet: pick one.
-        if self.state.conn_id.is_none() {
-            ui.add_space(6.0);
-            form::page_title(ui, &theme, &s.t("redis-pick-title"), None);
-            let profiles: Vec<(String, String, String)> = {
-                let conns = s.connections.read();
-                conns
-                    .of_kind("redis")
-                    .map(|c| {
-                        (
-                            c.id.clone(),
-                            c.name.clone(),
-                            RedisFields::from_table(&c.fields).label(),
-                        )
-                    })
-                    .collect()
-            };
-            if profiles.is_empty() {
-                form::hint(ui, &theme, &s.t("redis-no-profiles"));
-            }
-            for (id, name, label) in profiles {
-                if form::list_row(ui, &theme, false, ph::LIGHTNING, &name, Some(&label)).clicked() {
-                    self.state.conn_id = Some(id);
-                    self.connect(s);
+        // The sidebar is two columns: every Redis connection on the left, so
+        // one click moves this tab to another server, and the key tree of the
+        // connected one on the right. The left column collapses when the key
+        // tree needs the width.
+        let total = ui.available_width();
+        let column = if self.state.hide_connections {
+            COLLAPSED_COLUMN
+        } else {
+            CONNECTIONS_COLUMN.min(total * 0.55)
+        };
+        // Inside a horizontal layout a child's available width is unbounded,
+        // so the tree column is given a real one. The slack covers the two
+        // item gaps and the separator: asking for even a few pixels more than
+        // the panel has makes a resizable panel grow every frame.
+        let tree_width = (total - column - 40.0).max(120.0);
+        let mut picked: Option<String> = None;
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(column);
+                picked = self.connections_column(ui, &theme, s);
+            });
+            ui.separator();
+            ui.vertical(|ui| {
+                ui.set_width(tree_width);
+                self.keys_column(ui, &theme, cx);
+            });
+        });
+        if let Some(id) = picked {
+            self.state.conn_id = Some(id);
+            self.state.open_key = None;
+            self.connect(s);
+        }
+        true
+    }
+    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        for (tab, key) in [
+            (Tab::Keys, "redis-tab-keys"),
+            (Tab::Console, "redis-tab-console"),
+            (Tab::Info, "redis-tab-info"),
+        ] {
+            if ui
+                .add(egui::Button::selectable(self.state.tab == tab, s.t(key)))
+                .clicked()
+            {
+                self.state.tab = tab;
+                if tab == Tab::Info {
+                    self.send(Cmd::RefreshInfo);
                 }
             }
-            return true;
+        }
+        ui.separator();
+        if tool_button(ui, &theme, ph::PLUS, &s.t("redis-new-key")).clicked() {
+            self.popup = Some(Popup::NewKey {
+                key: String::new(),
+                kind: KeyType::String,
+                value: String::new(),
+            });
+        }
+        if self.protected && !self.writes_unlocked {
+            ui.separator();
+            let label = s.i18n.t_args("redis-protected", &[("env", &self.env_name)]);
+            if ui
+                .button(label)
+                .on_hover_text(s.t("redis-unlock-hint"))
+                .clicked()
+            {
+                self.writes_unlocked = true;
+            }
+        }
+        let status = self.shared.lock().status.clone();
+        if let Some(Status::Ready(info)) = status {
+            ui.separator();
+            ui.label(
+                egui::RichText::new(format!("{} {}", info.flavour, info.version))
+                    .small()
+                    .color(theme.text_muted),
+            );
+        }
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        // Drain what the runner wants to say.
+        let messages: Vec<(bool, String)> = {
+            let mut sh = self.shared.lock();
+            std::mem::take(&mut sh.messages)
+        };
+        for (ok, text) in messages {
+            cx.toast(
+                if ok {
+                    ToastLevel::Success
+                } else {
+                    ToastLevel::Error
+                },
+                text,
+            );
+        }
+        if self.state.conn_id.is_none() {
+            form::note(ui, &theme, ph::PLUGS_CONNECTED, &s.t("redis-pick-hint"));
+            return;
+        }
+        // Read the status into a local first: the guard would otherwise
+        // live across the `self.connect` call in the Failed arm.
+        let status = self.shared.lock().status.clone();
+        match status {
+            Some(Status::Connecting) | None => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(s.t("redis-connecting"));
+                });
+                return;
+            }
+            Some(Status::Failed(e)) => {
+                form::note(ui, &theme, ph::WARNING, &e);
+                if ui.button(s.t("redis-retry")).clicked() {
+                    self.connect(s);
+                }
+                return;
+            }
+            Some(Status::Ready(_)) => {}
+        }
+        self.dialogs(ui, cx);
+        match self.state.tab {
+            Tab::Keys => self.keys_tab(ui, cx),
+            Tab::Console => self.console_tab(ui, cx),
+            Tab::Info => self.info_tab(ui, cx),
+        }
+    }
+}
+
+impl RedisTool {
+    /// The left column: every `redis` connection, the open one highlighted.
+    /// Returns the connection the user picked.
+    fn connections_column(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+    ) -> Option<String> {
+        let mut picked = None;
+        let collapsed = self.state.hide_connections;
+        ui.horizontal(|ui| {
+            let icon = if collapsed {
+                ph::CARET_RIGHT
+            } else {
+                ph::CARET_LEFT
+            };
+            if tool_button(ui, theme, icon, &s.t("redis-connections-toggle")).clicked() {
+                self.state.hide_connections = !collapsed;
+            }
+            if !collapsed {
+                ui.label(
+                    egui::RichText::new(s.t("redis-connections"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+        });
+        if collapsed {
+            return None;
+        }
+        let profiles: Vec<(String, String, String)> = {
+            let conns = s.connections.read();
+            conns
+                .of_kind("redis")
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        RedisFields::from_table(&c.fields).label(),
+                    )
+                })
+                .collect()
+        };
+        if profiles.is_empty() {
+            form::hint(ui, theme, &s.t("redis-no-profiles"));
+            return None;
+        }
+        egui::ScrollArea::vertical()
+            .id_salt("redis-connections")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (id, name, label) in profiles {
+                    let selected = self.state.conn_id.as_deref() == Some(&id);
+                    let r = ui.add(
+                        egui::Button::selectable(selected, format!("{} {name}", ph::LIGHTNING))
+                            .min_size(egui::vec2(ui.available_width(), 0.0)),
+                    );
+                    if r.on_hover_text(label).clicked() && !selected {
+                        picked = Some(id);
+                    }
+                    ui.add_space(2.0);
+                }
+            });
+        picked
+    }
+
+    /// The right column: the database selector, the filter and the key tree.
+    fn keys_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = theme.clone();
+        if self.state.conn_id.is_none() {
+            ui.add_space(6.0);
+            form::hint(ui, &theme, &s.t("redis-pick-hint"));
+            return;
         }
         let delimiter = self.fields.delimiter.clone();
         ui.add_space(4.0);
@@ -547,7 +744,9 @@ impl Tool for RedisTool {
             Some(Status::Ready(info)) => info.databases.max(1),
             _ => 16,
         };
-        ui.horizontal(|ui| {
+        // Wrapped: in a narrow sidebar the label and the picker stack rather
+        // than pushing the resizable panel wider.
+        ui.horizontal_wrapped(|ui| {
             ui.label(s.t("redis-database"));
             let keys_here = keyspace
                 .iter()
@@ -555,6 +754,9 @@ impl Tool for RedisTool {
                 .map(|(_, k)| *k)
                 .unwrap_or(0);
             egui::ComboBox::from_id_salt("redis-db")
+                // A fixed width: letting it size to its text pushed the
+                // resizable sidebar wider on the first frame.
+                .width(86.0)
                 .selected_text(format!("{db} ({keys_here})"))
                 .show_ui(ui, |ui| {
                     for n in 0..databases {
@@ -609,7 +811,7 @@ impl Tool for RedisTool {
             if self.waiting_for_vault && ui.button(s.t("redis-retry")).clicked() {
                 self.connect(s);
             }
-            return true;
+            return;
         }
         // The tree itself.
         let rows = {
@@ -719,105 +921,6 @@ impl Tool for RedisTool {
         }
         if popup.is_some() {
             self.popup = popup;
-        }
-        true
-    }
-
-    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
-        let s = cx.services;
-        let theme = Theme::from_settings(&s.settings.read().appearance);
-        for (tab, key) in [
-            (Tab::Keys, "redis-tab-keys"),
-            (Tab::Console, "redis-tab-console"),
-            (Tab::Info, "redis-tab-info"),
-        ] {
-            if ui
-                .add(egui::Button::selectable(self.state.tab == tab, s.t(key)))
-                .clicked()
-            {
-                self.state.tab = tab;
-                if tab == Tab::Info {
-                    self.send(Cmd::RefreshInfo);
-                }
-            }
-        }
-        ui.separator();
-        if tool_button(ui, &theme, ph::PLUS, &s.t("redis-new-key")).clicked() {
-            self.popup = Some(Popup::NewKey {
-                key: String::new(),
-                kind: KeyType::String,
-                value: String::new(),
-            });
-        }
-        if self.protected && !self.writes_unlocked {
-            ui.separator();
-            let label = s.i18n.t_args("redis-protected", &[("env", &self.env_name)]);
-            if ui
-                .button(label)
-                .on_hover_text(s.t("redis-unlock-hint"))
-                .clicked()
-            {
-                self.writes_unlocked = true;
-            }
-        }
-        let status = self.shared.lock().status.clone();
-        if let Some(Status::Ready(info)) = status {
-            ui.separator();
-            ui.label(
-                egui::RichText::new(format!("{} {}", info.flavour, info.version))
-                    .small()
-                    .color(theme.text_muted),
-            );
-        }
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
-        let s = cx.services;
-        let theme = Theme::from_settings(&s.settings.read().appearance);
-        // Drain what the runner wants to say.
-        let messages: Vec<(bool, String)> = {
-            let mut sh = self.shared.lock();
-            std::mem::take(&mut sh.messages)
-        };
-        for (ok, text) in messages {
-            cx.toast(
-                if ok {
-                    ToastLevel::Success
-                } else {
-                    ToastLevel::Error
-                },
-                text,
-            );
-        }
-        if self.state.conn_id.is_none() {
-            form::note(ui, &theme, ph::PLUGS_CONNECTED, &s.t("redis-pick-hint"));
-            return;
-        }
-        // Read the status into a local first: the guard would otherwise
-        // live across the `self.connect` call in the Failed arm.
-        let status = self.shared.lock().status.clone();
-        match status {
-            Some(Status::Connecting) | None => {
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(s.t("redis-connecting"));
-                });
-                return;
-            }
-            Some(Status::Failed(e)) => {
-                form::note(ui, &theme, ph::WARNING, &e);
-                if ui.button(s.t("redis-retry")).clicked() {
-                    self.connect(s);
-                }
-                return;
-            }
-            Some(Status::Ready(_)) => {}
-        }
-        self.dialogs(ui, cx);
-        match self.state.tab {
-            Tab::Keys => self.keys_tab(ui, cx),
-            Tab::Console => self.console_tab(ui, cx),
-            Tab::Info => self.info_tab(ui, cx),
         }
     }
 }

@@ -1517,6 +1517,8 @@ dt-var-hint = Variables are resolved when you run the utility; secrets come from
 
 ## Redis tool (docs/tools/redis.md)
 redis-pick-title = Redis Connections
+redis-connections = Connections
+redis-connections-toggle = Show or hide the connections column
 redis-pick-hint = Pick a Redis connection in the sidebar to browse its keys.
 redis-no-profiles = No Redis connections yet. Add one in Settings → Connections.
 redis-no-profile = That connection no longer exists.

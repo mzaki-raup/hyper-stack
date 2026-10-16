@@ -23,6 +23,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Redis connections in Settings → Connections: host, port, database, ACL
   user, password in the vault, TLS with an optional private CA, an SSH
   tunnel, the key separator, and `redis://` URL import.
+- The Redis sidebar has a **Connections** column: every Redis connection is
+  listed beside the key tree, one click moves the tab to another server, and
+  the column collapses when the tree wants the width.
 
 ### Changed
 

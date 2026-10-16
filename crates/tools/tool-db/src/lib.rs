@@ -2394,30 +2394,18 @@ impl Tool for DbTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("db-connections"))
-                    .strong()
-                    .size(15.0),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::icon_button(ui, &theme, ph::PLUS, 16.0, false)
-                    .tip(s.t("db-new-profile"))
-                    .clicked()
-                {
-                    cx.actions.push(Action::RunCommand {
-                        id: "settings:connections".into(),
-                    });
-                }
-                if self.cmd.is_some()
-                    && form::icon_button(ui, &theme, ph::ARROW_CLOCKWISE, 16.0, false)
-                        .tip(s.t("db-refresh-schema"))
-                        .clicked()
-                {
-                    self.refresh_schema(s);
-                }
-            });
-        });
+        let mut actions: Vec<(&str, String)> = vec![(ph::PLUS, s.t("db-new-profile"))];
+        if self.cmd.is_some() {
+            actions.push((ph::ARROW_CLOCKWISE, s.t("db-refresh-schema")));
+        }
+        let actions: Vec<(&str, &str)> = actions.iter().map(|(i, t)| (*i, t.as_str())).collect();
+        match form::sidebar_header(ui, &theme, &s.t("db-connections"), &actions) {
+            Some(0) => cx.actions.push(Action::RunCommand {
+                id: "settings:connections".into(),
+            }),
+            Some(1) => self.refresh_schema(s),
+            _ => {}
+        }
         let profiles: Vec<(String, String, String)> = s
             .connections
             .read()

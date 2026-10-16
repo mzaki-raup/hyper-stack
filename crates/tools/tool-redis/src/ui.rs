@@ -7,8 +7,8 @@ use std::sync::atomic::Ordering;
 
 use hs_core::Services;
 use hs_core::tool::{
-    Accept, CommandDescriptor, OpenRequest, Printable, ToastLevel, Tool, ToolCategory, ToolContext,
-    ToolDescriptor, ToolFactory,
+    Accept, Action, CommandDescriptor, OpenRequest, Printable, ToastLevel, Tool, ToolCategory,
+    ToolContext, ToolDescriptor, ToolFactory,
 };
 use hs_ui::form;
 use hs_ui::icons::ph;
@@ -62,8 +62,6 @@ pub struct State {
     pub pattern: String,
     pub tab: Tab,
     pub open_key: Option<String>,
-    /// The connections column is collapsed to give the key tree the width.
-    pub hide_connections: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -322,10 +320,8 @@ fn tool_button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egu
     r.tip(label)
 }
 
-/// How wide the connections column is when it is open, and when collapsed
-/// to its toggle.
-const CONNECTIONS_COLUMN: f32 = 132.0;
-const COLLAPSED_COLUMN: f32 = 30.0;
+/// How wide the key list is beside the value pane.
+const KEY_LIST_WIDTH: f32 = 300.0;
 
 /// Rows for the table that shows a collection page.
 fn page_rows(page: &ValuePage) -> (Vec<ColumnSpec>, Vec<Vec<String>>) {
@@ -524,50 +520,74 @@ impl Tool for RedisTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        // The sidebar is two columns: every Redis connection on the left, so
-        // one click moves this tab to another server, and the key tree of the
-        // connected one on the right. The left column collapses when the key
-        // tree needs the width.
-        let total = ui.available_width();
-        let column = if self.state.hide_connections {
-            COLLAPSED_COLUMN
-        } else {
-            CONNECTIONS_COLUMN.min(total * 0.55)
-        };
-        // Inside a horizontal layout a child's available width is unbounded,
-        // so the tree column is given a real one. The slack covers the two
-        // item gaps and the separator: asking for even a few pixels more than
-        // the panel has makes a resizable panel grow every frame.
-        let tree_width = (total - column - 40.0).max(120.0);
-        let mut picked: Option<String> = None;
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(column);
-                picked = self.connections_column(ui, &theme, s);
+        // The same header, list rows and add button as the SSH, S3 and
+        // database sidebars; the Sidebar toggle hides all of it.
+        if form::sidebar_header(
+            ui,
+            &theme,
+            &s.t("redis-connections"),
+            &[(ph::PLUS, &s.t("redis-new-profile"))],
+        )
+        .is_some()
+        {
+            cx.actions.push(Action::RunCommand {
+                id: "settings:connections".into(),
             });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_width(tree_width);
-                self.keys_column(ui, &theme, cx);
-            });
-        });
-        if let Some(id) = picked {
-            self.state.conn_id = Some(id);
-            self.state.open_key = None;
-            self.connect(s);
         }
+        let profiles: Vec<(String, String, String)> = {
+            let conns = s.connections.read();
+            conns
+                .of_kind("redis")
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        RedisFields::from_table(&c.fields).label(),
+                    )
+                })
+                .collect()
+        };
+        if profiles.is_empty() {
+            form::note(ui, &theme, ph::LIGHTBULB, &s.t("redis-no-profiles"));
+            return true;
+        }
+        egui::ScrollArea::vertical()
+            .id_salt("redis-connections")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (id, name, label) in profiles {
+                    let selected = self.state.conn_id.as_deref() == Some(&id);
+                    if form::list_row(ui, &theme, selected, ph::LIGHTNING, &name, Some(&label))
+                        .tip(s.t("redis-open-profile"))
+                        .clicked()
+                    {
+                        if self.state.conn_id.is_none() {
+                            self.state.conn_id = Some(id);
+                            self.connect(s);
+                        } else if !selected {
+                            // One tab per connection: the shell focuses the
+                            // tab already bound to this profile, or opens one.
+                            cx.open("redis", Some(OpenRequest::Connection { id }));
+                        }
+                    }
+                    ui.add_space(2.0);
+                }
+            });
         true
     }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        for (tab, key) in [
-            (Tab::Keys, "redis-tab-keys"),
-            (Tab::Console, "redis-tab-console"),
-            (Tab::Info, "redis-tab-info"),
+        // Icon plus label, the way the other tools' toolbars read.
+        for (tab, icon, key) in [
+            (Tab::Keys, ph::KEY, "redis-tab-keys"),
+            (Tab::Console, ph::TERMINAL_WINDOW, "redis-tab-console"),
+            (Tab::Info, ph::INFO, "redis-tab-info"),
         ] {
+            let label = format!("{icon} {}", s.t(key));
             if ui
-                .add(egui::Button::selectable(self.state.tab == tab, s.t(key)))
+                .add(egui::Button::selectable(self.state.tab == tab, label))
                 .clicked()
             {
                 self.state.tab = tab;
@@ -575,14 +595,6 @@ impl Tool for RedisTool {
                     self.send(Cmd::RefreshInfo);
                 }
             }
-        }
-        ui.separator();
-        if tool_button(ui, &theme, ph::PLUS, &s.t("redis-new-key")).clicked() {
-            self.popup = Some(Popup::NewKey {
-                key: String::new(),
-                kind: KeyType::String,
-                value: String::new(),
-            });
         }
         if self.protected && !self.writes_unlocked {
             ui.separator();
@@ -658,84 +670,10 @@ impl Tool for RedisTool {
 }
 
 impl RedisTool {
-    /// The left column: every `redis` connection, the open one highlighted.
-    /// Returns the connection the user picked.
-    fn connections_column(
-        &mut self,
-        ui: &mut egui::Ui,
-        theme: &Theme,
-        s: &Services,
-    ) -> Option<String> {
-        let mut picked = None;
-        let collapsed = self.state.hide_connections;
-        ui.horizontal(|ui| {
-            let icon = if collapsed {
-                ph::CARET_RIGHT
-            } else {
-                ph::CARET_LEFT
-            };
-            if tool_button(ui, theme, icon, &s.t("redis-connections-toggle")).clicked() {
-                self.state.hide_connections = !collapsed;
-            }
-            if !collapsed {
-                ui.label(
-                    egui::RichText::new(s.t("redis-connections"))
-                        .small()
-                        .color(theme.text_muted),
-                );
-            }
-        });
-        if collapsed {
-            return None;
-        }
-        let profiles: Vec<(String, String, String)> = {
-            let conns = s.connections.read();
-            conns
-                .of_kind("redis")
-                .map(|c| {
-                    (
-                        c.id.clone(),
-                        c.name.clone(),
-                        RedisFields::from_table(&c.fields).label(),
-                    )
-                })
-                .collect()
-        };
-        if profiles.is_empty() {
-            form::hint(ui, theme, &s.t("redis-no-profiles"));
-            return None;
-        }
-        egui::ScrollArea::vertical()
-            .id_salt("redis-connections")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                for (id, name, label) in profiles {
-                    let selected = self.state.conn_id.as_deref() == Some(&id);
-                    let r = ui.add(
-                        egui::Button::selectable(selected, format!("{} {name}", ph::LIGHTNING))
-                            .min_size(egui::vec2(ui.available_width(), 0.0)),
-                    );
-                    if r.on_hover_text(label).clicked() && !selected {
-                        picked = Some(id);
-                    }
-                    ui.add_space(2.0);
-                }
-            });
-        picked
-    }
-
-    /// The right column: the database selector, the filter and the key tree.
-    fn keys_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
-        let s = cx.services;
+    /// The row across the top of the Keys tab: which database, what to match,
+    /// scan or stop, and New Key.
+    fn keys_controls(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         let theme = theme.clone();
-        if self.state.conn_id.is_none() {
-            ui.add_space(6.0);
-            form::hint(ui, &theme, &s.t("redis-pick-hint"));
-            return;
-        }
-        let delimiter = self.fields.delimiter.clone();
-        ui.add_space(4.0);
-        // Database selector and key counts.
         let (db, keyspace, scanning, found) = {
             let sh = self.shared.lock();
             (sh.db, sh.keyspace.clone(), sh.scanning, sh.tree.len())
@@ -744,8 +682,6 @@ impl RedisTool {
             Some(Status::Ready(info)) => info.databases.max(1),
             _ => 16,
         };
-        // Wrapped: in a narrow sidebar the label and the picker stack rather
-        // than pushing the resizable panel wider.
         ui.horizontal_wrapped(|ui| {
             ui.label(s.t("redis-database"));
             let keys_here = keyspace
@@ -754,9 +690,7 @@ impl RedisTool {
                 .map(|(_, k)| *k)
                 .unwrap_or(0);
             egui::ComboBox::from_id_salt("redis-db")
-                // A fixed width: letting it size to its text pushed the
-                // resizable sidebar wider on the first frame.
-                .width(86.0)
+                .width(96.0)
                 .selected_text(format!("{db} ({keys_here})"))
                 .show_ui(ui, |ui| {
                     for n in 0..databases {
@@ -795,8 +729,14 @@ impl RedisTool {
             } else if tool_button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("redis-scan")).clicked() {
                 self.rescan();
             }
+            if tool_button(ui, &theme, ph::PLUS, &s.t("redis-new-key")).clicked() {
+                self.popup = Some(Popup::NewKey {
+                    key: String::new(),
+                    kind: KeyType::String,
+                    value: String::new(),
+                });
+            }
         });
-        ui.add_space(2.0);
         let count_text = if scanning {
             s.i18n
                 .t_args("redis-scanning", &[("n", &found.to_string())])
@@ -805,7 +745,13 @@ impl RedisTool {
                 .t_args("redis-key-count", &[("n", &found.to_string())])
         };
         form::hint(ui, &theme, &count_text);
-        ui.add_space(4.0);
+    }
+
+    /// The key tree itself.
+    fn key_list(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let theme = theme.clone();
+        let delimiter = self.fields.delimiter.clone();
+        let scanning = self.shared.lock().scanning;
         if let Some(e) = &self.conn_error {
             form::note(ui, &theme, ph::WARNING, e);
             if self.waiting_for_vault && ui.button(s.t("redis-retry")).clicked() {
@@ -926,7 +872,31 @@ impl RedisTool {
 }
 
 impl RedisTool {
+    /// The Keys tab: the database picker and filter across the top, the key
+    /// list on the left and the open key's value on the right. Both live in
+    /// the tab, not the sidebar, so the sidebar stays the connection list.
     fn keys_tab(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        self.keys_controls(ui, &theme, s);
+        ui.separator();
+        let total = ui.available_width();
+        let list_width = KEY_LIST_WIDTH.min(total * 0.45);
+        let value_width = (total - list_width - 26.0).max(160.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                self.key_list(ui, &theme, s);
+            });
+            ui.separator();
+            ui.vertical(|ui| {
+                ui.set_width(value_width);
+                self.value_pane(ui, cx);
+            });
+        });
+    }
+
+    fn value_pane(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let (info, page) = {

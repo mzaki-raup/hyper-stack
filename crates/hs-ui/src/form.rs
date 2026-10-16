@@ -174,6 +174,36 @@ pub fn header_bar<R>(
     r
 }
 
+/// The header of a sidebar list: the title on the left, small icon actions on
+/// the right. Every tool draws its connections list with this, so the titles
+/// sit on the same baseline and the buttons in the same place.
+///
+/// Returns the index of the action that was clicked.
+pub fn sidebar_header(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    actions: &[(&str, &str)],
+) -> Option<usize> {
+    let mut clicked = None;
+    header_bar(ui, theme, |ui| {
+        ui.label(egui::RichText::new(title).strong().size(15.0));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // Right to left, so the first action ends up rightmost: the add
+            // button sits in the same place in every tool.
+            for (i, (icon, tip)) in actions.iter().enumerate() {
+                if icon_button(ui, theme, icon, 16.0, false)
+                    .on_hover_text(*tip)
+                    .clicked()
+                {
+                    clicked = Some(i);
+                }
+            }
+        });
+    });
+    clicked
+}
+
 /// A selectable list row with an icon, hover highlight and selection colour
 /// (shell profiles, connections, environments).
 pub fn list_row(

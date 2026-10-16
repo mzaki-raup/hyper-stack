@@ -1142,19 +1142,18 @@ impl Tool for SshTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(egui::RichText::new(s.t("ssh-hosts")).strong().size(15.0));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::icon_button(ui, &theme, ph::PLUS, 16.0, false)
-                    .tip(s.t("ssh-new-host"))
-                    .clicked()
-                {
-                    cx.actions.push(hs_core::tool::Action::RunCommand {
-                        id: "settings:connections".into(),
-                    });
-                }
+        if form::sidebar_header(
+            ui,
+            &theme,
+            &s.t("ssh-hosts"),
+            &[(ph::PLUS, &s.t("ssh-new-host"))],
+        )
+        .is_some()
+        {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: "settings:connections".into(),
             });
-        });
+        }
         let hosts: Vec<(String, String, String)> = s
             .connections
             .read()

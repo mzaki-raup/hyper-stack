@@ -23,12 +23,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Redis connections in Settings → Connections: host, port, database, ACL
   user, password in the vault, TLS with an optional private CA, an SSH
   tunnel, the key separator, and `redis://` URL import.
-- The Redis sidebar has a **Connections** column: every Redis connection is
-  listed beside the key tree, one click moves the tab to another server, and
-  the column collapses when the tree wants the width.
+- The Redis sidebar is the connection list, with the same header, add
+  button and empty state as the SSH, S3 and database sidebars; the database
+  picker, key list and value live in the tab. Clicking a connection focuses
+  the tab bound to it, so a connection has at most one tab.
 
 ### Changed
 
+- Every tool's sidebar draws its header the same way, and the titles say
+  what they list: SSH Hosts, S3 Profiles, Database Connections, Redis
+  Connections.
 - The activity rail scrolls when the window is too short for every tool.
   Home stays at the top and the sidebar toggle and Settings at the bottom,
   where before the last entries overlapped each other.

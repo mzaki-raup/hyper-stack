@@ -1063,27 +1063,25 @@ impl Tool for S3Tool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(egui::RichText::new(s.t("s3-profiles")).strong().size(15.0));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::icon_button(ui, &theme, ph::PLUS, 16.0, false)
-                    .tip(s.t("s3-new-profile"))
-                    .clicked()
-                {
-                    cx.actions.push(Action::RunCommand {
-                        id: "settings:connections".into(),
-                    });
-                }
-                if form::icon_button(ui, &theme, ph::CLOUD_ARROW_DOWN, 16.0, false)
-                    .tip(s.t("s3-import-title"))
-                    .clicked()
-                {
-                    self.dialog = Some(DialogState::ImportAws {
-                        profiles: load_aws_profiles().into_iter().map(|p| (p, true)).collect(),
-                    });
-                }
-            });
-        });
+        match form::sidebar_header(
+            ui,
+            &theme,
+            &s.t("s3-profiles"),
+            &[
+                (ph::PLUS, &s.t("s3-new-profile")),
+                (ph::CLOUD_ARROW_DOWN, &s.t("s3-import-title")),
+            ],
+        ) {
+            Some(0) => cx.actions.push(Action::RunCommand {
+                id: "settings:connections".into(),
+            }),
+            Some(1) => {
+                self.dialog = Some(DialogState::ImportAws {
+                    profiles: load_aws_profiles().into_iter().map(|p| (p, true)).collect(),
+                })
+            }
+            _ => {}
+        }
         let profiles: Vec<(String, String, String)> = s
             .connections
             .read()

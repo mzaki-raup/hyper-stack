@@ -41,9 +41,11 @@ server (Dragonfly, Garnet) on a best-effort basis.
 └─────────────────────────┴────────────────────────────────────────────────────────────┘
 ```
 
-- **Sidebar**: a **Connections** column listing every `redis` profile (one
-  click moves the tab to another server; it collapses to a chevron when the
-  key tree wants the width), then the database selector with key counts
+- **Sidebar**: the connection list and nothing else — a header with an add
+  button, a row per `redis` profile, and a note when there are none, the
+  same as the SSH, S3 and database sidebars. Clicking a connection focuses
+  the tab bound to it, or opens one: a connection has at most one tab.
+- **Tab**: the database selector with key counts
   (`INFO keyspace`), pattern box, lazy key tree built with `SCAN` (never
   `KEYS`) grouped by delimiter (`:` default, configurable), type badges,
   "load more" nodes beyond the page size.
@@ -156,8 +158,9 @@ server (`HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live`):
   and password from the vault, SSH tunnel, read-only flag, `redis://` and
   `rediss://` import. Sentinel and cluster are stored by the form and refused
   by the session with a clear message; neither opens a connection yet.
-- **Connections column** (§3): every `redis` profile beside the key tree,
-  the open one highlighted, collapsible, and remembered with the tab.
+- **Connections list** (§3): the sidebar lists every `redis` profile with
+  the open one highlighted, through the shared sidebar header that SSH, S3
+  and the database tool use; the key list and the value sit in the tab.
 - **Key tree** (§4): `SCAN` on a background job with a cancel button, grouped
   on the profile's separator, type badges from a pipelined `TYPE`, counts per
   group, the context menu (open, copy, rename, set TTL, delete, delete all

@@ -20,6 +20,7 @@ members = [
   "crates/tools/tool-graphics",
   "crates/tools/tool-browser",
   "crates/tools/tool-redis",
+  "crates/tools/tool-nosql",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -53,6 +54,7 @@ tool-api = { path = "crates/tools/tool-api" }
 tool-graphics = { path = "crates/tools/tool-graphics" }
 tool-browser = { path = "crates/tools/tool-browser" }
 tool-redis = { path = "crates/tools/tool-redis" }
+tool-nosql = { path = "crates/tools/tool-nosql" }
 
 # UI
 eframe = "0.35"
@@ -141,6 +143,16 @@ redis = { version = "1.7", default-features = false, features = [
     "tokio-comp",
     "tokio-rustls-comp",
 ] }
+# MongoDB. Its rustls-tls feature pins the ring provider, like the others.
+mongodb = { version = "3.9", default-features = false, features = [
+    "rustls-tls",
+    "dns-resolver",
+    "compat-3-3-0",
+    "bson-3",
+] }
+# The driver re-exports this; `serde_json-1` is what gives us Extended JSON
+# in both directions, which is how documents reach the editor.
+bson = { version = "3", features = ["serde", "serde_json-1"] }
 
 [profile.release]
 opt-level = 3

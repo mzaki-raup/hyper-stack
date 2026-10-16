@@ -589,7 +589,7 @@ settings-editor-dap-adapter = Adapter
 
 ## SSH
 tool-ssh = SSH
-ssh-hosts = Hosts
+ssh-hosts = SSH Hosts
 ssh-new-host = New Host
 ssh-open-host = Open a Shell and File Pane for This Host
 ssh-no-hosts = No SSH hosts yet. Add one in Settings → Connections (kind "ssh").
@@ -740,7 +740,7 @@ toast-settings-saved = Settings saved.
 
 # S3 tool
 tool-s3 = S3
-s3-profiles = Profiles
+s3-profiles = S3 Profiles
 s3-new-profile = New S3 Profile
 s3-open-profile = Open This Profile
 s3-no-profiles = No S3 profiles yet. Add one in Settings → Connections (kind "S3"), or import your AWS CLI profiles with the cloud button.
@@ -797,7 +797,7 @@ s3-imported = Imported { $count } profile(s).
 # Database tool
 tool-db = Database
 tool-redis = Redis
-db-connections = Connections
+db-connections = Database Connections
 db-new-profile = New Database Connection
 db-open-profile = Open This Connection
 db-no-profiles = No database connections yet. Add one in Settings → Connections (kind "DB"): PostgreSQL, MySQL, MariaDB or a SQLite file.
@@ -1517,8 +1517,9 @@ dt-var-hint = Variables are resolved when you run the utility; secrets come from
 
 ## Redis tool (docs/tools/redis.md)
 redis-pick-title = Redis Connections
-redis-connections = Connections
-redis-connections-toggle = Show or hide the connections column
+redis-connections = Redis Connections
+redis-new-profile = New Redis Connection
+redis-open-profile = Open this connection
 redis-pick-hint = Pick a Redis connection in the sidebar to browse its keys.
 redis-no-profiles = No Redis connections yet. Add one in Settings → Connections.
 redis-no-profile = That connection no longer exists.
@@ -1534,7 +1535,7 @@ redis-stop = Stop
 redis-scanning = Scanning… { $n } keys so far
 redis-key-count = { $n } keys
 redis-no-keys = No keys matched. Change the filter and scan again.
-redis-no-key-open = Pick a key in the sidebar to see what is in it.
+redis-no-key-open = Pick a key in the list to see what is in it.
 redis-tab-keys = Keys
 redis-tab-console = Console
 redis-tab-info = Info

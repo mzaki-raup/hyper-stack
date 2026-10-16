@@ -176,6 +176,13 @@ visible place that decides what a password is made of.
 A **seed** makes any generator repeatable, which is the point of offering
 one. Leave it empty for fresh randomness.
 
+**Each generator keeps its own result.** The result card is titled with the
+generator that produced it ("Password Result") and is stored per mode, so
+moving to another generator to make something else does not throw away what
+you just generated, and coming back shows it again. One shared card meant a
+passphrase replaced the UUIDs you were still copying from. Owner's
+requirement, 2026-10-17.
+
 **Entropy is shown, not a word like "strong".** A password's is
 `length × log2(pool)`; a passphrase's is `words × log2(list)`. The word
 list is worth about 8.3 bits a word against a 7776-word diceware list's
@@ -206,8 +213,13 @@ The differences it handles so nobody has to remember them:
   and day-of-week must be `?`. The builder puts it in whichever is not
   being used, and the checker rejects an expression with neither or both.
 
-A pasted expression can be checked against each dialect: field counts and
-ranges, including lists, ranges and steps. Names and modifiers (`MON`,
+A pasted expression is checked against each dialect in a three-column
+grid — **Cron Type**, **Match** and **Details of Scheduler** — so one look
+says which dialects accept it and, for those that do, when it actually
+runs: `explain()` reads the expression back as English ("At 09:30, on day
+of the week MON,WED,FRI."), and the dialects that reject it say why on the
+same row. What is checked is field counts and ranges, including lists,
+ranges and steps. Names and modifiers (`MON`,
 `JAN`, `L`, `W`, `#`) pass through unchecked, because the dialects differ
 on which they accept and refusing them here would be wrong more often than
 right — so this says an expression is plausible, not that a given

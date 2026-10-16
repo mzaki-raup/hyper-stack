@@ -807,6 +807,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   clipboard (the process owns the data and dies). Set it from a persistent
   session with `[System.Windows.Forms.Clipboard]::SetFileDropList`, and read
   it back with `GetFileDropList` in an `-STA` process.
+- A harness click on the point the cursor is **already** on does nothing:
+  `SetCursorPos` to the same pixel sends no move, so egui never updates its
+  hover state and the press lands on nothing. Clicking the same button
+  twice in a row (Open Image… for a second file) silently did nothing for
+  three attempts. Click somewhere harmless first, then the target.
 - Two HyperStack windows at the same screen position (the dev build and the
   owner's installed copy) make the GUI harness capture and click the wrong
   one: `SetForegroundWindow` from a non-foreground process can fail

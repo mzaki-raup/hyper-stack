@@ -63,3 +63,14 @@ embedded (PNG, Base64); Snip captures the tab as it is on screen.
 side 0, scale, extend, crop clamping, rotation), colour (grayscale,
 saturation, invert, chained operations), every encoder decoding back to
 the same size, multi-size ICO assembly and frame extraction.
+
+## Addendum (2026-10-17): one tab per image
+
+Opening an image gives it **its own tab**. A Graphics tab that already
+holds a picture no longer claims the next file opened — `uri_affinity`
+answers only while the tab is empty — so Open Image… on a loaded tab opens
+a second one beside it rather than replacing the work in front of you.
+Opening a file that is already open focuses that tab instead of making a
+duplicate, which falls out of the same rule: the tab holding that path
+claims it. Both paths go through `Services::open`, so a file arriving from
+elsewhere in the app behaves the same way. Owner's requirement, 2026-10-17.

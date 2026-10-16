@@ -23,18 +23,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   expression back in all three dialects at once — Unix cron, Spring and
   Quartz — because the usual reason to be there is needing the other
   dialect's version of the one you have. Quartz's `?` rule is handled for
-  you. A pasted expression can be checked against each dialect.
+  you. A pasted expression is checked against every dialect in a grid of
+  Cron Type, Match and Details of Scheduler, so one look says which
+  dialects take it and when it would actually run.
 - **Devtools → TOML** and **Devtools → XML**: check a document and lay it
   out again. XML takes 2 spaces, 4 spaces or a tab; TOML has no indent to
   choose and says so. Broken input is never quietly reformatted — the
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
 
+- Graphics opens **one tab per image**: a tab that already holds a
+  picture does not take the next file you open, and opening a file that is
+  already open focuses its tab rather than loading it twice.
+
 - Connections can be **pinned to Home**: right-click one in its tool's
   sidebar. Pinned Connections on Home used to list every connection that
   existed, which is not a pin; it now lists the ones you chose.
 
 ### Changed
+
+- Each Devtools generator keeps **its own result**. The card is titled with
+  the generator that made it and switching generator no longer throws away
+  what the last one produced.
 
 - The AI assistant is a column, not something drawn over the tool. It used
   to be laid out last, into whatever space was left — which after a results

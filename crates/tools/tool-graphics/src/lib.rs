@@ -1148,6 +1148,19 @@ impl GraphicsTool {
     }
 }
 
+/// Hand a picture to the shell rather than loading it here: one tab per
+/// image, and opening one that is already open focuses its tab instead of
+/// making a second.
+fn open_image(cx: &mut ToolContext, path: &Path) {
+    cx.open(
+        "graphics",
+        Some(OpenRequest::File {
+            uri: path.to_string_lossy().to_string(),
+            line: None,
+        }),
+    );
+}
+
 fn human_size(n: usize) -> String {
     if n < 1024 {
         format!("{n} B")
@@ -1191,9 +1204,10 @@ impl Tool for GraphicsTool {
                 && let Some(p) = rfd::FileDialog::new()
                     .add_filter("Images", IMAGE_EXTS)
                     .pick_file()
-                && let Err(e) = self.load(&p)
             {
-                cx.toast(ToastLevel::Error, e);
+                // Through the shell, so the picture lands in its own tab —
+                // or focuses the tab already showing it.
+                open_image(cx, &p);
             }
         });
         if self.original.is_none() {
@@ -1393,9 +1407,8 @@ impl Tool for GraphicsTool {
                 if let Some(p) = rfd::FileDialog::new()
                     .add_filter("Images", IMAGE_EXTS)
                     .pick_file()
-                    && let Err(e) = self.load(&p)
                 {
-                    cx.toast(ToastLevel::Error, e);
+                    open_image(cx, &p);
                 }
                 true
             }
@@ -1417,7 +1430,15 @@ impl Tool for GraphicsTool {
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
         let p = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
-        is_image_path(p).then_some(if self.ops.is_empty() { 50 } else { 150 })
+        if !is_image_path(p) {
+            return None;
+        }
+        // Only a tab holding no image will take one: every image gets its
+        // own tab, and an image that is already open is found by
+        // `current_uri` before this is consulted. Claiming any unedited
+        // tab, as this used to, meant opening a second picture quietly
+        // replaced the first.
+        self.path.is_none().then_some(50)
     }
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {

@@ -303,6 +303,127 @@ pub fn check(expr: &str, flavour: Flavour) -> Result<(), String> {
     Ok(())
 }
 
+/// What a typed expression means, in words.
+///
+/// The reverse of [`expression`]: it reads the fields back so an
+/// expression someone else wrote can be checked against the intention.
+/// Fields it cannot put into a sentence are named rather than guessed at —
+/// "day of the week 2#1" is more use than a confident wrong reading.
+pub fn explain(expr: &str, flavour: Flavour) -> Result<String, String> {
+    check(expr, flavour)?;
+    let parts: Vec<&str> = expr.split_whitespace().collect();
+    let offset = usize::from(flavour.has_seconds());
+    let (second, minute, hour) = (
+        if flavour.has_seconds() {
+            Some(parts[0])
+        } else {
+            None
+        },
+        parts[offset],
+        parts[offset + 1],
+    );
+    let (dom, month, dow) = (parts[offset + 2], parts[offset + 3], parts[offset + 4]);
+
+    let mut when = Vec::new();
+    // The common shapes first, because they are what people write.
+    if let Some(step) = step_of(minute)
+        && hour == "*"
+    {
+        when.push(format!("every {step} minutes"));
+    } else if let Some(step) = step_of(hour) {
+        when.push(format!(
+            "every {step} hours at {} minutes past",
+            plain(minute).unwrap_or_else(|| minute.into())
+        ));
+    } else if let (Some(h), Some(m)) = (plain(hour), plain(minute)) {
+        when.push(format!("at {h:0>2}:{m:0>2}"));
+    } else if minute == "*" && hour == "*" {
+        when.push("every minute".into());
+    } else {
+        when.push(format!("minute {minute}, hour {hour}"));
+    }
+    if let Some(s) = second
+        && s != "0"
+    {
+        when.push(match step_of(s) {
+            Some(step) => format!("every {step} seconds"),
+            None => format!("second {s}"),
+        });
+    }
+
+    let mut days = Vec::new();
+    if dow != "*" && dow != "?" {
+        days.push(format!("on {}", day_names(dow)));
+    }
+    if dom != "*" && dom != "?" {
+        days.push(format!("on day {dom} of the month"));
+    }
+    if month != "*" && month != "?" {
+        days.push(format!("in {}", month_names(month)));
+    }
+    if days.is_empty() {
+        days.push("every day".into());
+    }
+    let mut out = format!("{}, {}.", when.join(", "), days.join(", "));
+    if let Some(rest) = out.strip_prefix(char::is_whitespace) {
+        out = rest.to_string();
+    }
+    // A sentence reads better starting with a capital.
+    let mut c = out.chars();
+    Ok(match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => out,
+    })
+}
+
+/// The step of a `*/n` field.
+fn step_of(field: &str) -> Option<u32> {
+    let (base, step) = field.split_once('/')?;
+    if base != "*" {
+        return None;
+    }
+    step.parse().ok()
+}
+
+/// A field that is one plain number.
+fn plain(field: &str) -> Option<String> {
+    field.parse::<u32>().ok().map(|n| n.to_string())
+}
+
+/// Day-of-week numbers as names, leaving anything clever as it was.
+fn day_names(field: &str) -> String {
+    let named: Option<Vec<&str>> = field
+        .split(',')
+        .map(|p| {
+            p.parse::<usize>()
+                .ok()
+                .and_then(|n| DAY_NAMES.get(n % 7).copied())
+        })
+        .collect();
+    match named {
+        Some(names) => names.join(", "),
+        // Ranges, names and Quartz's `#` forms: say the field rather than
+        // inventing a reading of it.
+        None => format!("day of the week {field}"),
+    }
+}
+
+fn month_names(field: &str) -> String {
+    let named: Option<Vec<&str>> = field
+        .split(',')
+        .map(|p| {
+            p.parse::<usize>()
+                .ok()
+                .filter(|n| (1..=12).contains(n))
+                .and_then(|n| MONTH_NAMES.get(n - 1).copied())
+        })
+        .collect();
+    match named {
+        Some(names) => names.join(", "),
+        None => format!("month {field}"),
+    }
+}
+
 /// One field: `*`, `?`, a number, a list, a range or a step, with every
 /// number inside the range for that field.
 fn check_field(field: &str, name: &str, lo: u32, hi: u32) -> Result<(), String> {
@@ -324,10 +445,11 @@ fn check_field(field: &str, name: &str, lo: u32, hi: u32) -> Result<(), String> 
         if value == "*" || value == "?" {
             continue;
         }
-        // Names (MON, JAN, L, W, #) are passed through: the dialects differ
-        // on which they take, and refusing them here would be wrong more
-        // often than right.
-        if value.chars().any(|c| c.is_ascii_alphabetic()) {
+        // Names and modifiers (MON, JAN, L, W, 2#1) are passed through:
+        // the dialects differ on which they take, and refusing them here
+        // would be wrong more often than right. Only plain numbers, lists
+        // and ranges are range-checked.
+        if value.chars().any(|c| !c.is_ascii_digit() && c != '-') {
             continue;
         }
         for n in value.split('-') {
@@ -531,20 +653,44 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         if st.check_input.trim().is_empty() {
             return;
         }
-        ui.add_space(4.0);
-        for flavour in Flavour::ALL {
-            match check(&st.check_input, flavour) {
-                Ok(()) => {
-                    ui.colored_label(
-                        theme.success,
-                        format!("{} {}", hs_ui::icons::CHECK, flavour.label()),
+        ui.add_space(6.0);
+        // One row per dialect: whether it takes the expression, and what
+        // it would mean if it does.
+        egui::Grid::new("dt-cron-check-grid")
+            .num_columns(3)
+            .spacing([16.0, 6.0])
+            .striped(true)
+            .show(ui, |ui| {
+                for key in [
+                    "dt-cron-col-type",
+                    "dt-cron-col-match",
+                    "dt-cron-col-detail",
+                ] {
+                    ui.label(
+                        egui::RichText::new(s.t(key))
+                            .strong()
+                            .color(theme.text_muted),
                     );
                 }
-                Err(e) => {
-                    ui.colored_label(theme.text_muted, format!("{}: {e}", flavour.label()));
+                ui.end_row();
+                for flavour in Flavour::ALL {
+                    ui.label(flavour.label());
+                    match explain(&st.check_input, flavour) {
+                        Ok(detail) => {
+                            ui.colored_label(
+                                theme.success,
+                                format!("{} {}", hs_ui::icons::CHECK, s.t("dt-cron-match")),
+                            );
+                            ui.label(detail);
+                        }
+                        Err(e) => {
+                            ui.colored_label(theme.text_muted, s.t("dt-cron-no-match"));
+                            ui.colored_label(theme.text_muted, e);
+                        }
+                    }
+                    ui.end_row();
                 }
-            }
-        }
+            });
     });
 }
 
@@ -712,6 +858,41 @@ mod tests {
         assert!(check("0 30 9 ? * ?", Flavour::Quartz).is_err());
         assert!(check("0 30 9 15 * ?", Flavour::Quartz).is_ok());
         assert!(check("0 30 9 ? * MON", Flavour::Quartz).is_ok());
+    }
+
+    #[test]
+    fn an_expression_explains_itself() {
+        assert_eq!(
+            explain("30 9 * * *", Flavour::Unix).unwrap(),
+            "At 09:30, every day."
+        );
+        assert_eq!(
+            explain("*/15 * * * *", Flavour::Unix).unwrap(),
+            "Every 15 minutes, every day."
+        );
+        assert_eq!(
+            explain("0 30 9 ? * 1,3,5", Flavour::Quartz).unwrap(),
+            "At 09:30, on Mon, Wed, Fri."
+        );
+        assert_eq!(
+            explain("0 0 1 7 *", Flavour::Unix).unwrap(),
+            "At 00:00, on day 1 of the month, in July."
+        );
+        // Something it cannot phrase is named, not guessed at.
+        let e = explain("0 0 0 ? * 2#1", Flavour::Quartz).unwrap();
+        assert!(e.contains("2#1"), "{e}");
+        // A bad expression explains nothing.
+        assert!(explain("61 9 * * *", Flavour::Unix).is_err());
+    }
+
+    #[test]
+    fn every_built_expression_can_be_explained() {
+        for f in Flavour::ALL {
+            let e = expression(&daily(), f).unwrap();
+            let text = explain(&e, f)
+                .unwrap_or_else(|err| panic!("{f:?} built {e:?} and could not explain it: {err}"));
+            assert!(text.contains("09:30"), "{f:?}: {text}");
+        }
     }
 
     #[test]

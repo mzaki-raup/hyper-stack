@@ -11,27 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.28.0 — 2026-10-16
+
 ### Added
 
-- **Redis tool** (`tool-redis`, docs/tools/redis.md): one tab per `redis`
-  connection, a `SCAN` key tree grouped on the profile's separator with type
-  badges and a cancel button, type-aware viewers and editors for strings
-  (JSON, number, text, binary and gzip detected), hashes, lists, sets,
-  sorted sets and streams, TTL with a live countdown, rename, persist and
-  delete, a prefix delete that counts first, a `redis-cli`-style console
-  with history and guards, and an Info tab.
-- Redis connections in Settings → Connections: host, port, database, ACL
-  user, password in the vault, TLS with an optional private CA, an SSH
-  tunnel, the key separator, and `redis://` URL import.
-
-### Changed
-
-- The activity rail scrolls when the window is too short for every tool.
-  Home stays at the top and the sidebar toggle and Settings at the bottom,
-  where before the last entries overlapped each other.
-- The install hints for the Java language server and the CodeLLDB debug
-  adapter say what to download and what to do with it. A `.vsix` is a zip,
-  not an installer, and a VS Code extension is not a language server.
+- Redis tool: SCAN key tree, type-aware viewers and editors, console with guards (ab533f4e)
 
 ## 0.27.0 — 2026-10-16
 

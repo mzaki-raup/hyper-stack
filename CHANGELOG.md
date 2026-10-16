@@ -11,25 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.27.0 — 2026-10-16
+
 ### Added
 
-- AI providers for services that are not OpenAI-compatible: Anthropic,
-  Google Gemini, Azure OpenAI and AWS Bedrock, alongside Mistral, Moonshot
-  (Kimi), Tencent Hunyuan and OpenRouter as OpenAI-compatible presets
-  (ADR-019 amended).
-- Settings → AI Assistant adds a provider from a gallery of fifteen
-  services in three groups; the form then shows only the fields that kind
-  needs (Resource URL, API Version and Deployment for Azure; Region,
-  Access Key ID and Secret Access Key for Bedrock).
-- Known Models for AWS Bedrock, which cannot list models without a second
-  permission.
+- Providers for Anthropic, Gemini, Azure OpenAI and AWS Bedrock, added from a service gallery (6c0c68b7)
 
 ### Fixed
 
-- The Home page lined up its workspace cards, and the New Workspace card
-  is set apart by a gap.
-- Devtools → YAML: the Check, YAML → Properties and Properties → YAML tabs
-  each keep their own text instead of sharing one input.
+- Give each YAML tab its own text (795bc086)
+- Line up the workspace cards and set New Workspace apart (58fc2abc)
 
 ## 0.26.0 — 2026-10-15
 

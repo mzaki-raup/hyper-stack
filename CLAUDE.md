@@ -427,6 +427,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   compares an editor-reported path with one built from `temp_dir()` passes
   locally and fails on CI. Build expected paths from the canonical folder
   (`crates/hyperstack/src/editor_tests.rs`), or compare case-insensitively.
+- Resolving a command on `PATH` must go through `PATHEXT` **only** on
+  Windows, never falling back to the bare name: a file with no extension
+  cannot be started (`CreateProcess` says "%1 is not a valid Win32
+  application"). jdtls unpacks `bin/jdtls` (a Python script) next to
+  `bin/jdtls.bat`, and `hs_lsp::registry::candidates` used to list the
+  bare path first, so Java reported **Found** and then failed to start.
+  `hs_dap::adapters` had the same copy of the function.
+- A process keeps the `PATH` it was given at start. A language server or
+  adapter installed while HyperStack is open is invisible until it is
+  restarted - and so is a tool installed while the Claude Code shell has
+  been open, which is why `jdtls` was missing from this session's `PATH`
+  but present for a fresh `pwsh`. Both settings tables now say so.
 - BOM-less UTF-16 BE is ambiguous with other byte sequences; do not guess it
   during automatic decode. Offer an explicit encoding choice to reopen the
   original bytes instead.

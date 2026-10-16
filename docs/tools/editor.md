@@ -332,6 +332,25 @@ an LSP client (`hs-lsp`, ADR-023) and the user installs the servers.
   command is on `PATH`; an empty command keeps the built-in one, and any
   server speaking LSP over stdio can be entered, which is how a language
   "extension" is added. Nothing is downloaded.
+- **Finding the command on `PATH`** (`hs_lsp::registry::on_path`, and the
+  same rule for adapters in `hs_dap::adapters`): a name with no directory
+  in it is looked up in each `PATH` entry. On Windows it is looked up
+  **through `PATHEXT` only** - `jdtls.bat`, `jdtls.cmd`, `jdtls.exe` -
+  never as a bare file, because a file with no extension cannot be
+  started there: the Eclipse JDT LS tarball unpacks `bin/jdtls` (a Python
+  script) next to `bin/jdtls.bat`, and resolving to the former gets
+  "%1 is not a valid Win32 application" from `CreateProcess`. Elsewhere
+  the bare name is the program. A command the user types with a path or
+  an extension is taken as it is.
+  `PATH` itself is whatever the process inherited at start, so a server
+  installed while HyperStack is open is found only after a restart; both
+  settings tables say so.
+- **jdtls on Windows** needs more than its own folder on `PATH`:
+  `bin/jdtls.bat` runs `python bin/jdtls`, so Python has to be on `PATH`
+  too, and the server itself needs Java 21 or newer. It keeps its
+  workspace under the system temp folder, keyed on the project folder's
+  name - that is the server's own choice, not something HyperStack
+  configures.
 - **Lifecycle**: one server process per server id and project root,
   started when the first file of that language opens in the tab, stopped
   with `shutdown`/`exit` when the tab closes or the settings table changes

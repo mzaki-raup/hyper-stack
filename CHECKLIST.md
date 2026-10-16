@@ -193,4 +193,5 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | One sidebar header everywhere: title and buttons on one line | Completed | `hs_ui::form::sidebar_header`, SSH, S3, database, Redis and NoSQL |
 | Redis key list aligned and indented, "Redis 8.6.3" in the toolbar | Completed | selectable labels instead of stretched buttons |
 | SFTP pane copies files and folders to and from the system clipboard | Completed | `hs_core::clipboard_files` (CF_HDROP, 5 tests), `upload_tree`/`download_tree`, palette commands; Copy and paste exercised live against `devsshd` 2026-10-16 |
+| A Windows shim (jdtls.bat) wins over an extensionless file of the same name | Completed | `registry::candidates` goes through `PATHEXT` only; same in `hs_dap::adapters`; jdtls exercised live, completion answered |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

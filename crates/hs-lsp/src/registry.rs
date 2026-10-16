@@ -106,8 +106,11 @@ pub const DEFAULTS: &[ServerSpec] = &[
         args: &[],
         // A VS Code Java extension is not a language server HyperStack can
         // talk to: the download below is the server itself, a tarball to
-        // unpack, with bin/ added to PATH.
-        install: "Download the Eclipse JDT LS tarball, unpack it, and put its bin folder on PATH",
+        // unpack, with bin/ added to PATH. On Windows the thing that starts
+        // is bin/jdtls.bat, which runs the bin/jdtls Python script, so
+        // Python has to be on PATH too; Java 21 or newer is the server's
+        // own requirement.
+        install: "Unpack the Eclipse JDT LS tarball and put its bin folder on PATH; its launcher needs Python, and the server needs Java 21+",
         install_command: "",
         install_url: "https://download.eclipse.org/jdtls/milestones/",
     },
@@ -417,16 +420,24 @@ pub fn on_path(command: &str) -> Option<PathBuf> {
 }
 
 fn candidates(p: &Path) -> Vec<PathBuf> {
-    let mut out = vec![p.to_path_buf()];
+    // Windows resolves an extensionless command through PATHEXT, and a file
+    // with no extension is not executable there: jdtls ships bin/jdtls (a
+    // Python script) beside bin/jdtls.bat, and picking the former gets
+    // "%1 is not a valid Win32 application" from CreateProcess. So the
+    // shims come first, and the bare name is not a candidate at all.
     if cfg!(windows) && p.extension().is_none() {
         let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.CMD;.BAT;.COM".into());
-        for ext in exts.split(';').filter(|e| !e.is_empty()) {
-            let mut s = p.as_os_str().to_os_string();
-            s.push(ext.to_ascii_lowercase());
-            out.push(PathBuf::from(s));
-        }
+        return exts
+            .split(';')
+            .filter(|e| !e.is_empty())
+            .map(|ext| {
+                let mut s = p.as_os_str().to_os_string();
+                s.push(ext.to_ascii_lowercase());
+                PathBuf::from(s)
+            })
+            .collect();
     }
-    out
+    vec![p.to_path_buf()]
 }
 
 #[cfg(test)]
@@ -494,5 +505,41 @@ mod tests {
         assert!(on_path(name).is_some());
         assert!(on_path("definitely-not-a-program-xyz").is_none());
         assert!(on_path("").is_none());
+    }
+
+    /// jdtls unpacks as bin/jdtls (a Python script) next to bin/jdtls.bat.
+    /// On Windows only the shim can be started, so only the shim may be
+    /// found; elsewhere the extensionless file is the program.
+    #[test]
+    fn a_shim_beats_an_extensionless_script_on_windows() {
+        let dir = std::env::temp_dir().join("hs-lsp-candidates-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let bare = dir.join("jdtls");
+        std::fs::write(
+            &bare,
+            "#!/usr/bin/env python
+",
+        )
+        .unwrap();
+        let found = |p: &Path| {
+            candidates(p)
+                .into_iter()
+                .find(|c| c.is_file())
+                .map(|c| c.file_name().unwrap().to_string_lossy().to_string())
+        };
+        if cfg!(windows) {
+            assert_eq!(found(&bare), None, "a Python script cannot be started here");
+            std::fs::write(
+                dir.join("jdtls.bat"),
+                "@echo off
+",
+            )
+            .unwrap();
+            assert_eq!(found(&bare).as_deref(), Some("jdtls.bat"));
+        } else {
+            assert_eq!(found(&bare).as_deref(), Some("jdtls"));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -191,16 +191,24 @@ pub fn on_path(command: &str) -> Option<PathBuf> {
 }
 
 fn candidates(p: &Path) -> Vec<PathBuf> {
-    let mut out = vec![p.to_path_buf()];
+    // Windows resolves an extensionless command through PATHEXT, and a file
+    // with no extension is not executable there: jdtls ships bin/jdtls (a
+    // Python script) beside bin/jdtls.bat, and picking the former gets
+    // "%1 is not a valid Win32 application" from CreateProcess. So the
+    // shims come first, and the bare name is not a candidate at all.
     if cfg!(windows) && p.extension().is_none() {
         let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.CMD;.BAT;.COM".into());
-        for ext in exts.split(';').filter(|e| !e.is_empty()) {
-            let mut s = p.as_os_str().to_os_string();
-            s.push(ext.to_ascii_lowercase());
-            out.push(PathBuf::from(s));
-        }
+        return exts
+            .split(';')
+            .filter(|e| !e.is_empty())
+            .map(|ext| {
+                let mut s = p.as_os_str().to_os_string();
+                s.push(ext.to_ascii_lowercase());
+                PathBuf::from(s)
+            })
+            .collect();
     }
-    out
+    vec![p.to_path_buf()]
 }
 
 // ---- launch configurations ---------------------------------------------------

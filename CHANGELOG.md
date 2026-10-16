@@ -11,6 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Fixed
+
+- A language server or debug adapter installed as a Windows shim is found
+  again: an extensionless file of the same name is no longer preferred to
+  it. jdtls unpacks `bin/jdtls` (a Python script) next to `bin/jdtls.bat`,
+  and the script was picked and then refused by Windows, so Java looked
+  installed and never started. Lookup now goes through `PATHEXT` only, as
+  the shell does.
+
 ### Changed
 
 - The release job retries each asset upload instead of giving up on the

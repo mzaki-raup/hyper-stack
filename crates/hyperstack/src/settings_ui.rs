@@ -2411,12 +2411,16 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-editor-lsp-hint"));
+        // PATH is inherited from whatever started the process, so a server
+        // installed while the app was open is invisible until a restart.
+        form::hint(ui, theme, &s.t("settings-editor-lsp-path-hint"));
         ui.add_space(4.0);
         changed |=
             language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
     });
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
+        form::hint(ui, theme, &s.t("settings-editor-dap-path-hint"));
         ui.add_space(4.0);
         changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters, effects);
     });

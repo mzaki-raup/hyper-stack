@@ -573,6 +573,7 @@ settings-section-language-servers = Language Servers
 settings-editor-lsp = Use Language Servers (Completion, Diagnostics, Go to Definition)
 settings-editor-complete-on-type = Show Completions While Typing
 settings-editor-lsp-hint = Servers are not bundled: install the one for a language and HyperStack starts it for the project when a file of that language opens. An empty command keeps the built-in one; any server that speaks LSP over stdio works, so a language can be added by pointing it at a command.
+settings-editor-lsp-path-hint = PATH is read once, when HyperStack starts, so a server installed since then is found only after a restart. Status still says Not found until then.
 settings-editor-lsp-language = Language
 settings-editor-lsp-command = Command
 settings-editor-lsp-args = Arguments
@@ -584,6 +585,7 @@ settings-editor-lsp-off = Off
 settings-editor-lsp-install-tip = Install with: { $command }
 settings-install-running = Installing: { $command } is running in a terminal tab.
 settings-section-debug-adapters = Debug Adapters
+settings-editor-dap-path-hint = PATH is read once, when HyperStack starts, so an adapter installed since then is found only after a restart.
 settings-editor-dap-hint = Debuggers are not bundled either: install the adapter for a language (CodeLLDB or lldb-dap for Rust, C and C++, debugpy for Python, delve for Go, netcoredbg for C#) and the editor starts it for a configuration. An empty command keeps the built-in one; {"{"}port{"}"} in the arguments stands for the port of an adapter that listens on TCP.
 settings-editor-dap-adapter = Adapter
 

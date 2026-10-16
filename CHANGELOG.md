@@ -11,44 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.29.0 — 2026-10-16
+
 ### Added
 
-- The SFTP pane takes files and folders from the system clipboard and gives
-  them back (docs/tools/ssh-sftp.md §14). **Copy** on an entry fetches it —
-  a whole folder tree if it is one — into the data folder's scratch space
-  and puts that path on the clipboard, so it can be pasted into the file
-  manager; the pane's paste button uploads whatever the clipboard holds
-  into the folder on screen, recursively. Both are palette commands.
-  Windows only: `hs-core::clipboard_files` encodes the `CF_HDROP` block,
-  and elsewhere `write` says it is not implemented rather than pretending.
-- **NoSQL tool** (`tool-nosql`, docs/tools/nosql.md): one tab per MongoDB
-  or CouchDB connection, a tree of databases and collections, find with a
-  filter, projection, sort and paging, documents as a table, a tree or
-  JSON, an editor that saves one document back (CouchDB checks `_rev`, so a
-  stale edit is a conflict rather than an overwrite), aggregation pipelines
-  for MongoDB, an index list, and the same write guards as the SQL and
-  Redis tools, including a Delete Matching that counts first.
-- MongoDB and CouchDB connections in Settings → Connections, with URL
-  import that also sets the kind.
-- The Redis sidebar is the connection list, with the same header, add
-  button and empty state as the SSH, S3 and database sidebars; the database
-  picker, key list and value live in the tab. Clicking a connection focuses
-  the tab bound to it, so a connection has at most one tab.
-
-### Changed
-
-- Inspect in the browser can dock the developer tools under the page
-  instead of opening a separate window. It is off by default: the web view
-  has to listen for the DevTools protocol on a local port for it, which
-  docs/06-security.md explains.
-- The Redis key list lines up: every row starts at the same edge and each
-  level is indented one step. The toolbar says "Redis 8.6.3" rather than
-  "redis 8.6.3".
-- Every tool's sidebar draws its header the same way, with the title and
-  the buttons on one line, and the titles say what they list: SSH Hosts,
-  S3 Profiles, Database Connections, Redis Connections, NoSQL Connections.
-- The vault's tooltips read as sentences: "Secret Vault: Locked (click to
-  unlock)".
+- Copy files and folders between the SFTP pane and the system clipboard (cf8cd881)
+- Dock Inspect under the page, and tidy the Redis list and the sidebar headers (7cd43fe4)
+- Document store client for MongoDB and CouchDB, finishing M3 (79ace060)
+- A connections column in the sidebar, so one click moves the tab to another server (6ea51c6c)
 
 ## 0.28.0 — 2026-10-16
 

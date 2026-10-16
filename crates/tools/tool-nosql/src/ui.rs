@@ -121,6 +121,10 @@ pub struct NoSqlTool {
     inserting: bool,
     popup: Option<Popup>,
     seen_run: u64,
+    /// Review-only assistant (ADR-019): it reads the open container and the
+    /// query on screen, and a filter it writes can be inserted but not run
+    /// by it.
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 impl NoSqlTool {
@@ -144,6 +148,7 @@ impl NoSqlTool {
             inserting: false,
             popup: None,
             seen_run: 0,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         }
     }
 
@@ -370,11 +375,16 @@ impl Tool for NoSqlTool {
             c("nosql.insert", "NoSQL: New Document"),
             c("nosql.refresh", "NoSQL: Refresh Containers"),
             c("nosql.reconnect", "NoSQL: Reconnect"),
+            c("nosql.ai", "NoSQL: AI Assistant"),
         ]
     }
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "nosql.ai" => {
+                self.assistant.toggle("NoSQL");
+                true
+            }
             "nosql.run" => {
                 self.run_find();
                 true
@@ -508,6 +518,13 @@ impl Tool for NoSqlTool {
         true
     }
 
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        self.assistant
+            .last_answer()
+            .map(|a| vec![hs_core::tool::Speakable::new("Assistant's last answer", a)])
+            .unwrap_or_default()
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
@@ -549,17 +566,38 @@ impl Tool for NoSqlTool {
             }
         }
         let status = self.shared.lock().status.clone();
-        if let Some(Status::Ready { kind, version }) = status {
-            ui.separator();
-            ui.label(
-                egui::RichText::new(format!("{} {version}", kind.label()))
-                    .small()
-                    .color(theme.text_muted),
-            );
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .on_hover_text(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("NoSQL");
+            }
+            if let Some(Status::Ready { kind, version }) = status {
+                ui.label(
+                    egui::RichText::new(format!("{} {version}", kind.label()))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+        });
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The assistant takes its column first, so the tool lays out in
+        // what is left rather than into whatever happens to be spare.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        self.body(&mut content, cx);
+        self.assistant_column(ui, assistant_rect, cx);
+    }
+}
+
+impl NoSqlTool {
+    fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let messages: Vec<(bool, String)> = {
@@ -625,9 +663,86 @@ impl Tool for NoSqlTool {
             });
         });
     }
-}
 
-impl NoSqlTool {
+    /// Everything the assistant is told about this tab, and the column it
+    /// is drawn in: the store, the open container and the query on screen.
+    fn assistant_column(
+        &mut self,
+        outer: &mut egui::Ui,
+        panel: Option<egui::Rect>,
+        cx: &mut ToolContext,
+    ) {
+        if !self.assistant.open {
+            return;
+        }
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let (status, summary) = {
+            let sh = self.shared.lock();
+            (sh.status.clone(), sh.summary.clone())
+        };
+        let store = match &status {
+            Some(Status::Ready { kind, version }) => format!("{} {version}", kind.label()),
+            _ => "(unknown)".into(),
+        };
+        let query = match self.state.tab {
+            Tab::Aggregate => format!("Pipeline:\n{}", self.state.pipeline),
+            _ => format!(
+                "Filter: {}\nProjection: {}\nSort: {}\nLimit: {}  Skip: {}",
+                self.state.filter,
+                self.state.projection,
+                self.state.sort,
+                self.state.limit,
+                self.state.skip
+            ),
+        };
+        let context = format!(
+            "Connection: {}\nStore: {store}\nDatabase: {}\nContainer: {}\n\n{query}\n\nLast result: {}",
+            self.conn_name,
+            self.state.database.as_deref().unwrap_or("(none)"),
+            self.state.container.as_deref().unwrap_or("(none)"),
+            summary
+                .map(|f| format!("{} documents in {} ms", f.returned, f.elapsed.as_millis()))
+                .unwrap_or_else(|| "(nothing run yet)".into()),
+        );
+        self.assistant.set_context("NoSQL query", context);
+        if self.assistant.quick_actions.is_empty() {
+            use hs_ui::ai_assistant::QuickAction;
+            self.assistant.quick_actions = vec![
+                QuickAction::new(s, "ai-qa-nosql-filter", "ai-qa-nosql-filter-prompt", ""),
+                QuickAction::new(s, "ai-qa-nosql-explain", "ai-qa-nosql-explain-prompt", ""),
+                QuickAction::new(s, "ai-qa-nosql-index", "ai-qa-nosql-index-prompt", ""),
+            ];
+        }
+        let Some(panel) = panel else {
+            // Too narrow to split: the toggle stays on and the column
+            // returns when there is room for it.
+            return;
+        };
+        let mut child = outer.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(outer.clip_rect()));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                // Review only (ADR-019): a filter or pipeline it wrote lands
+                // in the field, and the user presses Run.
+                self.assistant.can_insert = true;
+                let out = self.assistant.ui(ui, s, &theme, "NoSQL");
+                if let Some(block) = out.use_block {
+                    match self.state.tab {
+                        Tab::Aggregate => self.state.pipeline = block.trim().to_string(),
+                        _ => self.state.filter = block.trim().to_string(),
+                    }
+                }
+            });
+    }
+
     /// Databases, and the containers inside the open ones.
     fn container_tree(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         let (databases, containers) = {

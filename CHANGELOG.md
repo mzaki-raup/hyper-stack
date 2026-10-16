@@ -32,6 +32,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   choose and says so. Broken input is never quietly reformatted — the
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
+- The **AI assistant reaches Redis and the NoSQL tool**, the two that did
+  not have it. Both are review-only: Redis can put a command in the
+  console's input and the document store can fill the filter or pipeline
+  field, and in both the user is the one who runs it. Each is told what is
+  on screen — the open key and the last console command; the open
+  container and the query — and nothing else.
+
 - **Credentials** in Settings → Security: every connection in the
   workspace in one grid — name, type, connection string, host/URL, port,
   username, password and key — with a copy button on each value. Passwords

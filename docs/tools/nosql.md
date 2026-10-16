@@ -271,3 +271,19 @@ change streams, and the explain plan rendered as a tree rather than JSON.
 A document's fields are shown in name order: `serde_json::Value` is a
 sorted map, so the order the store keeps them in is gone before the view
 sees it.
+
+## Addendum (2026-10-17): the AI assistant
+
+The NoSQL tool has the shared review-only assistant (ADR-019), in the same
+column and behind the same hard-right button as everywhere else.
+
+- **What it is told**: the connection, the store and its version, the open
+  database and container, the query on screen (filter, projection, sort,
+  limit and skip — or the pipeline on the Aggregate tab) and how the last
+  run went. Not the documents: the query is the thing being worked on.
+- **Review only.** A filter or pipeline it writes lands in the field it
+  belongs to and the user presses Run, so the tool's guards on a protected
+  environment are untouched.
+- Quick actions: Write a Filter, Explain This Query, Suggest an Index.
+- `nosql.ai` in the palette toggles it, and Read Aloud can read its last
+  answer.

@@ -26,7 +26,7 @@ path under them, runs files and projects (F5), shows Git status, diffs and
 history (`hs-git`, read-only over the git CLI), and carries an optional AI
 assistant (ADR-019: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock,
 1min.AI or any OpenAI-compatible service such as LM Studio, added from a
-gallery in Settings, `hs-core::ai`); Terminal, SSH, SQL, S3, API client and Graphics
+gallery in Settings, `hs-core::ai`); Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a

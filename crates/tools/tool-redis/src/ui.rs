@@ -138,6 +138,9 @@ pub struct RedisTool {
     /// (key, when the TTL was read, what it was): the header counts down
     /// between reads rather than standing still.
     ttl_read: Option<(String, std::time::Instant, i64)>,
+    /// Review-only assistant (ADR-019): it reads the open key and the
+    /// console, and its commands can be inserted but never run by it.
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 impl RedisTool {
@@ -166,6 +169,7 @@ impl RedisTool {
             table: TableState::default(),
             rows: Vec::new(),
             ttl_read: None,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         }
     }
 
@@ -455,6 +459,7 @@ impl Tool for RedisTool {
             c("redis.info", "Redis: Server Info"),
             c("redis.new_key", "Redis: New Key"),
             c("redis.reconnect", "Redis: Reconnect"),
+            c("redis.ai", "Redis: AI Assistant"),
         ]
     }
 
@@ -472,6 +477,10 @@ impl Tool for RedisTool {
             }
             "redis.console" => {
                 self.state.tab = Tab::Console;
+                true
+            }
+            "redis.ai" => {
+                self.assistant.toggle("Redis");
                 true
             }
             "redis.info" => {
@@ -587,6 +596,13 @@ impl Tool for RedisTool {
         true
     }
 
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        self.assistant
+            .last_answer()
+            .map(|a| vec![hs_core::tool::Speakable::new("Assistant's last answer", a)])
+            .unwrap_or_default()
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
@@ -619,22 +635,43 @@ impl Tool for RedisTool {
             }
         }
         let status = self.shared.lock().status.clone();
-        if let Some(Status::Ready(info)) = status {
-            ui.separator();
-            // "Redis 8.6.3": the server's name is a name.
-            let mut flavour = info.flavour.clone();
-            if let Some(first) = flavour.get_mut(0..1) {
-                first.make_ascii_uppercase();
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .on_hover_text(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("Redis");
             }
-            ui.label(
-                egui::RichText::new(format!("{flavour} {}", info.version))
-                    .small()
-                    .color(theme.text_muted),
-            );
-        }
+            if let Some(Status::Ready(info)) = status {
+                // "Redis 8.6.3": the server's name is a name.
+                let mut flavour = info.flavour.clone();
+                if let Some(first) = flavour.get_mut(0..1) {
+                    first.make_ascii_uppercase();
+                }
+                ui.label(
+                    egui::RichText::new(format!("{flavour} {}", info.version))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+        });
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The assistant takes its column first, so the tool lays out in
+        // what is left rather than into whatever happens to be spare.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        self.body(&mut content, cx);
+        self.assistant_column(ui, assistant_rect, cx);
+    }
+}
+
+impl RedisTool {
+    fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         // Drain what the runner wants to say.
@@ -683,9 +720,99 @@ impl Tool for RedisTool {
             Tab::Info => self.info_tab(ui, cx),
         }
     }
-}
 
-impl RedisTool {
+    /// Everything the assistant is told about this tab, and the column it
+    /// is drawn in. The context is the open key and the last console
+    /// command: what is on screen, nothing more.
+    fn assistant_column(
+        &mut self,
+        outer: &mut egui::Ui,
+        panel: Option<egui::Rect>,
+        cx: &mut ToolContext,
+    ) {
+        if !self.assistant.open {
+            return;
+        }
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let (status, open_key, last) = {
+            let sh = self.shared.lock();
+            (
+                sh.status.clone(),
+                sh.open_key.clone(),
+                sh.console.last().map(|e| {
+                    let body: Vec<String> =
+                        e.lines.iter().take(20).map(|l| l.text.clone()).collect();
+                    format!("{}\n{}", e.command, body.join("\n"))
+                }),
+            )
+        };
+        let server = match &status {
+            Some(Status::Ready(info)) => format!("{} {}", info.flavour, info.version),
+            _ => "(unknown)".into(),
+        };
+        let key = open_key
+            .map(|k| {
+                format!(
+                    "Key: {}\nType: {}\nTTL: {}\nEncoding: {}\nSize: {}",
+                    k.key,
+                    k.kind.map(|t| t.badge().to_string()).unwrap_or_default(),
+                    k.ttl_ms
+                        .map(|ms| format!("{} ms", ms))
+                        .unwrap_or_else(|| "none".into()),
+                    k.encoding,
+                    k.len.map(|n| n.to_string()).unwrap_or_default(),
+                )
+            })
+            .unwrap_or_else(|| "(no key open)".into());
+        let context = format!(
+            "Connection: {}\nServer: {server}\nDatabase: {}\nKey pattern: {}\n\n{key}\n\nLast console command:\n{}",
+            self.conn_name,
+            self.shared.lock().db,
+            self.state.pattern,
+            last.unwrap_or_else(|| "(none)".into()),
+        );
+        self.assistant.set_context("Redis key", context);
+        if self.assistant.quick_actions.is_empty() {
+            use hs_ui::ai_assistant::QuickAction;
+            self.assistant.quick_actions = vec![
+                QuickAction::new(
+                    s,
+                    "ai-qa-redis-explain-key",
+                    "ai-qa-redis-explain-key-prompt",
+                    "",
+                ),
+                QuickAction::new(s, "ai-qa-redis-command", "ai-qa-redis-command-prompt", ""),
+                QuickAction::new(s, "ai-qa-redis-memory", "ai-qa-redis-memory-prompt", ""),
+            ];
+        }
+        let Some(panel) = panel else {
+            // Too narrow to split: the toggle stays on and the column
+            // returns when there is room for it.
+            return;
+        };
+        let mut child = outer.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(outer.clip_rect()));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                // Review only (ADR-019): a command it wrote can be put in
+                // the console's input, but the user is the one who sends it.
+                self.assistant.can_insert = true;
+                let out = self.assistant.ui(ui, s, &theme, "Redis");
+                if let Some(code) = out.use_block {
+                    self.state.tab = Tab::Console;
+                    self.console_input = code.trim().to_string();
+                }
+            });
+    }
+
     /// The row across the top of the Keys tab: which database, what to match,
     /// scan or stop, and New Key.
     fn keys_controls(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {

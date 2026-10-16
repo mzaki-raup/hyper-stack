@@ -181,3 +181,21 @@ server (`HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live`):
 - **Info** (§8): `INFO` parsed into its sections as tables, refreshed on
   demand. The live dashboard with sparklines, `SLOWLOG` and `CLIENT LIST`
   is still to do, and so is Pub/Sub (§7).
+
+## Addendum (2026-10-17): the AI assistant
+
+Redis has the shared review-only assistant (ADR-019), in the same column
+every other tool uses and behind the same hard-right button.
+
+- **What it is told**: the connection and server version, the database and
+  key pattern, the key that is open (type, TTL, encoding, size) and the
+  last console command with its first 20 lines of output. What is on
+  screen, nothing more — never the whole keyspace and never a value the
+  user has not opened.
+- **Review only.** A command it writes can be **inserted** into the
+  console's input, where the user presses Enter; the assistant never runs
+  anything itself, and the console's own guards (the dialog for a
+  destructive command) still apply because the command goes through them.
+- Quick actions: Explain This Key, Suggest a Command, Memory and Keyspace.
+- `redis.ai` in the palette toggles it, and Read Aloud can read its last
+  answer.

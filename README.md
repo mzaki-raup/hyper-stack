@@ -48,7 +48,7 @@ and theme.
 > tab, an optional AI assistant in the editor (Anthropic, Gemini, Azure
 > OpenAI, AWS Bedrock, 1min.AI, LM Studio, Ollama or any OpenAI-compatible
 > service) and a review-only assistant in
-> Terminal, SSH, SQL, S3, API client and Graphics whose code blocks can be
+> Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics whose code blocks can be
 > inserted but never run, and the in-app updater with signed releases.
 > The Git write side and logs follow in the next milestones
 > per [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:

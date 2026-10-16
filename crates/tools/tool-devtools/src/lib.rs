@@ -304,7 +304,7 @@ impl Tool for DevtoolsTool {
                 match self.utility {
                     Utility::Base64 => self.base64.input = body,
                     Utility::Url => self.url.input = body,
-                    Utility::Yaml => self.yaml.input = body,
+                    Utility::Yaml => self.yaml.set_text(body),
                     Utility::Hash => self.hash.input = body,
                     Utility::Jwt => self.jwt.token = body,
                     Utility::Firebase => self.firebase.service_json = body,

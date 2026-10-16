@@ -31,7 +31,39 @@ pub enum Mode {
 #[serde(default)]
 pub struct State {
     pub mode: Mode,
+    /// The text being checked. Each tab keeps its own buffer: they are three
+    /// different jobs, and one shared buffer meant typing YAML to check it
+    /// also replaced whatever was waiting in the two converters.
     pub input: String,
+    /// The YAML of the YAML to properties tab.
+    pub yaml_input: String,
+    /// The properties of the properties to YAML tab.
+    pub props_input: String,
+}
+
+impl State {
+    /// The buffer the tab on screen edits.
+    fn buffer(&mut self) -> &mut String {
+        match self.mode {
+            Mode::Check => &mut self.input,
+            Mode::YamlToProperties => &mut self.yaml_input,
+            Mode::PropertiesToYaml => &mut self.props_input,
+        }
+    }
+
+    /// What the tab on screen holds.
+    fn text(&self) -> &str {
+        match self.mode {
+            Mode::Check => &self.input,
+            Mode::YamlToProperties => &self.yaml_input,
+            Mode::PropertiesToYaml => &self.props_input,
+        }
+    }
+
+    /// Put text sent from another tool into the tab on screen.
+    pub fn set_text(&mut self, text: String) {
+        *self.buffer() = text;
+    }
 }
 
 /// A parsed document. Maps keep the order they were written in.
@@ -712,21 +744,17 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     ui.add_space(4.0);
     form::hint(ui, theme, &s.t("dt-yaml-subset-hint"));
     ui.add_space(8.0);
-    form::section(ui, theme, &s.t("dt-input"), |ui| {
-        util::input(
-            ui,
-            s,
-            theme,
-            &mut st.input,
-            &s.t(if st.mode == Mode::PropertiesToYaml {
-                "dt-yaml-properties-hint"
-            } else {
-                "dt-yaml-input-hint"
-            }),
-            10,
-        );
+    let hint = s.t(if st.mode == Mode::PropertiesToYaml {
+        "dt-yaml-properties-hint"
+    } else {
+        "dt-yaml-input-hint"
     });
-    let input = s.expand(&st.input).unwrap_or_else(|_| st.input.clone());
+    form::section(ui, theme, &s.t("dt-input"), |ui| {
+        util::input(ui, s, theme, st.buffer(), &hint, 10);
+    });
+    let input = s
+        .expand(st.text())
+        .unwrap_or_else(|_| st.text().to_string());
     let (problems, output, label) = match st.mode {
         Mode::Check => {
             let (_, problems) = parse_yaml(&input);
@@ -771,6 +799,27 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_tab_keeps_its_own_text() {
+        let mut st = State::default();
+        st.buffer().push_str("a: 1");
+        st.mode = Mode::YamlToProperties;
+        assert!(
+            st.buffer().is_empty(),
+            "the converter saw the checker's text"
+        );
+        st.buffer().push_str("b: 2");
+        st.mode = Mode::PropertiesToYaml;
+        assert!(st.buffer().is_empty());
+        st.set_text("c=3".into());
+        st.mode = Mode::Check;
+        assert_eq!(st.text(), "a: 1");
+        st.mode = Mode::YamlToProperties;
+        assert_eq!(st.text(), "b: 2");
+        st.mode = Mode::PropertiesToYaml;
+        assert_eq!(st.text(), "c=3");
+    }
 
     fn map(pairs: &[(&str, Node)]) -> Node {
         Node::Map(

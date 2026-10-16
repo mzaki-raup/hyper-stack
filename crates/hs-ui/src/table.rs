@@ -56,6 +56,9 @@ pub struct DataTable<'a> {
     /// Draw the built-in Copy Row menu. Set false when the caller has a
     /// menu of its own to show for `TableResponse::secondary`.
     pub built_in_menu: bool,
+    /// An icon for the first column of each row, in `rows` order. A file
+    /// listing reads far faster with its file-type icons than without.
+    pub row_icons: Option<&'a [egui::ImageSource<'static>]>,
 }
 
 impl DataTable<'_> {
@@ -166,6 +169,19 @@ impl DataTable<'_> {
                                         );
                                     },
                                 );
+                            } else if ci == 0
+                                && let Some(icon) =
+                                    self.row_icons.and_then(|icons| icons.get(data_idx))
+                            {
+                                // The icon and the name read as one thing.
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 6.0;
+                                    ui.add(
+                                        egui::Image::new(icon.clone())
+                                            .fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                                    );
+                                    ui.add(egui::Label::new(text).truncate().selectable(false));
+                                });
                             } else {
                                 // Not selectable: a selectable label takes the
                                 // click, so the row would not select or open.
@@ -233,6 +249,7 @@ mod tests {
             show_filter: true,
             copy_row_label: "Copy Row",
             built_in_menu: true,
+            row_icons: None,
         };
         let mut st = TableState::default();
         assert_eq!(t.order(&st), vec![0, 1, 2]);

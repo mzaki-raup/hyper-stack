@@ -965,6 +965,7 @@ impl S3Tool {
                     show_filter: true,
                     copy_row_label: &copy_label,
                     built_in_menu: true,
+                    row_icons: None,
                 }
                 .show(ui, &mut self.table)
             })

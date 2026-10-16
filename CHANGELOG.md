@@ -24,8 +24,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The SFTP pane's actions moved from a bar under the listing into a
   right-click menu on the file or folder itself: Open in Editor, Rename,
   Download, Copy, Copy Path, Delete, Permissions… and Open Terminal Here
-  for a folder. Double-clicking the empty space below the listing goes up
-  a level, and the toolbar has **New File** beside New Folder.
+  for a folder, and **Download Zipped** for either, which fetches it and
+  packs it as `.zip`, `.tar.gz` or `.tar`. Double-clicking the empty space
+  below the listing goes up a level, and the toolbar has **New File**
+  beside New Folder.
+- The remote listing uses the same Material file-type icons as the
+  editor's project tree, so it reads like a local folder.
 - A permissions dialog for a remote file or folder: owner, group, the mode
   as a number and as nine boxes that agree with each other, with the
   `rwxr-xr-x` form echoed. The mode is set over SFTP; owner and group are

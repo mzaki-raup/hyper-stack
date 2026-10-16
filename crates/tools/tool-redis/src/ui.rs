@@ -1123,6 +1123,7 @@ impl RedisTool {
                     show_filter: true,
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,
+                    row_icons: None,
                 };
                 let resp = table.show(ui, &mut self.table);
                 if let Some(text) = resp.copied {

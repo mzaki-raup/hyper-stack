@@ -234,6 +234,14 @@ Double-clicking the empty space below the listing goes up a level, the way
 a file manager does. The toolbar has **New File** beside New Folder, which
 creates an empty file and refuses to flatten a name that is already there.
 
+**Download Zipped** fetches the entry into the data folder's scratch
+space and packs it with `hs_core::archive` as `.zip`, `.tar.gz` or `.tar`
+— the user picks from the submenu, and `.zip` is first because it is what
+Windows opens unaided. Entries go under one top folder so unpacking never
+scatters files, `.git` is skipped, and the scratch copy is removed whether
+the packing succeeded or not. The listing draws the Material file-type
+icons from `hs_ui::fileicons`, the same set the editor's project tree uses.
+
 ### Permissions
 
 The dialog shows the owner, the group, the mode as a number and the same

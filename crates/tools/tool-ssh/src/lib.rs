@@ -819,15 +819,16 @@ impl SshTool {
         let rows: Vec<Vec<String>> = shown
             .iter()
             .map(|(_, e)| {
-                let icon = if e.is_dir {
-                    ph::FOLDER
-                } else if e.is_link {
-                    ph::LINK
+                // The name carries no glyph of its own: the table draws the
+                // file-type icon beside it (row_icons below). A link keeps
+                // its arrow, which no icon theme shows.
+                let name = if e.is_link {
+                    format!("{} {}", e.name, ph::ARROW_BEND_UP_RIGHT)
                 } else {
-                    ph::FILE
+                    e.name.clone()
                 };
                 vec![
-                    format!("{icon} {}", e.name),
+                    name,
                     if e.is_dir {
                         String::new()
                     } else {
@@ -839,6 +840,18 @@ impl SshTool {
                         .unwrap_or_default(),
                     e.perms.clone(),
                 ]
+            })
+            .collect();
+        // The same Material icon set the editor's project tree uses, so a
+        // remote listing reads like a local one.
+        let icons: Vec<egui::ImageSource<'static>> = shown
+            .iter()
+            .map(|(_, e): &(usize, &Entry)| {
+                if e.is_dir {
+                    hs_ui::fileicons::for_folder(&e.name)
+                } else {
+                    hs_ui::fileicons::for_file(&e.name)
+                }
             })
             .collect();
         let columns = [
@@ -857,6 +870,7 @@ impl SshTool {
             copy_row_label: &copy_label,
             // The pane has a menu of its own, below.
             built_in_menu: false,
+            row_icons: Some(&icons),
         };
         let resp = table.show(ui, &mut self.table);
         // Map table row (shown index) back to the entry index.
@@ -1092,6 +1106,16 @@ impl SshTool {
                         }
                         close = true;
                     }
+                    // A folder, or a file someone wants compressed.
+                    ui.menu_button(s.t("ssh-download-zipped"), |ui| {
+                        for format in hs_core::archive::Format::ALL {
+                            if ui.button(format.extension().to_uppercase()).clicked() {
+                                self.download_zipped(s, target.clone(), e.name.clone(), format);
+                                ui.close();
+                                close = true;
+                            }
+                        }
+                    });
                     ui.separator();
                     if ui
                         .button(s.t("ssh-copy-file"))
@@ -1154,6 +1178,47 @@ impl SshTool {
         if close || clicked_out || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.entry_menu = None;
         }
+    }
+
+    /// Fetch a remote file or folder and pack it into one archive the user
+    /// picks a place for. The fetch is a job like any other transfer; the
+    /// packing happens on a worker so a large tree does not stall the UI.
+    fn download_zipped(
+        &mut self,
+        s: &Services,
+        remote: String,
+        name: String,
+        format: hs_core::archive::Format,
+    ) {
+        let Some(target) = rfd::FileDialog::new()
+            .set_file_name(format.file_name(&name))
+            .save_file()
+        else {
+            return;
+        };
+        let staging = s
+            .paths
+            .tmp()
+            .join(format!("sftp-zip-{}", hs_core::new_id()));
+        if let Err(e) = std::fs::create_dir_all(&staging) {
+            self.shared.lock().remote.error = Some(e.to_string());
+            return;
+        }
+        let done = self.after_job(s, s.i18n.t_args("ssh-zipped", &[("name", &name)]));
+        let fetched = staging.join(&name);
+        self.with_sftp(s, format!("Download {name}"), move |sftp, h| async move {
+            let r = download_tree(&sftp, &remote, &staging, &h)
+                .await
+                .and_then(|_| {
+                    // A folder packs as itself; a single file packs as the
+                    // folder it was fetched into, under its own name.
+                    let dir = if fetched.is_dir() { &fetched } else { &staging };
+                    hs_core::archive::pack(dir, &target, format).map(|n| n as u64)
+                });
+            let _ = std::fs::remove_dir_all(&staging);
+            done(r.clone().map(|_| ()));
+            r.map(|_| ())
+        });
     }
 
     /// Copy the entry the table has selected, if any.

@@ -21,22 +21,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   into the folder on screen, recursively. Both are palette commands.
   Windows only: `hs-core::clipboard_files` encodes the `CF_HDROP` block,
   and elsewhere `write` says it is not implemented rather than pretending.
-
-- **Redis tool** (`tool-redis`, docs/tools/redis.md): one tab per `redis`
-  connection, a `SCAN` key tree grouped on the profile's separator with type
-  badges and a cancel button, type-aware viewers and editors for strings
-  (JSON, number, text, binary and gzip detected), hashes, lists, sets,
-  sorted sets and streams, TTL with a live countdown, rename, persist and
-  delete, a prefix delete that counts first, a `redis-cli`-style console
-  with history and guards, and an Info tab.
-- Redis connections in Settings → Connections: host, port, database, ACL
-  user, password in the vault, TLS with an optional private CA, an SSH
-  tunnel, the key separator, and `redis://` URL import.
-- The Redis sidebar is the connection list, with the same header, add
-  button and empty state as the SSH, S3 and database sidebars; the database
-  picker, key list and value live in the tab. Clicking a connection focuses
-  the tab bound to it, so a connection has at most one tab.
-
 - **NoSQL tool** (`tool-nosql`, docs/tools/nosql.md): one tab per MongoDB
   or CouchDB connection, a tree of databases and collections, find with a
   filter, projection, sort and paging, documents as a table, a tree or
@@ -46,6 +30,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Redis tools, including a Delete Matching that counts first.
 - MongoDB and CouchDB connections in Settings → Connections, with URL
   import that also sets the kind.
+- The Redis sidebar is the connection list, with the same header, add
+  button and empty state as the SSH, S3 and database sidebars; the database
+  picker, key list and value live in the tab. Clicking a connection focuses
+  the tab bound to it, so a connection has at most one tab.
 
 ### Changed
 
@@ -56,20 +44,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The Redis key list lines up: every row starts at the same edge and each
   level is indented one step. The toolbar says "Redis 8.6.3" rather than
   "redis 8.6.3".
-- The sidebar headers put their title and their buttons on one line, in
-  every tool.
+- Every tool's sidebar draws its header the same way, with the title and
+  the buttons on one line, and the titles say what they list: SSH Hosts,
+  S3 Profiles, Database Connections, Redis Connections, NoSQL Connections.
 - The vault's tooltips read as sentences: "Secret Vault: Locked (click to
   unlock)".
 
-- Every tool's sidebar draws its header the same way, and the titles say
-  what they list: SSH Hosts, S3 Profiles, Database Connections, Redis
-  Connections.
-- The activity rail scrolls when the window is too short for every tool.
-  Home stays at the top and the sidebar toggle and Settings at the bottom,
-  where before the last entries overlapped each other.
-- The install hints for the Java language server and the CodeLLDB debug
-  adapter say what to download and what to do with it. A `.vsix` is a zip,
-  not an installer, and a VS Code extension is not a language server.
+## 0.28.0 — 2026-10-16
+
+### Added
+
+- Redis tool: SCAN key tree, type-aware viewers and editors, console with guards (ab533f4e)
 
 ## 0.27.0 — 2026-10-16
 

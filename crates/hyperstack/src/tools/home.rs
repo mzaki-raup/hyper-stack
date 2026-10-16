@@ -316,19 +316,38 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
             // The workspace's own logo when it has one, else the folder.
             let logo = hs_core::workspace::workspace_icon_file(&workspaces_dir.join(&name))
                 .and_then(|p| crate::app::logo_image(&p));
-            let r =
-                workspace_card(ui, theme, &name, logo, fill, selected).on_hover_text(if selected {
-                    s.t("home-workspace-current")
-                } else {
-                    s.t("home-workspace-switch")
-                });
+            let r = workspace_card(
+                ui,
+                theme,
+                &name,
+                logo,
+                hs_ui::icons::WORKSPACE,
+                fill,
+                selected,
+            )
+            .on_hover_text(if selected {
+                s.t("home-workspace-current")
+            } else {
+                s.t("home-workspace-switch")
+            });
             if r.clicked() && !selected {
                 hub.requests.push(HomeRequest::SwitchWorkspace(name));
             }
         }
-        if workspace_card(ui, theme, &s.t("workspace-new"), None, theme.surface, false)
-            .on_hover_text(s.t("home-new-workspace-tip"))
-            .clicked()
+        // A gap and a plus, so adding a workspace does not read as one
+        // more workspace in the row.
+        ui.add_space(14.0);
+        if workspace_card(
+            ui,
+            theme,
+            &s.t("workspace-new"),
+            None,
+            hs_ui::icons::ph::PLUS_CIRCLE,
+            theme.panel_bg,
+            false,
+        )
+        .on_hover_text(s.t("home-new-workspace-tip"))
+        .clicked()
         {
             hub.requests.push(HomeRequest::NewWorkspace);
         }
@@ -336,13 +355,16 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
     ui.add_space(8.0);
 }
 
-/// One workspace in the list: a 26 px logo (or the folder glyph) and the
-/// name at 15 px on a pill that highlights the open workspace.
+/// One workspace in the list: a 26 px logo (`glyph` when it has none)
+/// and the name at 15 px on a pill that highlights the open workspace.
+/// Every card is the same height, whether it carries an image or a glyph,
+/// so a row of them lines up.
 fn workspace_card(
     ui: &mut egui::Ui,
     theme: &Theme,
     name: &str,
     logo: Option<egui::Image<'static>>,
+    glyph: &str,
     fill: egui::Color32,
     selected: bool,
 ) -> egui::Response {
@@ -356,7 +378,11 @@ fn workspace_card(
         .corner_radius(egui::CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(14, 9))
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
+            // A fixed height, and contents centred inside it: an image and
+            // a glyph otherwise give the card two different sizes and the
+            // row sits unevenly.
+            ui.set_min_height(icon_px);
+            ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
                 match logo {
                     Some(img) => {
@@ -366,15 +392,13 @@ fn workspace_card(
                         );
                     }
                     None => {
-                        ui.label(
-                            egui::RichText::new(hs_ui::icons::WORKSPACE)
-                                .size(icon_px * 0.85)
-                                .color(if selected {
-                                    theme.text
-                                } else {
-                                    theme.text_muted
-                                }),
-                        );
+                        ui.label(egui::RichText::new(glyph).size(icon_px * 0.85).color(
+                            if selected {
+                                theme.text
+                            } else {
+                                theme.text_muted
+                            },
+                        ));
                     }
                 }
                 ui.label(

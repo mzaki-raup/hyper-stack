@@ -418,3 +418,28 @@ Connection profiles keep their place in an `order` field
 only the profiles in the view being dragged, over the order values they
 already occupy, so putting the SSH hosts in a new order never moves the
 Redis connections.
+
+## Addendum (2026-10-17): Test Connection
+
+Settings → Connections has a **Test Connection** button between Save and
+Delete. It opens the connection for real with the driver the tool would
+use, reports what the server said, and drops it again — nothing is saved,
+so a profile can be proved before it is kept. Owner's requirement,
+2026-10-17.
+
+- The form is tested, not the stored profile: what you typed is what is
+  tried, which is the only reading that makes "test, then decide whether
+  to save" mean anything.
+- The answer names the server where it can — "Connected. PostgreSQL 16.4",
+  "Connected. redis 7.2.4", the bucket a scoped S3 profile reached — because
+  a bare "ok" does not tell you that you reached the server you meant.
+- The connect runs on the runtime like every other one (`conn_test::start`),
+  so the window keeps painting; the button says Testing… while it is out.
+- An answer is tied to the connection it was started for, so a slow server
+  cannot report onto whichever profile is selected by the time it replies.
+- **SSH host keys are not accepted from here.** The settings page is no
+  place to decide to trust a key, so an unknown one is reported with its
+  fingerprint and the user accepts it by opening the connection once. A
+  host already in `known_hosts` authenticates fully.
+- A kind with no driver (an API collection) leaves the button disabled and
+  says why, rather than passing a test it never ran.

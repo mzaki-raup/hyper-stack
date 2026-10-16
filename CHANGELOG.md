@@ -32,6 +32,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
 
+- **Test Connection** in Settings → Connections, between Save and Delete.
+  It opens what is on the form with the real driver and says what the
+  server replied — the version, or the error — so a profile can be proved
+  before it is saved. SSH reports an unaccepted host key with its
+  fingerprint rather than accepting it from a settings page.
+
 - Graphics opens **one tab per image**: a tab that already holds a
   picture does not take the next file you open, and opening a file that is
   already open focuses its tab rather than loading it twice.

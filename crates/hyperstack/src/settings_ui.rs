@@ -136,6 +136,9 @@ pub struct SettingsState {
     pub ws_compare: String,
     /// Appearance page: (tool id, title) of every tool, for the rail order.
     pub rail_tools: Vec<(String, String)>,
+    /// The Test Connection in flight (or its answer), and the connection it
+    /// belongs to, so a slow server cannot report onto another profile.
+    pub conn_test: Option<crate::conn_test::Test>,
 }
 
 /// A workspace's logo, or `None` when it has none set.
@@ -2150,6 +2153,9 @@ fn connections(
                     form::hint(ui, theme, &s.t("conn-fields-hint"));
                 });
             }
+            // Testing is offered between Save and Delete: try it, read the
+            // answer, then decide whether to keep the profile.
+            let mut start_test = false;
             ui.horizontal(|ui| {
                 if form::primary_button(ui, theme, &s.t("save")).clicked() {
                     let parsed = if is_ssh || is_s3 || is_db {
@@ -2233,10 +2239,100 @@ fn connections(
                         )),
                     }
                 }
+                // A kind with no driver has nothing to open, so the button
+                // is there but says why it cannot do anything.
+                let can_test = crate::conn_test::testable(&draft.kind);
+                let busy = state
+                    .conn_test
+                    .as_ref()
+                    .is_some_and(|t| t.profile_id == draft.id && t.running());
+                let label = if busy {
+                    s.t("conn-test-running")
+                } else {
+                    s.t("conn-test")
+                };
+                if ui
+                    .add_enabled(can_test && !busy, egui::Button::new(label))
+                    .on_disabled_hover_text(if can_test {
+                        s.t("conn-test-running")
+                    } else {
+                        s.t("conn-test-not-testable")
+                    })
+                    .clicked()
+                {
+                    start_test = true;
+                }
                 if form::danger_button(ui, theme, &s.t("delete")).clicked() {
                     state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), false));
                 }
             });
+            if let Some(test) = &state.conn_test
+                && test.profile_id == draft.id
+            {
+                ui.add_space(6.0);
+                match test.outcome() {
+                    crate::conn_test::Outcome::Running => {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.colored_label(theme.text_muted, s.t("conn-test-running"));
+                        });
+                    }
+                    crate::conn_test::Outcome::Ok(detail) => {
+                        let text = if detail.is_empty() {
+                            s.t("conn-test-ok")
+                        } else {
+                            s.i18n.t_args("conn-test-ok-detail", &[("detail", &detail)])
+                        };
+                        ui.colored_label(theme.success, format!("{} {text}", hs_ui::icons::CHECK));
+                    }
+                    crate::conn_test::Outcome::Failed(e) => {
+                        ui.colored_label(theme.error, format!("{} {e}", hs_ui::icons::WARNING));
+                    }
+                    crate::conn_test::Outcome::UnknownHostKey(fingerprint) => {
+                        ui.colored_label(
+                            theme.warning,
+                            s.i18n
+                                .t_args("conn-test-host-key", &[("fingerprint", &fingerprint)]),
+                        );
+                    }
+                    crate::conn_test::Outcome::NotTestable => {
+                        form::hint(ui, theme, &s.t("conn-test-not-testable"));
+                    }
+                    // Nothing was tried: say what is missing, not what a
+                    // driver would have said.
+                    crate::conn_test::Outcome::VaultLocked => {
+                        ui.colored_label(theme.warning, s.t("conn-test-vault-locked"));
+                    }
+                    crate::conn_test::Outcome::MissingVariables(names) => {
+                        ui.colored_label(
+                            theme.warning,
+                            s.i18n.t_args("conn-test-missing", &[("names", &names)]),
+                        );
+                    }
+                    crate::conn_test::Outcome::NoPassword => {
+                        ui.colored_label(theme.warning, s.t("conn-test-no-password"));
+                    }
+                    crate::conn_test::Outcome::NoKeys => {
+                        ui.colored_label(theme.warning, s.t("conn-test-no-keys"));
+                    }
+                    crate::conn_test::Outcome::UnknownEngine(engine) => {
+                        ui.colored_label(
+                            theme.error,
+                            s.i18n.t_args("db-unknown-engine", &[("engine", &engine)]),
+                        );
+                    }
+                }
+            }
+            if start_test {
+                // Test what is on the form, not what was last saved.
+                let mut probe = draft.clone();
+                if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
+                    && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
+                {
+                    probe.fields = table;
+                }
+                state.conn_test = Some(crate::conn_test::start(s, &probe));
+            }
         });
     });
 }

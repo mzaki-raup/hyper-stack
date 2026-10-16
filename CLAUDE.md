@@ -677,6 +677,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   ("sender dropped"). The HyperStack SFTP *client* is the stock
   `SftpSession::new(channel.into_stream())` pattern and is fine against real
   servers; the bug was only in the in-repo test server.
+- A **running `devsshd` locks `target/debug/examples/devsshd.exe`**, and
+  `cargo test --workspace` builds that example: the whole run dies with
+  `LNK1104: cannot open file …devsshd.exe`, which reads like a broken
+  toolchain rather than "stop the server you started". Stop it before the
+  gate.
 - Live SSH test: `hs-ssh` ships an in-process test server behind the
   `testserver` feature and a `devsshd` example (`cargo run -p hs-ssh --features
   testserver --example devsshd -- 2222`, user `dev`/`dev`). Point the SSH tool

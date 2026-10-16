@@ -7,6 +7,7 @@ mod api_tests;
 mod app;
 mod bootstrap;
 mod browser_host;
+mod conn_test;
 mod dock;
 #[cfg(test)]
 mod editor_tests;

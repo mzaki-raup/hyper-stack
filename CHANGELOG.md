@@ -13,6 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Devtools → Generators**: UUIDs (v4, v7 and nil), random numbers with
+  bounds, passwords with the character classes you choose, and passphrases
+  from a word list. A seed makes any of them repeatable. Passwords and
+  passphrases show how many bits of entropy they carry, including the
+  honest note that the built-in word list is 323 words — worth about 8.3
+  bits a word, against a diceware list's 12.9.
+- **Devtools → TOML** and **Devtools → XML**: check a document and lay it
+  out again. XML takes 2 spaces, 4 spaces or a tab; TOML has no indent to
+  choose and says so. Broken input is never quietly reformatted — the
+  checker reports the line and column, and for XML which tag is unclosed
+  or mismatched.
+
 - Connections can be **pinned to Home**: right-click one in its tool's
   sidebar. Pinned Connections on Home used to list every connection that
   existed, which is not a pin; it now lists the ones you chose.

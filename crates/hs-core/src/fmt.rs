@@ -166,6 +166,12 @@ fn find_from(b: &[char], from: usize, needle: &str) -> Option<usize> {
 /// short text node on the line of its element. `None` when the text is
 /// not markup or the tags do not nest.
 pub fn pretty_xml(text: &str) -> Option<String> {
+    pretty_xml_with(text, "  ")
+}
+
+/// Re-indent XML with `indent` for each level — two spaces, four, or a
+/// tab, as the devtools XML page offers.
+pub fn pretty_xml_with(text: &str, indent: &str) -> Option<String> {
     let toks = tokenize_xml(text)?;
     let mut out = String::new();
     let mut depth: usize = 0;
@@ -182,7 +188,7 @@ pub fn pretty_xml(text: &str) -> Option<String> {
                     && t.len() <= 120
                     && !t.contains('\n')
                 {
-                    push_line(&mut out, depth, &format!("{raw}{t}</{c}>"));
+                    push_line(&mut out, depth, indent, &format!("{raw}{t}</{c}>"));
                     i += 3;
                     continue;
                 }
@@ -190,11 +196,11 @@ pub fn pretty_xml(text: &str) -> Option<String> {
                 if let Some(Tok::Close(c)) = toks.get(i + 1)
                     && *c == name
                 {
-                    push_line(&mut out, depth, &format!("{raw}</{c}>"));
+                    push_line(&mut out, depth, indent, &format!("{raw}</{c}>"));
                     i += 2;
                     continue;
                 }
-                push_line(&mut out, depth, raw);
+                push_line(&mut out, depth, indent, raw);
                 open_stack.push(name);
                 depth += 1;
             }
@@ -205,14 +211,14 @@ pub fn pretty_xml(text: &str) -> Option<String> {
                     return None;
                 }
                 depth = depth.saturating_sub(1);
-                push_line(&mut out, depth, &format!("</{name}>"));
+                push_line(&mut out, depth, indent, &format!("</{name}>"));
             }
-            Tok::Standalone(raw) => push_line(&mut out, depth, raw),
+            Tok::Standalone(raw) => push_line(&mut out, depth, indent, raw),
             Tok::Text(t) => {
                 for line in t.lines() {
                     let line = line.trim();
                     if !line.is_empty() {
-                        push_line(&mut out, depth, line);
+                        push_line(&mut out, depth, indent, line);
                     }
                 }
             }
@@ -234,9 +240,9 @@ fn element_name(raw: &str) -> String {
         .to_string()
 }
 
-fn push_line(out: &mut String, depth: usize, text: &str) {
+fn push_line(out: &mut String, depth: usize, indent: &str, text: &str) {
     for _ in 0..depth {
-        out.push_str("  ");
+        out.push_str(indent);
     }
     out.push_str(text);
     out.push('\n');

@@ -8246,6 +8246,7 @@ dependencies = [
  "sha1 0.10.7",
  "sha2 0.10.9",
  "sha3 0.10.9",
+ "toml 0.8.23",
  "tracing",
 ]
 

@@ -152,3 +152,41 @@ editor, Ctrl+Shift+S swap input/output.
 `chrono`/`jiff`, `chrono-tz`, `cron` / `croner`, `regex`, `fancy-regex`,
 `heck`, `sqlformat`, `fake`, `palette`, `hickory-resolver`, `surge-ping`,
 `sysinfo`/`netstat2`, `rustls` for TLS inspection.
+
+## Addendum (2026-10-17): generators, TOML and XML
+
+**Generators** (`generate.rs`) covers four jobs behind one page: UUIDs,
+random numbers, passwords and passphrases. Everything is a plain function
+over its inputs, so the rules are testable without a UI and there is one
+visible place that decides what a password is made of.
+
+- **UUID** v4 (122 random bits), v7 (a millisecond timestamp then random
+  bits, so ids sort in creation order — what you want for a database key)
+  and the nil UUID. The clock is passed in rather than read inside, which
+  is what makes v7 testable.
+- **Number** takes bounds and a count; bounds the wrong way round are
+  swapped rather than refused.
+- **Password** guarantees at least one character from every class that was
+  ticked — a rule that says "include digits" and then produces none is a
+  rule that lied — then shuffles, so those characters are not always in
+  the same places. Look-alike characters can be excluded.
+- **Passphrase** draws from a 323-word list written here rather than taken
+  from a published one, so no licence rides along.
+
+A **seed** makes any generator repeatable, which is the point of offering
+one. Leave it empty for fresh randomness.
+
+**Entropy is shown, not a word like "strong".** A password's is
+`length × log2(pool)`; a passphrase's is `words × log2(list)`. The word
+list is worth about 8.3 bits a word against a 7776-word diceware list's
+12.9, and the page says so, because a passphrase from a short list looks
+far stronger than it is.
+
+**TOML** and **XML** (`markup.rs`) each check first and format second. XML
+indents with 2 spaces, 4 spaces or a tab (`fmt::pretty_xml_with`); TOML has
+no indent to choose, because it is not an indentation-based format, and the
+page says that instead of offering a setting that does nothing. The XML
+check is **well-formedness only** — every tag closed and properly nested,
+no DTD or schema consulted — and it reports the line and column, naming
+which tag is unclosed or which close matches nothing. Broken markup is
+never reformatted: tidy-looking output would hide the break.

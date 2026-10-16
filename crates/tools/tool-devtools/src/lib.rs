@@ -7,9 +7,11 @@
 pub mod base64_tool;
 pub mod crypto;
 pub mod firebase;
+mod generate;
 pub mod hash;
 pub mod jasypt;
 pub mod jwt;
+mod markup;
 pub mod pki;
 pub mod url_tool;
 mod util;
@@ -45,11 +47,14 @@ pub enum Utility {
     Firebase,
     Jasypt,
     Pki,
+    Toml,
+    Xml,
+    Generate,
 }
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 8] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 11] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
         (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
         (
@@ -60,6 +65,13 @@ impl Utility {
         ),
         (Utility::Hash, "dt-cat-encoding", "dt-hash", ph::FINGERPRINT),
         (
+            Utility::Toml,
+            "dt-cat-encoding",
+            "dt-toml",
+            ph::BRACKETS_SQUARE,
+        ),
+        (Utility::Xml, "dt-cat-encoding", "dt-xml", ph::CODE),
+        (
             Utility::Jwt,
             "dt-cat-tokens",
             "dt-jwt",
@@ -68,6 +80,12 @@ impl Utility {
         (Utility::Firebase, "dt-cat-tokens", "dt-firebase", ph::FIRE),
         (Utility::Jasypt, "dt-cat-crypto", "dt-jasypt", ph::KEY),
         (Utility::Pki, "dt-cat-crypto", "dt-pki", ph::SHIELD_CHECK),
+        (
+            Utility::Generate,
+            "dt-cat-generate",
+            "dt-generate",
+            ph::DICE_FIVE,
+        ),
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -79,6 +97,9 @@ impl Utility {
             Utility::Firebase => "firebase",
             Utility::Jasypt => "jasypt",
             Utility::Pki => "pki",
+            Utility::Toml => "toml",
+            Utility::Xml => "xml",
+            Utility::Generate => "generate",
         }
     }
     pub fn by_key(key: &str) -> Option<Utility> {
@@ -142,6 +163,9 @@ impl ToolFactory for DevtoolsFactory {
             firebase: part(&restore, "firebase"),
             jasypt: part(&restore, "jasypt"),
             pki: part(&restore, "pki"),
+            toml_state: part(&restore, "toml"),
+            xml_state: part(&restore, "xml"),
+            generate: part(&restore, "generate"),
         })
     }
 }
@@ -152,6 +176,9 @@ pub struct DevtoolsTool {
     base64: base64_tool::State,
     url: url_tool::State,
     yaml: yaml::State,
+    toml_state: markup::State,
+    xml_state: markup::State,
+    generate: generate::State,
     hash: hash::State,
     jwt: jwt::State,
     firebase: firebase::State,
@@ -231,6 +258,13 @@ impl Tool for DevtoolsTool {
                             Utility::Hash => hash::ui(&mut self.hash, ui, s, &theme),
                             Utility::Jwt => jwt::ui(&mut self.jwt, ui, s, &theme),
                             Utility::Firebase => firebase::ui(&mut self.firebase, ui, s, &theme),
+                            Utility::Toml => {
+                                markup::ui(&mut self.toml_state, markup::Kind::Toml, ui, s, &theme)
+                            }
+                            Utility::Xml => {
+                                markup::ui(&mut self.xml_state, markup::Kind::Xml, ui, s, &theme)
+                            }
+                            Utility::Generate => generate::ui(&mut self.generate, ui, s, &theme),
                             Utility::Jasypt => jasypt::ui(&mut self.jasypt, ui, s, &theme),
                             Utility::Pki => pki::ui(&mut self.pki, ui, s, &theme),
                         }
@@ -310,6 +344,11 @@ impl Tool for DevtoolsTool {
                     Utility::Firebase => self.firebase.service_json = body,
                     Utility::Jasypt => self.jasypt.cipher_in = body,
                     Utility::Pki => self.pki.payload_in = body,
+                    Utility::Toml => self.toml_state.input = body,
+                    Utility::Xml => self.xml_state.input = body,
+                    // Nothing to paste into: the generators take settings,
+                    // not text.
+                    Utility::Generate => {}
                 }
                 true
             }

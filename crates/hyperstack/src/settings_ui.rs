@@ -229,6 +229,9 @@ pub enum SettingsEffect {
     /// Put a secret on the clipboard and start the clearing timer
     /// (Settings → Security → Clear Clipboard After).
     CopySecret(String),
+    /// Run one of the shell's own actions (`ws:<name>`, `ws.new`): the
+    /// settings page has no `ToolContext` to push commands through.
+    RunAction(String),
     StopSpeaking,
     /// Copy the environments `from` lacks into `to` (names that exist are
     /// skipped). Either may be the open workspace.
@@ -308,6 +311,53 @@ fn workspace(
     );
     let current = s.workspace.read().meta.name.clone();
     let root = s.workspace.read().root().to_path_buf();
+    // Every workspace, not only the one that is open: this page is where
+    // someone comes to see what there is. Owner's requirement, 2026-10-17.
+    let registry = hs_core::workspace::Registry::load(&s.paths);
+    form::section(ui, theme, &s.t("settings-workspace-section-list"), |ui| {
+        for w in &registry.workspaces {
+            let open = w.name == current;
+            let row = ui.scope(|ui| {
+                ui.horizontal(|ui| {
+                    ws_icon(ui, s, &registry, &w.name, 18.0);
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&w.name).strong()).selectable(false),
+                    );
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&w.path).small().color(theme.text_muted),
+                        )
+                        .selectable(false)
+                        .truncate(),
+                    );
+                    if open {
+                        ui.label(
+                            egui::RichText::new(s.t("settings-workspace-open-now"))
+                                .small()
+                                .color(theme.success),
+                        );
+                    }
+                });
+            });
+            let r = ui.interact(
+                row.response.rect,
+                ui.id().with(("ws-row", &w.name)),
+                egui::Sense::click(),
+            );
+            if !open && r.clicked() {
+                effects.push(SettingsEffect::RunAction(format!("ws:{}", w.name)));
+            }
+            if !open {
+                r.on_hover_text(s.t("settings-workspace-switch-hint"));
+            }
+            ui.add_space(2.0);
+        }
+        ui.add_space(4.0);
+        if form::primary_button(ui, theme, &s.t("workspace-new")).clicked() {
+            effects.push(SettingsEffect::RunAction("ws.new".into()));
+        }
+    });
+    ui.add_space(8.0);
     // The draft follows the open workspace; switching discards an edit.
     let draft = match &mut state.ws_name {
         Some((ws, _)) if *ws == current => state.ws_name.as_mut().map(|(_, n)| n).unwrap(),

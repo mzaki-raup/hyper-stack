@@ -1358,6 +1358,7 @@ impl HyperStackApp {
                     self.toasts.push(ToastLevel::Info, msg);
                 }
                 SettingsEffect::OpenUrl(url) => self.pending_open_url = Some(url),
+                SettingsEffect::RunAction(id) => self.run_action(&id),
                 SettingsEffect::CopySecret(value) => {
                     ctx.copy_text(value);
                     let after = self

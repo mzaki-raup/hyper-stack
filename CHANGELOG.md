@@ -27,6 +27,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   connection rather than another window tab. A window tab is still exactly
   one connection.
 
+- **Settings → Workspace lists every workspace**, not only the one that is
+  open: each with its logo, name and folder, the open one marked, and a
+  click switches to it. New Workspace… is there too, so the page is a
+  place to see what there is rather than only to rename what you are in.
+
 - Browser page tabs show the site's **favicon**, and so does the browser's
   own tool tab. There is no favicon API in wry on Windows, so it is
   fetched from the origin's `/favicon.ico` and normalised to one small PNG

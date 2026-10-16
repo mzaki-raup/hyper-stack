@@ -13,50 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- **Devtools → Generators**: UUIDs (v4, v7 and nil), random numbers with
-  bounds, passwords with the character classes you choose, and passphrases
-  from a word list. A seed makes any of them repeatable. Passwords and
-  passphrases show how many bits of entropy they carry, including the
-  honest note that the built-in word list is 323 words — worth about 8.3
-  bits a word, against a diceware list's 12.9. Each generator keeps its own
-  result card, titled with the generator that made it.
-- **Devtools → Cron**: describe when a job should run and read the
-  expression back in all three dialects at once — Unix cron, Spring and
-  Quartz — because the usual reason to be there is needing the other
-  dialect's version of the one you have. Quartz's `?` rule is handled for
-  you. A pasted expression is checked against every dialect in a grid of
-  Cron Type, Match and Details of Scheduler, so one look says which
-  dialects take it and when it would actually run.
-- **Devtools → TOML** and **Devtools → XML**: check a document and lay it
-  out again. XML takes 2 spaces, 4 spaces or a tab; TOML has no indent to
-  choose and says so. Broken input is never quietly reformatted — the
-  checker reports the line and column, and for XML which tag is unclosed
-  or mismatched.
-- A database connection's tab holds **as many query tabs as you open**, in
-  a strip above the editor like the editor's own files. Each keeps its own
-  text, caret and unsaved mark; a tab is named by the saved query it holds
-  or Untitled; opening a saved query opens another query tab on the same
-  connection rather than another window tab. A window tab is still exactly
-  one connection.
-
-- The browser's **address bar can be typed into**. A WebView2 child takes
-  keyboard focus back the moment it is allowed to, so the field was
-  unusable; the web view is now disabled outright while the address bar
-  holds the keyboard, which is the only thing that holds.
-
-- A browser **tool tab** carries the page's favicon too, not just the page
-  tabs inside it.
-
-- Browser page tabs show the site's **favicon**. There is no favicon API
-  in wry on Windows, so it is fetched from the origin's `/favicon.ico` and
-  normalised to one small PNG — once per site, not once per tab, and the
-  globe stays for a page that is loading or has no origin to ask.
-
-- The database tool's **schema is a column beside the editor** — version,
-  filter, object tree, then Saved Queries and History under a separator —
-  rather than a block nested in the connections list. Hiding the sidebar is about choosing a server; it no longer takes
-  the schema of the one you are in with it.
-
 - The **AI assistant reaches Redis and the NoSQL tool**, the two that did
   not have it. Both are review-only: Redis can put a command in the
   console's input and the document store can fill the filter or pipeline
@@ -64,68 +20,59 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   on screen — the open key and the last console command; the open
   container and the query — and nothing else.
 
-- **Credentials** in Settings → Security: every connection in the
-  workspace in one grid — name, type, host/URL, port, username, password
-  and key — with a copy button on each value. Every column sizes itself to
-  its content except Username and Password, which share one width so the
-  two a reader compares line up. Passwords
-  are masked; uncovering one costs the master password, applies to that row
-  alone and covers itself again after 30 seconds. Copying a password is
-  gated the same way and now honours **Clear Clipboard After Copying a
-  Secret**, a setting that existed and did nothing before.
-- SFTP actions **show their command in the shell**. New Folder, New File,
-  Rename, Delete and Permissions write `mkdir`, `touch`, `mv`, `rm` and
-  `chmod` into the shell pane as comments, so the two halves of an SSH tab
-  tell the same story. They are comments on purpose: the action already
-  happened over SFTP.
-- **Test Connection** in Settings → Connections, between Save and Delete.
-  It opens what is on the form with the real driver and says what the
-  server replied — the version, or the error — so a profile can be proved
-  before it is saved. SSH reports an unaccepted host key with its
-  fingerprint rather than accepting it from a settings page.
-- Graphics opens **one tab per image**: a tab that already holds a
-  picture does not take the next file you open, and opening a file that is
-  already open focuses its tab rather than loading it twice.
-- Connections can be **pinned to Home**: right-click one in its tool's
-  sidebar. Pinned Connections on Home used to list every connection that
-  existed, which is not a pin; it now lists the ones you chose.
+- A database connection's tab holds **as many query tabs as you open**, in
+  a strip above the editor like the editor's own files. Each keeps its own
+  text, caret and unsaved mark; a tab is named by the saved query it holds
+  or Untitled; opening a saved query opens another query tab on the same
+  connection rather than another window tab. A window tab is still exactly
+  one connection.
+
+- Browser page tabs show the site's **favicon**, and so does the browser's
+  own tool tab. There is no favicon API in wry on Windows, so it is
+  fetched from the origin's `/favicon.ico` and normalised to one small PNG
+  — once per site, not once per tab, and the globe stays for a page that
+  is loading or has no origin to ask.
 
 ### Changed
 
-- The **AI Assistant** button sits hard right on every tool's toolbar —
-  editor, terminal, SSH, SQL, S3, API client, Graphics and Scratchpad — so
-  it is in the same place wherever you are.
-- **Casing**: a parenthetical attached to a label now starts with a capital
-  ("None (Direct connection)", "Inspect (Developer tools, opens a window)",
-  "(Not set)"). One inside a running sentence stays lower case, which is
-  what sentence case means. The Redis Mode list shows names ("Standalone")
-  rather than the values it stores.
-- The AI assistant is a column, not something drawn over the tool. It used
-  to be laid out last, into whatever space was left — which after a results
-  panel had taken its share was often none, so running a query made the
-  assistant look as though it had closed itself. The tool's own content is
-  narrower while it is open, and the only thing that closes it is the
-  toggle. Database, terminal, SSH and S3 all behave this way now; the API
-  client and Graphics already did.
-- Home puts Pinned Connections above Recent, gives both headings a size of
-  their own, lays Recent out as a grid rather than a column eight entries
-  deep, and draws each connection as a larger pill coloured by its kind —
-  SSH blue, SQL violet, Redis red, document stores green, S3 amber.
+- The database tool's **schema is a column beside the editor** — version,
+  filter, object tree, then Saved Queries and History under a separator —
+  rather than a block nested in the connections list. Hiding the sidebar
+  is about choosing a server; it no longer takes the schema of the one you
+  are in with it.
+
+- Settings → Security drops the **Connection String** column, which was
+  empty for every kind but one (a document store's URI is now its
+  Host/URL). Every column sizes itself to its content except Username and
+  Password, which share one width so the two a reader compares line up.
+  The Reveal Password dialog's buttons are right-aligned with the action
+  outermost, like every other dialog in the app.
 
 ### Fixed
 
-- **New File** in the SFTP pane works: it opened the file for writing
-  without asking for it to be created, so the server answered "no such
-  file", and Enter did nothing because the field was being handed focus
-  again every frame.
-- A pinned tab keeps its name. Pinning used to shrink the tab to an icon,
-  which read as the tab having been taken away; it now shows a bar down
-  its leading edge in the tab's colour, and no close button. The browser
-  is the exception and still shows its icon alone.
-- One connection, one tab — opening a tool from Home and then picking a
-  connection it already had open no longer leaves two tabs on the same
-  connection. SSH is the deliberate exception: a host may hold up to three
-  sessions.
+- The browser's **address bar can be typed into**. A WebView2 child takes
+  keyboard focus back the moment it is allowed to, so the field was
+  unusable; the web view is now disabled outright while the address bar
+  holds the keyboard, which is the only thing that holds.
+
+- S3's **AI Assistant** button sits hard right like every other tool's; it
+  was missed when the rest were moved.
+
+## 0.31.0 — 2026-10-16
+
+### Added
+
+- A credentials table, SFTP commands in the shell, one place for the assistant (595cd5f5)
+- Test Connection proves a profile before it is saved (44658fdb)
+- Explain a checked cron expression, a result card per generator, one Graphics tab per image (e42e06d3)
+- A cron builder that writes all three dialects at once (22ac02ea)
+- Generators, and TOML and XML checking with formatting (236b53d0)
+- Pin connections for real, and give the sections their own weight (022fa95b)
+
+### Fixed
+
+- The AI assistant is a column, not something drawn over the tool (f9da7f21)
+- Pinned tabs keep their name, one tab per connection, New File creates files (e7c9aadd)
 
 ## 0.30.0 — 2026-10-16
 

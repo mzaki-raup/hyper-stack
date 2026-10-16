@@ -32,14 +32,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   choose and says so. Broken input is never quietly reformatted — the
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
+- A database connection's tab holds **as many query tabs as you open**, in
+  a strip above the editor like the editor's own files. Each keeps its own
+  text, caret and unsaved mark; a tab is named by the saved query it holds
+  or Untitled; opening a saved query opens another query tab on the same
+  connection rather than another window tab. A window tab is still exactly
+  one connection.
+
+- The browser's **address bar can be typed into**. A WebView2 child takes
+  keyboard focus back the moment it is allowed to, so the field was
+  unusable; the web view is now disabled outright while the address bar
+  holds the keyboard, which is the only thing that holds.
+
+- A browser **tool tab** carries the page's favicon too, not just the page
+  tabs inside it.
+
 - Browser page tabs show the site's **favicon**. There is no favicon API
   in wry on Windows, so it is fetched from the origin's `/favicon.ico` and
   normalised to one small PNG — once per site, not once per tab, and the
   globe stays for a page that is loading or has no origin to ask.
 
 - The database tool's **schema is a column beside the editor** — version,
-  filter and object tree — rather than a block nested in the connections
-  list. Hiding the sidebar is about choosing a server; it no longer takes
+  filter, object tree, then Saved Queries and History under a separator —
+  rather than a block nested in the connections list. Hiding the sidebar is about choosing a server; it no longer takes
   the schema of the one you are in with it.
 
 - The **AI assistant reaches Redis and the NoSQL tool**, the two that did

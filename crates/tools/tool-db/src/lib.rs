@@ -85,8 +85,14 @@ struct State {
     /// The editor text (restored with the tab; never holds secrets the user
     /// did not type).
     sql: String,
-    /// Saved query file, relative to the workspace root.
+    /// Saved query file, relative to the workspace root. The active tab's,
+    /// kept for the paths that still ask about "the" query.
     query_file: Option<String>,
+    /// One entry per query tab: the saved query it holds, or `None` for a
+    /// tab that has never been saved. Restoring a tab reopens them.
+    queries: Vec<Option<String>>,
+    /// Which query tab is in front.
+    active_query: usize,
     /// Row limit; 0 = none.
     limit: usize,
     /// Statement timeout in seconds; 0 = none.
@@ -102,6 +108,8 @@ impl Default for State {
             conn_id: None,
             sql: String::new(),
             query_file: None,
+            queries: Vec::new(),
+            active_query: 0,
             limit: 500,
             timeout_secs: 30,
             manual_tx: false,
@@ -199,9 +207,11 @@ struct Popup {
 
 pub struct DbTool {
     state: State,
-    buf: Buffer,
-    cursors: Cursors,
-    view: EditorView,
+    /// Tool-level id for the popups and combos that belong to the tab
+    /// rather than to one query, so they keep working across query tabs.
+    id: egui::Id,
+    /// The query tabs, in strip order.
+    docs: Vec<QueryDoc>,
     shared: Arc<Mutex<Shared>>,
     cmd: Option<mpsc::Sender<Cmd>>,
     conn_error: Option<String>,
@@ -306,8 +316,29 @@ fn short_sql(s: &str) -> String {
     }
 }
 
-impl DbTool {
-    fn new(services: &Services, state: State) -> Self {
+/// Query tab identities, unique for the life of the process so a strip
+/// never confuses two of them.
+static NEXT_QUERY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// One query tab inside a connection's tab: its own buffer, cursors and
+/// view, so moving between them keeps each caret and scroll where it was.
+/// A connection's tab holds as many as the user opens; the shell's tab
+/// holds exactly one connection. Owner's requirement, 2026-10-17.
+struct QueryDoc {
+    /// Identity for the tab strip, stable across reorders.
+    uid: u64,
+    buf: Buffer,
+    cursors: Cursors,
+    view: EditorView,
+    /// The saved query this came from, relative to the workspace root.
+    file: Option<String>,
+    /// What the tab says: the saved query's name, or nothing for one that
+    /// has never been saved.
+    name: Option<String>,
+}
+
+impl QueryDoc {
+    fn new(services: &Services, text: &str) -> Self {
         let st = services.settings.read();
         let dark = Theme::from_settings(&st.appearance).dark;
         let mut view = EditorView::new(
@@ -318,11 +349,46 @@ impl DbTool {
         );
         view.right_click_copy_paste = st.editor.right_click_copy_paste;
         drop(st);
-        let buf = Buffer::from_text(&state.sql);
-        let mut t = Self {
+        let mut buf = Buffer::from_text(text);
+        buf.mark_saved();
+        Self {
+            uid: NEXT_QUERY.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             buf,
             cursors: Cursors::single(0),
             view,
+            file: None,
+            name: None,
+        }
+    }
+
+    /// What the tab says.
+    fn label(&self, untitled: &str) -> String {
+        self.name.clone().unwrap_or_else(|| untitled.to_string())
+    }
+}
+
+impl DbTool {
+    fn doc(&self) -> &QueryDoc {
+        let i = self
+            .state
+            .active_query
+            .min(self.docs.len().saturating_sub(1));
+        &self.docs[i]
+    }
+
+    fn doc_mut(&mut self) -> &mut QueryDoc {
+        let i = self
+            .state
+            .active_query
+            .min(self.docs.len().saturating_sub(1));
+        &mut self.docs[i]
+    }
+
+    fn new(services: &Services, state: State) -> Self {
+        let first = QueryDoc::new(services, &state.sql);
+        let mut t = Self {
+            id: egui::Id::new(("hs-db", hs_core::new_id())),
+            docs: vec![first],
             shared: Arc::new(Mutex::new(Shared::default())),
             cmd: None,
             conn_error: None,
@@ -352,11 +418,40 @@ impl DbTool {
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             state,
         };
-        if let Some(rel) = t.state.query_file.clone() {
-            let path = services.workspace.read().root().join(rel);
-            t.query_name = Some(saved_name(&path, read_saved(&path).map(|h| h.0)));
+        // Reopen the query tabs this tab had. The saved ones come back
+        // with their text; one that was never saved comes back empty, as
+        // it always has — only the active tab's text is kept in the layout.
+        let restored: Vec<Option<String>> = t.state.queries.clone();
+        for (i, file) in restored.iter().enumerate() {
+            if i > 0 {
+                t.docs.push(QueryDoc::new(services, ""));
+            }
+            let Some(rel) = file.clone() else { continue };
+            let path = services.workspace.read().root().join(&rel);
+            let name = saved_name(&path, read_saved(&path).map(|h| h.0));
+            let body = read_saved(&path).map(|(_, b)| b);
+            let d = &mut t.docs[i];
+            if let Some(body) = body
+                && i != t.state.active_query
+            {
+                d.buf = Buffer::from_text(&body);
+            }
+            d.buf.mark_saved();
+            d.file = Some(rel);
+            d.name = Some(name);
         }
-        t.buf.mark_saved();
+        if t.state.queries.is_empty()
+            && let Some(rel) = t.state.query_file.clone()
+        {
+            let path = services.workspace.read().root().join(&rel);
+            let name = saved_name(&path, read_saved(&path).map(|h| h.0));
+            let d = t.doc_mut();
+            d.file = Some(rel);
+            d.name = Some(name);
+        }
+        t.state.active_query = t.state.active_query.min(t.docs.len() - 1);
+        t.query_name = t.doc().name.clone();
+        t.doc_mut().buf.mark_saved();
         if t.state.conn_id.is_some() {
             t.connect(services);
         }
@@ -422,7 +517,7 @@ impl DbTool {
             return;
         };
         self.engine = engine;
-        self.view.error_ranges.clear();
+        self.doc_mut().view.error_ranges.clear();
         let session_read_only = read_only || (self.protected && !self.writes_unlocked);
         let lookup = {
             let envs = s.environments.read().clone();
@@ -579,17 +674,21 @@ impl DbTool {
         let Some((h, body)) = read_saved(path) else {
             return false;
         };
-        self.query_name = Some(saved_name(path, Some(h.clone())));
-        self.buf = Buffer::from_text(&body);
-        self.buf.mark_saved();
-        self.cursors = Cursors::single(0);
-        let rel = s.workspace.read().root().to_path_buf();
-        self.state.query_file = Some(
-            path.strip_prefix(&rel)
-                .unwrap_or(path)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
+        let name = saved_name(path, Some(h.clone()));
+        self.query_name = Some(name.clone());
+        let root = s.workspace.read().root().to_path_buf();
+        let rel = path
+            .strip_prefix(&root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let d = self.doc_mut();
+        d.buf = Buffer::from_text(&body);
+        d.buf.mark_saved();
+        d.cursors = Cursors::single(0);
+        d.file = Some(rel.clone());
+        d.name = Some(name);
+        self.state.query_file = Some(rel);
         if !h.connection.is_empty() && self.state.conn_id.as_deref() != Some(&h.connection) {
             self.state.conn_id = Some(h.connection);
             self.connect(s);
@@ -635,20 +734,24 @@ impl DbTool {
         let text = format!(
             "{HEADER_PREFIX}{}\n{}",
             serde_json::to_string(&header).map_err(|e| e.to_string())?,
-            self.buf.text()
+            self.doc().buf.text()
         );
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         std::fs::write(&path, text).map_err(|e| e.to_string())?;
         self.query_name = Some(header.name.clone());
-        self.buf.mark_saved();
-        self.state.query_file = Some(
-            path.strip_prefix(&root)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
+        let rel = path
+            .strip_prefix(&root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let name = header.name.clone();
+        let d = self.doc_mut();
+        d.buf.mark_saved();
+        d.file = Some(rel.clone());
+        d.name = Some(name);
+        self.state.query_file = Some(rel);
         self.reload_saved(s);
         Ok(())
     }
@@ -657,8 +760,8 @@ impl DbTool {
 
     /// The text to run for `mode`: (text, its byte offset in the editor).
     fn pick_text(&self, mode: RunMode) -> Option<(String, usize)> {
-        let text = self.buf.text();
-        let c = self.cursors.primary();
+        let text = self.doc().buf.text();
+        let c = self.doc().cursors.primary();
         if c.has_selection() {
             let (a, b) = c.range();
             let (ba, bb) = (char_to_byte(&text, a), char_to_byte(&text, b));
@@ -817,7 +920,7 @@ impl DbTool {
                 })
                 .collect();
         }
-        self.view.error_ranges.clear();
+        self.doc_mut().view.error_ranges.clear();
         let begin_first = self.state.manual_tx;
         if !self.send(
             Cmd::Run {
@@ -887,20 +990,21 @@ impl DbTool {
     }
 
     fn insert_text(&mut self, text: &str) {
-        let at = self.buf.len_chars();
-        let prefix = if self.buf.text().trim().is_empty() {
+        let at = self.doc().buf.len_chars();
+        let prefix = if self.doc().buf.text().trim().is_empty() {
             ""
         } else {
             "\n\n"
         };
-        self.cursors.set_single(Cursor::at(at));
-        self.view.insert_at_cursors(
-            &mut self.buf,
-            &mut self.cursors,
+        let d = self.doc_mut();
+        d.cursors.set_single(Cursor::at(at));
+        d.view.insert_at_cursors(
+            &mut d.buf,
+            &mut d.cursors,
             &format!("{prefix}{text}"),
             EditKind::Other,
         );
-        self.view.scroll_to_cursor();
+        d.view.scroll_to_cursor();
     }
 
     fn export(&mut self, index: usize, format: Format, s: &Services) {
@@ -1000,8 +1104,8 @@ impl DbTool {
     // ---- completion ---------------------------------------------------------
 
     fn update_completion(&mut self, force: bool) {
-        let text = self.buf.text();
-        let cursor = char_to_byte(&text, self.cursors.primary().head);
+        let text = self.doc().buf.text();
+        let cursor = char_to_byte(&text, self.doc().cursors.primary().head);
         let before = &text[..cursor];
         let last = before.chars().last();
         let word_len = before
@@ -1051,20 +1155,17 @@ impl DbTool {
         let Some(item) = p.completion.items.get(p.selected) else {
             return;
         };
-        let text = self.buf.text();
+        let text = self.doc().buf.text();
         let a = byte_to_char(&text, p.base + p.completion.start);
         let b = byte_to_char(&text, p.base + p.completion.end);
-        self.cursors.set_single(Cursor {
+        let d = self.doc_mut();
+        d.cursors.set_single(Cursor {
             head: b,
             anchor: a,
             goal_col: None,
         });
-        self.view.insert_at_cursors(
-            &mut self.buf,
-            &mut self.cursors,
-            &item.insert,
-            EditKind::Other,
-        );
+        d.view
+            .insert_at_cursors(&mut d.buf, &mut d.cursors, &item.insert, EditKind::Other);
     }
 
     /// Keys the open completion popup takes before the editor sees them.
@@ -1101,16 +1202,16 @@ impl DbTool {
             self.popup = None;
             // egui drops focus on Escape before the tool sees the key; the
             // Escape only meant "close the list", so keep typing here.
-            ui.memory_mut(|m| m.request_focus(self.view.id));
+            ui.memory_mut(|m| m.request_focus(self.doc().view.id));
         }
     }
 
     fn completion_popup(&mut self, ui: &mut egui::Ui, theme: &Theme) {
-        let (Some(p), Some(rect)) = (&self.popup, self.view.cursor_rect) else {
+        let (Some(p), Some(rect)) = (&self.popup, self.doc().view.cursor_rect) else {
             return;
         };
         let mut clicked = None;
-        egui::Area::new(self.view.id.with("completion"))
+        egui::Area::new(self.doc().view.id.with("completion"))
             .order(egui::Order::Foreground)
             .fixed_pos(rect.left_bottom() + egui::vec2(0.0, 2.0))
             .show(ui.ctx(), |ui| {
@@ -1220,9 +1321,12 @@ impl DbTool {
 
     /// Underline the failing statement's error position in the editor.
     fn mark_errors(&mut self) {
-        let text = self.buf.text();
+        let text = self.doc().buf.text();
+        // Worked out first and written after: the results are behind a lock
+        // and the editor is behind `self`, and holding both at once is a
+        // borrow the compiler is right to refuse.
+        let mut ranges = Vec::new();
         let sh = self.shared.lock();
-        self.view.error_ranges.clear();
         for r in &sh.results {
             // Only where the server says where (a cancel or a lost
             // connection is not the text's fault).
@@ -1241,11 +1345,13 @@ impl DbTool {
                     .unwrap_or(text.len()),
                 None => r.offset + r.sql.len(),
             };
-            self.view.error_ranges.push((
+            ranges.push((
                 byte_to_char(&text, start),
                 byte_to_char(&text, end.min(text.len())),
             ));
         }
+        drop(sh);
+        self.doc_mut().view.error_ranges = ranges;
     }
 
     fn results_panel(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -1670,225 +1776,223 @@ impl DbTool {
             self.env_name.clone()
         };
         let protected = self.protected;
-        let modal =
-            egui::Modal::new(egui::Id::new(("db-dialog", self.view.id))).show(ui.ctx(), |ui| {
-                ui.set_width(520.0);
-                match dialog {
-                    Dialog::Confirm {
-                        stmts,
-                        dangerous,
-                        need,
-                        typed,
-                        limit,
-                    } => {
-                        ui.heading(s.t("db-confirm-title"));
-                        ui.add_space(4.0);
-                        ui.label(
-                            s.i18n
-                                .t_args("db-confirm-body", &[("conn", &conn), ("env", &env)]),
+        let modal = egui::Modal::new(egui::Id::new(("db-dialog", self.id))).show(ui.ctx(), |ui| {
+            ui.set_width(520.0);
+            match dialog {
+                Dialog::Confirm {
+                    stmts,
+                    dangerous,
+                    need,
+                    typed,
+                    limit,
+                } => {
+                    ui.heading(s.t("db-confirm-title"));
+                    ui.add_space(4.0);
+                    ui.label(
+                        s.i18n
+                            .t_args("db-confirm-body", &[("conn", &conn), ("env", &env)]),
+                    );
+                    if protected {
+                        ui.colored_label(
+                            theme.env_prod,
+                            format!(
+                                "{} {}",
+                                ph::WARNING,
+                                s.i18n.t_args("db-confirm-protected", &[("env", &env)])
+                            ),
                         );
-                        if protected {
-                            ui.colored_label(
-                                theme.env_prod,
-                                format!(
-                                    "{} {}",
-                                    ph::WARNING,
-                                    s.i18n.t_args("db-confirm-protected", &[("env", &env)])
-                                ),
-                            );
-                        }
-                        ui.add_space(6.0);
-                        for (sql, class, _) in dangerous.iter() {
-                            ui.horizontal(|ui| {
-                                ui.colored_label(theme.warning, s.t(class_key(*class)));
-                                ui.label(egui::RichText::new(sql.as_str()).monospace());
-                            });
-                        }
-                        if let Some(name) = need.as_ref() {
-                            ui.add_space(6.0);
-                            ui.label(s.i18n.t_args("db-type-name", &[("name", name)]));
-                            ui.add(
-                                egui::TextEdit::singleline(typed)
-                                    .hint_text(name.as_str())
-                                    .desired_width(f32::INFINITY),
-                            );
-                        }
-                        ui.add_space(10.0);
-                        let allowed = need.as_ref().is_none_or(|n| typed.trim() == n);
+                    }
+                    ui.add_space(6.0);
+                    for (sql, class, _) in dangerous.iter() {
                         ui.horizontal(|ui| {
-                            if ui
-                                .add_enabled(
-                                    allowed,
-                                    egui::Button::new(
-                                        egui::RichText::new(s.t("db-run-anyway"))
-                                            .color(egui::Color32::WHITE),
-                                    )
-                                    .fill(theme.error),
-                                )
-                                .clicked()
-                            {
-                                let stmts = std::mem::take(stmts);
-                                let limit = *limit;
-                                then = Some(Box::new(move |t, s| t.start_run(stmts, limit, s)));
-                            }
-                            if ui.button(s.t("cancel")).clicked() {
-                                close = true;
-                            }
+                            ui.colored_label(theme.warning, s.t(class_key(*class)));
+                            ui.label(egui::RichText::new(sql.as_str()).monospace());
                         });
                     }
-                    Dialog::AllowWrites => {
-                        ui.heading(s.t("db-allow-writes-title"));
-                        ui.add_space(4.0);
-                        ui.label(
-                            s.i18n
-                                .t_args("db-allow-writes-body", &[("conn", &conn), ("env", &env)]),
-                        );
-                        ui.add_space(10.0);
-                        ui.horizontal(|ui| {
-                            if form::danger_button(ui, theme, &s.t("db-allow-writes")).clicked() {
-                                then = Some(Box::new(|t, s| {
-                                    t.writes_unlocked = true;
-                                    t.connect(s);
-                                }));
-                            }
-                            if ui.button(s.t("cancel")).clicked() {
-                                close = true;
-                            }
-                        });
-                    }
-                    Dialog::Cell {
-                        title,
-                        text,
-                        bytes,
-                        sniffed,
-                        image_size,
-                    } => {
-                        ui.heading(title.as_str());
-                        ui.add_space(4.0);
-                        if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref()) {
-                            let size = match image_size {
-                                Some((w, h)) => format!(" · {w} × {h}"),
-                                None => String::new(),
-                            };
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} · {}{size}",
-                                    sn.label,
-                                    human_bytes(b.len())
-                                ))
-                                .color(theme.text_muted),
-                            );
-                            ui.add_space(4.0);
-                        }
-                        let picture = matches!(
-                            sniffed.as_ref().map(|sn| sn.kind),
-                            Some(hs_core::sniff::Kind::Image | hs_core::sniff::Kind::Svg)
-                        );
-                        egui::ScrollArea::vertical()
-                            .max_height(420.0)
-                            .show(ui, |ui| {
-                                if picture && let Some(b) = bytes.as_ref() {
-                                    let ext = sniffed.as_ref().map(|sn| sn.ext).unwrap_or("bin");
-                                    let digest = {
-                                        use std::hash::{Hash, Hasher};
-                                        let mut h =
-                                            std::collections::hash_map::DefaultHasher::new();
-                                        b.hash(&mut h);
-                                        h.finish()
-                                    };
-                                    let uri = format!("bytes://db-cell-{digest:x}.{ext}");
-                                    ui.add(
-                                        egui::Image::from_bytes(uri, b.clone())
-                                            .max_size(egui::vec2(620.0, 400.0))
-                                            .corner_radius(4.0),
-                                    );
-                                    ui.add_space(6.0);
-                                    egui::CollapsingHeader::new(s.t("db-cell-hex"))
-                                        .default_open(false)
-                                        .show(ui, |ui| {
-                                            let mut shown = text.clone();
-                                            ui.add(
-                                                egui::TextEdit::multiline(&mut shown)
-                                                    .font(egui::TextStyle::Monospace)
-                                                    .desired_width(f32::INFINITY)
-                                                    .desired_rows(8),
-                                            );
-                                        });
-                                } else {
-                                    let mut shown = text.clone();
-                                    ui.add(
-                                        egui::TextEdit::multiline(&mut shown)
-                                            .font(egui::TextStyle::Monospace)
-                                            .desired_width(f32::INFINITY)
-                                            .desired_rows(12),
-                                    );
-                                }
-                            });
+                    if let Some(name) = need.as_ref() {
                         ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            if ui
-                                .button(format!("{} {}", ph::COPY, s.t("db-copy")))
-                                .clicked()
-                            {
-                                ui.ctx().copy_text(text.clone());
-                            }
-                            if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref())
-                                && ui
-                                    .button(format!("{} {}", ph::FLOPPY_DISK, s.t("db-cell-save")))
-                                    .on_hover_text(s.t("db-cell-save-tip"))
-                                    .clicked()
-                                && let Some(path) = rfd::FileDialog::new()
-                                    .set_file_name(format!("cell.{}", sn.ext))
-                                    .add_filter(sn.label, &[sn.ext])
-                                    .save_file()
-                            {
-                                match std::fs::write(&path, b) {
-                                    Ok(()) => cx.toast(
-                                        ToastLevel::Success,
-                                        s.i18n.t_args(
-                                            "db-cell-saved",
-                                            &[("path", &path.display().to_string())],
-                                        ),
-                                    ),
-                                    Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
-                                }
-                            }
-                            if ui.button(s.t("close")).clicked() {
-                                close = true;
-                            }
-                        });
-                    }
-                    Dialog::SaveQuery { name } => {
-                        ui.heading(s.t("db-save-query"));
-                        ui.add_space(6.0);
-                        let r = ui.add(
-                            egui::TextEdit::singleline(name)
-                                .hint_text(s.t("db-query-name"))
+                        ui.label(s.i18n.t_args("db-type-name", &[("name", name)]));
+                        ui.add(
+                            egui::TextEdit::singleline(typed)
+                                .hint_text(name.as_str())
                                 .desired_width(f32::INFINITY),
                         );
-                        if name.is_empty() && !r.has_focus() {
-                            r.request_focus();
+                    }
+                    ui.add_space(10.0);
+                    let allowed = need.as_ref().is_none_or(|n| typed.trim() == n);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(
+                                allowed,
+                                egui::Button::new(
+                                    egui::RichText::new(s.t("db-run-anyway"))
+                                        .color(egui::Color32::WHITE),
+                                )
+                                .fill(theme.error),
+                            )
+                            .clicked()
+                        {
+                            let stmts = std::mem::take(stmts);
+                            let limit = *limit;
+                            then = Some(Box::new(move |t, s| t.start_run(stmts, limit, s)));
                         }
-                        let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        ui.add_space(10.0);
-                        ui.horizontal(|ui| {
-                            if (form::primary_button(ui, theme, &s.t("save")).clicked() || enter)
-                                && !name.trim().is_empty()
-                            {
-                                let n = name.trim().to_string();
-                                then = Some(Box::new(move |t, s| {
-                                    if let Err(e) = t.save_query(s, Some(n)) {
-                                        t.shared.lock().messages.push((false, e));
-                                    }
-                                }));
-                            }
-                            if ui.button(s.t("cancel")).clicked() {
-                                close = true;
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::AllowWrites => {
+                    ui.heading(s.t("db-allow-writes-title"));
+                    ui.add_space(4.0);
+                    ui.label(
+                        s.i18n
+                            .t_args("db-allow-writes-body", &[("conn", &conn), ("env", &env)]),
+                    );
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if form::danger_button(ui, theme, &s.t("db-allow-writes")).clicked() {
+                            then = Some(Box::new(|t, s| {
+                                t.writes_unlocked = true;
+                                t.connect(s);
+                            }));
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::Cell {
+                    title,
+                    text,
+                    bytes,
+                    sniffed,
+                    image_size,
+                } => {
+                    ui.heading(title.as_str());
+                    ui.add_space(4.0);
+                    if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref()) {
+                        let size = match image_size {
+                            Some((w, h)) => format!(" · {w} × {h}"),
+                            None => String::new(),
+                        };
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} · {}{size}",
+                                sn.label,
+                                human_bytes(b.len())
+                            ))
+                            .color(theme.text_muted),
+                        );
+                        ui.add_space(4.0);
+                    }
+                    let picture = matches!(
+                        sniffed.as_ref().map(|sn| sn.kind),
+                        Some(hs_core::sniff::Kind::Image | hs_core::sniff::Kind::Svg)
+                    );
+                    egui::ScrollArea::vertical()
+                        .max_height(420.0)
+                        .show(ui, |ui| {
+                            if picture && let Some(b) = bytes.as_ref() {
+                                let ext = sniffed.as_ref().map(|sn| sn.ext).unwrap_or("bin");
+                                let digest = {
+                                    use std::hash::{Hash, Hasher};
+                                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                                    b.hash(&mut h);
+                                    h.finish()
+                                };
+                                let uri = format!("bytes://db-cell-{digest:x}.{ext}");
+                                ui.add(
+                                    egui::Image::from_bytes(uri, b.clone())
+                                        .max_size(egui::vec2(620.0, 400.0))
+                                        .corner_radius(4.0),
+                                );
+                                ui.add_space(6.0);
+                                egui::CollapsingHeader::new(s.t("db-cell-hex"))
+                                    .default_open(false)
+                                    .show(ui, |ui| {
+                                        let mut shown = text.clone();
+                                        ui.add(
+                                            egui::TextEdit::multiline(&mut shown)
+                                                .font(egui::TextStyle::Monospace)
+                                                .desired_width(f32::INFINITY)
+                                                .desired_rows(8),
+                                        );
+                                    });
+                            } else {
+                                let mut shown = text.clone();
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut shown)
+                                        .font(egui::TextStyle::Monospace)
+                                        .desired_width(f32::INFINITY)
+                                        .desired_rows(12),
+                                );
                             }
                         });
-                    }
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button(format!("{} {}", ph::COPY, s.t("db-copy")))
+                            .clicked()
+                        {
+                            ui.ctx().copy_text(text.clone());
+                        }
+                        if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref())
+                            && ui
+                                .button(format!("{} {}", ph::FLOPPY_DISK, s.t("db-cell-save")))
+                                .on_hover_text(s.t("db-cell-save-tip"))
+                                .clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .set_file_name(format!("cell.{}", sn.ext))
+                                .add_filter(sn.label, &[sn.ext])
+                                .save_file()
+                        {
+                            match std::fs::write(&path, b) {
+                                Ok(()) => cx.toast(
+                                    ToastLevel::Success,
+                                    s.i18n.t_args(
+                                        "db-cell-saved",
+                                        &[("path", &path.display().to_string())],
+                                    ),
+                                ),
+                                Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+                            }
+                        }
+                        if ui.button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
                 }
-            });
+                Dialog::SaveQuery { name } => {
+                    ui.heading(s.t("db-save-query"));
+                    ui.add_space(6.0);
+                    let r = ui.add(
+                        egui::TextEdit::singleline(name)
+                            .hint_text(s.t("db-query-name"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    if name.is_empty() && !r.has_focus() {
+                        r.request_focus();
+                    }
+                    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        if (form::primary_button(ui, theme, &s.t("save")).clicked() || enter)
+                            && !name.trim().is_empty()
+                        {
+                            let n = name.trim().to_string();
+                            then = Some(Box::new(move |t, s| {
+                                if let Err(e) = t.save_query(s, Some(n)) {
+                                    t.shared.lock().messages.push((false, e));
+                                }
+                            }));
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+            }
+        });
         if modal.should_close() {
             close = true;
         }
@@ -2108,7 +2212,7 @@ impl DbTool {
         let mut insert: Option<String> = None;
         let mut copy: Option<String> = None;
         let mut refresh = false;
-        let area = egui::Area::new(self.view.id.with("tree-menu"))
+        let area = egui::Area::new(self.id.with("tree-menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos)
             .show(ui.ctx(), |ui| {
@@ -2221,7 +2325,7 @@ impl Tool for DbTool {
     }
 
     fn dirty(&self) -> bool {
-        self.shared.lock().in_tx || (self.state.query_file.is_some() && self.buf.dirty())
+        self.shared.lock().in_tx || (self.state.query_file.is_some() && self.doc().buf.dirty())
     }
 
     fn environment(&self) -> Option<String> {
@@ -2282,7 +2386,7 @@ impl Tool for DbTool {
         } else {
             s.t("db-tx-auto")
         };
-        egui::ComboBox::from_id_salt(self.view.id.with("tx"))
+        egui::ComboBox::from_id_salt(self.id.with("tx"))
             .selected_text(tx_label)
             .width(110.0)
             .show_ui(ui, |ui| {
@@ -2323,7 +2427,7 @@ impl Tool for DbTool {
                 s.i18n.t_args("db-limit-n", &[("n", &l.to_string())])
             }
         };
-        egui::ComboBox::from_id_salt(self.view.id.with("limit"))
+        egui::ComboBox::from_id_salt(self.id.with("limit"))
             .selected_text(limit_text(self.state.limit))
             .width(100.0)
             .show_ui(ui, |ui| {
@@ -2341,7 +2445,7 @@ impl Tool for DbTool {
                 s.i18n.t_args("db-timeout-sec", &[("n", &t.to_string())])
             }
         };
-        egui::ComboBox::from_id_salt(self.view.id.with("timeout"))
+        egui::ComboBox::from_id_salt(self.id.with("timeout"))
             .selected_text(timeout_text(self.state.timeout_secs))
             .width(100.0)
             .show_ui(ui, |ui| {
@@ -2449,117 +2553,6 @@ impl Tool for DbTool {
                     // tab's content, not a block nested under this row: it
                     // is what the connection is *for*, and it has to stay
                     // when the sidebar is hidden.
-                    ui.add_space(8.0);
-                    // History
-                    egui::CollapsingHeader::new(format!(
-                        "{} {}",
-                        ph::CLOCK_COUNTER_CLOCKWISE,
-                        s.t("db-history")
-                    ))
-                    .id_salt("db-history")
-                    .default_open(false)
-                    .show(ui, |ui| {
-                        if ui
-                            .add(
-                                egui::TextEdit::singleline(&mut self.history_search)
-                                    .hint_text(s.t("db-history-search"))
-                                    .desired_width(f32::INFINITY),
-                            )
-                            .changed()
-                        {
-                            self.reload_history(s);
-                        }
-                        let rows = self.history_rows.lock().clone();
-                        if rows.is_empty() {
-                            ui.label(egui::RichText::new(s.t("db-history-empty")).weak());
-                        }
-                        for h in rows.iter().take(50) {
-                            let icon = if h.status == "ok" {
-                                egui::RichText::new(ph::CHECK).color(theme.success)
-                            } else {
-                                egui::RichText::new(ph::X).color(theme.error)
-                            };
-                            let when = h
-                                .created_at
-                                .get(..16)
-                                .unwrap_or(&h.created_at)
-                                .replace('T', " ");
-                            let r = ui
-                                .add(
-                                    egui::Button::new({
-                                        let mut job = egui::text::LayoutJob::default();
-                                        icon.append_to(
-                                            &mut job,
-                                            ui.style(),
-                                            egui::FontSelection::Default,
-                                            egui::Align::Center,
-                                        );
-                                        egui::RichText::new(format!(" {}", short_sql(&h.sql)))
-                                            .append_to(
-                                                &mut job,
-                                                ui.style(),
-                                                egui::FontSelection::Default,
-                                                egui::Align::Center,
-                                            );
-                                        job
-                                    })
-                                    .frame(false)
-                                    .truncate(),
-                                )
-                                .tip(format!("{when} · {} ms\n{}", h.duration_ms, h.sql));
-                            if r.clicked() {
-                                let sql = if h.sql.trim_end().ends_with(';') {
-                                    h.sql.clone()
-                                } else {
-                                    format!("{};", h.sql)
-                                };
-                                self.insert_text(&sql);
-                            }
-                        }
-                    });
-                    // Saved queries
-                    egui::CollapsingHeader::new(format!(
-                        "{} {}",
-                        ph::BOOKMARK_SIMPLE,
-                        s.t("db-saved-queries")
-                    ))
-                    .id_salt("db-saved")
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        if self.saved.is_empty() {
-                            ui.label(egui::RichText::new(s.t("db-saved-empty")).weak());
-                        }
-                        let mut open = None;
-                        for q in &self.saved {
-                            let current = self
-                                .state
-                                .query_file
-                                .as_ref()
-                                .is_some_and(|f| q.path.ends_with(f));
-                            if ui
-                                .selectable_label(current, format!("{} {}", ph::FILE_SQL, q.name))
-                                .clicked()
-                            {
-                                open = Some(q.path.clone());
-                            }
-                        }
-                        if let Some(p) = open {
-                            if self.buf.dirty() && self.state.query_file.is_some()
-                                || !self.buf.text().trim().is_empty()
-                                    && self.state.query_file.is_none()
-                            {
-                                cx.open(
-                                    "db",
-                                    Some(OpenRequest::File {
-                                        uri: p.to_string_lossy().to_string(),
-                                        line: None,
-                                    }),
-                                );
-                            } else {
-                                self.open_saved(s, &p);
-                            }
-                        }
-                    });
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
                     if let Err(e) = s.connections.write().reorder(&["db"], from, to) {
@@ -2595,11 +2588,11 @@ impl Tool for DbTool {
                 text.clone(),
             ));
         }
-        let sel = hs_editor::view::selected_text(&self.buf, &self.cursors);
+        let sel = hs_editor::view::selected_text(&self.doc().buf, &self.doc().cursors);
         if !sel.trim().is_empty() {
             out.push(hs_core::tool::Speakable::new("Selected SQL", sel));
         }
-        let query = self.buf.text();
+        let query = self.doc().buf.text();
         if !query.trim().is_empty() {
             out.push(hs_core::tool::Speakable::new("Query", query));
         }
@@ -2612,7 +2605,7 @@ impl Tool for DbTool {
     fn printable(&self) -> Option<hs_core::tool::Printable> {
         let sh = self.shared.lock();
         let mut html = String::new();
-        let query = self.buf.text();
+        let query = self.doc().buf.text();
         if !query.trim().is_empty() {
             html.push_str("<h2>Query</h2>");
             html.push_str(&hs_core::html::pre(&query));
@@ -2663,7 +2656,7 @@ impl Tool for DbTool {
 
     fn save_state(&self) -> serde_json::Value {
         let mut st = self.state.clone();
-        st.sql = self.buf.text();
+        st.sql = self.doc().buf.text();
         serde_json::to_value(&st).unwrap_or_default()
     }
 
@@ -2714,8 +2707,8 @@ impl Tool for DbTool {
             }
             OpenRequest::File { uri, .. } if uri.ends_with(".sql") => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
-                if self.state.conn_id.is_none() && self.buf.text().trim().is_empty()
-                    || self.state.query_file.is_none() && self.buf.text().trim().is_empty()
+                if self.state.conn_id.is_none() && self.doc().buf.text().trim().is_empty()
+                    || self.state.query_file.is_none() && self.doc().buf.text().trim().is_empty()
                 {
                     self.open_saved(cx.services, &path)
                 } else {
@@ -2731,8 +2724,10 @@ impl Tool for DbTool {
         match ev {
             Event::SettingsChanged => {
                 let st = cx.services.settings.read();
-                self.view.font_size = st.editor.font_size;
-                self.view.right_click_copy_paste = st.editor.right_click_copy_paste;
+                for d in &mut self.docs {
+                    d.view.font_size = st.editor.font_size;
+                    d.view.right_click_copy_paste = st.editor.right_click_copy_paste;
+                }
             }
             Event::ConnectionsChanged
                 if self.state.conn_id.is_some() && !self.shared.lock().running =>
@@ -2790,8 +2785,12 @@ impl DbTool {
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(2.0);
+        // The tree takes the upper half; saved queries and history share
+        // the rest, so neither pushes the other off the column.
+        let tree_h = (ui.available_height() * 0.55).max(120.0);
         egui::ScrollArea::vertical()
             .id_salt("db-schema-column")
+            .max_height(tree_h)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let nodes = self.schema_nodes(s);
@@ -2814,6 +2813,245 @@ impl DbTool {
                     self.menu = Some((id, pos));
                 }
             });
+        self.queries_section(ui, theme, cx);
+    }
+
+    /// Saved queries and history, under the schema in the same column.
+    /// They belong to the connection, not to the list of connections, and
+    /// a reader reaches for a saved query far more often than for a line
+    /// of history — so Saved Queries goes first. Owner's requirement,
+    /// 2026-10-17.
+    fn queries_section(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
+        ui.add_space(8.0);
+        ui.separator();
+        ui.add_space(6.0);
+        egui::ScrollArea::vertical()
+            .id_salt("db-queries-section")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                egui::CollapsingHeader::new(format!(
+                    "{} {}",
+                    ph::BOOKMARK_SIMPLE,
+                    s.t("db-saved-queries")
+                ))
+                .id_salt("db-saved")
+                .default_open(true)
+                .show(ui, |ui| {
+                    if self.saved.is_empty() {
+                        ui.label(egui::RichText::new(s.t("db-saved-empty")).weak());
+                    }
+                    let mut open = None;
+                    for q in &self.saved {
+                        let current = self
+                            .state
+                            .query_file
+                            .as_ref()
+                            .is_some_and(|f| q.path.ends_with(f));
+                        if ui
+                            .selectable_label(current, format!("{} {}", ph::FILE_SQL, q.name))
+                            .clicked()
+                        {
+                            open = Some(q.path.clone());
+                        }
+                    }
+                    if let Some(p) = open {
+                        // A saved query opens as another query tab on this
+                        // connection, unless the one in front is empty and
+                        // unsaved -- no reason to leave a blank tab behind.
+                        let busy =
+                            self.doc().file.is_some() || !self.doc().buf.text().trim().is_empty();
+                        if busy {
+                            self.new_query(s);
+                        }
+                        self.open_saved(s, &p);
+                    }
+                });
+
+                ui.add_space(6.0);
+                ui.separator();
+                ui.add_space(6.0);
+                egui::CollapsingHeader::new(format!(
+                    "{} {}",
+                    ph::CLOCK_COUNTER_CLOCKWISE,
+                    s.t("db-history")
+                ))
+                .id_salt("db-history")
+                .default_open(false)
+                .show(ui, |ui| {
+                    if ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.history_search)
+                                .hint_text(s.t("db-history-search"))
+                                .desired_width(f32::INFINITY),
+                        )
+                        .changed()
+                    {
+                        self.reload_history(s);
+                    }
+                    let rows = self.history_rows.lock().clone();
+                    if rows.is_empty() {
+                        ui.label(egui::RichText::new(s.t("db-history-empty")).weak());
+                    }
+                    for h in rows.iter().take(50) {
+                        let icon = if h.status == "ok" {
+                            egui::RichText::new(ph::CHECK).color(theme.success)
+                        } else {
+                            egui::RichText::new(ph::X).color(theme.error)
+                        };
+                        let when = h
+                            .created_at
+                            .get(..16)
+                            .unwrap_or(&h.created_at)
+                            .replace('T', " ");
+                        let r = ui
+                            .add(
+                                egui::Button::new({
+                                    let mut job = egui::text::LayoutJob::default();
+                                    icon.append_to(
+                                        &mut job,
+                                        ui.style(),
+                                        egui::FontSelection::Default,
+                                        egui::Align::Center,
+                                    );
+                                    egui::RichText::new(format!(" {}", short_sql(&h.sql)))
+                                        .append_to(
+                                            &mut job,
+                                            ui.style(),
+                                            egui::FontSelection::Default,
+                                            egui::Align::Center,
+                                        );
+                                    job
+                                })
+                                .frame(false)
+                                .truncate(),
+                            )
+                            .tip(format!("{when} · {} ms\n{}", h.duration_ms, h.sql));
+                        if r.clicked() {
+                            let sql = if h.sql.trim_end().ends_with(';') {
+                                h.sql.clone()
+                            } else {
+                                format!("{};", h.sql)
+                            };
+                            self.insert_text(&sql);
+                        }
+                    }
+                });
+            });
+        ui.add_space(6.0);
+    }
+
+    /// The query tabs for this connection: a multi-row strip above the
+    /// editor, one tab per query, named by the saved query it holds or
+    /// Untitled. The shell's tab is one connection; the queries inside it
+    /// are these. Owner's requirement, 2026-10-17.
+    fn query_tabs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        struct QueryTab {
+            id: u64,
+            title: String,
+            dirty: bool,
+        }
+        impl hs_ui::tabs::TabItem for QueryTab {
+            fn id(&self) -> u64 {
+                self.id
+            }
+            fn title(&self) -> String {
+                self.title.clone()
+            }
+            fn icon(&self) -> &str {
+                ph::FILE_SQL
+            }
+            fn pinned(&self) -> bool {
+                false
+            }
+            fn dirty(&self) -> bool {
+                self.dirty
+            }
+        }
+        let untitled = s.t("db-untitled");
+        let tabs: Vec<QueryTab> = self
+            .docs
+            .iter()
+            .map(|d| QueryTab {
+                id: d.uid,
+                title: d.label(&untitled),
+                dirty: d.buf.dirty(),
+            })
+            .collect();
+        let active = self.doc().uid;
+        let labels = hs_ui::tabs::TabStripLabels {
+            new_tab: s.t("db-new-query"),
+            close: s.t("db-close-query"),
+            close_others: s.t("editor-close-others"),
+            close_left: s.t("tab-close-left"),
+            close_right: s.t("tab-close-right"),
+            pin: String::new(),
+            unpin: String::new(),
+            duplicate: String::new(),
+            split_right: String::new(),
+            split_down: String::new(),
+            copy_path: String::new(),
+        };
+        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let r = ui
+            .push_id(self.id.with("query-tabs"), |ui| {
+                hs_ui::tabs::TabStrip {
+                    theme,
+                    min_width,
+                    gap: 2.0,
+                    active: Some(active),
+                    visible: &[],
+                    labels: &labels,
+                    compact: true,
+                }
+                .show(ui, &tabs)
+            })
+            .inner;
+        if let Some(uid) = r.activated
+            && let Some(i) = self.docs.iter().position(|d| d.uid == uid)
+        {
+            self.state.active_query = i;
+        }
+        if let Some((from, to)) = r.reorder
+            && from < self.docs.len()
+            && to <= self.docs.len()
+        {
+            let d = self.docs.remove(from);
+            let to = to.min(self.docs.len());
+            self.docs.insert(to, d);
+            self.state.active_query = to;
+        }
+        if let Some(uid) = r.close
+            && let Some(i) = self.docs.iter().position(|d| d.uid == uid)
+        {
+            // The last one is emptied rather than removed: a connection
+            // tab with no query in it has nothing to show.
+            if self.docs.len() == 1 {
+                self.docs[0] = QueryDoc::new(s, "");
+            } else {
+                self.docs.remove(i);
+            }
+            self.state.active_query = self.state.active_query.min(self.docs.len() - 1);
+        }
+        if r.new_tab {
+            self.new_query(s);
+        }
+        self.sync_query_state();
+    }
+
+    /// Open another query tab on this connection, and put it in front.
+    fn new_query(&mut self, services: &Services) {
+        self.docs.push(QueryDoc::new(services, ""));
+        self.state.active_query = self.docs.len() - 1;
+    }
+
+    /// Keep the single-query fields the rest of the tool still reads in
+    /// step with whichever tab is in front.
+    fn sync_query_state(&mut self) {
+        self.state.query_file = self.doc().file.clone();
+        self.query_name = self.doc().name.clone();
+        self.state.queries = self.docs.iter().map(|d| d.file.clone()).collect();
     }
 
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -2873,29 +3111,30 @@ impl DbTool {
         // sidebar: hiding the connections list is about choosing a server,
         // and should not take the schema of the one you are in with it.
         if self.cmd.is_some() {
-            egui::Panel::left(self.view.id.with("db-schema"))
+            egui::Panel::left(self.id.with("db-schema"))
                 .resizable(true)
                 .default_size(260.0)
                 .size_range(160.0..=460.0)
                 .show(ui, |ui| self.schema_column(ui, &theme, cx));
         }
+        self.query_tabs(ui, cx, &theme);
         let total_h = ui.available_height();
         let editor_h = (total_h * self.state.editor_frac).clamp(80.0, (total_h - 120.0).max(80.0));
         let ed_theme = EditorTheme::for_theme(&theme);
-        let version_before = self.buf.version();
-        let head_before = self.cursors.primary().head;
+        let version_before = self.doc().buf.version();
+        let head_before = self.doc().cursors.primary().head;
         let resp = ui
             .allocate_ui(egui::vec2(ui.available_width(), editor_h), |ui| {
-                self.view
-                    .show(ui, &mut self.buf, &mut self.cursors, &ed_theme)
+                let d = self.doc_mut();
+                d.view.show(ui, &mut d.buf, &mut d.cursors, &ed_theme)
             })
             .inner;
-        if self.buf.version() != version_before {
-            self.view.error_ranges.clear();
+        if self.doc().buf.version() != version_before {
+            self.doc_mut().view.error_ranges.clear();
             // Typing keeps an open list in step; it closes once the word
             // ends (space, `;`, operator) like it opened.
             self.update_completion(false);
-        } else if self.cursors.primary().head != head_before {
+        } else if self.doc().cursors.primary().head != head_before {
             self.popup = None;
         }
         if !resp.focused {
@@ -2920,7 +3159,7 @@ impl DbTool {
         self.dialogs(ui, cx, &theme);
         let mut run_block: Option<String> = None;
         if self.assistant.open {
-            let query = self.buf.text();
+            let query = self.doc().buf.text();
             let last_error = self
                 .shared
                 .lock()
@@ -2968,13 +3207,14 @@ impl DbTool {
                         // Into the SQL editor at the cursor; Insert and Run
                         // then sends exactly that text through the same
                         // guards as the Run button (ADR-019).
-                        self.view.insert_at_cursors(
-                            &mut self.buf,
-                            &mut self.cursors,
+                        let d = self.doc_mut();
+                        d.view.insert_at_cursors(
+                            &mut d.buf,
+                            &mut d.cursors,
                             &block,
                             EditKind::Other,
                         );
-                        self.view.scroll_to_cursor();
+                        self.doc_mut().view.scroll_to_cursor();
                         if out.run {
                             run_block = Some(block);
                         }

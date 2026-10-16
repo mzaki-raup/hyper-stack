@@ -214,6 +214,13 @@ pub trait Tool: Send {
     /// Tab label, may change (file name, "query #3 — staging", host name).
     fn title(&self) -> Cow<'_, str>;
 
+    /// An image for this tool's tab, as an egui image URI, instead of the
+    /// descriptor's glyph. The browser returns the page's favicon; every
+    /// other tool leaves it `None`.
+    fn tab_icon_uri(&self) -> Option<String> {
+        None
+    }
+
     fn dirty(&self) -> bool {
         false
     }

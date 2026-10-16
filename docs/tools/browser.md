@@ -156,3 +156,20 @@ ICO holding several sizes and a tab wants one bitmap.
   when the icon arrives.
 - Nothing is written to disk, and the request carries no cookies: it is a
   plain GET from the app's own HTTP client, not from the page's session.
+
+### The address bar can be typed into (2026-10-17)
+
+A WebView2 child window takes keyboard focus back the moment it is allowed
+to, which is why `SetFocus` on the parent and wry's own `focus_parent()`
+both failed and the address bar could never be used. **A disabled window
+cannot be focused at all**, and that is what holds: while the address bar
+has egui focus the host calls `EnableWindow(child, FALSE)` on every view,
+and enables them again the moment the field gives the keyboard up
+(`Cmd::AddressFocus`). The tool sends that state every frame rather than
+once, because the web view only has to win one message to take the
+keyboard back.
+
+One consequence worth knowing: while the address bar is focused the page is
+not clickable, so the first click on the page is the one that returns the
+keyboard to it and the second reaches the page. That is the same two-step
+the app already has after a native dialog closes.

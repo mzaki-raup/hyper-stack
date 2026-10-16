@@ -279,16 +279,25 @@ mod imp {
                             }
                             continue;
                         }
-                        Cmd::FocusParent => {
-                            // wry asks WebView2 itself to hand the keyboard
-                            // back to the window that owns it. SetFocus on
-                            // the parent alone does not hold: the child
-                            // takes it straight back, and the address bar
-                            // stays unusable.
+                        Cmd::AddressFocus(on) => {
+                            // Asking politely does not work: `SetFocus` on
+                            // the parent and wry's own `focus_parent` both
+                            // hand the keyboard over and the WebView2 child
+                            // takes it straight back on its next message,
+                            // so the address bar could never be typed into.
+                            // A *disabled* window cannot be focused at all,
+                            // which is the only thing that holds. It is
+                            // enabled again the moment the field gives the
+                            // keyboard up.
                             for v in self.views.values() {
-                                let _ = v.webview.focus_parent();
+                                enable_webview(&v.webview, !*on);
                             }
-                            refocus_parent(frame);
+                            if *on {
+                                for v in self.views.values() {
+                                    let _ = v.webview.focus_parent();
+                                }
+                                refocus_parent(frame);
+                            }
                             continue;
                         }
                         Cmd::ClearData(id) => {
@@ -473,6 +482,24 @@ mod imp {
             if !hub.events.is_empty() {
                 ctx.request_repaint();
             }
+        }
+    }
+
+    /// Let the web view take the keyboard, or hold it off. Disabling the
+    /// child window is what actually keeps WebView2 from grabbing focus
+    /// back; nothing gentler survives its next message.
+    fn enable_webview(webview: &wry::WebView, enabled: bool) {
+        use wry::WebViewExtWindows;
+        unsafe extern "system" {
+            fn EnableWindow(hwnd: isize, enable: i32) -> i32;
+        }
+        let hwnd = webview.hwnd().0 as isize;
+        if hwnd == 0 {
+            return;
+        }
+        // SAFETY: a plain user32 call with the view's own child handle.
+        unsafe {
+            EnableWindow(hwnd, i32::from(enabled));
         }
     }
 

@@ -65,7 +65,8 @@ pub enum Cmd {
     /// window. A WebView2 child keeps focus even while egui thinks one of
     /// its own fields has it, and every keystroke disappears into the page
     /// — which is what made the address bar look read-only.
-    FocusParent,
+    /// The address bar has the keyboard (`true`) or has given it up.
+    AddressFocus(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -330,6 +331,7 @@ impl ToolFactory for BrowserFactory {
             focus_address: false,
             address_focused: false,
             pending: Vec::new(),
+            active_favicon: None,
             favicons: Arc::new(Mutex::new(HashMap::new())),
         })
     }
@@ -346,6 +348,9 @@ pub struct BrowserTool {
     pending: Vec<Cmd>,
     /// When Inspect was last acted on, so one click is one toggle.
     last_inspect_at: Option<f64>,
+    /// The active page's favicon, for the tool's own tab in the shell's
+    /// strip. Kept here because the shell asks for it outside `ui`.
+    active_favicon: Option<String>,
     /// One favicon per origin, so every page on a site shares the fetch.
     /// `Loading` while it is out, `Failed` for a site that has none — both
     /// are answers, and neither is asked twice.
@@ -586,6 +591,10 @@ impl Tool for BrowserTool {
         &DESCRIPTOR
     }
 
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.active_favicon.clone()
+    }
+
     fn title(&self) -> Cow<'_, str> {
         let p = self.page();
         if !p.title.is_empty() {
@@ -602,6 +611,9 @@ impl Tool for BrowserTool {
         self.tab_id = cx.tab_id;
         self.apply_events();
         let favicons = self.sync_favicons(ui.ctx(), s);
+        self.active_favicon = (!self.page().loading)
+            .then(|| favicons.get(&self.page().url).cloned().flatten())
+            .flatten();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let (available, host_error) = {
             let hub = self.hub.lock();
@@ -756,8 +768,12 @@ impl Tool for BrowserTool {
             // takes the keyboard back as soon as it is given up, so one
             // request is not enough to keep it.
             let focused = resp.has_focus();
-            if focused {
-                self.pending.push(Cmd::FocusParent);
+            // Every frame it is focused, and once more when it is not: a
+            // WebView2 child takes the keyboard back the moment it is
+            // allowed to, so this is a state the host has to hold, not an
+            // event it can act on once.
+            if focused || self.address_focused {
+                self.pending.push(Cmd::AddressFocus(focused));
             }
             self.address_focused = focused;
             if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {

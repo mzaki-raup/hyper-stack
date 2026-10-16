@@ -326,3 +326,29 @@ without touching the schema.
 
 This is the shape the NoSQL tool already had (its container tree is a column
 in the tab, not a sidebar block), so the two now read the same way.
+
+## Addendum (2026-10-17): one connection per tab, many queries inside it
+
+A window tab holds **one database connection**; the queries inside it are
+**query tabs** in a multi-row strip above the editor, the same strip the
+editor uses for its files. Owner's requirement, 2026-10-17.
+
+- Each query tab is a `QueryDoc` with its own buffer, cursors and view, so
+  moving between them keeps every caret and scroll where it was, and the
+  strip shows the unsaved dot per query rather than per connection.
+- A tab is named by the **saved query** it holds, or **Untitled** until it
+  is saved. Saving names the tab; opening a saved query from the schema
+  column opens **another query tab** on the same connection, rather than
+  asking the shell for another window tab — unless the tab in front is
+  empty and unsaved, in which case there is no reason to leave a blank one
+  behind.
+- **+** opens a new query on this connection; closing the last one empties
+  it rather than removing it, because a connection tab with no query in it
+  has nothing to show.
+- The layout remembers which saved query each tab held and which was in
+  front (`State::queries`, `State::active_query`). Text that was never
+  saved comes back only for the tab that was active, which is what the
+  layout has always kept.
+- Running, completion, Explain, history and Save Query all act on the tab
+  in front; `DbTool::doc()`/`doc_mut()` is the one place that decides which
+  that is.

@@ -2728,13 +2728,15 @@ fn reveal_dialog(
             ui.add_space(4.0);
             ui.colored_label(theme.error, e);
         }
-        ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            if ui.button(s.t("cancel")).clicked() {
-                close = true;
-            }
+        ui.add_space(10.0);
+        // Right-aligned with the action outermost, as every other dialog
+        // in the app lays its buttons out.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if form::primary_button(ui, theme, &s.t("settings-cred-reveal-go")).clicked() {
                 accept = true;
+            }
+            if ui.button(s.t("cancel")).clicked() {
+                close = true;
             }
         });
     });

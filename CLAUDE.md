@@ -846,10 +846,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   field then never reports the `lost_focus()` that an Enter press causes.
   Request it once, when nothing else has focus.
 - A WebView2 child holds **native keyboard focus** even when egui believes
-  one of its own fields has it, so the browser's address bar cannot be
-  typed into. `SetFocus` on the parent, `wry`'s `focus_parent()` and
-  hiding the view were all tried: the first two do not hold, and hiding
-  the view lost a tab. Unsolved; the address bar is still read-only.
+  one of its own fields has it. `SetFocus` on the parent and wry's
+  `focus_parent()` both hand it over and the child takes it straight back
+  on its next message; hiding the view lost a tab. What holds is
+  `EnableWindow(child, FALSE)`: a disabled window cannot be focused at
+  all. The host does that while the address bar has egui focus and
+  re-enables on blur (`Cmd::AddressFocus`, sent every frame because one
+  frame's gap is enough for the view to take the keyboard back).
 
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was

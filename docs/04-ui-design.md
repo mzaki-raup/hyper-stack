@@ -396,10 +396,15 @@ next frame and after a restart.
 Every sidebar list is the user's own collection, and the order is part of
 how someone works, so one helper does it everywhere: `hs_ui::reorder`.
 
-- A row is a drag source and a drop target at once. While a row is held, a
-  2 px accent line with a nub at its left end shows the **boundary** it
-  would land on — between two rows, not on one, because "below the third"
-  and "on the third" are different intentions.
+- Each row gets a small **drag grip** on its left (six dots, 14x22 px).
+  Only the grip starts a drag. Making the whole row the drag source is
+  what `Ui::dnd_drag_source` does, and it lays a `Sense::drag()`
+  interaction over everything the row drew — which swallows the row's own
+  clicks and hover, so the list looks right and does nothing. The grip
+  also tells the user the list can be reordered, which nothing else did.
+- While a row is held, a 2 px accent line with a nub at its left end shows
+  the **boundary** it would land on — between two rows, not on one,
+  because "below the third" and "on the third" are different intentions.
 - `Reorder::finish` reports `(from, to)` where `to` is that boundary in
   `0..=len`; the list is never touched by the helper. `move_item` applies
   it, and the caller saves wherever it keeps the order.

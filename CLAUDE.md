@@ -527,6 +527,19 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   input, and a click's consequences (a tab switch, an inserted block) may
   not be painted until the next event. `shot` now nudges the pointer by a
   pixel first; read the state from files or logs when it matters.
+- The GUI harness clicks in **window** coordinates (`GetWindowRect`), but
+  egui lays out in **client** coordinates: on this window they differ by
+  about (8, 31) — the border and the native title bar. A click is
+  forgiving about that, a drag is not, and a 31 px error lands on the
+  neighbouring row, which looks exactly like "drag-and-drop is broken" and
+  then like "the order changes at random". Read the real rectangle out of
+  the app (a temporary `tracing::info!(?rect)`) before concluding anything
+  about a drag; do not infer coordinates from a cropped screenshot.
+- egui's `Ui::dnd_drag_source` covers its content with
+  `interact(rect, id, Sense::drag())`. Anything the content drew stops
+  receiving clicks and hover, because that interaction is on top: a list
+  whose rows are drag sources becomes unclickable. Drag from a grip that
+  owns its own small rectangle instead (`hs_ui::reorder`).
 - `Stop-Process -Name HyperStack` kills the owner's own installed copy
   too (`C:\Apps\hyper-stack`); stop the dev instance by pid
   (`hs-gui.pid`) and pick it with `Where-Object Path -like "D:\WORKSPACES\*"`.

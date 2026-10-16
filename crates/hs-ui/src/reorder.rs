@@ -56,24 +56,63 @@ impl Reorder {
         self.dragged.is_some()
     }
 
-    /// Draw row `index`. The row becomes a drag handle and a drop target;
-    /// `add` draws its contents as usual and its value is returned
-    /// untouched, so an existing row body needs no changes.
+    /// Draw row `index` with a drag grip on its left. `add` draws the row
+    /// as usual and its value is returned untouched, so an existing row
+    /// body needs no changes — and keeps all of its own interaction.
+    ///
+    /// Only the grip is a drag source. Making the whole row one puts a
+    /// `Sense::drag()` interaction over it (that is what
+    /// `Ui::dnd_drag_source` does), which sits on top of whatever the row
+    /// drew and swallows its clicks and hovers: the list becomes pretty
+    /// and unusable. The grip also says the list can be reordered, which
+    /// nothing else does.
     pub fn row<R>(
         &mut self,
         ui: &mut egui::Ui,
         index: usize,
         add: impl FnOnce(&mut egui::Ui) -> R,
     ) -> R {
-        let row_id = self.id.with(index);
-        let egui::InnerResponse { inner, response } =
-            ui.dnd_drag_source(row_id, DragIndex(index), add);
-        if let Some(p) = response.dnd_hover_payload::<DragIndex>() {
+        let mut inner = None;
+        let row = ui.horizontal(|ui| {
+            // An explicit rectangle, not a Label: the glyph's own size
+            // depends on whether the icon font has it, and a grip that is
+            // a few pixels wide is one nobody can grab.
+            // A rect of its own, then an interaction with an id of our
+            // own, so the grip's drag state is remembered per row rather
+            // than per position on screen.
+            let (grip_rect, _) =
+                ui.allocate_exact_size(egui::vec2(GRIP_WIDTH, GRIP_HEIGHT), egui::Sense::hover());
+            let grip = ui.interact(grip_rect, self.id.with(index), egui::Sense::drag());
+            ui.painter().text(
+                grip_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                GRIP,
+                egui::FontId::proportional(14.0),
+                if grip.hovered() {
+                    ui.visuals().strong_text_color()
+                } else {
+                    ui.visuals().weak_text_color()
+                },
+            );
+            if grip.drag_started() {
+                egui::DragAndDrop::set_payload(ui.ctx(), DragIndex(index));
+            }
+            if grip.dragged() {
+                egui::DragAndDrop::set_payload(ui.ctx(), DragIndex(index));
+            }
+            grip.on_hover_cursor(egui::CursorIcon::Grab);
+            inner = Some(add(ui));
+        });
+        // The drop boundary is judged from the whole row, not the grip.
+        let rect = row.response.rect;
+        // interact_pos, not hover_pos: egui reports no hover while a mouse
+        // button is held, which is exactly when a drag is in flight.
+        let pointer_now = ui.input(|i| i.pointer.interact_pos());
+        if let Some(p) = egui::DragAndDrop::payload::<DragIndex>(ui.ctx())
+            && pointer_now.is_some_and(|pos| rect.y_range().contains(pos.y))
+        {
             self.dragged = Some(p.0);
-            // Above or below this row, whichever edge the pointer is nearer:
-            // that is the boundary the row would land on.
-            let rect = response.rect;
-            let pointer = ui.input(|i| i.pointer.hover_pos()).unwrap_or(rect.center());
+            let pointer = pointer_now.unwrap_or(rect.center());
             let (boundary, y) = if pointer.y < rect.center().y {
                 (index, rect.top())
             } else {
@@ -81,7 +120,7 @@ impl Reorder {
             };
             self.target = Some((boundary, y, rect.x_range()));
         }
-        inner
+        inner.expect("the row body runs exactly once")
     }
 
     /// The move the user made, once every row has been drawn. Call this
@@ -106,6 +145,13 @@ impl Reorder {
         Some((from, to))
     }
 }
+
+/// How big the grab area is, whatever the glyph measures.
+const GRIP_WIDTH: f32 = 14.0;
+const GRIP_HEIGHT: f32 = 22.0;
+
+/// The grip glyph: six dots, the usual "drag me" mark.
+const GRIP: &str = egui_phosphor::regular::DOTS_SIX_VERTICAL;
 
 /// The payload: which row left. Its own type so two lists on screen cannot
 /// accept each other's rows.

@@ -14,12 +14,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Lists can be put in the order you work in, by dragging a row with a line
-  showing where it would land: the SSH hosts, database, Redis and NoSQL
+  showing where it would land. Each row has a small drag grip on its left,
+  so the row itself keeps all of its own clicks and hovers: the SSH hosts, database, Redis and NoSQL
   connections, S3 profiles, the whole list in Settings → Connections, and
   the shell profiles in the terminal sidebar. The API collections, which
   nest, follow.
   A connection profile remembers its place in an `order` field, and
   reordering one kind's list never disturbs another's.
+- The SFTP pane's actions moved from a bar under the listing into a
+  right-click menu on the file or folder itself: Open in Editor, Rename,
+  Download, Copy, Copy Path, Delete, and Open Terminal Here for a folder.
+  Double-clicking the empty space below the listing goes up a level.
 - Tools can be kept out of the activity rail: Settings → Appearance →
   Activity Rail has a Show checkbox beside each one, next to the order
   arrows. Hiding a tool never makes it unreachable — saving a connection

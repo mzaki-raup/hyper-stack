@@ -1122,6 +1122,7 @@ impl RedisTool {
                     row_height: 22.0,
                     show_filter: true,
                     copy_row_label: &s.t("redis-copy-row"),
+                    built_in_menu: true,
                 };
                 let resp = table.show(ui, &mut self.table);
                 if let Some(text) = resp.copied {

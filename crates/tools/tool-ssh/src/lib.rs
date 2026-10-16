@@ -130,6 +130,9 @@ pub struct SshTool {
     path_edit_synced: bool,
     rename: Option<(String, String)>,
     new_folder: Option<String>,
+    /// Right-clicked entry (index into the listing) and the pointer, so the
+    /// menu opens where the click was.
+    entry_menu: Option<(usize, egui::Pos2)>,
     confirm_delete: Option<String>,
     startup_sent: bool,
     conn_name: String,
@@ -176,6 +179,7 @@ impl SshTool {
             path_edit_synced: true,
             rename: None,
             new_folder: None,
+            entry_menu: None,
             confirm_delete: None,
             startup_sent: false,
             conn_name: String::new(),
@@ -780,6 +784,8 @@ impl SshTool {
             row_height: 24.0,
             show_filter: false,
             copy_row_label: &copy_label,
+            // The pane has a menu of its own, below.
+            built_in_menu: false,
         };
         let resp = table.show(ui, &mut self.table);
         // Map table row (shown index) back to the entry index.
@@ -797,65 +803,130 @@ impl SshTool {
                 self.open_in_editor(cx, target);
             }
         }
-        // Actions for the selected entry.
-        if let Some(e) = self.selected_entry() {
-            ui.separator();
-            ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new(&e.name).strong());
-                let target = Self::join(&path, &e.name);
-                if !e.is_dir && ui.button(s.t("ssh-open-in-editor")).clicked() {
-                    self.open_in_editor(cx, target.clone());
-                }
-                if !e.is_dir
-                    && ui.button(s.t("ssh-download")).clicked()
-                    && let Some(local) = rfd::FileDialog::new().set_file_name(&e.name).save_file()
-                {
-                    let done =
-                        self.after_job(s, s.i18n.t_args("ssh-downloaded", &[("name", &e.name)]));
-                    let remote = target.clone();
-                    self.with_sftp(
-                        s,
-                        format!("Download {}", e.name),
-                        move |sftp, h| async move {
-                            let r = download_file(&sftp, &remote, &local, &h).await;
-                            done(r.clone());
-                            r
-                        },
-                    );
-                }
-                if ui.button(s.t("ssh-rename")).clicked() {
-                    self.rename = Some((target.clone(), e.name.clone()));
-                }
-                if ui
-                    .button(egui::RichText::new(s.t("ssh-delete")).color(theme.error))
-                    .clicked()
-                {
-                    self.confirm_delete = Some(target.clone());
-                }
-                if ui.button(s.t("editor-copy-path")).clicked() {
-                    ui.ctx().copy_text(target.clone());
-                }
-                // Copy to the clipboard as a file, so it can be pasted into
-                // the file manager.
-                if ui
-                    .button(s.t("ssh-copy-file"))
-                    .tip(s.t("ssh-copy-file-tip"))
-                    .clicked()
-                {
-                    self.copy_to_clipboard(s, target.clone(), e.name.clone());
-                }
-                if e.is_dir
-                    && ui.button(s.t("editor-open-terminal-here")).clicked()
-                    && let Some(sess) = &self.session
-                {
-                    sess.write(format!(" cd {}\n", hs_ssh::shell_quote(&target)).as_bytes());
-                }
-            });
+        if let Some(i) = resp.secondary {
+            self.table.selected = to_entry(i);
+            if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
+                self.entry_menu = to_entry(i).map(|e| (e, pos));
+            }
+        }
+        // Double-clicking the empty space below the listing goes up a level,
+        // the way a file manager does.
+        let below = ui.available_rect_before_wrap();
+        if below.height() > 2.0 {
+            let r = ui.interact(below, ui.id().with("sftp-empty"), egui::Sense::click());
+            if r.double_clicked() {
+                let p = Self::parent(&path);
+                self.navigate(s, p, false);
+            }
+            if r.secondary_clicked() {
+                self.table.selected = None;
+                self.entry_menu = None;
+            }
         }
     }
 }
 
 impl SshTool {
+    /// The right-click menu for a file or folder. Everything the pane can
+    /// do to one entry lives here; the pane itself has no action bar.
+    fn entry_menu(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let Some((idx, pos)) = self.entry_menu else {
+            return;
+        };
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let (dir, entry) = {
+            let sh = self.shared.lock();
+            (sh.remote.path.clone(), sh.remote.entries.get(idx).cloned())
+        };
+        let Some(e) = entry else {
+            self.entry_menu = None;
+            return;
+        };
+        let target = Self::join(&dir, &e.name);
+        let mut close = false;
+        let area = egui::Area::new(self.view.id.with("sftp-menu"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(pos)
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.set_min_width(190.0);
+                    if !e.is_dir && ui.button(s.t("ssh-open-in-editor")).clicked() {
+                        self.open_in_editor(cx, target.clone());
+                        close = true;
+                    }
+                    if ui.button(s.t("ssh-rename")).clicked() {
+                        self.rename = Some((target.clone(), e.name.clone()));
+                        close = true;
+                    }
+                    ui.separator();
+                    if !e.is_dir && ui.button(s.t("ssh-download")).clicked() {
+                        if let Some(local) =
+                            rfd::FileDialog::new().set_file_name(&e.name).save_file()
+                        {
+                            let done = self.after_job(
+                                s,
+                                s.i18n.t_args("ssh-downloaded", &[("name", &e.name)]),
+                            );
+                            let remote = target.clone();
+                            self.with_sftp(
+                                s,
+                                format!("Download {}", e.name),
+                                move |sftp, h| async move {
+                                    let r = download_file(&sftp, &remote, &local, &h).await;
+                                    done(r.clone());
+                                    r
+                                },
+                            );
+                        }
+                        close = true;
+                    }
+                    ui.separator();
+                    if ui
+                        .button(s.t("ssh-copy-file"))
+                        .on_hover_text(s.t("ssh-copy-file-tip"))
+                        .clicked()
+                    {
+                        self.copy_to_clipboard(s, target.clone(), e.name.clone());
+                        close = true;
+                    }
+                    if ui.button(s.t("editor-copy-path")).clicked() {
+                        ui.ctx().copy_text(target.clone());
+                        close = true;
+                    }
+                    ui.separator();
+                    if ui
+                        .button(egui::RichText::new(s.t("ssh-delete")).color(theme.error))
+                        .clicked()
+                    {
+                        self.confirm_delete = Some(target.clone());
+                        close = true;
+                    }
+                    if e.is_dir {
+                        ui.separator();
+                        if ui.button(s.t("editor-open-terminal-here")).clicked() {
+                            if let Some(sess) = &self.session {
+                                sess.write(
+                                    format!(" cd {}\n", hs_ssh::shell_quote(&target)).as_bytes(),
+                                );
+                            }
+                            close = true;
+                        }
+                    }
+                });
+            });
+        // A click anywhere else puts the menu away. The menu's own rect is
+        // tested here rather than trusting clicked_elsewhere, which reports
+        // true for clicks on the area's own buttons.
+        let clicked_out = ui.input(|i| i.pointer.any_click())
+            && ui
+                .input(|i| i.pointer.interact_pos())
+                .is_some_and(|p| !area.response.rect.contains(p));
+        if close || clicked_out || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.entry_menu = None;
+        }
+    }
+
     /// Copy the entry the table has selected, if any.
     fn copy_selected(&mut self, s: &Services) {
         let Some(e) = self.selected_entry() else {
@@ -1382,6 +1453,7 @@ impl Tool for SshTool {
         }
         self.hostkey_dialog(ui, &theme, s);
         self.prompts(ui, &theme, cx);
+        self.entry_menu(ui, cx);
 
         // Layout: a straight 50/50 split of the tool's width — file pane on the
         // left, shell on the right. Both panes are carved into fixed

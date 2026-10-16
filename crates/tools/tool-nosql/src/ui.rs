@@ -934,6 +934,7 @@ impl NoSqlTool {
                         row_height: 22.0,
                         show_filter: false,
                         copy_row_label: &s.t("nosql-copy-row"),
+                        built_in_menu: true,
                     };
                     let resp = table.show(ui, &mut self.table);
                     if let Some(text) = resp.copied {

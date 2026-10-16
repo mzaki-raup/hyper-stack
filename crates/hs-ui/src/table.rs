@@ -40,6 +40,9 @@ pub struct TableResponse {
     pub double_clicked: Option<usize>,
     /// Text copied to the clipboard this frame (row as TSV).
     pub copied: Option<String>,
+    /// Right-clicked row, for a caller that draws its own menu
+    /// (`built_in_menu: false`).
+    pub secondary: Option<usize>,
 }
 
 pub struct DataTable<'a> {
@@ -50,6 +53,9 @@ pub struct DataTable<'a> {
     pub show_filter: bool,
     /// Context-menu label for copying a row (Title Case, from the locale).
     pub copy_row_label: &'a str,
+    /// Draw the built-in Copy Row menu. Set false when the caller has a
+    /// menu of its own to show for `TableResponse::secondary`.
+    pub built_in_menu: bool,
 }
 
 impl DataTable<'_> {
@@ -178,12 +184,17 @@ impl DataTable<'_> {
                     if r.double_clicked() {
                         resp.double_clicked = Some(data_idx);
                     }
-                    r.context_menu(|ui| {
-                        if ui.button(self.copy_row_label).clicked() {
-                            copy_row = Some(data_idx);
-                            ui.close();
-                        }
-                    });
+                    if r.secondary_clicked() {
+                        resp.secondary = Some(data_idx);
+                    }
+                    if self.built_in_menu {
+                        r.context_menu(|ui| {
+                            if ui.button(self.copy_row_label).clicked() {
+                                copy_row = Some(data_idx);
+                                ui.close();
+                            }
+                        });
+                    }
                 });
             });
         if let Some(s) = new_sort {
@@ -221,6 +232,7 @@ mod tests {
             row_height: 18.0,
             show_filter: true,
             copy_row_label: "Copy Row",
+            built_in_menu: true,
         };
         let mut st = TableState::default();
         assert_eq!(t.order(&st), vec![0, 1, 2]);

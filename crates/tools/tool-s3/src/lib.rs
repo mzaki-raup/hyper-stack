@@ -964,6 +964,7 @@ impl S3Tool {
                     row_height: 24.0,
                     show_filter: true,
                     copy_row_label: &copy_label,
+                    built_in_menu: true,
                 }
                 .show(ui, &mut self.table)
             })

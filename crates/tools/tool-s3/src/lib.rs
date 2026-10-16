@@ -1013,13 +1013,6 @@ impl Tool for S3Tool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let in_bucket = self.state.bucket.is_some() && self.client.is_some();
-        if ui
-            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-            .tip(s.t("ai-shared-button-tip"))
-            .clicked()
-        {
-            self.assistant.toggle("S3");
-        }
         let selected = self.selected_row();
         let is_object = matches!(selected, Some(Row::Object(_)));
         let btn = |ui: &mut egui::Ui, enabled: bool, icon: &str, key: &str| {
@@ -1060,6 +1053,17 @@ impl Tool for S3Tool {
         if btn(ui, in_bucket && selected.is_some(), ph::TRASH, "s3-delete") {
             self.ask_delete(s);
         }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .tip(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("S3");
+            }
+        });
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {

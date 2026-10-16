@@ -3371,6 +3371,7 @@ dependencies = [
  "fluent-bundle",
  "futures-util",
  "hmac 0.12.1",
+ "image",
  "md-5 0.10.6",
  "minisign-verify",
  "parking_lot",

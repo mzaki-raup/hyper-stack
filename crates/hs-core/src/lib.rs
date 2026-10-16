@@ -24,6 +24,7 @@ pub mod download;
 pub mod env_path;
 pub mod environments;
 pub mod events;
+pub mod favicon;
 pub mod fmt;
 pub mod fuzzy;
 pub mod html;

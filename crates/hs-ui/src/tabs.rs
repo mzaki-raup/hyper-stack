@@ -28,6 +28,13 @@ pub trait TabItem {
     fn id(&self) -> u64;
     fn title(&self) -> String;
     fn icon(&self) -> &str;
+    /// An image to draw instead of [`TabItem::icon`], as an egui image URI
+    /// (`bytes://…` for something already loaded). The browser's tabs use
+    /// it for the page's favicon; everything else leaves it `None` and the
+    /// glyph is drawn.
+    fn icon_uri(&self) -> Option<String> {
+        None
+    }
     fn pinned(&self) -> bool;
     /// Whether this tab shows only its icon once pinned. True for the
     /// browser, where the favicon identifies the page; false everywhere
@@ -367,13 +374,28 @@ impl TabStrip<'_> {
 
         let font = egui::FontId::proportional(if self.compact { 13.0 } else { 14.0 });
         let icon_pos = Pos2::new(rect.left() + 10.0, rect.center().y);
-        painter.text(
-            icon_pos,
-            egui::Align2::LEFT_CENTER,
-            tab.icon(),
-            font.clone(),
-            self.theme.text_muted,
-        );
+        // A favicon if the tab has one, the glyph otherwise. The image is
+        // drawn at the glyph's size so the two cases line up and a tab does
+        // not shift when its favicon arrives.
+        match tab.icon_uri() {
+            Some(uri) => {
+                let size = Vec2::splat(14.0);
+                let at =
+                    Rect::from_center_size(Pos2::new(icon_pos.x + size.x / 2.0, icon_pos.y), size);
+                egui::Image::from_uri(uri)
+                    .fit_to_exact_size(size)
+                    .paint_at(ui, at);
+            }
+            None => {
+                painter.text(
+                    icon_pos,
+                    egui::Align2::LEFT_CENTER,
+                    tab.icon(),
+                    font.clone(),
+                    self.theme.text_muted,
+                );
+            }
+        }
 
         // The pinned marker: a bar down the leading edge in the tab's own
         // colour. A pinned tab keeps its name — losing it was the thing

@@ -2449,20 +2449,24 @@ fn credentials_section(
             return;
         }
         ui.add_space(6.0);
-        // Eight columns do not fit a settings page, and squeezing them
+        // Username and Password share one width — the wider of the two —
+        // so the two columns a reader compares line up instead of jumping
+        // about with the length of each value. Every other column is left
+        // to the grid, which sizes it to its own content.
+        let pair_width = credentials_pair_width(ui, s, &rows, state, now);
+        // Seven columns do not fit a settings page, and squeezing them
         // would hide the values this page exists to show.
         egui::ScrollArea::horizontal()
             .id_salt("sec-cred-scroll")
             .show(ui, |ui| {
                 egui::Grid::new("sec-cred-grid")
-                    .num_columns(8)
-                    .spacing([14.0, 6.0])
+                    .num_columns(7)
+                    .spacing([18.0, 6.0])
                     .striped(true)
                     .show(ui, |ui| {
                         for key in [
                             "settings-cred-name",
                             "settings-cred-type",
-                            "settings-cred-string",
                             "settings-cred-host",
                             "settings-cred-port",
                             "settings-cred-user",
@@ -2479,12 +2483,11 @@ fn credentials_section(
                         for r in &rows {
                             ui.label(&r.name);
                             ui.label(hs_core::connections::kind_label(&r.kind));
-                            cred_cell(ui, s, theme, &r.conn_string, effects);
-                            cred_cell(ui, s, theme, &r.host, effects);
+                            cred_cell(ui, s, theme, &r.host, None, effects);
                             ui.label(&r.port);
-                            cred_cell(ui, s, theme, &r.user, effects);
-                            password_cell(ui, s, theme, state, r, now, effects);
-                            cred_cell(ui, s, theme, &r.key, effects);
+                            cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
+                            password_cell(ui, s, theme, state, r, now, pair_width, effects);
+                            cred_cell(ui, s, theme, &r.key, None, effects);
                             ui.end_row();
                         }
                     });
@@ -2493,20 +2496,87 @@ fn credentials_section(
     reveal_dialog(ui, theme, s, state, now);
 }
 
-/// A plain cell: the value, and a button that copies it.
+/// How wide the Username and Password columns both are: whatever the
+/// widest value in either needs. Measured rather than guessed, so a page of
+/// short names does not leave two narrow columns beside a long one.
+fn credentials_pair_width(
+    ui: &egui::Ui,
+    s: &Services,
+    rows: &[crate::credentials::Row],
+    state: &SettingsState,
+    now: f64,
+) -> f32 {
+    use crate::credentials::Password;
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    let mono = egui::TextStyle::Monospace.resolve(ui.style());
+    let painter = ui.painter();
+    let width = |text: &str, font: &egui::FontId| {
+        painter
+            .layout_no_wrap(text.to_string(), font.clone(), egui::Color32::WHITE)
+            .rect
+            .width()
+    };
+    let mut widest = width(&s.t("settings-cred-password"), &body);
+    for r in rows {
+        widest = widest.max(width(&r.user, &body));
+        let revealed = state
+            .reveal
+            .as_ref()
+            .is_some_and(|(id, until)| id == &r.id && now < *until);
+        let shown = match (&r.password, revealed) {
+            (Password::None, _) => "—".to_string(),
+            (Password::Variable(v), _) => v.clone(),
+            (Password::Plain(p), true) => p.clone(),
+            (Password::Vault(_), true) => s
+                .secrets
+                .get(match &r.password {
+                    Password::Vault(k) => k,
+                    _ => unreachable!(),
+                })
+                .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+                .unwrap_or_else(|_| s.t("settings-cred-missing")),
+            _ => MASK.to_string(),
+        };
+        widest = widest.max(width(&shown, &mono));
+    }
+    widest
+}
+
+/// The masked form of a stored password. Fixed width on purpose: its length
+/// must say nothing about the password's.
+const MASK: &str = "••••••••";
+
+/// A plain cell: the value, and a button that copies it. `width` pins the
+/// value's width when the column is one of the pair that share one.
 fn cred_cell(
     ui: &mut egui::Ui,
     s: &Services,
     theme: &Theme,
     value: &str,
+    width: Option<f32>,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    if value.is_empty() {
-        ui.label(egui::RichText::new("—").color(theme.text_muted));
-        return;
-    }
     ui.horizontal(|ui| {
-        ui.add(egui::Label::new(value).selectable(false).truncate());
+        let show = |ui: &mut egui::Ui| {
+            if value.is_empty() {
+                ui.label(egui::RichText::new("—").color(theme.text_muted));
+            } else {
+                ui.add(egui::Label::new(value).selectable(false).truncate());
+            }
+        };
+        match width {
+            Some(w) => {
+                ui.scope(|ui| {
+                    ui.set_min_width(w);
+                    ui.set_max_width(w);
+                    show(ui);
+                });
+            }
+            None => show(ui),
+        }
+        if value.is_empty() {
+            return;
+        }
         if ui
             .small_button(hs_ui::icons::COPY)
             .on_hover_text(s.t("dt-copy"))
@@ -2521,6 +2591,7 @@ fn cred_cell(
     });
 }
 
+#[allow(clippy::too_many_arguments)] // one cell, one argument each.
 fn password_cell(
     ui: &mut egui::Ui,
     s: &Services,
@@ -2528,16 +2599,17 @@ fn password_cell(
     state: &mut SettingsState,
     row: &crate::credentials::Row,
     now: f64,
+    width: f32,
     effects: &mut Vec<SettingsEffect>,
 ) {
     use crate::credentials::Password;
     match &row.password {
         Password::None => {
-            ui.label(egui::RichText::new("—").color(theme.text_muted));
+            cred_cell(ui, s, theme, "", Some(width), effects);
         }
         // A variable names an environment value; masking it would hide
         // which one, which is the only thing worth reading here.
-        Password::Variable(v) => cred_cell(ui, s, theme, v, effects),
+        Password::Variable(v) => cred_cell(ui, s, theme, v, Some(width), effects),
         secret => {
             let revealed = state
                 .reveal
@@ -2557,19 +2629,29 @@ fn password_cell(
                 _ => Ok(String::new()),
             });
             ui.horizontal(|ui| {
-                match &shown {
-                    Some(Ok(v)) => {
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(v).monospace()).selectable(false),
-                        );
+                ui.scope(|ui| {
+                    ui.set_min_width(width);
+                    ui.set_max_width(width);
+                    match &shown {
+                        Some(Ok(v)) => {
+                            ui.add(
+                                egui::Label::new(egui::RichText::new(v).monospace())
+                                    .selectable(false)
+                                    .truncate(),
+                            );
+                        }
+                        Some(Err(e)) => {
+                            ui.colored_label(theme.error, e);
+                        }
+                        None => {
+                            ui.label(
+                                egui::RichText::new(MASK)
+                                    .monospace()
+                                    .color(theme.text_muted),
+                            );
+                        }
                     }
-                    Some(Err(e)) => {
-                        ui.colored_label(theme.error, e);
-                    }
-                    None => {
-                        ui.label(egui::RichText::new("••••••••").color(theme.text_muted));
-                    }
-                }
+                });
                 let eye = if revealed {
                     hs_ui::icons::EYE_SLASH
                 } else {

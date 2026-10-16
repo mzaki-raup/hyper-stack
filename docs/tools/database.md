@@ -310,3 +310,19 @@ What exists, and where it differs from the sections above:
   verified against PostgreSQL 16 and MariaDB 10.11. Unit tests cover the
   splitter and classifier, completion, export formats, URL parsing,
   history redaction and the grid (egui_kittest).
+
+## Addendum (2026-10-17): the schema is a column, not a sidebar block
+
+The server's version, the object filter and the schema tree now sit in
+their own **column beside the editor** rather than nested under the selected
+row of the connections list. Owner's requirement, 2026-10-17.
+
+The reason is what each one is for: the sidebar is for *choosing a server*,
+and hiding it should not take away the schema of the server you are already
+working in. The column is a resizable `egui::Panel::left` inside the tool,
+160–460 points, and it appears only once a session is open. The connections
+list, History and Saved Queries stay in the sidebar, which can be hidden
+without touching the schema.
+
+This is the shape the NoSQL tool already had (its container tree is a column
+in the tab, not a sidebar block), so the two now read the same way.

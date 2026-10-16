@@ -32,6 +32,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   choose and says so. Broken input is never quietly reformatted — the
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
+- Browser page tabs show the site's **favicon**. There is no favicon API
+  in wry on Windows, so it is fetched from the origin's `/favicon.ico` and
+  normalised to one small PNG — once per site, not once per tab, and the
+  globe stays for a page that is loading or has no origin to ask.
+
+- The database tool's **schema is a column beside the editor** — version,
+  filter and object tree — rather than a block nested in the connections
+  list. Hiding the sidebar is about choosing a server; it no longer takes
+  the schema of the one you are in with it.
+
 - The **AI assistant reaches Redis and the NoSQL tool**, the two that did
   not have it. Both are review-only: Redis can put a command in the
   console's input and the document store can fill the filter or pipeline
@@ -40,8 +50,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   container and the query — and nothing else.
 
 - **Credentials** in Settings → Security: every connection in the
-  workspace in one grid — name, type, connection string, host/URL, port,
-  username, password and key — with a copy button on each value. Passwords
+  workspace in one grid — name, type, host/URL, port, username, password
+  and key — with a copy button on each value. Every column sizes itself to
+  its content except Username and Password, which share one width so the
+  two a reader compares line up. Passwords
   are masked; uncovering one costs the master password, applies to that row
   alone and covers itself again after 30 seconds. Copying a password is
   gated the same way and now honours **Clear Clipboard After Copying a

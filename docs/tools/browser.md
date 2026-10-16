@@ -136,3 +136,23 @@ port. Any program running as this user can then drive the browser tabs:
 read their cookies, navigate them, read page content. That is why the
 setting is off until it is asked for, and why Inspect opens WebView2's own
 window otherwise.
+
+## Addendum (2026-10-17): favicons on page tabs
+
+A page tab shows the site's **favicon** instead of a globe. wry exposes no
+favicon API on Windows, so the icon is fetched the way the web has always
+offered it: `GET {origin}/favicon.ico` (`hs_core::favicon`). What comes back
+is decoded and re-encoded as one 32-pixel PNG, because a favicon can be an
+ICO holding several sizes and a tab wants one bitmap.
+
+- **One fetch per origin**, not per tab: every page on a site shares the
+  icon, and a site with none is asked once and remembered as having none.
+- The glyph is still drawn while a page is **loading** — the spinner says
+  more than a stale icon — and for anything without an origin to ask (a
+  local file, `about:blank`, a data URL).
+- The bytes reach egui as a `bytes://hs-favicon/{origin}.png` image URI,
+  registered on the UI thread because the context cannot cross to the
+  runtime's tasks. A tab draws it at the glyph's size, so nothing shifts
+  when the icon arrives.
+- Nothing is written to disk, and the request carries no cookies: it is a
+  plain GET from the app's own HTTP client, not from the page's session.

@@ -330,6 +330,7 @@ impl ToolFactory for BrowserFactory {
             focus_address: false,
             address_focused: false,
             pending: Vec::new(),
+            favicons: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }
@@ -345,12 +346,93 @@ pub struct BrowserTool {
     pending: Vec<Cmd>,
     /// When Inspect was last acted on, so one click is one toggle.
     last_inspect_at: Option<f64>,
+    /// One favicon per origin, so every page on a site shares the fetch.
+    /// `Loading` while it is out, `Failed` for a site that has none — both
+    /// are answers, and neither is asked twice.
+    favicons: Arc<Mutex<HashMap<String, Favicon>>>,
+}
+
+/// Where one origin's favicon has got to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Favicon {
+    Loading,
+    /// Fetched and normalised, waiting for a frame to hand it to egui.
+    Fetched(Vec<u8>),
+    /// Registered with egui under this image URI.
+    Ready(String),
+    /// The site has none, or it could not be read. Asked once.
+    Failed,
+}
+
+impl BrowserTool {
+    /// Keep the favicon cache up to date and hand back what each page's URL
+    /// should draw. Fetching happens on the runtime; the only work here is
+    /// registering arrived bytes with egui, which must be done on this
+    /// thread because the context is not `Send` to the runtime's tasks.
+    fn sync_favicons(
+        &mut self,
+        ctx: &egui::Context,
+        services: &Services,
+    ) -> HashMap<String, Option<String>> {
+        use hs_core::favicon;
+        let origins: Vec<(String, String)> = self
+            .state
+            .pages
+            .iter()
+            .filter_map(|p| favicon::origin_of(&p.url).map(|o| (p.url.clone(), o)))
+            .collect();
+        let mut out = HashMap::new();
+        for (url, origin) in origins {
+            let state = self.favicons.lock().get(&origin).cloned();
+            match state {
+                None => {
+                    // Not asked yet: ask once, and remember that we did.
+                    self.favicons
+                        .lock()
+                        .insert(origin.clone(), Favicon::Loading);
+                    let Some(target) = favicon::url_for(&url) else {
+                        self.favicons.lock().insert(origin, Favicon::Failed);
+                        continue;
+                    };
+                    let cache = self.favicons.clone();
+                    let waker = services.runtime.waker();
+                    let key = origin.clone();
+                    services.runtime.spawn(async move {
+                        let got = favicon::fetch(&target).await;
+                        let state = match got {
+                            Ok(png) => Favicon::Fetched(png),
+                            Err(_) => Favicon::Failed,
+                        };
+                        cache.lock().insert(key, state);
+                        waker.request_repaint();
+                    });
+                }
+                Some(Favicon::Fetched(png)) => {
+                    let uri = format!("bytes://hs-favicon/{origin}.png");
+                    ctx.include_bytes(uri.clone(), png);
+                    self.favicons
+                        .lock()
+                        .insert(origin.clone(), Favicon::Ready(uri.clone()));
+                    out.insert(url, Some(uri));
+                }
+                Some(Favicon::Ready(uri)) => {
+                    out.insert(url, Some(uri));
+                }
+                Some(Favicon::Loading) | Some(Favicon::Failed) => {
+                    out.insert(url, None);
+                }
+            }
+        }
+        out
+    }
 }
 
 struct PageTab {
     id: u64,
     title: String,
     loading: bool,
+    /// The favicon, as an egui image URI, once it has arrived.
+    favicon: Option<String>,
 }
 
 impl TabItem for PageTab {
@@ -366,6 +448,13 @@ impl TabItem for PageTab {
         } else {
             ph::GLOBE
         }
+    }
+    fn icon_uri(&self) -> Option<String> {
+        // Not while loading: the spinner says more than a stale favicon.
+        if self.loading {
+            return None;
+        }
+        self.favicon.clone()
     }
     fn pinned(&self) -> bool {
         false
@@ -512,6 +601,7 @@ impl Tool for BrowserTool {
         let s = cx.services;
         self.tab_id = cx.tab_id;
         self.apply_events();
+        let favicons = self.sync_favicons(ui.ctx(), s);
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let (available, host_error) = {
             let hub = self.hub.lock();
@@ -534,6 +624,7 @@ impl Tool for BrowserTool {
                     p.title.clone()
                 },
                 loading: p.loading,
+                favicon: favicons.get(&p.url).cloned().flatten(),
             })
             .collect();
         let labels = TabStripLabels {

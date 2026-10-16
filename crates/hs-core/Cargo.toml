@@ -44,6 +44,8 @@ tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 egui = { workspace = true }
 reqwest = { workspace = true }
+# Favicons arrive as ICO or PNG and leave as one small PNG.
+image = { workspace = true }
 futures-util = { workspace = true }
 
 zip = { workspace = true }

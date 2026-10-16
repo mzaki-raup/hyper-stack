@@ -50,9 +50,10 @@ pub struct Row {
     pub name: String,
     /// The profile's kind (`db`, `ssh`, …); the page turns it into a label.
     pub kind: String,
-    /// A full connection URI when the profile stores one, else empty.
-    pub conn_string: String,
-    /// Host, endpoint, or the file for SQLite.
+    /// Host, endpoint, the URI a document store was given, or the file for
+    /// SQLite — whatever this profile points at, in one column. A separate
+    /// connection-string column was dropped: it was empty for every kind
+    /// but one, and that one puts its URI here instead.
     pub host: String,
     /// Empty when the kind has no port (S3, SQLite).
     pub port: String,
@@ -74,7 +75,6 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
         id: profile.id.clone(),
         name: profile.name.clone(),
         kind: profile.kind.clone(),
-        conn_string: String::new(),
         host: String::new(),
         port: String::new(),
         user: String::new(),
@@ -113,8 +113,9 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
         }
         "mongodb" | "couchdb" => {
             let v = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, f);
-            r.conn_string = v.uri;
-            r.host = v.host;
+            // A URI wins over host and port in the driver, so it is what
+            // this profile actually points at.
+            r.host = if v.uri.is_empty() { v.host } else { v.uri };
             r.port = port(v.port);
             r.user = v.user;
             r.password = Password::read(&v.password);
@@ -176,7 +177,10 @@ password = "{{mongo_pw}}"
 "#,
         ))
         .expect("mongodb is listed");
-        assert_eq!(mongo.conn_string, "mongodb://shop:27017/orders");
+        assert_eq!(
+            mongo.host, "mongodb://shop:27017/orders",
+            "a URI is what the profile points at, so it is the Host/URL"
+        );
         assert_eq!(
             mongo.password,
             Password::Variable("{{mongo_pw}}".into()),

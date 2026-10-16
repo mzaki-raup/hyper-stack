@@ -2445,57 +2445,10 @@ impl Tool for DbTool {
                     if !selected {
                         continue;
                     }
-                    let status = self.shared.lock().status.clone();
-                    match status {
-                        Some(Status::Connecting) => {
-                            ui.label(egui::RichText::new(s.t("db-connecting")).weak());
-                        }
-                        Some(Status::Ready(info)) => {
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} · {}",
-                                    info.version, info.database
-                                ))
-                                .small()
-                                .color(theme.text_muted),
-                            );
-                        }
-                        Some(Status::Failed(e)) => {
-                            ui.colored_label(theme.error, e);
-                        }
-                        _ => {}
-                    }
-                    ui.add_space(4.0);
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.tree_filter)
-                            .hint_text(s.t("db-filter-objects"))
-                            .desired_width(f32::INFINITY),
-                    );
-                    let nodes = self.schema_nodes(s);
-                    let resp = tree::show(ui, &theme, &mut self.tree, &nodes);
-                    for id in resp.load {
-                        self.load_node(&id, s);
-                    }
-                    if let Some(id) = resp.double_clicked {
-                        let parts: Vec<&str> = id.split(SEP).collect();
-                        if let ["o", schema, kind, name] = parts.as_slice()
-                            && (*kind == "table" || *kind == "view")
-                        {
-                            let q = self.qualified(schema, name);
-                            self.run_text(
-                                &format!("SELECT * FROM {q}"),
-                                usize::MAX,
-                                false,
-                                None,
-                                s,
-                            );
-                        }
-                    }
-                    if let Some(id) = resp.secondary
-                        && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
-                    {
-                        self.menu = Some((id, pos));
-                    }
+                    // The schema itself is a column of its own beside the
+                    // tab's content, not a block nested under this row: it
+                    // is what the connection is *for*, and it has to stay
+                    // when the sidebar is hidden.
                     ui.add_space(8.0);
                     // History
                     egui::CollapsingHeader::new(format!(
@@ -2807,6 +2760,62 @@ impl Tool for DbTool {
 }
 
 impl DbTool {
+    /// The schema column: what server this is, a filter, and the tree of
+    /// its objects. It lives beside the editor rather than inside the
+    /// sidebar, so hiding the connections list does not take the schema
+    /// with it — the sidebar is for choosing a server, this is for working
+    /// in one. Owner's requirement, 2026-10-17.
+    fn schema_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
+        match self.shared.lock().status.clone() {
+            Some(Status::Connecting) => {
+                ui.label(egui::RichText::new(s.t("db-connecting")).weak());
+            }
+            Some(Status::Ready(info)) => {
+                ui.label(
+                    egui::RichText::new(format!("{} · {}", info.version, info.database))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+            Some(Status::Failed(e)) => {
+                ui.colored_label(theme.error, e);
+            }
+            _ => {}
+        }
+        ui.add_space(4.0);
+        ui.add(
+            egui::TextEdit::singleline(&mut self.tree_filter)
+                .hint_text(s.t("db-filter-objects"))
+                .desired_width(f32::INFINITY),
+        );
+        ui.add_space(2.0);
+        egui::ScrollArea::vertical()
+            .id_salt("db-schema-column")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let nodes = self.schema_nodes(s);
+                let resp = tree::show(ui, theme, &mut self.tree, &nodes);
+                for id in resp.load {
+                    self.load_node(&id, s);
+                }
+                if let Some(id) = resp.double_clicked {
+                    let parts: Vec<&str> = id.split(SEP).collect();
+                    if let ["o", schema, kind, name] = parts.as_slice()
+                        && (*kind == "table" || *kind == "view")
+                    {
+                        let q = self.qualified(schema, name);
+                        self.run_text(&format!("SELECT * FROM {q}"), usize::MAX, false, None, s);
+                    }
+                }
+                if let Some(id) = resp.secondary
+                    && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+                {
+                    self.menu = Some((id, pos));
+                }
+            });
+    }
+
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         // The assistant takes its column before anything else is laid out,
         // so the editor and the results share what is left instead of the
@@ -2860,6 +2869,16 @@ impl DbTool {
         }
         self.completion_keys(ui);
 
+        // The schema column, beside the editor rather than inside the
+        // sidebar: hiding the connections list is about choosing a server,
+        // and should not take the schema of the one you are in with it.
+        if self.cmd.is_some() {
+            egui::Panel::left(self.view.id.with("db-schema"))
+                .resizable(true)
+                .default_size(260.0)
+                .size_range(160.0..=460.0)
+                .show(ui, |ui| self.schema_column(ui, &theme, cx));
+        }
         let total_h = ui.available_height();
         let editor_h = (total_h * self.state.editor_frac).clamp(80.0, (total_h - 120.0).max(80.0));
         let ed_theme = EditorTheme::for_theme(&theme);

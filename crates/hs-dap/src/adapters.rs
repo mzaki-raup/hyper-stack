@@ -98,6 +98,21 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         install_url: "https://github.com/go-delve/delve",
     },
     AdapterSpec {
+        id: "js-debug",
+        vscode_types: &["pwa-node", "node", "pwa-chrome", "node-terminal"],
+        languages: &["JavaScript", "TypeScript"],
+        // VS Code's own JavaScript debugger, which ships a standalone DAP
+        // server: dapDebugServer.js takes the port to listen on. The path
+        // belongs to wherever the release was unpacked, so the argument is
+        // the one a user normally replaces.
+        command: "node",
+        args: &["dapDebugServer.js", "{port}"],
+        transport: Transport::Tcp,
+        install: "Download js-debug-dap from the releases page, unpack it, and point the arguments at its src/dapDebugServer.js",
+        install_command: "",
+        install_url: "https://github.com/microsoft/vscode-js-debug/releases",
+    },
+    AdapterSpec {
         id: "netcoredbg",
         vscode_types: &["coreclr", "netcoredbg"],
         languages: &["C#"],
@@ -176,7 +191,9 @@ pub fn on_path(command: &str) -> Option<PathBuf> {
     if direct.components().count() > 1 || direct.is_absolute() {
         return candidates(direct).into_iter().find(|p| p.is_file());
     }
-    let path = std::env::var_os("PATH")?;
+    // The PATH as it is now, not only as it was when the process started:
+    // a server installed a minute ago should be found (hs_core::env_path).
+    let path = hs_core::env_path::current();
     for dir in std::env::split_paths(&path) {
         if dir.as_os_str().is_empty() {
             continue;
@@ -788,7 +805,11 @@ mod tests {
     fn adapters_resolve_and_map_types() {
         assert_eq!(spec("lldb").unwrap().id, "codelldb");
         assert_eq!(spec("PYTHON").unwrap().id, "debugpy");
-        assert!(spec("node").is_none());
+        // A launch.json "type": "node" (or VS Code's pwa- names) is the
+        // JavaScript debugger now that it is in the table.
+        assert_eq!(spec("node").unwrap().id, "js-debug");
+        assert_eq!(spec("pwa-node").unwrap().id, "js-debug");
+        assert!(spec("no-such-debugger").is_none());
         let off = [Override {
             id: "debugpy".into(),
             enabled: false,

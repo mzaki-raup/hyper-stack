@@ -11,6 +11,18 @@ pub enum DialogResult {
     Cancel,
 }
 
+/// What the user chose in a [`three_way`] modal: the action that keeps the
+/// work, the one that goes ahead without it, or neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThreeWay {
+    Open,
+    /// The primary action: save, keep, apply.
+    Primary,
+    /// Carry on without it: ignore, discard.
+    Secondary,
+    Cancel,
+}
+
 /// A yes/no modal. Returns `Ok`/`Cancel` on the frame the user decides.
 // Eight labelled arguments read better than a struct for a one-call helper.
 #[allow(clippy::too_many_arguments)]
@@ -45,6 +57,51 @@ pub fn confirm(
     });
     if modal.should_close() && result == DialogResult::Open {
         result = DialogResult::Cancel;
+    }
+    result
+}
+
+/// A modal with three answers, for "you have unsaved work" moments: Save,
+/// Ignore, Cancel. Escape or the close button means Cancel, never one of
+/// the two actions, because guessing wrong there loses work or runs stale
+/// code.
+// Labelled arguments read better than a struct for a one-call helper.
+#[allow(clippy::too_many_arguments)]
+pub fn three_way(
+    ctx: &egui::Context,
+    theme: &Theme,
+    id: &str,
+    title: &str,
+    body: &str,
+    primary_label: &str,
+    secondary_label: &str,
+    cancel_label: &str,
+) -> ThreeWay {
+    let mut result = ThreeWay::Open;
+    let modal = egui::Modal::new(egui::Id::new(("hs-three-way", id))).show(ctx, |ui| {
+        ui.set_width(460.0);
+        ui.heading(title);
+        ui.add_space(6.0);
+        ui.label(body);
+        ui.add_space(12.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let primary =
+                egui::Button::new(egui::RichText::new(primary_label).color(egui::Color32::WHITE))
+                    .fill(theme.accent)
+                    .corner_radius(CornerRadius::same(4));
+            if ui.add(primary).clicked() {
+                result = ThreeWay::Primary;
+            }
+            if ui.button(secondary_label).clicked() {
+                result = ThreeWay::Secondary;
+            }
+            if ui.button(cancel_label).clicked() {
+                result = ThreeWay::Cancel;
+            }
+        });
+    });
+    if modal.should_close() && result == ThreeWay::Open {
+        result = ThreeWay::Cancel;
     }
     result
 }

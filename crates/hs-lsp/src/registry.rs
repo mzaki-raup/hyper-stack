@@ -405,7 +405,9 @@ pub fn on_path(command: &str) -> Option<PathBuf> {
     if direct.components().count() > 1 || direct.is_absolute() {
         return candidates(direct).into_iter().find(|p| p.is_file());
     }
-    let path = std::env::var_os("PATH")?;
+    // The PATH as it is now, not only as it was when the process started:
+    // a server installed a minute ago should be found (hs_core::env_path).
+    let path = hs_core::env_path::current();
     for dir in std::env::split_paths(&path) {
         if dir.as_os_str().is_empty() {
             continue;

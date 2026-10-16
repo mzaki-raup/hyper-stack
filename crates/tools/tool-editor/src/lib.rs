@@ -718,6 +718,13 @@ impl Doc {
 
 // ---- one project -------------------------------------------------------------
 
+/// What the user asked for when the unsaved-files prompt went up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnsavedFor {
+    Run,
+    Debug,
+}
+
 struct Project {
     /// `None`: the "Other Files" group.
     root: Option<PathBuf>,
@@ -857,6 +864,9 @@ pub struct EditorTool {
     prompt: Option<Prompt>,
     confirm_delete: Option<PathBuf>,
     confirm_close: Option<CloseTarget>,
+    /// Run or Debug asked for while files are unsaved: which one, so the
+    /// answer can go on to the right action.
+    confirm_unsaved: Option<UnsavedFor>,
     id: egui::Id,
     tab_id: u64,
     ai: ai_panel::AiPanel,
@@ -896,6 +906,7 @@ impl EditorTool {
             prompt: None,
             confirm_delete: None,
             confirm_close: None,
+            confirm_unsaved: None,
             id,
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
@@ -1369,6 +1380,47 @@ impl EditorTool {
         };
         let (pi, di) = all[next];
         self.activate(pi, di);
+    }
+
+    /// Every document with unsaved changes, in every project. Returns
+    /// false if any of them could not be written, so the caller can stop
+    /// rather than run code that is not on disk. A document that has never
+    /// had a path would open a file dialog, so it is left alone: Run and
+    /// Debug work on files that exist.
+    fn save_all_dirty(&mut self, cx: &mut ToolContext) -> bool {
+        let (was_project, was_doc) = (self.active, self.projects[self.active].active);
+        let mut ok = true;
+        for pi in 0..self.projects.len() {
+            for di in 0..self.projects[pi].docs.len() {
+                let d = &self.projects[pi].docs[di];
+                if !d.buf.dirty() || d.path.is_none() {
+                    continue;
+                }
+                self.active = pi;
+                self.projects[pi].active = di;
+                ok &= self.save(cx);
+            }
+        }
+        self.active = was_project;
+        self.projects[was_project].active = was_doc;
+        ok
+    }
+
+    /// The names of the documents that would be written, for the prompt.
+    fn dirty_names(&self, s: &Services) -> Vec<String> {
+        self.projects
+            .iter()
+            .flat_map(|p| p.docs.iter())
+            .filter(|d| d.buf.dirty() && d.path.is_some())
+            .map(|d| {
+                let n = d.file_name();
+                if n.is_empty() {
+                    s.t("editor-untitled")
+                } else {
+                    n
+                }
+            })
+            .collect()
     }
 
     fn save(&mut self, cx: &mut ToolContext) -> bool {
@@ -1917,6 +1969,59 @@ impl EditorTool {
         }
     }
 
+    /// Run or Debug was asked for with unsaved files: Save writes them all
+    /// and carries on, Ignore carries on without, Cancel does neither.
+    fn unsaved_before_running(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let Some(what) = self.confirm_unsaved else {
+            return;
+        };
+        let s = cx.services;
+        let (theme, _) = Self::theme(s);
+        let names = self.dirty_names(s);
+        if names.is_empty() {
+            self.confirm_unsaved = None;
+            return;
+        }
+        let action = match what {
+            UnsavedFor::Run => s.t("editor-run"),
+            UnsavedFor::Debug => s.t("debug-button"),
+        };
+        let decision = hs_ui::dialog::three_way(
+            ui.ctx(),
+            &theme,
+            "editor-run-unsaved",
+            &s.t("editor-run-unsaved-title"),
+            &s.i18n.t_args(
+                "editor-run-unsaved-body",
+                &[("names", &names.join(", ")), ("action", &action)],
+            ),
+            &s.t("editor-run-unsaved-save"),
+            &s.t("editor-run-unsaved-ignore"),
+            &s.t("cancel"),
+        );
+        match decision {
+            hs_ui::dialog::ThreeWay::Primary => {
+                self.confirm_unsaved = None;
+                if self.save_all_dirty(cx) {
+                    self.after_unsaved(what, cx);
+                }
+            }
+            hs_ui::dialog::ThreeWay::Secondary => {
+                self.confirm_unsaved = None;
+                self.after_unsaved(what, cx);
+            }
+            hs_ui::dialog::ThreeWay::Cancel => self.confirm_unsaved = None,
+            hs_ui::dialog::ThreeWay::Open => {}
+        }
+    }
+
+    fn after_unsaved(&mut self, what: UnsavedFor, cx: &mut ToolContext) {
+        match what {
+            UnsavedFor::Run => self.run_now(cx),
+            UnsavedFor::Debug => self.debug_now(cx),
+        }
+    }
+
     /// Zip a folder to a place the user picks. The archive is written on a
     /// worker; the toast arrives through `zip_result` when it is done.
     fn download_zip(&mut self, dir: &Path, cx: &mut ToolContext) {
@@ -2239,6 +2344,21 @@ impl EditorTool {
     /// Ctrl+F5: continue a stopped session, start the last configuration
     /// again, or open the picker.
     fn debug_start(&mut self, cx: &mut ToolContext) {
+        // Debugging a file that is not on disk steps through stale code, so
+        // ask first; the answer comes back through unsaved_before_running.
+        if self
+            .debug
+            .state()
+            .is_none_or(|st| st == debug::State::Ended)
+            && !self.dirty_names(cx.services).is_empty()
+        {
+            self.confirm_unsaved = Some(UnsavedFor::Debug);
+            return;
+        }
+        self.debug_now(cx);
+    }
+
+    fn debug_now(&mut self, cx: &mut ToolContext) {
         match self.debug.state() {
             Some(debug::State::Stopped) => self.debug.continue_(),
             Some(st) if st != debug::State::Ended => {}
@@ -2260,6 +2380,16 @@ impl EditorTool {
             self.debug.continue_();
             return;
         }
+        // Running what is on screen rather than what is on disk is the
+        // classic wasted debugging hour: ask before it happens.
+        if !self.dirty_names(cx.services).is_empty() {
+            self.confirm_unsaved = Some(UnsavedFor::Run);
+            return;
+        }
+        self.run_now(cx);
+    }
+
+    fn run_now(&mut self, cx: &mut ToolContext) {
         let Some((cwd, cmd)) = self.run_plan() else {
             cx.toast(ToastLevel::Info, cx.services.t("editor-run-none"));
             return;
@@ -2665,6 +2795,7 @@ impl Tool for EditorTool {
         self.prompt_modal(ui, cx);
         self.delete_dialog(ui, cx);
         self.close_dialog(ui, s);
+        self.unsaved_before_running(ui, cx);
         self.ensure_doc(s);
         self.lsp.poll(s);
         self.lsp_sync_docs();

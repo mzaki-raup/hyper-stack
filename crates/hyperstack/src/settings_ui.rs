@@ -2411,9 +2411,11 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-editor-lsp-hint"));
-        // PATH is inherited from whatever started the process, so a server
-        // installed while the app was open is invisible until a restart.
+        // PATH is read once at start, but it can be read again: the button
+        // does that and forgets what the table decided about each command.
         form::hint(ui, theme, &s.t("settings-editor-lsp-path-hint"));
+        ui.add_space(2.0);
+        refresh_button(ui, theme, s);
         ui.add_space(4.0);
         changed |=
             language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
@@ -2421,6 +2423,8 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
         form::hint(ui, theme, &s.t("settings-editor-dap-path-hint"));
+        ui.add_space(2.0);
+        refresh_button(ui, theme, s);
         ui.add_space(4.0);
         changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters, effects);
     });
@@ -2432,6 +2436,84 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
 /// The button beside a "Not found" row: run the install command in a
 /// terminal tab, or open the download page when no single command works
 /// on every platform.
+/// How wide the Command and Arguments fields may be in an extension table.
+///
+/// A command is often a full path once the default is replaced (a jdtls
+/// launcher, a virtual environment's python) and the arguments can be a line
+/// of them, so both want all the room the page can spare — but never more
+/// than it has: a cell that asks for more than `available_width` makes the
+/// panel grow every frame, and egui saves that runaway width with the
+/// layout. Every future extension table should use this.
+fn extension_field_widths(ui: &egui::Ui) -> (f32, f32) {
+    // What the other three columns and the grid spacing need.
+    const OTHER: f32 = 440.0;
+    let spare = (ui.available_width() - OTHER).clamp(220.0, 700.0);
+    (spare * 0.56, spare * 0.44)
+}
+
+/// **Refresh Status**: read `PATH` from the system again and forget what the
+/// page decided about each command. Installing a server from a terminal does
+/// not change this process's environment, so without this the table would go
+/// on saying "Not found" until the next start.
+fn refresh_extension_status(ui: &mut egui::Ui) {
+    let changed = hs_core::env_path::refresh();
+    for id in ["settings-lsp-path-cache", "settings-dap-path-cache"] {
+        ui.ctx()
+            .data_mut(|d| d.remove::<std::collections::HashMap<String, bool>>(egui::Id::new(id)));
+    }
+    let now = ui.input(|i| i.time);
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(egui::Id::new(REFRESH_RESULT), (now, changed)));
+    tracing::info!(path_changed = changed, "extension status refreshed");
+}
+
+/// When the last refresh happened and whether `PATH` had moved, so the
+/// button can say what it did instead of appearing to do nothing.
+const REFRESH_RESULT: &str = "settings-extensions-refresh-result";
+/// How long that answer stays on screen.
+const REFRESH_NOTE_SECS: f64 = 8.0;
+
+/// The button that does it, for one extension section.
+fn refresh_button(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+    ui.horizontal(|ui| {
+        if ui
+            .small_button(format!(
+                "{} {}",
+                hs_ui::icons::ph::ARROWS_CLOCKWISE,
+                s.t("settings-extensions-refresh")
+            ))
+            .tip(s.t("settings-extensions-refresh-tip"))
+            .clicked()
+        {
+            refresh_extension_status(ui);
+        }
+        let last: Option<(f64, bool)> = ui
+            .ctx()
+            .data_mut(|d| d.get_temp(egui::Id::new(REFRESH_RESULT)));
+        let now = ui.input(|i| i.time);
+        if let Some((at, changed)) = last
+            && now - at < REFRESH_NOTE_SECS
+        {
+            let key = if changed {
+                "settings-extensions-refresh-changed"
+            } else {
+                "settings-extensions-refresh-same"
+            };
+            ui.colored_label(
+                if changed {
+                    theme.success
+                } else {
+                    theme.text_muted
+                },
+                s.t(key),
+            );
+            // The note goes away on its own, so keep painting until it has.
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(500));
+        }
+    });
+}
+
 fn install_button(
     ui: &mut egui::Ui,
     s: &Services,
@@ -2482,6 +2564,7 @@ fn debug_adapter_table(
         .data_mut(|d| d.get_temp(cache_id))
         .unwrap_or_default();
     let mut changed = false;
+    let (command_w, args_w) = extension_field_widths(ui);
     egui::Grid::new("settings-dap-table")
         .num_columns(5)
         .spacing([12.0, 6.0])
@@ -2512,16 +2595,29 @@ fn debug_adapter_table(
                         enabled: true,
                     });
                 ui.label(format!("{}  ({})", spec.id, spec.languages.join(", ")));
-                let r1 = ui.add(
-                    egui::TextEdit::singleline(&mut row.command)
-                        .hint_text(spec.command)
-                        .desired_width(200.0),
-                );
-                let r2 = ui.add(
-                    egui::TextEdit::singleline(&mut row.args)
-                        .hint_text(spec.args.join(" "))
-                        .desired_width(160.0),
-                );
+                // A grid cell is as wide as its column was last frame, so a
+                // desired_width alone is clamped to the old, narrow value and
+                // never grows. The scope gives the cell the width instead.
+                let r1 = ui
+                    .scope(|ui| {
+                        ui.set_min_width(command_w);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut row.command)
+                                .hint_text(spec.command)
+                                .desired_width(command_w),
+                        )
+                    })
+                    .inner;
+                let r2 = ui
+                    .scope(|ui| {
+                        ui.set_min_width(args_w);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut row.args)
+                                .hint_text(spec.args.join(" "))
+                                .desired_width(args_w),
+                        )
+                    })
+                    .inner;
                 let r3 = ui.checkbox(&mut row.enabled, "");
                 let command = if row.command.trim().is_empty() {
                     spec.command.to_string()
@@ -2603,6 +2699,7 @@ fn language_server_table(
         .unwrap_or_default();
     let mut changed = false;
     let mut seen: Vec<&str> = Vec::new();
+    let (command_w, args_w) = extension_field_widths(ui);
     egui::Grid::new("settings-lsp-table")
         .num_columns(5)
         .spacing([12.0, 6.0])
@@ -2637,16 +2734,29 @@ fn language_server_table(
                         enabled: true,
                     });
                 ui.label(spec.language);
-                let r1 = ui.add(
-                    egui::TextEdit::singleline(&mut row.command)
-                        .hint_text(spec.command)
-                        .desired_width(200.0),
-                );
-                let r2 = ui.add(
-                    egui::TextEdit::singleline(&mut row.args)
-                        .hint_text(spec.args.join(" "))
-                        .desired_width(130.0),
-                );
+                // A grid cell is as wide as its column was last frame, so a
+                // desired_width alone is clamped to the old, narrow value and
+                // never grows. The scope gives the cell the width instead.
+                let r1 = ui
+                    .scope(|ui| {
+                        ui.set_min_width(command_w);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut row.command)
+                                .hint_text(spec.command)
+                                .desired_width(command_w),
+                        )
+                    })
+                    .inner;
+                let r2 = ui
+                    .scope(|ui| {
+                        ui.set_min_width(args_w);
+                        ui.add(
+                            egui::TextEdit::singleline(&mut row.args)
+                                .hint_text(spec.args.join(" "))
+                                .desired_width(args_w),
+                        )
+                    })
+                    .inner;
                 let r3 = ui.checkbox(&mut row.enabled, "");
                 let command = if row.command.trim().is_empty() {
                     spec.command.to_string()

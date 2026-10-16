@@ -20,6 +20,7 @@ pub mod ai;
 pub mod clipboard_files;
 pub mod connections;
 pub mod download;
+pub mod env_path;
 pub mod environments;
 pub mod events;
 pub mod fmt;

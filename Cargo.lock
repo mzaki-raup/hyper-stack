@@ -3393,6 +3393,7 @@ dependencies = [
 name = "hs-dap"
 version = "0.29.1"
 dependencies = [
+ "hs-core",
  "serde",
  "serde_json",
  "tracing",
@@ -3428,6 +3429,7 @@ dependencies = [
 name = "hs-lsp"
 version = "0.29.1"
 dependencies = [
+ "hs-core",
  "serde",
  "serde_json",
  "tracing",

@@ -140,8 +140,10 @@ rustls-platform-verifier = "0.7"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_DataExchange",
+    "Win32_System_Environment",
     "Win32_System_Memory",
     "Win32_System_Ole",
+    "Win32_System_Registry",
 ] }
 # Redis/Valkey. TLS through the same rustls+ring stack as the SQL drivers.
 redis = { version = "1.7", default-features = false, features = [

@@ -11,6 +11,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- **Refresh Status** in Settings → Editor → Language Servers and Debug
+  Adapters reads `PATH` from the system again and rechecks every command,
+  so a server installed from a terminal is found without restarting
+  HyperStack. It says whether `PATH` had actually changed.
+- A debug adapter for JavaScript and TypeScript (**js-debug**, VS Code's
+  own). A `launch.json` with `"type": "node"` or `"pwa-node"` maps to it.
+- Run and Debug ask what to do about unsaved files first: Save All, Ignore
+  or Cancel. Running what is on screen rather than what is on disk is a
+  wasted debugging hour.
+
+### Changed
+
+- The Command and Arguments fields in both extension tables are as wide as
+  the page allows, instead of cutting off every name past about eight
+  characters.
+
 ### Changed
 
 - The release job uploads assets straight to the forge's own address when

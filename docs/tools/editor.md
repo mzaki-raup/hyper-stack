@@ -342,9 +342,15 @@ an LSP client (`hs-lsp`, ADR-023) and the user installs the servers.
   "%1 is not a valid Win32 application" from `CreateProcess`. Elsewhere
   the bare name is the program. A command the user types with a path or
   an extension is taken as it is.
-  `PATH` itself is whatever the process inherited at start, so a server
-  installed while HyperStack is open is found only after a restart; both
-  settings tables say so.
+  `PATH` itself is whatever the process inherited at start, but it can be
+  read again: **Refresh Status** in both settings tables calls
+  `hs_core::env_path::refresh`, which on Windows re-reads the machine and
+  user `Path` values from the registry (expanding a `REG_EXPAND_SZ`),
+  appends anything the process was given that the registry does not know
+  about, and forgets what the table had decided about each command. So a
+  server installed from a terminal is found without a restart, and the
+  button says whether `PATH` had actually moved. Elsewhere there is no
+  such store and the inherited value stands.
 - **jdtls on Windows** needs more than its own folder on `PATH`:
   `bin/jdtls.bat` runs `python bin/jdtls`, so Python has to be on `PATH`
   too, and the server itself needs Java 21 or newer. It keeps its
@@ -407,7 +413,13 @@ language servers.
 - **Adapters** (`hs_dap::adapters::ADAPTERS`): CodeLLDB (`codelldb
   --port {port}`, TCP) and lldb-dap or GDB 14 (`gdb -i dap`) for Rust, C
   and C++; debugpy (`python -m debugpy.adapter`) for Python; delve (`dlv
-  dap --listen 127.0.0.1:{port}`) for Go; netcoredbg for C#. Settings →
+  dap --listen 127.0.0.1:{port}`) for Go; netcoredbg for C#; **js-debug**
+  (VS Code's own JavaScript debugger, `node dapDebugServer.js {port}` over
+  TCP) for JavaScript and TypeScript, which is also what a `launch.json`
+  `"type": "node"` or `"pwa-node"` maps to. Java is not here: its debugger
+  is a plugin loaded by jdtls rather than a standalone adapter, so it needs
+  the LSP and DAP clients to talk to each other, which they do not yet.
+  Settings →
   Editor → Debug Adapters shows each adapter's command, arguments and
   whether it is on `PATH`, with the install line when it is not; the
   command can be replaced (a virtual environment's `python`, a CodeLLDB

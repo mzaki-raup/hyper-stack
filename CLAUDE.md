@@ -114,8 +114,8 @@ in the same commit.
   turn it off; the default is on. Owner's rule, 2026-10-11.
 - **Cross-platform core.** Windows ships first, but `hs-core`, `hs-ui`,
   `hs-editor`, `hs-term` and every tool must compile on Linux and macOS.
-  Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`
-  and `hs-term::pty`.
+  Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`,
+  `hs-core::clipboard_files`, `hs-core::env_path` and `hs-term::pty`.
 
 ## Git identity and remote
 
@@ -454,7 +454,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `bin/jdtls.bat`, and `hs_lsp::registry::candidates` used to list the
   bare path first, so Java reported **Found** and then failed to start.
   `hs_dap::adapters` had the same copy of the function.
-- A process keeps the `PATH` it was given at start. A language server or
+- A process keeps the `PATH` it was given at start, but on Windows the real
+  value can be read again from the registry (`HKCU\Environment` and the
+  machine's `Session Manager\Environment`, expanding `REG_EXPAND_SZ`):
+  `hs_core::env_path::refresh` does that and Settings → Editor's **Refresh
+  Status** calls it, so an installed server is found without a restart.
+  Do not `std::env::set_var("PATH", ...)` to achieve this - it is unsound
+  while other threads read the environment; keep the value beside it and
+  have the lookups ask for it. A language server or
   adapter installed while HyperStack is open is invisible until it is
   restarted - and so is a tool installed while the Claude Code shell has
   been open, which is why `jdtls` was missing from this session's `PATH`
@@ -494,7 +501,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   highlight lands on unrelated text.
 - A `Label::truncate()` inside an `egui::Grid` shrinks to whatever width
   the column had last frame (self-fulfilling), so wrap it in a scope with
-  `set_min_width`/`set_max_width`. And `Area` responses report
+  `set_min_width`/`set_max_width`. A `TextEdit::desired_width` in a grid
+  cell is clamped the same way and never grows, which is why the settings
+  tables widen the *cell* (`ui.scope` + `set_min_width`) and not only the
+  widget. Pick that width from `ui.available_width()`, never a constant:
+  a fixed 340 px made the whole window grow by 168 px per visit and egui
+  saved the runaway width with the layout. And `Area` responses report
   `clicked_elsewhere()` for clicks on the area's own buttons; test the
   click against `response.rect` yourself (`hs_ui::varpeek`).
 - A GUI test with the PowerShell harness: a crash is invisible unless the

@@ -5,6 +5,7 @@
 //! them by category and a tab can switch between them.
 
 pub mod base64_tool;
+mod cron;
 pub mod crypto;
 pub mod firebase;
 mod generate;
@@ -50,11 +51,12 @@ pub enum Utility {
     Toml,
     Xml,
     Generate,
+    Cron,
 }
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 11] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 12] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
         (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
         (
@@ -86,6 +88,7 @@ impl Utility {
             "dt-generate",
             ph::DICE_FIVE,
         ),
+        (Utility::Cron, "dt-cat-generate", "dt-cron", ph::CLOCK),
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -100,6 +103,7 @@ impl Utility {
             Utility::Toml => "toml",
             Utility::Xml => "xml",
             Utility::Generate => "generate",
+            Utility::Cron => "cron",
         }
     }
     pub fn by_key(key: &str) -> Option<Utility> {
@@ -166,6 +170,7 @@ impl ToolFactory for DevtoolsFactory {
             toml_state: part(&restore, "toml"),
             xml_state: part(&restore, "xml"),
             generate: part(&restore, "generate"),
+            cron: part(&restore, "cron"),
         })
     }
 }
@@ -179,6 +184,7 @@ pub struct DevtoolsTool {
     toml_state: markup::State,
     xml_state: markup::State,
     generate: generate::State,
+    cron: cron::State,
     hash: hash::State,
     jwt: jwt::State,
     firebase: firebase::State,
@@ -265,6 +271,7 @@ impl Tool for DevtoolsTool {
                                 markup::ui(&mut self.xml_state, markup::Kind::Xml, ui, s, &theme)
                             }
                             Utility::Generate => generate::ui(&mut self.generate, ui, s, &theme),
+                            Utility::Cron => cron::ui(&mut self.cron, ui, s, &theme),
                             Utility::Jasypt => jasypt::ui(&mut self.jasypt, ui, s, &theme),
                             Utility::Pki => pki::ui(&mut self.pki, ui, s, &theme),
                         }
@@ -349,6 +356,8 @@ impl Tool for DevtoolsTool {
                     // Nothing to paste into: the generators take settings,
                     // not text.
                     Utility::Generate => {}
+                    // The expression field takes a pasted expression.
+                    Utility::Cron => self.cron.check_input = body,
                 }
                 true
             }

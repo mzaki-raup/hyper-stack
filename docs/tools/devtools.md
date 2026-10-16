@@ -190,3 +190,30 @@ check is **well-formedness only** — every tag closed and properly nested,
 no DTD or schema consulted — and it reports the line and column, naming
 which tag is unclosed or which close matches nothing. Broken markup is
 never reformatted: tidy-looking output would hide the break.
+
+### Cron (2026-10-17)
+
+`cron.rs` builds an expression from a description of when a job runs — a
+frequency, a time, days or a date — and writes it in **all three dialects
+at once**: Unix cron, Spring and Quartz. Showing all three is the point,
+because the usual reason to open such a page is needing the other
+dialect's version of the one you already have.
+
+The differences it handles so nobody has to remember them:
+
+- Spring and Quartz lead with a **seconds** field; Unix cron has none.
+- **Quartz refuses `*` in both day fields** — exactly one of day-of-month
+  and day-of-week must be `?`. The builder puts it in whichever is not
+  being used, and the checker rejects an expression with neither or both.
+
+A pasted expression can be checked against each dialect: field counts and
+ranges, including lists, ranges and steps. Names and modifiers (`MON`,
+`JAN`, `L`, `W`, `#`) pass through unchecked, because the dialects differ
+on which they accept and refusing them here would be wrong more often than
+right — so this says an expression is plausible, not that a given
+scheduler will take it.
+
+One test asserts that **every expression the builder writes passes its own
+checker**, for all six frequencies in all three dialects. It caught a real
+bug: the daily and every-N cases were emitting `*` in both Quartz day
+fields, so Quartz output failed Quartz validation.

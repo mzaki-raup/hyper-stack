@@ -19,6 +19,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   passphrases show how many bits of entropy they carry, including the
   honest note that the built-in word list is 323 words — worth about 8.3
   bits a word, against a diceware list's 12.9.
+- **Devtools → Cron**: describe when a job should run and read the
+  expression back in all three dialects at once — Unix cron, Spring and
+  Quartz — because the usual reason to be there is needing the other
+  dialect's version of the one you have. Quartz's `?` rule is handled for
+  you. A pasted expression can be checked against each dialect.
 - **Devtools → TOML** and **Devtools → XML**: check a document and lay it
   out again. XML takes 2 spaces, 4 spaces or a tab; TOML has no indent to
   choose and says so. Broken input is never quietly reformatted — the

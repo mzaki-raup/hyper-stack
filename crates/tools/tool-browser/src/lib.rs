@@ -213,7 +213,7 @@ pub const INIT_SCRIPT: &str = r#"
   };
   window.__hs = {
     dark(on) {
-      style('__hs_dark', on ? 'html{filter:invert(1) hue-rotate(180deg) !important;background:#111 !important} img,video,picture,canvas,iframe,svg image,[style*="background-image"]{filter:invert(1) hue-rotate(180deg) !important}' : null);
+      style('__hs_dark', on ? 'html{background:#111 !important} body{filter:invert(1) hue-rotate(180deg) !important;background:#fff !important;min-height:100vh !important} img,video,picture,canvas,iframe,svg image,[style*="background-image"]{filter:invert(1) hue-rotate(180deg) !important}' : null);
       try { document.documentElement.style.colorScheme = on ? 'dark' : ''; } catch (e) {}
     },
     light(on) {

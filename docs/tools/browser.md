@@ -173,3 +173,21 @@ One consequence worth knowing: while the address bar is focused the page is
 not clickable, so the first click on the page is the one that returns the
 keyboard to it and the second reaches the page. That is the same two-step
 the app already has after a native dialog closes.
+
+### Forced dark mode covers the whole page (2026-10-17)
+
+Inverting `html` inverts its **own background** too, so the `#111` the
+script set came out as `#eee` and every part of the viewport the page did
+not cover showed up light — a short page looked half dark. The filter is
+on `body` now, with `html` left dark and un-inverted, so the canvas behind
+a short page is dark and the body's own white inverts to black:
+
+```css
+html { background: #111 !important }
+body { filter: invert(1) hue-rotate(180deg) !important;
+       background: #fff !important; min-height: 100vh !important }
+```
+
+Images, video, canvases and inline backgrounds are inverted a second time
+so they come back to their own colours, as before.
+

@@ -50,6 +50,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Forced **dark mode covers the whole page**. The filter was on `html`,
+  which inverted its own dark background into a light one, so everything
+  the page itself did not cover came out light — a short page looked half
+  dark. It is on `body` now, with `html` left dark behind it.
+
 - The browser's **address bar can be typed into**. A WebView2 child takes
   keyboard focus back the moment it is allowed to, so the field was
   unusable; the web view is now disabled outright while the address bar

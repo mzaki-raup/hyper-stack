@@ -2734,6 +2734,18 @@ fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             .checkbox(&mut settings.browser.dark, s.t("settings-browser-dark"))
             .changed();
         form::hint(ui, theme, &s.t("settings-browser-pages-hint"));
+        changed |= ui
+            .checkbox(
+                &mut settings.browser.devtools_panel,
+                s.t("settings-browser-devtools-panel"),
+            )
+            .changed();
+        form::note(
+            ui,
+            theme,
+            hs_ui::icons::ph::WARNING,
+            &s.t("settings-browser-devtools-panel-hint"),
+        );
     });
     form::section(
         ui,

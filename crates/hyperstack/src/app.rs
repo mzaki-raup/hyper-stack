@@ -2996,7 +2996,11 @@ impl eframe::App for HyperStackApp {
             || self.notifications_open
             || self.fallback_notice_open
             || self.settings_ui.lock().state.confirm_delete.is_some();
-        let blocklist = self.services.settings.read().browser.blocklist.clone();
+        let (blocklist, devtools_panel) = {
+            let st = self.services.settings.read();
+            (st.browser.blocklist.clone(), st.browser.devtools_panel)
+        };
+        self.browser_host.set_devtools_panel(devtools_panel);
         self.browser_host
             .sync(frame, ctx, &self.browser_hub, overlay, &blocklist);
 

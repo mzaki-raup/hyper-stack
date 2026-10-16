@@ -34,6 +34,12 @@ pub struct Browser {
     pub dark: bool,
     /// Extra hosts to refuse, one per entry, in addition to the bundled list.
     pub blocklist: Vec<String>,
+    /// Inspect docks the inspector under the page instead of opening
+    /// WebView2's own window. The web view then listens for the Chrome
+    /// DevTools Protocol on a local port, which any process on this machine
+    /// can drive, so this is off until it is asked for
+    /// (docs/06-security.md).
+    pub devtools_panel: bool,
 }
 
 impl Default for Browser {
@@ -44,6 +50,7 @@ impl Default for Browser {
             javascript: true,
             dark: false,
             blocklist: Vec::new(),
+            devtools_panel: false,
         }
     }
 }

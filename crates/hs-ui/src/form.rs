@@ -174,6 +174,10 @@ pub fn header_bar<R>(
     r
 }
 
+/// How tall a sidebar header's row is, so the title and its buttons share a
+/// centre line.
+pub const SIDEBAR_HEADER_HEIGHT: f32 = 28.0;
+
 /// The header of a sidebar list: the title on the left, small icon actions on
 /// the right. Every tool draws its connections list with this, so the titles
 /// sit on the same baseline and the buttons in the same place.
@@ -187,19 +191,30 @@ pub fn sidebar_header(
 ) -> Option<usize> {
     let mut clicked = None;
     header_bar(ui, theme, |ui| {
-        ui.label(egui::RichText::new(title).strong().size(15.0));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Right to left, so the first action ends up rightmost: the add
-            // button sits in the same place in every tool.
-            for (i, (icon, tip)) in actions.iter().enumerate() {
-                if icon_button(ui, theme, icon, 16.0, false)
-                    .on_hover_text(*tip)
-                    .clicked()
-                {
-                    clicked = Some(i);
-                }
-            }
-        });
+        // One row of a fixed height, both halves centred in it: letting each
+        // half size itself left the title and the buttons a few pixels apart.
+        let height = SIDEBAR_HEADER_HEIGHT;
+        ui.set_min_height(height);
+        let width = ui.available_width();
+        ui.allocate_ui_with_layout(
+            egui::Vec2::new(width, height),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.label(egui::RichText::new(title).strong().size(15.0));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Right to left, so the first action ends up rightmost and
+                    // the add button sits in the same place in every tool.
+                    for (i, (icon, tip)) in actions.iter().enumerate() {
+                        if icon_button(ui, theme, icon, 16.0, false)
+                            .on_hover_text(*tip)
+                            .clicked()
+                        {
+                            clicked = Some(i);
+                        }
+                    }
+                });
+            },
+        );
     });
     clicked
 }

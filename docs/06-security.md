@@ -195,3 +195,13 @@ properties:
   language setting is validated to a culture name before it reaches the
   PowerShell command line.
 
+## Addendum (2026-10-16): the browser's debugging port
+
+Settings → Browser → **Dock Inspect Under the Page** starts every web view
+with `--remote-debugging-port` so the inspector can be docked under the
+page (docs/tools/browser.md). The port is bound to 127.0.0.1 and chosen
+fresh each time the setting is switched on, and `--remote-allow-origins`
+is limited to the front end's own origin, but while it is on **any process
+running as this user can speak the DevTools protocol to the browser tabs**
+and read or drive what is in them. The setting is therefore off by
+default; nothing else in HyperStack opens a listening port.

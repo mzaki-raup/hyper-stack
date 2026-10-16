@@ -47,6 +47,8 @@ pub struct PageDesire {
     pub adblock: bool,
     pub dark: bool,
     pub zoom: f64,
+    /// Dock the inspector under this page rather than opening a window.
+    pub devtools: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -234,6 +236,9 @@ pub struct Page {
     pub adblock: bool,
     pub dark: bool,
     pub zoom: f64,
+    /// The inspector is docked under this page.
+    #[serde(skip)]
+    pub devtools: bool,
     #[serde(skip)]
     pub loading: bool,
     #[serde(skip)]
@@ -255,6 +260,7 @@ impl Default for Page {
             adblock: true,
             dark: false,
             zoom: 1.0,
+            devtools: false,
             loading: false,
             blocked: 0,
             last_blocked: String::new(),
@@ -312,6 +318,7 @@ impl ToolFactory for BrowserFactory {
         }
         state.active = state.active.min(state.pages.len() - 1);
         Box::new(BrowserTool {
+            last_inspect_at: None,
             hub: self.hub.clone(),
             state,
             tab_id: 0,
@@ -327,6 +334,8 @@ pub struct BrowserTool {
     tab_id: u64,
     focus_address: bool,
     pending: Vec<Cmd>,
+    /// When Inspect was last acted on, so one click is one toggle.
+    last_inspect_at: Option<f64>,
 }
 
 struct PageTab {
@@ -642,6 +651,9 @@ impl Tool for BrowserTool {
                 go = Some(normalise_address(&self.page().address));
             }
             ui.separator();
+            let docked = s.settings.read().browser.devtools_panel;
+            let last_inspect = self.last_inspect_at;
+            let mut toggled: Option<f64> = None;
             let p = self.page_mut();
             let mut js = p.javascript;
             if ui
@@ -684,11 +696,37 @@ impl Tool for BrowserTool {
             {
                 p.zoom = (p.zoom * 1.1).min(4.0);
             }
-            if ui.button(ph::BUG).tip(s.t("browser-devtools")).clicked() {
-                self.pending.push(Cmd::DevTools(page_id));
+            // Inspect docks the inspector under the page when the setting
+            // allows it (that needs a local debugging port); otherwise it
+            // opens WebView2's own window, which is all that API offers.
+            let open = p.devtools;
+            let clicked = ui
+                .add(egui::Button::selectable(docked && open, ph::BUG))
+                .tip(s.t(if docked {
+                    "browser-devtools-panel"
+                } else {
+                    "browser-devtools"
+                }))
+                .clicked();
+            // Opening the panel resizes the page, which makes egui lay the
+            // frame out again, and `clicked` is pointer state rather than an
+            // event: without this the second pass closes it again.
+            let now = ui.input(|i| i.time);
+            if clicked && last_inspect != Some(now) {
+                toggled = Some(now);
+                if docked {
+                    p.devtools = !open;
+                }
             }
             if ui.button(ph::PRINTER).tip(s.t("browser-print")).clicked() {
                 self.pending.push(Cmd::Print(page_id));
+            }
+            if let Some(now) = toggled {
+                self.last_inspect_at = Some(now);
+                if !docked {
+                    // No panel: WebView2's own window is all there is.
+                    self.pending.push(Cmd::DevTools(page_id));
+                }
             }
         });
         if let Some(url) = go {
@@ -761,6 +799,7 @@ impl Tool for BrowserTool {
                 adblock: p.adblock,
                 dark: p.dark,
                 zoom: p.zoom,
+                devtools: p.devtools,
             })
             .collect();
         tab.commands.append(&mut self.pending);
@@ -792,7 +831,13 @@ impl Tool for BrowserTool {
                 self.focus_address = true;
             }
             "browser.reload" => self.pending.push(Cmd::Reload(page)),
-            "browser.devtools" => self.pending.push(Cmd::DevTools(page)),
+            "browser.devtools" => {
+                let docked = cx.services.settings.read().browser.devtools_panel;
+                match self.state.pages.iter_mut().find(|p| p.id == page) {
+                    Some(p) if docked => p.devtools = !p.devtools,
+                    _ => self.pending.push(Cmd::DevTools(page)),
+                }
+            }
             "browser.dark" => self.page_mut().dark = !self.page().dark,
             "browser.js" => self.page_mut().javascript = !self.page().javascript,
             "browser.adblock" => self.page_mut().adblock = !self.page().adblock,

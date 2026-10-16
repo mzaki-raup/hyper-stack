@@ -40,6 +40,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- Inspect in the browser can dock the developer tools under the page
+  instead of opening a separate window. It is off by default: the web view
+  has to listen for the DevTools protocol on a local port for it, which
+  docs/06-security.md explains.
+- The Redis key list lines up: every row starts at the same edge and each
+  level is indented one step. The toolbar says "Redis 8.6.3" rather than
+  "redis 8.6.3".
+- The sidebar headers put their title and their buttons on one line, in
+  every tool.
+- The vault's tooltips read as sentences: "Secret Vault: Locked (click to
+  unlock)".
+
 - Every tool's sidebar draws its header the same way, and the titles say
   what they list: SSH Hosts, S3 Profiles, Database Connections, Redis
   Connections.

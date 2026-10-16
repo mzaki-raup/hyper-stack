@@ -106,3 +106,33 @@ pages, extra blocked hosts (one per line).
 `tool_browser::is_blocked` (hosts, subdomains, extras, non-URLs) and the
 address normaliser have unit tests. The host is exercised in the running
 app (docs/screenshots: `browser.png`).
+
+## Addendum (2026-10-16): Inspect docked under the page
+
+WebView2 has no way to dock its developer tools: `OpenDevToolsWindow` opens
+a window and that is the whole API. The docked panel is therefore built on
+the Chrome DevTools Protocol, which the web view speaks when it is started
+with `--remote-debugging-port`:
+
+- Settings → Browser → **Dock Inspect Under the Page** turns it on. The
+  port is chosen when the setting is switched on (a free one, bound to
+  127.0.0.1), and the open pages are rebuilt, because the arguments a web
+  view starts with cannot be changed afterwards.
+- Inspect then splits the tab: the page keeps the top, and a second web
+  view under it loads the DevTools front end that the web view itself
+  serves on that port (`/devtools/inspector.html?ws=…`). Nothing is
+  fetched from the network for it.
+- `--remote-allow-origins` names the front end's own origin. Without it
+  Chromium refuses the WebSocket and the panel shows "Debugging connection
+  was closed".
+- The inspector's own navigation is not reported as the page's, so the
+  address bar keeps showing the page.
+- The page to inspect is matched by its URL. Two tabs on the same URL may
+  attach the inspector to the other one.
+
+**The cost, and why it is off by default.** While the setting is on, every
+web view in the session listens for the DevTools protocol on that local
+port. Any program running as this user can then drive the browser tabs:
+read their cookies, navigate them, read page content. That is why the
+setting is off until it is asked for, and why Inspect opens WebView2's own
+window otherwise.

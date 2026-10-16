@@ -610,8 +610,13 @@ impl Tool for RedisTool {
         let status = self.shared.lock().status.clone();
         if let Some(Status::Ready(info)) = status {
             ui.separator();
+            // "Redis 8.6.3": the server's name is a name.
+            let mut flavour = info.flavour.clone();
+            if let Some(first) = flavour.get_mut(0..1) {
+                first.make_ascii_uppercase();
+            }
             ui.label(
-                egui::RichText::new(format!("{} {}", info.flavour, info.version))
+                egui::RichText::new(format!("{flavour} {}", info.version))
                     .small()
                     .color(theme.text_muted),
             );
@@ -772,9 +777,11 @@ impl RedisTool {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 for row in &rows {
-                    let indent = 12.0 * row.depth as f32;
+                    // One step per level, from the column's own left edge.
+                    let indent = 14.0 * row.depth as f32;
                     let is_selected = !row.is_group && selected.as_deref() == Some(&row.path);
                     ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
                         ui.add_space(indent);
                         let icon = if row.is_group {
                             if row.expanded {
@@ -790,10 +797,10 @@ impl RedisTool {
                         } else {
                             format!("{icon} {}", row.label)
                         };
-                        let r = ui.add(
-                            egui::Button::selectable(is_selected, label)
-                                .min_size(egui::vec2(ui.available_width() - 48.0, 0.0)),
-                        );
+                        // A selectable label sizes to its text, so every row
+                        // starts at the same left edge; a stretched button
+                        // centres its text and makes the list look ragged.
+                        let r = ui.selectable_label(is_selected, label);
                         if r.clicked() {
                             if row.is_group {
                                 toggle = Some(row.path.clone());

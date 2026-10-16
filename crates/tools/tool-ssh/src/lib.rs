@@ -1674,6 +1674,12 @@ impl Tool for SshTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The assistant takes its column first; the file pane and the shell
+        // then split what is left, instead of the shell being half covered.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let outer = ui;
+        let ui = &mut content;
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.waiting_for_vault && !s.secrets.is_locked() {
@@ -1866,16 +1872,17 @@ impl Tool for SshTool {
             if self.assistant.quick_actions.is_empty() {
                 self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
             }
-            let panel = egui::Rect::from_min_size(
-                egui::pos2(term_rect.right() - 390.0, term_rect.top()),
-                egui::vec2(390.0, term_rect.height()),
-            );
-            let mut child = ui.new_child(
+            let Some(panel) = assistant_rect else {
+                // Too narrow to split three ways: the toggle stays on and
+                // the column returns when there is room for it.
+                return;
+            };
+            let mut child = outer.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)
                     .layout(egui::Layout::top_down(egui::Align::Min)),
             );
-            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            child.set_clip_rect(panel.intersect(outer.clip_rect()));
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))

@@ -19,6 +19,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- The AI assistant is a column, not something drawn over the tool. It used
+  to be laid out last, into whatever space was left — which after a results
+  panel had taken its share was often none, so running a query made the
+  assistant look as though it had closed itself. The tool's own content is
+  narrower while it is open, and the only thing that closes it is the
+  toggle. Database, terminal, SSH and S3 all behave this way now; the API
+  client and Graphics already did.
+
 - Home puts Pinned Connections above Recent, gives both headings a size of
   their own, lays Recent out as a grid rather than a column eight entries
   deep, and draws each connection as a larger pill coloured by its kind —

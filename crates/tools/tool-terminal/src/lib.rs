@@ -581,6 +581,12 @@ impl Tool for TerminalTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The assistant takes its column first, so the terminal is narrower
+        // while it is open rather than partly hidden behind it.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let outer = ui;
+        let ui = &mut content;
         if let Some(cmd) = self.pending_command.take() {
             match &self.session {
                 Some(sess) => sess.write(format!("{cmd}\r").as_bytes()),
@@ -678,17 +684,17 @@ impl Tool for TerminalTool {
             if self.assistant.quick_actions.is_empty() {
                 self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
             }
-            let rect = ui.available_rect_before_wrap();
-            let panel = egui::Rect::from_min_max(
-                egui::pos2(rect.right() - 390.0, rect.top()),
-                rect.right_bottom(),
-            );
-            let mut child = ui.new_child(
+            let Some(panel) = assistant_rect else {
+                // Too narrow to split: the toggle stays on and the column
+                // returns when there is room for it.
+                return;
+            };
+            let mut child = outer.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)
                     .layout(egui::Layout::top_down(egui::Align::Min)),
             );
-            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            child.set_clip_rect(panel.intersect(outer.clip_rect()));
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))

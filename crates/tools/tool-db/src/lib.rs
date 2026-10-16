@@ -2804,6 +2804,13 @@ impl Tool for DbTool {
 
 impl DbTool {
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The assistant takes its column before anything else is laid out,
+        // so the editor and the results share what is left instead of the
+        // assistant being drawn over the top of them.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let outer = ui;
+        let ui = &mut content;
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.waiting_for_vault && !s.secrets.is_locked() {
@@ -2915,17 +2922,17 @@ impl DbTool {
                     QuickAction::new(s, "ai-qa-improve-query", "ai-qa-improve-query-prompt", ""),
                 ];
             }
-            let rect = ui.available_rect_before_wrap();
-            let panel = egui::Rect::from_min_max(
-                egui::pos2(rect.right() - 390.0, rect.top()),
-                rect.right_bottom(),
-            );
-            let mut child = ui.new_child(
+            let Some(panel) = assistant_rect else {
+                // Too narrow to split: the toggle stays on, and the panel
+                // comes back when there is room for it.
+                return;
+            };
+            let mut child = outer.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)
                     .layout(egui::Layout::top_down(egui::Align::Min)),
             );
-            child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            child.set_clip_rect(panel.intersect(outer.clip_rect()));
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))

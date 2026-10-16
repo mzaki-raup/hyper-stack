@@ -163,6 +163,45 @@ pub struct AssistantPanel {
     last_quick_at: Option<f64>,
 }
 
+/// How wide the assistant's column is.
+pub const PANEL_WIDTH: f32 = 390.0;
+
+/// Carve a tool's area into the part it draws in and the column the
+/// assistant gets, **before** anything else is laid out.
+///
+/// The assistant used to be drawn last, into whatever rectangle was left
+/// over — which after a results panel had taken its share was often
+/// nothing, so running a query made the assistant appear to close itself.
+/// It is a column now: the tool's own content is narrower while it is
+/// open, and the only thing that closes it is the toggle.
+///
+/// Returns the `Ui` the tool should use for everything else, and the
+/// assistant's rectangle when it is open and there is room for it.
+pub fn split_for_assistant(ui: &mut egui::Ui, open: bool) -> (egui::Ui, Option<egui::Rect>) {
+    let full = ui.available_rect_before_wrap();
+    // Below twice the panel width there is no sensible split; the tool
+    // keeps the room and the assistant waits for a bigger window.
+    if !open || full.width() < PANEL_WIDTH * 2.0 {
+        let child = ui.new_child(egui::UiBuilder::new().max_rect(full).layout(*ui.layout()));
+        return (child, None);
+    }
+    let panel = egui::Rect::from_min_max(
+        egui::pos2(full.right() - PANEL_WIDTH, full.top()),
+        full.right_bottom(),
+    );
+    let content = egui::Rect::from_min_max(
+        full.left_top(),
+        egui::pos2(panel.left() - 6.0, full.bottom()),
+    );
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(content)
+            .layout(*ui.layout()),
+    );
+    child.set_clip_rect(content.intersect(ui.clip_rect()));
+    (child, Some(panel))
+}
+
 impl AssistantPanel {
     pub fn toggle(&mut self, tool: &str) {
         self.open = !self.open;

@@ -204,4 +204,5 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Home: pinned connections are really pinned, above Recent, bigger headings and pills by kind | Completed | `ConnectionProfile::pinned` + `set_pinned`, `form::pin_menu`, `launcher::kind_colour`/`pill`/`section_heading`; exercised live — pinning a host wrote the flag and the pill appeared |
 | One tab per connection, three for an SSH host | Completed | `app::tabs_per_connection`, `unbound_tab`; every tool routes its sidebar clicks through the shell |
 | Pinned tabs keep their name, with a colour marker | Completed | `TabItem::icon_only_when_pinned`, `PINNED_TEXT_WIDTH` (1 test); browser stays icon-only |
+| The AI assistant is a column in every tool, closed only by its toggle | Completed | `ai_assistant::split_for_assistant`; database, terminal, SSH and S3 converted (API client and Graphics already split). Verified live: the terminal reflowed 131x33 to 80x33, so the area really shrank |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

@@ -111,49 +111,19 @@ pub fn show(
             }
         });
 
-        if !closed.is_empty() {
-            ui.add_space(20.0);
-            ui.separator();
-            ui.label(
-                egui::RichText::new(services.t("launcher-recent"))
-                    .strong()
-                    .color(theme.text_muted),
-            );
-            ui.add_space(4.0);
-            for (idx, factory, title) in closed.iter().rev().take(8) {
-                let icon = tools
-                    .iter()
-                    .find(|t| t.id == factory)
-                    .map(|t| t.icon)
-                    .unwrap_or("•");
-                if ui
-                    .add(egui::Button::new(format!("{icon}  {title}")).frame(false))
-                    .clicked()
-                {
-                    resp.reopen_closed = Some(*idx);
-                }
-            }
-        }
-
+        // Pinned first: these are the connections someone chose to keep,
+        // and they are what Home is for. Recent follows.
         let conns = services.connections.read();
-        if !conns.all().is_empty() {
+        let pinned: Vec<_> = conns.pinned().collect();
+        if !pinned.is_empty() {
             ui.add_space(20.0);
             ui.separator();
-            ui.label(
-                egui::RichText::new(services.t("launcher-pinned"))
-                    .strong()
-                    .color(theme.text_muted),
-            );
-            ui.add_space(4.0);
+            section_heading(ui, theme, &services.t("launcher-pinned"));
+            ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
-                for c in conns.all() {
-                    let col = c
-                        .colour
-                        .as_deref()
-                        .and_then(hs_ui::theme::parse_hex)
-                        .unwrap_or(theme.secondary);
+                for c in pinned {
+                    let fill = kind_colour(theme, &c.kind);
                     let text = format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name);
-                    let fill = col.linear_multiply(0.35);
                     let tool =
                         tool_for_kind(&c.kind).and_then(|id| tools.iter().find(|t| t.id == id));
                     match tool {
@@ -162,7 +132,7 @@ pub fn show(
                                 "launcher-open-connection",
                                 &[("tool", &services.t(t.title_key))],
                             );
-                            if hs_ui::badge::badge_button(ui, &text, fill, theme.text)
+                            if pill(ui, &text, fill, theme.text)
                                 .on_hover_text(tip)
                                 .clicked()
                             {
@@ -174,15 +144,108 @@ pub fn show(
                                 "launcher-connection-no-tool",
                                 &[("kind", hs_core::connections::kind_label(&c.kind))],
                             );
-                            hs_ui::badge::badge(ui, &text, fill, theme.text_muted)
-                                .on_hover_text(tip);
+                            pill(ui, &text, fill, theme.text_muted).on_hover_text(tip);
                         }
                     }
                 }
             });
         }
+        drop(conns);
+
+        if !closed.is_empty() {
+            ui.add_space(20.0);
+            ui.separator();
+            section_heading(ui, theme, &services.t("launcher-recent"));
+            ui.add_space(6.0);
+            // A grid, not a column: eight recent items down the page pushed
+            // everything else off it.
+            let recent: Vec<_> = closed.iter().rev().take(8).collect();
+            let spacing = ui.spacing().item_spacing.x;
+            let columns = (((ui.available_width() + spacing) / (RECENT_WIDTH + spacing)).floor()
+                as usize)
+                .clamp(1, 4);
+            for row in recent.chunks(columns) {
+                ui.horizontal(|ui| {
+                    for (idx, factory, title) in row {
+                        let icon = tools
+                            .iter()
+                            .find(|t| t.id == factory)
+                            .map(|t| t.icon)
+                            .unwrap_or("\u{2022}");
+                        let r = ui.add_sized(
+                            Vec2::new(RECENT_WIDTH, 26.0),
+                            egui::Button::new(format!("{icon}  {title}")).frame(false),
+                        );
+                        if r.clicked() {
+                            resp.reopen_closed = Some(*idx);
+                        }
+                    }
+                });
+            }
+        }
     });
     resp
+}
+
+/// How wide one Recent entry is, and so how many fit across.
+const RECENT_WIDTH: f32 = 230.0;
+
+/// A section heading on Home. Bigger than the body text, because these
+/// separate the page into parts and were previously easy to miss.
+fn section_heading(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label(
+        egui::RichText::new(text)
+            .strong()
+            .size(15.0)
+            .color(theme.text),
+    );
+}
+
+/// The colour a connection kind is shown in, so a glance at Home sorts the
+/// databases from the shells without reading a word.
+fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
+    let c = match kind {
+        "ssh" => egui::Color32::from_rgb(0x4A, 0x90, 0xD9),
+        "db" => egui::Color32::from_rgb(0x8B, 0x5C, 0xF6),
+        "redis" => egui::Color32::from_rgb(0xDC, 0x38, 0x2D),
+        "mongodb" | "couchdb" => egui::Color32::from_rgb(0x10, 0xA3, 0x7B),
+        "s3" => egui::Color32::from_rgb(0xF5, 0x9E, 0x0B),
+        "api" => egui::Color32::from_rgb(0xEC, 0x48, 0x99),
+        _ => theme.secondary,
+    };
+    // The pill is a tint of that colour, not the colour itself, so the
+    // label stays readable on it.
+    c.linear_multiply(0.45)
+}
+
+/// A connection pill: bigger than a badge, because these are the main
+/// thing on Home and were previously the smallest.
+fn pill(
+    ui: &mut egui::Ui,
+    text: &str,
+    fill: egui::Color32,
+    colour: egui::Color32,
+) -> egui::Response {
+    let font = egui::FontId::proportional(13.0);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_string(), font.clone(), colour);
+    let size = Vec2::new(galley.size().x + 22.0, 28.0);
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    let bg = if r.hovered() {
+        fill.linear_multiply(1.4)
+    } else {
+        fill
+    };
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(14), bg);
+    ui.painter().galley(
+        egui::Pos2::new(rect.left() + 11.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        colour,
+    );
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, text));
+    r
 }
 
 fn tool_card(ui: &mut egui::Ui, theme: &Theme, icon: &str, title: &str) -> egui::Response {
@@ -262,10 +325,21 @@ mod tests {
             kind: "redis".into(),
             ..Default::default()
         };
+        let redis_id = redis.id.clone();
+        // A third, left unpinned: Home shows what was pinned, not
+        // everything that exists.
+        let other = ConnectionProfile {
+            name: "not-pinned".into(),
+            kind: "redis".into(),
+            ..Default::default()
+        };
         {
             let mut c = services.connections.write();
             c.upsert(ssh).unwrap();
             c.upsert(redis).unwrap();
+            c.upsert(other).unwrap();
+            c.set_pinned(&ssh_id, true).unwrap();
+            c.set_pinned(&redis_id, true).unwrap();
         }
 
         let theme = Theme::dark();
@@ -278,7 +352,12 @@ mod tests {
             }
         });
         harness.run();
-        // The redis chip is a plain label: clicking it opens nothing.
+        // Only pinned connections are on Home.
+        assert!(
+            harness.query_by_label("Redis  not-pinned").is_none(),
+            "an unpinned connection should not be on Home"
+        );
+        // The redis chip has no tool here, so clicking it opens nothing.
         harness.get_by_label("Redis  cache").click();
         harness.run();
         harness.get_by_label("SSH  web-01").click();

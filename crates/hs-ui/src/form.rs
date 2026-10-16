@@ -221,6 +221,27 @@ pub fn sidebar_header(
 
 /// A selectable list row with an icon, hover highlight and selection colour
 /// (shell profiles, connections, environments).
+/// The right-click menu every connection row carries: pin it to Home, or
+/// take it off again. Returns the new state when the user chose one.
+///
+/// Home lists the connections someone pinned, which is only meaningful if
+/// pinning is something they can do from where the connections are.
+pub fn pin_menu(row: &egui::Response, pinned: bool, pin: &str, unpin: &str) -> Option<bool> {
+    let mut choice = None;
+    row.context_menu(|ui| {
+        if pinned {
+            if ui.button(unpin).clicked() {
+                choice = Some(false);
+                ui.close();
+            }
+        } else if ui.button(pin).clicked() {
+            choice = Some(true);
+            ui.close();
+        }
+    });
+    choice
+}
+
 pub fn list_row(
     ui: &mut egui::Ui,
     theme: &Theme,

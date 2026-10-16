@@ -201,4 +201,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Command and Arguments fields in the extension tables are as wide as the page | Completed | `extension_field_widths`; a fixed width made the window grow every frame |
 | Debug adapter for JavaScript and TypeScript | Completed | `js-debug`, TCP; `launch.json` "type": "node"/"pwa-node" maps to it |
 | Run and Debug ask about unsaved files (Save All / Ignore / Cancel) | Completed | `hs_ui::dialog::three_way`, `save_all_dirty` |
+| Home: pinned connections are really pinned, above Recent, bigger headings and pills by kind | Completed | `ConnectionProfile::pinned` + `set_pinned`, `form::pin_menu`, `launcher::kind_colour`/`pill`/`section_heading`; exercised live — pinning a host wrote the flag and the pill appeared |
+| One tab per connection, three for an SSH host | Completed | `app::tabs_per_connection`, `unbound_tab`; every tool routes its sidebar clicks through the shell |
+| Pinned tabs keep their name, with a colour marker | Completed | `TabItem::icon_only_when_pinned`, `PINNED_TEXT_WIDTH` (1 test); browser stays icon-only |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

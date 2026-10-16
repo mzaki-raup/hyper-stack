@@ -60,6 +60,10 @@ pub struct ConnectionProfile {
     pub colour: Option<String>,
     pub environment: Option<String>,
     pub read_only: bool,
+    /// Pinned to Home, so the connections someone actually uses are one
+    /// click away. Home used to list every profile, which is not a pin.
+    #[serde(default)]
+    pub pinned: bool,
     /// Where this profile sits in the lists. Written by dragging a row;
     /// profiles that have never been dragged share 0 and fall back to
     /// sorting by name, which is what every list did before.
@@ -83,6 +87,7 @@ impl Default for ConnectionProfile {
             environment: None,
             read_only: false,
             order: 0,
+            pinned: false,
             fields: toml::Table::new(),
         }
     }
@@ -213,6 +218,24 @@ impl Connections {
         self.profiles
             .sort_by_key(|a| (a.order, a.name.to_lowercase()));
         Ok(())
+    }
+
+    /// Pin or unpin a profile and write it back.
+    pub fn set_pinned(&mut self, id: &str, pinned: bool) -> storage::Result<()> {
+        let Some(c) = self.profiles.iter_mut().find(|p| p.id == id) else {
+            return Ok(());
+        };
+        if c.pinned == pinned {
+            return Ok(());
+        }
+        c.pinned = pinned;
+        let c = c.clone();
+        storage::write_toml(&self.file_for(&c), &c)
+    }
+
+    /// The pinned profiles, in list order.
+    pub fn pinned(&self) -> impl Iterator<Item = &ConnectionProfile> {
+        self.profiles.iter().filter(|c| c.pinned)
     }
 
     pub fn remove(&mut self, id: &str) -> storage::Result<()> {

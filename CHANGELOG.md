@@ -11,6 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- Connections can be **pinned to Home**: right-click one in its tool's
+  sidebar. Pinned Connections on Home used to list every connection that
+  existed, which is not a pin; it now lists the ones you chose.
+
+### Changed
+
+- Home puts Pinned Connections above Recent, gives both headings a size of
+  their own, lays Recent out as a grid rather than a column eight entries
+  deep, and draws each connection as a larger pill coloured by its kind —
+  SSH blue, SQL violet, Redis red, document stores green, S3 amber.
+
 ### Fixed
 
 - **New File** in the SFTP pane works: it opened the file for writing

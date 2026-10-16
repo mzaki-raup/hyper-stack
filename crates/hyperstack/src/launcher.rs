@@ -26,6 +26,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "s3" => Some("s3"),
         "db" => Some("db"),
         "redis" => Some("redis"),
+        "mongodb" | "couchdb" => Some("nosql"),
         _ => None,
     }
 }
@@ -236,9 +237,12 @@ mod tests {
         assert_eq!(tool_for_kind("s3"), Some("s3"));
         assert_eq!(tool_for_kind("db"), Some("db"));
         assert_eq!(tool_for_kind("redis"), Some("redis"));
+        // One tool opens both document stores.
+        assert_eq!(tool_for_kind("mongodb"), Some("nosql"));
+        assert_eq!(tool_for_kind("couchdb"), Some("nosql"));
         // No tool opens these kinds yet.
-        assert_eq!(tool_for_kind("mongodb"), None);
         assert_eq!(tool_for_kind("cassandra"), None);
+        assert_eq!(tool_for_kind("elasticsearch"), None);
     }
 
     #[test]

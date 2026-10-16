@@ -122,21 +122,21 @@ suggestion.
 
 ## 3d. NoSQL / document database client (requested) — [spec](tools/nosql.md)
 
-| Feature | Priority | Effort |
-|---|---|---|
-| MongoDB: connection (URI, SRV, replica set, TLS, auth sources, Atlas), SSH tunnel | P0 | M |
-| MongoDB: databases › collections tree with counts, indexes, validators, stats | P0 | M |
-| Document browser: paged results as tree / table (auto-flattened) / raw JSON, filter + projection + sort form, aggregation pipeline editor with stage-by-stage preview | P0 | L |
-| Document editing: edit as JSON (Extended JSON v2 with type preservation), insert, duplicate, delete, bulk update via query (dry-run count), field-level edit in tree | P0 | M |
-| Index management (create/drop, TTL, unique, text, compound), explain plan for find/aggregate | P1 | M |
-| Schema inference: sample documents → field names, types, frequency; export as JSON Schema | P1 | M |
-| Import/export: JSON, JSON lines, CSV (mongoimport-compatible), copy collection between connections/environments (streamed) | P1 | M |
-| CouchDB / PouchDB-compatible: databases, documents with `_rev` conflict handling, Mango queries, views (design docs, map/reduce), attachments, replication status | P0 (browse/edit) / P1 (views, replication) | L |
-| Elasticsearch / OpenSearch: indices, mappings, aliases, Query DSL editor with completion, hits as table/tree, `_cat` dashboards, index lifecycle | P1 | L |
-| DynamoDB (AWS and DynamoDB Local): tables, scan/query builder with key conditions, item editor, GSI/LSI listing, PartiQL console | P1 | L |
-| Cassandra / ScyllaDB: keyspaces, tables, CQL console with completion, paged results | P2 | L |
-| Firestore (service account), Cosmos DB (Mongo/SQL APIs), Neo4j (Cypher) | Idea | L |
-| Common: saved queries per connection, history, result export, "send to API client / editor", protected-environment guards (no `drop`, `deleteMany({})`, `DELETE /_all`) | P0 | S–M |
+| Feature | Priority | Effort | Notes |
+|---|---|---|---|
+| MongoDB: connection (URI, SRV, replica set, TLS, auth sources, Atlas), SSH tunnel | P0 | M | done 2026-10-16; SRV keeps the URI form, Atlas untested |
+| MongoDB: databases › collections tree with counts, indexes, validators, stats | P0 | M | tree, counts and indexes done 2026-10-16; validators and stats pending |
+| Document browser: paged results as tree / table (auto-flattened) / raw JSON, filter + projection + sort form, aggregation pipeline editor with stage-by-stage preview | P0 | L | done 2026-10-16; the pipeline runs whole rather than stage by stage |
+| Document editing: edit as JSON (Extended JSON v2 with type preservation), insert, duplicate, delete, bulk update via query (dry-run count), field-level edit in tree | P0 | M | edit, insert, delete and a dry-run delete-many done 2026-10-16; duplicate, bulk update and field-level edit pending |
+| Index management (create/drop, TTL, unique, text, compound), explain plan for find/aggregate | P1 | M | |
+| Schema inference: sample documents → field names, types, frequency; export as JSON Schema | P1 | M | |
+| Import/export: JSON, JSON lines, CSV (mongoimport-compatible), copy collection between connections/environments (streamed) | P1 | M | |
+| CouchDB / PouchDB-compatible: databases, documents with `_rev` conflict handling, Mango queries, views (design docs, map/reduce), attachments, replication status | P0 (browse/edit) / P1 (views, replication) | L | databases, `_rev` conflicts, Mango and bulk delete done 2026-10-16; views, attachments and replication pending |
+| Elasticsearch / OpenSearch: indices, mappings, aliases, Query DSL editor with completion, hits as table/tree, `_cat` dashboards, index lifecycle | P1 | L | |
+| DynamoDB (AWS and DynamoDB Local): tables, scan/query builder with key conditions, item editor, GSI/LSI listing, PartiQL console | P1 | L | |
+| Cassandra / ScyllaDB: keyspaces, tables, CQL console with completion, paged results | P2 | L | |
+| Firestore (service account), Cosmos DB (Mongo/SQL APIs), Neo4j (Cypher) | Idea | L | |
+| Common: saved queries per connection, history, result export, "send to API client / editor", protected-environment guards (no `drop`, `deleteMany({})`, `DELETE /_all`) | P0 | S–M | guards done 2026-10-16; saved queries, history and export pending |
 
 ## 4. API client (requested) — [spec](tools/api-client.md)
 

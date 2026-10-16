@@ -206,6 +206,12 @@ pub struct IndexInfo {
     pub unique: bool,
 }
 
+/// A future that opens a store: the connection is made on the runtime, and
+/// the tool hands this to the runner.
+pub type Opening = std::pin::Pin<
+    Box<dyn std::future::Future<Output = std::result::Result<Box<dyn DocStore>, String>> + Send>,
+>;
+
 #[async_trait]
 pub trait DocStore: Send {
     fn kind(&self) -> StoreKind;

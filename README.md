@@ -36,7 +36,8 @@ and theme.
 > tool with a synced dual pane and port forwarding, an S3 browser for AWS
 > and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB and
 > SQLite with a cell viewer that previews pictures and documents, a **Redis**
-> key browser with type-aware viewers, a console and guards, an **API
+> key browser with type-aware viewers, a console and guards, a **NoSQL**
+> client for MongoDB and CouchDB, an **API
 > client** with collections, JavaScript scripts (`pm` API) and Postman
 > import/export, **Devtools** (Base64, URL encoding, hashes, JWT, Firebase
 > tokens, Jasypt, PKI messages; one tab per utility, inputs persisted, secrets
@@ -48,7 +49,7 @@ and theme.
 > service) and a review-only assistant in
 > Terminal, SSH, SQL, S3, API client and Graphics whose code blocks can be
 > inserted but never run, and the in-app updater with signed releases.
-> NoSQL, the Git write side and logs follow in the next milestones
+> The Git write side and logs follow in the next milestones
 > per [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
 > `../eden-explorer` (Rust + egui file manager) serves as a **reference
 > only**: HyperStack studies how it solved the multi-row tab strip,

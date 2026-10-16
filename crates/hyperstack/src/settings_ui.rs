@@ -2093,6 +2093,8 @@ fn connections(
                 db_form(ui, theme, s, draft, fields_text);
             } else if is_redis {
                 redis_form(ui, theme, s, draft, fields_text);
+            } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb") {
+                nosql_form(ui, theme, s, draft, fields_text);
             } else {
                 form::section(ui, theme, &s.t("conn-fields"), |ui| {
                     form::code_field(ui, fields_text, 8);
@@ -3407,6 +3409,136 @@ fn redis_form(
     });
     ui.data_mut(|d| d.insert_temp(url_id, url));
     if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The `kind = "mongodb"` and `kind = "couchdb"` form: server or URI,
+/// credentials (password into the vault on save), TLS, the database the tree
+/// opens on, and an SSH tunnel.
+fn nosql_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_nosql::profile::{NoSqlFields, parse_url};
+    let mut f = NoSqlFields::from_table(&draft.kind, &draft.fields);
+    let mut changed = false;
+    let is_mongo = draft.kind == "mongodb";
+    let url_id = egui::Id::new(("nosql-url", draft.id.clone()));
+    let mut url: String = ui.data_mut(|d| d.get_temp(url_id).unwrap_or_default());
+    form::section(ui, theme, &s.t("conn-nosql-section-server"), |ui| {
+        form::field_grid(ui, "nosql-server", |ui| {
+            form::label(ui, &s.t("conn-nosql-url"));
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut url)
+                        .hint_text(if is_mongo {
+                            "mongodb://user@host:27017/shop"
+                        } else {
+                            "http://admin@host:5984/orders"
+                        })
+                        .desired_width(form::FIELD_MIN_WIDTH - 70.0),
+                );
+                if ui
+                    .add_enabled(
+                        !url.trim().is_empty(),
+                        egui::Button::new(s.t("conn-nosql-import")),
+                    )
+                    .clicked()
+                {
+                    if let Some(parsed) = parse_url(&url) {
+                        let tunnel = std::mem::take(&mut f.tunnel_ssh);
+                        f = parsed;
+                        f.tunnel_ssh = tunnel;
+                        // The profile's kind follows the URL that was pasted.
+                        draft.kind = f.kind.clone();
+                        changed = true;
+                    }
+                    url.clear();
+                }
+            });
+            ui.end_row();
+            form::label(ui, &s.t("conn-nosql-host"));
+            changed |= form::text_field(ui, &mut f.host, "127.0.0.1").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-nosql-port"));
+            let mut port = f.port.to_string();
+            if form::text_field(ui, &mut port, "27017").changed() {
+                f.port = port.trim().parse().unwrap_or(f.port);
+                changed = true;
+            }
+            ui.end_row();
+            form::label(ui, &s.t("conn-nosql-database"));
+            changed |= form::text_field(ui, &mut f.database, "shop").changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-nosql-url-hint"));
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "nosql-auth", |ui| {
+            form::label(ui, &s.t("conn-nosql-user"));
+            changed |= form::text_field(ui, &mut f.user, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-nosql-password"));
+            changed |= secret_field(ui, theme, s, "nosql-pass", &mut f.password, scratch, 0);
+            ui.end_row();
+            if is_mongo {
+                form::label(ui, &s.t("conn-nosql-auth-source"));
+                changed |= form::text_field(ui, &mut f.auth_source, "admin").changed();
+                ui.end_row();
+            }
+            form::label(ui, &s.t("conn-nosql-tls"));
+            changed |= ui.checkbox(&mut f.tls, "").changed();
+            ui.end_row();
+            if is_mongo {
+                form::label(ui, &s.t("conn-nosql-direct"));
+                changed |= ui
+                    .checkbox(&mut f.direct, s.t("conn-nosql-direct-hint"))
+                    .changed();
+                ui.end_row();
+            }
+            form::label(ui, &s.t("conn-db-tunnel"));
+            let hosts: Vec<(String, String)> = s
+                .connections
+                .read()
+                .of_kind("ssh")
+                .map(|c| (c.id.clone(), c.name.clone()))
+                .collect();
+            let none = s.t("conn-db-no-tunnel");
+            let current = hosts
+                .iter()
+                .find(|(id, _)| *id == f.tunnel_ssh)
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| none.clone());
+            egui::ComboBox::from_id_salt("nosql-tunnel")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                        .clicked()
+                    {
+                        f.tunnel_ssh.clear();
+                        changed = true;
+                    }
+                    for (id, name) in hosts {
+                        if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                            f.tunnel_ssh = id;
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
+    });
+    ui.data_mut(|d| d.insert_temp(url_id, url));
+    if changed {
+        // The kind may have moved with a pasted URL.
+        f.kind = draft.kind.clone();
         f.write_into(&mut draft.fields);
     }
 }

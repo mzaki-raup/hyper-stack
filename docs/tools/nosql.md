@@ -1,6 +1,6 @@
 # Tool spec — NoSQL / document database client
 
-**Crate:** `tool-nosql` · **Priority:** P0 (MongoDB, CouchDB browse/edit) · P1 (Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, CouchDB views) · P2 (Cassandra/ScyllaDB) · **Status:** draft
+**Crate:** `tool-nosql` · **Priority:** P0 (MongoDB, CouchDB browse/edit) · P1 (Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, CouchDB views) · P2 (Cassandra/ScyllaDB) · **Status:** implemented 2026-10-16 (P0; see §12)
 
 ## 1. Purpose
 
@@ -231,3 +231,43 @@ nested/array documents; dry-run counting; `_rev` conflict flows against a
 CouchDB container; Mongo 7, CouchDB 3, OpenSearch 2, DynamoDB Local
 integration via `testcontainers`; guard classifier for each store's
 destructive operations; snapshot tests of the table/tree views.
+
+## 12. What is implemented (2026-10-16)
+
+The P0 core of this spec is in `tool-nosql` and exercised against MongoDB 7
+and CouchDB 3 in containers (`HS_MONGO=127.0.0.1:27017
+HS_COUCH=http://admin:…@127.0.0.1:5984 cargo test -p tool-nosql --test live`):
+
+- **One tool, two stores.** `DocStore` (§5) is implemented by the MongoDB
+  driver (`mongodb` crate) and the CouchDB driver (HTTP through `reqwest`).
+  The sidebar lists both kinds of connection together, through the same
+  header every other tool's sidebar uses, and a connection has at most one
+  tab.
+- **Containers** (§4): the tree lists databases and, under each, its
+  collections with an estimated document count. A CouchDB database holds
+  documents directly, so it appears as its own container.
+- **Find** (§6): filter, projection and sort as JSON, with a page size and
+  skip. MongoDB reads Extended JSON, so `{"_id": {"$oid": "…"}}` addresses a
+  document by its real type. CouchDB uses `_all_docs` when there is no
+  selector and Mango `_find` when there is. **Count** is a separate action,
+  because an exact count is expensive.
+- **Views** (§7): Table flattens documents to dotted paths with `_id` first,
+  missing fields left blank rather than shown as null, and arrays as their
+  length; Tree lists each document's paths; JSON shows them laid out.
+- **Editing**: clicking a row opens the document as JSON. Save replaces it
+  (CouchDB sends `_rev`, so a stale edit is refused as a conflict rather
+  than overwriting), and New Document inserts one.
+- **Guards** (§6 of docs/06-security.md): a read-only profile, and a
+  protected environment until the tab unlocks writes, refuse every write.
+  **Delete Matching** counts first and, on a protected environment, asks for
+  the environment's name to be typed.
+- **Aggregation** (§6): a pipeline as a JSON array, run with the page limit
+  appended. MongoDB only.
+- **Indexes**: name, definition and whether it is unique.
+
+Not written yet, and left in the spec above: Elasticsearch and DynamoDB,
+CouchDB views and attachments, schema inference, import and export,
+change streams, and the explain plan rendered as a tree rather than JSON.
+A document's fields are shown in name order: `serde_json::Value` is a
+sorted map, so the order the store keeps them in is gone before the view
+sees it.

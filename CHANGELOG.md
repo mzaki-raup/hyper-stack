@@ -28,6 +28,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   picker, key list and value live in the tab. Clicking a connection focuses
   the tab bound to it, so a connection has at most one tab.
 
+- **NoSQL tool** (`tool-nosql`, docs/tools/nosql.md): one tab per MongoDB
+  or CouchDB connection, a tree of databases and collections, find with a
+  filter, projection, sort and paging, documents as a table, a tree or
+  JSON, an editor that saves one document back (CouchDB checks `_rev`, so a
+  stale edit is a conflict rather than an overwrite), aggregation pipelines
+  for MongoDB, an index list, and the same write guards as the SQL and
+  Redis tools, including a Delete Matching that counts first.
+- MongoDB and CouchDB connections in Settings → Connections, with URL
+  import that also sets the kind.
+
 ### Changed
 
 - Every tool's sidebar draws its header the same way, and the titles say

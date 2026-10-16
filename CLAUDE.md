@@ -9,9 +9,11 @@ environments and secrets across every tool.
 **Status: Phase 0 (foundation), M1 (terminal with search and links,
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
-(PostgreSQL, MySQL/MariaDB, SQLite) and the **Redis** tool (`tool-redis`:
+(PostgreSQL, MySQL/MariaDB, SQLite), the **Redis** tool (`tool-redis`:
 SCAN key tree, type-aware viewers and editors, console with guards, Info)
-are done, NoSQL next. On
+and the **NoSQL** tool (`tool-nosql`: MongoDB and CouchDB through one
+`DocStore`, container tree, find, document editing with guards) are done,
+which completes M3. On
 2026-10-15 the shell gained a pinned **Home** tab, theme modes, an
 Accessibility page (Read Aloud), settings import/export, Snip and Print…,
 and four tools landed: the **API client** (`tool-api`, Postman-compatible,
@@ -45,7 +47,7 @@ The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
-`tools/tool-redis`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+`tools/tool-redis`, `tools/tool-nosql`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -295,6 +297,7 @@ cargo test -p tool-s3                      # one tool crate at a time
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server / MinIO
 HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers   # SQL drivers (SQLite always)
 HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live   # Redis driver against a real server
+HS_MONGO=127.0.0.1:27017 HS_COUCH=http://admin:pw@127.0.0.1:5984 cargo test -p tool-nosql --test live   # MongoDB and CouchDB drivers
 pwsh -File scripts/next-release.ps1        # what the next push to main would release
 pwsh -c 'Invoke-Pester scripts/tests'      # release-planner tests (Pester 5)
 pwsh -File scripts/build-and-package.ps1 -Version 0.0.0-local -SkipSign   # local packaging dry run
@@ -627,6 +630,20 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A `parking_lot` guard is not `Send`: a runner task that holds one across
   an `.await` fails to compile with "future cannot be sent between
   threads". Scope the guard in its own block before the await.
+
+### NoSQL (tool-nosql)
+- Docker in WSL serves both stores for the live tests:
+  `docker run -d --name hs-mongo -p 27017:27017 mongo:7` and
+  `docker run -d --name hs-couch -p 5984:5984 -e COUCHDB_USER=admin -e COUCHDB_PASSWORD=… couchdb:3`.
+  Windows reaches them on `127.0.0.1`, and the same WSL caveat as Redis
+  applies: the distro must be held open or the containers go with it.
+- The extended-JSON conversions (`Bson::try_from(serde_json::Value)`,
+  `into_relaxed_extjson`) are behind bson's `serde_json-1` feature, which
+  the driver does not enable. Depend on `bson` directly with that feature;
+  feature unification then gives the driver's copy the same.
+- `serde_json::Value` is a sorted map, so a document's field order is lost
+  before any view sees it. Nothing in the tool can restore it without
+  `preserve_order`, which would change every other tool's JSON too.
 
 ### Databases (tool-db)
 - `mysql_async` builds its rustls config with `ClientConfig::builder()`,

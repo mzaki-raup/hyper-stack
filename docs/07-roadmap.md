@@ -77,7 +77,7 @@ in the e2e test).
 - [x] Schema browser, SQL editor with completion from schema cache, run statement/selection/script, cancel
 - [x] Result grid streaming into its own grid, cell viewer, copy/export CSV/JSON/Markdown/INSERT
 - [x] History, saved queries (`.sql` + header), transactions toggle, read-only, destructive classifier + guard, SSH tunnel
-- [ ] `tool-nosql`: `DocStore` trait; MongoDB driver (databases/collections tree, find with filter/projection/sort, aggregation editor, document tree/table/JSON views, Extended JSON editing, insert/update/delete with guards); CouchDB driver (databases, documents with `_rev`, Mango queries, attachments)
+- [x] `tool-nosql`: `DocStore` trait; MongoDB driver (databases/collections tree, find with filter/projection/sort, aggregation, document tree/table/JSON views, Extended JSON editing, insert/update/delete with guards); CouchDB driver (databases, documents with `_rev`, Mango queries) — 2026-10-16; attachments, views, schema inference and the P1 stores pending (`docs/tools/nosql.md` §12)
 - [x] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with guards — 2026-10-16 (command completion and the live dashboard pending, `docs/tools/redis.md` §11)
 
 ### M4 · API client + Git (6 w)

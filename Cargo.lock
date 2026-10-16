@@ -3642,6 +3642,7 @@ dependencies = [
  "tool-devtools",
  "tool-editor",
  "tool-graphics",
+ "tool-nosql",
  "tool-redis",
  "tool-s3",
  "tool-ssh",

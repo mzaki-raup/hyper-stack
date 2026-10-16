@@ -12,7 +12,12 @@ use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use crate::theme::Theme;
 
 pub const ROW_HEIGHT: f32 = 32.0;
+/// A pinned tab that shows only its icon (the browser, whose favicon says
+/// which site it is far better than a truncated title).
 pub const PINNED_WIDTH: f32 = 36.0;
+/// A pinned tab that keeps its name. Pinning should mark a tab, not erase
+/// what it says.
+pub const PINNED_TEXT_WIDTH: f32 = 132.0;
 pub const MAX_TAB_WIDTH: f32 = 240.0;
 pub const NEW_TAB_WIDTH: f32 = 32.0;
 /// Row height of a compact strip.
@@ -24,6 +29,12 @@ pub trait TabItem {
     fn title(&self) -> String;
     fn icon(&self) -> &str;
     fn pinned(&self) -> bool;
+    /// Whether this tab shows only its icon once pinned. True for the
+    /// browser, where the favicon identifies the page; false everywhere
+    /// else, so a pinned tab keeps its name.
+    fn icon_only_when_pinned(&self) -> bool {
+        false
+    }
     /// Whether this tab may be unpinned from the strip (for mandatory app
     /// tabs such as Settings).
     fn can_unpin(&self) -> bool {
@@ -38,6 +49,15 @@ pub trait TabItem {
     }
     fn tooltip(&self) -> String {
         self.title()
+    }
+}
+
+/// How wide a pinned tab's slot is.
+pub fn pinned_slot_width(icon_only: bool) -> f32 {
+    if icon_only {
+        PINNED_WIDTH
+    } else {
+        PINNED_TEXT_WIDTH
     }
 }
 
@@ -60,7 +80,13 @@ impl TabLayout {
 ///
 /// `pinned` flags per tab; `full_width` is the strip width; `min_width` and
 /// `gap` come from settings. The last row reserves room for the "+" button.
-pub fn compute_tab_layout(pinned: &[bool], full_width: f32, min_width: f32, gap: f32) -> TabLayout {
+pub fn compute_tab_layout(
+    pinned: &[bool],
+    icon_only: &[bool],
+    full_width: f32,
+    min_width: f32,
+    gap: f32,
+) -> TabLayout {
     let pinned_idx: Vec<usize> = pinned
         .iter()
         .enumerate()
@@ -75,7 +101,10 @@ pub fn compute_tab_layout(pinned: &[bool], full_width: f32, min_width: f32, gap:
         .collect();
     let min_width = min_width.max(48.0);
     let gap = gap.max(0.0);
-    let pinned_span = pinned_idx.len() as f32 * (PINNED_WIDTH + gap);
+    let pinned_span: f32 = pinned_idx
+        .iter()
+        .map(|i| pinned_slot_width(icon_only.get(*i).copied().unwrap_or(false)) + gap)
+        .sum();
     let first_row_avail = (full_width - pinned_span - NEW_TAB_WIDTH - gap).max(min_width);
     let other_rows_avail = (full_width - NEW_TAB_WIDTH - gap).max(min_width);
 
@@ -122,8 +151,14 @@ pub fn compute_tab_layout(pinned: &[bool], full_width: f32, min_width: f32, gap:
 }
 
 /// Number of rows a strip needs (used to size the title-bar region before drawing).
-pub fn tab_row_count(pinned: &[bool], full_width: f32, min_width: f32, gap: f32) -> usize {
-    compute_tab_layout(pinned, full_width, min_width, gap).row_count()
+pub fn tab_row_count(
+    pinned: &[bool],
+    icon_only: &[bool],
+    full_width: f32,
+    min_width: f32,
+    gap: f32,
+) -> usize {
+    compute_tab_layout(pinned, icon_only, full_width, min_width, gap).row_count()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,7 +227,8 @@ impl TabStrip<'_> {
         let mut resp = TabStripResponse::default();
         let full_width = ui.available_width();
         let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
-        let layout = compute_tab_layout(&pinned, full_width, self.min_width, self.gap);
+        let icon_only: Vec<bool> = tabs.iter().map(TabItem::icon_only_when_pinned).collect();
+        let layout = compute_tab_layout(&pinned, &icon_only, full_width, self.min_width, self.gap);
         let total_height = layout.row_count() as f32 * (self.row_h() + self.gap);
         let (strip_rect, _) =
             ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::hover());
@@ -207,11 +243,12 @@ impl TabStrip<'_> {
             let mut x = strip_rect.left();
             if row_i == 0 {
                 for &i in &layout.pinned {
-                    let rect =
-                        Rect::from_min_size(Pos2::new(x, y), Vec2::new(PINNED_WIDTH, self.row_h()));
-                    self.draw_tab(ui, &painter, rect, &tabs[i], true, &mut resp, i);
+                    let only_icon = icon_only[i];
+                    let w = pinned_slot_width(only_icon);
+                    let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, self.row_h()));
+                    self.draw_tab(ui, &painter, rect, &tabs[i], only_icon, &mut resp, i);
                     rects.push((i, rect));
-                    x += PINNED_WIDTH + self.gap;
+                    x += w + self.gap;
                 }
             }
             for &i in row {
@@ -338,13 +375,30 @@ impl TabStrip<'_> {
             self.theme.text_muted,
         );
 
+        // The pinned marker: a bar down the leading edge in the tab's own
+        // colour. A pinned tab keeps its name — losing it was the thing
+        // that made pinning feel like the tab had been taken away.
+        let is_pinned = tab.pinned();
+        if is_pinned {
+            painter.rect_filled(
+                Rect::from_min_size(rect.left_top(), Vec2::new(3.0, rect.height())),
+                CornerRadius::ZERO,
+                colour,
+            );
+        }
         if !icon_only {
+            // No close button on a pinned tab: pinning is for the tabs
+            // somebody means to keep, and the name wants the room.
             let close_rect = Rect::from_center_size(
                 Pos2::new(rect.right() - 14.0, rect.center().y),
                 Vec2::splat(18.0),
             );
             let text_left = rect.left() + 30.0;
-            let text_right = close_rect.left() - 4.0;
+            let text_right = if is_pinned {
+                rect.right() - 6.0
+            } else {
+                close_rect.left() - 4.0
+            };
             let title = tab.title();
             let galley = painter.layout_no_wrap(title.clone(), font.clone(), self.theme.text);
             let avail = (text_right - text_left).max(0.0);
@@ -361,39 +415,49 @@ impl TabStrip<'_> {
                 self.theme.text,
             );
 
-            let cr = ui.interact(close_rect, id.with("close"), Sense::click());
-            cr.widget_info(|| {
-                egui::WidgetInfo::labeled(
-                    egui::WidgetType::Button,
-                    true,
-                    format!("{} {}", self.labels.close, tab.title()),
-                )
-            });
-            if tab.dirty() && !cr.hovered() {
-                painter.circle_filled(close_rect.center(), 4.0, colour);
+            if is_pinned {
+                // A pinned tab shows its dirty mark where the close button
+                // would be, and nothing else: the rest of draw_tab still
+                // runs, because that is where the context menu lives — and
+                // the context menu is how a tab gets unpinned.
+                if tab.dirty() {
+                    painter.circle_filled(close_rect.center(), 4.0, colour);
+                }
             } else {
-                let c = if cr.hovered() {
-                    self.theme.text
+                let cr = ui.interact(close_rect, id.with("close"), Sense::click());
+                cr.widget_info(|| {
+                    egui::WidgetInfo::labeled(
+                        egui::WidgetType::Button,
+                        true,
+                        format!("{} {}", self.labels.close, tab.title()),
+                    )
+                });
+                if tab.dirty() && !cr.hovered() {
+                    painter.circle_filled(close_rect.center(), 4.0, colour);
                 } else {
-                    self.theme.text_muted
-                };
-                if cr.hovered() {
-                    painter.rect_filled(
-                        close_rect,
-                        CornerRadius::same(4),
-                        self.theme.surface_hover,
+                    let c = if cr.hovered() {
+                        self.theme.text
+                    } else {
+                        self.theme.text_muted
+                    };
+                    if cr.hovered() {
+                        painter.rect_filled(
+                            close_rect,
+                            CornerRadius::same(4),
+                            self.theme.surface_hover,
+                        );
+                    }
+                    painter.text(
+                        close_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        crate::icons::TAB_CLOSE,
+                        egui::FontId::proportional(12.0),
+                        c,
                     );
                 }
-                painter.text(
-                    close_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    crate::icons::TAB_CLOSE,
-                    egui::FontId::proportional(12.0),
-                    c,
-                );
-            }
-            if cr.clicked() {
-                resp.close = Some(tab.id());
+                if cr.clicked() {
+                    resp.close = Some(tab.id());
+                }
             }
         } else if tab.dirty() {
             painter.circle_filled(Pos2::new(rect.right() - 7.0, rect.top() + 7.0), 3.0, colour);
@@ -469,16 +533,19 @@ mod tests {
 
     #[test]
     fn one_row_when_tabs_fit_and_width_is_capped() {
-        let l = compute_tab_layout(&[false; 3], 1000.0, 140.0, 4.0);
+        let l = compute_tab_layout(&[false; 3], &[false; 3], 1000.0, 140.0, 4.0);
         assert_eq!(l.rows.len(), 1);
         assert_eq!(l.tab_width, MAX_TAB_WIDTH);
-        assert_eq!(tab_row_count(&[false; 3], 1000.0, 140.0, 4.0), 1);
+        assert_eq!(
+            tab_row_count(&[false; 3], &[false; 3], 1000.0, 140.0, 4.0),
+            1
+        );
     }
 
     #[test]
     fn tabs_shrink_to_minimum_then_wrap_instead_of_going_thinner() {
         // 6 tabs × 140 + gaps + "+" needs more than 600 px → wraps.
-        let l = compute_tab_layout(&[false; 6], 600.0, 140.0, 4.0);
+        let l = compute_tab_layout(&[false; 6], &[false; 6], 600.0, 140.0, 4.0);
         assert!(l.rows.len() >= 2, "expected wrapping, got {:?}", l.rows);
         assert!(l.tab_width >= 140.0);
         let total: usize = l.rows.iter().map(Vec::len).sum();
@@ -491,9 +558,28 @@ mod tests {
     }
 
     #[test]
+    fn a_pinned_tab_with_a_name_reserves_more_room_than_an_icon_only_one() {
+        // The browser's pinned tab is a favicon; everything else keeps its
+        // name, so it needs a wider slot and the regular tabs get less.
+        let pinned = [true, false, false, false];
+        let icons = [true, false, false, false];
+        let names = [false, false, false, false];
+        // Narrow enough that the tabs are not already at MAX_TAB_WIDTH,
+        // or both answers are the cap and the test proves nothing.
+        let with_icon = compute_tab_layout(&pinned, &icons, 700.0, 140.0, 4.0);
+        let with_name = compute_tab_layout(&pinned, &names, 700.0, 140.0, 4.0);
+        assert!(
+            with_name.tab_width < with_icon.tab_width,
+            "a named pinned tab should take more of the row"
+        );
+        assert_eq!(pinned_slot_width(true), PINNED_WIDTH);
+        assert_eq!(pinned_slot_width(false), PINNED_TEXT_WIDTH);
+    }
+
+    #[test]
     fn pinned_tabs_take_first_row_space_and_are_not_counted_as_regular() {
         let pinned = [true, false, true, false, false];
-        let l = compute_tab_layout(&pinned, 800.0, 140.0, 4.0);
+        let l = compute_tab_layout(&pinned, &[true; 5], 800.0, 140.0, 4.0);
         assert_eq!(l.pinned, vec![0, 2]);
         let regular: Vec<usize> = l.rows.concat();
         assert_eq!(regular, vec![1, 3, 4]);
@@ -501,14 +587,14 @@ mod tests {
 
     #[test]
     fn minimum_width_setting_changes_row_count() {
-        let narrow = tab_row_count(&[false; 10], 900.0, 80.0, 4.0);
-        let wide = tab_row_count(&[false; 10], 900.0, 200.0, 4.0);
+        let narrow = tab_row_count(&[false; 10], &[false; 10], 900.0, 80.0, 4.0);
+        let wide = tab_row_count(&[false; 10], &[false; 10], 900.0, 200.0, 4.0);
         assert!(wide > narrow);
     }
 
     #[test]
     fn no_regular_tabs_is_one_empty_row() {
-        let l = compute_tab_layout(&[true, true], 500.0, 140.0, 4.0);
+        let l = compute_tab_layout(&[true, true], &[true, true], 500.0, 140.0, 4.0);
         assert_eq!(l.rows, vec![Vec::<usize>::new()]);
         assert_eq!(l.row_count(), 1);
     }

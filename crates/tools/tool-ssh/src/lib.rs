@@ -643,14 +643,17 @@ impl SshTool {
                 );
                 self.with_sftp(s, format!("Create {path}"), move |sftp, _h| async move {
                     // Refuse to flatten something that is already there.
+                    // create(), not write(): write() opens with WRITE alone
+                    // and the server answers "no such file" for a name that
+                    // is not there yet, which is the whole point here.
                     let r = match sftp.try_exists(path.clone()).await {
                         Ok(true) => {
                             Err("a file or folder of that name is already here".to_string())
                         }
-                        Ok(false) | Err(_) => sftp
-                            .write(path.clone(), &[])
-                            .await
-                            .map_err(|e| e.to_string()),
+                        Ok(false) | Err(_) => match sftp.create(path.clone()).await {
+                            Ok(file) => file.close().await.map_err(|e| e.to_string()),
+                            Err(e) => Err(e.to_string()),
+                        },
                     };
                     done(r.clone());
                     r
@@ -1640,13 +1643,13 @@ impl Tool for SshTool {
             }
             ui.ctx().request_repaint();
         }
-        if let Some((id, selected)) = open {
-            if self.state.conn_id.is_none() {
-                self.state.conn_id = Some(id);
-                self.connect(s);
-            } else if !selected {
-                cx.open("ssh", Some(OpenRequest::Connection { id }));
-            }
+        // The shell decides which tab this lands in; a host may hold up
+        // to three sessions, so clicking one again opens another until it
+        // has them.
+        if let Some((id, selected)) = open
+            && !selected
+        {
+            cx.open("ssh", Some(OpenRequest::Connection { id }));
         }
         ui.add_space(10.0);
         self.tunnels_section(ui, cx, &theme);

@@ -11,6 +11,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Fixed
+
+- **New File** in the SFTP pane works: it opened the file for writing
+  without asking for it to be created, so the server answered "no such
+  file", and Enter did nothing because the field was being handed focus
+  again every frame.
+- A pinned tab keeps its name. Pinning used to shrink the tab to an icon,
+  which read as the tab having been taken away; it now shows a bar down
+  its leading edge in the tab's colour, and no close button. The browser
+  is the exception and still shows its icon alone.
+- One connection, one tab — opening a tool from Home and then picking a
+  connection it already had open no longer leaves two tabs on the same
+  connection. SSH is the deliberate exception: a host may hold up to three
+  sessions.
+- The drag grip is six dots, painted rather than taken from the icon font,
+  which did not carry that glyph and drew a box instead.
+
+
 ### Added
 
 - Lists can be put in the order you work in, by dragging a row with a line

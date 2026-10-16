@@ -822,6 +822,19 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   app, or name the file exactly `slug(name).toml`. Two confusing hours of
   "the reorder wrote the wrong numbers" were this and nothing else.
 
+### SFTP and the browser
+- russh-sftp's `write()` opens with `OpenFlags::WRITE` alone, so it fails
+  with "no such file" on a name that does not exist yet. `create()` is the
+  one that creates (`CREATE | TRUNCATE | WRITE`).
+- `Response::request_focus()` called every frame re-grants focus, and the
+  field then never reports the `lost_focus()` that an Enter press causes.
+  Request it once, when nothing else has focus.
+- A WebView2 child holds **native keyboard focus** even when egui believes
+  one of its own fields has it, so the browser's address bar cannot be
+  typed into. `SetFocus` on the parent, `wry`'s `focus_parent()` and
+  hiding the view were all tried: the first two do not hold, and hiding
+  the view lost a tab. Unsolved; the address bar is still read-only.
+
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was
   locked, so the profile was saved with the typed password in its TOML. It

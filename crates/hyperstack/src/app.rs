@@ -667,6 +667,26 @@ impl HyperStackApp {
         let _ = self.services.save_settings();
     }
 
+    /// A tab of this tool that is not bound to any connection, the active
+    /// one for preference.
+    fn unbound_tab(&self, factory_id: &str) -> Option<u64> {
+        let active = self.tabs.active;
+        let mut candidates = self
+            .tabs
+            .tabs
+            .iter()
+            .filter(|t| t.factory_id == factory_id && t.tool.current_connection().is_none())
+            .map(|t| t.id);
+        let first = candidates.next()?;
+        if candidates.clone().any(|id| Some(id) == active) {
+            return active;
+        }
+        if Some(first) == active {
+            return Some(first);
+        }
+        Some(first)
+    }
+
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
         self.open_tool_in(factory_id, request, true);
     }
@@ -750,21 +770,39 @@ impl HyperStackApp {
                 return;
             }
         }
-        // One tab per connection: a tab of this tool already bound to the
-        // profile is focused (its `open` reconnects it if it dropped).
-        if reuse
-            && let Some(OpenRequest::Connection { id: conn }) = &request
-            && let Some(id) = self
+        // How many tabs a connection may have, and what to do once it has
+        // them: SSH gives a host up to three sessions, every other tool one.
+        if reuse && let Some(OpenRequest::Connection { id: conn }) = &request {
+            let bound: Vec<u64> = self
                 .tabs
                 .tabs
                 .iter()
-                .find(|t| {
+                .filter(|t| {
                     t.factory_id == factory_id && t.tool.current_connection() == Some(conn.as_str())
                 })
                 .map(|t| t.id)
-        {
-            self.focus_and_open(id, factory_id, request);
-            return;
+                .collect();
+            if bound.len() >= tabs_per_connection(factory_id) {
+                // At the limit: focus one it already has (the active tab
+                // when that is one of them), and let `open` reconnect it.
+                let active = self.tabs.active;
+                let id = bound
+                    .iter()
+                    .copied()
+                    .find(|id| Some(*id) == active)
+                    .or_else(|| bound.last().copied());
+                if let Some(id) = id {
+                    self.focus_and_open(id, factory_id, request);
+                    return;
+                }
+            }
+            // Room for another, so bind a tab of this tool that holds no
+            // connection yet rather than leaving it blank beside the new
+            // one — Home opens exactly such a tab.
+            if let Some(id) = self.unbound_tab(factory_id) {
+                self.focus_and_open(id, factory_id, request);
+                return;
+            }
         }
         let Some(i) = self.factory_index(factory_id) else {
             self.toasts
@@ -3295,6 +3333,20 @@ const RAIL_WIDTH_LABELS: f32 = 78.0;
 /// Tool ids in rail order: the saved order first (ids it names that still
 /// exist), then every other tool in its default order. Home and Settings
 /// are placed by the rail itself, so they are left out here.
+/// How many tabs one connection may occupy in a tool.
+///
+/// SSH is the exception the owner asked for: a host often wants more than
+/// one shell — a build running in one, a log followed in another — so it
+/// gets up to three, each its own session. Everywhere else a second tab on
+/// the same connection is a duplicate nobody asked for, and clicking the
+/// connection again should land on the tab that is already there.
+pub(crate) fn tabs_per_connection(factory_id: &str) -> usize {
+    match group_of(factory_id) {
+        "ssh" => 3,
+        _ => 1,
+    }
+}
+
 pub(crate) fn rail_order<'a>(defaults: &[&'a str], saved: &[String]) -> Vec<&'a str> {
     let mut out: Vec<&str> = saved
         .iter()

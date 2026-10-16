@@ -1151,15 +1151,11 @@ impl Tool for S3Tool {
             }
             ui.ctx().request_repaint();
         }
-        if let Some((id, selected)) = open_profile {
-            if self.state.conn_id.is_none() {
-                self.state.conn_id = Some(id);
-                self.state.bucket = None;
-                self.state.prefix.clear();
-                self.connect(s);
-            } else if !selected {
-                cx.open("s3", Some(OpenRequest::Connection { id }));
-            }
+        // The shell decides which tab this lands in.
+        if let Some((id, selected)) = open_profile
+            && !selected
+        {
+            cx.open("s3", Some(OpenRequest::Connection { id }));
         }
         ui.add_space(10.0);
         form::note(ui, &theme, ph::LIGHTBULB, &s.t("s3-hint"));

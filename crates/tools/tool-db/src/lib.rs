@@ -2610,13 +2610,13 @@ impl Tool for DbTool {
                     }
                     ui.ctx().request_repaint();
                 }
-                if let Some((id, selected)) = open_profile {
-                    if self.state.conn_id.is_none() {
-                        self.state.conn_id = Some(id);
-                        self.connect(s);
-                    } else if !selected {
-                        cx.open("db", Some(OpenRequest::Connection { id }));
-                    }
+                // The shell decides which tab this lands in: the one
+                // already bound to the profile, this one if it holds no
+                // connection, or a new one.
+                if let Some((id, selected)) = open_profile
+                    && !selected
+                {
+                    cx.open("db", Some(OpenRequest::Connection { id }));
                 }
             });
         self.tree_menu(ui, cx);

@@ -83,11 +83,9 @@ impl Reorder {
             let (grip_rect, _) =
                 ui.allocate_exact_size(egui::vec2(GRIP_WIDTH, GRIP_HEIGHT), egui::Sense::hover());
             let grip = ui.interact(grip_rect, self.id.with(index), egui::Sense::drag());
-            ui.painter().text(
-                grip_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                GRIP,
-                egui::FontId::proportional(14.0),
+            paint_grip(
+                ui.painter(),
+                grip_rect,
                 if grip.hovered() {
                     ui.visuals().strong_text_color()
                 } else {
@@ -150,8 +148,27 @@ impl Reorder {
 const GRIP_WIDTH: f32 = 14.0;
 const GRIP_HEIGHT: f32 = 22.0;
 
-/// The grip glyph: six dots, the usual "drag me" mark.
-const GRIP: &str = egui_phosphor::regular::DOTS_SIX_VERTICAL;
+/// Six dots in two columns, the usual "drag me" mark.
+///
+/// Painted rather than taken from the icon font: the font HyperStack
+/// bundles does not carry every Phosphor codepoint, and a missing one
+/// renders as a tofu box — which is what the dots-six glyph did. Six
+/// circles cannot go missing.
+fn paint_grip(painter: &egui::Painter, rect: egui::Rect, colour: egui::Color32) {
+    const RADIUS: f32 = 1.4;
+    const GAP_X: f32 = 4.0;
+    const GAP_Y: f32 = 4.5;
+    let c = rect.center();
+    for row in -1..=1 {
+        for col in [-1.0f32, 1.0] {
+            painter.circle_filled(
+                egui::pos2(c.x + col * GAP_X / 2.0, c.y + row as f32 * GAP_Y),
+                RADIUS,
+                colour,
+            );
+        }
+    }
+}
 
 /// The payload: which row left. Its own type so two lists on screen cannot
 /// accept each other's rows.

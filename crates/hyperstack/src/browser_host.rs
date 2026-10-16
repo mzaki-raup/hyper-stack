@@ -279,6 +279,18 @@ mod imp {
                             }
                             continue;
                         }
+                        Cmd::FocusParent => {
+                            // wry asks WebView2 itself to hand the keyboard
+                            // back to the window that owns it. SetFocus on
+                            // the parent alone does not hold: the child
+                            // takes it straight back, and the address bar
+                            // stays unusable.
+                            for v in self.views.values() {
+                                let _ = v.webview.focus_parent();
+                            }
+                            refocus_parent(frame);
+                            continue;
+                        }
                         Cmd::ClearData(id) => {
                             if let Some(v) = self.views.get(id) {
                                 let _ = v.webview.clear_all_browsing_data();

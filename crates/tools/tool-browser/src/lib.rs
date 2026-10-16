@@ -61,6 +61,11 @@ pub enum Cmd {
     DevTools(u64),
     Print(u64),
     ClearData(u64),
+    /// Take keyboard focus off the web view and give it back to the main
+    /// window. A WebView2 child keeps focus even while egui thinks one of
+    /// its own fields has it, and every keystroke disappears into the page
+    /// — which is what made the address bar look read-only.
+    FocusParent,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -323,6 +328,7 @@ impl ToolFactory for BrowserFactory {
             state,
             tab_id: 0,
             focus_address: false,
+            address_focused: false,
             pending: Vec::new(),
         })
     }
@@ -333,6 +339,9 @@ pub struct BrowserTool {
     state: State,
     tab_id: u64,
     focus_address: bool,
+    /// The address bar had keyboard focus last frame, so the page's own
+    /// URL reports must not overwrite what is being typed.
+    address_focused: bool,
     pending: Vec<Cmd>,
     /// When Inspect was last acted on, so one click is one toggle.
     last_inspect_at: Option<f64>,
@@ -431,6 +440,7 @@ impl BrowserTool {
             std::mem::take(&mut hub.events)
         };
         let mut reinsert = Vec::new();
+        let address_focused = self.address_focused;
         for ev in events {
             let page_id = match &ev {
                 HostEvent::Title(id, _)
@@ -449,7 +459,12 @@ impl BrowserTool {
                 HostEvent::Title(_, t) => p.title = t,
                 HostEvent::Url(_, u) => {
                     p.url = u.clone();
-                    p.address = u;
+                    // Not while the user is typing in it: the page reports
+                    // its URL whenever it likes, and overwriting the field
+                    // mid-edit looks exactly like "I cannot type here".
+                    if !address_focused {
+                        p.address = u;
+                    }
                 }
                 HostEvent::Loading(_, l) => p.loading = l,
                 HostEvent::Blocked(_, u) => {
@@ -644,6 +659,16 @@ impl Tool for BrowserTool {
                 resp.request_focus();
                 self.focus_address = false;
             }
+            // The moment the field takes focus, ask the host for the
+            // keyboard back; the web view does not give it up by itself.
+            // Every frame it is focused, not only the first: the web view
+            // takes the keyboard back as soon as it is given up, so one
+            // request is not enough to keep it.
+            let focused = resp.has_focus();
+            if focused {
+                self.pending.push(Cmd::FocusParent);
+            }
+            self.address_focused = focused;
             if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 go = Some(normalise_address(&self.page().address));
             }

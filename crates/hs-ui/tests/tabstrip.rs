@@ -88,6 +88,7 @@ fn clicking_the_plus_button_requests_a_new_tab_and_strip_wraps() {
     // 11 regular tabs at ≥140 px cannot fit in 700 px → more than one row.
     let rows = hs_ui::tabs::tab_row_count(
         &tabs.iter().map(|t| t.pinned).collect::<Vec<_>>(),
+        &vec![false; tabs.len()],
         700.0,
         140.0,
         4.0,

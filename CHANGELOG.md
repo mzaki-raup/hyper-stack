@@ -11,7 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- The release job retries each asset upload instead of giving up on the
+  first dropped connection, which left v0.29.0 as a draft with one file
+  attached.
 
 ## 0.29.0 — 2026-10-16
 

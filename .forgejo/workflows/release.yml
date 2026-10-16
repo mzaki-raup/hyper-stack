@@ -203,14 +203,30 @@ jobs:
           }
           if (-not $release) { throw "Could not fetch or create the release row for $tag." }
 
+          # An upload can die mid-stream - "An existing connection was
+          # forcibly closed by the remote host" killed run 92 on the asset
+          # after the changelog - and the step then ends having attached
+          # part of the release. Give each file a few tries, with the
+          # duplicate check inside the loop so a half-written asset from the
+          # previous attempt is replaced rather than refused.
           $expected = @(Get-ChildItem release/dist -File | ForEach-Object { $_.Name })
           foreach ($file in Get-ChildItem release/dist -File) {
-            $existing = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)/assets"
-            $dup = $existing | Where-Object { $_.name -eq $file.Name }
-            if ($dup) { Invoke-RestMethod -Method Delete -Headers $headers -Uri "$api/releases/$($release.id)/assets/$($dup.id)" | Out-Null }
-            $form = @{ attachment = Get-Item $file.FullName }
-            Invoke-RestMethod -Method Post -Headers $headers -Uri "$api/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))" -Form $form | Out-Null
-            Write-Host "Uploaded $($file.Name)"
+            $sent = $false
+            for ($try = 1; $try -le 5 -and -not $sent; $try++) {
+              try {
+                $existing = Invoke-RestMethod -Method Get -Headers $headers -Uri "$api/releases/$($release.id)/assets"
+                $dup = $existing | Where-Object { $_.name -eq $file.Name }
+                if ($dup) { Invoke-RestMethod -Method Delete -Headers $headers -Uri "$api/releases/$($release.id)/assets/$($dup.id)" | Out-Null }
+                $form = @{ attachment = Get-Item $file.FullName }
+                Invoke-RestMethod -Method Post -Headers $headers -Uri "$api/releases/$($release.id)/assets?name=$([uri]::EscapeDataString($file.Name))" -Form $form | Out-Null
+                $sent = $true
+                Write-Host "Uploaded $($file.Name)"
+              } catch {
+                Write-Host "Attempt ${try} at $($file.Name) failed: $($_.Exception.Message)"
+                Start-Sleep -Seconds (5 * $try)
+              }
+            }
+            if (-not $sent) { throw "Could not upload $($file.Name) after 5 attempts." }
           }
 
           $patch = @{ name = "HyperStack $version"; body = $notes; draft = $false; prerelease = $prerelease } | ConvertTo-Json -Depth 4

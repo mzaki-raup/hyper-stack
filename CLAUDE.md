@@ -371,6 +371,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   from the Actions page (or push a `docs:` commit, which re-plans the same
   version); check nothing heavy is running locally first. A failing CI on
   the same commit minutes earlier would mean a real error instead.
+- An asset upload can die mid-stream ("Unable to write data to the transport
+  connection: An existing connection was forcibly closed by the remote host",
+  release run 92, v0.29.0). The step had no retry, so it ended with the tag
+  and the bump commit on `main` and a **draft** release carrying one asset.
+  The upload loop now retries each file five times with a growing pause, and
+  deletes a half-written duplicate first. Recovery when a publish dies this
+  way: the plan step reads a draft release as unpublished and passes the tag
+  to `next-release.ps1 -Republish`, so the **next push to `main`** rebuilds
+  the same version and publishes into the existing row (the bump and tag
+  steps are skipped on a republish). This forge has no rerun API -
+  `POST /actions/runs/<id>/rerun` is 404 - so it is either that push or the
+  Re-run button in the Actions page.
 - A PowerShell step with a non-terminating error carries on and the job goes
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every

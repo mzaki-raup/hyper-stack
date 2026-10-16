@@ -109,6 +109,30 @@ impl Services {
         Ok(result)
     }
 
+    /// The credentials an AI provider needs, resolved through the vault.
+    /// A field that holds no `secret:` reference is used as it is (a local
+    /// server needs none); a locked vault is an error, not an empty key.
+    pub fn ai_credentials(
+        &self,
+        p: &crate::settings::AiProvider,
+    ) -> Result<crate::ai::Credentials, String> {
+        let one = |field: &str| -> Result<String, String> {
+            match crate::secrets::SecretRef::parse(field) {
+                None => Ok(field.to_string()),
+                Some(_) if self.secrets.is_locked() => Err(self.t("settings-vault-unlock-first")),
+                Some(r) => self
+                    .secrets
+                    .get(&r)
+                    .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+                    .map_err(|e| e.to_string()),
+            }
+        };
+        Ok(crate::ai::Credentials {
+            key: one(&p.api_key)?,
+            secret: one(&p.secret_key)?,
+        })
+    }
+
     /// Translate a Fluent key with no arguments.
     pub fn t(&self, key: &str) -> String {
         self.i18n.t(key)

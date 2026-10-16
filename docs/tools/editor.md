@@ -277,16 +277,27 @@ format on save, file exclusions for search, large-file threshold.
   panel on the right. A chat picks a provider and, from a **dropdown**, a
   model: the list the provider offers (`GET {base}/models` for
   OpenAI-compatible servers, asked when the provider is first picked and
-  shared by every editor tab for the session; ⟳ asks again; 1min.AI has no
-  cannot list its chat models, so it offers the 95 ids its chat
-  endpoint accepts, `hs_core::ai::ONEMIN_MODEL_GROUPS`, under vendor
-  headings with the display name as a tooltip; the separate "1min.AI
-  (OpenAI-Compatible)" preset points at its `/openai/v1` adapter, whose
-  `/models` is read live),
-  plus an **Other model id** field at the bottom for an id the list lacks (Settings → AI
-  Assistant lists providers: 1min.AI or OpenAI-compatible such as OpenAI,
-  LM Studio, Ollama, OpenRouter; Fetch Models asks an OpenAI-compatible
-  server for its list; Test Connection sends a one-line question).
+  shared by every editor tab for the session; ⟳ asks again; Anthropic and
+  Gemini list theirs through their own endpoints; 1min.AI cannot list its
+  chat models, so it offers the 95 ids its chat endpoint accepts,
+  `hs_core::ai::ONEMIN_MODEL_GROUPS`, under vendor headings with the
+  display name as a tooltip; the separate "1min.AI (OpenAI-Compatible)"
+  preset points at its `/openai/v1` adapter, whose `/models` is read
+  live), plus an **Other model id** field at the bottom for an id the list
+  lacks.
+- **Providers** (Settings → AI Assistant, ADR-019 amended 2026-10-16):
+  **Add Provider** opens a gallery of fifteen services in three groups —
+  Hosted Services (OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS
+  Bedrock, Mistral, Moonshot/Kimi, Tencent Hunyuan, 1min.AI), Gateways
+  (OpenRouter, 1min.AI's OpenAI-compatible adapter) and On This Machine
+  (LM Studio, Ollama, vLLM, any other OpenAI-compatible server). Picking a
+  card fills the kind, base URL and default model, and the form shows only
+  the fields that kind needs: a Resource URL, API Version and Deployment
+  for Azure; a Region, Access Key ID and Secret Access Key for Bedrock; an
+  API Key for the rest. **Fetch Models** asks the service for its list
+  (Bedrock cannot, so it offers **Known Models** instead) and **Test
+  Connection** sends a one-line question. Bedrock answers in one piece
+  rather than word by word, which the page says.
 - **Context**: Auto (the selection when there is one, else the whole file),
   Whole File, Selection Only or No Code. Only the newest request carries the
   code; earlier ones are reduced to their text. Files over 120 000

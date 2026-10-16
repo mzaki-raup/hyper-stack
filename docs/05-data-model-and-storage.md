@@ -362,6 +362,12 @@ machine's sidebar width, dock height and last update check, merges AI
 providers by id (existing updated, new appended) and sets each shortcut
 the bundle names. Both directions ask for the master password.
 
+**Amended 2026-10-16.** An AI provider in `[[ai.providers]]` gained
+`secret_key`, `region` and `api_version` for the kinds that need them
+(AWS Bedrock signs with an access key and a secret key in a region; Azure
+OpenAI pins an API version). `secret_key` is a `secret:<ulid>` vault
+reference exactly like `api_key`, so the bundle still carries no secret.
+
 The API client keeps its collections as one JSON file each under
 `<workspace>/api/collections/`, globals in `api/globals.json` and the last
 200 sends in `api/history.jsonl`; values may be `secret:<id>` references

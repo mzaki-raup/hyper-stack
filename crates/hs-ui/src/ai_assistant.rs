@@ -4,8 +4,6 @@ use std::sync::Arc;
 
 use hs_core::Services;
 use hs_core::ai::{self, Message, Role};
-use hs_core::secrets::SecretRef;
-use hs_core::settings::AiProvider;
 use parking_lot::Mutex;
 
 #[derive(Default)]
@@ -182,18 +180,6 @@ impl AssistantPanel {
         self.context = context.into();
     }
 
-    fn provider_key(s: &Services, p: &AiProvider) -> Result<String, String> {
-        match SecretRef::parse(&p.api_key) {
-            None => Ok(String::new()),
-            Some(_) if s.secrets.is_locked() => Err(s.t("settings-vault-unlock-first")),
-            Some(r) => s
-                .secrets
-                .get(&r)
-                .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
-                .map_err(|e| e.to_string()),
-        }
-    }
-
     fn send(&mut self, s: &Services) {
         if self.running.is_some() {
             return;
@@ -217,7 +203,7 @@ impl AssistantPanel {
             self.turns.push((Role::Assistant, s.t("ai-no-provider")));
             return;
         };
-        let key = match Self::provider_key(s, &provider) {
+        let key = match s.ai_credentials(&provider) {
             Ok(key) => key,
             Err(error) => {
                 self.turns.push((Role::User, prompt));

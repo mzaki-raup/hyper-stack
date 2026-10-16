@@ -261,6 +261,12 @@ pub struct AiProvider {
     pub api_key: String,
     /// The model a new chat starts with.
     pub model: String,
+    /// AWS region (Bedrock only).
+    pub region: String,
+    /// Azure OpenAI API version (Azure only); empty uses the default.
+    pub api_version: String,
+    /// `secret:<ulid>` of the AWS secret access key (Bedrock only).
+    pub secret_key: String,
 }
 
 impl Ai {
@@ -283,6 +289,8 @@ impl AiProvider {
             } else {
                 model.to_string()
             },
+            region: self.region.clone(),
+            api_version: self.api_version.clone(),
         }
     }
 }

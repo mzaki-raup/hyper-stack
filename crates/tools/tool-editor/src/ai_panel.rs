@@ -13,7 +13,6 @@ use std::sync::{Arc, LazyLock};
 
 use hs_core::Services;
 use hs_core::ai::{self, EditBlock, Message, Role, Segment};
-use hs_core::secrets::SecretRef;
 use hs_core::settings::AiProvider;
 use hs_editor::buffer::{Buffer, Edit, EditKind};
 use hs_editor::cursor::{Cursor, Cursors, byte_to_char};
@@ -72,19 +71,6 @@ type ModelList = Arc<Mutex<Option<Result<Vec<String>, String>>>>;
 static MODELS: LazyLock<Mutex<HashMap<String, ModelList>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// The provider's API key from the vault (empty for a local server).
-fn provider_key(s: &Services, p: &AiProvider) -> Result<String, String> {
-    match SecretRef::parse(&p.api_key) {
-        None => Ok(String::new()),
-        Some(_) if s.secrets.is_locked() => Err(s.t("settings-vault-unlock-first")),
-        Some(r) => s
-            .secrets
-            .get(&r)
-            .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
-            .map_err(|e| e.to_string()),
-    }
-}
-
 /// The provider's model list, asking the service the first time (or again
 /// on `refresh`). Runs on the runtime; the list fills in when it answers.
 fn models_for(s: &Services, p: &AiProvider, refresh: bool) -> ModelList {
@@ -96,8 +82,8 @@ fn models_for(s: &Services, p: &AiProvider, refresh: bool) -> ModelList {
     MODELS.lock().insert(cache_key, list.clone());
     let key = match p.kind {
         // 1min.AI's list is built in: no key, no unlocked vault needed.
-        ai::Provider::OneMin => Ok(String::new()),
-        ai::Provider::OpenAi => provider_key(s, p),
+        ai::Provider::OneMin => Ok(ai::Credentials::default()),
+        _ => s.ai_credentials(p),
     };
     let key = match key {
         Ok(k) => k,
@@ -265,7 +251,7 @@ impl AiPanel {
             };
             msgs.push(Message::new(t.role, content));
         }
-        let key = match provider_key(s, &provider) {
+        let key = match s.ai_credentials(&provider) {
             Ok(k) => k,
             Err(e) => {
                 self.fail(e);

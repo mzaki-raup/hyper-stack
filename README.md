@@ -42,8 +42,9 @@ and theme.
 > saved to the environment vault and used as `{{variables}}`), a **Graphics** tool (convert, resize, extend,
 > adjust, icons), an embedded **Browser** (WebView2, ad and script
 > blocking, forced dark, inspect, print), **Snip** and **Print…** for every
-> tab, an optional AI assistant in the editor (1min.AI, LM Studio, Ollama
-> or any OpenAI-compatible service) and a review-only assistant in
+> tab, an optional AI assistant in the editor (Anthropic, Gemini, Azure
+> OpenAI, AWS Bedrock, 1min.AI, LM Studio, Ollama or any OpenAI-compatible
+> service) and a review-only assistant in
 > Terminal, SSH, SQL, S3, API client and Graphics whose code blocks can be
 > inserted but never run, and the in-app updater with signed releases.
 > NoSQL, Redis, the Git write side and logs follow in the next milestones
@@ -119,7 +120,7 @@ Open opens the searchable tools, connections and project items palette.
 | ![Git history](docs/screenshots/editor-git-history.png) | |
 | **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
-| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — 1min.AI or any OpenAI-compatible server (OpenAI, local LM Studio or Ollama with every downloaded model, OpenRouter); keys in the vault |
+| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI, or any OpenAI-compatible server (OpenAI, Mistral, Kimi, Hunyuan, OpenRouter, local LM Studio or Ollama with every downloaded model). Add one from a gallery of fifteen services; keys in the vault |
 
 ### Terminal
 

@@ -477,6 +477,42 @@ use the same panel (graphics with Insert disabled).
   Apply for its `hs-api` action blocks. The owner asked for this
   explicitly; the panel is no longer review-only for tools that execute.
 
+**Amended 2026-10-16** (owner's request, services that are not
+OpenAI-compatible). `hs-core::ai` now carries **six** provider kinds
+instead of two, chosen by `AiProvider::kind`:
+
+| Kind | Endpoint and shape |
+|---|---|
+| **OpenAI-Compatible** | `POST {base}/chat/completions`, bearer key, `GET {base}/models`. Covers OpenAI, Mistral, Moonshot (Kimi), Tencent Hunyuan, OpenRouter, 1min.AI's adapter, LM Studio, Ollama and vLLM, which all copy that API |
+| **1min.AI** | its own `chat-with-ai` API, unchanged |
+| **Anthropic** | `POST {base}/v1/messages`, `x-api-key` and `anthropic-version` headers, the system prompt in its own field, turns that must alternate and start with the user, SSE `content_block_delta` text deltas ending at `message_stop` |
+| **Google Gemini** | `POST {base}/v1beta/models/{model}:streamGenerateContent?alt=sse`, `x-goog-api-key`, `contents`/`parts`, and no end marker: the stream simply stops |
+| **Azure OpenAI** | `POST {resource}/openai/deployments/{deployment}/chat/completions?api-version=…`, `api-key` header; the model field names the *deployment*, and an API version is part of the contract |
+| **AWS Bedrock** | `POST /model/{id}/converse` on `bedrock-runtime.{region}.amazonaws.com`, signed with SigV4 (`hs_core::objstore::sigv4`, service `bedrock`) from an access key *and* a secret key |
+
+- A provider therefore has three more fields (`secret_key`, `region`,
+  `api_version`); both key fields are vault references, and
+  `Services::ai_credentials` is the one place that resolves them, so a
+  locked vault is an error rather than an empty key.
+- **Bedrock answers in one piece.** Its streaming form is an
+  application-level binary event stream (`vnd.amazon.eventstream`), which
+  this client does not speak, so the Converse call is made without
+  streaming and the whole answer arrives at once; the settings page says
+  so. Bedrock also has no model list without a second permission, so a
+  **Known Models** button offers the well-known ids instead of Fetch
+  Models.
+- Settings → AI Assistant adds a provider from a **gallery** of fifteen
+  services in three groups (Hosted Services, Gateways, On This Machine):
+  picking one fills in its kind, base URL and default model, and the form
+  then shows only the fields that kind needs. The catalogue is a
+  convenience, not a constraint: every field stays editable and any other
+  server that copies OpenAI's API works under OpenAI-Compatible.
+
+**Consequences.** Two services the owner named are reached through the
+OpenAI-compatible kind rather than a kind of their own (Mistral, Moonshot,
+Hunyuan); if one of them diverges, it needs its own arm. Bedrock's
+non-streaming answer feels slower than the others even when it is not.
+
 ## ADR-020 · API client scripts run JavaScript on Boa with a `pm` shim
 
 **Context.** [tools/api-client.md](tools/api-client.md) planned Rhai for

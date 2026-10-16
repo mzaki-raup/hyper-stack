@@ -16,6 +16,18 @@ pub use edits::{EditBlock, LocateError, Segment, apply_block, locate, segments};
 /// Default endpoint of each provider (the settings field may override it).
 pub const ONEMIN_BASE: &str = "https://api.1min.ai";
 pub const OPENAI_BASE: &str = "https://api.openai.com/v1";
+pub const ANTHROPIC_BASE: &str = "https://api.anthropic.com";
+pub const GEMINI_BASE: &str = "https://generativelanguage.googleapis.com/v1beta";
+/// Azure OpenAI has no shared host: the resource's own one is required.
+pub const AZURE_BASE: &str = "";
+/// Bedrock's host carries the region, so the base is built from it.
+pub const BEDROCK_BASE: &str = "";
+/// The `anthropic-version` every Messages API request must carry.
+pub const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// The Azure OpenAI API version used when a provider does not set one.
+pub const AZURE_API_VERSION: &str = "2024-10-21";
+/// What Anthropic and Bedrock need as an explicit answer cap.
+const MAX_TOKENS: u32 = 8192;
 
 /// The models 1min.AI's chat endpoint (`/api/chat-with-ai`) accepts, by
 /// vendor, as `(id, display name)`: its "Available Models" list as of
@@ -243,34 +255,134 @@ pub enum Provider {
     #[serde(rename = "1min")]
     OneMin,
     /// `POST {base}/chat/completions` with a bearer token: OpenAI, OpenRouter,
-    /// Groq, Ollama, LM Studio, vLLM and the like.
+    /// Groq, Mistral, Moonshot (Kimi), Tencent Hunyuan, Ollama, LM Studio,
+    /// vLLM and every other service that copies OpenAI's shape.
     OpenAi,
+    /// Anthropic's Messages API: `POST {base}/v1/messages`, `x-api-key`,
+    /// `anthropic-version`, the system prompt in its own field.
+    Anthropic,
+    /// Google Gemini: `POST {base}/models/{model}:streamGenerateContent`
+    /// with `x-goog-api-key` and `contents`/`parts`.
+    Gemini,
+    /// Azure OpenAI: OpenAI's body on the resource's own host, the model
+    /// as a deployment name, `api-key` and an `api-version`.
+    Azure,
+    /// AWS Bedrock's Converse API, signed with SigV4. The answer arrives
+    /// in one piece: the streaming form is a binary event stream, which
+    /// this client does not speak.
+    Bedrock,
 }
 
 impl Provider {
-    pub fn all() -> [Provider; 2] {
-        [Provider::OneMin, Provider::OpenAi]
+    pub fn all() -> [Provider; 6] {
+        [
+            Provider::OpenAi,
+            Provider::Anthropic,
+            Provider::Gemini,
+            Provider::Azure,
+            Provider::Bedrock,
+            Provider::OneMin,
+        ]
     }
     pub fn default_base(self) -> &'static str {
         match self {
             Provider::OneMin => ONEMIN_BASE,
             Provider::OpenAi => OPENAI_BASE,
+            Provider::Anthropic => ANTHROPIC_BASE,
+            Provider::Gemini => GEMINI_BASE,
+            Provider::Azure => AZURE_BASE,
+            Provider::Bedrock => BEDROCK_BASE,
         }
     }
     pub fn default_model(self) -> &'static str {
         match self {
-            Provider::OneMin => "gpt-4o-mini",
-            Provider::OpenAi => "gpt-4o-mini",
+            Provider::OneMin | Provider::OpenAi | Provider::Azure => "gpt-4o-mini",
+            Provider::Anthropic => "claude-sonnet-4-5",
+            Provider::Gemini => "gemini-2.5-flash",
+            Provider::Bedrock => "anthropic.claude-3-5-sonnet-20241022-v2:0",
         }
+    }
+    /// The name shown in the settings page.
+    pub fn label(self) -> &'static str {
+        match self {
+            Provider::OneMin => "1min.AI",
+            Provider::OpenAi => "OpenAI-compatible",
+            Provider::Anthropic => "Anthropic",
+            Provider::Gemini => "Google Gemini",
+            Provider::Azure => "Azure OpenAI",
+            Provider::Bedrock => "AWS Bedrock",
+        }
+    }
+    /// Bedrock signs with an access key *and* a secret.
+    pub fn needs_secret(self) -> bool {
+        self == Provider::Bedrock
+    }
+    /// Bedrock's host and signature carry the region.
+    pub fn needs_region(self) -> bool {
+        self == Provider::Bedrock
+    }
+    /// Azure pins an API version per deployment.
+    pub fn needs_api_version(self) -> bool {
+        self == Provider::Azure
+    }
+    /// Azure's "model" is the deployment name, and its base URL is the
+    /// resource's own host, so neither has a useful default.
+    pub fn needs_base(self) -> bool {
+        matches!(self, Provider::Azure)
+    }
+    /// Whether the service can list its models.
+    pub fn lists_models(self) -> bool {
+        !matches!(self, Provider::Bedrock)
+    }
+    /// The answer arrives in one piece rather than token by token.
+    pub fn whole_answer_only(self) -> bool {
+        self == Provider::Bedrock
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// What a provider authenticates with. Bedrock needs a pair; everything
+/// else uses `key` alone (empty for a local server).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Credentials {
+    pub key: String,
+    /// AWS secret access key; empty for every other provider.
+    pub secret: String,
+}
+
+impl Credentials {
+    pub fn new(key: impl Into<String>) -> Self {
+        Self {
+            key: key.into(),
+            secret: String::new(),
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.key.trim().is_empty()
+    }
+}
+
+impl From<&str> for Credentials {
+    fn from(key: &str) -> Self {
+        Credentials::new(key)
+    }
+}
+
+impl From<&String> for Credentials {
+    fn from(key: &String) -> Self {
+        Credentials::new(key.clone())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct AiConfig {
     pub provider: Provider,
     /// Empty = the provider's default.
     pub base_url: String,
     pub model: String,
+    /// AWS region (Bedrock); empty elsewhere.
+    pub region: String,
+    /// Azure OpenAI API version; empty uses [`AZURE_API_VERSION`].
+    pub api_version: String,
 }
 
 impl AiConfig {
@@ -291,6 +403,43 @@ impl AiConfig {
             m
         }
     }
+    fn region(&self) -> &str {
+        let r = self.region.trim();
+        if r.is_empty() { "us-east-1" } else { r }
+    }
+    fn api_version(&self) -> &str {
+        let v = self.api_version.trim();
+        if v.is_empty() { AZURE_API_VERSION } else { v }
+    }
+    /// Bedrock's host is built from the region unless one was given.
+    fn bedrock_host(&self) -> String {
+        let b = self.base_url.trim().trim_end_matches('/');
+        if b.is_empty() {
+            format!("bedrock-runtime.{}.amazonaws.com", self.region())
+        } else {
+            b.trim_start_matches("https://")
+                .trim_start_matches("http://")
+                .to_string()
+        }
+    }
+}
+
+/// The conversation as the providers that keep the system prompt apart
+/// need it: the system text, then the alternating turns.
+fn split_system(messages: &[Message]) -> (String, Vec<&Message>) {
+    let mut system = String::new();
+    let mut turns = Vec::new();
+    for m in messages {
+        if m.role == Role::System {
+            if !system.is_empty() {
+                system.push_str("\n\n");
+            }
+            system.push_str(&m.content);
+        } else {
+            turns.push(m);
+        }
+    }
+    (system, turns)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -350,20 +499,14 @@ pub fn http_client() -> reqwest::Client {
 pub async fn chat(
     http: &reqwest::Client,
     cfg: &AiConfig,
-    api_key: &str,
+    creds: &Credentials,
     messages: &[Message],
     on_text: &mut (dyn FnMut(&str) + Send),
 ) -> Result<String, AiError> {
+    let api_key = creds.key.as_str();
     let req = match cfg.provider {
         Provider::OpenAi => {
-            let body = json!({
-                "model": cfg.model(),
-                "stream": true,
-                "messages": messages
-                    .iter()
-                    .map(|m| json!({"role": m.role.as_str(), "content": m.content}))
-                    .collect::<Vec<_>>(),
-            });
+            let body = openai_body(cfg, messages, true);
             let mut r = http
                 .post(format!("{}/chat/completions", cfg.base()))
                 .json(&body);
@@ -371,6 +514,76 @@ pub async fn chat(
                 r = r.bearer_auth(api_key);
             }
             r
+        }
+        Provider::Azure => {
+            // The model is a deployment on the resource's own host.
+            let body = openai_body(cfg, messages, true);
+            http.post(format!(
+                "{}/openai/deployments/{}/chat/completions?api-version={}",
+                cfg.base(),
+                cfg.model(),
+                cfg.api_version()
+            ))
+            .header("api-key", api_key)
+            .json(&body)
+        }
+        Provider::Anthropic => {
+            let (system, turns) = split_system(messages);
+            let mut body = json!({
+                "model": cfg.model(),
+                "max_tokens": MAX_TOKENS,
+                "stream": true,
+                "messages": anthropic_turns(&turns),
+            });
+            if !system.is_empty() {
+                body["system"] = Value::String(system);
+            }
+            http.post(format!("{}/v1/messages", cfg.base()))
+                .header("x-api-key", api_key)
+                .header("anthropic-version", ANTHROPIC_VERSION)
+                .json(&body)
+        }
+        Provider::Gemini => {
+            let (system, turns) = split_system(messages);
+            let mut body = json!({
+                "contents": turns
+                    .iter()
+                    .map(|m| json!({
+                        "role": if m.role == Role::Assistant { "model" } else { "user" },
+                        "parts": [{"text": m.content}],
+                    }))
+                    .collect::<Vec<_>>(),
+            });
+            if !system.is_empty() {
+                body["systemInstruction"] = json!({"parts": [{"text": system}]});
+            }
+            http.post(format!(
+                "{}/models/{}:streamGenerateContent?alt=sse",
+                cfg.base(),
+                cfg.model()
+            ))
+            .header("x-goog-api-key", api_key)
+            .json(&body)
+        }
+        Provider::Bedrock => {
+            // Converse, not ConverseStream: the streaming form is a binary
+            // event stream this client does not speak, and a whole answer
+            // is better than a half-parsed one.
+            let (system, turns) = split_system(messages);
+            let mut body = json!({
+                "messages": turns
+                    .iter()
+                    .map(|m| json!({
+                        "role": if m.role == Role::Assistant { "assistant" } else { "user" },
+                        "content": [{"text": m.content}],
+                    }))
+                    .collect::<Vec<_>>(),
+                "inferenceConfig": {"maxTokens": MAX_TOKENS},
+            });
+            if !system.is_empty() {
+                body["system"] = json!([{"text": system}]);
+            }
+            return bedrock_converse(http, cfg, creds, &body, on_text).await;
         }
         Provider::OneMin => {
             let body = json!({
@@ -431,6 +644,107 @@ pub async fn chat(
     Ok(out)
 }
 
+/// The OpenAI (and Azure) request body.
+fn openai_body(cfg: &AiConfig, messages: &[Message], stream: bool) -> Value {
+    json!({
+        "model": cfg.model(),
+        "stream": stream,
+        "messages": messages
+            .iter()
+            .map(|m| json!({"role": m.role.as_str(), "content": m.content}))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// Anthropic needs turns that alternate and begin with the user, so
+/// consecutive messages of one role are joined.
+fn anthropic_turns(turns: &[&Message]) -> Vec<Value> {
+    let mut out: Vec<(Role, String)> = Vec::new();
+    for m in turns {
+        match out.last_mut() {
+            Some((role, text)) if *role == m.role => {
+                text.push_str("\n\n");
+                text.push_str(&m.content);
+            }
+            _ => out.push((m.role, m.content.clone())),
+        }
+    }
+    if out.first().is_some_and(|(r, _)| *r == Role::Assistant) {
+        out.insert(0, (Role::User, "(continue)".to_string()));
+    }
+    out.into_iter()
+        .map(|(role, content)| {
+            json!({
+                "role": if role == Role::Assistant { "assistant" } else { "user" },
+                "content": content,
+            })
+        })
+        .collect()
+}
+
+/// Sign and send one Bedrock Converse request, and hand the whole answer
+/// to `on_text` when it arrives.
+async fn bedrock_converse(
+    http: &reqwest::Client,
+    cfg: &AiConfig,
+    creds: &Credentials,
+    body: &Value,
+    on_text: &mut (dyn FnMut(&str) + Send),
+) -> Result<String, AiError> {
+    use crate::objstore::sigv4;
+    let host = cfg.bedrock_host();
+    // The model id travels in the path, so its colons and slashes are encoded.
+    let path = format!("/model/{}/converse", sigv4::uri_encode(cfg.model(), true));
+    let payload = serde_json::to_vec(body).unwrap_or_default();
+    let payload_hash = sigv4::sha256_hex(&payload);
+    let date = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let headers = vec![
+        ("host".to_string(), host.clone()),
+        ("content-type".to_string(), "application/json".to_string()),
+        ("x-amz-date".to_string(), date.clone()),
+    ];
+    let aws = sigv4::Credentials {
+        access_key: creds.key.clone(),
+        secret_key: creds.secret.clone(),
+        session_token: None,
+    };
+    let auth = sigv4::authorization(
+        &aws,
+        cfg.region(),
+        "bedrock",
+        &date,
+        &sigv4::Request {
+            method: "POST",
+            path: &path,
+            query: &[],
+            headers: &headers,
+            payload_hash: &payload_hash,
+        },
+    );
+    let resp = http
+        .post(format!("https://{host}{path}"))
+        .header("content-type", "application/json")
+        .header("x-amz-date", date)
+        .header("authorization", auth)
+        .body(payload)
+        .send()
+        .await
+        .map_err(|e| AiError::Network(e.to_string()))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(AiError::Http {
+            status: status.as_u16(),
+            message: error_message(&text),
+        });
+    }
+    let v: Value = serde_json::from_str(&text).map_err(|e| AiError::Format(e.to_string()))?;
+    let answer = whole_answer(Provider::Bedrock, &v)
+        .ok_or_else(|| AiError::Format(truncate(&v.to_string(), 300)))?;
+    on_text(&answer);
+    Ok(answer)
+}
+
 /// Model ids the service offers (`GET {base}/models`, OpenAI-compatible
 /// services only; LM Studio with JIT loading lists every downloaded model,
 /// Ollama its pulled ones). 1min.AI's chat endpoint has no such list, so
@@ -438,13 +752,36 @@ pub async fn chat(
 pub async fn list_models(
     http: &reqwest::Client,
     cfg: &AiConfig,
-    api_key: &str,
+    creds: &Credentials,
 ) -> Result<Vec<String>, AiError> {
+    let api_key = creds.key.as_str();
     if cfg.provider == Provider::OneMin {
         return Ok(onemin_models());
     }
-    let mut r = http.get(format!("{}/models", cfg.base()));
-    if !api_key.is_empty() {
+    if cfg.provider == Provider::Bedrock {
+        // Listing them is a different service (bedrock, not
+        // bedrock-runtime) with its own permissions; the well-known ids
+        // are more useful than an error.
+        return Ok(BEDROCK_MODELS.iter().map(|m| m.to_string()).collect());
+    }
+    let mut r = match cfg.provider {
+        Provider::Anthropic => http
+            .get(format!("{}/v1/models", cfg.base()))
+            .header("x-api-key", api_key)
+            .header("anthropic-version", ANTHROPIC_VERSION),
+        Provider::Gemini => http
+            .get(format!("{}/models", cfg.base()))
+            .header("x-goog-api-key", api_key),
+        Provider::Azure => http
+            .get(format!(
+                "{}/openai/models?api-version={}",
+                cfg.base(),
+                cfg.api_version()
+            ))
+            .header("api-key", api_key),
+        _ => http.get(format!("{}/models", cfg.base())),
+    };
+    if cfg.provider == Provider::OpenAi && !api_key.is_empty() {
         r = r.bearer_auth(api_key);
     }
     let resp = r
@@ -463,6 +800,17 @@ pub async fn list_models(
     Ok(model_ids(&v))
 }
 
+/// The Bedrock model ids worth offering without a control-plane call.
+pub const BEDROCK_MODELS: &[&str] = &[
+    "anthropic.claude-3-5-haiku-20241022-v1:0",
+    "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "amazon.nova-lite-v1:0",
+    "amazon.nova-pro-v1:0",
+    "meta.llama3-3-70b-instruct-v1:0",
+    "mistral.mistral-large-2407-v1:0",
+];
+
 fn model_ids(v: &Value) -> Vec<String> {
     let mut ids: Vec<String> = v
         .get("data")
@@ -474,7 +822,8 @@ fn model_ids(v: &Value) -> Vec<String> {
                     m.get("id")
                         .or(m.get("name"))
                         .and_then(Value::as_str)
-                        .map(str::to_string)
+                        // Gemini returns `models/gemini-2.5-flash`.
+                        .map(|id| id.strip_prefix("models/").unwrap_or(id).to_string())
                 })
                 .collect()
         })
@@ -539,10 +888,38 @@ fn error_message(body: &str) -> String {
 /// The answer text of a non-streamed reply.
 fn whole_answer(provider: Provider, v: &Value) -> Option<String> {
     match provider {
-        Provider::OpenAi => v
+        Provider::OpenAi | Provider::Azure => v
             .pointer("/choices/0/message/content")
             .and_then(Value::as_str)
             .map(str::to_string),
+        Provider::Anthropic => {
+            // `content` is a list of blocks; the text ones make the answer.
+            let blocks = v.get("content")?.as_array()?;
+            let text: String = blocks
+                .iter()
+                .filter_map(|b| b.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("");
+            (!text.is_empty()).then_some(text)
+        }
+        Provider::Gemini => {
+            let parts = v.pointer("/candidates/0/content/parts")?.as_array()?;
+            let text: String = parts
+                .iter()
+                .filter_map(|p| p.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("");
+            (!text.is_empty()).then_some(text)
+        }
+        Provider::Bedrock => {
+            let blocks = v.pointer("/output/message/content")?.as_array()?;
+            let text: String = blocks
+                .iter()
+                .filter_map(|b| b.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("");
+            (!text.is_empty()).then_some(text)
+        }
         Provider::OneMin => {
             let r = v.pointer("/aiRecord/aiRecordDetail/resultObject")?;
             Some(match r {
@@ -608,7 +985,47 @@ enum Step {
 fn interpret(provider: Provider, ev: &SseEvent, nothing_yet: bool) -> Result<Step, AiError> {
     let data = ev.data.trim();
     match provider {
-        Provider::OpenAi => {
+        Provider::Anthropic => {
+            if data.is_empty() {
+                return Ok(Step::Skip);
+            }
+            let v: Value =
+                serde_json::from_str(data).map_err(|e| AiError::Format(e.to_string()))?;
+            let kind = v.get("type").and_then(Value::as_str).unwrap_or("");
+            match ev.event.as_deref().unwrap_or(kind) {
+                "message_stop" => Ok(Step::Done),
+                "error" => Err(AiError::Format(
+                    v.pointer("/error/message")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                        .unwrap_or_else(|| truncate(data, 300)),
+                )),
+                "content_block_delta" => Ok(v
+                    .pointer("/delta/text")
+                    .and_then(Value::as_str)
+                    .filter(|s| !s.is_empty())
+                    .map(|s| Step::Text(s.to_string()))
+                    .unwrap_or(Step::Skip)),
+                _ => Ok(Step::Skip),
+            }
+        }
+        Provider::Gemini => {
+            // Gemini has no end marker: the stream simply stops.
+            if data.is_empty() || data == "[DONE]" {
+                return Ok(Step::Skip);
+            }
+            let v: Value =
+                serde_json::from_str(data).map_err(|e| AiError::Format(e.to_string()))?;
+            if let Some(m) = v.pointer("/error/message").and_then(Value::as_str) {
+                return Err(AiError::Format(m.to_string()));
+            }
+            Ok(whole_answer(Provider::Gemini, &v)
+                .filter(|s| !s.is_empty())
+                .map(Step::Text)
+                .unwrap_or(Step::Skip))
+        }
+        Provider::Bedrock => Ok(Step::Skip),
+        Provider::OpenAi | Provider::Azure => {
             if data == "[DONE]" {
                 return Ok(Step::Done);
             }
@@ -974,6 +1391,195 @@ mod tests {
         assert_eq!(model_ids(&v), vec!["codellama"]);
     }
 
+    fn cfg_for(provider: Provider) -> AiConfig {
+        AiConfig {
+            provider,
+            base_url: String::new(),
+            model: String::new(),
+            region: String::new(),
+            api_version: String::new(),
+        }
+    }
+
+    #[test]
+    fn every_provider_has_a_usable_default_and_a_label() {
+        for p in Provider::all() {
+            assert!(!p.default_model().is_empty(), "{p:?} has no default model");
+            assert!(!p.label().is_empty(), "{p:?} has no label");
+            // Azure and Bedrock build their host from the resource or the
+            // region, so only those two may have an empty default base.
+            if p.default_base().is_empty() {
+                assert!(
+                    matches!(p, Provider::Azure | Provider::Bedrock),
+                    "{p:?} needs a default base URL"
+                );
+            } else {
+                assert!(
+                    p.default_base().starts_with("https://"),
+                    "{p:?} default base is not https"
+                );
+            }
+        }
+        assert!(Provider::Bedrock.needs_secret() && Provider::Bedrock.needs_region());
+        assert!(Provider::Azure.needs_api_version() && Provider::Azure.needs_base());
+        assert!(!Provider::OpenAi.needs_secret());
+        assert!(!Provider::Bedrock.lists_models());
+        assert!(Provider::Bedrock.whole_answer_only());
+        assert!(!Provider::Anthropic.whole_answer_only());
+    }
+
+    #[test]
+    fn the_system_prompt_is_split_out_for_the_services_that_want_it() {
+        let msgs = [
+            Message::new(Role::System, "be terse"),
+            Message::new(Role::System, "and polite"),
+            Message::new(Role::User, "hello"),
+            Message::new(Role::Assistant, "hi"),
+            Message::new(Role::User, "again"),
+        ];
+        let (system, turns) = split_system(&msgs);
+        assert_eq!(system, "be terse\n\nand polite");
+        assert_eq!(turns.len(), 3);
+        let anthropic = anthropic_turns(&turns);
+        assert_eq!(anthropic.len(), 3);
+        assert_eq!(anthropic[0]["role"], "user");
+        assert_eq!(anthropic[1]["role"], "assistant");
+    }
+
+    #[test]
+    fn anthropic_turns_alternate_and_start_with_the_user() {
+        // Two user messages in a row are joined, and an answer-first
+        // conversation gets an opening user turn.
+        let msgs = [
+            Message::new(Role::User, "one"),
+            Message::new(Role::User, "two"),
+        ];
+        let turns: Vec<&Message> = msgs.iter().collect();
+        let out = anthropic_turns(&turns);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["content"], "one\n\ntwo");
+        let msgs = [Message::new(Role::Assistant, "already talking")];
+        let turns: Vec<&Message> = msgs.iter().collect();
+        let out = anthropic_turns(&turns);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0]["role"], "user");
+        assert_eq!(out[1]["role"], "assistant");
+    }
+
+    #[test]
+    fn bedrock_builds_its_host_from_the_region() {
+        let mut cfg = cfg_for(Provider::Bedrock);
+        assert_eq!(
+            cfg.bedrock_host(),
+            "bedrock-runtime.us-east-1.amazonaws.com"
+        );
+        cfg.region = "eu-central-1".into();
+        assert_eq!(
+            cfg.bedrock_host(),
+            "bedrock-runtime.eu-central-1.amazonaws.com"
+        );
+        // An explicit endpoint wins, with or without a scheme.
+        cfg.base_url = "https://my-gateway.test/".into();
+        assert_eq!(cfg.bedrock_host(), "my-gateway.test");
+    }
+
+    #[test]
+    fn azure_falls_back_to_a_known_api_version() {
+        let mut cfg = cfg_for(Provider::Azure);
+        assert_eq!(cfg.api_version(), AZURE_API_VERSION);
+        cfg.api_version = "2025-01-01-preview".into();
+        assert_eq!(cfg.api_version(), "2025-01-01-preview");
+    }
+
+    #[test]
+    fn each_provider_reads_its_own_stream_and_whole_answer() {
+        let ev = |e: Option<&str>, d: &str| SseEvent {
+            event: e.map(str::to_string),
+            data: d.into(),
+        };
+        let text = |p: Provider, e: SseEvent| match interpret(p, &e, false) {
+            Ok(Step::Text(t)) => t,
+            Ok(Step::Done) => "<done>".into(),
+            Ok(Step::Skip) => "<skip>".into(),
+            Err(e) => format!("<err {e:?}>"),
+        };
+        // Anthropic: text deltas, then message_stop.
+        assert_eq!(
+            text(
+                Provider::Anthropic,
+                ev(
+                    Some("content_block_delta"),
+                    r#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hel"}}"#
+                )
+            ),
+            "Hel"
+        );
+        assert_eq!(
+            text(
+                Provider::Anthropic,
+                ev(Some("message_stop"), r#"{"type":"message_stop"}"#)
+            ),
+            "<done>"
+        );
+        assert_eq!(
+            text(
+                Provider::Anthropic,
+                ev(Some("message_start"), r#"{"type":"message_start"}"#)
+            ),
+            "<skip>"
+        );
+        // Gemini: candidates with parts, and no end marker at all.
+        assert_eq!(
+            text(
+                Provider::Gemini,
+                ev(
+                    None,
+                    r#"{"candidates":[{"content":{"parts":[{"text":"lo"}]}}]}"#
+                )
+            ),
+            "lo"
+        );
+        // Azure streams exactly like OpenAI.
+        assert_eq!(
+            text(
+                Provider::Azure,
+                ev(None, r#"{"choices":[{"delta":{"content":"zu"}}]}"#)
+            ),
+            "zu"
+        );
+        assert_eq!(text(Provider::Azure, ev(None, "[DONE]")), "<done>");
+        // Whole answers, for the non-streaming path.
+        let anthropic: Value = serde_json::from_str(
+            r#"{"content":[{"type":"text","text":"a"},{"type":"text","text":"b"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            whole_answer(Provider::Anthropic, &anthropic).as_deref(),
+            Some("ab")
+        );
+        let gemini: Value =
+            serde_json::from_str(r#"{"candidates":[{"content":{"parts":[{"text":"g"}]}}]}"#)
+                .unwrap();
+        assert_eq!(
+            whole_answer(Provider::Gemini, &gemini).as_deref(),
+            Some("g")
+        );
+        let bedrock: Value =
+            serde_json::from_str(r#"{"output":{"message":{"content":[{"text":"br"}]}}}"#).unwrap();
+        assert_eq!(
+            whole_answer(Provider::Bedrock, &bedrock).as_deref(),
+            Some("br")
+        );
+        assert_eq!(whole_answer(Provider::Bedrock, &gemini), None);
+    }
+
+    #[test]
+    fn gemini_model_ids_lose_their_prefix() {
+        let v: Value =
+            serde_json::from_str(r#"{"models":[{"name":"models/gemini-2.5-flash"}]}"#).unwrap();
+        assert_eq!(model_ids(&v), vec!["gemini-2.5-flash"]);
+    }
+
     #[test]
     fn one_min_lists_its_built_in_models_without_asking() {
         // An unroutable endpoint: a request would fail, the list must not.
@@ -981,16 +1587,21 @@ mod tests {
             provider: Provider::OneMin,
             base_url: "http://127.0.0.1:9".into(),
             model: String::new(),
+            ..Default::default()
         };
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
-        let models = rt.block_on(list_models(&http_client(), &cfg, "")).unwrap();
+        let models = rt
+            .block_on(list_models(&http_client(), &cfg, &Credentials::default()))
+            .unwrap();
         assert_eq!(models.len(), 95);
         assert!(models.iter().any(|m| m == Provider::OneMin.default_model()));
         // Even with a key nothing is asked: the chat endpoint has no list.
-        let again = rt.block_on(list_models(&http_client(), &cfg, "k")).unwrap();
+        let again = rt
+            .block_on(list_models(&http_client(), &cfg, &Credentials::new("k")))
+            .unwrap();
         assert_eq!(again, models);
     }
 

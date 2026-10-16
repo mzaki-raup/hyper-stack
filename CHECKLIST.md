@@ -184,4 +184,8 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Devtools YAML checker and YAML ↔ properties converter | Completed | `tool-devtools::yaml`, 6 tests |
 | Editor lays out minified JSON and source maps on open | Completed | `Doc::lay_out_minified`, setting, `.map` = JSON |
 | Terminal and SSH drag selects from the pressed character | Completed | `press_origin` anchor, direction-aware side |
+| AI providers that are not OpenAI-compatible: Anthropic, Gemini, Azure OpenAI, AWS Bedrock | Completed | `hs_core::ai` six kinds, `Services::ai_credentials`, SigV4 for Bedrock, 17 tests; exercised in the app against the mock server and the forms checked for each kind. Not yet tried against the live services |
+| Add a provider from a gallery of services with per-kind fields | Completed | `settings_ai::CATALOGUE`, 15 services in 3 groups, computed grid |
+| Home page workspace cards aligned, with a gap before New Workspace | Completed | `tools::home::workspace_card` |
+| Devtools YAML tabs keep their own text | Completed | `yaml::State::buffer`, test `each_tab_keeps_its_own_text` |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

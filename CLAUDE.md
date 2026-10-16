@@ -20,8 +20,9 @@ the binary, Windows only). The editor gives every project folder its own
 window tab with a multi-row strip of file tabs inside, shows the file's
 path under them, runs files and projects (F5), shows Git status, diffs and
 history (`hs-git`, read-only over the git CLI), and carries an optional AI
-assistant (ADR-019: 1min.AI or any OpenAI-compatible service such as LM
-Studio, `hs-core::ai`); Terminal, SSH, SQL, S3, API client and Graphics
+assistant (ADR-019: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock,
+1min.AI or any OpenAI-compatible service such as LM Studio, added from a
+gallery in Settings, `hs-core::ai`); Terminal, SSH, SQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
@@ -520,6 +521,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
 
+- `horizontal_wrapped` wraps on the size a widget reports *before* it is
+  drawn, which an `egui::Frame` cannot do: a row of card frames runs past
+  the panel instead of wrapping, and the width of a `Ui` nested in a
+  `horizontal` layout is unbounded, so the cards never see a limit either.
+  Give the column a real width (`set_width`) and compute the columns
+  yourself (`floor((w + spacing) / (card + spacing))`, Settings → AI
+  Assistant does). `ui.horizontal` also centres its items vertically, so
+  cards of unequal height stagger; use `horizontal_top`.
 - egui-winit turns Ctrl+V, Ctrl+Shift+V and Shift+Insert into `Event::Paste`
   (and Ctrl+C/X into Copy/Cut) before any key handling, so never bind those
   as shortcuts; the Markdown preview is Ctrl+Shift+M for that reason.

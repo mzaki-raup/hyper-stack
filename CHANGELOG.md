@@ -18,7 +18,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   from a word list. A seed makes any of them repeatable. Passwords and
   passphrases show how many bits of entropy they carry, including the
   honest note that the built-in word list is 323 words — worth about 8.3
-  bits a word, against a diceware list's 12.9.
+  bits a word, against a diceware list's 12.9. Each generator keeps its own
+  result card, titled with the generator that made it.
 - **Devtools → Cron**: describe when a job should run and read the
   expression back in all three dialects at once — Unix cron, Spring and
   Quartz — because the usual reason to be there is needing the other
@@ -31,7 +32,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   choose and says so. Broken input is never quietly reformatted — the
   checker reports the line and column, and for XML which tag is unclosed
   or mismatched.
-
 - **Credentials** in Settings → Security: every connection in the
   workspace in one grid — name, type, connection string, host/URL, port,
   username, password and key — with a copy button on each value. Passwords
@@ -39,23 +39,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   alone and covers itself again after 30 seconds. Copying a password is
   gated the same way and now honours **Clear Clipboard After Copying a
   Secret**, a setting that existed and did nothing before.
-
 - SFTP actions **show their command in the shell**. New Folder, New File,
   Rename, Delete and Permissions write `mkdir`, `touch`, `mv`, `rm` and
   `chmod` into the shell pane as comments, so the two halves of an SSH tab
   tell the same story. They are comments on purpose: the action already
   happened over SFTP.
-
 - **Test Connection** in Settings → Connections, between Save and Delete.
   It opens what is on the form with the real driver and says what the
   server replied — the version, or the error — so a profile can be proved
   before it is saved. SSH reports an unaccepted host key with its
   fingerprint rather than accepting it from a settings page.
-
 - Graphics opens **one tab per image**: a tab that already holds a
   picture does not take the next file you open, and opening a file that is
   already open focuses its tab rather than loading it twice.
-
 - Connections can be **pinned to Home**: right-click one in its tool's
   sidebar. Pinned Connections on Home used to list every connection that
   existed, which is not a pin; it now lists the ones you chose.
@@ -65,17 +61,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The **AI Assistant** button sits hard right on every tool's toolbar —
   editor, terminal, SSH, SQL, S3, API client, Graphics and Scratchpad — so
   it is in the same place wherever you are.
-
 - **Casing**: a parenthetical attached to a label now starts with a capital
   ("None (Direct connection)", "Inspect (Developer tools, opens a window)",
   "(Not set)"). One inside a running sentence stays lower case, which is
   what sentence case means. The Redis Mode list shows names ("Standalone")
   rather than the values it stores.
-
-- Each Devtools generator keeps **its own result**. The card is titled with
-  the generator that made it and switching generator no longer throws away
-  what the last one produced.
-
 - The AI assistant is a column, not something drawn over the tool. It used
   to be laid out last, into whatever space was left — which after a results
   panel had taken its share was often none, so running a query made the
@@ -83,7 +73,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   narrower while it is open, and the only thing that closes it is the
   toggle. Database, terminal, SSH and S3 all behave this way now; the API
   client and Graphics already did.
-
 - Home puts Pinned Connections above Recent, gives both headings a size of
   their own, lays Recent out as a grid rather than a column eight entries
   deep, and draws each connection as a larger pill coloured by its kind —
@@ -103,64 +92,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   connection it already had open no longer leaves two tabs on the same
   connection. SSH is the deliberate exception: a host may hold up to three
   sessions.
-- The drag grip is six dots, painted rather than taken from the icon font,
-  which did not carry that glyph and drew a box instead.
 
+## 0.30.0 — 2026-10-16
 
 ### Added
 
-- Lists can be put in the order you work in, by dragging a row with a line
-  showing where it would land. Each row has a small drag grip on its left,
-  so the row itself keeps all of its own clicks and hovers: the SSH hosts, database, Redis and NoSQL
-  connections, S3 profiles, the whole list in Settings → Connections, and
-  the shell profiles in the terminal sidebar. The API collections, which
-  nest, follow.
-  A connection profile remembers its place in an `order` field, and
-  reordering one kind's list never disturbs another's.
-- The SFTP pane's actions moved from a bar under the listing into a
-  right-click menu on the file or folder itself: Open in Editor, Rename,
-  Download, Copy, Copy Path, Delete, Permissions… and Open Terminal Here
-  for a folder, and **Download Zipped** for either, which fetches it and
-  packs it as `.zip`, `.tar.gz` or `.tar`. Double-clicking the empty space
-  below the listing goes up a level, and the toolbar has **New File**
-  beside New Folder.
-- The remote listing uses the same Material file-type icons as the
-  editor's project tree, so it reads like a local folder.
-- A permissions dialog for a remote file or folder: owner, group, the mode
-  as a number and as nine boxes that agree with each other, with the
-  `rwxr-xr-x` form echoed. The mode is set over SFTP; owner and group are
-  sent as a `chown` into the shell, where the command and any error are in
-  front of the user, because SFTP wants numeric ids and usually root.
-- Tools can be kept out of the activity rail: Settings → Appearance →
-  Activity Rail has a Show checkbox beside each one, next to the order
-  arrows. Hiding a tool never makes it unreachable — saving a connection
-  for it, Ctrl+clicking a link into the browser, opening a remote file in
-  the editor, or opening it from Home all put its entry back.
-- **Refresh Status** in Settings → Editor → Language Servers and Debug
-  Adapters reads `PATH` from the system again and rechecks every command,
-  so a server installed from a terminal is found without restarting
-  HyperStack. It says whether `PATH` had actually changed.
-- A debug adapter for JavaScript and TypeScript (**js-debug**, VS Code's
-  own). A `launch.json` with `"type": "node"` or `"pwa-node"` maps to it.
-- Run and Debug ask what to do about unsaved files first: Save All, Ignore
-  or Cancel. Running what is on screen rather than what is on disk is a
-  wasted debugging hour.
+- Download Zipped and Material file icons finish the SFTP pane (693dfa24)
+- New File in the SFTP toolbar, and a permissions dialog (dea55ce9)
+- Drag to reorder Settings -> Connections and the shell profiles (66e07413)
+- Drag to reorder the database, Redis, NoSQL and S3 lists too (b121dcab)
+- Drag a row to reorder a list, starting with the SSH hosts (9ffe2138)
+- Tools can be hidden from the activity rail, and come back when they are used (47bd723e)
+- Refresh PATH and extension status without restarting, and ask before running unsaved files (92591b03)
 
-### Changed
+### Fixed
 
-- The Command and Arguments fields in both extension tables are as wide as
-  the page allows, instead of cutting off every name past about eight
-  characters.
-
-### Changed
-
-- The release job uploads assets straight to the forge's own address when
-  the `HS_FORGE_UPLOAD_URL` secret names one, instead of through the
-  proxy in front of it, and retries an upload rather than giving up on the
-  first dropped connection. The proxy was cutting the 34 MB archive off
-  after about 100 seconds with a 524, which left v0.29.0 and v0.29.1 as
-  drafts carrying one file; the same archive takes a quarter of a second
-  on the direct route.
+- Drag rows by a grip, so the rows themselves stay clickable (b5930200)
 
 ## 0.29.1 — 2026-10-16
 

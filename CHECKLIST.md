@@ -194,6 +194,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Redis key list aligned and indented, "Redis 8.6.3" in the toolbar | Completed | selectable labels instead of stretched buttons |
 | SFTP pane copies files and folders to and from the system clipboard | Completed | `hs_core::clipboard_files` (CF_HDROP, 5 tests), `upload_tree`/`download_tree`, palette commands; Copy and paste exercised live against `devsshd` 2026-10-16 |
 | A Windows shim (jdtls.bat) wins over an extensionless file of the same name | Completed | `registry::candidates` goes through `PATHEXT` only; same in `hs_dap::adapters`; jdtls exercised live, completion answered |
+| Activity rail entries can be hidden, and come back when a tool is used | Completed | `appearance.rail_hidden`, `App::reveal_rail` at the `open_tool_in` choke point and on connection save; Show checkbox beside the order arrows. Exercised live: hid Redis, saved its connection, icon returned; hid Browser, opened it from Home, icon returned |
 | Refresh Status re-reads PATH and rechecks every server and adapter | Completed | `hs_core::env_path` (registry on Windows, 3 tests); exercised live: Java went from Not found to Found with no restart |
 | Command and Arguments fields in the extension tables are as wide as the page | Completed | `extension_field_widths`; a fixed width made the window grow every frame |
 | Debug adapter for JavaScript and TypeScript | Completed | `js-debug`, TCP; `launch.json` "type": "node"/"pwa-node" maps to it |

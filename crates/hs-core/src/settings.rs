@@ -126,6 +126,11 @@ pub struct Appearance {
     /// Tool ids in the order the rail shows them; ids missing here follow
     /// in their default order. Home is always first and Settings last.
     pub rail_order: Vec<String>,
+    /// Tool ids kept out of the rail. A tool is never unreachable because
+    /// of this: anything that opens one of its tabs (saving a connection
+    /// for it, Ctrl+clicking a link, opening a remote file in the editor)
+    /// puts its entry back.
+    pub rail_hidden: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -361,6 +366,7 @@ impl Default for Appearance {
             ui_zoom: 1.0,
             rail_labels: true,
             rail_order: Vec::new(),
+            rail_hidden: Vec::new(),
         }
     }
 }

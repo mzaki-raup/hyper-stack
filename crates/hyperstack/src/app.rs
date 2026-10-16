@@ -650,6 +650,23 @@ impl HyperStackApp {
         }
     }
 
+    /// Put a tool's rail entry back when something opens one of its tabs.
+    /// Hiding an entry is a tidying choice, not a ban: a link Ctrl+clicked
+    /// in the editor, a remote file opened from SFTP or a connection saved
+    /// for a tool all bring its icon back rather than sending the user to
+    /// Settings to wonder where the tab went.
+    pub(crate) fn reveal_rail(&mut self, factory_id: &str) {
+        let id = group_of(factory_id);
+        let mut settings = self.services.settings.write();
+        let before = settings.appearance.rail_hidden.len();
+        settings.appearance.rail_hidden.retain(|h| h != id);
+        if settings.appearance.rail_hidden.len() == before {
+            return;
+        }
+        drop(settings);
+        let _ = self.services.save_settings();
+    }
+
     fn open_tool(&mut self, factory_id: &str, request: Option<OpenRequest>) {
         self.open_tool_in(factory_id, request, true);
     }
@@ -657,6 +674,7 @@ impl HyperStackApp {
     /// Open a tool for `request`; with `reuse`, a tab that already shows the
     /// item (or would take it, `Tool::uri_affinity`) gets it instead.
     fn open_tool_in(&mut self, factory_id: &str, request: Option<OpenRequest>, reuse: bool) {
+        self.reveal_rail(factory_id);
         // Home and Settings are single tabs: a second request focuses them.
         if is_mandatory(factory_id)
             && let Some(id) = self
@@ -2068,9 +2086,13 @@ impl HyperStackApp {
     /// Settings at the bottom. Labels under the icons are optional.
     fn rail(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        let (labels, order) = {
+        let (labels, order, hidden) = {
             let st = s.settings.read();
-            (st.appearance.rail_labels, st.appearance.rail_order.clone())
+            (
+                st.appearance.rail_labels,
+                st.appearance.rail_order.clone(),
+                st.appearance.rail_hidden.clone(),
+            )
         };
         let theme = self.theme.clone();
         let descs: Vec<(&'static str, &'static str, String)> = self
@@ -2085,7 +2107,10 @@ impl HyperStackApp {
             })
             .collect();
         let ids: Vec<&'static str> = descs.iter().map(|d| d.0).collect();
-        let ordered = rail_order(&ids, &order);
+        let ordered: Vec<&'static str> = rail_order(&ids, &order)
+            .into_iter()
+            .filter(|id| !hidden.iter().any(|h| h == id))
+            .collect();
         let item = |this: &mut Self, ui: &mut egui::Ui, id: &str| {
             let Some((_, icon, title)) = descs.iter().find(|d| d.0 == id) else {
                 return;

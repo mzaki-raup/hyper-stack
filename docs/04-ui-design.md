@@ -369,3 +369,24 @@ window too short for that list used to draw the last entries on top of each
 other. Home is now pinned at the top and the sidebar toggle and Settings at
 the bottom; only the tools between them scroll. The three fixed entries are
 always reachable, which is what makes the rail usable on a short window.
+
+## Addendum (2026-10-17): hiding a rail entry
+
+Settings → Appearance → Activity Rail lists every movable tool with its
+order arrows and a **Show** checkbox. Unchecking one takes it out of the
+rail (`appearance.rail_hidden`); Home, the sidebar toggle and Settings are
+fixed and not listed.
+
+**Hiding is tidying, not disabling.** A tool whose entry is hidden still
+opens, and when it does its entry comes back:
+
+- `App::reveal_rail` runs at `open_tool_in`, the one place every
+  programmatic open goes through — Ctrl+clicking a link into the browser,
+  opening a remote file from SFTP in the editor, opening a connection, or
+  picking the tool on Home.
+- Saving a connection in Settings → Connections reveals the tool that kind
+  belongs to (`launcher::tool_for_kind`), because a connection with nowhere
+  to open is worse than a slightly fuller rail.
+
+Both write the setting and persist it at once, so the rail is right on the
+next frame and after a restart.

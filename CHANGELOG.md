@@ -13,6 +13,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Tools can be kept out of the activity rail: Settings → Appearance →
+  Activity Rail has a Show checkbox beside each one, next to the order
+  arrows. Hiding a tool never makes it unreachable — saving a connection
+  for it, Ctrl+clicking a link into the browser, opening a remote file in
+  the editor, or opening it from Home all put its entry back.
 - **Refresh Status** in Settings → Editor → Language Servers and Debug
   Adapters reads `PATH` from the system again and rechecks every command,
   so a server installed from a terminal is found without restarting

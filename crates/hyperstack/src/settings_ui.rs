@@ -1327,6 +1327,22 @@ fn appearance(
             .map(str::to_string)
             .collect();
         let mut moved = None;
+        let mut toggled: Option<(String, bool)> = None;
+        // Header, so the checkbox column says what it is.
+        ui.horizontal(|ui| {
+            ui.add_space(52.0);
+            ui.label(
+                egui::RichText::new(s.t("settings-rail-show"))
+                    .size(12.0)
+                    .color(theme.text_muted),
+            );
+            ui.add_space(6.0);
+            ui.label(
+                egui::RichText::new(s.t("settings-rail-tool"))
+                    .size(12.0)
+                    .color(theme.text_muted),
+            );
+        });
         for (i, id) in order.iter().enumerate() {
             let title = state
                 .rail_tools
@@ -1334,6 +1350,7 @@ fn appearance(
                 .find(|(t, _)| t == id)
                 .map(|(_, n)| n.clone())
                 .unwrap_or_else(|| id.clone());
+            let mut shown = !settings.appearance.rail_hidden.iter().any(|h| h == id);
             ui.horizontal(|ui| {
                 ui.set_min_width(300.0);
                 ui.add_enabled_ui(i > 0, |ui| {
@@ -1354,6 +1371,13 @@ fn appearance(
                         moved = Some((i, i + 1));
                     }
                 });
+                if ui
+                    .checkbox(&mut shown, "")
+                    .tip(s.t("settings-rail-show-tip"))
+                    .changed()
+                {
+                    toggled = Some((id.clone(), shown));
+                }
                 ui.label(title);
             });
         }
@@ -1361,6 +1385,14 @@ fn appearance(
             let t = order.remove(from);
             order.insert(to, t);
             settings.appearance.rail_order = order;
+            changed = true;
+        }
+        if let Some((id, shown)) = toggled {
+            if shown {
+                settings.appearance.rail_hidden.retain(|h| *h != id);
+            } else if !settings.appearance.rail_hidden.contains(&id) {
+                settings.appearance.rail_hidden.push(id);
+            }
             changed = true;
         }
         form::hint(ui, theme, &s.t("settings-rail-order-hint"));
@@ -2154,8 +2186,23 @@ fn connections(
                             }
                             let mut c = draft.clone();
                             c.fields = table;
+                            // A connection for a tool whose rail entry is
+                            // hidden would otherwise have nowhere to open.
+                            let tool = crate::launcher::tool_for_kind(&c.kind);
                             match s.connections.write().upsert(c) {
-                                Ok(()) => effects.push(SettingsEffect::ConnectionsChanged),
+                                Ok(()) => {
+                                    if let Some(tool) = tool {
+                                        let mut st = s.settings.write();
+                                        let before = st.appearance.rail_hidden.len();
+                                        st.appearance.rail_hidden.retain(|h| h != tool);
+                                        let revealed = st.appearance.rail_hidden.len() != before;
+                                        drop(st);
+                                        if revealed {
+                                            let _ = s.save_settings();
+                                        }
+                                    }
+                                    effects.push(SettingsEffect::ConnectionsChanged)
+                                }
                                 Err(e) => effects.push(SettingsEffect::Toast(
                                     hs_core::tool::ToastLevel::Error,
                                     e.to_string(),

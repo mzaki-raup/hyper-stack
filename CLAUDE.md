@@ -723,6 +723,28 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `cargo build --release --locked -p hyperstack` is the check that
   catches this class of error before pushing.
 
+### Clipboard files (CF_HDROP)
+- A Windows file list on the clipboard is `CF_HDROP`: a 20-byte `DROPFILES`
+  header (`pFiles` offset, a POINT, `fNC`, `fWide`) followed by UTF-16 paths,
+  each NUL-terminated with another NUL ending the list. It carries *paths*,
+  not bytes, so "copy a remote file" means downloading it somewhere real
+  first — `hs_core::clipboard_files` + the SFTP pane's Copy do that under
+  `HyperStackData/tmp/`, which is cleared at start.
+- egui-winit answers Ctrl+V by reading the clipboard as **text** and emits
+  `Event::Paste` only if there is some; a clipboard holding files and no
+  text produces no event at all. A file paste therefore cannot be bound to
+  Ctrl+V — read `CF_HDROP` from a button instead.
+- `Set-Clipboard -Path` from a short-lived PowerShell leaves nothing on the
+  clipboard (the process owns the data and dies). Set it from a persistent
+  session with `[System.Windows.Forms.Clipboard]::SetFileDropList`, and read
+  it back with `GetFileDropList` in an `-STA` process.
+- Two HyperStack windows at the same screen position (the dev build and the
+  owner's installed copy) make the GUI harness capture and click the wrong
+  one: `SetForegroundWindow` from a non-foreground process can fail
+  silently. Check `GetForegroundWindow`, and `WindowFromPoint` +
+  `GetWindowThreadProcessId` against the dev pid, before any click
+  (`scratchpad/devclick.ps1`, `devshot.ps1`).
+
 ### Connection forms
 - `store_typed_secrets` used to warn and carry on when the vault was
   locked, so the profile was saved with the typed password in its TOML. It

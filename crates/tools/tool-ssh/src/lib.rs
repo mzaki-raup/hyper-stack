@@ -706,6 +706,19 @@ impl SshTool {
                     });
                 }
             }
+            // Paste whatever the file manager put on the clipboard into the
+            // folder on screen.
+            let has_files = hs_core::clipboard_files::has_files();
+            if form::icon_button(ui, theme, ph::CLIPBOARD_TEXT, 16.0, false)
+                .tip(s.t(if has_files {
+                    "ssh-paste"
+                } else {
+                    "ssh-paste-empty"
+                }))
+                .clicked()
+            {
+                self.paste_from_clipboard(s);
+            }
             if form::icon_button(ui, theme, ph::EYE_SLASH, 16.0, self.state.show_hidden)
                 .tip(s.t("ssh-show-hidden"))
                 .clicked()
@@ -822,6 +835,15 @@ impl SshTool {
                 if ui.button(s.t("editor-copy-path")).clicked() {
                     ui.ctx().copy_text(target.clone());
                 }
+                // Copy to the clipboard as a file, so it can be pasted into
+                // the file manager.
+                if ui
+                    .button(s.t("ssh-copy-file"))
+                    .tip(s.t("ssh-copy-file-tip"))
+                    .clicked()
+                {
+                    self.copy_to_clipboard(s, target.clone(), e.name.clone());
+                }
                 if e.is_dir
                     && ui.button(s.t("editor-open-terminal-here")).clicked()
                     && let Some(sess) = &self.session
@@ -834,6 +856,68 @@ impl SshTool {
 }
 
 impl SshTool {
+    /// Copy the entry the table has selected, if any.
+    fn copy_selected(&mut self, s: &Services) {
+        let Some(e) = self.selected_entry() else {
+            return;
+        };
+        let path = self.shared.lock().remote.path.clone();
+        let target = Self::join(&path, &e.name);
+        self.copy_to_clipboard(s, target, e.name.clone());
+    }
+
+    /// Copy a remote file or folder to the system clipboard: it is fetched
+    /// into a folder of its own under the data directory first, because the
+    /// clipboard can only carry paths that exist.
+    fn copy_to_clipboard(&mut self, s: &Services, remote: String, name: String) {
+        // Under the data folder's scratch space, which is cleared on start
+        // (ADR-017): nothing is written outside the portable folder.
+        let dir = s
+            .paths
+            .tmp()
+            .join(format!("sftp-copy-{}", hs_core::new_id()));
+        if let Err(e) = std::fs::create_dir_all(&dir) {
+            self.shared.lock().remote.error = Some(e.to_string());
+            return;
+        }
+        let done = self.after_job(s, s.i18n.t_args("ssh-copied", &[("name", &name)]));
+        let target = dir.join(&name);
+        self.with_sftp(s, format!("Copy {name}"), move |sftp, h| async move {
+            let r = download_tree(&sftp, &remote, &dir, &h)
+                .await
+                .and_then(|_| hs_core::clipboard_files::write(&[target]));
+            done(r.clone());
+            r
+        });
+    }
+
+    /// Upload whatever the clipboard holds into the folder on screen.
+    fn paste_from_clipboard(&mut self, s: &Services) {
+        let paths = hs_core::clipboard_files::read();
+        if paths.is_empty() {
+            self.shared.lock().remote.error = Some(s.t("ssh-paste-empty"));
+            return;
+        }
+        let remote = self.shared.lock().remote.path.clone();
+        let count = paths.len();
+        let done = self.after_job(s, s.i18n.t_args("ssh-pasted", &[("n", &count.to_string())]));
+        self.with_sftp(
+            s,
+            format!("Upload {count} items"),
+            move |sftp, h| async move {
+                let mut r = Ok(());
+                for p in &paths {
+                    if let Err(e) = upload_tree(&sftp, p, &remote, &h).await {
+                        r = Err(e);
+                        break;
+                    }
+                }
+                done(r.clone());
+                r
+            },
+        );
+    }
+
     fn new_tunnel_form(&mut self, services: &Services) {
         let ssh_id = self
             .state
@@ -1463,6 +1547,8 @@ impl Tool for SshTool {
             c("ssh.refresh", "SSH: Refresh Files"),
             c("ssh.sync", "SSH: Toggle Folder Sync With Shell"),
             c("ssh.tunnel.new", "SSH: New Tunnel"),
+            c("ssh.clipboard.copy", "SSH: Copy to Clipboard"),
+            c("ssh.clipboard.paste", "SSH: Paste From Clipboard"),
         ]
     }
 
@@ -1474,6 +1560,8 @@ impl Tool for SshTool {
             "ssh.refresh" => self.refresh(cx.services),
             "ssh.sync" => self.state.sync_cwd = !self.state.sync_cwd,
             "ssh.tunnel.new" => self.new_tunnel_form(cx.services),
+            "ssh.clipboard.copy" => self.copy_selected(cx.services),
+            "ssh.clipboard.paste" => self.paste_from_clipboard(cx.services),
             _ => return false,
         }
         true
@@ -1622,6 +1710,92 @@ async fn remove_dir_recursive(sftp: &SftpSession, path: &str) -> Result<(), Stri
         }
     }
     sftp.remove_dir(path).await.map_err(|e| e.to_string())
+}
+
+/// Upload a file or a whole folder, keeping the folder's shape. Returns how
+/// many files were written.
+async fn upload_tree(
+    sftp: &SftpSession,
+    local: &std::path::Path,
+    remote_dir: &str,
+    h: &hs_core::jobs::JobHandle,
+) -> Result<u64, String> {
+    let name = local
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .ok_or_else(|| format!("{} has no name", local.display()))?;
+    let target = join_remote(remote_dir, &name);
+    if local.is_file() {
+        upload_file(sftp, local, &target, h).await?;
+        return Ok(1);
+    }
+    if !local.is_dir() {
+        return Err(format!(
+            "{} is neither a file nor a folder",
+            local.display()
+        ));
+    }
+    // An existing folder is fine; anything else is the error it says.
+    if let Err(e) = sftp.create_dir(&target).await {
+        let text = e.to_string();
+        if !text.contains("exist") {
+            return Err(text);
+        }
+    }
+    let mut count = 0u64;
+    let mut entries = tokio::fs::read_dir(local)
+        .await
+        .map_err(|e| e.to_string())?;
+    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+        if h.is_cancelled() {
+            return Err("cancelled".into());
+        }
+        count += Box::pin(upload_tree(sftp, &entry.path(), &target, h)).await?;
+    }
+    Ok(count)
+}
+
+/// Download a file or a whole folder into `local_dir`. Returns how many files
+/// were written.
+async fn download_tree(
+    sftp: &SftpSession,
+    remote: &str,
+    local_dir: &std::path::Path,
+    h: &hs_core::jobs::JobHandle,
+) -> Result<u64, String> {
+    let name = remote.rsplit('/').next().unwrap_or(remote).to_string();
+    let target = local_dir.join(&name);
+    let is_dir = sftp
+        .metadata(remote)
+        .await
+        .map(|m| m.is_dir())
+        .unwrap_or(false);
+    if !is_dir {
+        download_file(sftp, remote, &target, h).await?;
+        return Ok(1);
+    }
+    tokio::fs::create_dir_all(&target)
+        .await
+        .map_err(|e| e.to_string())?;
+    let entries = sftp.read_dir(remote).await.map_err(|e| e.to_string())?;
+    let mut count = 0u64;
+    for entry in entries {
+        if h.is_cancelled() {
+            return Err("cancelled".into());
+        }
+        let child = join_remote(remote, &entry.file_name());
+        count += Box::pin(download_tree(sftp, &child, &target, h)).await?;
+    }
+    Ok(count)
+}
+
+/// Join a remote folder and a name, without doubling the separator.
+fn join_remote(dir: &str, name: &str) -> String {
+    if dir.ends_with('/') {
+        format!("{dir}{name}")
+    } else {
+        format!("{dir}/{name}")
+    }
 }
 
 async fn upload_file(
@@ -1778,5 +1952,12 @@ mod tests {
         assert_eq!(format_perms(0o755, true), "drwxr-xr-x");
         assert_eq!(format_perms(0o644, false), "-rw-r--r--");
         assert_eq!(human_size(2048), "2.0 KB");
+    }
+
+    #[test]
+    fn a_remote_path_joins_without_doubling_the_separator() {
+        assert_eq!(join_remote("/home/dev", "notes"), "/home/dev/notes");
+        assert_eq!(join_remote("/", "notes"), "/notes");
+        assert_eq!(join_remote("/home/dev/", "notes"), "/home/dev/notes");
     }
 }

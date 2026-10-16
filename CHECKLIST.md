@@ -189,4 +189,8 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Home page workspace cards aligned, with a gap before New Workspace | Completed | `tools::home::workspace_card` |
 | Devtools YAML tabs keep their own text | Completed | `yaml::State::buffer`, test `each_tab_keeps_its_own_text` |
 | Activity rail scrolls, with Home, the sidebar toggle and Settings pinned | Completed | `app::rail`; a short window used to draw the last entries over each other |
+| Inspect docked under the page in the browser | Completed | `browser_host::set_devtools_panel`, CDP front end on a local port, off by default (docs/06-security.md) |
+| One sidebar header everywhere: title and buttons on one line | Completed | `hs_ui::form::sidebar_header`, SSH, S3, database, Redis and NoSQL |
+| Redis key list aligned and indented, "Redis 8.6.3" in the toolbar | Completed | selectable labels instead of stretched buttons |
+| SFTP pane copies files and folders to and from the system clipboard | Completed | `hs_core::clipboard_files` (CF_HDROP, 5 tests), `upload_tree`/`download_tree`, palette commands; Copy and paste exercised live against `devsshd` 2026-10-16 |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

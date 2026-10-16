@@ -33,7 +33,8 @@ and theme.
 > code editor holding several projects (each with its own row of file tabs,
 > the file's full path under them, Run with F5, Git status, diffs and
 > history) and Markdown preview with native Mermaid diagrams, an SSH + SFTP
-> tool with a synced dual pane and port forwarding, an S3 browser for AWS
+> tool with a synced dual pane, port forwarding and a file pane that copies
+> files and folders to and from the system clipboard, an S3 browser for AWS
 > and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB and
 > SQLite with a cell viewer that previews pictures and documents, a **Redis**
 > key browser with type-aware viewers, a console and guards, a **NoSQL**
@@ -144,6 +145,11 @@ Open opens the searchable tools, connections and project items palette.
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
 | ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | |
 | **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | |
+
+**Clipboard** — **Copy** on a remote entry puts it on the system clipboard
+(a folder with everything inside it), ready to paste into the file manager;
+the pane's paste button uploads whatever the clipboard holds into the folder
+on screen. Windows only.
 
 ### S3 and S3-compatible storage
 

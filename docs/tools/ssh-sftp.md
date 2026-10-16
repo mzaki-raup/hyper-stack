@@ -191,3 +191,31 @@ happens only after a question is submitted.
 host key change), SFTP operations and resume after a forced disconnect, config
 importer fixtures (including `Include`, `Match` ignored with a note), terminal
 escape handling via alacritty's own tests plus snapshot tests of the grid.
+
+## 14. Clipboard files (implemented 2026-10-16)
+
+The remote pane takes files and folders from the system clipboard and gives
+them back, so the file manager and the SFTP pane share one gesture.
+
+- **Copy** on the selected entry fetches it — a whole folder tree if it is a
+  folder — into `HyperStackData/tmp/sftp-copy-<id>/` and puts that path on
+  the clipboard as `CF_HDROP`. The clipboard can only carry paths that
+  exist, so the download has to happen first; it runs as a cancellable job
+  like every other transfer, and the scratch folder is inside the portable
+  data folder (ADR-017), never `%TEMP%`.
+- The pane's **paste** button (toolbar, next to Upload) uploads whatever the
+  clipboard holds into the folder on screen, recursively, keeping each
+  folder's shape. Its tooltip says when the clipboard holds no files.
+- Both are palette commands: *SSH: Copy to Clipboard*, *SSH: Paste From
+  Clipboard*.
+- `hs-core::clipboard_files` encodes and decodes the `DROPFILES` block (a
+  20-byte header and double-NUL-terminated UTF-16 paths) with tests; only
+  the three clipboard calls around it are platform code. On Linux and macOS
+  the module compiles and `write` returns "implemented on Windows only" —
+  there is no format a file manager there would read back.
+
+**Why there is no Ctrl+V.** egui-winit answers Ctrl+V by reading the
+clipboard as *text* and only then emitting `Event::Paste`; a clipboard that
+holds files and no text produces no event at all, so the gesture would work
+for some sources and silently do nothing for Explorer. The buttons read
+`CF_HDROP` directly and always work.

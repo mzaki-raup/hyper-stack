@@ -17,6 +17,7 @@
 //! - [`shortcuts`] / [`i18n`] / [`fuzzy`] / [`logging`] / [`version`] / [`update`] / [`updater`]
 
 pub mod ai;
+pub mod clipboard_files;
 pub mod connections;
 pub mod download;
 pub mod environments;

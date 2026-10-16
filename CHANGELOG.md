@@ -13,6 +13,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- The SFTP pane takes files and folders from the system clipboard and gives
+  them back (docs/tools/ssh-sftp.md §14). **Copy** on an entry fetches it —
+  a whole folder tree if it is one — into the data folder's scratch space
+  and puts that path on the clipboard, so it can be pasted into the file
+  manager; the pane's paste button uploads whatever the clipboard holds
+  into the folder on screen, recursively. Both are palette commands.
+  Windows only: `hs-core::clipboard_files` encodes the `CF_HDROP` block,
+  and elsewhere `write` says it is not implemented rather than pretending.
+
 - **Redis tool** (`tool-redis`, docs/tools/redis.md): one tab per `redis`
   connection, a `SCAN` key tree grouped on the profile's separator with type
   badges and a cancel button, type-aware viewers and editors for strings

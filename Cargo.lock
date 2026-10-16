@@ -3385,6 +3385,7 @@ dependencies = [
  "tracing-subscriber",
  "ulid",
  "unic-langid",
+ "windows-sys 0.61.2",
  "zeroize",
 ]
 

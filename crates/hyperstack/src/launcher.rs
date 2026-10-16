@@ -25,6 +25,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "ssh" => Some("ssh"),
         "s3" => Some("s3"),
         "db" => Some("db"),
+        "redis" => Some("redis"),
         _ => None,
     }
 }
@@ -234,8 +235,10 @@ mod tests {
         assert_eq!(tool_for_kind("ssh"), Some("ssh"));
         assert_eq!(tool_for_kind("s3"), Some("s3"));
         assert_eq!(tool_for_kind("db"), Some("db"));
-        assert_eq!(tool_for_kind("redis"), None);
+        assert_eq!(tool_for_kind("redis"), Some("redis"));
+        // No tool opens these kinds yet.
         assert_eq!(tool_for_kind("mongodb"), None);
+        assert_eq!(tool_for_kind("cassandra"), None);
     }
 
     #[test]

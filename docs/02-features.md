@@ -86,21 +86,21 @@ suggestion.
 
 ## 3b. Redis cache viewer (requested) — [spec](tools/redis.md)
 
-| Feature | Priority | Effort |
-|---|---|---|
-| Connections: standalone, TLS, ACL users, Sentinel, Cluster; SSH tunnel; import from `redis://` URI | P0 | M |
-| Key browser: `SCAN`-based lazy tree grouped by delimiter (`user:123:session` → `user` › `123`), per-db selector, pattern filter, key count estimate | P0 | M |
-| Type-aware value viewers and editors: string (JSON/text/hex/MessagePack decode), hash, list, set, sorted set, stream, HyperLogLog, bitmap | P0 | L |
-| TTL display with countdown, set/persist TTL, rename, delete, copy key, duplicate | P0 | S |
-| Memory usage per key (`MEMORY USAGE`), encoding, idle time, big-key finder (sampled) | P1 | M |
-| Command console with completion and history (RESP2/RESP3), raw command tab | P0 | M |
-| Pub/Sub subscriber and publisher tab | P1 | S |
-| Stream viewer with consumer groups, pending entries, ack | P1 | M |
-| Server info dashboard: memory, clients, hit rate, ops/sec, keyspace, replication, slowlog, `CLIENT LIST` | P1 | M |
-| Real-time `MONITOR` tail with filter (guarded: warns about production impact) | P1 | S |
-| Bulk operations: delete by pattern (SCAN + UNLINK batches, dry run first), export/import keys as JSON or RDB-like dump | P1 | M |
-| Lua script runner, `EVAL` with keys/args | P2 | S |
-| Guards: `FLUSHALL`/`FLUSHDB`/`KEYS *` blocked on protected environments; `SCAN` always preferred over `KEYS` | P0 | S |
+| Feature | Priority | Effort | Notes |
+|---|---|---|---|
+| Connections: standalone, TLS, ACL users, Sentinel, Cluster; SSH tunnel; import from `redis://` URI | P0 | M | standalone/TLS/ACL/tunnel/URI done 2026-10-16; Sentinel and Cluster stored, not opened |
+| Key browser: `SCAN`-based lazy tree grouped by delimiter (`user:123:session` → `user` › `123`), per-db selector, pattern filter, key count estimate | P0 | M | done 2026-10-16 |
+| Type-aware value viewers and editors: string (JSON/text/hex/MessagePack decode), hash, list, set, sorted set, stream, HyperLogLog, bitmap | P0 | L | done 2026-10-16 for string (JSON/text/hex/gzip), hash, list, set, sorted set and stream reads; HyperLogLog, bitmap and MessagePack pending |
+| TTL display with countdown, set/persist TTL, rename, delete, copy key, duplicate | P0 | S | done 2026-10-16 (duplicate pending) |
+| Memory usage per key (`MEMORY USAGE`), encoding, idle time, big-key finder (sampled) | P1 | M | |
+| Command console with completion and history (RESP2/RESP3), raw command tab | P0 | M | done 2026-10-16; completion from `COMMAND DOCS` pending |
+| Pub/Sub subscriber and publisher tab | P1 | S | |
+| Stream viewer with consumer groups, pending entries, ack | P1 | M | |
+| Server info dashboard: memory, clients, hit rate, ops/sec, keyspace, replication, slowlog, `CLIENT LIST` | P1 | M | |
+| Real-time `MONITOR` tail with filter (guarded: warns about production impact) | P1 | S | |
+| Bulk operations: delete by pattern (SCAN + UNLINK batches, dry run first), export/import keys as JSON or RDB-like dump | P1 | M | |
+| Lua script runner, `EVAL` with keys/args | P2 | S | |
+| Guards: `FLUSHALL`/`FLUSHDB`/`KEYS *` blocked on protected environments; `SCAN` always preferred over `KEYS` | P0 | S | |
 
 ## 3c. Log tail viewer (requested) — [spec](tools/logs.md)
 

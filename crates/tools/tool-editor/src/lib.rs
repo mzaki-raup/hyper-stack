@@ -3790,7 +3790,9 @@ mod zip_tests {
         let file = std::fs::File::open(&target).unwrap();
         let mut archive = zip::ZipArchive::new(file).unwrap();
         let names: Vec<String> = (0..archive.len())
-            .map(|i| archive.by_index(i).unwrap().name().to_string())
+            // zip 9 returns the name as a Result: a mangled entry name is an
+            // error rather than lossy text.
+            .map(|i| archive.by_index(i).unwrap().name().unwrap().to_string())
             .collect();
         assert!(names.contains(&"proj/README.md".to_string()));
         assert!(names.contains(&"proj/src/main.rs".to_string()));

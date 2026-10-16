@@ -9,7 +9,9 @@ environments and secrets across every tool.
 **Status: Phase 0 (foundation), M1 (terminal with search and links,
 editor with Markdown + Mermaid preview, in-app updater) and M2 (SSH/SFTP
 with tunnels, S3) implemented; M3 under way: the SQL database tool
-(PostgreSQL, MySQL/MariaDB, SQLite) is done, NoSQL and Redis next. On
+(PostgreSQL, MySQL/MariaDB, SQLite) and the **Redis** tool (`tool-redis`:
+SCAN key tree, type-aware viewers and editors, console with guards, Info)
+are done, NoSQL next. On
 2026-10-15 the shell gained a pinned **Home** tab, theme modes, an
 Accessibility page (Read Aloud), settings import/export, Snip and Print…,
 and four tools landed: the **API client** (`tool-api`, Postman-compatible,
@@ -43,7 +45,7 @@ The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
-`hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+`tools/tool-redis`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -292,6 +294,7 @@ cargo run -p hyperstack -- --self-test     # what the CI smoke step runs
 cargo test -p tool-s3                      # one tool crate at a time
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server / MinIO
 HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers   # SQL drivers (SQLite always)
+HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live   # Redis driver against a real server
 pwsh -File scripts/next-release.ps1        # what the next push to main would release
 pwsh -c 'Invoke-Pester scripts/tests'      # release-planner tests (Pester 5)
 pwsh -File scripts/build-and-package.ps1 -Version 0.0.0-local -SkipSign   # local packaging dry run
@@ -607,6 +610,23 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   testserver --example devsshd -- 2222`, user `dev`/`dev`). Point the SSH tool
   at `127.0.0.1:2222`. WSL's own sshd is NOT reachable from Windows under the
   default NAT networking, so use devsshd for manual UI testing.
+
+### Redis (tool-redis)
+- Ubuntu in WSL already has `redis-server`; start it with
+  `wsl -d Ubuntu-24.04 -- bash -lc "redis-server --port 6379 --bind 0.0.0.0 --daemonize yes --save '' --appendonly no"`
+  and Windows reaches it on `127.0.0.1:6379` through WSL2's localhost
+  forwarding (unlike sshd, which the note above says is unreachable). **The
+  distro shuts down when the last `wsl.exe` command exits and takes the
+  server with it**: the symptom is a connect that fails in a second with
+  "timed out" (really ECONNREFUSED underneath). Hold it open with a
+  long-running `wsl.exe … sleep` in the background.
+- `redis::ConnectionInfo` has private fields: build one with
+  `ConnectionAddr::into_connection_info()` plus `set_redis_settings`, and
+  read it back with `addr()` / `redis_settings()`. `redis::Value` is
+  `#[non_exhaustive]`, so a match on it needs a wildcard arm.
+- A `parking_lot` guard is not `Send`: a runner task that holds one across
+  an `.await` fails to compile with "future cannot be sent between
+  threads". Scope the guard in its own block before the await.
 
 ### Databases (tool-db)
 - `mysql_async` builds its rustls config with `ClientConfig::builder()`,

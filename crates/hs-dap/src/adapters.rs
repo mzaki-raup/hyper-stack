@@ -46,7 +46,10 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         command: "codelldb",
         args: &["--port", "{port}"],
         transport: Transport::Tcp,
-        install: "github.com/vadimcn/codelldb/releases (unpack the vsix; adapter/codelldb on PATH)",
+        // The release is a .vsix, which is a zip, not an installer: unzip it
+        // (Windows hands a double-clicked .vsix to the Visual Studio VSIX
+        // installer, which refuses it) and put extension/adapter on PATH.
+        install: "Download the .vsix from the releases page, unzip it, and put extension/adapter on PATH",
         install_command: "",
         install_url: "https://github.com/vadimcn/codelldb/releases",
     },

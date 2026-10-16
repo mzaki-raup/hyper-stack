@@ -2106,14 +2106,29 @@ impl HyperStackApp {
                 ui.ctx().request_repaint();
             }
         };
+        // Home stays at the top and the sidebar toggle and Settings at the
+        // bottom; only the tools between them scroll, so a window too short
+        // for every tool hides none of the three fixed entries.
+        let entry_h = if labels { 50.0 } else { 24.0 + 10.0 };
+        let gap = if labels { 2.0 } else { 4.0 };
+        let bottom_h = 8.0 + entry_h + 4.0 + entry_h + 6.0;
         ui.vertical_centered(|ui| {
             ui.add_space(6.0);
             item(self, ui, "home");
             ui.add_space(6.0);
-            for id in ordered.iter().filter(|id| !is_mandatory(id)) {
-                item(self, ui, id);
-                ui.add_space(if labels { 2.0 } else { 4.0 });
-            }
+            let tools_h = (ui.available_height() - bottom_h).max(entry_h);
+            egui::ScrollArea::vertical()
+                .id_salt("hs-rail-scroll")
+                .max_height(tools_h)
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.vertical_centered(|ui| {
+                        for id in ordered.iter().filter(|id| !is_mandatory(id)) {
+                            item(self, ui, id);
+                            ui.add_space(gap);
+                        }
+                    });
+                });
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.add_space(8.0);
                 item(self, ui, "settings");

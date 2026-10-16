@@ -104,9 +104,12 @@ pub const DEFAULTS: &[ServerSpec] = &[
         id: "jdtls",
         command: "jdtls",
         args: &[],
-        install: "Eclipse JDT Language Server (jdtls on PATH)",
+        // A VS Code Java extension is not a language server HyperStack can
+        // talk to: the download below is the server itself, a tarball to
+        // unpack, with bin/ added to PATH.
+        install: "Download the Eclipse JDT LS tarball, unpack it, and put its bin folder on PATH",
         install_command: "",
-        install_url: "https://github.com/eclipse-jdtls/eclipse.jdt.ls",
+        install_url: "https://download.eclipse.org/jdtls/milestones/",
     },
     ServerSpec {
         language: "Kotlin",

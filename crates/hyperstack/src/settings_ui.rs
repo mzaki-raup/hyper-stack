@@ -2084,12 +2084,15 @@ fn connections(
             let is_ssh = draft.kind == "ssh";
             let is_s3 = draft.kind == "s3";
             let is_db = draft.kind == "db";
+            let is_redis = draft.kind == "redis";
             if is_ssh {
                 ssh_form(ui, theme, s, draft, fields_text, effects);
             } else if is_s3 {
                 s3_form(ui, theme, s, draft, fields_text);
             } else if is_db {
                 db_form(ui, theme, s, draft, fields_text);
+            } else if is_redis {
+                redis_form(ui, theme, s, draft, fields_text);
             } else {
                 form::section(ui, theme, &s.t("conn-fields"), |ui| {
                     form::code_field(ui, fields_text, 8);
@@ -3256,6 +3259,152 @@ fn db_form(
             form::hint(ui, theme, &s.t("conn-db-auth-hint"));
         });
     }
+    ui.data_mut(|d| d.insert_temp(url_id, url));
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The `kind = "redis"` form: server, ACL credentials (password into the
+/// vault on save), TLS, SSH tunnel, the key separator, and a pasted
+/// `redis://` URL.
+fn redis_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_redis::profile::{MODES, RedisFields, parse_url};
+    let mut f = RedisFields::from_table(&draft.fields);
+    let mut changed = false;
+    let url_id = egui::Id::new(("redis-url", draft.id.clone()));
+    let mut url: String = ui.data_mut(|d| d.get_temp(url_id).unwrap_or_default());
+    form::section(ui, theme, &s.t("conn-redis-section-server"), |ui| {
+        form::field_grid(ui, "redis-server", |ui| {
+            form::label(ui, &s.t("conn-redis-url"));
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut url)
+                        .hint_text("redis://user@host:6379/0")
+                        .desired_width(form::FIELD_MIN_WIDTH - 70.0),
+                );
+                if ui
+                    .add_enabled(
+                        !url.trim().is_empty(),
+                        egui::Button::new(s.t("conn-redis-import")),
+                    )
+                    .clicked()
+                {
+                    if let Some(parsed) = parse_url(&url) {
+                        // The tunnel and the separator are the user's choice,
+                        // not the URL's.
+                        let tunnel = std::mem::take(&mut f.tunnel_ssh);
+                        let delimiter = std::mem::take(&mut f.delimiter);
+                        f = parsed;
+                        f.tunnel_ssh = tunnel;
+                        f.delimiter = delimiter;
+                        changed = true;
+                    }
+                    url.clear();
+                }
+            });
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-host"));
+            changed |= form::text_field(ui, &mut f.host, "127.0.0.1").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-port"));
+            let mut port = f.port.to_string();
+            if form::text_field(ui, &mut port, "6379").changed() {
+                f.port = port.trim().parse().unwrap_or(f.port);
+                changed = true;
+            }
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-db"));
+            let mut db = f.db.to_string();
+            if form::text_field(ui, &mut db, "0").changed() {
+                f.db = db.trim().parse().unwrap_or(f.db);
+                changed = true;
+            }
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-mode"));
+            egui::ComboBox::from_id_salt("redis-mode")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(f.mode.clone())
+                .show_ui(ui, |ui| {
+                    for m in MODES {
+                        if ui.selectable_label(f.mode == *m, *m).clicked() {
+                            f.mode = (*m).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-redis-url-hint"));
+        if f.mode != "standalone" {
+            form::note(
+                ui,
+                theme,
+                hs_ui::icons::ph::WARNING,
+                &s.t("conn-redis-mode-hint"),
+            );
+        }
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "redis-auth", |ui| {
+            form::label(ui, &s.t("conn-redis-user"));
+            changed |= form::text_field(ui, &mut f.user, "default").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-password"));
+            changed |= secret_field(ui, theme, s, "redis-pass", &mut f.password, scratch, 0);
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-tls"));
+            changed |= ui.checkbox(&mut f.tls, "").changed();
+            ui.end_row();
+            if f.tls {
+                form::label(ui, &s.t("conn-redis-tls-ca"));
+                changed |= form::text_field(ui, &mut f.tls_ca, "ca.pem").changed();
+                ui.end_row();
+            }
+            form::label(ui, &s.t("conn-db-tunnel"));
+            let hosts: Vec<(String, String)> = s
+                .connections
+                .read()
+                .of_kind("ssh")
+                .map(|c| (c.id.clone(), c.name.clone()))
+                .collect();
+            let none = s.t("conn-db-no-tunnel");
+            let current = hosts
+                .iter()
+                .find(|(id, _)| *id == f.tunnel_ssh)
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| none.clone());
+            egui::ComboBox::from_id_salt("redis-tunnel")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(current)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                        .clicked()
+                    {
+                        f.tunnel_ssh.clear();
+                        changed = true;
+                    }
+                    for (id, name) in hosts {
+                        if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                            f.tunnel_ssh = id;
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            form::label(ui, &s.t("conn-redis-delimiter"));
+            changed |= form::text_field(ui, &mut f.delimiter, ":").changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-redis-delimiter-hint"));
+    });
     ui.data_mut(|d| d.insert_temp(url_id, url));
     if changed {
         f.write_into(&mut draft.fields);

@@ -26,6 +26,7 @@ tool-editor = { workspace = true }
 tool-ssh = { workspace = true }
 tool-s3 = { workspace = true }
 tool-db = { workspace = true }
+tool-redis = { workspace = true }
 tool-devtools = { workspace = true }
 tool-api = { workspace = true }
 tool-graphics = { workspace = true }

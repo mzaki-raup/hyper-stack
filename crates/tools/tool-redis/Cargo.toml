@@ -1,0 +1,30 @@
+[package]
+name = "tool-redis"
+description = "HyperStack Redis tool: key browser, value editors and console for Redis, Valkey and KeyDB"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+hs-editor = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+secrecy = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+redis = { workspace = true }
+flate2 = { workspace = true }
+rustls = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

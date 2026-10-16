@@ -19,6 +19,7 @@ members = [
   "crates/tools/tool-api",
   "crates/tools/tool-graphics",
   "crates/tools/tool-browser",
+  "crates/tools/tool-redis",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -51,6 +52,7 @@ tool-devtools = { path = "crates/tools/tool-devtools" }
 tool-api = { path = "crates/tools/tool-api" }
 tool-graphics = { path = "crates/tools/tool-graphics" }
 tool-browser = { path = "crates/tools/tool-browser" }
+tool-redis = { path = "crates/tools/tool-redis" }
 
 # UI
 eframe = "0.35"
@@ -117,7 +119,8 @@ syntect = { version = "5", default-features = false, features = ["parsing", "def
 encoding_rs = "0.8"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 rfd = "0.17"
-zip = { version = "2.4", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
+flate2 = "1"
 notify = "8"
 tempfile = "3"
 ttf-parser = "0.25"
@@ -130,6 +133,14 @@ tokio-postgres-rustls = { version = "0.14", default-features = false, features =
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls-ring"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 rustls-platform-verifier = "0.7"
+# Redis/Valkey. TLS through the same rustls+ring stack as the SQL drivers.
+redis = { version = "1.7", default-features = false, features = [
+    "acl",
+    "streams",
+    "script",
+    "tokio-comp",
+    "tokio-rustls-comp",
+] }
 
 [profile.release]
 opt-level = 3

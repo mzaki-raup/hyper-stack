@@ -70,7 +70,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | History, saved queries, transactions, read-only, destructive classifier, SSH tunnel | Completed | Guards exercised on a protected environment (refusal, Allow Writes, typed name); tunnel exercised through OpenSSH; the vault keeps the password (grep found no plaintext) |
 | `tool-nosql`: `DocStore`; MongoDB (tree, find, aggregation, views, Extended JSON editing, guarded writes) | Pending | |
 | `tool-nosql`: CouchDB (databases, `_rev`, Mango, attachments) | Pending | |
-| `tool-redis`: connection, SCAN tree, type viewers/editors, TTL, console, guards | Pending | |
+| `tool-redis`: connection, SCAN tree, type viewers/editors, TTL, console, guards | Completed | 2026-10-16: 27 unit tests plus `tests/live.rs` against a real server (`HS_REDIS=…`); exercised in the app against Redis 8.6 — key tree with type badges, JSON/gzip/binary string viewers, list table, console rendering and the FLUSHALL guard, Info sections. Command completion, Pub/Sub, the live dashboard and Sentinel/Cluster sessions are still open (`docs/tools/redis.md` §11) |
 
 ### M4 · API client + Git
 | Item | State | Notes |
@@ -188,4 +188,5 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Add a provider from a gallery of services with per-kind fields | Completed | `settings_ai::CATALOGUE`, 15 services in 3 groups, computed grid |
 | Home page workspace cards aligned, with a gap before New Workspace | Completed | `tools::home::workspace_card` |
 | Devtools YAML tabs keep their own text | Completed | `yaml::State::buffer`, test `each_tab_keeps_its_own_text` |
+| Activity rail scrolls, with Home, the sidebar toggle and Settings pinned | Completed | `app::rail`; a short window used to draw the last entries over each other |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |

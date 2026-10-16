@@ -78,7 +78,7 @@ in the e2e test).
 - [x] Result grid streaming into its own grid, cell viewer, copy/export CSV/JSON/Markdown/INSERT
 - [x] History, saved queries (`.sql` + header), transactions toggle, read-only, destructive classifier + guard, SSH tunnel
 - [ ] `tool-nosql`: `DocStore` trait; MongoDB driver (databases/collections tree, find with filter/projection/sort, aggregation editor, document tree/table/JSON views, Extended JSON editing, insert/update/delete with guards); CouchDB driver (databases, documents with `_rev`, Mango queries, attachments)
-- [ ] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with completion, guards
+- [x] `tool-redis`: connection (standalone/TLS/ACL, tunnel), SCAN key tree, type viewers/editors for all core types, TTL ops, console with guards — 2026-10-16 (command completion and the live dashboard pending, `docs/tools/redis.md` §11)
 
 ### M4 · API client + Git (6 w)
 - [x] `tool-api`: request editor (params/headers/body/auth: basic, bearer, API key; OAuth2 and SigV4 pending), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export — 2026-10-15

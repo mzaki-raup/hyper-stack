@@ -353,3 +353,19 @@ sidebar width and dock height are restored on the next start
 - High-contrast prebuilt theme. Colour is never the only signal for environment
   (name is always shown; protected environments also show a lock icon).
 - Reduced-motion setting disables toast slide and spinner animation.
+
+## Addendum (2026-10-16): the activity rail scrolls
+
+The rail holds Home, every tool and then the sidebar toggle and Settings. A
+window too short for that list used to draw the last entries on top of each
+other. Home is now pinned at the top and the sidebar toggle and Settings at
+the bottom; only the tools between them scroll. The three fixed entries are
+always reachable, which is what makes the rail usable on a short window.
+
+## Addendum (2026-10-16): the activity rail scrolls
+
+The rail holds Home, every tool and then the sidebar toggle and Settings. A
+window too short for that list used to draw the last entries on top of each
+other. Home is now pinned at the top and the sidebar toggle and Settings at
+the bottom; only the tools between them scroll. The three fixed entries are
+always reachable, which is what makes the rail usable on a short window.

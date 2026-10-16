@@ -1,6 +1,6 @@
 # Tool spec — Redis cache viewer
 
-**Crate:** `tool-redis` · **Priority:** P0 (core), P1 (dashboard, streams, pub/sub) · **Status:** draft
+**Crate:** `tool-redis` · **Priority:** P0 (core), P1 (dashboard, streams, pub/sub) · **Status:** implemented 2026-10-16 (P0; see §11)
 
 ## 1. Purpose
 
@@ -144,3 +144,33 @@ a `redis://` / `rediss://` URI.
   separate tiny `tool-memcached` is probably cleaner. Deferred.
 - RedisJSON / RediSearch module support depth. Start with detection and raw
   commands.
+
+## 11. What is implemented (2026-10-16)
+
+The P0 core of this spec is in `tool-redis` and exercised against a live
+server (`HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live`):
+
+- **Connection** (§9): standalone, TLS with an optional private CA, ACL user
+  and password from the vault, SSH tunnel, read-only flag, `redis://` and
+  `rediss://` import. Sentinel and cluster are stored by the form and refused
+  by the session with a clear message; neither opens a connection yet.
+- **Key tree** (§4): `SCAN` on a background job with a cancel button, grouped
+  on the profile's separator, type badges from a pipelined `TYPE`, counts per
+  group, the context menu (open, copy, rename, set TTL, delete, delete all
+  under a prefix with a count first). Sorting by size and `MEMORY USAGE`
+  sampling across the tree are not there; the open key shows its own memory.
+- **Viewers and editors** (§5): string (JSON, number, text and binary
+  detected, gzip expanded, pretty JSON that keeps key order, a hex dump for
+  bytes, the first 256 kB of a large value with **Load the Whole Value**),
+  hash, list, set and sorted set as paged tables with add, edit and remove,
+  and streams as a read-only entry table with `XDEL`. RedisJSON, HyperLogLog
+  and bitmap viewers, and stream consumer groups, are not written yet.
+- **Console** (§6): `redis-cli` argument splitting (quotes, `\xhh`), replies
+  rendered per RESP type, history on ↑/↓, and the guards — a read-only
+  profile or a protected environment refuses anything that writes, and
+  `FLUSHALL`, `KEYS`, `CONFIG SET`, `MONITOR` and the rest ask first, typing
+  the environment name on a protected one. Completion from `COMMAND DOCS` is
+  not there yet.
+- **Info** (§8): `INFO` parsed into its sections as tables, refreshed on
+  demand. The live dashboard with sparklines, `SLOWLOG` and `CLIENT LIST`
+  is still to do, and so is Pub/Sub (§7).

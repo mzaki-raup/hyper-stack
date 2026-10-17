@@ -214,6 +214,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | API client: the method picker is as tall as the URL field | Completed | `form::field_row` sizes a control to `form::field_height`; verified live at 4x — both frames share a top and bottom edge |
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
+| Database: Open Data runs in its own query tab | In-Progress | `run_in_new_tab` fills an empty Untitled tab or adds one, then runs; `reusable_tab` covered by three unit tests. Live check still owed — a dev instance held the build lock and was not killed |
 | Database: Prettify lays the open query out again | Completed | `sqlformat` 0.5 (MIT OR Apache-2.0, `cargo deny` clean); verified live — a one-line join became 13 indented lines |
 | API client: the method is coloured, in the tab too | Completed | `ui::method_rgb` fixed colours, `TabItem::title_prefix` colours only the method; verified live — GET, POST, PUT and DELETE tabs each in their own colour |
 | API client: one window tab per request | Completed | `uri_affinity` claims an `api://` URI only while the tab is empty, the exact URI focuses the tab that has it; verified live — Ping filled the empty tab, Health opened a second, Ping again focused the first |

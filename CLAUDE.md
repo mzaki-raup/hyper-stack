@@ -436,17 +436,23 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 
 ### Git and signing
 - Every commit here is GPG-signed with the owner's key, and
-  `gpg: signing failed: Timeout` does **not** mean signing is broken: it
-  means gpg-agent put a pinentry prompt on the owner's desktop and nobody
-  answered it in time. `gpg --pinentry-mode error --clearsign` reports
-  "No pinentry" when the passphrase is not cached, which is the quick way
-  to tell a locked agent from a real failure — and each real attempt costs
-  a two-minute timeout, so probe rather than retry blindly. Hold the work
-  staged (a resolved merge keeps its `MERGE_HEAD`, so the resolution is
-  not lost) and run the same commit again once the key is unlocked; never
-  reach for `--no-gpg-sign`. There is no `gpg-agent.conf` in
-  `%APPDATA%\gnupg`, so the agent runs on GnuPG's default cache TTL and
-  re-prompts often.
+  `gpg: signing failed: Timeout` does **not** mean signing is broken — it
+  means the agent had nothing cached and the pinentry prompt never got
+  answered. Retrying from here does not help: the prompt appears fine when
+  the owner signs from their *own* PowerShell (verified 2026-10-17 — a
+  `gpg --clearsign` there prompted and succeeded on an uncached key), so a
+  Timeout in an agent-driven shell means the dialog is not reaching them,
+  not that they let it lapse. `gpg --pinentry-mode error --clearsign`
+  reports "No pinentry" when the passphrase is not cached, which tells a
+  locked agent from a real failure without burning a two-minute timeout.
+  **Ask the owner to warm the cache in their own terminal**
+  (`"warm" | gpg --local-user B89A6E03D2371647 --clearsign | Out-Null`),
+  then commit; hold the work staged meanwhile (a resolved merge keeps its
+  `MERGE_HEAD`, so the resolution is not lost) and never reach for
+  `--no-gpg-sign`. `%APPDATA%\gnupg\gpg-agent.conf` now sets
+  `default-cache-ttl 14400`, so one unlock covers a long session; the
+  agent only re-reads it after `gpgconf --reload gpg-agent`, and
+  `gpgconf --kill gpg-agent` drops the cache outright.
 
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it

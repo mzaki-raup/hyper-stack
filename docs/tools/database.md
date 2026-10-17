@@ -366,3 +366,17 @@ The indent follows the editor's own tab setting (two spaces, or four when
 the editor inserts tabs). Nothing happens when the text is already laid
 out that way, so the button never dirties a tab for no reason. Owner's
 requirement, 2026-10-17.
+
+### Open Data opens a query tab (2026-10-17)
+
+**Open Data** and **Count Rows** in the schema tree no longer run a
+statement the user cannot see. Each opens a query tab holding the text it
+is about to run — `SELECT * FROM <table>` — and the grid underneath is
+that tab's result, so the statement can be edited, extended with a
+`WHERE`, and run again without retyping it. An Untitled tab that is still
+empty is filled rather than added to, the way the API client fills an
+empty tab before opening another; anything already typed is left alone and
+a new tab is added beside it. The destructive templates (TRUNCATE, DROP)
+keep their old behaviour of inserting into the current tab without
+running, since the point of those is that the user runs them deliberately.
+Owner's requirement, 2026-10-17.

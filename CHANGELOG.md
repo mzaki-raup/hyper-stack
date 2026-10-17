@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- **Open Data** and **Count Rows** in the database schema tree run in a
+  query tab of their own, with the statement in the editor above the grid
+  it produced. They used to run from nowhere, which left whatever was in
+  the front tab looking like the cause of the result. An Untitled tab that
+  is still empty is filled rather than added to.
 
 ## 0.33.0 — 2026-10-17
 

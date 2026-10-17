@@ -367,6 +367,18 @@ impl QueryDoc {
     }
 }
 
+/// Which query tab a statement generated from the schema tree should land
+/// in: the first tab that is unsaved *and* empty, so Open Data fills the
+/// blank tab in front of the user rather than stacking another beside it.
+/// A tab holding anything typed is never reused, saved or not — losing
+/// someone's half-written query to a context-menu click would be worse
+/// than an extra tab.
+fn reusable_tab(tabs: impl Iterator<Item = (bool, String)>) -> Option<usize> {
+    tabs.enumerate()
+        .find(|(_, (unsaved, text))| *unsaved && text.trim().is_empty())
+        .map(|(i, _)| i)
+}
+
 /// Lay a statement out again: one clause to a line, indented, keywords
 /// as they were typed. `sqlformat` is dialect-agnostic, which suits a tool
 /// that speaks three of them. Owner's requirement, 2026-10-17.
@@ -2301,7 +2313,7 @@ impl DbTool {
             close = true;
         }
         if let Some(sql) = run {
-            self.run_text(&sql, usize::MAX, false, None, s);
+            self.run_in_new_tab(&sql, s);
             close = true;
         }
         if let Some(t) = insert {
@@ -3074,6 +3086,31 @@ impl DbTool {
         self.state.active_query = self.docs.len() - 1;
     }
 
+    /// Run a statement the user asked for from the schema tree in a query
+    /// tab of its own, so the text that produced the grid is on screen and
+    /// can be edited and run again. It used to run from nowhere, leaving
+    /// whatever was in the front tab looking like the cause of the result.
+    /// An Untitled tab that is still empty is filled rather than added to,
+    /// the way the API client fills an empty tab before opening another.
+    /// Owner's requirement, 2026-10-17.
+    fn run_in_new_tab(&mut self, sql: &str, s: &Services) {
+        let reusable = reusable_tab(self.docs.iter().map(|d| (d.file.is_none(), d.buf.text())));
+        match reusable {
+            Some(i) => {
+                self.docs[i].buf = Buffer::from_text(sql);
+                self.docs[i].buf.mark_saved();
+                self.docs[i].cursors = Cursors::single(0);
+                self.state.active_query = i;
+            }
+            None => {
+                self.docs.push(QueryDoc::new(s, sql));
+                self.state.active_query = self.docs.len() - 1;
+            }
+        }
+        self.sync_query_state();
+        self.run_text(sql, usize::MAX, false, None, s);
+    }
+
     /// Keep the single-query fields the rest of the tool still reads in
     /// step with whichever tab is in front.
     fn sync_query_state(&mut self) {
@@ -3370,5 +3407,40 @@ fn human_bytes(n: usize) -> String {
         format!("{:.1} KB", n / 1024.0)
     } else {
         format!("{:.1} MB", n / (1024.0 * 1024.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tabs(v: &[(bool, &str)]) -> Vec<(bool, String)> {
+        v.iter().map(|(u, t)| (*u, (*t).to_string())).collect()
+    }
+
+    #[test]
+    fn open_data_fills_the_blank_tab_in_front_of_the_user() {
+        let t = tabs(&[(false, "SELECT 1"), (true, "   \n ")]);
+        assert_eq!(reusable_tab(t.into_iter()), Some(1));
+    }
+
+    #[test]
+    fn a_tab_with_anything_typed_in_it_is_never_reused() {
+        let t = tabs(&[(true, "SELECT half_written"), (false, "")]);
+        // Index 1 is empty but saved: a saved query's tab is its own thing.
+        assert_eq!(reusable_tab(t.into_iter()), None);
+    }
+
+    #[test]
+    fn with_no_blank_tab_open_data_gets_one_of_its_own() {
+        let t = tabs(&[(true, "SELECT a"), (true, "SELECT b")]);
+        assert_eq!(reusable_tab(t.into_iter()), None);
+    }
+
+    #[test]
+    fn prettify_lays_a_one_line_statement_out() {
+        let out = prettify_sql("select a, b from t where a = 1", 2);
+        assert!(out.lines().count() > 1, "{out}");
+        assert!(out.contains("select"), "keywords keep their case: {out}");
     }
 }

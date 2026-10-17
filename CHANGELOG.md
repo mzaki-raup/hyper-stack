@@ -13,20 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- The **AI assistant reaches Redis and the NoSQL tool**, the two that did
-  not have it. Both are review-only: Redis can put a command in the
-  console's input and the document store can fill the filter or pipeline
-  field, and in both the user is the one who runs it. Each is told what is
-  on screen — the open key and the last console command; the open
-  container and the query — and nothing else.
-
-- A database connection's tab holds **as many query tabs as you open**, in
-  a strip above the editor like the editor's own files. Each keeps its own
-  text, caret and unsaved mark; a tab is named by the saved query it holds
-  or Untitled; opening a saved query opens another query tab on the same
-  connection rather than another window tab. A window tab is still exactly
-  one connection.
-
 - **Prettify** in the database toolbar lays the open query out again:
   one clause to a line, indented, statements kept apart, keywords left in
   the case they were typed.
@@ -47,23 +33,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - **Duplicate** names the copy `List 001`, `List 002` and so on, in the
   folder the original is in.
 
-- The API client's sidebar can be **dragged into order** at every level:
-  requests among their siblings, folders among theirs, collections among
-  the collections. A collection remembers its place in an `order` field,
-  since collections are files in a directory and a directory has no order
-  of its own.
-
-- **Settings → Workspace lists every workspace**, not only the one that is
-  open: each with its logo, name and folder, the open one marked, and a
-  click switches to it. New Workspace… is there too, so the page is a
-  place to see what there is rather than only to rename what you are in.
-
-- Browser page tabs show the site's **favicon**, and so does the browser's
-  own tool tab. There is no favicon API in wry on Windows, so it is
-  fetched from the origin's `/favicon.ico` and normalised to one small PNG
-  — once per site, not once per tab, and the globe stays for a page that
-  is loading or has no origin to ask.
-
 ### Changed
 
 - **Home's sidebar carries Pinned and Recent**, with the workspace name
@@ -78,19 +47,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   them; a written pre-request script used to squeeze the empty
   post-response one down to nothing.
 
-- The database tool's **schema is a column beside the editor** — version,
-  filter, object tree, then Saved Queries and History under a separator —
-  rather than a block nested in the connections list. Hiding the sidebar
-  is about choosing a server; it no longer takes the schema of the one you
-  are in with it.
-
-- Settings → Security drops the **Connection String** column, which was
-  empty for every kind but one (a document store's URI is now its
-  Host/URL). Every column sizes itself to its content except Username and
-  Password, which share one width so the two a reader compares line up.
-  The Reveal Password dialog's buttons are right-aligned with the action
-  outermost, like every other dialog in the app.
-
 ### Fixed
 
 - The API client's **method picker lines up with the URL field** beside
@@ -100,21 +56,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Three dialogs had their buttons on the left where every other dialog
   puts them on the right: the SQL guard, Save Query, and S3's New Folder.
 
-- The API client's folder and request menus go through Fluent. They had
-  been written in English in the code, which nothing else in the app does.
+## 0.32.0 — 2026-10-17
 
-- Forced **dark mode covers the whole page**. The filter was on `html`,
-  which inverted its own dark background into a light one, so everything
-  the page itself did not cover came out light — a short page looked half
-  dark. It is on `body` now, with `html` left dark behind it.
+### Added
 
-- The browser's **address bar can be typed into**. A WebView2 child takes
-  keyboard focus back the moment it is allowed to, so the field was
-  unusable; the web view is now disabled outright while the address bar
-  holds the keyboard, which is the only thing that holds.
+- Drag the collections sidebar into order, at every level (5d44984f)
+- The Workspace page lists every workspace (ab958b5c)
+- Query tabs per connection, and the address bar accepts typing (4db2a53a)
+- Favicons on browser tabs, the database schema as its own column, tidier credentials (b88ca847)
+- The AI assistant reaches Redis and the NoSQL tool (48d48a2f)
 
-- S3's **AI Assistant** button sits hard right like every other tool's; it
-  was missed when the rest were moved.
+### Fixed
+
+- Restored query text goes back to the tab it came from (d40e42cc)
+- Forced dark mode covers the whole page (5f9bf5be)
 
 ## 0.31.0 — 2026-10-16
 

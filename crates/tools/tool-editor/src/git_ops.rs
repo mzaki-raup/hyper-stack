@@ -42,6 +42,8 @@ pub(crate) enum Confirm {
     ProtectedPush,
     /// Drop a stash.
     DropStash(write::Stash),
+    /// Throw one hunk away in the work tree.
+    DiscardHunk { path: String, hunk: hs_git::Hunk },
 }
 
 /// Per-repository state of the write side.
@@ -103,6 +105,12 @@ pub(crate) enum Request {
     DeleteBranch {
         name: String,
         force: bool,
+    },
+    /// One hunk of a file, to the index, out of it, or gone.
+    Hunk {
+        path: String,
+        hunk: hs_git::Hunk,
+        op: write::HunkOp,
     },
 }
 
@@ -378,6 +386,18 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
             let msg = s.i18n.t_args("git-op-switched", &[("branch", &name)]);
             ops.start(s, s.t("git-op-switching"), move || {
                 write::create_branch(&root, &name, None)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+        }
+        Request::Hunk { path, hunk, op } => {
+            let msg = done(match op {
+                write::HunkOp::Stage => "git-op-staged",
+                write::HunkOp::Unstage => "git-op-unstaged",
+                write::HunkOp::Discard => "git-op-discarded",
+            });
+            ops.start(s, s.t("git-op-staging"), move || {
+                write::apply_hunk(&root, &path, &hunk, op)
                     .map(|_| msg)
                     .map_err(|e| e.to_string())
             });
@@ -721,6 +741,12 @@ pub(crate) fn confirm_ui(
                 .t_args("git-stash-drop-body", &[("message", &st.message)]),
             true,
         ),
+        Confirm::DiscardHunk { hunk, .. } => (
+            s.t("git-discard-hunk-title"),
+            s.i18n
+                .t_args("git-discard-hunk-body", &[("hunk", &hunk.header)]),
+            true,
+        ),
     };
     egui::Modal::new(egui::Id::new("git-confirm")).show(ui.ctx(), |ui| {
         ui.set_min_width(360.0);
@@ -757,6 +783,11 @@ pub(crate) fn confirm_ui(
         Confirm::DeleteBranch { name, force } => Request::DeleteBranch { name, force },
         Confirm::ProtectedPush => pending_push.take()?,
         Confirm::DropStash(st) => Request::StashDrop(st.id),
+        Confirm::DiscardHunk { path, hunk } => Request::Hunk {
+            path,
+            hunk,
+            op: write::HunkOp::Discard,
+        },
     })
 }
 

@@ -194,7 +194,8 @@ pub(crate) enum GitAction {
 #[derive(Clone)]
 enum Row {
     Note(String),
-    Hunk(String),
+    /// A hunk header, with the hunk's index in the diff.
+    Hunk(usize, String),
     Line {
         kind: LineKind,
         old: Option<u32>,
@@ -213,7 +214,7 @@ struct Half {
 #[derive(Clone)]
 enum SplitRow {
     Note(String),
-    Hunk(String),
+    Hunk(usize, String),
     Pair(Option<Half>, Option<Half>),
 }
 
@@ -244,9 +245,9 @@ impl DiffRows {
             inline.push(Row::Note(n.clone()));
             split.push(SplitRow::Note(n.clone()));
         }
-        for h in &d.hunks {
-            inline.push(Row::Hunk(h.header.clone()));
-            split.push(SplitRow::Hunk(h.header.clone()));
+        for (hi, h) in d.hunks.iter().enumerate() {
+            inline.push(Row::Hunk(hi, h.header.clone()));
+            split.push(SplitRow::Hunk(hi, h.header.clone()));
             let mut removed: Vec<Half> = Vec::new();
             let mut added: Vec<Half> = Vec::new();
             let flush =
@@ -315,6 +316,8 @@ impl DiffRows {
 struct DiffSlot {
     pending: Pending<GitResult<FileDiff>>,
     rows: Option<GitResult<DiffRows>>,
+    /// The diff itself, for per-hunk operations.
+    diff: Option<FileDiff>,
 }
 
 impl DiffSlot {
@@ -322,11 +325,13 @@ impl DiffSlot {
         Self {
             pending: Pending::start(s, f),
             rows: None,
+            diff: None,
         }
     }
 
     fn poll(&mut self) {
         if let Some(r) = self.pending.take() {
+            self.diff = r.as_ref().ok().cloned();
             self.rows = Some(r.map(|d| DiffRows::new(&d)));
         }
     }
@@ -1107,6 +1112,9 @@ impl Git {
         }
         let mut back = false;
         let mut side_by_side = self.side_by_side;
+        // A hunk operation asked for in the diff view, run after the match
+        // so the repository can be borrowed mutably.
+        let mut hunk_request: Option<(PathBuf, String, hs_git::Hunk, hs_git::write::HunkOp)> = None;
         match &mut self.main {
             Some(MainView::Diff(d)) => {
                 let full = abs(&d.change.repo, &d.change.path);
@@ -1140,9 +1148,26 @@ impl Git {
                 if open {
                     actions.push(GitAction::OpenFile(full.clone()));
                 }
-                diff_body(ui, s, theme, &d.slot, side_by_side, font_size, "git-diff");
+                let mut hunk_op: Option<(usize, hs_git::write::HunkOp)> = None;
+                diff_body(
+                    ui,
+                    s,
+                    theme,
+                    &d.slot,
+                    side_by_side,
+                    font_size,
+                    "git-diff",
+                    Some(d.change.side),
+                    &mut hunk_op,
+                );
                 if keys_free && ui.input(|i| i.key_pressed(egui::Key::Enter)) && full.is_file() {
                     actions.push(GitAction::OpenFile(full));
+                }
+                if let Some((hi, op)) = hunk_op
+                    && let Some(diff) = &d.slot.diff
+                    && let Some(hunk) = diff.hunks.get(hi).cloned()
+                {
+                    hunk_request = Some((d.change.repo.clone(), d.change.path.clone(), hunk, op));
                 }
             }
             Some(MainView::History(h)) => {
@@ -1211,6 +1236,21 @@ impl Git {
             None => {}
         }
         self.side_by_side = side_by_side;
+        if let Some((repo, path, hunk, op)) = hunk_request
+            && let Some(r) = self.repos.iter_mut().find(|r| r.root == repo)
+        {
+            if op == hs_git::write::HunkOp::Discard {
+                r.ops.confirm = Some(crate::git_ops::Confirm::DiscardHunk { path, hunk });
+            } else if let Some(st) = r.status.clone() {
+                crate::git_ops::run(
+                    &mut r.ops,
+                    s,
+                    &repo,
+                    &st,
+                    crate::git_ops::Request::Hunk { path, hunk, op },
+                );
+            }
+        }
         if back {
             self.main = None;
         } else if keys_free && matches!(self.main, Some(MainView::Diff(_))) {
@@ -1520,6 +1560,7 @@ fn counts_label(ui: &mut egui::Ui, theme: &Theme, counts: Option<(usize, usize)>
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn diff_body(
     ui: &mut egui::Ui,
     s: &Services,
@@ -1528,6 +1569,10 @@ fn diff_body(
     side_by_side: bool,
     font_size: f32,
     salt: &str,
+    // Where the file sits, for the per-hunk buttons; `None` for a diff
+    // nothing can be done to (a commit's).
+    side: Option<Side>,
+    hunk_op: &mut Option<(usize, hs_git::write::HunkOp)>,
 ) {
     match &slot.rows {
         None => {
@@ -1546,10 +1591,33 @@ fn diff_body(
             ui.add_space(8.0);
             ui.label(egui::RichText::new(s.t("git-no-diff")).weak());
         }
-        Some(Ok(rows)) => draw_diff(ui, theme, rows, side_by_side, font_size, salt),
+        Some(Ok(rows)) => {
+            // What one hunk can be asked to do, by where the file sits.
+            let ops: &[(&str, hs_git::write::HunkOp)] = match side {
+                Some(Side::Staged) => &[("git-unstage-hunk", hs_git::write::HunkOp::Unstage)],
+                Some(Side::Unstaged) => &[
+                    ("git-stage-hunk", hs_git::write::HunkOp::Stage),
+                    ("git-discard-hunk", hs_git::write::HunkOp::Discard),
+                ],
+                Some(Side::Untracked) | None => &[],
+            };
+            let labels: Vec<(String, hs_git::write::HunkOp)> =
+                ops.iter().map(|(k, op)| (s.t(k), *op)).collect();
+            draw_diff(
+                ui,
+                theme,
+                rows,
+                side_by_side,
+                font_size,
+                salt,
+                &labels,
+                hunk_op,
+            )
+        }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_diff(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -1557,6 +1625,8 @@ fn draw_diff(
     side_by_side: bool,
     font_size: f32,
     salt: &str,
+    hunk_buttons: &[(String, hs_git::write::HunkOp)],
+    hunk_op: &mut Option<(usize, hs_git::write::HunkOp)>,
 ) {
     let font = egui::FontId::new(font_size, hs_ui::fonts::editor_family());
     let cw = ui.fonts_mut(|f| f.glyph_width(&font, '0')).max(1.0);
@@ -1600,10 +1670,23 @@ fn draw_diff(
                         colour,
                     );
                 };
+                // The hunk's buttons sit at the right end of its banner, as
+                // real widgets placed over the painted row.
+                let hunk_row = if side_by_side {
+                    match &rows.split[i] {
+                        SplitRow::Hunk(hi, _) => Some(*hi),
+                        _ => None,
+                    }
+                } else {
+                    match &rows.inline[i] {
+                        Row::Hunk(hi, _) => Some(*hi),
+                        _ => None,
+                    }
+                };
                 if side_by_side {
                     match &rows.split[i] {
                         SplitRow::Note(t) => banner(t, theme.text_muted),
-                        SplitRow::Hunk(t) => banner(t, theme.accent),
+                        SplitRow::Hunk(_, t) => banner(t, theme.accent),
                         SplitRow::Pair(l, r) => {
                             for (k, half) in [(0.0, l), (1.0, r)] {
                                 let x0 = rect.left() + k * half_w;
@@ -1650,7 +1733,7 @@ fn draw_diff(
                 } else {
                     match &rows.inline[i] {
                         Row::Note(t) => banner(t, theme.text_muted),
-                        Row::Hunk(t) => banner(t, theme.accent),
+                        Row::Hunk(_, t) => banner(t, theme.accent),
                         Row::Line {
                             kind,
                             old,
@@ -1698,6 +1781,29 @@ fn draw_diff(
                                 colour,
                             );
                         }
+                    }
+                }
+                if let Some(hi) = hunk_row
+                    && !hunk_buttons.is_empty()
+                {
+                    // Right-aligned in the visible part of the banner, so
+                    // they stay in view however wide the diff is.
+                    let visible_right = ui.clip_rect().right().min(rect.right()) - 6.0;
+                    let mut x = visible_right;
+                    for (label, op) in hunk_buttons.iter().rev() {
+                        let w = (label.chars().count() as f32 * font_size * 0.6 + 16.0).max(60.0);
+                        let brect = egui::Rect::from_min_max(
+                            egui::pos2(x - w, rect.top() + 1.0),
+                            egui::pos2(x, rect.bottom() - 1.0),
+                        );
+                        let r = ui.put(
+                            brect,
+                            egui::Button::new(egui::RichText::new(label).size(font_size * 0.9)),
+                        );
+                        if r.clicked() {
+                            *hunk_op = Some((hi, *op));
+                        }
+                        x -= w + 4.0;
                     }
                 }
             }
@@ -1884,6 +1990,8 @@ fn history_body(
             side_by_side,
             font_size,
             "git-history-diff",
+            None,
+            &mut None,
         );
     } else {
         ui.label(egui::RichText::new(s.t("git-select-file")).weak());

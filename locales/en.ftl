@@ -1292,6 +1292,11 @@ git-stage-all = Stage All
 git-unstage = Unstage
 git-unstage-all = Unstage All
 git-discard = Discard Changes…
+git-stage-hunk = Stage Hunk
+git-unstage-hunk = Unstage Hunk
+git-discard-hunk = Discard Hunk…
+git-discard-hunk-title = Discard the Hunk?
+git-discard-hunk-body = The change at { $hunk } will be thrown away in the file. This cannot be undone.
 git-discard-title = Discard the Changes?
 git-discard-body = { $n ->
     [one] The change to this file will be thrown away. This cannot be undone.

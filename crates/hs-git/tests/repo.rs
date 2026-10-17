@@ -253,3 +253,63 @@ fn the_write_side_round_trips_through_status() {
         "main"
     ));
 }
+
+/// One hunk of a two-hunk change goes to the index on its own, and comes
+/// back out again (docs/tools/git.md §6).
+#[test]
+fn a_single_hunk_is_staged_and_unstaged() {
+    if hs_git::version().is_err() {
+        eprintln!("git not installed; skipping");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    run(root, &["init", "-q", "-b", "main"]);
+    run(root, &["config", "commit.gpgsign", "false"]);
+    run(root, &["config", "user.name", "Ada"]);
+    run(root, &["config", "user.email", "ada@example.com"]);
+    run(root, &["config", "core.autocrlf", "false"]);
+    let body: String = (1..=20).map(|i| format!("line {i}\n")).collect();
+    std::fs::write(root.join("f.txt"), &body).unwrap();
+    run(root, &["add", "."]);
+    run(root, &["commit", "-q", "-m", "base"]);
+    // Change line 2 and line 19: far enough apart for two hunks.
+    let changed = body
+        .replace("line 2\n", "LINE 2\n")
+        .replace("line 19\n", "LINE 19\n");
+    std::fs::write(root.join("f.txt"), &changed).unwrap();
+    let diff = hs_git::file_diff(root, "f.txt", Side::Unstaged).unwrap();
+    assert_eq!(diff.hunks.len(), 2, "{:?}", diff.hunks);
+
+    hs_git::write::apply_hunk(root, "f.txt", &diff.hunks[0], hs_git::write::HunkOp::Stage).unwrap();
+    let st = hs_git::status(root).unwrap();
+    let f = st.files.iter().find(|f| f.path == "f.txt").unwrap();
+    assert!(f.staged() && f.unstaged(), "half staged: {f:?}");
+    let staged = hs_git::file_diff(root, "f.txt", Side::Staged).unwrap();
+    assert_eq!(staged.hunks.len(), 1);
+    assert!(staged.hunks[0].lines.iter().any(|l| l.text == "LINE 2"));
+
+    hs_git::write::apply_hunk(
+        root,
+        "f.txt",
+        &staged.hunks[0],
+        hs_git::write::HunkOp::Unstage,
+    )
+    .unwrap();
+    let f = hs_git::status(root).unwrap();
+    let f = f.files.iter().find(|f| f.path == "f.txt").unwrap();
+    assert!(!f.staged() && f.unstaged());
+
+    // Discarding the first hunk in the work tree leaves only the second.
+    let diff = hs_git::file_diff(root, "f.txt", Side::Unstaged).unwrap();
+    hs_git::write::apply_hunk(
+        root,
+        "f.txt",
+        &diff.hunks[0],
+        hs_git::write::HunkOp::Discard,
+    )
+    .unwrap();
+    let diff = hs_git::file_diff(root, "f.txt", Side::Unstaged).unwrap();
+    assert_eq!(diff.hunks.len(), 1);
+    assert!(diff.hunks[0].lines.iter().any(|l| l.text == "LINE 19"));
+}

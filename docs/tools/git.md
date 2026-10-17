@@ -230,6 +230,11 @@ sidebar under each repository's header:
   in a toast. State lives per repository (`git_ops::Ops`), so two projects
   in one tab do not share a message.
 
-Still to come from §5–§9: per-hunk stage/unstage/discard, the commit
-message template and prefix picker, rename/upstream/merge/rebase of
+- **Per hunk** (§6): a hunk's banner in the diff view carries Stage Hunk
+  and Discard Hunk… for a work-tree change, Unstage Hunk for a staged
+  one. The hunk is sent to `git apply --recount` (with `--cached` and/or
+  `-R`) as a patch rebuilt from the parsed diff (`write::hunk_patch`), so
+  a diff read a moment ago still applies when line counts have shifted.
+
+Still to come from §5–§9: the commit message template and prefix picker, rename/upstream/merge/rebase of
 branches, remotes and tags management, and the conflict editor.

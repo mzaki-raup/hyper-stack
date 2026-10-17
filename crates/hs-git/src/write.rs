@@ -233,6 +233,101 @@ pub fn push(root: &Path, opts: &PushOptions) -> Result<String> {
     git(root, &args).map(|o| String::from_utf8_lossy(&o).to_string())
 }
 
+/// What to do with one hunk (docs/tools/git.md §6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HunkOp {
+    /// Add the hunk to the index.
+    Stage,
+    /// Take the hunk out of the index; the work tree keeps it.
+    Unstage,
+    /// Throw the hunk away in the work tree.
+    Discard,
+}
+
+/// A patch holding just `hunk` of `path`, the shape `git apply` takes.
+pub fn hunk_patch(path: &str, hunk: &crate::Hunk) -> String {
+    let mut out = format!("--- a/{path}\n+++ b/{path}\n{}\n", hunk.header);
+    for l in &hunk.lines {
+        let prefix = match l.kind {
+            crate::LineKind::Context => " ",
+            crate::LineKind::Added => "+",
+            crate::LineKind::Removed => "-",
+            crate::LineKind::NoNewline => "",
+        };
+        if l.kind == crate::LineKind::NoNewline {
+            out.push_str("\\ No newline at end of file");
+        } else {
+            out.push_str(prefix);
+            out.push_str(&l.text);
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// Apply one hunk to the index or the work tree. The patch is fed on
+/// stdin; `--recount` lets git fix up the line counts of a hunk that was
+/// read back from a diff, and `--unidiff-zero` is not used so context is
+/// still checked.
+pub fn apply_hunk(root: &Path, path: &str, hunk: &crate::Hunk, op: HunkOp) -> Result<()> {
+    use std::io::Write as _;
+    use std::process::Stdio;
+    let patch = hunk_patch(path, hunk);
+    let mut args = vec!["apply", "--recount"];
+    match op {
+        HunkOp::Stage => args.push("--cached"),
+        HunkOp::Unstage => {
+            args.push("--cached");
+            args.push("-R");
+        }
+        HunkOp::Discard => args.push("-R"),
+    }
+    args.push("-");
+    let mut child = hs_core::paths::background_command("git")
+        .arg("-C")
+        .arg(root)
+        .args(["-c", "core.quotepath=false"])
+        .args(&args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                crate::GitError::NotInstalled
+            } else {
+                crate::GitError::Failed {
+                    command: "apply".into(),
+                    message: e.to_string(),
+                }
+            }
+        })?;
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(patch.as_bytes());
+    }
+    let out = child
+        .wait_with_output()
+        .map_err(|e| crate::GitError::Failed {
+            command: "apply".into(),
+            message: e.to_string(),
+        })?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(crate::GitError::Failed {
+            command: "apply".into(),
+            message: if msg.is_empty() {
+                format!("exit status {}", out.status)
+            } else {
+                msg
+            },
+        })
+    }
+}
+
 /// Whether a remote URL or a branch name matches one of the protected
 /// patterns (docs/tools/git.md §10): a plain substring match, case
 /// insensitive, so `prod` catches `origin-prod`, `production` and
@@ -268,6 +363,18 @@ mod tests {
         assert_eq!(s.len(), 2);
         assert_eq!(s[0].id, "stash@{0}");
         assert_eq!(s[1].message, "On main: saved");
+    }
+
+    #[test]
+    fn a_hunk_patch_is_a_unified_diff_of_that_hunk_alone() {
+        let d = crate::diff::parse(
+            "diff --git a/x.rs b/x.rs\n--- a/x.rs\n+++ b/x.rs\n@@ -1,2 +1,2 @@\n one\n-two\n+deux\n",
+        );
+        let p = hunk_patch("x.rs", &d[0].hunks[0]);
+        assert_eq!(
+            p,
+            "--- a/x.rs\n+++ b/x.rs\n@@ -1,2 +1,2 @@\n one\n-two\n+deux\n"
+        );
     }
 
     #[test]

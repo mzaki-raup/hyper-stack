@@ -19,7 +19,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   repository's header. Network operations are Jobs, so the dock shows
   them. A remote or branch matching a protected pattern (Settings →
   Editor → Git; `prod` and `release` by default) asks before a push, and
-  a plain force push is never issued.
+  a plain force push is never issued. In the diff view each hunk can be
+  staged, unstaged or discarded on its own.
 
 - **A favourites bar in the Browser**, under the address bar, shown or
   hidden from Settings → Browser. Click opens the site in the current

@@ -95,7 +95,8 @@ what it has open, each card carrying the last picture taken of that pane,
 and clicking one goes to the tab. Opening a connection, a note or a shell
 always makes a tab beside it. The API client's permanent tab is the
 workspace's instead, with its logo and name. Pinning a tab puts it
-directly after the permanent one.
+directly after the permanent one. The Browser shows a **favorites bar**
+under its address bar (Settings → Browser), with Chrome's click rules.
 
 Settings is always open as a pinned tab in each workspace. Settings → Workspace
 lets you rename a non-default workspace and set or remove its logo after

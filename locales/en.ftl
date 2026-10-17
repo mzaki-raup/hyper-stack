@@ -1669,6 +1669,9 @@ settings-browser-pages-hint = Each page keeps its own switches in the toolbar; t
 settings-browser-devtools-panel = Dock Inspect Under the Page
 settings-browser-devtools-panel-hint = Inspect opens the developer tools under the page instead of in a separate window. The page then listens for the Chrome DevTools Protocol on a port of this machine, which any program running on it can drive, so leave this off unless you want the panel. Changing it reloads the open pages.
 settings-browser-section-blocklist = Extra Blocked Hosts
+settings-browser-section-favbar = Favorites Bar
+settings-browser-favbar = Show the Favorites Bar
+settings-browser-favbar-hint = A row of this workspace's favorites under the address bar, like a bookmarks bar. Click opens the site in the current page; a middle click or Ctrl+click opens it in a new page; folders open as menus; what does not fit is behind the » at the right.
 settings-browser-blocklist-hint = One host per line, in addition to the bundled list of ad and tracker domains. Subdomains are blocked too. Navigation to these hosts is refused and counted; embedded ads are hidden by style.
 
 ## Variable peek and save
@@ -1889,6 +1892,12 @@ browser-forget-secret = Forget this secret
 browser-vault-locked = The vault is locked.
 browser-favorite-added = Added to favorites.
 browser-add-favorite = Add to Favorites
+browser-favbar-empty = No favorites yet. Add the open page with the star.
+browser-favbar-more = More favorites
+browser-favbar-folder-empty = (Empty)
+browser-favbar-open-new = Open in New Page
+browser-favbar-edit = Edit…
+browser-favbar-remove = Remove
 browser-add-favorite-title = Add to Favorites
 browser-add-favorite-where = Where should it go?
 browser-add-favorite-root = Favorites (top level)

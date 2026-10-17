@@ -642,6 +642,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   value with the process value
   (`[Environment]::GetEnvironmentVariable('Path','User')` vs `$env:Path`)
   before suspecting the lookup itself.
+- `ui.menu_button(..)` and `response.context_menu(..)` on the **same
+  response share one popup id** (`Popup::default_response_id` is
+  `response.id.with("popup")`), so the context menu's closed state shuts
+  the menu in the frame it opens: the favourites bar's folder menu
+  flashed for one frame (`any_popup_open` true in pass state, false in
+  memory) and read as a dead click. Give the second popup its own id
+  (`Popup::context_menu(&r).id(r.id.with(..)).show(..)`).
+- The GUI harness's instant down/up click opens no `menu_button` at
+  all: a real press spans frames. `Dev-Click` sleeps 80 ms between the
+  two `mouse_event`s now; right-click menus never needed it.
 - `hs_ui::reorder::drop_onto` **takes the drag payload** to report the
   source, so it must refuse a payload that cannot belong to it *before*
   taking it: a collections row (no scope) released over a collection

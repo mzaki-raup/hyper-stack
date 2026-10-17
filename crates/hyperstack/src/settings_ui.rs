@@ -3495,6 +3495,15 @@ fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             &s.t("settings-browser-devtools-panel-hint"),
         );
     });
+    form::section(ui, theme, &s.t("settings-browser-section-favbar"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.browser.favorites_bar,
+                s.t("settings-browser-favbar"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-browser-favbar-hint"));
+    });
     form::section(
         ui,
         theme,

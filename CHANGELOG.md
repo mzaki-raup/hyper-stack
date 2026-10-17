@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **A favourites bar in the Browser**, under the address bar, shown or
+  hidden from Settings → Browser. Click opens the site in the current
+  page, middle click or Ctrl+click in a new page behind it, folders open
+  as menus, and what does not fit sits behind a » at the right — the way
+  Chrome's bookmarks bar behaves.
+
 - **The editor knows what the project is**, and Run and Build use it:
   Maven, Gradle, Cargo, npm, Go, .NET, Python, Make and CMake, with
   **Spring Boot** recognised from the `pom.xml` or the Gradle build file

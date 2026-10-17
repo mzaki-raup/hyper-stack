@@ -11,6 +11,7 @@
 //! active page should show and what it wants done; the host positions the
 //! native view there and reports titles, URLs and blocked navigations back.
 
+mod favbar;
 pub mod side;
 pub mod store;
 
@@ -991,6 +992,29 @@ impl Tool for BrowserTool {
         if let Some(url) = go {
             self.navigate(url);
         }
+        // The favourites bar, under the address bar like Chrome's bookmarks
+        // bar. Owner's requirement, 2026-10-18.
+        if s.settings.read().browser.favorites_bar {
+            let out = favbar::show(ui, s, &theme, &self.favorites, &favicons);
+            if let Some(url) = out.go {
+                self.navigate(url);
+            }
+            if let Some(url) = out.open_background {
+                // A new page beside this one, which stays in front: that is
+                // what a middle click means.
+                let keep = self.state.active;
+                self.open_url(&url, s);
+                self.state.active = keep;
+            }
+            if let Some(id) = out.edit {
+                self.side.tab = side::SideTab::Favorites;
+                self.side.editing = Some(side::Editing::Favorite(id));
+            }
+            if let Some(id) = out.remove {
+                self.favorites.remove(&id);
+                side::save_favorites(self, cx);
+            }
+        }
         // Status line.
         {
             let p = self.page();
@@ -1073,8 +1097,13 @@ impl Tool for BrowserTool {
         side::fill_password_dialog(self, ui, cx, &theme);
         let mut hub = self.hub.lock();
         let tab = hub.tabs.entry(cx.tab_id).or_default();
-        tab.overlay =
-            self.adding_favorite.is_some() || self.filling.is_some() || self.side.confirm.is_some();
+        // Any open popup too: a favourites-bar folder menu or a chip's
+        // context menu drops into the page area, and the native view
+        // would paint over it. Owner's report, 2026-10-18.
+        tab.overlay = self.adding_favorite.is_some()
+            || self.filling.is_some()
+            || self.side.confirm.is_some()
+            || egui::Popup::is_any_open(ui.ctx());
         tab.rect = Some(rect);
         tab.active_page = Some(self.page().id);
         tab.pages = self
@@ -1108,6 +1137,10 @@ impl Tool for BrowserTool {
             c("browser.js", "Browser: Toggle JavaScript"),
             c("browser.adblock", "Browser: Toggle Ad Blocker"),
             c("browser.clear", "Browser: Clear Browsing Data"),
+            c(
+                "browser.favorites_bar",
+                "Browser: Show or Hide the Favorites Bar",
+            ),
         ]
     }
 
@@ -1131,6 +1164,14 @@ impl Tool for BrowserTool {
             "browser.js" => self.page_mut().javascript = !self.page().javascript,
             "browser.adblock" => self.page_mut().adblock = !self.page().adblock,
             "browser.clear" => self.pending.push(Cmd::ClearData(page)),
+            "browser.favorites_bar" => {
+                let mut st = cx.services.settings.write();
+                st.browser.favorites_bar = !st.browser.favorites_bar;
+                drop(st);
+                if let Err(e) = cx.services.save_settings() {
+                    cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                }
+            }
             _ => return false,
         }
         true

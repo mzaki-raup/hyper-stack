@@ -98,6 +98,8 @@ browsing is written to `HyperStackData/` except the page list in
 
 ## 7. Settings → Browser
 
+(The favourites bar toggle is described in the 2026-10-18 addendum at the end.)
+
 Home page, default ad blocker / JavaScript / forced-dark state for new
 pages, extra blocked hosts (one per line).
 
@@ -239,3 +241,18 @@ native WebView2 dialog outside the page, which no script can answer, and a
 **passkey** is a WebAuthn exchange between the browser and an authenticator
 that a stored string cannot stand in for. The passkey field is a place to
 keep recovery material. Owner's requirements, 2026-10-17.
+
+### The favourites bar (2026-10-18)
+
+A row of the workspace's favourites under the address bar, where Chrome
+keeps its bookmarks bar, shown or hidden from **Settings → Browser →
+Favorites Bar** (on by default) or the palette (*Browser: Show or Hide
+the Favorites Bar*). Chrome's rules, because that is what hands already
+know: a click opens the site in the current page; a middle click or a
+Ctrl+click opens it in a new page behind this one; a folder is a menu and
+a sub-folder a sub-menu; a long name is cut; what does not fit at the
+window's width goes behind a » at the right; the right-click menu offers
+Open in New Page, Edit (which selects it in the sidebar's editor) and
+Remove. A chip shows the site's favicon once a page of that site has been
+visited, a globe before. `tool-browser::favbar`. Owner's requirement,
+2026-10-18.

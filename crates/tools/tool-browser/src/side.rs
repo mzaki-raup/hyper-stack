@@ -519,7 +519,11 @@ fn clear_secret_buffers(t: &mut BrowserTool) {
 
 /// The icon a row shows: the user's own if they set one, else the site's
 /// favicon, else a globe.
-fn site_icon(custom: &str, url: &str, icons: &HashMap<String, Option<String>>) -> Option<String> {
+pub(crate) fn site_icon(
+    custom: &str,
+    url: &str,
+    icons: &HashMap<String, Option<String>>,
+) -> Option<String> {
     if !custom.is_empty() {
         return Some(custom.to_string());
     }

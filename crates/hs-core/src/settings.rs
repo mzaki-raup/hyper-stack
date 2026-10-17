@@ -40,6 +40,9 @@ pub struct Browser {
     /// can drive, so this is off until it is asked for
     /// (docs/06-security.md).
     pub devtools_panel: bool,
+    /// Show the favourites bar under the address bar, as Chrome shows its
+    /// bookmarks bar. Owner's requirement, 2026-10-18.
+    pub favorites_bar: bool,
 }
 
 impl Default for Browser {
@@ -51,6 +54,7 @@ impl Default for Browser {
             dark: false,
             blocklist: Vec::new(),
             devtools_panel: false,
+            favorites_bar: true,
         }
     }
 }

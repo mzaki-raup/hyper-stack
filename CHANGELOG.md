@@ -28,56 +28,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Chrome's bookmarks bar behaves. Each chip carries the site's favicon,
   fetched once per site the way a page tab's is.
 
-- **The editor knows what the project is**, and Run and Build use it:
-  Maven, Gradle, Cargo, npm, Go, .NET, Python, Make and CMake, with
-  **Spring Boot** recognised from the `pom.xml` or the Gradle build file
-  (`spring-boot:run`, `bootRun`). A project that ships `mvnw`/`gradlew` is
-  run through it; Settings → Editor → Build Tools sets the Maven and
-  Gradle commands and can turn that preference off. **Build** is a toolbar
-  button of its own (Ctrl+Shift+B).
+## 0.37.0 — 2026-10-17
 
-- **A web application opens in the Browser** at the address it prints —
-  a dev server's `Local: http://localhost:5173/`, Spring Boot's "Tomcat
-  started on port(s): 8080" — rather than at a guessed port.
+### Added
 
-- **A terminal inside the editor** (Ctrl+`, the toolbar's Terminal
-  button, or *Editor: Toggle Terminal*): a shell at the foot of the pane,
-  started in the project's folder, with as many terminals as you want
-  beside each other. It is PowerShell 7 where that is installed, and
-  Settings → Editor → Terminal picks another shell. Ctrl+click on a
-  `path:line` in it opens that file in the same editor tab.
-
-### Changed
-
-- **Run and Build go to the editor's own terminal**, in the project's
-  folder, instead of opening a tab of the Terminal activity. "Open
-  Terminal Here" in the project tree does the same.
-
-- **The bottom dock has no terminal tab.** Shells live in the Terminal
-  activity and in the editor's panel, which starts in the project's
-  folder; Ctrl+` is the editor's terminal now.
+- Build and run a project from the editor, in its own terminal (08f89192)
+- A terminal inside the editor (c46314ad)
 
 ### Fixed
 
-- **A request or folder can be dragged anywhere in the sidebar.** Only
-  reordering inside one parent worked: a drop in another collection was
-  refused outright, and a folder only took a row from its own collection.
-  A drop onto a collection's header puts the row in that collection's
-  root, which is how a collapsed or empty one is reached.
-
-- **A Devtools utility opens in a tab of its own again.** The home tab
-  reported that it was showing Base64 — the default — so clicking Base64
-  in the sidebar focused the dashboard and appeared to do nothing.
-
-- **An installed language server is found without Refresh Status.**
-  HyperStack read PATH as its launcher had it, and on Windows that is
-  usually an Explorer started at login, so jdtls installed since then read
-  "Not found" on every start. The system value is read at startup now.
-
-- **A terminal no longer collapses the panel it sits in.** The terminal
-  drew on the space it was given without claiming any, which a central
-  panel does not notice but a panel that sizes itself to its content does:
-  the bottom dock shrank to its smallest height on the Terminal tab.
+- A request or folder can be dragged anywhere in the sidebar (61bdd1c6)
 
 ## 0.36.0 — 2026-10-17
 

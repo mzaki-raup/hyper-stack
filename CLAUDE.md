@@ -823,6 +823,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   hover state and the press lands on nothing. Clicking the same button
   twice in a row (Open Image… for a second file) silently did nothing for
   three attempts. Click somewhere harmless first, then the target.
+- The GUI harness's data folder is `$env:TEMP\hs-gui-data`, and `$env:TEMP`
+  for the shell that launches it is **`D:\Temp`**, not
+  `C:\Users\...\AppData\Local\Temp`. Both folders exist from different
+  sessions, so reading or seeding fixtures in the wrong one looks exactly
+  like the app ignoring them (API collections that never appeared). Ask
+  the running instance which one it has:
+  `(Get-CimInstance Win32_Process -Filter "ProcessId=$pid").CommandLine`.
 - Two HyperStack windows at the same screen position (the dev build and the
   owner's installed copy) make the GUI harness capture and click the wrong
   one: `SetForegroundWindow` from a non-foreground process can fail

@@ -502,6 +502,13 @@ editor-delete-confirm = Delete "{ $name }"? This cannot be undone.
 editor-open-in-new-tab = Open in New Tab
 editor-open-terminal-here = Open Terminal Here
 editor-run = Run
+editor-terminal = Terminal
+editor-terminal-tip = A shell in this project's folder (Ctrl+Alt+`). The shell is set in Settings -> Editor.
+editor-terminal-new = New terminal
+editor-terminal-close = Close this terminal
+editor-terminal-hide = Hide the panel
+editor-terminal-exited = exited
+editor-terminal-empty = No terminal here yet. Add one with +.
 editor-run-tip = Opens a terminal in the project folder and runs: { $command }
 editor-run-none = Nothing to run: save the file first, or open a project with a Cargo.toml, package.json, go.mod, Makefile, Gradle or Maven build.
 editor-path-row-tip = Full path of this file; click to copy it.
@@ -632,6 +639,10 @@ settings-section-debug-adapters = Debug Adapters
 settings-editor-dap-path-hint = PATH is read when HyperStack starts; Refresh Status reads it again and rechecks every adapter, with no restart.
 settings-editor-dap-hint = Debuggers are not bundled either: install the adapter for a language (CodeLLDB or lldb-dap for Rust, C and C++, debugpy for Python, delve for Go, netcoredbg for C#) and the editor starts it for a configuration. An empty command keeps the built-in one; {"{"}port{"}"} in the arguments stands for the port of an adapter that listens on TCP.
 settings-editor-dap-adapter = Adapter
+settings-section-editor-terminal = Terminal
+settings-editor-terminal-shell = Shell
+settings-editor-terminal-shell-default = PowerShell 7 (Default)
+settings-editor-terminal-hint = The editor's terminal opens in the project's folder and runs this shell. The default is PowerShell 7 where it is installed, and the Terminal activity's own default otherwise; a running terminal keeps the shell it started with.
 
 ## SSH
 tool-ssh = SSH

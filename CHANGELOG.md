@@ -13,6 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **A terminal inside the editor** (Ctrl+Alt+`, the toolbar's Terminal
+  button, or *Editor: Toggle Terminal*): a shell at the foot of the pane,
+  started in the project's folder, with as many terminals as you want
+  beside each other. It is PowerShell 7 where that is installed, and
+  Settings → Editor → Terminal picks another shell. Ctrl+click on a
+  `path:line` in it opens that file in the same editor tab.
+
 - **An activity's first tab is a dashboard**: what it has open, as a grid
   of cards carrying the last picture taken of each pane, with a summary
   above. Database, Terminal, SSH, Redis, NoSQL, S3, Devtools and the
@@ -63,6 +70,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   pages — keep theirs, because those are a tool's own documents.
 
 ### Fixed
+
+- **A terminal no longer collapses the panel it sits in.** The terminal
+  drew on the space it was given without claiming any, which a central
+  panel does not notice but a panel that sizes itself to its content does:
+  the bottom dock shrank to its smallest height on the Terminal tab.
 
 - **Restoring a saved layout no longer turns a tab into a dashboard.**
   Which tab is an activity's home tab was worked out from the order, so

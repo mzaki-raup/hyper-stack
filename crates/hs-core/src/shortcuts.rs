@@ -215,6 +215,9 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("editor.rename_symbol", "F2"),
     ("editor.format", "Shift+Alt+F"),
     ("editor.problems", "Ctrl+Shift+J"),
+    // Ctrl+` is the dock terminal and a global shortcut wins over a
+    // tool-local one, so the editor's own terminal takes Alt as well.
+    ("editor.terminal", "Ctrl+Alt+`"),
     ("debug.start", "Ctrl+F5"),
     ("debug.stop", "Shift+F5"),
     ("debug.step_over", "F10"),

@@ -133,6 +133,7 @@ Open opens the searchable tools, connections and project items palette.
 | ![Git history](docs/screenshots/editor-git-history.png) | |
 | **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
+| **Terminal in the editor** (Ctrl+Alt+`) — a shell at the foot of the pane, started in the project's folder, with as many as you want side by side; PowerShell 7 by default and any installed shell from Settings → Editor → Terminal | |
 | **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI, or any OpenAI-compatible server (OpenAI, Mistral, Kimi, Hunyuan, OpenRouter, local LM Studio or Ollama with every downloaded model). Add one from a gallery of fifteen services; keys in the vault |
 
 ### Terminal

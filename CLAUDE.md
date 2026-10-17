@@ -633,6 +633,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   tab's pane was simply gone. `LayoutTab::home` carries it; a layout
   written before the flag existed gains a *new* home tab
   (`TabSpace::ensure_home_tabs`) rather than taking one over.
+- A widget that draws on `available_rect_before_wrap()` without
+  **allocating** it reports no size to its container. Inside a central
+  panel nothing shows, but a resizable `egui::Panel` stores the size its
+  *content* reported and reads it back the next frame, so the panel
+  collapses to its minimum and stays there - the terminal did that to the
+  editor's new terminal panel and to the bottom dock
+  (`hs_term::widget::TerminalView::show` now calls `allocate_rect`).
+  Suspect this whenever a resizable panel ignores `default_size`.
 - `egui_extras::TableBuilder` scrolls **vertically only** — there is a
   `vscroll` but no horizontal equivalent — and its sizing only ever
   divides up the width it is handed, so a table too wide for its pane

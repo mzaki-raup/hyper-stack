@@ -253,6 +253,7 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+F5 · F9 · Ctrl+Shift+D | start or continue debugging · toggle breakpoint · debug panel (§12) |
 | F5 (paused) · F10 · F11 · Shift+F11 · Shift+F5 | continue · step over · step into · step out · stop |
 | Alt+Z | toggle word wrap |
+| Ctrl+Alt+` | the editor's terminal (§13; Ctrl+` is the bottom dock's) |
 
 ## 8. Settings
 
@@ -457,3 +458,34 @@ language servers.
 - **Out of scope for now**: conditional and logpoint breakpoints,
   attach pickers, hover evaluation, watch expressions, several sessions
   at once, and adapters that need a terminal.
+
+## 13. Terminal (2026-10-17)
+
+A shell inside the editor, so building and running a project does not mean
+leaving it. Owner's requirement, 2026-10-17.
+
+- **Where.** A resizable panel at the foot of the editor pane, above the
+  status row, opened from the **Terminal** button in the editor toolbar,
+  the palette (*Editor: Toggle Terminal*) or **Ctrl+Alt+`**. The bottom
+  dock keeps Ctrl+` and its own terminal; a global shortcut wins over a
+  tool-local one, so the editor's takes Alt as well.
+- **Where it starts.** In the project's folder - the root of the editor
+  tab that opened it - so `cargo build`, `mvn test` or `npm run dev` need
+  no `cd`. With no project open it starts in the workspace folder. The
+  folder is shown at the right of the panel's strip.
+- **Which shell.** PowerShell 7 where it is installed, otherwise the
+  Terminal activity's own default, otherwise the first shell detected.
+  Settings → Editor → Terminal picks another; a terminal that is already
+  running keeps the shell it started with.
+- **Several.** The strip lists the panel's terminals; **+** adds one in
+  the same folder, the bin closes the active one, and ✕ hides the panel
+  without killing anything. A shell that exits says so and offers a
+  restart.
+- **Links.** Ctrl+click opens a `path:line` in this editor tab and a URL
+  in the system browser (Shift for HyperStack's own), the same rule the
+  dock terminal follows.
+- It is the terminal tool's engine (`hs-term`: session, grid, keys,
+  scrollback search, links) in a panel, not a second implementation, so
+  the terminal settings - scrollback, copy on select, right-click
+  copy/paste, link detection - apply here too. The font size is the
+  editor's.

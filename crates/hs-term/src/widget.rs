@@ -176,6 +176,12 @@ impl TerminalView {
     ) -> TerminalResponse {
         let mut resp = TerminalResponse::default();
         let rect = ui.available_rect_before_wrap();
+        // Claim that space. A terminal fills whatever it is given and used
+        // to allocate nothing, which is invisible inside a central panel
+        // but collapses any container that sizes itself to its content -
+        // the editor's terminal panel and the bottom dock both shrank to
+        // their minimum height. Owner's report, 2026-10-17.
+        ui.allocate_rect(rect, Sense::hover());
         let cell = self.cell_size(ui);
         self.last_cell = cell;
         let cols = ((rect.width() - 8.0) / cell.x).floor().max(2.0) as u16;

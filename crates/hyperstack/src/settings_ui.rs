@@ -2971,6 +2971,40 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
             )
             .changed();
     });
+    form::section(ui, theme, &s.t("settings-section-editor-terminal"), |ui| {
+        form::field_grid(ui, "editor-terminal-shell", |ui| {
+            form::label(ui, &s.t("settings-editor-terminal-shell"));
+            let profiles = hs_term::shells::profiles();
+            let current = profiles
+                .iter()
+                .find(|p| p.id == settings.editor.terminal_profile)
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| s.t("settings-editor-terminal-shell-default"));
+            egui::ComboBox::from_id_salt("editor-terminal-shell")
+                .selected_text(current)
+                .width(260.0)
+                .show_ui(ui, |ui| {
+                    changed |= ui
+                        .selectable_value(
+                            &mut settings.editor.terminal_profile,
+                            String::new(),
+                            s.t("settings-editor-terminal-shell-default"),
+                        )
+                        .changed();
+                    for p in profiles.iter() {
+                        changed |= ui
+                            .selectable_value(
+                                &mut settings.editor.terminal_profile,
+                                p.id.clone(),
+                                &p.name,
+                            )
+                            .changed();
+                    }
+                });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-editor-terminal-hint"));
+    });
     form::section(ui, theme, &s.t("settings-section-language-servers"), |ui| {
         changed |= ui
             .checkbox(&mut settings.editor.lsp_enabled, s.t("settings-editor-lsp"))

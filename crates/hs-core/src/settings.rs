@@ -217,6 +217,11 @@ pub struct Editor {
     pub language_servers: Vec<LanguageServer>,
     /// Per-adapter changes to the built-in debug adapter table.
     pub debug_adapters: Vec<DebugAdapter>,
+    /// Shell profile id for the editor's own terminal ("pwsh", "cmd",
+    /// "git-bash", "wsl:Ubuntu", …). Empty means PowerShell 7 where it is
+    /// installed, else the Terminal tool's default, else the first shell
+    /// detected. Owner's requirement, 2026-10-17.
+    pub terminal_profile: String,
 }
 
 /// One debug adapter as the user set it (Settings → Editor → Debug
@@ -325,6 +330,7 @@ impl Default for Editor {
             completion_on_type: true,
             language_servers: Vec::new(),
             debug_adapters: Vec::new(),
+            terminal_profile: String::new(),
         }
     }
 }

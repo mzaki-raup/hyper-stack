@@ -32,6 +32,7 @@ mod ai_panel;
 mod debug;
 mod git_view;
 mod lsp;
+mod terminal;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 
@@ -870,6 +871,8 @@ pub struct EditorTool {
     id: egui::Id,
     tab_id: u64,
     ai: ai_panel::AiPanel,
+    /// The editor's own terminal, at the foot of the pane.
+    terminal: terminal::TerminalPanel,
     /// Projects of a tab saved by an older version that held several:
     /// they move to tabs of their own on the first frame.
     split_off: Vec<ProjectState>,
@@ -910,6 +913,7 @@ impl EditorTool {
             id,
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
+            terminal: terminal::TerminalPanel::default(),
             split_off: Vec::new(),
             git: git_view::Git::new(state.source_control, state.side_by_side),
             lsp,
@@ -1201,6 +1205,43 @@ impl EditorTool {
     /// The user opened `path` from this tab (tree, Open File/Folder): open
     /// it here when it belongs here, otherwise let the shell route it to
     /// its project's tab, the Other Files tab or a new tab.
+    /// A Ctrl+clicked link in the editor's terminal: a file opens here, in
+    /// this project; a URL opens the way the dock terminal opens one -
+    /// the system browser, or HyperStack's own with Shift held.
+    fn open_terminal_link(
+        &mut self,
+        link: hs_term::links::LinkTarget,
+        ctx: &egui::Context,
+        cx: &mut ToolContext,
+    ) {
+        match link {
+            hs_term::links::LinkTarget::Url(url) => {
+                if ctx.input(|i| i.modifiers.shift) {
+                    cx.open("browser", Some(OpenRequest::Url { url }));
+                } else {
+                    ctx.open_url(egui::OpenUrl::new_tab(url));
+                }
+            }
+            hs_term::links::LinkTarget::Path { path, line, .. } => {
+                let p = PathBuf::from(&path);
+                let p = match (p.is_absolute(), self.projects[self.active].root.clone()) {
+                    (true, _) => p,
+                    (false, Some(root)) => root.join(p),
+                    (false, None) => cx.services.workspace.read().root().join(p),
+                };
+                if p.is_file() {
+                    self.open_path(p, line, cx);
+                } else {
+                    let msg = cx
+                        .services
+                        .i18n
+                        .t_args("terminal-link-missing", &[("path", &path)]);
+                    cx.toast(ToastLevel::Warning, msg);
+                }
+            }
+        }
+    }
+
     fn open_path(&mut self, path: PathBuf, line: Option<u32>, cx: &mut ToolContext) {
         let path = normalize_path(std::fs::canonicalize(&path).unwrap_or(path));
         // Pictures open in the graphics tool, not as bytes in a buffer.
@@ -2589,6 +2630,18 @@ impl Tool for EditorTool {
             ui.separator();
             self.debug
                 .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
+            ui.separator();
+            let mut open = self.terminal.open;
+            if ui
+                .toggle_value(
+                    &mut open,
+                    format!("{} {}", ph::TERMINAL_WINDOW, s.t("editor-terminal")),
+                )
+                .tip(s.t("editor-terminal-tip"))
+                .clicked()
+            {
+                self.terminal.toggle(s, root.as_deref());
+            }
         }
         if self.doc().view.language.is_markdown {
             ui.separator();
@@ -2858,6 +2911,20 @@ impl Tool for EditorTool {
         if let Some(error) = encoding_error {
             cx.toast(ToastLevel::Error, error);
         }
+        if self.terminal.open {
+            let root = self.projects[self.active].root.clone();
+            let mut link = None;
+            egui::Panel::bottom(self.id.with("terminal"))
+                .default_size(220.0)
+                .size_range(80.0..=600.0)
+                .resizable(true)
+                .show(ui, |ui| {
+                    link = self.terminal.panel_ui(ui, s, &theme, root.as_deref());
+                });
+            if let Some(link) = link {
+                self.open_terminal_link(link, ui.ctx(), cx);
+            }
+        }
         if self.debug.panel_open {
             let root = self.projects[self.active].root.clone();
             egui::Panel::bottom(self.id.with("debug"))
@@ -3077,6 +3144,11 @@ impl Tool for EditorTool {
                 "Debug: Toggle Debug Panel",
                 Some("debug.panel"),
             ),
+            c(
+                "editor.terminal",
+                "Editor: Toggle Terminal",
+                Some("editor.terminal"),
+            ),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
             c(
                 "git.source_control",
@@ -3183,6 +3255,10 @@ impl Tool for EditorTool {
                 }
             }
             "debug.panel" => self.debug.panel_open = !self.debug.panel_open,
+            "editor.terminal" => {
+                let root = self.projects[self.active].root.clone();
+                self.terminal.toggle(s, root.as_deref());
+            }
             "git.source_control" => self.git.sidebar = !self.git.sidebar,
             "git.history" => {
                 let path = self

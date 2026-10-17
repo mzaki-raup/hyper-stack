@@ -8274,6 +8274,7 @@ dependencies = [
  "hs-editor",
  "hs-git",
  "hs-lsp",
+ "hs-term",
  "hs-ui",
  "notify",
  "parking_lot",

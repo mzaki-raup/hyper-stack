@@ -8,6 +8,7 @@ pub mod base64_tool;
 mod convert;
 mod cron;
 pub mod crypto;
+mod diff_tool;
 pub mod firebase;
 mod generate;
 pub mod hash;
@@ -15,6 +16,7 @@ pub mod jasypt;
 pub mod jwt;
 mod markup;
 pub mod pki;
+mod regex_tool;
 pub mod url_tool;
 mod util;
 pub mod yaml;
@@ -54,11 +56,13 @@ pub enum Utility {
     Generate,
     Cron,
     Convert,
+    Regex,
+    Diff,
 }
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 13] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 15] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
         (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
         (
@@ -97,6 +101,8 @@ impl Utility {
             "dt-convert",
             ph::ARROWS_LEFT_RIGHT,
         ),
+        (Utility::Regex, "dt-cat-text", "dt-regex", ph::ASTERISK),
+        (Utility::Diff, "dt-cat-text", "dt-diff", ph::GIT_DIFF),
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -113,6 +119,8 @@ impl Utility {
             Utility::Generate => "generate",
             Utility::Cron => "cron",
             Utility::Convert => "convert",
+            Utility::Regex => "regex",
+            Utility::Diff => "diff",
         }
     }
     pub fn by_key(key: &str) -> Option<Utility> {
@@ -182,6 +190,8 @@ impl ToolFactory for DevtoolsFactory {
             generate: part(&restore, "generate"),
             cron: part(&restore, "cron"),
             convert: convert::State::default(),
+            regex: part(&restore, "regex"),
+            diff: part(&restore, "diff"),
         })
     }
 }
@@ -199,6 +209,8 @@ pub struct DevtoolsTool {
     generate: generate::State,
     cron: cron::State,
     convert: convert::State,
+    regex: regex_tool::State,
+    diff: diff_tool::State,
     hash: hash::State,
     jwt: jwt::State,
     firebase: firebase::State,
@@ -343,6 +355,8 @@ impl Tool for DevtoolsTool {
                             Utility::Generate => generate::ui(&mut self.generate, ui, s, &theme),
                             Utility::Cron => cron::ui(&mut self.cron, ui, s, &theme),
                             Utility::Convert => convert::ui(&mut self.convert, ui, s, &theme),
+                            Utility::Regex => regex_tool::ui(&mut self.regex, ui, s, &theme),
+                            Utility::Diff => diff_tool::ui(&mut self.diff, ui, s, &theme),
                             Utility::Jasypt => jasypt::ui(&mut self.jasypt, ui, s, &theme),
                             Utility::Pki => pki::ui(&mut self.pki, ui, s, &theme),
                         }
@@ -448,6 +462,16 @@ impl Tool for DevtoolsTool {
                         convert::Pane::Duration => self.convert.duration_input = body,
                         convert::Pane::Bandwidth => self.convert.rate_input = body,
                     },
+                    // Pasted text is what the pattern is tried on.
+                    Utility::Regex => self.regex.text = body,
+                    // The side that is still empty, else the left one.
+                    Utility::Diff => {
+                        if self.diff.left.is_empty() {
+                            self.diff.left = body;
+                        } else {
+                            self.diff.right = body;
+                        }
+                    }
                 }
                 true
             }
@@ -486,6 +510,8 @@ impl Tool for DevtoolsTool {
             "firebase": self.firebase.for_save(),
             "jasypt": self.jasypt.for_save(),
             "pki": self.pki.for_save(),
+            "regex": self.regex,
+            "diff": self.diff,
         })
     }
 }

@@ -13,6 +13,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Devtools: Regex Tester and Text Diff.** Try a pattern with flags on a
+  text and see every match, its groups and a replacement preview; compare
+  two texts line by line, ignoring whitespace if you like, and copy the
+  result as a unified diff.
+
 - **The API client imports Insomnia, Bruno and OpenAPI collections**, not
   only Postman: Insomnia's v4 export, a Bruno collection folder (pick any
   of its `.bru` files), and an OpenAPI 3 document in JSON or YAML with one

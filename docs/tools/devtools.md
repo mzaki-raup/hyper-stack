@@ -261,3 +261,23 @@ Time and Data Size also list **every unit at once**, since the conversion
 that was not asked for is often the one wanted next. The arithmetic is
 plain functions over their inputs, so the rounding rules live in one place
 and are covered by tests without a UI. Owner's requirement, 2026-10-17.
+
+### Regex Tester and Text Diff (2026-10-18)
+
+The last two of M5's core utilities, under a **Text** category:
+
+- **Regex Tester** (`regex_tool`): a pattern with the `regex` crate's
+  flags (ignore case, multi-line, dot-all, ignore whitespace), text to try
+  it on, the text with every match marked, a list of matches with their
+  groups by index and name, and a replacement preview with `$1`/`$name`
+  expansion. The engine is the one HyperStack's own filters and highlight
+  rules use, so a pattern that works here works there; its RE2-like
+  syntax (no backreferences or look-around) is what the crate reports
+  when one is typed. Pasted text (Accept::Text) lands in the text field.
+- **Text Diff** (`diff_tool`): two texts side by side with optional names,
+  a line diff from `similar` with deleted and inserted lines marked and
+  numbered on both sides, a whitespace-and-blank-lines-insensitive mode,
+  Swap Sides, and Copy as Unified Diff. Pasted text fills the empty side.
+
+Both keep their state with the tab. Tests cover groups, flags, errors,
+line marking, the whitespace mode and the unified header.

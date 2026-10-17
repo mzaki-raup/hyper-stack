@@ -8251,6 +8251,7 @@ dependencies = [
  "md-5 0.10.6",
  "parking_lot",
  "rand 0.9.5",
+ "regex",
  "reqwest",
  "rfd",
  "ring",
@@ -8259,6 +8260,7 @@ dependencies = [
  "sha1 0.10.7",
  "sha2 0.10.9",
  "sha3 0.10.9",
+ "similar",
  "toml 0.8.23",
  "tracing",
 ]

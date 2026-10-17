@@ -84,7 +84,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Item | State | Notes |
 |---|---|---|
 | `tool-logs`: local file engine, SSH source, parsers, filters, highlights, structured view, find, bookmarks, saved sources | Pending | |
-| `tool-devtools`: JSON/YAML/TOML/XML, JWT, Base64/URL/hex, regex, cron, UUID/ULID/hash, timestamp, diff | Pending | |
+| `tool-devtools`: JSON/YAML/TOML/XML, JWT, Base64/URL/hex, regex, cron, UUID/ULID/hash, timestamp, diff | Completed | JSON/YAML/TOML/XML, JWT, Base64/URL, hashes, generators (UUID/ULID), cron and the timestamp converter landed 2026-10-15..17; Regex Tester and Text Diff 2026-10-18 (`regex_tool`, `diff_tool`, 5 tests) |
 
 ### M6 · Hardening and 1.0
 | Item | State | Notes |

@@ -213,6 +213,7 @@ globals. A non-GET request to a protected environment asks first.
 | **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) and the `{{reference}}` peeked | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
 | ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
+| **Regex Tester** — a pattern with flags, every match with its groups, a replacement preview; the same engine as the app's filters | **Text Diff** — two texts side by side, changed lines marked, whitespace-insensitive mode, copy as a unified diff |
 
 Also **Base64** (auto-detect, picture/text/document preview, data URI,
 Basic auth header), **URL** (percent-encode and decode a component, a whole
@@ -321,7 +322,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Git | [tools/git.md](docs/tools/git.md) | Yes |
 | Terminal | [tools/terminal.md](docs/tools/terminal.md) | Yes |
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
-| Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Partly |
+| Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Completed (core set; JSON query and the P1 extras remain) |
 | [docs/tools/graphics.md](docs/tools/graphics.md) | Graphics: pictures, operations, formats, icons, crop placeholder |
 | [docs/tools/scratchpad.md](docs/tools/scratchpad.md) | Scratchpad: Markdown notes per workspace, pinning, dual pane, AI assistant |
 | [docs/tools/browser.md](docs/tools/browser.md) | Browser: WebView2 pages, blocking, dark mode, devtools |

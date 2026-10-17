@@ -87,7 +87,7 @@ in the e2e test).
 
 ### M5 · Logs + Devtools core (4 w)
 - [ ] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/combined/multi-line stack traces), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources
-- [ ] `tool-devtools`: JSON/YAML/TOML/XML format+convert+query, regex tester, cron builder, UUID/ULID, timestamp converter, text diff (on `hs-editor`) — JWT, Base64, hashes/HMAC, Jasypt, PKI messages and Firebase tokens done 2026-10-15
+- [x] `tool-devtools`: JSON/YAML/TOML/XML format+convert, regex tester, cron builder, UUID/ULID, timestamp converter, text diff — JWT, Base64, hashes/HMAC, Jasypt, PKI messages and Firebase tokens 2026-10-15; cron, generators, conversions 2026-10-17; regex tester and text diff (on `similar`, not `hs-editor`) 2026-10-18
 
 ### M6 · Hardening and 1.0 (4 w)
 - [ ] Protected environments across all tools; e2e secret-grep test; `cargo deny` clean

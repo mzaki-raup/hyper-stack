@@ -1348,6 +1348,37 @@ tool-devtools = Devtools
 dt-cat-encoding = Encoding
 dt-cat-tokens = Tokens
 dt-cat-generate = Generate
+dt-cat-text = Text
+dt-regex = Regex Tester
+dt-regex-sub = Try a pattern on some text: every match, its groups, and a replacement preview
+dt-regex-pattern = Pattern
+dt-regex-pattern-hint = (?P<key>\w+)=(\d+)
+dt-regex-flag-i = Ignore Case
+dt-regex-flag-m = Multi-Line (^ and $ at Line Ends)
+dt-regex-flag-s = Dot Matches Newline
+dt-regex-flag-x = Ignore Whitespace in the Pattern
+dt-regex-first = First Match Only
+dt-regex-hint = The regex crate's syntax, which HyperStack's filters and highlight rules use too: no backreferences and no look-around, and a pattern that works here works there.
+dt-regex-text = Text
+dt-regex-text-hint = Paste the text to search…
+dt-regex-matches = { $n ->
+    [one] 1 match
+   *[other] { $n } matches
+  }
+dt-regex-none = No match. Nothing in the text fits the pattern.
+dt-regex-replace = Replace
+dt-regex-replace-hint = Replacement: $1, $key or plain text
+dt-regex-replace-result = Result
+dt-diff = Text Diff
+dt-diff-sub = Compare two texts line by line
+dt-diff-left = Left (name, optional)
+dt-diff-right = Right (name, optional)
+dt-diff-ignore-ws = Ignore Whitespace and Blank Lines
+dt-diff-swap = Swap Sides
+dt-diff-copy-unified = Copy as Unified Diff
+dt-diff-hint = Paste a text on each side to compare them.
+dt-diff-same = The two texts are the same.
+dt-diff-counts = +{ $added } −{ $removed } lines
 dt-toml = TOML
 dt-toml-sub = Check a TOML file and lay it out again
 dt-toml-hint = The file is parsed, then written back from what was parsed: keys are grouped under their tables and anything that was not valid TOML is reported instead. TOML is not indentation-based, so there is no indent to choose.

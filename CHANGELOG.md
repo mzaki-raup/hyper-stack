@@ -13,7 +13,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- **A terminal inside the editor** (Ctrl+Alt+`, the toolbar's Terminal
+- **The editor knows what the project is**, and Run and Build use it:
+  Maven, Gradle, Cargo, npm, Go, .NET, Python, Make and CMake, with
+  **Spring Boot** recognised from the `pom.xml` or the Gradle build file
+  (`spring-boot:run`, `bootRun`). A project that ships `mvnw`/`gradlew` is
+  run through it; Settings → Editor → Build Tools sets the Maven and
+  Gradle commands and can turn that preference off. **Build** is a toolbar
+  button of its own (Ctrl+Shift+B).
+
+- **A web application opens in the Browser** at the address it prints —
+  a dev server's `Local: http://localhost:5173/`, Spring Boot's "Tomcat
+  started on port(s): 8080" — rather than at a guessed port.
+
+- **A terminal inside the editor** (Ctrl+`, the toolbar's Terminal
   button, or *Editor: Toggle Terminal*): a shell at the foot of the pane,
   started in the project's folder, with as many terminals as you want
   beside each other. It is PowerShell 7 where that is installed, and
@@ -44,6 +56,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **Run and Build go to the editor's own terminal**, in the project's
+  folder, instead of opening a tab of the Terminal activity. "Open
+  Terminal Here" in the project tree does the same.
+
+- **The bottom dock has no terminal tab.** Shells live in the Terminal
+  activity and in the editor's panel, which starts in the project's
+  folder; Ctrl+` is the editor's terminal now.
+
 - **Every activity's first tab is permanent.** It cannot be closed, closed
   past, pinned or duplicated, and its menu offers only Close Others and
   Close to the Right. Home and the browser have no tab menu at all.
@@ -70,6 +90,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   pages — keep theirs, because those are a tool's own documents.
 
 ### Fixed
+
+- **A Devtools utility opens in a tab of its own again.** The home tab
+  reported that it was showing Base64 — the default — so clicking Base64
+  in the sidebar focused the dashboard and appeared to do nothing.
+
+- **An installed language server is found without Refresh Status.**
+  HyperStack read PATH as its launcher had it, and on Windows that is
+  usually an Explorer started at login, so jdtls installed since then read
+  "Not found" on every start. The system value is read at startup now.
 
 - **A terminal no longer collapses the panel it sits in.** The terminal
   drew on the space it was given without claiming any, which a central

@@ -29,6 +29,13 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         Ok(s) => (s, None),
         Err(e) => (Settings::default(), Some(e.to_string())),
     };
+    // Read PATH from the system before anything looks a tool up. A
+    // process inherits the environment of whatever launched it, and on
+    // Windows that is usually an Explorer started at login: a language
+    // server or debug adapter installed since then is invisible to it, so
+    // Java reported "Not found" on every start until Settings -> Editor's
+    // Refresh Status was pressed. Owner's report, 2026-10-18.
+    hs_core::env_path::refresh();
     let i18n = Arc::new(I18n::load(&settings.general.language));
     let keymap = Keymap::load(&paths.shortcuts_file());
     let runtime = AppRuntime::new(waker).map_err(|e| e.to_string())?;

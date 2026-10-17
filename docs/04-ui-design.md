@@ -20,7 +20,7 @@
 │ ⌥  │    hosts, buckets)          │   second pane of the split                        │
 │ 💻 │                             │                                                   │
 │ 🧰 ├─────────────────────────────┴───────────────────────────────────────────────────│
-│    │ ▸ Output  Jobs (2)  Problems  Terminal                                      ⌃  │ bottom dock (collapsible)
+│    │ ▸ Output  Jobs (2)  Problems                                                ⌃  │ bottom dock (collapsible)
 ├────┴─────────────────────────────────────────────────────────────────────────────────┤
 │ ● connected postgres 16 · 1,204 rows · 38 ms      UTF-8  LF  SQL      ⇅ 2 jobs   en  │ status bar
 └──────────────────────────────────────────────────────────────────────────────────────┘

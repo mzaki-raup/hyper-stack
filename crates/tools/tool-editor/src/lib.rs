@@ -32,6 +32,7 @@ mod ai_panel;
 mod debug;
 mod git_view;
 mod lsp;
+pub mod project;
 mod terminal;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
@@ -2142,15 +2143,10 @@ impl EditorTool {
                         } else {
                             path.parent().map(Path::to_path_buf).unwrap_or(path.clone())
                         };
-                        cx.open(
-                            "terminal",
-                            Some(OpenRequest::Terminal {
-                                cwd: Some(dir.to_string_lossy().to_string()),
-                                host: None,
-                                profile: None,
-                                command: None,
-                            }),
-                        );
+                        // The editor's own terminal, in that folder: a
+                        // shell asked for from the project tree belongs
+                        // beside the tree. Owner's report, 2026-10-18.
+                        self.terminal.show_in(s, &dir);
                         close = true;
                     }
                     ui.separator();
@@ -2382,10 +2378,11 @@ impl EditorTool {
 impl EditorTool {
     /// What Run would do for the active file: the project's own runner
     /// when the root has one, else the interpreter for the file type.
-    fn run_plan(&self) -> Option<(PathBuf, String)> {
+    fn run_plan(&self, s: &Services) -> Option<(PathBuf, String)> {
         let d = self.doc();
         let path = d.path.as_ref()?;
-        run_plan(path, self.projects[self.active].root.as_deref())
+        let st = s.settings.read();
+        run_plan(path, self.projects[self.active].root.as_deref(), &st.editor)
     }
 
     /// Ctrl+F5: continue a stopped session, start the last configuration
@@ -2437,25 +2434,45 @@ impl EditorTool {
     }
 
     fn run_now(&mut self, cx: &mut ToolContext) {
-        let Some((cwd, cmd)) = self.run_plan() else {
+        let Some((cwd, cmd)) = self.run_plan(cx.services) else {
             cx.toast(ToastLevel::Info, cx.services.t("editor-run-none"));
             return;
         };
-        cx.open_new_tab(
-            "terminal",
-            Some(OpenRequest::Terminal {
-                cwd: Some(cwd.to_string_lossy().to_string()),
-                host: None,
-                profile: None,
-                command: Some(cmd),
-            }),
-        );
+        // In the editor's own terminal, not a tab of the Terminal
+        // activity: running a project is editing work, and changing
+        // activity to watch it is what interrupts it.
+        // Owner's report, 2026-10-18.
+        let web = self.project().is_some_and(|p| p.web);
+        self.terminal.run(cx.services, Some(&cwd), &cmd, web);
+    }
+
+    /// The project this tab's folder holds (Maven, Gradle, Cargo, npm, …).
+    fn project(&self) -> Option<project::Project> {
+        project::detect(self.projects[self.active].root.as_deref()?)
+    }
+
+    /// Build the project in the editor's terminal.
+    fn build_now(&mut self, cx: &mut ToolContext) {
+        let (Some(root), Some(p)) = (self.projects[self.active].root.clone(), self.project())
+        else {
+            cx.toast(ToastLevel::Info, cx.services.t("editor-build-none"));
+            return;
+        };
+        let cmd = {
+            let st = cx.services.settings.read();
+            project::build_command(&p, &st.editor)
+        };
+        self.terminal.run(cx.services, Some(&root), &cmd, false);
     }
 }
 
 /// The command that runs `path`: a project runner found at `root` (Cargo,
 /// npm, Make, Gradle, Maven, Go) wins over the file's interpreter.
-pub fn run_plan(path: &Path, root: Option<&Path>) -> Option<(PathBuf, String)> {
+pub fn run_plan(
+    path: &Path,
+    root: Option<&Path>,
+    settings: &hs_core::settings::Editor,
+) -> Option<(PathBuf, String)> {
     let file = path.file_name()?.to_string_lossy().to_string();
     let ext = path
         .extension()
@@ -2471,6 +2488,16 @@ pub fn run_plan(path: &Path, root: Option<&Path>) -> Option<(PathBuf, String)> {
             t
         }
     };
+    // What the folder itself is (Maven, Gradle, Cargo, npm, …) decides
+    // how to run its own code: that is where Spring Boot's goal, a
+    // project's wrapper and the configured Maven/Gradle paths come from.
+    // Owner's requirement, 2026-10-17.
+    if let Some(root) = root
+        && let Some(p) = project::detect(root)
+        && (project::owns_file(p.kind, &ext) || project::is_manifest(p.kind, &file))
+    {
+        return Some((root.to_path_buf(), project::run_command(&p, settings)));
+    }
     if let Some(root) = root {
         let has = |n: &str| root.join(n).is_file();
         let project = match ext.as_str() {
@@ -2613,7 +2640,7 @@ impl Tool for EditorTool {
             d.view.goto_open = true;
             d.view.goto_text.clear();
         }
-        if let Some((_, cmd)) = self.run_plan() {
+        if let Some((_, cmd)) = self.run_plan(s) {
             ui.separator();
             if ui
                 .button(format!("{} {}", ph::PLAY, s.t("editor-run")))
@@ -2621,6 +2648,24 @@ impl Tool for EditorTool {
                 .clicked()
             {
                 self.run_current(cx);
+            }
+        }
+        // Build, for a folder that is a project: the command says which
+        // build tool was found. Owner's requirement, 2026-10-17.
+        if let Some(p) = self.project() {
+            let cmd = {
+                let st = s.settings.read();
+                project::build_command(&p, &st.editor)
+            };
+            if ui
+                .button(format!("{} {}", ph::HAMMER, s.t("editor-build")))
+                .tip(s.i18n.t_args(
+                    "editor-build-tip",
+                    &[("tool", p.kind.label()), ("command", &cmd)],
+                ))
+                .clicked()
+            {
+                self.build_now(cx);
             }
         }
         {
@@ -2913,16 +2958,26 @@ impl Tool for EditorTool {
         }
         if self.terminal.open {
             let root = self.projects[self.active].root.clone();
-            let mut link = None;
+            let mut out = terminal::PanelOut::default();
             egui::Panel::bottom(self.id.with("terminal"))
                 .default_size(220.0)
                 .size_range(80.0..=600.0)
                 .resizable(true)
                 .show(ui, |ui| {
-                    link = self.terminal.panel_ui(ui, s, &theme, root.as_deref());
+                    out = self.terminal.panel_ui(ui, s, &theme, root.as_deref());
                 });
-            if let Some(link) = link {
+            if let Some(link) = out.link {
                 self.open_terminal_link(link, ui.ctx(), cx);
+            }
+            // A web application that has just said where it listens opens
+            // in the Browser, as a page of its own.
+            // Owner's requirement, 2026-10-17.
+            if let Some(url) = out.url {
+                cx.toast(
+                    ToastLevel::Info,
+                    s.i18n.t_args("editor-run-serving", &[("url", &url)]),
+                );
+                cx.open("browser", Some(OpenRequest::Url { url }));
             }
         }
         if self.debug.panel_open {
@@ -3149,6 +3204,11 @@ impl Tool for EditorTool {
                 "Editor: Toggle Terminal",
                 Some("editor.terminal"),
             ),
+            c(
+                "editor.build",
+                "Editor: Build the Project",
+                Some("editor.build"),
+            ),
             c("editor.ai", "AI: Toggle Assistant", Some("editor.ai")),
             c(
                 "git.source_control",
@@ -3259,6 +3319,7 @@ impl Tool for EditorTool {
                 let root = self.projects[self.active].root.clone();
                 self.terminal.toggle(s, root.as_deref());
             }
+            "editor.build" => self.build_now(cx),
             "git.source_control" => self.git.sidebar = !self.git.sidebar,
             "git.history" => {
                 let path = self
@@ -3298,15 +3359,10 @@ impl Tool for EditorTool {
                     .as_ref()
                     .and_then(|p| p.parent().map(Path::to_path_buf))
                     .or(self.projects[self.active].root.clone());
-                cx.open(
-                    "terminal",
-                    Some(OpenRequest::Terminal {
-                        cwd: dir.map(|d| d.to_string_lossy().to_string()),
-                        host: None,
-                        profile: None,
-                        command: None,
-                    }),
-                );
+                match dir {
+                    Some(d) => self.terminal.show_in(s, &d),
+                    None => self.terminal.toggle(s, None),
+                }
             }
             _ => return false,
         }
@@ -3973,18 +4029,50 @@ mod run_plan_tests {
     use super::run_plan;
     use std::path::Path;
 
+    fn settings() -> hs_core::settings::Editor {
+        hs_core::settings::Editor::default()
+    }
+
     #[test]
     fn project_runner_wins_over_file_interpreter() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("Cargo.toml"), "[package]").unwrap();
         let src = tmp.path().join("src").join("main.rs");
-        let (cwd, cmd) = run_plan(&src, Some(tmp.path())).unwrap();
+        let (cwd, cmd) = run_plan(&src, Some(tmp.path()), &settings()).unwrap();
         assert_eq!(cwd, tmp.path());
         assert_eq!(cmd, "cargo run");
-        let (cwd, cmd) = run_plan(Path::new("C:/x/tool.py"), None).unwrap();
+        let (cwd, cmd) = run_plan(Path::new("C:/x/tool.py"), None, &settings()).unwrap();
         assert_eq!(cwd, Path::new("C:/x"));
         assert_eq!(cmd, "python C:/x/tool.py");
-        assert!(run_plan(Path::new("C:/x/notes.txt"), None).is_none());
+        assert!(run_plan(Path::new("C:/x/notes.txt"), None, &settings()).is_none());
+    }
+
+    #[test]
+    fn the_projects_build_file_runs_the_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("pom.xml"), "<project/>").unwrap();
+        let (cwd, cmd) = run_plan(&tmp.path().join("pom.xml"), Some(tmp.path()), &settings())
+            .expect("pom.xml is runnable: it is the project");
+        assert_eq!(cwd, tmp.path());
+        assert_eq!(cmd, "mvn -q compile exec:java");
+    }
+
+    #[test]
+    fn a_spring_boot_project_runs_its_goal_and_a_script_in_it_still_runs_itself() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("pom.xml"),
+            "<project><artifactId>spring-boot-starter-web</artifactId></project>",
+        )
+        .unwrap();
+        let java = tmp.path().join("src/main/java/App.java");
+        let (cwd, cmd) = run_plan(&java, Some(tmp.path()), &settings()).unwrap();
+        assert_eq!(cwd, tmp.path());
+        assert_eq!(cmd, "mvn spring-boot:run");
+        // A helper script inside the same project is still a script.
+        let py = tmp.path().join("tools/gen.py");
+        let (_, cmd) = run_plan(&py, Some(tmp.path()), &settings()).unwrap();
+        assert!(cmd.starts_with("python "), "{cmd}");
     }
 }
 

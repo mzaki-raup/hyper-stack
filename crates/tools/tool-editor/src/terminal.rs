@@ -51,6 +51,19 @@ struct Shell {
     title: String,
     /// Typed as soon as the shell is up (a build or run command).
     pending: Option<String>,
+    /// This shell is running a web application: its output is read until
+    /// it names an address, which is then opened in the Browser once.
+    /// Owner's requirement, 2026-10-17.
+    watch_web: bool,
+}
+
+/// What a frame of the panel produced for the editor to act on.
+#[derive(Default)]
+pub struct PanelOut {
+    /// A Ctrl+clicked link.
+    pub link: Option<LinkTarget>,
+    /// The address a web application just reported, to open once.
+    pub url: Option<String>,
 }
 
 #[derive(Default)]
@@ -72,6 +85,31 @@ impl TerminalPanel {
         if self.shells.is_empty() {
             self.spawn(s, root, None);
         }
+    }
+
+    /// Open the panel and run `command` in a shell of its own. With
+    /// `web`, the first address the program prints is handed back from
+    /// [`TerminalPanel::panel_ui`] for the Browser to open.
+    pub fn run(&mut self, s: &Services, root: Option<&Path>, command: &str, web: bool) {
+        self.open = true;
+        self.spawn(s, root, Some(command.to_string()));
+        if let Some(t) = self.shells.last_mut() {
+            // The command names the tab, so a build and a run are told
+            // apart at a glance.
+            t.title = command
+                .split_whitespace()
+                .next()
+                .unwrap_or("run")
+                .to_string();
+            t.watch_web = web;
+        }
+    }
+
+    /// Open the panel with a shell in `dir`, whatever the project's own
+    /// folder is: "Open Terminal Here" on a folder in the tree.
+    pub fn show_in(&mut self, s: &Services, dir: &Path) {
+        self.open = true;
+        self.spawn(s, Some(dir), None);
     }
 
     pub fn toggle(&mut self, s: &Services, root: Option<&Path>) {
@@ -120,6 +158,7 @@ impl TerminalPanel {
                     view,
                     title: profile.name.clone(),
                     pending,
+                    watch_web: false,
                 });
                 self.active = self.shells.len() - 1;
             }
@@ -138,14 +177,15 @@ impl TerminalPanel {
         }
     }
 
-    /// Draw the panel. Returns a Ctrl+clicked link for the editor to open.
+    /// Draw the panel.
     pub fn panel_ui(
         &mut self,
         ui: &mut egui::Ui,
         s: &Services,
         theme: &Theme,
         root: Option<&Path>,
-    ) -> Option<LinkTarget> {
+    ) -> PanelOut {
+        let mut out = PanelOut::default();
         let mut link = None;
         let mut close_panel = false;
         let mut close_shell = None;
@@ -239,7 +279,20 @@ impl TerminalPanel {
         if close_panel {
             self.open = false;
         }
-        link
+        // A web application says where it is listening a second or two
+        // after it starts, so every shell that is watching is read each
+        // frame until one does. Reading the grid is enough: the line is on
+        // screen when it is printed.
+        for t in self.shells.iter_mut().filter(|t| t.watch_web) {
+            let text = t.session.visible_text(200);
+            if let Some(url) = crate::project::served_url(&text) {
+                t.watch_web = false;
+                out.url = Some(url);
+                break;
+            }
+        }
+        out.link = link;
+        out
     }
 }
 

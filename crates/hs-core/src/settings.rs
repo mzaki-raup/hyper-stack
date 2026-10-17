@@ -217,6 +217,15 @@ pub struct Editor {
     pub language_servers: Vec<LanguageServer>,
     /// Per-adapter changes to the built-in debug adapter table.
     pub debug_adapters: Vec<DebugAdapter>,
+    /// How to start Maven for a project that uses it; empty = `mvn` from
+    /// PATH. A full path is accepted (quoted when it has spaces).
+    /// Owner's requirement, 2026-10-17.
+    pub maven_command: String,
+    /// How to start Gradle; empty = `gradle` from PATH.
+    pub gradle_command: String,
+    /// Prefer the project's own `mvnw`/`gradlew` over either of those: the
+    /// wrapper pins the version a project expects, so it wins by default.
+    pub prefer_wrapper: bool,
     /// Shell profile id for the editor's own terminal ("pwsh", "cmd",
     /// "git-bash", "wsl:Ubuntu", …). Empty means PowerShell 7 where it is
     /// installed, else the Terminal tool's default, else the first shell
@@ -331,6 +340,9 @@ impl Default for Editor {
             language_servers: Vec::new(),
             debug_adapters: Vec::new(),
             terminal_profile: String::new(),
+            maven_command: String::new(),
+            gradle_command: String::new(),
+            prefer_wrapper: true,
         }
     }
 }

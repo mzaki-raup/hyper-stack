@@ -193,7 +193,6 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("palette.quick_open", "Ctrl+P"),
     ("view.sidebar", "Ctrl+B"),
     ("view.dock", "Ctrl+J"),
-    ("view.terminal", "Ctrl+`"),
     ("terminal.new", "Ctrl+Shift+`"),
     ("terminal.find", "Ctrl+Shift+F"),
     ("env.switch", "Ctrl+Shift+E"),
@@ -215,9 +214,10 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("editor.rename_symbol", "F2"),
     ("editor.format", "Shift+Alt+F"),
     ("editor.problems", "Ctrl+Shift+J"),
-    // Ctrl+` is the dock terminal and a global shortcut wins over a
-    // tool-local one, so the editor's own terminal takes Alt as well.
-    ("editor.terminal", "Ctrl+Alt+`"),
+    // Ctrl+` was the dock's terminal until that was removed; it is a
+    // tool-local action now, so the editor sees the key itself.
+    ("editor.terminal", "Ctrl+`"),
+    ("editor.build", "Ctrl+Shift+B"),
     ("debug.start", "Ctrl+F5"),
     ("debug.stop", "Shift+F5"),
     ("debug.step_over", "F10"),

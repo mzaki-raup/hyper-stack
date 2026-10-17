@@ -166,6 +166,7 @@ impl ToolFactory for DevtoolsFactory {
         }
         Box::new(DevtoolsTool {
             utility,
+            is_home: false,
             // Named before the first frame so a restored strip reads right.
             title: services.t(utility.title_key()),
             base64: part(&restore, "base64"),
@@ -188,6 +189,8 @@ impl ToolFactory for DevtoolsFactory {
 pub struct DevtoolsTool {
     utility: Utility,
     title: String,
+    /// This tab is the activity's home tab: a dashboard, not a utility.
+    is_home: bool,
     base64: base64_tool::State,
     url: url_tool::State,
     yaml: yaml::State,
@@ -254,6 +257,7 @@ impl Tool for DevtoolsTool {
     /// The activity's home tab is named after the activity; a working tab
     /// after its utility. Owner's report, 2026-10-17.
     fn set_home_tab(&mut self, home: bool, services: &Services) {
+        self.is_home = home;
         if home {
             self.title = services.t("tool-devtools");
         }
@@ -386,12 +390,21 @@ impl Tool for DevtoolsTool {
     }
 
     fn current_uri(&self) -> Option<String> {
+        // The home tab shows no utility. Saying it showed Base64 - the
+        // default - made clicking Base64 in the sidebar focus the
+        // dashboard and appear to do nothing. Owner's report, 2026-10-18.
+        if self.is_home {
+            return None;
+        }
         Some(format!("devtools://{}", self.utility.key()))
     }
 
     /// Only the tab showing the same utility takes a `devtools://` request;
     /// any other utility gets a tab of its own.
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
+        if self.is_home {
+            return None;
+        }
         let key = uri.strip_prefix("devtools://")?;
         (Utility::by_key(key) == Some(self.utility)).then_some(0)
     }

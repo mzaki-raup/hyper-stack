@@ -629,43 +629,6 @@ impl HyperStackApp {
         }
     }
 
-    /// A Ctrl+clicked link from the dock terminal: URLs go to the browser,
-    /// file locations (relative to the workspace folder) to the editor.
-    fn open_terminal_link(&mut self, link: hs_term::links::LinkTarget, ctx: &egui::Context) {
-        match link {
-            hs_term::links::LinkTarget::Url(url) => {
-                if ctx.input(|i| i.modifiers.shift) {
-                    self.open_tool("browser", Some(OpenRequest::Url { url }));
-                } else {
-                    ctx.open_url(egui::OpenUrl::new_tab(url));
-                }
-            }
-            hs_term::links::LinkTarget::Path { path, line, .. } => {
-                let p = std::path::PathBuf::from(&path);
-                let p = if p.is_absolute() {
-                    p
-                } else {
-                    self.services.workspace.read().root().join(p)
-                };
-                if p.is_file() {
-                    self.open_tool(
-                        "editor",
-                        Some(OpenRequest::File {
-                            uri: p.to_string_lossy().to_string(),
-                            line,
-                        }),
-                    );
-                } else {
-                    let msg = self
-                        .services
-                        .i18n
-                        .t_args("terminal-link-missing", &[("path", &path)]);
-                    self.toasts.push(ToastLevel::Warning, msg);
-                }
-            }
-        }
-    }
-
     /// Put a tool's rail entry back when something opens one of its tabs.
     /// Hiding an entry is a tidying choice, not a ban: a link Ctrl+clicked
     /// in the editor, a remote file opened from SFTP or a connection saved
@@ -784,6 +747,9 @@ impl HyperStackApp {
                 .iter()
                 .find(|t| {
                     t.factory_id == factory_id
+                        // A dashboard shows nothing of its own, so it never
+                        // answers a request for an item.
+                        && !(t.home && t.tool.home_is_dashboard())
                         && t.tool
                             .current_uri()
                             .is_some_and(|u| normalize_uri(&u) == want)
@@ -965,10 +931,6 @@ impl HyperStackApp {
             "palette.quick_open" => self.palette.toggle(PaletteMode::QuickOpen),
             "view.sidebar" => self.sidebar_open = !self.sidebar_open,
             "view.dock" => self.dock_open = !self.dock_open,
-            "view.terminal" => {
-                self.dock_open = true;
-                self.dock.tab = dock::DockTab::Terminal;
-            }
             "terminal.new" => self.open_tool("terminal", None),
             "app.settings" => self.open_settings(None),
             "home.show" => self.select_group("home"),
@@ -3198,9 +3160,6 @@ impl eframe::App for HyperStackApp {
                 .show(root, |ui| {
                     dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock);
                 });
-            if let Some(link) = self.dock.pending_link.take() {
-                self.open_terminal_link(link, root.ctx());
-            }
             let _ = &r;
             let height =
                 egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-dock"))

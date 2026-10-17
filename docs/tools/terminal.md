@@ -12,7 +12,7 @@ WezTerm on features; the point is proximity to the other tools.
 
 ## 2. User stories
 
-- Ctrl+` opens PowerShell 7 in the dock at the project folder, Oh My Posh
+- Ctrl+` opens PowerShell 7 in the editor at the project folder, Oh My Posh
   prompt intact; `cargo run` output scrolls; a `path:line` in a panic message
   is clickable and opens the editor.
 - Right-click a folder in the project tree or SFTP pane → "Open terminal here"
@@ -79,7 +79,11 @@ Font fallback) but no code is taken from them.
   exited (code)" overlay with Restart.
 - **Splits** inside a terminal tab (own small split tree) in addition to
   workspace-level splits, because terminal users expect in-tab panes.
-- **Dock terminal** (Ctrl+`): persistent per workspace, one or more sessions
+- **Dock terminal**: removed on 2026-10-18 at the owner's request. Shells
+  live in this activity and in the editor's own panel
+  (`docs/tools/editor.md` §13), which starts in the project's folder; a
+  third place to look was one too many. What follows described it:
+  persistent per workspace, one or more sessions
   with its own mini tab bar; "move to tab" and "move to dock" actions.
 - **Open here**: `OpenRequest::Terminal{cwd, host}` from project tree, SFTP,
   S3 (local temp dir), Git, containers (exec), k8s (exec).
@@ -108,7 +112,6 @@ OSC 52 allow.
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+` | toggle dock terminal |
 | Ctrl+Shift+` | new terminal tab |
 | Ctrl+Shift+C / Ctrl+Shift+V | copy / paste (Ctrl+C/V pass through; configurable) |
 | Ctrl+Shift+F | search |

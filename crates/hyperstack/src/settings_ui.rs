@@ -3005,6 +3005,35 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
         });
         form::hint(ui, theme, &s.t("settings-editor-terminal-hint"));
     });
+    form::section(ui, theme, &s.t("settings-section-editor-build"), |ui| {
+        form::field_grid(ui, "editor-build-tools", |ui| {
+            form::label(ui, &s.t("settings-editor-maven"));
+            changed |= ui
+                .add(
+                    egui::TextEdit::singleline(&mut settings.editor.maven_command)
+                        .hint_text("mvn")
+                        .desired_width(f32::INFINITY),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-editor-gradle"));
+            changed |= ui
+                .add(
+                    egui::TextEdit::singleline(&mut settings.editor.gradle_command)
+                        .hint_text("gradle")
+                        .desired_width(f32::INFINITY),
+                )
+                .changed();
+            ui.end_row();
+        });
+        changed |= ui
+            .checkbox(
+                &mut settings.editor.prefer_wrapper,
+                s.t("settings-editor-prefer-wrapper"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-editor-build-hint"));
+    });
     form::section(ui, theme, &s.t("settings-section-language-servers"), |ui| {
         changed |= ui
             .checkbox(&mut settings.editor.lsp_enabled, s.t("settings-editor-lsp"))

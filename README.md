@@ -74,7 +74,7 @@ made.
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
-| **Split panes** (Ctrl+\\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs, Problems and Terminal |
+| **Split panes** (Ctrl+\\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
 
 ### Workspaces and environments
 
@@ -133,7 +133,7 @@ Open opens the searchable tools, connections and project items palette.
 | ![Git history](docs/screenshots/editor-git-history.png) | |
 | **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
-| **Terminal in the editor** (Ctrl+Alt+`) — a shell at the foot of the pane, started in the project's folder, with as many as you want side by side; PowerShell 7 by default and any installed shell from Settings → Editor → Terminal | |
+| **Terminal in the editor** (Ctrl+`) — a shell at the foot of the pane, started in the project's folder, with as many as you want side by side; PowerShell 7 by default and any installed shell from Settings → Editor → Terminal | **Run and Build** go to that terminal: the project's own commands (Cargo, Maven, Gradle, npm, Go, .NET, Make), Spring Boot through `spring-boot:run` or `bootRun`, and a web application opens in the Browser at the address it prints |
 | **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI, or any OpenAI-compatible server (OpenAI, Mistral, Kimi, Hunyuan, OpenRouter, local LM Studio or Ollama with every downloaded model). Add one from a gallery of fifteen services; keys in the vault |
 
 ### Terminal

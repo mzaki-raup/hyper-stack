@@ -253,7 +253,8 @@ Makefile, Diff, Log/logfmt, CSV (coloured columns).
 | Ctrl+F5 · F9 · Ctrl+Shift+D | start or continue debugging · toggle breakpoint · debug panel (§12) |
 | F5 (paused) · F10 · F11 · Shift+F11 · Shift+F5 | continue · step over · step into · step out · stop |
 | Alt+Z | toggle word wrap |
-| Ctrl+Alt+` | the editor's terminal (§13; Ctrl+` is the bottom dock's) |
+| Ctrl+` | the editor's terminal (§13) |
+| Ctrl+Shift+B | build the project (§14) |
 
 ## 8. Settings
 
@@ -466,9 +467,8 @@ leaving it. Owner's requirement, 2026-10-17.
 
 - **Where.** A resizable panel at the foot of the editor pane, above the
   status row, opened from the **Terminal** button in the editor toolbar,
-  the palette (*Editor: Toggle Terminal*) or **Ctrl+Alt+`**. The bottom
-  dock keeps Ctrl+` and its own terminal; a global shortcut wins over a
-  tool-local one, so the editor's takes Alt as well.
+  the palette (*Editor: Toggle Terminal*) or **Ctrl+`** - the shortcut
+  the bottom dock's terminal had until that was removed on 2026-10-18.
 - **Where it starts.** In the project's folder - the root of the editor
   tab that opened it - so `cargo build`, `mvn test` or `npm run dev` need
   no `cd`. With no project open it starts in the workspace folder. The
@@ -489,3 +489,42 @@ leaving it. Owner's requirement, 2026-10-17.
   the terminal settings - scrollback, copy on select, right-click
   copy/paste, link detection - apply here too. The font size is the
   editor's.
+
+## 14. Projects: build and run (2026-10-17)
+
+What the project **is** decides what Run and Build do, so that a Java
+project is not "a folder with .java files in it".
+
+| Found at the root | Project | Run | Build |
+|---|---|---|---|
+| `pom.xml` | Maven | `mvn -q compile exec:java` | `mvn package -DskipTests` |
+| `pom.xml` naming Spring Boot | Maven + Spring Boot | `mvn spring-boot:run` | as above |
+| `build.gradle[.kts]`, `settings.gradle` | Gradle | `gradle run` | `gradle build -x test` |
+| the same naming `org.springframework.boot` | Gradle + Spring Boot | `gradle bootRun` | as above |
+| `Cargo.toml` | Cargo | `cargo run` | `cargo build` |
+| `package.json` | npm | `npm run dev` for a dev server, else `npm start` | `npm run build` |
+| `go.mod` | Go | `go run .` | `go build ./...` |
+| a `.csproj` | .NET | `dotnet run` | `dotnet build` |
+| `pyproject.toml`, `requirements.txt` | Python | `python -m main` | `python -m compileall .` |
+| `CMakeLists.txt` / `Makefile` | CMake / Make | `cmake --build build --target run` / `make run` | `cmake --build build` / `make` |
+
+- **Where it runs.** Both go to the editor's own terminal (§13), in the
+  project's folder — not to a tab of the Terminal activity, which is what
+  they did until the owner asked for this on 2026-10-18.
+- **Maven and Gradle.** A project that ships `mvnw`/`gradlew` is run
+  through it, because the wrapper pins the version the project expects.
+  Settings → Editor → Build Tools sets the command for each (a full path
+  works, and one with spaces is quoted) and can turn the wrapper
+  preference off.
+- **Spring Boot** is recognised from the `pom.xml` or the Gradle build
+  file, which is what picks `spring-boot:run` / `bootRun` over
+  `exec:java` / `run`, and makes the project a web application.
+- **A web application opens in the Browser.** The address is not guessed:
+  the terminal's output is read until the program says where it listens -
+  a dev server's `Local:  http://localhost:5173/` or Spring Boot's
+  "Tomcat started on port(s): 8080" - and that address opens as a page in
+  the Browser activity, once per run.
+- **Run still runs a single file** when the open file is not the
+  project's own: a Python helper inside a Maven project runs as a script.
+  The project's build file (pom.xml, build.gradle, package.json, …)
+  counts as the project, so Run is offered while it is open.

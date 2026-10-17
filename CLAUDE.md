@@ -633,6 +633,22 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   tab's pane was simply gone. `LayoutTab::home` carries it; a layout
   written before the flag existed gains a *new* home tab
   (`TabSpace::ensure_home_tabs`) rather than taking one over.
+- A process inherits `PATH` from whatever launched it, and on Windows
+  that is usually an Explorer started at login, so a tool installed since
+  then is invisible to a freshly started app too - "restart it" does not
+  help, which is what made jdtls read **Not found** on every start until
+  Settings -> Editor's Refresh Status was pressed. `bootstrap` calls
+  `hs_core::env_path::refresh()` at startup now. Compare the registry
+  value with the process value
+  (`[Environment]::GetEnvironmentVariable('Path','User')` vs `$env:Path`)
+  before suspecting the lookup itself.
+- A tool's `current_uri` is what the shell matches an `OpenRequest::File`
+  against, so a **dashboard home tab that reports a uri steals every
+  request for it**: the Devtools home tab reported `devtools://base64`
+  (its default utility), and clicking Base64 in the sidebar focused the
+  dashboard and read as a dead click. A dashboard must report no uri and
+  no `uri_affinity`, and `app::open_tool_in` skips dashboards when it
+  matches one.
 - A widget that draws on `available_rect_before_wrap()` without
   **allocating** it reports no size to its container. Inside a central
   panel nothing shows, but a resizable `egui::Panel` stores the size its

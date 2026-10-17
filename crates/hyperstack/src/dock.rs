@@ -1,4 +1,9 @@
-//! Bottom dock: Output, Jobs, Problems, Terminal (placeholder until M1).
+//! Bottom dock: Output, Jobs and Problems.
+//!
+//! It had a terminal too, until the owner asked for it to go on
+//! 2026-10-18: shells belong to the Terminal activity, and since the
+//! editor grew one of its own in the project's folder a third place to
+//! look was one too many.
 
 use hs_core::Services;
 use hs_core::jobs::{JobStatus, Progress};
@@ -11,60 +16,11 @@ pub enum DockTab {
     Output,
     Jobs,
     Problems,
-    Terminal,
 }
 
 #[derive(Default)]
 pub struct DockState {
     pub tab: DockTab,
-    pub terminal: Option<(hs_term::session::Session, hs_term::widget::TerminalView)>,
-    pub terminal_error: Option<String>,
-    /// A Ctrl+clicked link in the dock terminal, for the app to open.
-    pub pending_link: Option<hs_term::links::LinkTarget>,
-}
-
-impl DockState {
-    fn ensure_terminal(&mut self, services: &Services) {
-        if self.terminal.is_some() || self.terminal_error.is_some() {
-            return;
-        }
-        let profiles = hs_term::shells::profiles();
-        let (default, font, scrollback, copy, right_click, links) = {
-            let st = services.settings.read();
-            (
-                st.terminal.default_profile.clone(),
-                st.terminal.font_size,
-                st.terminal.scrollback,
-                st.terminal.copy_on_select,
-                st.terminal.right_click_copy_paste,
-                st.terminal.link_detection,
-            )
-        };
-        let Some(profile) = profiles
-            .iter()
-            .find(|p| p.id == default)
-            .or(profiles.first())
-            .cloned()
-        else {
-            self.terminal_error = Some(services.t("terminal-no-shell"));
-            return;
-        };
-        let waker = services.runtime.waker();
-        let waker: std::sync::Arc<dyn Fn() + Send + Sync> =
-            std::sync::Arc::new(move || waker.request_repaint());
-        let cwd = services.workspace.read().root().to_path_buf();
-        match hs_term::session::Session::spawn(profile, Some(&cwd), 100, 12, scrollback, waker) {
-            Ok(session) => {
-                let mut view =
-                    hs_term::widget::TerminalView::new(egui::Id::new("hs-dock-terminal"), font);
-                view.copy_on_select = copy;
-                view.right_click_copy_paste = right_click;
-                view.link_detection = links;
-                self.terminal = Some((session, view));
-            }
-            Err(e) => self.terminal_error = Some(e),
-        }
-    }
 }
 
 pub fn show(
@@ -80,7 +36,6 @@ pub fn show(
             (DockTab::Output, "dock-output"),
             (DockTab::Jobs, "dock-jobs"),
             (DockTab::Problems, "dock-problems"),
-            (DockTab::Terminal, "dock-terminal"),
         ] {
             let label = if tab == DockTab::Jobs && running > 0 {
                 format!("{} ({running})", services.t(key))
@@ -152,38 +107,6 @@ pub fn show(
         }
         DockTab::Problems => {
             ui.colored_label(theme.text_muted, "—");
-        }
-        DockTab::Terminal => {
-            state.ensure_terminal(services);
-            let tt = hs_term::widget::TermTheme::for_theme(&hs_ui::theme::Theme::from_settings(
-                &services.settings.read().appearance,
-            ));
-            if let Some(err) = state.terminal_error.clone() {
-                ui.colored_label(theme.error, err);
-                if ui.button(services.t("terminal-restart")).clicked() {
-                    state.terminal_error = None;
-                    state.terminal = None;
-                }
-            } else if let Some((session, view)) = state.terminal.as_mut() {
-                let _ = session.drain_events();
-                if let Some(code) = session.exited() {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            services
-                                .i18n
-                                .t_args("terminal-exited", &[("code", &code.to_string())]),
-                        );
-                        if ui.button(services.t("terminal-restart")).clicked() {
-                            state.terminal = None;
-                        }
-                    });
-                } else {
-                    let r = view.show(ui, session, &tt);
-                    if r.link.is_some() {
-                        state.pending_link = r.link;
-                    }
-                }
-            }
         }
     }
 }

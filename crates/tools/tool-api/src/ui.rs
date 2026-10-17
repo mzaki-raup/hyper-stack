@@ -736,6 +736,37 @@ fn items_ui(
                             );
                         })
                 });
+                // A folder is a drop target in its own right. Between-rows
+                // drops can only reach a folder that is open and not empty,
+                // which is why dragging "into a folder" looked broken: a
+                // collapsed or empty one had no rows to aim between.
+                // Owner's report, 2026-10-17.
+                let inside = scope_of(collection, Some(&f.id));
+                let from_elsewhere = hs_ui::reorder::dragged_scope(ui.ctx())
+                    .is_some_and(|src| src != inside && from_scope(&src).0 == collection);
+                if from_elsewhere {
+                    let rect = r.header_response.rect;
+                    if ui
+                        .input(|i| i.pointer.interact_pos())
+                        .is_some_and(|p| rect.contains(p))
+                    {
+                        // One indicator, not two: this drop has no place
+                        // in the list the pointer happens to be over.
+                        reorder.suppress_target();
+                    }
+                    if let Some(d) = hs_ui::reorder::drop_onto(ui, rect, theme.accent) {
+                        let (c, from_folder) = from_scope(&d.scope);
+                        actions.push(SideAction::MoveItem {
+                            collection: c,
+                            from_folder,
+                            from: d.index,
+                            // Past the end: the handler clamps, so the row
+                            // lands at the bottom of the folder it joined.
+                            to: usize::MAX,
+                            to_folder: Some(f.id.clone()),
+                        });
+                    }
+                }
                 r.header_response.context_menu(|ui| {
                     if ui.button(s.t("api-new-request")).clicked() {
                         actions.push(SideAction::NewRequest(
@@ -866,6 +897,62 @@ fn items_ui(
 /// How one level of the tree names itself in a drag payload. The unit
 /// separator cannot appear in an id, so the two halves always split back
 /// out cleanly.
+/// The request's name, edited in place. The rename reaches the collection
+/// the moment the field loses focus or Enter is pressed, so the list and
+/// the tab follow without a separate Save; a name already used beside it
+/// is numbered, the way a copy or a dragged-in row is.
+fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+    let s = cx.services;
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(s.t("api-request-name"))
+                .size(11.0)
+                .color(theme.text_muted),
+        );
+        let r = ui.add(
+            egui::TextEdit::singleline(&mut t.request.name)
+                .hint_text(s.t("api-request-name-hint"))
+                .desired_width(f32::INFINITY),
+        );
+        let done = r.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+        if !(r.changed() || done) {
+            return;
+        }
+        if !done {
+            // Still typing: the tab title follows live, the file waits.
+            return;
+        }
+        let Some((collection, id)) = t.state_collection().zip(t.state_request_id()) else {
+            // An unsaved draft has no row to rename; the name travels with
+            // it when it is saved.
+            return;
+        };
+        let typed = t.request.name.trim().to_string();
+        if typed.is_empty() {
+            // Blank is not a name. Put back whatever the file still says.
+            if let Some(saved) = t.saved.as_ref().map(|r| r.name.clone()) {
+                t.request.name = saved;
+            }
+            return;
+        }
+        let taken: Vec<String> = t
+            .sibling_names_excluding(&collection, &id)
+            .into_iter()
+            .collect();
+        let free = crate::model::free_name(&typed, &taken);
+        t.request.name = free.clone();
+        if let Some(col) = t.collections.iter_mut().find(|c| c.id == collection)
+            && let Some(req) = col.find_mut(&id)
+        {
+            req.name = free;
+        }
+        t.save_collection(&collection, cx);
+        if let Some(saved) = t.saved.as_mut() {
+            saved.name = t.request.name.clone();
+        }
+    });
+}
+
 fn scope_of(collection: &str, folder: Option<&str>) -> String {
     format!("{collection}\u{1}{}", folder.unwrap_or(""))
 }
@@ -914,6 +1001,13 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
     };
     let mut send = false;
     let mut save = false;
+    // The request's name, above the action bar and editable in place. It
+    // used to be reachable only through the list's Rename dialog, which is
+    // a long way to go for the one piece of text that names the tab, the
+    // row in the list and the thing being sent. Owner's requirement,
+    // 2026-10-17.
+    name_row(t, ui, cx, theme);
+    ui.add_space(4.0);
     ui.horizontal(|ui| {
         // The picker is sized to the URL field beside it: a ComboBox is
         // shorter than a text field by default, and the two frames then

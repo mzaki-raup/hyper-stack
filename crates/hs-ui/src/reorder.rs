@@ -79,6 +79,14 @@ impl Reorder {
         }
     }
 
+    /// Forget the drop boundary worked out this frame. A tree calls this
+    /// when the pointer is over a folder's header, where the drop means
+    /// "into this folder" rather than "between these two rows", so only
+    /// one indicator is painted.
+    pub fn suppress_target(&mut self) {
+        self.target = None;
+    }
+
     /// Whether a row of this list is being dragged right now, so the caller
     /// can dim it or suppress a hover effect.
     pub fn dragging(&self) -> bool {
@@ -227,6 +235,53 @@ fn paint_grip(painter: &egui::Painter, rect: egui::Rect, colour: egui::Color32) 
             );
         }
     }
+}
+
+/// Where a row came from, reported by [`drop_onto`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Dropped {
+    /// What the source list called itself.
+    pub scope: String,
+    /// The row's index in that list.
+    pub index: usize,
+}
+
+/// What the row in flight calls its list, without consuming the drag.
+/// A tree uses it to decide whether a target should light up at all —
+/// a folder does not accept a row it already holds.
+pub fn dragged_scope(ctx: &egui::Context) -> Option<String> {
+    egui::DragAndDrop::payload::<DragIndex>(ctx)?.scope.clone()
+}
+
+/// A drop *onto* something rather than between two rows: a tree's folder,
+/// which may be collapsed or empty and so has no rows of its own to aim
+/// between. Paints `rect` while a dragged row is over it and reports the
+/// source once the pointer is released. Owner's requirement, 2026-10-17.
+pub fn drop_onto(ui: &mut egui::Ui, rect: egui::Rect, colour: egui::Color32) -> Option<Dropped> {
+    egui::DragAndDrop::payload::<DragIndex>(ui.ctx())?;
+    let pointer = ui.input(|i| i.pointer.interact_pos())?;
+    if !rect.contains(pointer) {
+        return None;
+    }
+    // A filled wash plus an outline: the line used between rows would say
+    // the wrong thing here, because this drop has no position in a list.
+    let painter = ui.painter();
+    painter.rect_filled(rect, 4.0, colour.gamma_multiply(0.20));
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(4),
+        egui::Stroke::new(1.5, colour),
+        egui::StrokeKind::Inside,
+    );
+    if !ui.input(|i| i.pointer.any_released()) {
+        ui.ctx().request_repaint();
+        return None;
+    }
+    let p = egui::DragAndDrop::take_payload::<DragIndex>(ui.ctx())?;
+    Some(Dropped {
+        scope: p.scope.clone()?,
+        index: p.index,
+    })
 }
 
 /// The payload: which row left. Its own type so two lists on screen cannot

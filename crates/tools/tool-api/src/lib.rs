@@ -254,6 +254,29 @@ impl ApiTool {
             .unwrap_or_default()
     }
 
+    /// The names beside a request, not counting the request itself, so
+    /// renaming it to what it is already called is not a clash.
+    pub(crate) fn sibling_names_excluding(&self, collection: &str, id: &str) -> Vec<String> {
+        let folder = self
+            .collections
+            .iter()
+            .find(|c| c.id == collection)
+            .and_then(|c| c.find(id))
+            .and_then(|(_, folders)| folders.last().map(|f| f.id.clone()));
+        self.collections
+            .iter()
+            .find(|c| c.id == collection)
+            .and_then(|c| c.items(folder.as_deref()))
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|i| i.id() != id)
+                    .map(|i| i.name().to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Where a request made from the sidebar's New Request button should
     /// go: beside the one that is open, else the first collection. `None`
     /// when there are no collections yet and one has to be made first.

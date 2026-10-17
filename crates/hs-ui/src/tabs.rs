@@ -533,10 +533,26 @@ impl TabStrip<'_> {
         let compact = self.compact;
         r.context_menu(|ui| {
             let mut pick = |ui: &mut egui::Ui, label: &str, action: TabMenuAction| {
-                if ui.button(label).clicked() {
-                    resp.menu = Some((tid, action));
-                    ui.close();
+                if !ui.button(label).clicked() {
+                    return;
                 }
+                // egui lays the frame out twice when the strip's size
+                // changes, and `clicked()` is pointer *state*, not an
+                // event, so the second pass sees the same click. Opening
+                // a tab changes the strip, so Duplicate acted twice and
+                // made two copies. Both passes report the same time, so
+                // that is what tells a repeat from a second click.
+                let now = ui.input(|i| i.time);
+                let key = egui::Id::new("tabstrip-last-menu");
+                let seen: Option<(u64, TabMenuAction, f64)> = ui.ctx().data(|d| d.get_temp(key));
+                if seen == Some((tid, action, now)) {
+                    ui.close();
+                    return;
+                }
+                ui.ctx()
+                    .data_mut(|d| d.insert_temp(key, (tid, action, now)));
+                resp.menu = Some((tid, action));
+                ui.close();
             };
             pick(ui, &labels.close, TabMenuAction::Close);
             pick(ui, &labels.close_others, TabMenuAction::CloseOthers);

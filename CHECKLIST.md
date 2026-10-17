@@ -253,12 +253,12 @@ start* are held or deferred by the owner's instruction.
 
 | Item | State | Notes |
 |---|---|---|
-| API client: outer-tab Duplicate copies the request, numbered, in its folder | In-Progress | `Tool::duplicate_state` + `ApiTool::duplicate_state`; live check owed |
-| API client: folder New Request numbers against the folder | In-Progress | `free_name` over `sibling_names`; live check owed |
-| API client: the sidebar's New Request button creates a request | In-Progress | `home_for_new_request`; it used to clear the editor to a draft the list never saw |
-| API client: the list is the source of truth for the workspace | Pending | follows from the three rows above; needs a pass over every path that can create a request |
-| API client: request-name row above the action bar, renaming in place | Pending | rename reflected in list and tab, numbered on a clash |
-| API client: drag a request between folders, sibling, parent and sub | Pending | owner reports it still does not work; numbered on a name clash in the target |
+| API client: outer-tab Duplicate copies the request, numbered, in its folder | Completed | `Tool::duplicate_state` + `ApiTool::duplicate_state`; verified live — one click produced `New Request 001` on disk and one new tab |
+| API client: folder New Request numbers against the folder | Completed | `free_name` over `sibling_names`; verified live — three clicks gave New Request, 001, 002 |
+| API client: the sidebar's New Request button creates a request | Completed | `home_for_new_request`; offers a collection when there are none; verified live |
+| API client: the list is the source of truth for the workspace | Completed | every creation path (button, folder menu, tab Duplicate) now writes into a collection on disk; verified live against the collection file |
+| API client: request-name row above the action bar, renaming in place | Completed | `name_row` writes through on Enter or blur; verified live — renaming to Orders updated the list row and the tab |
+| API client: drag a request between folders, sibling, parent and sub | Completed | `reorder::drop_onto` makes a folder a target in its own right; verified live — into a collapsed empty folder and back out again |
 | Browser: one outer tab per workspace, carrying its icon and name | Pending | multi-tab and multi-row move to the inner strip |
 | Browser: Favorites tab - tree with folders, per-workspace store | Pending | favicon or custom icon, right-click manage, delete confirmation, hideable detail pane, drag to reorder with a drop indicator |
 | Browser: Passwords tab - per-workspace store | Pending | name/url/icon/username/password/passkey/apikey; secrets go to the vault as `secret:<ulid>`, never the workspace file |

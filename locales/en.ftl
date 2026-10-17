@@ -1503,6 +1503,7 @@ api-filter = Filter requests…
 api-empty-hint = No collections yet. Create one, or import a Postman collection with the arrow button above.
 api-collection-name = Collection name
 api-request-name = Name
+api-request-name-hint = Name this request
 api-collection = Collection
 api-folder = Folder
 api-folder-root = (Collection root)

@@ -296,3 +296,33 @@ noise. The same colours are used in the sidebar, the method picker and the
 **tab**, where only the method is coloured and the request's name keeps
 the tab's own text colour (`TabItem::title_prefix`). Owner's requirement,
 2026-10-17.
+
+### The list is where requests live (2026-10-17)
+
+Three paths could make a request and only one of them put it in the list,
+which is why the sidebar's **New Request** button looked dead: it cleared
+the editor to an unsaved draft, and nothing appeared. All three now write
+into a collection on disk — the button (beside the open request, else the
+first collection, offering to make one when there are none), a folder's
+**New Request**, and **Duplicate** on a window tab. Each numbers its name
+against the folder it lands in, so a second New Request is `New Request
+001` rather than a collision.
+
+Duplicate on a window tab used to copy the tab's state, which gave two
+tabs claiming to be the same request. `Tool::duplicate_state` lets a tool
+say what a duplicate *is*: the default copies the tab, and the API client
+writes a numbered copy of the request into the same collection and folder
+for the new tab to open.
+
+A request is **renamed from the request itself**, in a name row above the
+method and URL. The rename reaches the collection when the field is left
+or Enter is pressed, so the list row and the tab title follow without a
+separate Save, and a name already in use beside it is numbered.
+
+**Dropping onto a folder** is its own kind of drop. Between-rows drops can
+only reach a folder that is open and has rows to aim between, so moving a
+request into a collapsed or empty one was impossible — which is what
+"dragging into a folder does not work" turned out to mean.
+`hs_ui::reorder::drop_onto` paints the folder as a target and reports the
+source, and the folder's header suppresses the between-rows indicator so
+only one is shown. Owner's requirements, 2026-10-17.

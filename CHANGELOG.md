@@ -42,7 +42,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   glyph when none is set, so the column says which workspace the pins
   below belong to rather than only naming it.
 
+- The API client's **list is where requests live**. All three ways of
+  making one — the sidebar's New Request button, a folder's New Request,
+  and Duplicate on a window tab — now write into a collection, each
+  numbering its name against the folder it lands in. The button used to
+  clear the editor to an unsaved draft, which from the list looks like
+  nothing happening at all, and Duplicate used to copy the tab, which
+  gave two tabs claiming to be the same request.
+
+- An API request can be **renamed from the request itself**, in a name row
+  above the method and URL. It reaches the collection when the field is
+  left or Enter is pressed, so the list row and the tab title follow
+  without a separate Save; a name already used beside it is numbered.
+
+- An API request can be **dropped onto a folder**, including one that is
+  collapsed or empty. Dropping between rows could only ever reach a folder
+  that was open with rows to aim between, which is what "dragging into a
+  folder does not work" meant.
+
 ### Fixed
+
+- **A tab's context-menu action no longer fires twice.** egui lays the
+  frame out again when the strip's size changes and `clicked()` is pointer
+  state rather than an event, so Duplicate ran on both passes and wrote
+  two copies.
 
 - **Home's Recent list is aligned left.** The rows were built with
   `add_sized`, which centres, leaving a ragged column of titles down the

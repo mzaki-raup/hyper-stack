@@ -409,6 +409,10 @@ impl Tool for TerminalTool {
         true
     }
 
+    fn home_is_dashboard(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

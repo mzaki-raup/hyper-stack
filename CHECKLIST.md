@@ -295,4 +295,6 @@ listed first.
 | Graphics: permanent first tab | Completed | `wants_home_tab`; the sidebar and preview pane are untouched |
 | Devtools: permanent home tab with a dashboard of open tools | Pending | tool name, kind and a thumbnail of the working pane |
 | Scratchpad: permanent home tab with a dashboard of open notes | Pending | note name and a thumbnail of the preview pane |
+| Editor: a terminal inside the editor | Pending | default PowerShell 7, set in Settings -> Editor |
+| Shell: a dashboard home tab is never taken over by a connection | Completed | `Tool::home_is_dashboard` keeps `unbound_tab` and the URI router off it; verified live — clicking a Database connection opened a second tab beside the permanent one instead of consuming it |
 | Devtools: bandwidth and speed conversion | Completed | a Bandwidth pane with both families and a transfer-time calculator; two tests |

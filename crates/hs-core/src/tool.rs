@@ -303,6 +303,18 @@ pub trait Tool: Send {
         None
     }
 
+    /// Whether this activity's home tab is a **dashboard** rather than a
+    /// working tab. A dashboard never takes a connection or a document:
+    /// opening one beside it is the point, since the dashboard is what
+    /// lists them. The browser and Graphics say no — their first tab is
+    /// permanent but is still the browser, or still an image.
+    ///
+    /// Without this, opening a connection filled the empty home tab and
+    /// the dashboard was gone. Owner's report, 2026-10-17.
+    fn home_is_dashboard(&self) -> bool {
+        false
+    }
+
     /// Whether this activity has a permanent home tab at all. The shell
     /// makes the first tab of such a tool its home: a dashboard that
     /// cannot be closed, pinned or duplicated. The editor says no, because

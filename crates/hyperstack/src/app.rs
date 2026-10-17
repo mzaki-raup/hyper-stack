@@ -678,7 +678,14 @@ impl HyperStackApp {
             .tabs
             .tabs
             .iter()
-            .filter(|t| t.factory_id == factory_id && t.tool.current_connection().is_none())
+            .filter(|t| {
+                t.factory_id == factory_id
+                    && t.tool.current_connection().is_none()
+                    // A dashboard holds no connection and never will: it
+                    // is the thing that lists them, so binding one to it
+                    // would replace the dashboard with a connection.
+                    && !(t.home && t.tool.home_is_dashboard())
+            })
             .map(|t| t.id);
         let first = candidates.next()?;
         if candidates.clone().any(|id| Some(id) == active) {
@@ -777,6 +784,7 @@ impl HyperStackApp {
                         .tabs
                         .iter()
                         .filter(|t| t.factory_id == factory_id)
+                        .filter(|t| !(t.home && t.tool.home_is_dashboard()))
                         .filter_map(|t| t.tool.uri_affinity(uri).map(|r| (r, t.id)))
                         .min_by_key(|(r, id)| (*r, Some(*id) != active))
                         .map(|(_, id)| id)

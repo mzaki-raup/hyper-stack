@@ -17,6 +17,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   past, pinned or duplicated, and its menu offers only Close Others and
   Close to the Right. Home and the browser have no tab menu at all.
 
+- **A dashboard home tab is never taken over.** Opening a connection used
+  to fill the first empty tab of that activity, which is exactly the tab
+  the dashboard lives in; it now opens beside it. The browser and Graphics
+  are unaffected — their first tab is permanent but is still the browser,
+  or still an image.
+
 - **The window strip has no add-tab button.** A tab comes from an
   activity's own sidebar or from Home; the + opened an untitled one nobody
   asked for. The inner strips — editor files, database queries, browser

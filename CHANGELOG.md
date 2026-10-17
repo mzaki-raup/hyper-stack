@@ -21,6 +21,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   a tab that is not on screen is never drawn and there is no picture to
   take.
 
+- The **API client's home tab is the workspace's**: its logo and name on
+  the tab, and a pane saying what the workspace holds — collections,
+  folders, requests, open tabs — with what to do next. With nothing saved
+  it is only the latter, because a summary of nothing is not worth
+  reading.
+
 - **A terminal's shell starts when a terminal is drawn**, not when the tool
   is made, so the Terminal dashboard does not sit on a live shell nobody
   asked for.

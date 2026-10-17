@@ -26,6 +26,15 @@ ignore = [
   # able to measure the timing of the user's own key signatures on the wire;
   # accepted for a local developer tool. Revisit when rsa ships a mitigation.
   { id = "RUSTSEC-2023-0071", reason = "rsa Marvin attack via russh; no upstream fix, RSA SSH keys still needed" },
+  # zvariant, zvariant_derive and zbus_names were folded into zbus 6.0 and
+  # are "unmaintained" as standalone crates from 2026-10-17. They reach us
+  # through accesskit_unix -> atspi, which is the **Linux** accessibility
+  # bridge: nothing on Windows loads them, and HyperStack calls none of
+  # them directly. Moving off is accesskit's to do, not ours. Revisit on
+  # the next egui/accesskit upgrade.
+  { id = "RUSTSEC-2026-0370", reason = "zvariant folded into zbus 6.0; transitive via accesskit_unix/atspi" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names folded into zbus 6.0; transitive via accesskit_unix/atspi" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive folded into zbus 6.0; transitive via accesskit_unix/atspi" },
 ]
 
 [licenses]

@@ -55,6 +55,22 @@ impl ToolFactory for ApiFactory {
     }
 }
 
+/// The workspace logo as an egui image URI, or `None` when none is set.
+fn workspace_icon(ctx: &egui::Context, s: &Services) -> Option<String> {
+    let root = s.workspace.read().root().to_path_buf();
+    let file = hs_core::workspace::workspace_icon_file(&root)?;
+    let bytes = std::fs::read(&file).ok()?;
+    let stamp = std::fs::metadata(&file)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let uri = format!("bytes://api-home-icon/{stamp}.png");
+    ctx.include_bytes(uri.clone(), bytes);
+    Some(uri)
+}
+
 /// The topic every API tab listens on for "the collections changed".
 pub(crate) const COLLECTIONS_CHANGED: &str = "api.collections";
 
@@ -84,6 +100,13 @@ pub struct Outcome {
 type Pending = Arc<Mutex<Option<Outcome>>>;
 
 pub struct ApiTool {
+    /// This tab is the activity's home, told by the shell each frame.
+    /// `title` and the tab's icon are asked for outside `ui`, where there
+    /// is nothing to ask. Owner's requirement, 2026-10-17.
+    is_home: bool,
+    /// The workspace's name and logo, for the home tab.
+    home_name: String,
+    home_icon: Option<String>,
     pub(crate) state: State,
     /// The request being edited (a copy of the saved one, or a draft).
     pub(crate) request: Request,
@@ -163,6 +186,9 @@ impl ApiTool {
         let globals = Globals::load(&api_dir.join("globals.json"));
         let history = model::load_history(&api_dir.join("history.jsonl"), 200);
         let mut t = Self {
+            is_home: false,
+            home_name: String::new(),
+            home_icon: None,
             request: Request::default(),
             saved: None,
             collections,
@@ -1069,6 +1095,14 @@ impl Tool for ApiTool {
     }
 
     fn title(&self) -> Cow<'_, str> {
+        // The home tab is the workspace's, not a request's.
+        if self.is_home {
+            return if self.home_name.is_empty() {
+                Cow::Borrowed("API Client")
+            } else {
+                Cow::Borrowed(&self.home_name)
+            };
+        }
         if self.request.name.is_empty() {
             Cow::Borrowed("Request")
         } else {
@@ -1080,8 +1114,22 @@ impl Tool for ApiTool {
     /// strip of request tabs can be read by colour. A method with no
     /// colour of its own is left to the tab's own text colour.
     fn tab_title_prefix(&self) -> Option<(String, egui::Color32)> {
+        // No method on the home tab: it holds no request.
+        if self.is_home {
+            return None;
+        }
         let colour = ui::method_rgb(&self.request.method)?;
         Some((self.request.method.clone(), colour))
+    }
+
+    /// The workspace's logo on the home tab, so it reads as the project's
+    /// API client rather than as another request.
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.is_home.then(|| self.home_icon.clone()).flatten()
+    }
+
+    fn tab_icon(&self) -> Option<&'static str> {
+        self.is_home.then_some(hs_ui::icons::WORKSPACE)
     }
 
     fn dirty(&self) -> bool {
@@ -1095,6 +1143,15 @@ impl Tool for ApiTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         self.poll(cx);
         let theme = Theme::from_settings(&cx.services.settings.read().appearance);
+        // `title` and the tab's icon are asked for outside `ui`, where
+        // nothing says which tab this is; remember it while we are told.
+        self.is_home = cx.is_home;
+        if cx.is_home {
+            self.home_name = cx.services.workspace.read().meta.name.clone();
+            self.home_icon = workspace_icon(ui.ctx(), cx.services);
+            ui::home(self, ui, cx, &theme);
+            return;
+        }
         let full = ui.available_rect_before_wrap();
         let main_rect = if self.assistant.open {
             egui::Rect::from_min_max(full.min, egui::pos2(full.right() - 390.0, full.bottom()))

@@ -1958,3 +1958,8 @@ dash-tools = Tools
 dash-notes = Notes
 dash-requests = Requests
 dash-collections = Collections
+api-folders = Folders
+api-home-next = What Would You Like to Do?
+api-home-empty-hint =
+    Nothing saved for this workspace yet. Make a collection to put requests
+    in, or import one from Postman.

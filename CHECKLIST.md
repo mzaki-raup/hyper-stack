@@ -281,7 +281,7 @@ listed first.
 |---|---|---|
 | Shell: a tool's first window tab is permanent | Completed | `Tool::wants_home_tab` + `TabEntry::home` + `TabItem::permanent`; verified live — the Database home tab offers only Close Others and Close to the Right and wears no close cross |
 | Shell: remove the add-new-tab button from the window strip | Completed | `TabStrip::show_new_tab`; the inner strips (editor files, database queries, browser pages) keep theirs |
-| API client: a permanent home tab with the workspace logo and name | Pending | collection/request summary when there are any, otherwise what-to-do options; the sidebar keeps create/filter |
+| API client: a permanent home tab with the workspace logo and name | Completed | `ui::home`; the tab carries the workspace's logo and name with no method prefix, the pane shows the summary when there are collections and the what-to-do options either way; verified live on an empty workspace |
 | API client: duplicate a collection or a folder with everything in it | Completed | `model::deep_copy` gives new ids throughout; one test proves a duplicated folder shares no ids with the original |
 | API client: the list refreshes wherever a request is created | Completed | an `Event::Custom` on `api.collections` after every write; the writing tab skips its own |
 | Terminal: permanent home tab with a dashboard of open terminals | Completed | the shell now starts on the first frame that draws a terminal, not when the tool is made, so the home tab has none; verified live — the dashboard listed 6 shells and 0 open tabs, and opening one gave a live PowerShell beside it |

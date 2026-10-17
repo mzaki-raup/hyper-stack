@@ -365,7 +365,7 @@ fn kv_table(ui: &mut egui::Ui, theme: &Theme, s: &Services, list: &mut Vec<Kv>, 
 // ---------------------------------------------------------------------------
 // Sidebar
 
-enum SideAction {
+pub(crate) enum SideAction {
     Open(String, String),
     NewRequest(String, Option<String>),
     NewFolder(String, Option<String>),
@@ -541,6 +541,14 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 }
             }
         });
+    apply_side_actions(t, actions, cx);
+}
+
+/// Carry out what the sidebar (or the home tab) asked for. Its own
+/// function so the home tab can push the same actions rather than
+/// repeating what each one means.
+pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: &mut ToolContext) {
+    let s = cx.services;
     for a in actions {
         match a {
             SideAction::Open(c, r) => {
@@ -1027,6 +1035,133 @@ fn status_colour(theme: &Theme, status: u16) -> egui::Color32 {
 
 // ---------------------------------------------------------------------------
 // Main area
+
+/// The API client's home tab: whose workspace this is, what it holds, and
+/// what to do next. With no collections yet it is only the last of those,
+/// because a summary of nothing is not worth reading.
+/// Owner's requirement, 2026-10-17.
+pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+    let s = cx.services;
+    let (name, root) = {
+        let w = s.workspace.read();
+        (w.meta.name.clone(), w.root().to_path_buf())
+    };
+    let requests: usize = t.collections.iter().map(|c| count_requests(&c.items)).sum();
+    let folders: usize = t.collections.iter().map(|c| count_folders(&c.items)).sum();
+    let tabs = s.open_tabs.of("api");
+    // The workspace's own logo beside its name, so the tab says whose
+    // requests these are rather than only naming the tool.
+    ui.horizontal(|ui| {
+        match hs_core::workspace::workspace_icon_file(&root).and_then(|f| std::fs::read(f).ok()) {
+            Some(bytes) => {
+                let uri = format!("bytes://api-home-logo/{name}");
+                ui.ctx().include_bytes(uri.clone(), bytes);
+                ui.add(egui::Image::from_uri(uri).fit_to_exact_size(egui::Vec2::splat(28.0)));
+            }
+            None => {
+                ui.label(
+                    egui::RichText::new(hs_ui::icons::WORKSPACE)
+                        .size(24.0)
+                        .color(theme.text_muted),
+                );
+            }
+        }
+        ui.add_space(8.0);
+        ui.vertical(|ui| {
+            ui.label(egui::RichText::new(&name).strong().size(20.0));
+            ui.label(
+                egui::RichText::new(s.t("api-dashboard-sub"))
+                    .size(12.0)
+                    .color(theme.text_muted),
+            );
+        });
+    });
+    ui.add_space(10.0);
+    let empty = t.collections.is_empty();
+    if !empty {
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &t.collections.len().to_string(),
+                &s.t("dash-collections"),
+            );
+            hs_ui::dashboard::stat(ui, theme, &folders.to_string(), &s.t("api-folders"));
+            hs_ui::dashboard::stat(ui, theme, &requests.to_string(), &s.t("dash-requests"));
+            hs_ui::dashboard::stat(ui, theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        ui.add_space(4.0);
+    }
+    // What to do next. With nothing saved these are the whole page; with
+    // collections they sit under the summary.
+    let mut action: Option<SideAction> = None;
+    hs_ui::form::section(ui, theme, &s.t("api-home-next"), |ui| {
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .button(format!("{} {}", ph::FOLDER_PLUS, s.t("api-new-collection")))
+                .clicked()
+            {
+                action = Some(SideAction::NewCollection);
+            }
+            if !empty
+                && ui
+                    .button(format!("{} {}", ph::PLUS, s.t("api-new-request")))
+                    .clicked()
+                && let Some((c, folder)) = t.home_for_new_request()
+            {
+                action = Some(SideAction::NewRequest(c, folder));
+            }
+            if ui
+                .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("api-import-tip")))
+                .clicked()
+            {
+                action = Some(SideAction::Import);
+            }
+        });
+        if empty {
+            hs_ui::form::hint(ui, theme, &s.t("api-home-empty-hint"));
+        }
+    });
+    if let Some(a) = action {
+        apply_side_actions(t, vec![a], cx);
+    }
+    let labels = hs_ui::dashboard::DashboardLabels {
+        open_heading: &s.t("dash-open"),
+        nothing_open: &s.t("dash-nothing-open"),
+        no_preview: &s.t("dash-no-preview"),
+    };
+    egui::ScrollArea::vertical()
+        .id_salt("api-home")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            if let Some(id) = hs_ui::dashboard::open_tabs(ui, theme, &tabs, &labels) {
+                cx.actions
+                    .push(hs_core::tool::Action::FocusTab { tab_id: id });
+            }
+        });
+}
+
+/// How many requests a tree holds, at any depth.
+fn count_requests(items: &[Item]) -> usize {
+    items
+        .iter()
+        .map(|i| match i {
+            Item::Request(_) => 1,
+            Item::Folder(f) => count_requests(&f.items),
+        })
+        .sum()
+}
+
+/// How many folders a tree holds, at any depth.
+fn count_folders(items: &[Item]) -> usize {
+    items
+        .iter()
+        .map(|i| match i {
+            Item::Request(_) => 0,
+            Item::Folder(f) => 1 + count_folders(&f.items),
+        })
+        .sum()
+}
 
 pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
     let s = cx.services;

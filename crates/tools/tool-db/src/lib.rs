@@ -3097,9 +3097,16 @@ impl DbTool {
         let reusable = reusable_tab(self.docs.iter().map(|d| (d.file.is_none(), d.buf.text())));
         match reusable {
             Some(i) => {
-                self.docs[i].buf = Buffer::from_text(sql);
-                self.docs[i].buf.mark_saved();
-                self.docs[i].cursors = Cursors::single(0);
+                // A whole new document, not a new buffer under the old
+                // view: `EditorView` caches per-line spans and only drops
+                // them when the buffer version moves, and a buffer built
+                // with `from_text` starts its versions again — so the view
+                // kept the empty line's layout and drew one character of
+                // the statement. Verified live, 2026-10-17.
+                let uid = self.docs[i].uid;
+                let mut doc = QueryDoc::new(s, sql);
+                doc.uid = uid;
+                self.docs[i] = doc;
                 self.state.active_query = i;
             }
             None => {

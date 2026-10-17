@@ -19,6 +19,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   the front tab looking like the cause of the result. An Untitled tab that
   is still empty is filled rather than added to.
 
+### Fixed
+
+- A query tab refilled from the schema tree **shows the whole statement**.
+  Replacing the buffer under an existing editor view left that view's
+  cached line layout behind, so the first Open Data drew a single
+  character of its own `SELECT`.
+
 ## 0.33.0 — 2026-10-17
 
 ### Added

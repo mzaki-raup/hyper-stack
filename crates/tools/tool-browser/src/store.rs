@@ -91,6 +91,20 @@ impl Default for FavFolder {
     }
 }
 
+/// Every link's URL in a tree of favourites, folders walked in order, so
+/// the sidebar and the favourites bar can ask for each site's favicon the
+/// way a page tab does. Owner's request, 2026-10-18.
+pub fn link_urls(items: &[FavItem]) -> Vec<String> {
+    let mut out = Vec::new();
+    for it in items {
+        match it {
+            FavItem::Link(l) => out.push(l.url.clone()),
+            FavItem::Folder(f) => out.extend(link_urls(&f.items)),
+        }
+    }
+    out
+}
+
 /// A workspace's favourites.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -448,6 +462,38 @@ mod tests {
         assert_eq!(f.items(Some(&parent)).map(Vec::len), Some(1));
         assert!(f.remove(&inner_id).is_some());
         assert!(f.link(&inner_id).is_none());
+    }
+
+    #[test]
+    fn link_urls_walk_every_folder() {
+        let f = Favorites {
+            items: vec![
+                FavItem::Link(Favorite {
+                    url: "https://a.test".into(),
+                    ..Default::default()
+                }),
+                folder(
+                    "Work",
+                    vec![
+                        FavItem::Link(Favorite {
+                            url: "https://b.test".into(),
+                            ..Default::default()
+                        }),
+                        folder(
+                            "Deep",
+                            vec![FavItem::Link(Favorite {
+                                url: "https://c.test".into(),
+                                ..Default::default()
+                            })],
+                        ),
+                    ],
+                ),
+            ],
+        };
+        assert_eq!(
+            link_urls(&f.items),
+            vec!["https://a.test", "https://b.test", "https://c.test"]
+        );
     }
 
     #[test]

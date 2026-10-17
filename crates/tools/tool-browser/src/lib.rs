@@ -463,11 +463,15 @@ impl BrowserTool {
         services: &Services,
     ) -> HashMap<String, Option<String>> {
         use hs_core::favicon;
-        let origins: Vec<(String, String)> = self
-            .state
-            .pages
-            .iter()
-            .filter_map(|p| favicon::origin_of(&p.url).map(|o| (p.url.clone(), o)))
+        // The open pages, and every favourite: the sidebar and the
+        // favourites bar show a site's icon the way a page tab does, one
+        // fetch per origin. Owner's request, 2026-10-18.
+        let mut urls: Vec<String> = self.state.pages.iter().map(|p| p.url.clone()).collect();
+        urls.extend(store::link_urls(&self.favorites.items));
+        urls.dedup();
+        let origins: Vec<(String, String)> = urls
+            .into_iter()
+            .filter_map(|u| favicon::origin_of(&u).map(|o| (u, o)))
             .collect();
         let mut out = HashMap::new();
         for (url, origin) in origins {

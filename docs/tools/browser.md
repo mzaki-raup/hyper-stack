@@ -253,6 +253,9 @@ Ctrl+click opens it in a new page behind this one; a folder is a menu and
 a sub-folder a sub-menu; a long name is cut; what does not fit at the
 window's width goes behind a » at the right; the right-click menu offers
 Open in New Page, Edit (which selects it in the sidebar's editor) and
-Remove. A chip shows the site's favicon once a page of that site has been
-visited, a globe before. `tool-browser::favbar`. Owner's requirement,
+Remove. A chip shows the site's favicon: the favicon fetch that page tabs
+use runs for every favourite's origin as well (`store::link_urls`), so the
+bar and the sidebar show real icons without a visit, and a globe only for a
+site that has none. Chips sit 10 px apart with padding of their own, so
+neighbours do not read as one word (owner's request, 2026-10-18). `tool-browser::favbar`. Owner's requirement,
 2026-10-18.

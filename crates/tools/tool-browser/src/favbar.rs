@@ -58,7 +58,10 @@ pub fn show(
                 return;
             }
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
+                // Room between chips and inside them, so neighbours do not
+                // read as one word. Owner's request, 2026-10-18.
+                ui.spacing_mut().item_spacing.x = 10.0;
+                ui.spacing_mut().button_padding = egui::vec2(8.0, 3.0);
                 let total = ui.available_width();
                 let mut shown = 0;
                 for it in items.iter() {
@@ -96,7 +99,7 @@ fn chip_width(ui: &egui::Ui, it: &FavItem) -> f32 {
         .size()
         .x
     });
-    (text + 16.0 + 14.0).min(CHIP_MAX)
+    (text + 16.0 + 16.0 + 10.0).min(CHIP_MAX + 26.0)
 }
 
 /// One chip: a site, or a folder that opens as a menu.

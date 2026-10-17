@@ -367,6 +367,21 @@ impl QueryDoc {
     }
 }
 
+/// Lay a statement out again: one clause to a line, indented, keywords
+/// as they were typed. `sqlformat` is dialect-agnostic, which suits a tool
+/// that speaks three of them. Owner's requirement, 2026-10-17.
+fn prettify_sql(sql: &str, indent: u8) -> String {
+    let options = sqlformat::FormatOptions {
+        indent: sqlformat::Indent::Spaces(indent),
+        lines_between_queries: 1,
+        // Keywords stay as the user typed them: this lays a statement out,
+        // it does not have opinions about case.
+        uppercase: None,
+        ..Default::default()
+    };
+    sqlformat::format(sql, &sqlformat::QueryParams::None, &options)
+}
+
 impl DbTool {
     fn doc(&self) -> &QueryDoc {
         let i = self
@@ -2383,6 +2398,15 @@ impl Tool for DbTool {
         ) {
             self.run(RunMode::Explain, s);
         }
+        if btn(
+            ui,
+            !running,
+            ph::TEXT_ALIGN_LEFT,
+            "db-prettify",
+            s.t("db-prettify-tip"),
+        ) {
+            self.prettify();
+        }
         drop(km);
         ui.separator();
         let tx_label = if self.state.manual_tx {
@@ -3056,6 +3080,29 @@ impl DbTool {
         self.state.query_file = self.doc().file.clone();
         self.query_name = self.doc().name.clone();
         self.state.queries = self.docs.iter().map(|d| d.file.clone()).collect();
+    }
+
+    /// Replace the query tab's text with a laid-out version of itself.
+    /// The whole buffer, not the statement under the caret: a script is
+    /// formatted as a script, and `sqlformat` keeps the statements apart.
+    fn prettify(&mut self) {
+        let indent = if self.doc().view.tab_inserts_spaces {
+            2
+        } else {
+            4
+        };
+        let text = self.doc().buf.text();
+        if text.trim().is_empty() {
+            return;
+        }
+        let out = prettify_sql(&text, indent);
+        if out.trim() == text.trim() {
+            return;
+        }
+        let d = self.doc_mut();
+        d.buf = Buffer::from_text(&out);
+        d.cursors = Cursors::single(0);
+        d.view.error_ranges.clear();
     }
 
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

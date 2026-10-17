@@ -296,14 +296,25 @@ fn human_size(n: usize) -> String {
     }
 }
 
+/// The colour an HTTP method is shown in. Fixed colours rather than theme
+/// roles: these are the ones every API tool uses, and a reader picks the
+/// verb out by its colour before reading the word. Owner's rule,
+/// 2026-10-17.
+pub fn method_rgb(method: &str) -> Option<egui::Color32> {
+    Some(match method {
+        "GET" => egui::Color32::from_rgb(0x3F, 0xB9, 0x50),
+        "POST" => egui::Color32::from_rgb(0x3B, 0x82, 0xF6),
+        "PUT" => egui::Color32::from_rgb(0xF5, 0x9E, 0x0B),
+        "PATCH" => egui::Color32::from_rgb(0xA8, 0x55, 0xF7),
+        "DELETE" => egui::Color32::from_rgb(0xEF, 0x44, 0x44),
+        // HEAD, OPTIONS and TRACE have no colour of their own: they are
+        // rare enough that one would be noise.
+        _ => return None,
+    })
+}
+
 pub fn method_colour(theme: &Theme, method: &str) -> egui::Color32 {
-    match method {
-        "GET" => theme.success,
-        "POST" => theme.secondary,
-        "PUT" | "PATCH" => theme.warning,
-        "DELETE" => theme.error,
-        _ => theme.text_muted,
-    }
+    method_rgb(method).unwrap_or(theme.text_muted)
 }
 
 fn to_rows(list: &[Kv]) -> Vec<KvRow> {
@@ -1805,7 +1816,27 @@ mod tests {
         assert_eq!(human_size(10), "10 B");
         assert_eq!(human_size(2048), "2.0 KB");
         let th = Theme::dark();
-        assert_eq!(method_colour(&th, "GET"), th.success);
         assert_eq!(status_colour(&th, 404), th.warning);
+    }
+
+    #[test]
+    fn a_method_has_its_own_colour_and_the_rest_are_muted() {
+        // The five that carry meaning are fixed colours, the same in both
+        // themes, so a reader picks the verb out before reading the word.
+        let th = Theme::dark();
+        for m in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
+            let c = method_rgb(m).unwrap_or_else(|| panic!("{m} has a colour"));
+            assert_eq!(method_colour(&th, m), c, "{m}");
+            assert_ne!(c, th.text_muted, "{m} is not the muted fallback");
+        }
+        // All five differ from one another.
+        let mut seen = std::collections::HashSet::new();
+        for m in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
+            assert!(seen.insert(method_rgb(m).unwrap()), "{m} repeats a colour");
+        }
+        for m in ["HEAD", "OPTIONS", "TRACE", "WHAT"] {
+            assert_eq!(method_rgb(m), None, "{m}");
+            assert_eq!(method_colour(&th, m), th.text_muted, "{m}");
+        }
     }
 }

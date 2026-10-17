@@ -213,6 +213,8 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Home: Get Started in the owner's order | Completed | workspace, environments, connection, project, terminal, quick open; verified live |
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
+| Database: Prettify lays the open query out again | Completed | `sqlformat` 0.5 (MIT OR Apache-2.0, `cargo deny` clean); verified live — a one-line join became 13 indented lines |
+| API client: the method is coloured, in the tab too | Completed | `ui::method_rgb` fixed colours, `TabItem::title_prefix` colours only the method; verified live — GET, POST, PUT and DELETE tabs each in their own colour |
 | API client: one window tab per request | Completed | `uri_affinity` claims an `api://` URI only while the tab is empty, the exact URI focuses the tab that has it; verified live — Ping filled the empty tab, Health opened a second, Ping again focused the first |
 | API client: drag a request between folders | Completed | `Reorder::scoped` names each level in the drag payload, `Move::From` carries it; verified live — four drags in and out of a folder, each correct on disk |
 | API client: a copy or a clashing drop is numbered " 001" | Completed | `model::next_copy_name` and `free_name` (3 tests); verified live |

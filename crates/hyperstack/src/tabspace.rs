@@ -43,6 +43,8 @@ pub struct TabView {
     pub icon: &'static str,
     /// An image to draw instead of `icon`, when the tool offers one.
     pub icon_uri: Option<String>,
+    /// A coloured piece before the title, when the tool offers one.
+    pub prefix: Option<(String, Color32)>,
     pub pinned: bool,
     pub dirty: bool,
     pub colour: Option<Color32>,
@@ -61,6 +63,9 @@ impl TabItem for TabView {
     }
     fn icon_uri(&self) -> Option<String> {
         self.icon_uri.clone()
+    }
+    fn title_prefix(&self) -> Option<(String, Color32)> {
+        self.prefix.clone()
     }
     fn pinned(&self) -> bool {
         self.pinned
@@ -100,6 +105,7 @@ impl TabSpace {
                 title: t.tool.title().to_string(),
                 icon: t.tool.descriptor().icon,
                 icon_uri: t.tool.tab_icon_uri(),
+                prefix: t.tool.tab_title_prefix(),
                 pinned: t.pinned,
                 dirty: t.tool.dirty(),
                 colour: t.colour.or_else(|| env_colour(t.tool.environment())),

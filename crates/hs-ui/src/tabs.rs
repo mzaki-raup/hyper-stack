@@ -35,6 +35,11 @@ pub trait TabItem {
     fn icon_uri(&self) -> Option<String> {
         None
     }
+    /// A short piece drawn before the title in a colour of its own: the
+    /// API client's HTTP method, so the verb is picked out by colour.
+    fn title_prefix(&self) -> Option<(String, Color32)> {
+        None
+    }
     fn pinned(&self) -> bool;
     /// Whether this tab shows only its icon once pinned. True for the
     /// browser, where the favicon identifies the page; false everywhere
@@ -415,12 +420,30 @@ impl TabStrip<'_> {
                 Pos2::new(rect.right() - 14.0, rect.center().y),
                 Vec2::splat(18.0),
             );
-            let text_left = rect.left() + 30.0;
+            let mut text_left = rect.left() + 30.0;
             let text_right = if is_pinned {
                 rect.right() - 6.0
             } else {
                 close_rect.left() - 4.0
             };
+            // A coloured piece first, when the tool offers one: the API
+            // client's HTTP method, so a strip of requests reads by
+            // colour. Only the piece is coloured; the title is not.
+            if let Some((prefix, colour)) = tab.title_prefix() {
+                let g = painter.layout_no_wrap(prefix.clone(), font.clone(), colour);
+                // Only when the name still has somewhere to go: a method
+                // alone in a narrow tab says less than a truncated name.
+                if text_left + g.size().x + 24.0 < text_right {
+                    painter.text(
+                        Pos2::new(text_left, rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        prefix,
+                        font.clone(),
+                        colour,
+                    );
+                    text_left += g.size().x + 6.0;
+                }
+            }
             let title = tab.title();
             let galley = painter.layout_no_wrap(title.clone(), font.clone(), self.theme.text);
             let avail = (text_right - text_left).max(0.0);

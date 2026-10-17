@@ -989,12 +989,19 @@ impl Tool for ApiTool {
     }
 
     fn title(&self) -> Cow<'_, str> {
-        let name = if self.request.name.is_empty() {
-            "Request"
+        if self.request.name.is_empty() {
+            Cow::Borrowed("Request")
         } else {
-            &self.request.name
-        };
-        Cow::Owned(format!("{} {name}", self.request.method))
+            Cow::Borrowed(&self.request.name)
+        }
+    }
+
+    /// The method, in the colour it is shown in everywhere else, so a
+    /// strip of request tabs can be read by colour. A method with no
+    /// colour of its own is left to the tab's own text colour.
+    fn tab_title_prefix(&self) -> Option<(String, egui::Color32)> {
+        let colour = ui::method_rgb(&self.request.method)?;
+        Some((self.request.method.clone(), colour))
     }
 
     fn dirty(&self) -> bool {

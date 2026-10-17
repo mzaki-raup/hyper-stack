@@ -27,6 +27,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   connection rather than another window tab. A window tab is still exactly
   one connection.
 
+- **Prettify** in the database toolbar lays the open query out again:
+  one clause to a line, indented, statements kept apart, keywords left in
+  the case they were typed.
+
+- An HTTP **method has a colour of its own** — GET green, POST blue, PUT
+  amber, PATCH violet, DELETE red — in the sidebar, the picker and the
+  tab, where only the method is coloured and the request's name is not.
+
 - An API request **opens in its own window tab**, at most one per
   request: clicking one focuses the tab that has it, fills an empty tab,
   or opens a new one.

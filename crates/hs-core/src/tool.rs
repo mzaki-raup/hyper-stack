@@ -221,6 +221,12 @@ pub trait Tool: Send {
         None
     }
 
+    /// A short piece drawn before the tab's title in a colour of its own —
+    /// the API client's HTTP method. The title keeps the normal colour.
+    fn tab_title_prefix(&self) -> Option<(String, egui::Color32)> {
+        None
+    }
+
     fn dirty(&self) -> bool {
         false
     }

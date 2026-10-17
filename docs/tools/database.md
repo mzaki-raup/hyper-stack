@@ -354,3 +354,15 @@ editor uses for its files. Owner's requirement, 2026-10-17.
 - Running, completion, Explain, history and Save Query all act on the tab
   in front; `DbTool::doc()`/`doc_mut()` is the one place that decides which
   that is.
+
+### Prettify (2026-10-17)
+
+**Prettify** in the toolbar lays the open query tab out again: one clause
+to a line, indented, statements kept apart. It formats the **whole
+buffer**, not the statement under the caret — a script is a script, and
+`sqlformat` keeps its statements separate. Keywords are left in whatever
+case they were typed: this is a layout tool, not an opinion about style.
+The indent follows the editor's own tab setting (two spaces, or four when
+the editor inserts tabs). Nothing happens when the text is already laid
+out that way, so the button never dirties a tab for no reason. Owner's
+requirement, 2026-10-17.

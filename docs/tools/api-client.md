@@ -286,4 +286,13 @@ takes it rather than leaving a blank one behind, and otherwise a new tab
 opens (`uri_affinity` claims an `api://` URI only while the tab is empty).
 Owner's requirement, 2026-10-17.
 
+### The method has a colour (2026-10-17)
 
+Each HTTP method is shown in a fixed colour rather than a theme role —
+**GET** green, **POST** blue, **PUT** amber, **PATCH** violet, **DELETE**
+red — so the verb is picked out before the word is read. HEAD, OPTIONS and
+TRACE have none of their own: they are rare enough that a colour would be
+noise. The same colours are used in the sidebar, the method picker and the
+**tab**, where only the method is coloured and the request's name keeps
+the tab's own text colour (`TabItem::title_prefix`). Owner's requirement,
+2026-10-17.

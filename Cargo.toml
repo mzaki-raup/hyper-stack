@@ -125,6 +125,8 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 # tar, for the SFTP pane's "Download Zipped" (tar.gz alongside zip).
 tar = { version = "0.4", default-features = false }
+# Laying a SQL statement out again (Database -> Prettify).
+sqlformat = "0.5"
 notify = "8"
 tempfile = "3"
 ttf-parser = "0.25"

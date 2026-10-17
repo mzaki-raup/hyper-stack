@@ -13,6 +13,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **The API client imports Insomnia, Bruno and OpenAPI collections**, not
+  only Postman: Insomnia's v4 export, a Bruno collection folder (pick any
+  of its `.bru` files), and an OpenAPI 3 document in JSON or YAML with one
+  request per operation grouped by tag.
+
 - **Git has a write side in the editor's Source Control**: stage, unstage,
   discard (with a question), commit and amend, commit-and-push, fetch,
   pull (rebase by default), push, stashes and branches, under each

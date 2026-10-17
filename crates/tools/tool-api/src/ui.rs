@@ -688,7 +688,7 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
             SideAction::Export(c) => t.export_postman(&c, cx),
             SideAction::Import => {
                 if let Some(p) = rfd::FileDialog::new()
-                    .add_filter("Postman JSON", &["json"])
+                    .add_filter("Collections", &["json", "yaml", "yml", "bru"])
                     .pick_file()
                 {
                     t.import_postman_file(&p, cx);

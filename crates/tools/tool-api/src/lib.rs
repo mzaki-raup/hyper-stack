@@ -7,6 +7,7 @@
 //! environment (secrets from the vault at send time) and globals.
 
 pub mod assist;
+pub mod importers;
 pub mod model;
 pub mod postman;
 pub mod script;
@@ -446,8 +447,9 @@ impl ApiTool {
                 return;
             }
         };
-        // A collection, or an environment.
-        match postman::import_collection(&text) {
+        // A collection in any format the client reads, or a Postman
+        // environment.
+        match importers::import_file(path) {
             Ok(c) => {
                 let n = c.requests().len();
                 let id = c.id.clone();
@@ -488,7 +490,14 @@ impl ApiTool {
                         Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
                     }
                 }
-                Err(_) => cx.toast(ToastLevel::Error, collection_err),
+                Err(_) => cx.toast(
+                    ToastLevel::Error,
+                    if collection_err == "unknown" {
+                        s.t("api-import-unknown")
+                    } else {
+                        collection_err
+                    },
+                ),
             },
         }
     }

@@ -82,7 +82,7 @@ in the e2e test).
 
 ### M4 · API client + Git (6 w)
 - [x] `tool-api`: request editor (params/headers/body/auth: basic, bearer, API key; OAuth2 and SigV4 pending), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export — 2026-10-15
-- [x] Collections (one JSON file each), variables with scopes, Postman v2.1 import/export; JavaScript `pm` scripts on Boa — 2026-10-15 (Insomnia/Bruno/OpenAPI importers pending)
+- [x] Collections (one JSON file each), variables with scopes, Postman v2.1 import/export; JavaScript `pm` scripts on Boa — 2026-10-15 (Insomnia, Bruno and OpenAPI importers 2026-10-18)
 - [ ] `tool-git`: repo detection in project tree, status via `gix`, stage/unstage file + hunk, diff viewer on `hs-editor`, commit, branches, stash list, fetch/pull/push via git CLI with progress, credential helper passthrough, protected-remote guard
 
 ### M5 · Logs + Devtools core (4 w)

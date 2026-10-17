@@ -335,3 +335,20 @@ request into a collapsed or empty one was impossible — which is what
 `hs_ui::reorder::drop_onto` paints the folder as a target and reports the
 source, and the folder's header suppresses the between-rows indicator so
 only one is shown. Owner's requirements, 2026-10-17.
+
+### Importers: Insomnia, Bruno, OpenAPI (2026-10-18)
+
+The Import button takes more than Postman now (`tool-api::importers`):
+Insomnia's v4 export (workspace → collection, request groups → folders,
+the base environment → variables, ordered by `metaSortKey`), a **Bruno**
+collection (pick any `.bru` file or `bruno.json`; the folder holding
+`bruno.json` is the collection, sub-folders are folders, files are
+requests in `seq` order, with `~` marking a disabled header or query), and
+an **OpenAPI 3** document in JSON or YAML (one request per operation, the
+first tag as its folder, `servers[0]` as a `baseUrl` variable, query and
+header parameters with their examples, the first request-body example as
+the body). The YAML reader is the same small subset the Devtools YAML tool
+uses — the workspace carries no YAML crate, and an API description needs
+no anchors or tags. Whatever a client stores that the model has no place
+for is left behind rather than kept as opaque text. Postman v2.1 still
+comes first, and an unrecognised file says which formats are accepted.

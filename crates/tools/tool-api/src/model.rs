@@ -200,6 +200,13 @@ impl Item {
             Item::Folder(f) => &f.name,
         }
     }
+
+    pub fn set_name(&mut self, name: &str) {
+        match self {
+            Item::Request(r) => r.name = name.to_string(),
+            Item::Folder(f) => f.name = name.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -539,8 +546,95 @@ pub fn append_history(path: &Path, entry: &HistoryEntry, max: usize) {
     let _ = hs_core::storage::write_atomic(path, text.as_bytes());
 }
 
+/// The name a copy takes: the original with a space and a sequence number
+/// on the end, counting up past whatever is already there. "List" becomes
+/// "List 001", and copying "List 001" gives "List 002" rather than
+/// "List 001 001". Used both when a request is duplicated and when one is
+/// dragged somewhere a request of that name already lives. Owner's rule,
+/// 2026-10-17.
+pub fn next_copy_name(name: &str, taken: &[String]) -> String {
+    let stem = stem_of(name);
+    for n in 1..=999 {
+        let candidate = format!("{stem} {n:03}");
+        if !taken.iter().any(|t| t == &candidate) {
+            return candidate;
+        }
+    }
+    // Past 999 the sequence is no help; fall back to something unique.
+    format!("{stem} {}", crate::model::short_id())
+}
+
+/// The name with any sequence number this function added taken back off.
+/// Only " " plus three or more digits counts, so "HTTP 2" and "Step 42"
+/// keep their numbers and get a sequence of their own.
+fn stem_of(name: &str) -> &str {
+    let digits = name.chars().rev().take_while(char::is_ascii_digit).count();
+    if digits < 3 {
+        return name;
+    }
+    let head = &name[..name.len() - digits];
+    match head.strip_suffix(' ') {
+        Some(stem) if !stem.is_empty() => stem,
+        _ => name,
+    }
+}
+
+/// The name to give `name` in a list that already holds `taken`: itself
+/// when it is free, else the next numbered form.
+pub fn free_name(name: &str, taken: &[String]) -> String {
+    if !taken.iter().any(|t| t == name) {
+        return name.to_string();
+    }
+    next_copy_name(name, taken)
+}
+
+/// A short unique tail, for the case a sequence cannot be found.
+fn short_id() -> String {
+    hs_core::new_id().chars().rev().take(6).collect()
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_copy_counts_up_from_the_original_name() {
+        assert_eq!(next_copy_name("List", &[]), "List 001");
+        assert_eq!(
+            next_copy_name("List", &["List 001".to_string()]),
+            "List 002"
+        );
+        // Copying a copy continues the sequence rather than nesting.
+        assert_eq!(
+            next_copy_name("List 001", &["List 001".to_string()]),
+            "List 002"
+        );
+        assert_eq!(
+            next_copy_name("List", &["List 001".to_string(), "List 002".to_string()]),
+            "List 003"
+        );
+    }
+
+    #[test]
+    fn a_number_that_is_part_of_the_name_is_kept() {
+        // A sequence is a space and three or more digits; anything else
+        // belongs to the name and gets a sequence of its own.
+        assert_eq!(next_copy_name("HTTP2", &[]), "HTTP2 001");
+        assert_eq!(next_copy_name("v10", &[]), "v10 001");
+        assert_eq!(next_copy_name("Step 42", &[]), "Step 42 001");
+        assert_eq!(next_copy_name("Report2024", &[]), "Report2024 001");
+        assert_eq!(next_copy_name("Step 007", &[]), "Step 001");
+    }
+
+    #[test]
+    fn a_name_nothing_else_uses_is_left_alone() {
+        assert_eq!(free_name("List", &["Create".to_string()]), "List");
+        assert_eq!(free_name("List", &["List".to_string()]), "List 001");
+        assert_eq!(
+            free_name("List", &["List".to_string(), "List 001".to_string()]),
+            "List 002"
+        );
+    }
+
     use super::*;
 
     #[test]

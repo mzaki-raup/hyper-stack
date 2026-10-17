@@ -1281,8 +1281,15 @@ impl Tool for ApiTool {
     }
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
-        uri.starts_with("api://")
-            .then_some(if self.is_dirty() { 100 } else { 10 })
+        if !uri.starts_with("api://") {
+            return None;
+        }
+        // One tab per request: a tab that already holds one keeps it, and
+        // the shell opens another. A tab with nothing open takes the
+        // request rather than leaving a blank tab behind. The exact URI is
+        // matched before affinity is asked, so reopening a request focuses
+        // the tab that has it. Owner's requirement, 2026-10-17.
+        (self.state.request_id.is_none() && !self.is_dirty()).then_some(50)
     }
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {

@@ -266,3 +266,24 @@ The folder and request context menus went through Fluent at the same time
 — they had been written in English in the code, which the rest of the app
 does not do.
 
+### Across levels, and one tab per request (2026-10-17)
+
+A row can also be dragged **out of its level into another** — out of a
+folder, into one, or between a folder and its parent's siblings. Each
+level names itself in the drag payload (`Reorder::scoped`), so the level
+a row is dropped in knows where it came from and the tool takes it from
+there and inserts it here. A row never crosses into another *collection*:
+that is a different file, and a drag there would be a copy rather than a
+move. Dropping a folder inside itself would take the branch out of the
+tree, so the item goes back where it was instead.
+
+**A name already in use where a row lands gets numbered**, the same way a
+duplicate does: `List` arriving beside another `List` becomes `List 001`.
+
+**Clicking a request opens it in its own window tab**, at most one per
+request: the tab that already holds it is focused, a tab with nothing open
+takes it rather than leaving a blank one behind, and otherwise a new tab
+opens (`uri_affinity` claims an `api://` URI only while the tab is empty).
+Owner's requirement, 2026-10-17.
+
+

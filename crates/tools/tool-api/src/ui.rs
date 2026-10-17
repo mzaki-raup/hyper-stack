@@ -365,13 +365,15 @@ enum SideAction {
     Import,
     NewCollection,
     LoadHistory(usize),
-    /// Drag-reorder inside one level: the collection, the folder it is in
-    /// (`None` = the collection's own items), and the move. Collections
-    /// themselves reorder with `collection` empty.
-    Reorder {
+    /// A dragged row's new home: out of `from_folder` at `from`, into
+    /// `to_folder` at the boundary `to`. The two folders are equal for a
+    /// reorder within one level and differ when a row moves between
+    /// levels. `collection` empty means the collections themselves.
+    MoveItem {
         collection: String,
-        folder: Option<String>,
+        from_folder: Option<String>,
         from: usize,
+        to_folder: Option<String>,
         to: usize,
     },
 }
@@ -480,10 +482,11 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 });
             }
             if let Some((from, to)) = collections.finish(ui, theme.accent) {
-                actions.push(SideAction::Reorder {
+                actions.push(SideAction::MoveItem {
                     collection: String::new(),
-                    folder: None,
+                    from_folder: None,
                     from,
+                    to_folder: None,
                     to,
                 });
             }
@@ -515,7 +518,17 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
         });
     for a in actions {
         match a {
-            SideAction::Open(c, r) => t.open_request(&c, &r),
+            SideAction::Open(c, r) => {
+                // The shell decides where it lands: the tab that already
+                // holds this request, an empty one, or a new one.
+                cx.open(
+                    "api",
+                    Some(hs_core::tool::OpenRequest::File {
+                        uri: format!("api://{c}/{r}"),
+                        line: None,
+                    }),
+                );
+            }
             SideAction::NewRequest(c, folder) => {
                 let name = s.t("api-new-request-name");
                 t.new_request();
@@ -534,20 +547,52 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 t.save_collection(&c, cx);
             }
             SideAction::Rename(c, id, name) => t.rename = Some((format!("{c}/{id}"), name)),
-            SideAction::Reorder {
+            SideAction::MoveItem {
                 collection,
-                folder,
+                from_folder,
                 from,
+                to_folder,
                 to,
             } => {
                 // An empty collection id means the collections themselves.
                 if collection.is_empty() {
                     hs_ui::reorder::move_item(&mut t.collections, from, to);
                     t.save_order(cx);
-                } else if let Some(col) = t.collections.iter_mut().find(|x| x.id == collection)
-                    && let Some(items) = col.items_mut(folder.as_deref())
-                {
-                    hs_ui::reorder::move_item(items, from, to);
+                } else if let Some(col) = t.collections.iter_mut().find(|x| x.id == collection) {
+                    if from_folder == to_folder {
+                        if let Some(items) = col.items_mut(to_folder.as_deref()) {
+                            hs_ui::reorder::move_item(items, from, to);
+                        }
+                    } else {
+                        // Out of one level and into another: take it first,
+                        // then insert, so neither index is disturbed by the
+                        // other's edit.
+                        let taken = col
+                            .items_mut(from_folder.as_deref())
+                            .filter(|items| from < items.len())
+                            .map(|items| items.remove(from));
+                        if let Some(mut item) = taken {
+                            if let Some(items) = col.items_mut(to_folder.as_deref()) {
+                                // A name already in use where it lands gets
+                                // the same numbering a copy would.
+                                let names: Vec<String> =
+                                    items.iter().map(|i| i.name().to_string()).collect();
+                                let free = crate::model::free_name(item.name(), &names);
+                                if free != item.name() {
+                                    item.set_name(&free);
+                                }
+                                let at = to.min(items.len());
+                                items.insert(at, item);
+                            } else if let Some(items) = col.items_mut(from_folder.as_deref()) {
+                                // The target went with it: dropping a
+                                // folder inside itself takes the whole
+                                // branch out of the tree, so put it back
+                                // rather than losing it.
+                                let at = from.min(items.len());
+                                items.insert(at, item);
+                            }
+                        }
+                    }
                     t.save_collection(&collection, cx);
                 }
             }
@@ -576,10 +621,14 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 });
                 if let Some((mut r, folder)) = copy {
                     r.id = hs_core::new_id();
-                    r.name = format!("{} (copy)", r.name);
                     if let Some(col) = t.collections.iter_mut().find(|x| x.id == c)
                         && let Some(items) = col.items_mut(folder.as_deref())
                     {
+                        // Numbered against what is already beside it, so
+                        // two duplicates never land on the same name.
+                        let taken: Vec<String> =
+                            items.iter().map(|i| i.name().to_string()).collect();
+                        r.name = crate::model::next_copy_name(&r.name, &taken);
                         items.push(Item::Request(r));
                     }
                     t.save_collection(&c, cx);
@@ -623,11 +672,19 @@ fn items_ui(
 ) {
     // Each level reorders among its own siblings: a request never leaves
     // its folder by being dragged, which is the move people actually mean.
-    let mut reorder = hs_ui::reorder::Reorder::new((
-        "api-items",
-        collection.to_string(),
-        folder.unwrap_or("").to_string(),
-    ));
+    // Each level names itself, so a row dropped in another level says
+    // where it came from and the tool can move it across — out of a
+    // folder, into one, or between siblings. Owner's requirement,
+    // 2026-10-17.
+    let scope = scope_of(collection, folder);
+    let mut reorder = hs_ui::reorder::Reorder::scoped(
+        (
+            "api-items",
+            collection.to_string(),
+            folder.unwrap_or("").to_string(),
+        ),
+        scope,
+    );
     for (index, it) in items.iter().enumerate() {
         match it {
             Item::Folder(f) => {
@@ -755,13 +812,47 @@ fn items_ui(
             }
         }
     }
-    if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-        actions.push(SideAction::Reorder {
-            collection: collection.to_string(),
-            folder: folder.map(str::to_string),
-            from,
-            to,
-        });
+    if let Some(mv) = reorder.finish_move(ui, theme.accent) {
+        use hs_ui::reorder::Move;
+        let (from_collection, from_folder, from) = match &mv {
+            Move::Within { from, .. } => {
+                (collection.to_string(), folder.map(str::to_string), *from)
+            }
+            Move::From { scope, from, .. } => {
+                let (c, f) = from_scope(scope);
+                (c, f, *from)
+            }
+        };
+        let to = match mv {
+            Move::Within { to, .. } | Move::From { to, .. } => to,
+        };
+        // A row only ever moves inside the collection it belongs to: a
+        // request in another collection is a different file, and dragging
+        // one there would be a copy, not a move.
+        if from_collection == collection {
+            actions.push(SideAction::MoveItem {
+                collection: collection.to_string(),
+                from_folder,
+                from,
+                to_folder: folder.map(str::to_string),
+                to,
+            });
+        }
+    }
+}
+
+/// How one level of the tree names itself in a drag payload. The unit
+/// separator cannot appear in an id, so the two halves always split back
+/// out cleanly.
+fn scope_of(collection: &str, folder: Option<&str>) -> String {
+    format!("{collection}\u{1}{}", folder.unwrap_or(""))
+}
+
+fn from_scope(scope: &str) -> (String, Option<String>) {
+    match scope.split_once('\u{1}') {
+        Some((c, "")) => (c.to_string(), None),
+        Some((c, f)) => (c.to_string(), Some(f.to_string())),
+        None => (scope.to_string(), None),
     }
 }
 
@@ -1196,21 +1287,22 @@ fn scripts_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) 
         } else {
             &mut t.request.post_script
         };
-        let width = ui.available_width();
-        ui.allocate_ui(egui::vec2(width, each), |ui| {
-            egui::ScrollArea::vertical()
-                .id_salt(("api-script", field))
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(target)
-                            .hint_text(s.t(key))
-                            .font(egui::TextStyle::Monospace)
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(6),
-                    );
-                });
-        });
+        // Rows rather than a bare height, so the field itself fills its
+        // half instead of sitting at the top of an empty box.
+        let line = ui.text_style_height(&egui::TextStyle::Monospace);
+        let rows = ((each / line).floor() as usize).max(4);
+        egui::ScrollArea::vertical()
+            .id_salt(("api-script", field))
+            .max_height(each)
+            .show(ui, |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(target)
+                        .hint_text(s.t(key))
+                        .font(egui::TextStyle::Monospace)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(rows),
+                );
+            });
         ui.add_space(6.0);
     }
 }

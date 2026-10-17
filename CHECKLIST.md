@@ -213,6 +213,9 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Home: Get Started in the owner's order | Completed | workspace, environments, connection, project, terminal, quick open; verified live |
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
+| API client: one window tab per request | Completed | `uri_affinity` claims an `api://` URI only while the tab is empty, the exact URI focuses the tab that has it; verified live — Ping filled the empty tab, Health opened a second, Ping again focused the first |
+| API client: drag a request between folders | Completed | `Reorder::scoped` names each level in the drag payload, `Move::From` carries it; verified live — four drags in and out of a folder, each correct on disk |
+| API client: a copy or a clashing drop is numbered " 001" | Completed | `model::next_copy_name` and `free_name` (3 tests); verified live |
 | API collections: drag to reorder at every level | Completed | one `hs_ui::reorder` per level keyed by collection and folder, `Collection::order` for the collections themselves; verified live — a request, a request inside a folder and a whole collection each moved and the move was on disk |
 | Settings → Workspace lists every workspace | Completed | a Workspaces section from `Registry::load`, `SettingsEffect::RunAction` carries `ws:<name>` and `ws.new` to the shell; verified live |
 | Browser: forced dark mode covers the whole page | Completed | the filter moved from `html` (which inverted its own background) to `body`, `html` left dark; verified live — example.com stays dark to the end of the page |

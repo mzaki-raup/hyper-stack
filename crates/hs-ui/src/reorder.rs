@@ -32,11 +32,29 @@ pub fn move_item<T>(items: &mut Vec<T>, from: usize, to: usize) {
     items.insert(to, item);
 }
 
+/// Where a dragged row ended up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Move {
+    /// Dropped in the list it came from.
+    Within { from: usize, to: usize },
+    /// Dropped in a different list — one level of a tree into another.
+    /// `scope` is what the source list was named with [`Reorder::scoped`].
+    From {
+        scope: String,
+        from: usize,
+        to: usize,
+    },
+}
+
 /// State for one list being drawn this frame.
 pub struct Reorder {
     id: egui::Id,
-    /// Which row is being dragged, as the payload says.
-    dragged: Option<usize>,
+    /// What this list is called, when it is one level of a tree and a row
+    /// may be dragged out of it into another level.
+    scope: Option<String>,
+    /// The row being dragged, as the payload says — from this list or
+    /// another one.
+    dragged: Option<DragIndex>,
     /// The boundary the pointer is nearest, and where to paint the line.
     target: Option<(usize, f32, egui::Rangef)>,
 }
@@ -45,15 +63,26 @@ impl Reorder {
     pub fn new(id_salt: impl Hash + Debug) -> Self {
         Self {
             id: egui::Id::new("hs-reorder").with(id_salt),
+            scope: None,
             dragged: None,
             target: None,
+        }
+    }
+
+    /// A list that is one level of a tree. `scope` names it, so a drop in
+    /// another level can say where the row came from
+    /// ([`Reorder::finish_move`]).
+    pub fn scoped(id_salt: impl Hash + Debug, scope: impl Into<String>) -> Self {
+        Self {
+            scope: Some(scope.into()),
+            ..Self::new(id_salt)
         }
     }
 
     /// Whether a row of this list is being dragged right now, so the caller
     /// can dim it or suppress a hover effect.
     pub fn dragging(&self) -> bool {
-        self.dragged.is_some()
+        self.dragged.as_ref().is_some_and(|d| d.list == self.id)
     }
 
     /// Draw row `index` with a drag grip on its left. `add` draws the row
@@ -92,11 +121,15 @@ impl Reorder {
                     ui.visuals().weak_text_color()
                 },
             );
-            if grip.drag_started() {
-                egui::DragAndDrop::set_payload(ui.ctx(), DragIndex(index));
-            }
-            if grip.dragged() {
-                egui::DragAndDrop::set_payload(ui.ctx(), DragIndex(index));
+            if grip.drag_started() || grip.dragged() {
+                egui::DragAndDrop::set_payload(
+                    ui.ctx(),
+                    DragIndex {
+                        list: self.id,
+                        scope: self.scope.clone(),
+                        index,
+                    },
+                );
             }
             grip.on_hover_cursor(egui::CursorIcon::Grab);
             inner = Some(add(ui));
@@ -109,7 +142,7 @@ impl Reorder {
         if let Some(p) = egui::DragAndDrop::payload::<DragIndex>(ui.ctx())
             && pointer_now.is_some_and(|pos| rect.y_range().contains(pos.y))
         {
-            self.dragged = Some(p.0);
+            self.dragged = Some((*p).clone());
             let pointer = pointer_now.unwrap_or(rect.center());
             let (boundary, y) = if pointer.y < rect.center().y {
                 (index, rect.top())
@@ -125,7 +158,26 @@ impl Reorder {
     /// after the loop: it also paints the indicator, which must go on top
     /// of the rows.
     pub fn finish(&mut self, ui: &mut egui::Ui, colour: egui::Color32) -> Option<(usize, usize)> {
+        match self.finish_move(ui, colour)? {
+            Move::Within { from, to } => Some((from, to)),
+            // A list that never names a scope cannot be dropped into from
+            // elsewhere, so this arm is unreachable for those callers.
+            Move::From { .. } => None,
+        }
+    }
+
+    /// The move the user made, saying which list the row came from. A tree
+    /// uses this to let a row leave one level for another; a flat list can
+    /// use [`Reorder::finish`] and ignore the difference.
+    pub fn finish_move(&mut self, ui: &mut egui::Ui, colour: egui::Color32) -> Option<Move> {
         let (to, y, x) = self.target?;
+        // Only a drag that could land here paints an indicator: a row from
+        // an unnamed list belongs to that list alone.
+        let dragged = self.dragged.clone()?;
+        let foreign = dragged.list != self.id;
+        if foreign && (self.scope.is_none() || dragged.scope.is_none()) {
+            return None;
+        }
         let painter = ui.painter();
         painter.hline(x, y, egui::Stroke::new(2.0, colour));
         // A small nub at the left end, so a thin line is readable against a
@@ -136,11 +188,18 @@ impl Reorder {
             ui.ctx().request_repaint();
             return None;
         }
-        let from = egui::DragAndDrop::take_payload::<DragIndex>(ui.ctx()).map(|p| p.0)?;
-        if to == from || to == from + 1 {
-            return None;
+        let p = egui::DragAndDrop::take_payload::<DragIndex>(ui.ctx())?;
+        if p.list == self.id {
+            if to == p.index || to == p.index + 1 {
+                return None;
+            }
+            return Some(Move::Within { from: p.index, to });
         }
-        Some((from, to))
+        Some(Move::From {
+            scope: p.scope.clone()?,
+            from: p.index,
+            to,
+        })
     }
 }
 
@@ -172,8 +231,14 @@ fn paint_grip(painter: &egui::Painter, rect: egui::Rect, colour: egui::Color32) 
 
 /// The payload: which row left. Its own type so two lists on screen cannot
 /// accept each other's rows.
-#[derive(Clone, Copy, Debug)]
-struct DragIndex(usize);
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DragIndex {
+    /// The list the row was picked up from.
+    list: egui::Id,
+    /// What that list calls itself, when it is one level of a tree.
+    scope: Option<String>,
+    index: usize,
+}
 
 #[cfg(test)]
 mod tests {

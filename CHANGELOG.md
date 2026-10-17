@@ -27,6 +27,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   connection rather than another window tab. A window tab is still exactly
   one connection.
 
+- An API request **opens in its own window tab**, at most one per
+  request: clicking one focuses the tab that has it, fills an empty tab,
+  or opens a new one.
+
+- A request can be **dragged between folders** — out of one, into one, or
+  between a folder and its parent's siblings — not only within its own
+  level. A name already in use where it lands is numbered, the same way a
+  duplicate is: `List` beside another `List` becomes `List 001`.
+
+- **Duplicate** names the copy `List 001`, `List 002` and so on, in the
+  folder the original is in.
+
 - The API client's sidebar can be **dragged into order** at every level:
   requests among their siblings, folders among theirs, collections among
   the collections. A collection remembers its place in an `order` field,

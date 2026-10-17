@@ -367,6 +367,20 @@ impl QueryDoc {
     }
 }
 
+/// Statements the tool writes for the user end in a semicolon. It is what
+/// they would have typed, it survives being pasted into another client,
+/// and the query tab is a script — Run Script and Prettify both read the
+/// buffer as a sequence of statements, so an unterminated one is the odd
+/// case rather than the normal one. Owner's requirement, 2026-10-17.
+fn terminated(sql: &str) -> String {
+    let sql = sql.trim_end();
+    if sql.ends_with(';') {
+        sql.to_string()
+    } else {
+        format!("{sql};")
+    }
+}
+
 /// Which query tab a statement generated from the schema tree should land
 /// in: the first tab that is unsaved *and* empty, so Open Data fills the
 /// blank tab in front of the user rather than stacking another beside it.
@@ -1569,63 +1583,79 @@ impl DbTool {
         if let Some((what, row, col)) = menu {
             self.grid_menu(ui, what, i, row, col, s);
         }
-        // Footer.
+        // Footer. Laid out from the right, so a pane too narrow for the
+        // whole row gives up the row count — which the grid also shows —
+        // rather than slicing Export in half against the clip edge, which
+        // is what a plain left-to-right row did once the AI assistant took
+        // its 390 px. Wrapping is not the answer either: `footer_h` below
+        // reserves one row, so a wrapped second row falls off the bottom.
+        // Owner's report, 2026-10-17.
         let (limited, class) = {
             let sh = self.shared.lock();
             let r = &sh.results[i];
             (r.summary.as_ref().is_some_and(|x| x.limited), r.class)
         };
         ui.horizontal(|ui| {
-            let mut text = s
-                .i18n
-                .t_args("db-rows-count", &[("rows", &total.to_string())]);
-            if shown != total {
-                text = s.i18n.t_args(
-                    "db-rows-filtered",
-                    &[("shown", &shown.to_string()), ("rows", &total.to_string())],
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.menu_button(format!("{} {}", ph::EXPORT, s.t("db-export")), |ui| {
+                    for f in [
+                        Format::Csv,
+                        Format::Json,
+                        Format::Insert,
+                        Format::Markdown,
+                        Format::Tsv,
+                    ] {
+                        if ui.button(s.t(f.label_key())).clicked() {
+                            ui.close();
+                            self.export(i, f, s);
+                        }
+                    }
+                });
+                ui.menu_button(format!("{} {}", ph::COPY, s.t("db-copy-as")), |ui| {
+                    for f in Format::ALL {
+                        if ui.button(s.t(f.label_key())).clicked() {
+                            let text = self.render_result(i, f);
+                            ui.ctx().copy_text(text);
+                            ui.close();
+                        }
+                    }
+                });
+                ui.separator();
+                // The filter gives up its width before anything else,
+                // down to a box still worth typing in.
+                let filter_w = (ui.available_width() - 140.0).clamp(70.0, 160.0);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.grids[i].filter)
+                        .hint_text(s.t("db-grid-filter"))
+                        .desired_width(filter_w),
                 );
-            }
-            if limited {
-                text.push_str(&format!(" · {}", s.t("db-limited")));
-            }
-            ui.label(egui::RichText::new(text).color(theme.text_muted));
-            if limited
-                && class == Some(Class::Read)
-                && !running
-                && ui.button(s.t("db-fetch-more")).clicked()
-            {
-                self.fetch_more(i, s);
-            }
-            ui.separator();
-            ui.label(hs_ui::icons::SEARCH);
-            ui.add(
-                egui::TextEdit::singleline(&mut self.grids[i].filter)
-                    .hint_text(s.t("db-grid-filter"))
-                    .desired_width(160.0),
-            );
-            ui.separator();
-            ui.menu_button(format!("{} {}", ph::COPY, s.t("db-copy-as")), |ui| {
-                for f in Format::ALL {
-                    if ui.button(s.t(f.label_key())).clicked() {
-                        let text = self.render_result(i, f);
-                        ui.ctx().copy_text(text);
-                        ui.close();
+                ui.label(hs_ui::icons::SEARCH);
+                ui.separator();
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    let mut text = s
+                        .i18n
+                        .t_args("db-rows-count", &[("rows", &total.to_string())]);
+                    if shown != total {
+                        text = s.i18n.t_args(
+                            "db-rows-filtered",
+                            &[("shown", &shown.to_string()), ("rows", &total.to_string())],
+                        );
                     }
-                }
-            });
-            ui.menu_button(format!("{} {}", ph::EXPORT, s.t("db-export")), |ui| {
-                for f in [
-                    Format::Csv,
-                    Format::Json,
-                    Format::Insert,
-                    Format::Markdown,
-                    Format::Tsv,
-                ] {
-                    if ui.button(s.t(f.label_key())).clicked() {
-                        ui.close();
-                        self.export(i, f, s);
+                    if limited {
+                        text.push_str(&format!(" · {}", s.t("db-limited")));
                     }
-                }
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(text).color(theme.text_muted))
+                            .truncate(),
+                    );
+                    if limited
+                        && class == Some(Class::Read)
+                        && !running
+                        && ui.button(s.t("db-fetch-more")).clicked()
+                    {
+                        self.fetch_more(i, s);
+                    }
+                });
             });
         });
     }
@@ -2844,7 +2874,7 @@ impl DbTool {
                         && (*kind == "table" || *kind == "view")
                     {
                         let q = self.qualified(schema, name);
-                        self.run_text(&format!("SELECT * FROM {q}"), usize::MAX, false, None, s);
+                        self.run_in_new_tab(&format!("SELECT * FROM {q}"), s);
                     }
                 }
                 if let Some(id) = resp.secondary
@@ -3094,6 +3124,7 @@ impl DbTool {
     /// the way the API client fills an empty tab before opening another.
     /// Owner's requirement, 2026-10-17.
     fn run_in_new_tab(&mut self, sql: &str, s: &Services) {
+        let sql = &terminated(sql);
         let reusable = reusable_tab(self.docs.iter().map(|d| (d.file.is_none(), d.buf.text())));
         match reusable {
             Some(i) => {
@@ -3442,6 +3473,28 @@ mod tests {
     fn with_no_blank_tab_open_data_gets_one_of_its_own() {
         let t = tabs(&[(true, "SELECT a"), (true, "SELECT b")]);
         assert_eq!(reusable_tab(t.into_iter()), None);
+    }
+
+    #[test]
+    fn a_generated_statement_is_terminated() {
+        assert_eq!(terminated("SELECT * FROM t"), "SELECT * FROM t;");
+        assert_eq!(
+            terminated("SELECT COUNT(*) FROM t"),
+            "SELECT COUNT(*) FROM t;"
+        );
+    }
+
+    #[test]
+    fn a_statement_that_already_ends_in_one_is_left_alone() {
+        assert_eq!(terminated("SELECT 1;"), "SELECT 1;");
+        // Trailing whitespace must not earn a second semicolon.
+        assert_eq!(
+            terminated(
+                "SELECT 1;  
+"
+            ),
+            "SELECT 1;"
+        );
     }
 
     #[test]

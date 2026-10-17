@@ -400,3 +400,27 @@ in `GridState::wanted_width`, read back from `TableBody::widths()` so the
 next frame makes room for it. When the columns do not fill the pane the
 trailing remainder column absorbs the slack exactly as before, so a narrow
 result looks unchanged and shows no scrollbar. Owner's report, 2026-10-17.
+
+### The row number is frozen, and the footer gives way (2026-10-17)
+
+Scrolling sideways used to take the row-number column with it, which is
+the one column a wide result cannot spare — it is what the rest is counted
+from. It is drawn beside the scrolling table now rather than inside it, in
+a strip the horizontal scroll never touches. Because the rows it lines up
+with live inside the table's own virtualised scroll area, the strip is
+painted rather than laid out: each row the table actually draws reports its
+screen position back, and the gutter numbers exactly those. A selected
+row's number is tinted to match.
+
+The footer under the grid is laid out **from the right**, so Copy As and
+Export keep their place and the filter box gives up width first, down to a
+box still worth typing in. Left to right, the row simply ran past the clip
+edge and Export was sliced in half whenever the pane was narrow — most
+obviously with the AI Assistant open. Wrapping is not the alternative it
+looks like: the grid reserves exactly one footer row in its height
+calculation, so a wrapped second row falls off the bottom of the panel,
+which is worse than a clipped button.
+
+**Open Data** and **Count Rows** also terminate what they write
+(`SELECT * FROM t;`), so the statement left in the tab is complete.
+Owner's requirements, 2026-10-17.

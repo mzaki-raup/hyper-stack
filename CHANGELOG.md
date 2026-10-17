@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **Open Data** and **Count Rows** write a **terminated statement** —
+  `SELECT * FROM t;` — so what lands in the tab is a statement you can run
+  again, or add to, without first noticing the semicolon is missing.
+
 - **Open Data** and **Count Rows** in the database schema tree run in a
   query tab of their own, with the statement in the editor above the grid
   it produced. They used to run from nowhere, which left whatever was in
@@ -20,6 +24,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   is still empty is filled rather than added to.
 
 ### Fixed
+
+- The **row number stays put** while a wide result scrolls sideways. It is
+  the thing you count from, so it is the one column a wide result cannot
+  afford to lose off the left edge; it now sits beside the scrolling table
+  rather than inside it.
+
+- The result footer keeps **Copy As and Export reachable** in a narrow
+  pane. The row was laid out left to right and simply ran past the clip
+  edge, slicing Export in half once the AI Assistant took its column; it
+  is laid out from the right now, and the filter box gives up width first.
 
 - The result grid **scrolls horizontally**. `egui_extras`' table scrolls
   vertically only, so a result wider than the pane had its remaining

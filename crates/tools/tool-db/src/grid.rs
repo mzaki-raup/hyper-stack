@@ -111,8 +111,11 @@ fn cell_preview(v: &Value) -> String {
     out
 }
 
-/// The leading column that carries the row number.
+/// The fixed strip that carries the row number, beside the scrolling table.
 const ROW_NUMBER_WIDTH: f32 = 48.0;
+/// Shared by the table and the gutter, which have to line up.
+const HEADER_HEIGHT: f32 = 24.0;
+const ROW_HEIGHT: f32 = 22.0;
 
 fn initial_width(col: &Column, rows: &[Row], i: usize) -> f32 {
     let sample = rows
@@ -145,26 +148,41 @@ pub fn show(
     // in a horizontal ScrollArea whose content is as wide as the columns
     // want to be, so the pane's width decides how much is *visible*, never
     // how much exists. Owner's report, 2026-10-17.
-    let outer_width = ui.available_width();
-    // The width the columns actually want. It has to be worked out here,
-    // from the same measurements the columns are built with: inside the
-    // table, sizing only ever *shares out* the width it is given, so a
-    // table asked to fit a narrow pane shrinks its columns to fit and then
-    // has nothing to scroll. `wanted_width` carries a column the user has
-    // dragged wider than its natural size.
     let spacing_x = ui.spacing().item_spacing.x;
-    let natural = ROW_NUMBER_WIDTH
-        + spacing_x
-        + columns
-            .iter()
-            .enumerate()
-            .map(|(i, c)| initial_width(c, rows, i) + spacing_x)
-            .sum::<f32>();
-    let content_width = natural.max(state.wanted_width).max(outer_width);
+    let full = ui.available_rect_before_wrap();
+    ui.allocate_rect(full, egui::Sense::hover());
+    // The row number stays put while the data scrolls under it, the way a
+    // line-number gutter does: it is the thing you count *from*, so losing
+    // it off the left edge is the one loss a wide result cannot afford.
+    // That means it cannot live inside the table, which is what scrolls.
+    let gutter = egui::Rect::from_min_max(
+        full.min,
+        egui::pos2(full.left() + ROW_NUMBER_WIDTH, full.bottom()),
+    );
+    let table_rect =
+        egui::Rect::from_min_max(egui::pos2(gutter.right() + spacing_x, full.top()), full.max);
+    // The width the data columns actually want. It has to be worked out
+    // here, from the same measurements the columns are built with: inside
+    // the table, sizing only ever *shares out* the width it is given, so a
+    // table asked to fit a narrow pane shrinks its columns and then has
+    // nothing to scroll. `wanted_width` carries a column the user has
+    // dragged wider than its natural size.
+    let natural = columns
+        .iter()
+        .enumerate()
+        .map(|(i, c)| initial_width(c, rows, i) + spacing_x)
+        .sum::<f32>();
+    let content_width = natural.max(state.wanted_width).max(table_rect.width());
     let mut measured = state.wanted_width;
+    let mut row_tops: Vec<(usize, f32)> = Vec::new();
+    let mut table_ui = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(table_rect)
+            .layout(*ui.layout()),
+    );
     egui::ScrollArea::horizontal()
         .id_salt(id.with("hscroll"))
-        .show(ui, |ui| {
+        .show(&mut table_ui, |ui| {
             // Both bounds: the table reads `available_rect_before_wrap` to
             // share out its width, and inside a horizontal ScrollArea that
             // is unbounded, which would make the trailing remainder column
@@ -183,9 +201,11 @@ pub fn show(
                 &mut resp,
                 &mut new_sort,
                 &mut measured,
+                &mut row_tops,
             );
         });
     state.wanted_width = measured;
+    paint_gutter(ui, gutter, theme, state, &row_tops);
     if let Some(s) = new_sort {
         state.sort = s;
     }
@@ -209,18 +229,18 @@ fn grid_table(
     resp: &mut GridResponse,
     new_sort: &mut Option<Option<(usize, bool)>>,
     measured: &mut f32,
+    row_tops: &mut Vec<(usize, f32)>,
 ) {
     let mono = egui::TextStyle::Monospace;
-    let row_h = 22.0;
+    let row_h = ROW_HEIGHT;
     let spacing_x = ui.spacing().item_spacing.x;
+    // No row sense: a row-wide click area is registered after the cells
+    // and would take their clicks (selection, double-click).
     let mut builder = TableBuilder::new(ui)
         .id_salt(id)
         .striped(true)
         .resizable(true)
-        .auto_shrink([false, false])
-        // No row sense: a row-wide click area is registered after the
-        // cells and would take their clicks (selection, double-click).
-        .column(TableColumn::exact(ROW_NUMBER_WIDTH));
+        .auto_shrink([false, false]);
     for (i, c) in columns.iter().enumerate() {
         builder = builder.column(
             TableColumn::initial(initial_width(c, rows, i))
@@ -230,10 +250,7 @@ fn grid_table(
     }
     builder = builder.column(TableColumn::remainder());
     builder
-        .header(24.0, |mut header| {
-            header.col(|ui| {
-                ui.label(egui::RichText::new("#").color(theme.text_muted));
-            });
+        .header(HEADER_HEIGHT, |mut header| {
             for (i, c) in columns.iter().enumerate() {
                 header.col(|ui| {
                     let arrow = match state.sort {
@@ -274,16 +291,6 @@ fn grid_table(
                 let data_idx = order[row.index()];
                 let r_data = &rows[data_idx];
                 row.set_selected(state.selected.is_some_and(|(r, _)| r == data_idx));
-                row.col(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add_space(6.0);
-                        ui.label(
-                            egui::RichText::new((data_idx + 1).to_string())
-                                .color(theme.text_muted)
-                                .text_style(mono.clone()),
-                        );
-                    });
-                });
                 for ci in 0..columns.len() {
                     let v = r_data.get(ci).unwrap_or(&Value::Null);
                     let selected = state.selected == Some((data_idx, ci));
@@ -346,9 +353,56 @@ fn grid_table(
                         }
                     });
                 }
-                row.col(|_| {});
+                // Only the rows egui actually drew report back, which is
+                // exactly the set the gutter has to number.
+                row.col(|ui| row_tops.push((data_idx, ui.max_rect().top())));
             });
         });
+}
+
+/// Number the rows the table drew, in a strip the horizontal scroll never
+/// touches. Painted rather than laid out, because the rows it lines up with
+/// live inside the table's own virtualised scroll area.
+fn paint_gutter(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    theme: &Theme,
+    state: &GridState,
+    row_tops: &[(usize, f32)],
+) {
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 0.0, theme.panel_bg);
+    painter.line_segment(
+        [rect.right_top(), rect.right_bottom()],
+        egui::Stroke::new(1.0, theme.border),
+    );
+    let font = egui::TextStyle::Monospace.resolve(ui.style());
+    painter.text(
+        egui::pos2(rect.right() - 6.0, rect.top() + HEADER_HEIGHT / 2.0),
+        egui::Align2::RIGHT_CENTER,
+        "#",
+        font.clone(),
+        theme.text_muted,
+    );
+    for &(data_idx, top) in row_tops {
+        let row = egui::Rect::from_min_max(
+            egui::pos2(rect.left(), top),
+            egui::pos2(rect.right(), top + ROW_HEIGHT),
+        );
+        if !rect.intersects(row) {
+            continue;
+        }
+        if state.selected.is_some_and(|(r, _)| r == data_idx) {
+            painter.rect_filled(row, 0.0, theme.accent.gamma_multiply(0.25));
+        }
+        painter.text(
+            egui::pos2(rect.right() - 6.0, row.center().y),
+            egui::Align2::RIGHT_CENTER,
+            (data_idx + 1).to_string(),
+            font.clone(),
+            theme.text_muted,
+        );
+    }
 }
 
 #[cfg(test)]

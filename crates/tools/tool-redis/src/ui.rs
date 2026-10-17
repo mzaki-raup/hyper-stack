@@ -418,6 +418,9 @@ impl Tool for RedisTool {
     fn home_is_dashboard(&self) -> bool {
         true
     }
+    fn subtitle(&self) -> Option<String> {
+        Some(self.conn_name.clone()).filter(|s| !s.is_empty())
+    }
 
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
@@ -697,7 +700,46 @@ impl Tool for RedisTool {
 }
 
 impl RedisTool {
+    /// The home tab: what this activity has open, with the last picture of
+    /// each pane. Owner's requirement, 2026-10-17.
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let count = s.connections.read().of_kind("redis").count();
+        let tabs = s.open_tabs.of("redis");
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-redis"),
+            Some(&s.t("redis-dashboard-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-connections"));
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        egui::ScrollArea::vertical()
+            .id_salt("redis-dashboard")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        // The activity's home tab lists what is open rather than being
+        // one of them.
+        if cx.is_home {
+            self.dashboard(ui, cx);
+            return;
+        }
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         // Drain what the runner wants to say.

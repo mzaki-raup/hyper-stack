@@ -287,9 +287,9 @@ listed first.
 | Terminal: permanent home tab with a dashboard of open terminals | Pending | grid of name, type and a thumbnail of that terminal, clicking one goes to its tab |
 | SSH: permanent home tab with a dashboard of open connections | Pending | grid of connection name and a thumbnail, clicking one goes to its tab |
 | Database: permanent home tab with a dashboard of open connections | Completed | `hs_ui::dashboard` + `OpenTabs`; verified live — the dashboard showed 1 connection, 1 open tab and a captured thumbnail of the query pane, and clicking the card focused that tab |
-| NoSQL: permanent home tab with a dashboard of open connections | Pending | connection name, store kind and a thumbnail of the data pane |
-| Redis: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
-| S3: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
+| NoSQL: permanent home tab with a dashboard of open connections | Completed | same `hs_ui::dashboard` grid; the card carries the store kind and connection |
+| Redis: permanent home tab with a dashboard of open connections | Completed | verified live — the permanent Redis tab shows the summary and the empty state |
+| S3: permanent home tab with a dashboard of open connections | Completed | the card carries the open bucket |
 | Browser: permanent first tab, no tab context menu | Completed | `has_menu` is false for home and browser tabs; the window strip's + is gone |
 | Home: permanent first tab, no tab context menu | Completed | as above |
 | Graphics: permanent first tab | Completed | `wants_home_tab`; the sidebar and preview pane are untouched |

@@ -434,6 +434,20 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   on `origin` plus a fast-forward-only pull script is the arrangement that
   rejects divergence instead of destroying it.
 
+### Git and signing
+- Every commit here is GPG-signed with the owner's key, and
+  `gpg: signing failed: Timeout` does **not** mean signing is broken: it
+  means gpg-agent put a pinentry prompt on the owner's desktop and nobody
+  answered it in time. `gpg --pinentry-mode error --clearsign` reports
+  "No pinentry" when the passphrase is not cached, which is the quick way
+  to tell a locked agent from a real failure — and each real attempt costs
+  a two-minute timeout, so probe rather than retry blindly. Hold the work
+  staged (a resolved merge keeps its `MERGE_HEAD`, so the resolution is
+  not lost) and run the same commit again once the key is unlocked; never
+  reach for `--no-gpg-sign`. There is no `gpg-agent.conf` in
+  `%APPDATA%\gnupg`, so the agent runs on GnuPG's default cache TTL and
+  re-prompts often.
+
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so
@@ -441,6 +455,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `std::fs::canonicalize` prefixes Windows paths with `\\?\`; strip that
   prefix before storing or comparing editor project roots, or saved paths and
   test/request URIs no longer match.
+- `target/debug` on this machine reached **280 GB**, 150 GB of it
+  `debug/incremental`, and filled D: completely: the symptom is
+  `failed to build archive ...: There is not enough space on the disk.
+  (os error 112)` in the middle of a `cargo test --workspace`, and a
+  `Get-PSDrive` a minute later can already show space again because the
+  failed writes are rolled back. Delete `target/debug/incremental` — it is
+  cache, the artifacts in `debug/deps` stay, and the next build is not a
+  full rebuild. Check it after a long session of repeated builds.
 - `cargo test --workspace` on this machine can die with "the paging file
   is too small" (os error 1455) and then "found invalid metadata files for
   crate …" on every later run: the parallel test build exhausts the

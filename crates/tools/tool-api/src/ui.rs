@@ -1161,6 +1161,12 @@ const SNIPPETS: [(&str, &str); 7] = [
 
 fn scripts_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::hint(ui, theme, &s.t("api-scripts-hint"));
+    // The two scripts get the same height whatever is in them: a multiline
+    // field grows with its content, so the one that had been written in
+    // squeezed the empty one down to nothing. Owner's requirement,
+    // 2026-10-17.
+    const ROW_CHROME: f32 = 34.0; // the label row and the gap under it
+    let each = ((ui.available_height() - ROW_CHROME * 2.0) / 2.0).max(90.0);
     for (label, field, key) in [
         ("api-pre-script", 0usize, "api-pre-script-hint"),
         ("api-post-script", 1usize, "api-post-script-hint"),
@@ -1190,13 +1196,21 @@ fn scripts_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) 
         } else {
             &mut t.request.post_script
         };
-        ui.add(
-            egui::TextEdit::multiline(target)
-                .hint_text(s.t(key))
-                .font(egui::TextStyle::Monospace)
-                .desired_width(f32::INFINITY)
-                .desired_rows(6),
-        );
+        let width = ui.available_width();
+        ui.allocate_ui(egui::vec2(width, each), |ui| {
+            egui::ScrollArea::vertical()
+                .id_salt(("api-script", field))
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(target)
+                            .hint_text(s.t(key))
+                            .font(egui::TextStyle::Monospace)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(6),
+                    );
+                });
+        });
         ui.add_space(6.0);
     }
 }

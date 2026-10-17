@@ -1824,7 +1824,7 @@ impl DbTool {
                     }
                     ui.add_space(10.0);
                     let allowed = need.as_ref().is_none_or(|n| typed.trim() == n);
-                    ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_enabled(
                                 allowed,
@@ -1979,7 +1979,7 @@ impl DbTool {
                     }
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     ui.add_space(10.0);
-                    ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if (form::primary_button(ui, theme, &s.t("save")).clicked() || enter)
                             && !name.trim().is_empty()
                         {

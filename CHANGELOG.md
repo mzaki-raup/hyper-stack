@@ -46,6 +46,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **Home's sidebar carries Pinned and Recent**, with the workspace name
+  above them: the page says what you can do, the column says what you
+  were doing. Recent used to be at the bottom of the page under the tool
+  grid.
+
+- **Get Started** is in setup order — New Workspace, Environments, New
+  Connection, Open Folder as Project, New Terminal, Quick Open.
+
+- The API client's two script boxes are the same height whatever is in
+  them; a written pre-request script used to squeeze the empty
+  post-response one down to nothing.
+
 - The database tool's **schema is a column beside the editor** — version,
   filter, object tree, then Saved Queries and History under a separator —
   rather than a block nested in the connections list. Hiding the sidebar
@@ -60,6 +72,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   outermost, like every other dialog in the app.
 
 ### Fixed
+
+- Three dialogs had their buttons on the left where every other dialog
+  puts them on the right: the SQL guard, Save Query, and S3's New Folder.
 
 - The API client's folder and request menus go through Fluent. They had
   been written in English in the code, which nothing else in the app does.

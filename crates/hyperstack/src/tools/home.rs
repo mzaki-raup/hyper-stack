@@ -106,8 +106,7 @@ impl Tool for HomeTool {
                             .iter()
                             .filter(|t| t.id != "home" && t.id != "settings")
                             .collect();
-                        let r =
-                            launcher::show(ui, &theme, s, &mut self.launcher, &descs, &hub.closed);
+                        let r = launcher::show(ui, &theme, s, &mut self.launcher, &descs);
                         if let Some(id) = r.open_tool {
                             hub.requests.push(HomeRequest::OpenTool(id));
                         }
@@ -120,6 +119,25 @@ impl Tool for HomeTool {
                         keys(ui, &theme, s);
                     });
             });
+    }
+
+    fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let mut hub = self.hub.lock();
+        let hub = &mut *hub;
+        let ws = s.workspace.read().meta.name.clone();
+        hs_ui::form::sidebar_header(ui, &theme, &ws, &[]);
+        ui.add_space(4.0);
+        let descs: Vec<&ToolDescriptor> = hub.tools.iter().collect();
+        let r = launcher::side(ui, &theme, s, &descs, &hub.closed);
+        if let Some(i) = r.reopen_closed {
+            hub.requests.push(HomeRequest::ReopenClosed(i));
+        }
+        if let Some((tool, id)) = r.open_connection {
+            hub.requests.push(HomeRequest::OpenConnection { tool, id });
+        }
+        true
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
@@ -178,25 +196,10 @@ fn section_title(ui: &mut egui::Ui, theme: &Theme, text: &str) {
 fn get_started(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub) {
     use hs_ui::icons::ph;
     section_title(ui, theme, &s.t("home-get-started"));
+    // In the order someone sets a machine up: a workspace to put things
+    // in, the environments they vary by, the connections that use them,
+    // then the day's work. Owner's order, 2026-10-17.
     let cards: [(&str, &str, &str, HomeRequest); 6] = [
-        (
-            ph::FOLDER_OPEN,
-            "home-open-folder",
-            "home-open-folder-hint",
-            HomeRequest::OpenFolderAsProject,
-        ),
-        (
-            ph::PLUGS_CONNECTED,
-            "home-new-connection",
-            "home-new-connection-hint",
-            HomeRequest::NewConnection,
-        ),
-        (
-            ph::TERMINAL_WINDOW,
-            "home-new-terminal",
-            "home-new-terminal-hint",
-            HomeRequest::OpenTool("terminal".into()),
-        ),
         (
             ph::FOLDERS,
             "home-new-workspace",
@@ -208,6 +211,24 @@ fn get_started(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub
             "home-environments",
             "home-environments-hint",
             HomeRequest::OpenSettingsPage("settings-environments"),
+        ),
+        (
+            ph::PLUGS_CONNECTED,
+            "home-new-connection",
+            "home-new-connection-hint",
+            HomeRequest::NewConnection,
+        ),
+        (
+            ph::FOLDER_OPEN,
+            "home-open-folder",
+            "home-open-folder-hint",
+            HomeRequest::OpenFolderAsProject,
+        ),
+        (
+            ph::TERMINAL_WINDOW,
+            "home-new-terminal",
+            "home-new-terminal-hint",
+            HomeRequest::OpenTool("terminal".into()),
         ),
         (
             ph::MAGNIFYING_GLASS,

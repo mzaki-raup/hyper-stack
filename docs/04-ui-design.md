@@ -452,3 +452,27 @@ terminal, SSH, SQL, S3, the API client, Graphics and the Scratchpad. The
 buttons that act on what is selected keep the left; the assistant is a mode
 for the whole tab, not an action on a row, and it reads that way when it is
 not sitting among them. Owner's requirement, 2026-10-17.
+
+## Addendum (2026-10-17): Home's sidebar, and where the buttons go
+
+**Home's sidebar is "where you were".** The page answers *what can I do* —
+Get Started, the tool grid, the shortcuts — so the column beside it answers
+*what was I doing*: the workspace's name, the connections you pinned, and
+the tabs you closed, most recent first. Recent used to sit at the very
+bottom of the page, under the tool grid, which is backwards: reopening
+yesterday's work is the commonest reason to be on Home at all. With no
+tabs open there is no sidebar, so that view draws the same column under
+the page instead. Owner's requirement, 2026-10-17.
+
+**Get Started is in setup order**: New Workspace, Environments, New
+Connection, Open Folder as Project, New Terminal, Quick Open — a workspace
+to put things in, the environments they vary by, the connections that use
+them, then the day's work. Owner's order, 2026-10-17.
+
+**Dialog buttons go on the right, action outermost.** Every modal in the
+app does this; three had been left-aligned (the SQL guard, Save Query, and
+S3's New Folder) and now match. A *form's* action row — Settings →
+Connections' Save / Test Connection / Delete, an inline editor's
+Save / Delete / Cancel — stays left-aligned: it reads as part of the
+content flow rather than as the end of a conversation.
+

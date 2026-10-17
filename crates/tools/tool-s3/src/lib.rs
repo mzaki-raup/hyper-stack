@@ -694,7 +694,7 @@ impl S3Tool {
                             r.request_focus();
                         }
                         ui.add_space(10.0);
-                        ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if form::primary_button(ui, theme, &s.t("s3-create")).clicked() || enter
                             {
                                 let n = name.clone();

@@ -16,6 +16,8 @@ category-utilities = Utilities
 ## Shell
 launcher-title = What do you want to do?
 launcher-search = Type to search tools, connections and recent items
+launcher-side-empty = Nothing yet. Pin a connection from its tool's sidebar, and tabs you close turn up here.
+launcher-reopen = Open this again.
 launcher-recent = Recent
 launcher-pinned = Pinned Connections
 conn-pin-home = Pin to Home

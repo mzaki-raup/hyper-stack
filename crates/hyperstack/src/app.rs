@@ -2269,14 +2269,19 @@ impl HyperStackApp {
                 .enumerate()
                 .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone()))
                 .collect();
-            let r = launcher::show(
-                ui,
-                &self.theme,
-                &self.services,
-                &mut self.launcher,
-                &descs,
-                &closed,
-            );
+            let mut r = launcher::show(ui, &self.theme, &self.services, &mut self.launcher, &descs);
+            // With no tabs there is no Home sidebar either, so the column
+            // that normally carries Pinned and Recent is drawn under the
+            // page instead of being lost.
+            let side = ui
+                .vertical_centered(|ui| {
+                    ui.set_width(ui.available_width().min(520.0));
+                    ui.add_space(20.0);
+                    launcher::side(ui, &self.theme, &self.services, &descs, &closed)
+                })
+                .inner;
+            r.reopen_closed = r.reopen_closed.or(side.reopen_closed);
+            r.open_connection = r.open_connection.or(side.open_connection);
             if let Some(id) = r.open_tool {
                 self.open_tool(&id, None);
             }

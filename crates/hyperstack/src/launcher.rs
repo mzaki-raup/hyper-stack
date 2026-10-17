@@ -31,13 +31,14 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
     }
 }
 
+/// The page: what you can do here. Where you were is the sidebar's job
+/// (`side`), which is why this no longer draws Pinned or Recent.
 pub fn show(
     ui: &mut egui::Ui,
     theme: &Theme,
     services: &Services,
     state: &mut LauncherState,
     tools: &[&ToolDescriptor],
-    closed: &[(usize, String, String)], // index, factory id, title
 ) -> LauncherResponse {
     let mut resp = LauncherResponse {
         open_tool: None,
@@ -110,85 +111,104 @@ pub fn show(
                 });
             }
         });
-
-        // Pinned first: these are the connections someone chose to keep,
-        // and they are what Home is for. Recent follows.
-        let conns = services.connections.read();
-        let pinned: Vec<_> = conns.pinned().collect();
-        if !pinned.is_empty() {
-            ui.add_space(20.0);
-            ui.separator();
-            section_heading(ui, theme, &services.t("launcher-pinned"));
-            ui.add_space(6.0);
-            ui.horizontal_wrapped(|ui| {
-                for c in pinned {
-                    let fill = kind_colour(theme, &c.kind);
-                    let text = format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name);
-                    let tool =
-                        tool_for_kind(&c.kind).and_then(|id| tools.iter().find(|t| t.id == id));
-                    match tool {
-                        Some(t) => {
-                            let tip = services.i18n.t_args(
-                                "launcher-open-connection",
-                                &[("tool", &services.t(t.title_key))],
-                            );
-                            if pill(ui, &text, fill, theme.text)
-                                .on_hover_text(tip)
-                                .clicked()
-                            {
-                                resp.open_connection = Some((t.id.to_string(), c.id.clone()));
-                            }
-                        }
-                        None => {
-                            let tip = services.i18n.t_args(
-                                "launcher-connection-no-tool",
-                                &[("kind", hs_core::connections::kind_label(&c.kind))],
-                            );
-                            pill(ui, &text, fill, theme.text_muted).on_hover_text(tip);
-                        }
-                    }
-                }
-            });
-        }
-        drop(conns);
-
-        if !closed.is_empty() {
-            ui.add_space(20.0);
-            ui.separator();
-            section_heading(ui, theme, &services.t("launcher-recent"));
-            ui.add_space(6.0);
-            // A grid, not a column: eight recent items down the page pushed
-            // everything else off it.
-            let recent: Vec<_> = closed.iter().rev().take(8).collect();
-            let spacing = ui.spacing().item_spacing.x;
-            let columns = (((ui.available_width() + spacing) / (RECENT_WIDTH + spacing)).floor()
-                as usize)
-                .clamp(1, 4);
-            for row in recent.chunks(columns) {
-                ui.horizontal(|ui| {
-                    for (idx, factory, title) in row {
-                        let icon = tools
-                            .iter()
-                            .find(|t| t.id == factory)
-                            .map(|t| t.icon)
-                            .unwrap_or("\u{2022}");
-                        let r = ui.add_sized(
-                            Vec2::new(RECENT_WIDTH, 26.0),
-                            egui::Button::new(format!("{icon}  {title}")).frame(false),
-                        );
-                        if r.clicked() {
-                            resp.reopen_closed = Some(*idx);
-                        }
-                    }
-                });
-            }
-        }
     });
     resp
 }
 
-/// How wide one Recent entry is, and so how many fit across.
+/// How wide one Recent entry is.
 const RECENT_WIDTH: f32 = 230.0;
+
+/// Home's sidebar: where you were, rather than what you can do. The page
+/// answers "what can I do" — Get Started, the tools, the shortcuts — and
+/// this column answers "what was I doing", which is the commonest reason
+/// to be on Home at all. Owner's requirement, 2026-10-17.
+pub fn side(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    services: &Services,
+    tools: &[&ToolDescriptor],
+    closed: &[(usize, String, String)],
+) -> LauncherResponse {
+    let mut resp = LauncherResponse {
+        open_tool: None,
+        reopen_closed: None,
+        open_connection: None,
+    };
+    let pinned: Vec<_> = services.connections.read().pinned().cloned().collect();
+    let recent: Vec<_> = closed.iter().rev().take(12).collect();
+    if pinned.is_empty() && recent.is_empty() {
+        hs_ui::form::note(
+            ui,
+            theme,
+            hs_ui::icons::INFO,
+            &services.t("launcher-side-empty"),
+        );
+        return resp;
+    }
+    egui::ScrollArea::vertical()
+        .id_salt("home-side")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            if !pinned.is_empty() {
+                section_heading(ui, theme, &services.t("launcher-pinned"));
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    for c in &pinned {
+                        let fill = kind_colour(theme, &c.kind);
+                        let text =
+                            format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name);
+                        let tool =
+                            tool_for_kind(&c.kind).and_then(|id| tools.iter().find(|t| t.id == id));
+                        match tool {
+                            Some(t) => {
+                                let tip = services.i18n.t_args(
+                                    "launcher-open-connection",
+                                    &[("tool", &services.t(t.title_key))],
+                                );
+                                if pill(ui, &text, fill, theme.text)
+                                    .on_hover_text(tip)
+                                    .clicked()
+                                {
+                                    resp.open_connection = Some((t.id.to_string(), c.id.clone()));
+                                }
+                            }
+                            None => {
+                                let tip = services.i18n.t_args(
+                                    "launcher-connection-no-tool",
+                                    &[("kind", hs_core::connections::kind_label(&c.kind))],
+                                );
+                                pill(ui, &text, fill, theme.text_muted).on_hover_text(tip);
+                            }
+                        }
+                    }
+                });
+            }
+            if !recent.is_empty() {
+                if !pinned.is_empty() {
+                    ui.add_space(14.0);
+                    ui.separator();
+                    ui.add_space(6.0);
+                }
+                section_heading(ui, theme, &services.t("launcher-recent"));
+                ui.add_space(4.0);
+                for (idx, factory, title) in recent {
+                    let icon = tools
+                        .iter()
+                        .find(|t| t.id == factory)
+                        .map(|t| t.icon)
+                        .unwrap_or("\u{2022}");
+                    let r = ui.add_sized(
+                        Vec2::new(RECENT_WIDTH, 26.0),
+                        egui::Button::new(format!("{icon}  {title}")).frame(false),
+                    );
+                    if r.on_hover_text(services.t("launcher-reopen")).clicked() {
+                        resp.reopen_closed = Some(*idx);
+                    }
+                }
+            }
+        });
+    resp
+}
 
 /// A section heading on Home. Bigger than the body text, because these
 /// separate the page into parts and were previously easy to miss.
@@ -343,10 +363,9 @@ mod tests {
         }
 
         let theme = Theme::dark();
-        let mut state = LauncherState::default();
         let mut opened = None;
         let mut harness = Harness::new_ui(|ui| {
-            let r = show(ui, &theme, &services, &mut state, &[&SSH], &[]);
+            let r = side(ui, &theme, &services, &[&SSH], &[]);
             if r.open_connection.is_some() {
                 opened = r.open_connection;
             }

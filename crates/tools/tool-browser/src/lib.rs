@@ -11,6 +11,9 @@
 //! active page should show and what it wants done; the host positions the
 //! native view there and reports titles, URLs and blocked navigations back.
 
+pub mod side;
+pub mod store;
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -67,6 +70,10 @@ pub enum Cmd {
     /// — which is what made the address bar look read-only.
     /// The address bar has the keyboard (`true`) or has given it up.
     AddressFocus(bool),
+    /// Run a script in a page. Used by Fill in Password, which has to put
+    /// values into the page's own form fields; there is no other way in
+    /// from outside the web view. Owner's requirement, 2026-10-17.
+    Script(u64, String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,6 +95,12 @@ pub struct TabDesire {
     pub active_page: Option<u64>,
     pub pages: Vec<PageDesire>,
     pub commands: Vec<Cmd>,
+    /// The tool has a dialog of its own open. A native web view paints
+    /// above everything egui draws, so the host has to hide it or the
+    /// dialog is invisible — which is exactly what happened to Add to
+    /// Favorites. The shell's own modals are known to `app.rs`; a tool's
+    /// are not, so the tool says so here. Owner's report, 2026-10-17.
+    pub overlay: bool,
 }
 
 #[derive(Default)]
@@ -333,6 +346,14 @@ impl ToolFactory for BrowserFactory {
             pending: Vec::new(),
             active_favicon: None,
             favicons: Arc::new(Mutex::new(HashMap::new())),
+            workspace: String::new(),
+            workspace_icon: None,
+            root: std::path::PathBuf::new(),
+            favorites: store::Favorites::default(),
+            passwords: store::Passwords::default(),
+            side: side::SideState::default(),
+            adding_favorite: None,
+            filling: None,
         })
     }
 }
@@ -355,6 +376,25 @@ pub struct BrowserTool {
     /// `Loading` while it is out, `Failed` for a site that has none — both
     /// are answers, and neither is asked twice.
     favicons: Arc<Mutex<HashMap<String, Favicon>>>,
+    /// The workspace this browser belongs to. The window tab carries the
+    /// workspace's name and logo rather than the open page's, because there
+    /// is one browser per workspace and its pages are its own inner tabs.
+    /// Owner's requirement, 2026-10-17.
+    workspace: String,
+    /// The workspace logo, registered with egui as an image URI.
+    workspace_icon: Option<String>,
+    /// Where this workspace keeps its favourites and logins.
+    root: std::path::PathBuf,
+    /// This workspace's saved sites and logins. Both are per workspace:
+    /// the sites that go with one project are not the ones that go with
+    /// another. Owner's requirement, 2026-10-17.
+    favorites: store::Favorites,
+    passwords: store::Passwords,
+    side: side::SideState,
+    /// The Add to Favorites dialog, while it is open.
+    adding_favorite: Option<side::AddFavorite>,
+    /// The Fill in Password dialog, while it is open.
+    filling: Option<side::Filling>,
 }
 
 /// Where one origin's favicon has got to.
@@ -370,6 +410,48 @@ enum Favicon {
 }
 
 impl BrowserTool {
+    /// The workspace's name and logo, for the window tab. The logo is read
+    /// from disk and handed to egui under a URI that carries the file's
+    /// size and modification time, so replacing it shows the new image
+    /// rather than the cached old one.
+    fn sync_workspace(&mut self, ctx: &egui::Context, services: &Services) {
+        let (name, root) = {
+            let w = services.workspace.read();
+            (w.meta.name.clone(), w.root().to_path_buf())
+        };
+        if name != self.workspace {
+            self.workspace = name;
+        }
+        if root != self.root {
+            self.root = root.clone();
+            self.favorites = store::Favorites::load(&root);
+            self.passwords = store::Passwords::load(&root);
+        }
+        let Some(file) = hs_core::workspace::workspace_icon_file(&root) else {
+            self.workspace_icon = None;
+            return;
+        };
+        let stamp = std::fs::metadata(&file)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let uri = format!(
+            "{}?v={stamp}",
+            file.display().to_string().replace('\\', "/")
+        );
+        if self.workspace_icon.as_deref() == Some(uri.as_str()) {
+            return;
+        }
+        let Ok(bytes) = std::fs::read(&file) else {
+            self.workspace_icon = None;
+            return;
+        };
+        ctx.include_bytes(uri.clone(), bytes);
+        self.workspace_icon = Some(uri);
+    }
+
     /// Keep the favicon cache up to date and hand back what each page's URL
     /// should draw. Fetching happens on the runtime; the only work here is
     /// registering arrived bytes with egui, which must be done on this
@@ -592,23 +674,50 @@ impl Tool for BrowserTool {
     }
 
     fn tab_icon_uri(&self) -> Option<String> {
-        self.active_favicon.clone()
+        self.workspace_icon.clone()
+    }
+
+    fn tab_icon(&self) -> Option<&'static str> {
+        Some(hs_ui::icons::WORKSPACE)
+    }
+
+    /// One browser per workspace, so its window tab is named for the
+    /// workspace. Which page is open is said by the inner strip, where the
+    /// pages actually are.
+    fn single_tab(&self) -> bool {
+        true
+    }
+
+    fn can_duplicate_tab(&self) -> bool {
+        false
     }
 
     fn title(&self) -> Cow<'_, str> {
-        let p = self.page();
-        if !p.title.is_empty() {
-            Cow::Borrowed(&p.title)
-        } else if !p.url.is_empty() {
-            Cow::Borrowed(&p.url)
-        } else {
+        if self.workspace.is_empty() {
             Cow::Borrowed("Browser")
+        } else {
+            Cow::Borrowed(&self.workspace)
         }
+    }
+
+    /// The sidebar carries this workspace's favourites and saved logins.
+    /// Without one the shell draws the application's tagline there, which
+    /// says nothing about the browser. Owner's requirement, 2026-10-17.
+    fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
+        let theme = Theme::from_settings(&cx.services.settings.read().appearance);
+        self.sync_workspace(ui.ctx(), cx.services);
+        let icons = self.sync_favicons(ui.ctx(), cx.services);
+        let out = side::sidebar(self, ui, cx, &theme, &icons);
+        if let Some(url) = out.open {
+            self.open_url(&url, cx.services);
+        }
+        true
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         self.tab_id = cx.tab_id;
+        self.sync_workspace(ui.ctx(), s);
         self.apply_events();
         let favicons = self.sync_favicons(ui.ctx(), s);
         self.active_favicon = (!self.page().loading)
@@ -852,6 +961,20 @@ impl Tool for BrowserTool {
             if ui.button(ph::PRINTER).tip(s.t("browser-print")).clicked() {
                 self.pending.push(Cmd::Print(page_id));
             }
+            if ui
+                .button(ph::STAR)
+                .tip(s.t("browser-add-favorite"))
+                .clicked()
+            {
+                self.adding_favorite = Some(side::AddFavorite::default());
+            }
+            if ui
+                .button(ph::KEY)
+                .tip(s.t("browser-fill-password"))
+                .clicked()
+            {
+                self.filling = Some(side::Filling::default());
+            }
             if let Some(now) = toggled {
                 self.last_inspect_at = Some(now);
                 if !docked {
@@ -889,8 +1012,33 @@ impl Tool for BrowserTool {
                 ui.label(egui::RichText::new(line).small().color(theme.text_muted));
             }
         }
-        // The page area: the host paints the native view here.
-        let rect = ui.available_rect_before_wrap();
+        // The page area: the host paints the native view here. The
+        // favourites/passwords editor takes a column out of it rather than
+        // being drawn on top, because the native view paints above
+        // anything egui draws.
+        let full = ui.available_rect_before_wrap();
+        let detail_w = side::detail_width(self);
+        let rect = if detail_w > 0.0 {
+            egui::Rect::from_min_max(
+                full.min,
+                egui::pos2(full.right() - detail_w - 6.0, full.bottom()),
+            )
+        } else {
+            full
+        };
+        if detail_w > 0.0 {
+            let pane = egui::Rect::from_min_max(
+                egui::pos2(full.right() - detail_w, full.top()),
+                full.right_bottom(),
+            );
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(pane)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            child.set_clip_rect(pane.intersect(ui.clip_rect()));
+            side::detail(self, &mut child, cx, &theme);
+        }
         egui::Frame::new()
             .fill(if self.page().dark {
                 egui::Color32::from_gray(20)
@@ -899,6 +1047,7 @@ impl Tool for BrowserTool {
             })
             .stroke(egui::Stroke::new(1.0, theme.border))
             .show(ui, |ui| {
+                ui.set_max_size(rect.size());
                 ui.set_min_size(rect.size());
                 if available == Some(false) {
                     ui.vertical_centered(|ui| {
@@ -915,8 +1064,12 @@ impl Tool for BrowserTool {
                     });
                 }
             });
+        side::add_favorite_dialog(self, ui, cx, &theme);
+        side::fill_password_dialog(self, ui, cx, &theme);
         let mut hub = self.hub.lock();
         let tab = hub.tabs.entry(cx.tab_id).or_default();
+        tab.overlay =
+            self.adding_favorite.is_some() || self.filling.is_some() || self.side.confirm.is_some();
         tab.rect = Some(rect);
         tab.active_page = Some(self.page().id);
         tab.pages = self

@@ -711,6 +711,19 @@ impl HyperStackApp {
             self.tabs.activate(id);
             return;
         }
+        // A tool that is one tab per workspace (the browser) focuses the
+        // tab it already has and hands it the request, rather than opening
+        // a second one.
+        if let Some(id) = self
+            .tabs
+            .tabs
+            .iter()
+            .find(|t| t.factory_id == factory_id && t.tool.single_tab())
+            .map(|t| t.id)
+        {
+            self.focus_and_open(id, factory_id, request);
+            return;
+        }
         // Project roots are unique in the main window even when an editor
         // action would normally force a new tab. File tabs may be duplicated
         // deliberately; project roots may not.
@@ -3086,8 +3099,11 @@ impl eframe::App for HyperStackApp {
         if let Some(url) = self.pending_open_url.take() {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
-        // Native web views sit above egui: hide them under any modal.
-        let overlay = self.palette.open
+        // Native web views sit above egui: hide them under any modal,
+        // including one a tool opened for itself.
+        let tool_modal = self.browser_hub.lock().tabs.values().any(|t| t.overlay);
+        let overlay = tool_modal
+            || self.palette.open
             || self.vault_dialog != VaultDialog::None
             || !matches!(self.workspace_dialog, WorkspaceDialog::None)
             || self.portable != PortableDialog::None

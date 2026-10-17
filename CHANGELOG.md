@@ -60,7 +60,40 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   that was open with rows to aim between, which is what "dragging into a
   folder does not work" meant.
 
+- The browser is **one tab per workspace**, carrying the workspace's
+  logo and name rather than the open page's. Its pages were always its own
+  inner tabs; a second window tab was a second browser for one project.
+
+- The browser's sidebar holds this workspace's **Favorites and Passwords**,
+  where the application's tagline used to sit. Both are stored beside the
+  workspace, so each project keeps its own.
+
+- **Favorites** are a tree: folders and sub-folders, each site with its own
+  favicon or an icon you set, right-click to edit or delete, a confirmation
+  before anything goes, and rows dragged into order or onto a folder. The
+  editor opens in a column beside the page, which narrows to make room, and
+  closes again from its own button.
+
+- **Passwords** keeps a login's name, URL, icon and username in the
+  workspace file and **every secret in the vault** as a `secret:<ulid>`
+  reference — password, passkey and API key. Revealing or filling one needs
+  the vault unlocked, and the workspace file can be copied or committed
+  without carrying a password with it.
+
+- **Add to Favorites** on the browser toolbar saves the open page to the
+  top level, an existing folder, or a new one.
+
+- **Fill in Password** on the browser toolbar finds the logins saved for
+  the page's host and fills the page's own username, password and API-key
+  fields. HTTP basic authentication is a native dialog outside the page and
+  a passkey is a WebAuthn exchange, so neither can be filled this way; the
+  passkey field is a place to keep recovery material.
+
 ### Fixed
+
+- **A browser dialog is no longer hidden behind the page.** A native web
+  view paints above everything egui draws, and the shell only knew about
+  its own modals, so a dialog a tool opened for itself was invisible.
 
 - **A tab's context-menu action no longer fires twice.** egui lays the
   frame out again when the strip's size changes and `clicked()` is pointer

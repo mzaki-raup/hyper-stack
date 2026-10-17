@@ -267,6 +267,12 @@ mod imp {
                             continue;
                         }
                         Cmd::Stop(id) => (*id, "window.stop()"),
+                        Cmd::Script(id, js) => {
+                            if let Some(v) = self.views.get(id) {
+                                let _ = v.webview.evaluate_script(js);
+                            }
+                            continue;
+                        }
                         Cmd::DevTools(id) => {
                             if let Some(v) = self.views.get(id) {
                                 v.webview.open_devtools();

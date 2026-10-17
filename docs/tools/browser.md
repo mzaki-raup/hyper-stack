@@ -191,3 +191,51 @@ body { filter: invert(1) hue-rotate(180deg) !important;
 Images, video, canvases and inline backgrounds are inverted a second time
 so they come back to their own colours, as before.
 
+
+### Favourites, passwords, and one browser per workspace (2026-10-17)
+
+The browser is **one window tab per workspace**, carrying the workspace's
+logo and name. Its pages were always its own inner tabs, so a second window
+tab was a second browser for the same project; `Tool::single_tab` focuses
+the one that exists and hands it the request instead.
+
+The sidebar — where the application's tagline used to sit, which said
+nothing about the browser — holds two lists, both stored under
+`<workspace>/browser/` so each project keeps its own:
+
+**Favourites** is a tree. Folders nest, each site shows its own favicon
+unless an icon is set for it, right-click offers Open/Edit/Delete on a site
+and New Folder/Rename/Delete on a folder, and deleting asks first — saying
+how many items go with a folder. Rows drag into order, and onto a folder:
+a between-rows drop cannot reach a folder that is collapsed or empty, so
+`reorder::drop_onto` makes the folder itself a target.
+
+**Passwords** keeps a login's name, URL, icon and username in the workspace
+file, and **every secret in the vault** as a `secret:<ulid>` reference —
+password, passkey and API key (`docs/06-security.md`). The file can be
+copied, committed or synced without carrying a password with it, and the
+cost is that revealing or filling one needs the vault unlocked, which the
+pane says plainly.
+
+The editor for either list opens **beside the page, not over it**. A native
+web view paints above everything egui draws, so the browser narrows the
+rectangle it reports for the view and the pane takes the space — the same
+move the AI assistant makes in the other tools. For the same reason a
+dialog a tool opens for itself has to tell the host to hide the view:
+`TabDesire::overlay` does that, because the shell only knew about its own
+modals and an Add to Favorites dialog was otherwise invisible.
+
+**Add to Favorites** saves the open page to the top level, an existing
+folder, or a new one. **Fill in Password** finds the logins saved for the
+page's host and fills the page's own fields through a script, dispatching
+`input` and `change` so a framework that mirrors the field notices. It
+anchors on the password input and takes the text field before it, which is
+what a login form looks like, falling back to what a field calls itself.
+Values are serialised as JSON before being put in the script, so a password
+holding a quote or a backslash cannot end the string it sits in.
+
+Two things it deliberately cannot do: **HTTP basic authentication** is a
+native WebView2 dialog outside the page, which no script can answer, and a
+**passkey** is a WebAuthn exchange between the browser and an authenticator
+that a stored string cannot stand in for. The passkey field is a place to
+keep recovery material. Owner's requirements, 2026-10-17.

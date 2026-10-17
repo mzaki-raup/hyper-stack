@@ -1824,3 +1824,62 @@ conn-nosql-tls = TLS
 conn-nosql-direct = Direct Connection
 conn-nosql-direct-hint = Talk to this server only, rather than discovering the replica set
 conn-nosql-url-hint = mongodb://user:password@host:27017/db or http://user:password@host:5984/db fills the fields in, and sets the kind.
+
+# Browser: favourites and saved logins
+browser-favorites = Favorites
+browser-passwords = Passwords
+browser-side-filter = Filter favorites and logins…
+browser-new-folder = New Folder
+browser-folder-name = New Folder
+browser-no-favorites = Nothing saved yet. Open a page and use Add to Favorites.
+browser-open = Open
+browser-edit = Edit
+browser-rename = Rename
+browser-delete = Delete
+browser-delete-title = Delete
+browser-delete-body = Delete "{ $name }"? This cannot be undone.
+browser-delete-folder-body =
+    Delete the folder "{ $name }" and the { $count } items inside it? This
+    cannot be undone.
+browser-new-login = New Login
+browser-login-name = New Login
+browser-no-logins = No logins saved for this workspace yet.
+browser-edit-favorite = Edit Favorite
+browser-edit-login = Edit Login
+browser-hide-detail = Hide this pane
+browser-name = Name
+browser-url = URL
+browser-username = Username
+browser-icon = Icon
+browser-icon-hint = Leave empty to use the site's own icon
+browser-icon-clear = Use the Site's Icon
+browser-icon-auto = The site's own icon is used.
+browser-password = Password
+browser-passkey = Passkey
+browser-apikey = API Key
+browser-secrets-note =
+    Stored in the vault, never in the workspace file. Unlock the vault to
+    reveal or fill one.
+browser-secret-stored = Stored. Type to replace.
+browser-secret-empty = Nothing stored.
+browser-secret-saved = Saved to the vault.
+browser-secret-bad-ref = That secret reference is not valid.
+browser-reveal = Reveal from the vault
+browser-store-secret = Save to the vault
+browser-forget-secret = Forget this secret
+browser-vault-locked = The vault is locked.
+browser-favorite-added = Added to favorites.
+browser-add-favorite = Add to Favorites
+browser-add-favorite-title = Add to Favorites
+browser-add-favorite-where = Where should it go?
+browser-add-favorite-root = Favorites (top level)
+browser-add-favorite-new = New folder…
+browser-add-favorite-new-hint = Folder name
+browser-add = Add
+browser-fill-password = Fill in Password
+browser-fill-title = Fill in Password
+browser-fill-none = No login saved for { $host }.
+browser-fill-pick = Which login should be filled in?
+browser-fill-done = Filled in { $name }.
+browser-fill-nothing = Nothing on this page matched a field to fill.
+browser-fill-no-page = Open a page first.

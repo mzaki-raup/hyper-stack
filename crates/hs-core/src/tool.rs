@@ -290,6 +290,23 @@ pub trait Tool: Send {
         self.save_state()
     }
 
+    /// A glyph for this tool's window tab, when the tool's own identity
+    /// differs from its category's. The browser's tab is the workspace's,
+    /// so it shows the workspace glyph rather than a globe when no logo is
+    /// set. `None` keeps the descriptor's icon.
+    fn tab_icon(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Whether this tool has exactly one window tab. The browser is one
+    /// per workspace: its pages are its own inner tabs, so a second window
+    /// tab would be a second browser for the same project. A request to
+    /// open the tool again focuses the one that exists and hands it the
+    /// request. Owner's requirement, 2026-10-17.
+    fn single_tab(&self) -> bool {
+        false
+    }
+
     /// Whether a second window tab of this tool is meaningful at all.
     /// False for a tool whose tab *is* the thing it holds rather than a
     /// view onto it — Graphics, where a tab is one open image, and the

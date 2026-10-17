@@ -259,11 +259,11 @@ start* are held or deferred by the owner's instruction.
 | API client: the list is the source of truth for the workspace | Completed | every creation path (button, folder menu, tab Duplicate) now writes into a collection on disk; verified live against the collection file |
 | API client: request-name row above the action bar, renaming in place | Completed | `name_row` writes through on Enter or blur; verified live — renaming to Orders updated the list row and the tab |
 | API client: drag a request between folders, sibling, parent and sub | Completed | `reorder::drop_onto` makes a folder a target in its own right; verified live — into a collapsed empty folder and back out again |
-| Browser: one outer tab per workspace, carrying its icon and name | Pending | multi-tab and multi-row move to the inner strip |
-| Browser: Favorites tab - tree with folders, per-workspace store | Pending | favicon or custom icon, right-click manage, delete confirmation, hideable detail pane, drag to reorder with a drop indicator |
-| Browser: Passwords tab - per-workspace store | Pending | name/url/icon/username/password/passkey/apikey; secrets go to the vault as `secret:<ulid>`, never the workspace file |
-| Browser: Add to Favorites in the toolbar | Pending | root, an existing folder, or a new one |
-| Browser: Fill in Password in the toolbar | Pending | match by domain; fill username/password/apikey forms, HTTP basic, and answer a passkey prompt |
+| Browser: one outer tab per workspace, carrying its icon and name | Completed | `Tool::single_tab` + `tab_icon`/`tab_icon_uri`; verified live — the tab reads `default` with the workspace glyph |
+| Browser: Favorites tab - tree with folders, per-workspace store | Completed | `store::Favorites` + `side.rs`; verified live — a page added from the toolbar appeared with its real favicon, Open/Edit/Delete on right-click, and the detail pane narrowed the page rather than covering it |
+| Browser: Passwords tab - per-workspace store | Completed | `store::Passwords`; the three secret fields hold vault references only; verified live — a new login showed `Nothing stored.` and the locked-vault warning |
+| Browser: Add to Favorites in the toolbar | Completed | root, an existing folder or a new one; verified live against `favorites.json` |
+| Browser: Fill in Password in the toolbar | Completed (partly) | matches by host and fills the page's own username/password/API-key fields through `Cmd::Script`; verified live — the dialog matched `duckduckgo.com` and refused while locked. **HTTP basic auth and passkeys cannot be filled**: one is a native dialog outside the page, the other a WebAuthn exchange |
 | Editor: Java debug adapter | Pending | java-debug / vscode-java-debug alongside the existing adapters |
 | Editor: Run/Debug asks about unsaved tabs | Pending | Save, Ignore or Cancel; Save writes every dirty open tab first |
 | Devtools: Unit Conversion tool | Pending | time (days/hours/minutes/seconds/ms, epoch), numbers (decimal/binary/octal/hex), and other suitable conversions, each with its own result area per type |

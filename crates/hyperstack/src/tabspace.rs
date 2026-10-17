@@ -122,7 +122,7 @@ impl TabSpace {
                 id: t.id,
                 factory_id: t.factory_id.clone(),
                 title: t.tool.title().to_string(),
-                icon: t.tool.descriptor().icon,
+                icon: t.tool.tab_icon().unwrap_or(t.tool.descriptor().icon),
                 icon_uri: t.tool.tab_icon_uri(),
                 prefix: t.tool.tab_title_prefix(),
                 pinned: t.pinned,

@@ -8194,6 +8194,7 @@ dependencies = [
  "hs-core",
  "hs-ui",
  "parking_lot",
+ "secrecy",
  "serde",
  "serde_json",
 ]

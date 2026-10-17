@@ -152,36 +152,53 @@ pub fn side(
             if !pinned.is_empty() {
                 section_heading(ui, theme, &services.t("launcher-pinned"));
                 ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
-                    for c in &pinned {
-                        let fill = kind_colour(theme, &c.kind);
-                        let text =
-                            format!("{}  {}", hs_core::connections::kind_label(&c.kind), c.name);
-                        let tool =
-                            tool_for_kind(&c.kind).and_then(|id| tools.iter().find(|t| t.id == id));
-                        match tool {
-                            Some(t) => {
-                                let tip = services.i18n.t_args(
-                                    "launcher-open-connection",
-                                    &[("tool", &services.t(t.title_key))],
-                                );
-                                if pill(ui, &text, fill, theme.text)
-                                    .on_hover_text(tip)
-                                    .clicked()
-                                {
-                                    resp.open_connection = Some((t.id.to_string(), c.id.clone()));
+                // One section per connection type, in the order the
+                // activity rail shows the tools that open them, so the
+                // column reads the same way down as the rail does. Pins
+                // whose kind no tool claims go last. Owner's requirement,
+                // 2026-10-17.
+                for (gi, (kind, group)) in
+                    pinned_by_kind(&pinned, tools, services).iter().enumerate()
+                {
+                    if gi > 0 {
+                        ui.add_space(8.0);
+                        ui.separator();
+                        ui.add_space(4.0);
+                    }
+                    let fill = kind_colour(theme, kind);
+                    kind_heading(ui, theme, hs_core::connections::kind_label(kind), fill);
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for c in group {
+                            // The section says the type, so the pill is
+                            // just the name; the colour carries the kind.
+                            let tool = tool_for_kind(&c.kind)
+                                .and_then(|id| tools.iter().find(|t| t.id == id));
+                            match tool {
+                                Some(t) => {
+                                    let tip = services.i18n.t_args(
+                                        "launcher-open-connection",
+                                        &[("tool", &services.t(t.title_key))],
+                                    );
+                                    if pill(ui, &c.name, fill, theme.text)
+                                        .on_hover_text(tip)
+                                        .clicked()
+                                    {
+                                        resp.open_connection =
+                                            Some((t.id.to_string(), c.id.clone()));
+                                    }
+                                }
+                                None => {
+                                    let tip = services.i18n.t_args(
+                                        "launcher-connection-no-tool",
+                                        &[("kind", hs_core::connections::kind_label(&c.kind))],
+                                    );
+                                    pill(ui, &c.name, fill, theme.text_muted).on_hover_text(tip);
                                 }
                             }
-                            None => {
-                                let tip = services.i18n.t_args(
-                                    "launcher-connection-no-tool",
-                                    &[("kind", hs_core::connections::kind_label(&c.kind))],
-                                );
-                                pill(ui, &text, fill, theme.text_muted).on_hover_text(tip);
-                            }
                         }
-                    }
-                });
+                    });
+                }
             }
             if !recent.is_empty() {
                 if !pinned.is_empty() {
@@ -222,6 +239,49 @@ pub fn side(
 
 /// A section heading on Home. Bigger than the body text, because these
 /// separate the page into parts and were previously easy to miss.
+/// Pinned connections grouped by kind, the groups ordered the way the
+/// activity rail orders the tools that open them. A kind no tool claims
+/// sorts last, and ties fall back to the kind's own name so the order is
+/// stable rather than however the store happened to list them.
+fn pinned_by_kind<'a>(
+    pinned: &'a [hs_core::connections::ConnectionProfile],
+    tools: &[&ToolDescriptor],
+    services: &Services,
+) -> Vec<(String, Vec<&'a hs_core::connections::ConnectionProfile>)> {
+    let saved = services.settings.read().appearance.rail_order.clone();
+    let ids: Vec<&str> = tools.iter().map(|t| t.id).collect();
+    let rail = crate::app::rail_order(&ids, &saved);
+    let rank = |kind: &str| -> usize {
+        tool_for_kind(kind)
+            .and_then(|id| rail.iter().position(|r| *r == id))
+            .unwrap_or(usize::MAX)
+    };
+    let mut groups: Vec<(String, Vec<&hs_core::connections::ConnectionProfile>)> = Vec::new();
+    for c in pinned {
+        match groups.iter_mut().find(|(k, _)| *k == c.kind) {
+            Some((_, v)) => v.push(c),
+            None => groups.push((c.kind.clone(), vec![c])),
+        }
+    }
+    groups.sort_by(|a, b| rank(&a.0).cmp(&rank(&b.0)).then_with(|| a.0.cmp(&b.0)));
+    groups
+}
+
+/// A connection type's heading: its name beside a dot in the type's own
+/// colour, so the section and the pills under it read as one group.
+fn kind_heading(ui: &mut egui::Ui, theme: &Theme, text: &str, colour: egui::Color32) {
+    ui.horizontal(|ui| {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+        ui.painter().circle_filled(rect.center(), 4.0, colour);
+        ui.label(
+            egui::RichText::new(text)
+                .size(11.0)
+                .strong()
+                .color(theme.text_muted),
+        );
+    });
+}
+
 fn section_heading(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.label(
         egui::RichText::new(text)
@@ -383,13 +443,19 @@ mod tests {
         harness.run();
         // Only pinned connections are on Home.
         assert!(
-            harness.query_by_label("Redis  not-pinned").is_none(),
+            harness.query_by_label("not-pinned").is_none(),
             "an unpinned connection should not be on Home"
         );
+        // The pill is the connection's name: its type is said once, by the
+        // heading of the group it sits in.
+        assert!(
+            harness.query_by_label("SSH").is_some(),
+            "each group is headed by its connection type"
+        );
         // The redis chip has no tool here, so clicking it opens nothing.
-        harness.get_by_label("Redis  cache").click();
+        harness.get_by_label("cache").click();
         harness.run();
-        harness.get_by_label("SSH  web-01").click();
+        harness.get_by_label("web-01").click();
         harness.run();
         drop(harness);
         assert_eq!(opened, Some(("ssh".to_string(), ssh_id)));

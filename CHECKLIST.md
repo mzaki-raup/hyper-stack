@@ -216,6 +216,9 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
 | Shell: Split Right/Down removed from the tab menu and default keys | Completed | menu entries and `tab.split_*` bindings dropped, palette commands kept; verified live — a Database tab's menu ends at Duplicate |
 | Shell: Duplicate refused where a second tab is meaningless | Completed | `Tool::current_connection` + `tabs_per_connection` (SSH 3) and `can_duplicate_tab` (Graphics); verified live — Duplicate greyed on a Database tab |
+| Connections: Pin to Home in every connection sidebar | Completed | `form::connection_row` carries the menu for SSH, Database, Redis, NoSQL and S3; verified live — pinned a SQLite profile from the Database sidebar |
+| Home: pinned connections grouped by type, in rail order | Completed | `pinned_by_kind` ranks groups by `app::rail_order`; verified live — a DB heading with its colour dot above the pill |
+| Home: the workspace logo sits beside the sidebar title | Completed | `form::sidebar_header_icon`, falling back to the workspace glyph; verified live |
 | Home: Recent rows align left | Completed | `Atom::grow()` holds the row at full width with the label at the left edge; verified live |
 | Database: the row number is frozen beside the grid | Completed | `grid::paint_gutter` numbers the rows the table drew, outside the scroll area; verified live — the numbers held while the data scrolled to `PASSPORT_ISSUE_DATE` |
 | Database: the result footer stays reachable when narrow | Completed | laid out right to left, the filter box shrinks first; verified live — Copy As and Export both whole with the assistant open |

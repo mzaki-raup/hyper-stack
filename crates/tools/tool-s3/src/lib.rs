@@ -1088,7 +1088,7 @@ impl Tool for S3Tool {
             }
             _ => {}
         }
-        let profiles: Vec<(String, String, String)> = s
+        let profiles: Vec<(String, String, String, bool)> = s
             .connections
             .read()
             .of_kind("s3")
@@ -1097,6 +1097,7 @@ impl Tool for S3Tool {
                     c.id.clone(),
                     c.name.clone(),
                     S3Fields::from_table(&c.fields).label(),
+                    c.pinned,
                 )
             })
             .collect();
@@ -1106,14 +1107,26 @@ impl Tool for S3Tool {
         }
         let mut reorder = hs_ui::reorder::Reorder::new("s3-profiles");
         let mut open_profile: Option<(String, bool)> = None;
-        for (i, (id, name, label)) in profiles.iter().enumerate() {
+        let mut pin: Option<(String, bool)> = None;
+        for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
             let selected = self.state.conn_id.as_deref() == Some(id.as_str());
             reorder.row(ui, i, |ui| {
-                if form::list_row(ui, &theme, selected, ph::CLOUD, name, Some(label))
-                    .tip(s.t("s3-open-profile"))
-                    .clicked()
-                {
+                let row = form::connection_row(
+                    ui,
+                    &theme,
+                    selected,
+                    ph::CLOUD,
+                    name,
+                    Some(label),
+                    *is_pinned,
+                    &s.t("conn-pin-home"),
+                    &s.t("conn-unpin-home"),
+                );
+                if row.response.tip(s.t("s3-open-profile")).clicked() {
                     open_profile = Some((id.clone(), selected));
+                }
+                if let Some(p) = row.pin {
+                    pin = Some((id.clone(), p));
                 }
             });
             ui.add_space(2.0);
@@ -1148,6 +1161,11 @@ impl Tool for S3Tool {
                 }
                 ui.add_space(6.0);
             }
+        }
+        if let Some((id, p)) = pin
+            && let Err(e) = s.connections.write().set_pinned(&id, p)
+        {
+            cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
         }
         if let Some((from, to)) = reorder.finish(ui, theme.accent) {
             if let Err(e) = s.connections.write().reorder(&["s3"], from, to) {

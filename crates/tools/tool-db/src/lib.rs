@@ -2584,7 +2584,7 @@ impl Tool for DbTool {
             Some(1) => self.refresh_schema(s),
             _ => {}
         }
-        let profiles: Vec<(String, String, String)> = s
+        let profiles: Vec<(String, String, String, bool)> = s
             .connections
             .read()
             .of_kind("db")
@@ -2593,6 +2593,7 @@ impl Tool for DbTool {
                     c.id.clone(),
                     c.name.clone(),
                     DbFields::from_table(&c.fields).label(),
+                    c.pinned,
                 )
             })
             .collect();
@@ -2605,14 +2606,26 @@ impl Tool for DbTool {
             .show(ui, |ui| {
                 let mut reorder = hs_ui::reorder::Reorder::new("db-profiles");
                 let mut open_profile: Option<(String, bool)> = None;
-                for (i, (id, name, label)) in profiles.iter().enumerate() {
+                let mut pin: Option<(String, bool)> = None;
+                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(ui, &theme, selected, ph::DATABASE, name, Some(label))
-                            .tip(s.t("db-open-profile"))
-                            .clicked()
-                        {
+                        let row = form::connection_row(
+                            ui,
+                            &theme,
+                            selected,
+                            ph::DATABASE,
+                            name,
+                            Some(label),
+                            *is_pinned,
+                            &s.t("conn-pin-home"),
+                            &s.t("conn-unpin-home"),
+                        );
+                        if row.response.tip(s.t("db-open-profile")).clicked() {
                             open_profile = Some((id.clone(), selected));
+                        }
+                        if let Some(p) = row.pin {
+                            pin = Some((id.clone(), p));
                         }
                     });
                     ui.add_space(2.0);
@@ -2623,6 +2636,11 @@ impl Tool for DbTool {
                     // tab's content, not a block nested under this row: it
                     // is what the connection is *for*, and it has to stay
                     // when the sidebar is hidden.
+                }
+                if let Some((id, p)) = pin
+                    && let Err(e) = s.connections.write().set_pinned(&id, p)
+                {
+                    cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
                     if let Err(e) = s.connections.write().reorder(&["db"], from, to) {

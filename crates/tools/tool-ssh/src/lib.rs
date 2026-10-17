@@ -1668,18 +1668,21 @@ impl Tool for SshTool {
         for (i, (id, name, label, is_pinned)) in hosts.iter().enumerate() {
             let selected = self.state.conn_id.as_deref() == Some(id.as_str());
             reorder.row(ui, i, |ui| {
-                let row =
-                    form::list_row(ui, &theme, selected, ph::COMPUTER_TOWER, name, Some(label))
-                        .tip(s.t("ssh-open-host"));
-                if row.clicked() {
-                    open = Some((id.clone(), selected));
-                }
-                if let Some(p) = form::pin_menu(
-                    &row,
+                let row = form::connection_row(
+                    ui,
+                    &theme,
+                    selected,
+                    ph::COMPUTER_TOWER,
+                    name,
+                    Some(label),
                     *is_pinned,
                     &s.t("conn-pin-home"),
                     &s.t("conn-unpin-home"),
-                ) {
+                );
+                if row.response.tip(s.t("ssh-open-host")).clicked() {
+                    open = Some((id.clone(), selected));
+                }
+                if let Some(p) = row.pin {
                     pin = Some((id.clone(), p));
                 }
             });

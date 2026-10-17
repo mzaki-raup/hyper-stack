@@ -27,6 +27,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   one open image. A new activity type gets the rule by implementing
   `Tool::current_connection`.
 
+- **Pin to Home reaches every connection list.** Database, Redis, NoSQL
+  and S3 had no pin menu at all — only SSH did — so a connection could be
+  pinned from one tool and nowhere else. Every list now draws its rows
+  with `form::connection_row`, which carries the menu, so a new activity
+  type gets it by using the same helper.
+
+- **Home's pinned connections are grouped by type**, each group under a
+  heading with the type's colour and separated from the next, and the
+  groups follow the order of the activity rail (Settings -> Appearance).
+  The pill is just the connection's name now; the heading says the type.
+
+- **Home's sidebar header carries the workspace's own logo**, or a folder
+  glyph when none is set, so the column says which workspace the pins
+  below belong to rather than only naming it.
+
 ### Fixed
 
 - **Home's Recent list is aligned left.** The rows were built with

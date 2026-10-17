@@ -202,9 +202,34 @@ pub const SIDEBAR_HEADER_HEIGHT: f32 = 28.0;
 /// sit on the same baseline and the buttons in the same place.
 ///
 /// Returns the index of the action that was clicked.
+/// A sidebar header with something drawn before the title: the
+/// workspace's own logo on Home, falling back to a glyph when none is
+/// set, so the column says which workspace these pins belong to rather
+/// than only naming it. Owner's requirement, 2026-10-17.
+pub fn sidebar_header_icon(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: Option<egui::Image<'_>>,
+    fallback: &str,
+    title: &str,
+    actions: &[(&str, &str)],
+) -> Option<usize> {
+    sidebar_header_inner(ui, theme, Some((icon, fallback)), title, actions)
+}
+
 pub fn sidebar_header(
     ui: &mut egui::Ui,
     theme: &Theme,
+    title: &str,
+    actions: &[(&str, &str)],
+) -> Option<usize> {
+    sidebar_header_inner(ui, theme, None, title, actions)
+}
+
+fn sidebar_header_inner(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    leading: Option<(Option<egui::Image<'_>>, &str)>,
     title: &str,
     actions: &[(&str, &str)],
 ) -> Option<usize> {
@@ -219,6 +244,22 @@ pub fn sidebar_header(
             egui::Vec2::new(width, height),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
+                if let Some((icon, fallback)) = leading {
+                    const SIZE: f32 = 18.0;
+                    match icon {
+                        Some(img) => {
+                            ui.add(img.fit_to_exact_size(egui::Vec2::splat(SIZE)));
+                        }
+                        None => {
+                            ui.label(
+                                egui::RichText::new(fallback)
+                                    .size(SIZE - 2.0)
+                                    .color(theme.text_muted),
+                            );
+                        }
+                    }
+                    ui.add_space(6.0);
+                }
                 ui.label(egui::RichText::new(title).strong().size(15.0));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Right to left, so the first action ends up rightmost and
@@ -245,6 +286,38 @@ pub fn sidebar_header(
 ///
 /// Home lists the connections someone pinned, which is only meaningful if
 /// pinning is something they can do from where the connections are.
+/// What a connection row reported this frame.
+pub struct ConnectionRow {
+    pub response: egui::Response,
+    /// `Some(true)` to pin the connection to Home, `Some(false)` to unpin.
+    pub pin: Option<bool>,
+}
+
+/// A row in a tool's connection sidebar: the row itself, plus the
+/// Pin to Home / Unpin From Home menu on it.
+///
+/// Every connection list goes through this rather than calling
+/// [`list_row`] directly, so the menu cannot be left off one of them —
+/// which is exactly what had happened to Database, Redis, NoSQL and S3,
+/// where only SSH offered it. A new activity type gets the menu by using
+/// this helper. Owner's requirement, 2026-10-17.
+#[allow(clippy::too_many_arguments)]
+pub fn connection_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    icon: &str,
+    name: &str,
+    subtitle: Option<&str>,
+    pinned: bool,
+    pin_label: &str,
+    unpin_label: &str,
+) -> ConnectionRow {
+    let response = list_row(ui, theme, selected, icon, name, subtitle);
+    let pin = pin_menu(&response, pinned, pin_label, unpin_label);
+    ConnectionRow { response, pin }
+}
+
 pub fn pin_menu(row: &egui::Response, pinned: bool, pin: &str, unpin: &str) -> Option<bool> {
     let mut choice = None;
     row.context_menu(|ui| {

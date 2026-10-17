@@ -543,7 +543,7 @@ impl Tool for RedisTool {
                 id: "settings:connections".into(),
             });
         }
-        let profiles: Vec<(String, String, String)> = {
+        let profiles: Vec<(String, String, String, bool)> = {
             let conns = s.connections.read();
             conns
                 .of_kind("redis")
@@ -552,6 +552,7 @@ impl Tool for RedisTool {
                         c.id.clone(),
                         c.name.clone(),
                         RedisFields::from_table(&c.fields).label(),
+                        c.pinned,
                     )
                 })
                 .collect()
@@ -566,17 +567,34 @@ impl Tool for RedisTool {
             .show(ui, |ui| {
                 let mut reorder = hs_ui::reorder::Reorder::new("redis-profiles");
                 let mut open_profile: Option<(String, bool)> = None;
-                for (i, (id, name, label)) in profiles.iter().enumerate() {
+                let mut pin: Option<(String, bool)> = None;
+                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(ui, &theme, selected, ph::LIGHTNING, name, Some(label))
-                            .tip(s.t("redis-open-profile"))
-                            .clicked()
-                        {
+                        let row = form::connection_row(
+                            ui,
+                            &theme,
+                            selected,
+                            ph::LIGHTNING,
+                            name,
+                            Some(label),
+                            *is_pinned,
+                            &s.t("conn-pin-home"),
+                            &s.t("conn-unpin-home"),
+                        );
+                        if row.response.tip(s.t("redis-open-profile")).clicked() {
                             open_profile = Some((id.clone(), selected));
+                        }
+                        if let Some(p) = row.pin {
+                            pin = Some((id.clone(), p));
                         }
                     });
                     ui.add_space(2.0);
+                }
+                if let Some((id, p)) = pin
+                    && let Err(e) = s.connections.write().set_pinned(&id, p)
+                {
+                    cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
                     if let Err(e) = s.connections.write().reorder(&["redis"], from, to) {

@@ -126,8 +126,18 @@ impl Tool for HomeTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let mut hub = self.hub.lock();
         let hub = &mut *hub;
-        let ws = s.workspace.read().meta.name.clone();
-        hs_ui::form::sidebar_header(ui, &theme, &ws, &[]);
+        let (ws, root) = {
+            let w = s.workspace.read();
+            (w.meta.name.clone(), w.root().to_path_buf())
+        };
+        hs_ui::form::sidebar_header_icon(
+            ui,
+            &theme,
+            crate::app::ws_logo_image(&root),
+            hs_ui::icons::WORKSPACE,
+            &ws,
+            &[],
+        );
         ui.add_space(4.0);
         let descs: Vec<&ToolDescriptor> = hub.tools.iter().collect();
         let r = launcher::side(ui, &theme, s, &descs, &hub.closed);

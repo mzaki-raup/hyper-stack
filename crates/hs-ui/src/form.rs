@@ -18,6 +18,25 @@ pub const FIELD_MARGIN: Margin = Margin {
     bottom: 7,
 };
 
+/// How tall a text field drawn with [`FIELD_MARGIN`] comes out. A control
+/// put beside one — a ComboBox, a button — has to be told this, or the two
+/// frames sit at different heights and the row looks crooked even though
+/// egui has centred them.
+pub fn field_height(ui: &egui::Ui) -> f32 {
+    ui.text_style_height(&egui::TextStyle::Body) + (FIELD_MARGIN.top + FIELD_MARGIN.bottom) as f32
+}
+
+/// Run `add` with controls sized to match a text field, so a ComboBox or a
+/// button lines up with one beside it.
+pub fn field_row<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let h = field_height(ui);
+    ui.scope(|ui| {
+        ui.spacing_mut().interact_size.y = h;
+        add(ui)
+    })
+    .inner
+}
+
 /// A page title with a short description under it.
 pub fn page_title(ui: &mut egui::Ui, theme: &Theme, title: &str, subtitle: Option<&str>) {
     ui.add_space(4.0);

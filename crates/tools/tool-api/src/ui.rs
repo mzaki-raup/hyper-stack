@@ -904,20 +904,27 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
     let mut send = false;
     let mut save = false;
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("api-method")
-            .width(96.0)
-            .selected_text(
-                egui::RichText::new(&t.request.method)
-                    .strong()
-                    .color(method_colour(theme, &t.request.method)),
-            )
-            .show_ui(ui, |ui| {
-                for m in METHODS {
-                    if ui.selectable_label(t.request.method == m, m).clicked() {
-                        t.request.method = m.into();
+        // The picker is sized to the URL field beside it: a ComboBox is
+        // shorter than a text field by default, and the two frames then
+        // sit at different heights however the row is aligned. Owner's
+        // report, 2026-10-17.
+        form::field_row(ui, |ui| {
+            egui::ComboBox::from_id_salt("api-method")
+                .width(96.0)
+                .height(260.0)
+                .selected_text(
+                    egui::RichText::new(&t.request.method)
+                        .strong()
+                        .color(method_colour(theme, &t.request.method)),
+                )
+                .show_ui(ui, |ui| {
+                    for m in METHODS {
+                        if ui.selectable_label(t.request.method == m, m).clicked() {
+                            t.request.method = m.into();
+                        }
                     }
-                }
-            });
+                });
+        });
         let w = (ui.available_width() - 262.0).max(200.0);
         let out = hs_ui::varfield::var_field_width(
             ui,

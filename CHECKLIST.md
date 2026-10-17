@@ -211,6 +211,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Database: one connection per window tab, many query tabs inside it | Completed | `QueryDoc` + `doc()`/`doc_mut()`, `query_tabs` strip, `State::queries`/`active_query`; verified live — two Untitled tabs kept separate text, the dirty dot followed the right one, and Ctrl+Enter ran the tab in front |
 | Home: the sidebar carries the workspace, Pinned and Recent | Completed | `launcher::side`, drawn under the page when no tabs are open; verified live |
 | Home: Get Started in the owner's order | Completed | workspace, environments, connection, project, terminal, quick open; verified live |
+| API client: the method picker is as tall as the URL field | Completed | `form::field_row` sizes a control to `form::field_height`; verified live at 4x — both frames share a top and bottom edge |
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
 | Database: Prettify lays the open query out again | Completed | `sqlformat` 0.5 (MIT OR Apache-2.0, `cargo deny` clean); verified live — a one-line join became 13 indented lines |

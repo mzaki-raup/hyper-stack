@@ -93,6 +93,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- The API client's **method picker lines up with the URL field** beside
+  it. A ComboBox is shorter than a text field by default, so the two
+  frames sat at different heights however the row was aligned.
+
 - Three dialogs had their buttons on the left where every other dialog
   puts them on the right: the SQL guard, Save Query, and S3's New Folder.
 

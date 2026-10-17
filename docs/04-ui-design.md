@@ -476,3 +476,16 @@ Connections' Save / Test Connection / Delete, an inline editor's
 Save / Delete / Cancel — stays left-aligned: it reads as part of the
 content flow rather than as the end of a conversation.
 
+### A control beside a text field (2026-10-17)
+
+A `ComboBox` or a button put next to a text field comes out **shorter**
+than it: the field carries `form::FIELD_MARGIN` (7 above and below) and
+the control carries egui's own `interact_size`. `ui.horizontal` centres
+them, so neither edge lines up and the row reads as crooked — which is
+what it was in the API client's method picker beside the URL.
+
+`form::field_row` runs its contents with `interact_size.y` set to
+`form::field_height`, so a control drawn inside it is exactly as tall as
+the field beside it. Use it for any control sharing a row with a text
+field. Owner's report, 2026-10-17.
+

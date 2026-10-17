@@ -11,50 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.33.0 — 2026-10-17
+
 ### Added
 
-- **Prettify** in the database toolbar lays the open query out again:
-  one clause to a line, indented, statements kept apart, keywords left in
-  the case they were typed.
-
-- An HTTP **method has a colour of its own** — GET green, POST blue, PUT
-  amber, PATCH violet, DELETE red — in the sidebar, the picker and the
-  tab, where only the method is coloured and the request's name is not.
-
-- An API request **opens in its own window tab**, at most one per
-  request: clicking one focuses the tab that has it, fills an empty tab,
-  or opens a new one.
-
-- A request can be **dragged between folders** — out of one, into one, or
-  between a folder and its parent's siblings — not only within its own
-  level. A name already in use where it lands is numbered, the same way a
-  duplicate is: `List` beside another `List` becomes `List 001`.
-
-- **Duplicate** names the copy `List 001`, `List 002` and so on, in the
-  folder the original is in.
-
-### Changed
-
-- **Home's sidebar carries Pinned and Recent**, with the workspace name
-  above them: the page says what you can do, the column says what you
-  were doing. Recent used to be at the bottom of the page under the tool
-  grid.
-
-- **Get Started** is in setup order — New Workspace, Environments, New
-  Connection, Open Folder as Project, New Terminal, Quick Open.
-
-- The API client's two script boxes are the same height whatever is in
-  them; a written pre-request script used to squeeze the empty
-  post-response one down to nothing.
+- Prettify the open query, and give each HTTP method its colour (18d5470d)
+- A tab per request, drags across folders, and numbered copies (d9dcfd53)
+- The sidebar says where you were, and Get Started is in setup order (29eee499)
 
 ### Fixed
 
-- The API client's **method picker lines up with the URL field** beside
-  it. A ComboBox is shorter than a text field by default, so the two
-  frames sat at different heights however the row was aligned.
-
-- Three dialogs had their buttons on the left where every other dialog
-  puts them on the right: the SQL guard, Save Query, and S3's New Folder.
+- The method picker is as tall as the URL field beside it (2c9633de)
 
 ## 0.32.0 — 2026-10-17
 

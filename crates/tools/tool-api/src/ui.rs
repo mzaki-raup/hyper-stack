@@ -365,6 +365,15 @@ enum SideAction {
     Import,
     NewCollection,
     LoadHistory(usize),
+    /// Drag-reorder inside one level: the collection, the folder it is in
+    /// (`None` = the collection's own items), and the move. Collections
+    /// themselves reorder with `collection` empty.
+    Reorder {
+        collection: String,
+        folder: Option<String>,
+        from: usize,
+        to: usize,
+    },
 }
 
 pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -420,23 +429,27 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
             if t.collections.is_empty() {
                 form::note(ui, theme, hs_ui::icons::INFO, &s.t("api-empty-hint"));
             }
-            for c in &t.collections {
-                let header = egui::CollapsingHeader::new(
-                    egui::RichText::new(format!("{} {}", ph::FOLDER, c.name)).strong(),
-                )
-                .id_salt(("api-col", &c.id))
-                .default_open(true)
-                .show(ui, |ui| {
-                    items_ui(
-                        ui,
-                        theme,
-                        &c.id,
-                        None,
-                        &c.items,
-                        &filter,
-                        selected.as_deref(),
-                        &mut actions,
-                    );
+            let mut collections = hs_ui::reorder::Reorder::new("api-collections");
+            for (ci, c) in t.collections.iter().enumerate() {
+                let header = collections.row(ui, ci, |ui| {
+                    egui::CollapsingHeader::new(
+                        egui::RichText::new(format!("{} {}", ph::FOLDER, c.name)).strong(),
+                    )
+                    .id_salt(("api-col", &c.id))
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        items_ui(
+                            ui,
+                            theme,
+                            s,
+                            &c.id,
+                            None,
+                            &c.items,
+                            &filter,
+                            selected.as_deref(),
+                            &mut actions,
+                        );
+                    })
                 });
                 header.header_response.context_menu(|ui| {
                     if ui.button(s.t("api-new-request")).clicked() {
@@ -464,6 +477,14 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         actions.push(SideAction::Delete(c.id.clone(), None));
                         ui.close();
                     }
+                });
+            }
+            if let Some((from, to)) = collections.finish(ui, theme.accent) {
+                actions.push(SideAction::Reorder {
+                    collection: String::new(),
+                    folder: None,
+                    from,
+                    to,
                 });
             }
             if t.show_history {
@@ -513,6 +534,23 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 t.save_collection(&c, cx);
             }
             SideAction::Rename(c, id, name) => t.rename = Some((format!("{c}/{id}"), name)),
+            SideAction::Reorder {
+                collection,
+                folder,
+                from,
+                to,
+            } => {
+                // An empty collection id means the collections themselves.
+                if collection.is_empty() {
+                    hs_ui::reorder::move_item(&mut t.collections, from, to);
+                    t.save_order(cx);
+                } else if let Some(col) = t.collections.iter_mut().find(|x| x.id == collection)
+                    && let Some(items) = col.items_mut(folder.as_deref())
+                {
+                    hs_ui::reorder::move_item(items, from, to);
+                    t.save_collection(&collection, cx);
+                }
+            }
             SideAction::Delete(c, item) => match item {
                 Some(id) => {
                     if let Some(col) = t.collections.iter_mut().find(|x| x.id == c) {
@@ -571,18 +609,26 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // one level of the tree, one argument each.
 fn items_ui(
     ui: &mut egui::Ui,
     theme: &Theme,
+    s: &hs_core::Services,
     collection: &str,
-    _folder: Option<&str>,
+    folder: Option<&str>,
     items: &[Item],
     filter: &str,
     selected: Option<&str>,
     actions: &mut Vec<SideAction>,
 ) {
-    for it in items {
+    // Each level reorders among its own siblings: a request never leaves
+    // its folder by being dragged, which is the move people actually mean.
+    let mut reorder = hs_ui::reorder::Reorder::new((
+        "api-items",
+        collection.to_string(),
+        folder.unwrap_or("").to_string(),
+    ));
+    for (index, it) in items.iter().enumerate() {
         match it {
             Item::Folder(f) => {
                 let matches = filter.is_empty() || f.name.to_lowercase().contains(filter);
@@ -593,34 +639,37 @@ fn items_ui(
                 if !matches && !has_match && !filter.is_empty() {
                     // Still descend: a nested request may match.
                 }
-                let r = egui::CollapsingHeader::new(format!("{} {}", ph::FOLDER, f.name))
-                    .id_salt(("api-folder", &f.id))
-                    .default_open(!filter.is_empty())
-                    .show(ui, |ui| {
-                        items_ui(
-                            ui,
-                            theme,
-                            collection,
-                            Some(&f.id),
-                            &f.items,
-                            filter,
-                            selected,
-                            actions,
-                        );
-                    });
+                let r = reorder.row(ui, index, |ui| {
+                    egui::CollapsingHeader::new(format!("{} {}", ph::FOLDER, f.name))
+                        .id_salt(("api-folder", &f.id))
+                        .default_open(!filter.is_empty())
+                        .show(ui, |ui| {
+                            items_ui(
+                                ui,
+                                theme,
+                                s,
+                                collection,
+                                Some(&f.id),
+                                &f.items,
+                                filter,
+                                selected,
+                                actions,
+                            );
+                        })
+                });
                 r.header_response.context_menu(|ui| {
-                    if ui.button("New Request").clicked() {
+                    if ui.button(s.t("api-new-request")).clicked() {
                         actions.push(SideAction::NewRequest(
                             collection.into(),
                             Some(f.id.clone()),
                         ));
                         ui.close();
                     }
-                    if ui.button("New Folder").clicked() {
+                    if ui.button(s.t("api-new-folder")).clicked() {
                         actions.push(SideAction::NewFolder(collection.into(), Some(f.id.clone())));
                         ui.close();
                     }
-                    if ui.button("Rename").clicked() {
+                    if ui.button(s.t("api-rename")).clicked() {
                         actions.push(SideAction::Rename(
                             collection.into(),
                             f.id.clone(),
@@ -629,7 +678,7 @@ fn items_ui(
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button("Delete Folder").clicked() {
+                    if ui.button(s.t("api-delete-folder")).clicked() {
                         actions.push(SideAction::Delete(collection.into(), Some(f.id.clone())));
                         ui.close();
                     }
@@ -643,10 +692,12 @@ fn items_ui(
                     continue;
                 }
                 let is_sel = selected == Some(r.id.as_str());
-                let (rect, resp) = ui.allocate_exact_size(
-                    egui::vec2(ui.available_width(), 26.0),
-                    egui::Sense::click(),
-                );
+                let (rect, resp) = reorder.row(ui, index, |ui| {
+                    ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), 26.0),
+                        egui::Sense::click(),
+                    )
+                });
                 if is_sel || resp.hovered() {
                     ui.painter().rect_filled(
                         rect,
@@ -683,7 +734,7 @@ fn items_ui(
                     actions.push(SideAction::Open(collection.into(), r.id.clone()));
                 }
                 resp.context_menu(|ui| {
-                    if ui.button("Rename").clicked() {
+                    if ui.button(s.t("api-rename")).clicked() {
                         actions.push(SideAction::Rename(
                             collection.into(),
                             r.id.clone(),
@@ -691,18 +742,26 @@ fn items_ui(
                         ));
                         ui.close();
                     }
-                    if ui.button("Duplicate").clicked() {
+                    if ui.button(s.t("api-duplicate")).clicked() {
                         actions.push(SideAction::Duplicate(collection.into(), r.id.clone()));
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button("Delete").clicked() {
+                    if ui.button(s.t("api-delete-request")).clicked() {
                         actions.push(SideAction::Delete(collection.into(), Some(r.id.clone())));
                         ui.close();
                     }
                 });
             }
         }
+    }
+    if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+        actions.push(SideAction::Reorder {
+            collection: collection.to_string(),
+            folder: folder.map(str::to_string),
+            from,
+            to,
+        });
     }
 }
 

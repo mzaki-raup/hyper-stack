@@ -243,3 +243,26 @@ Importer fixtures for each format; URL/param/variable resolution tests;
 auth signers (SigV4 known-answer tests, digest RFC vectors); Rhai sandbox
 limits; integration against a local `httpbin`-style test server; snapshot
 tests of the response viewer.
+
+## Addendum (2026-10-17): drag to reorder, at every level
+
+The sidebar is a tree, so reordering happens **within a level**: a request
+moves among its siblings, a folder among its siblings, a collection among
+the collections. Dragging never moves an item into another folder — that
+would be a different gesture with a different meaning, and the move people
+want from a drag here is "put this one above that one".
+
+- Each row carries the same six-dot grip as every other list in the app
+  (`hs_ui::reorder`), so the row itself keeps its clicks and its context
+  menu.
+- One `Reorder` per level, keyed by collection and folder, so two levels
+  on screen at once never read each other's drag.
+- Items are stored in order inside the collection file, so a move is saved
+  by writing that collection. Collections live one-per-file in a directory,
+  which has no order of its own, so each carries an `order` field; the
+  list falls back to the name when two are equal.
+
+The folder and request context menus went through Fluent at the same time
+— they had been written in English in the code, which the rest of the app
+does not do.
+

@@ -27,6 +27,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   connection rather than another window tab. A window tab is still exactly
   one connection.
 
+- The API client's sidebar can be **dragged into order** at every level:
+  requests among their siblings, folders among theirs, collections among
+  the collections. A collection remembers its place in an `order` field,
+  since collections are files in a directory and a directory has no order
+  of its own.
+
 - **Settings → Workspace lists every workspace**, not only the one that is
   open: each with its logo, name and folder, the open one marked, and a
   click switches to it. New Workspace… is there too, so the page is a
@@ -54,6 +60,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   outermost, like every other dialog in the app.
 
 ### Fixed
+
+- The API client's folder and request menus go through Fluent. They had
+  been written in English in the code, which nothing else in the app does.
 
 - Forced **dark mode covers the whole page**. The filter was on `html`,
   which inverted its own dark background into a light one, so everything

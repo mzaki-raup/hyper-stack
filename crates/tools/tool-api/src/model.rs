@@ -234,6 +234,11 @@ pub struct Collection {
     pub schema: u32,
     pub id: String,
     pub name: String,
+    /// Where this collection sits in the sidebar. Collections are read
+    /// from a directory, which has no order of its own, so one is kept
+    /// here; equal values fall back to the name.
+    #[serde(default)]
+    pub order: i32,
     pub items: Vec<Item>,
     pub variables: Vec<Kv>,
     pub auth: Auth,
@@ -251,6 +256,7 @@ impl Default for Collection {
             schema: SCHEMA,
             id: hs_core::new_id(),
             name: "New Collection".into(),
+            order: 0,
             items: Vec::new(),
             variables: Vec::new(),
             auth: Auth {
@@ -299,7 +305,11 @@ impl Collection {
                 }
             }
         }
-        out.sort_by_key(|c| c.name.to_lowercase());
+        out.sort_by(|a, b| {
+            a.order
+                .cmp(&b.order)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
         out
     }
 

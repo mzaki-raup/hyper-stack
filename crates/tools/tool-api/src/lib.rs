@@ -252,6 +252,18 @@ impl ApiTool {
         self.last = None;
     }
 
+    /// Write every collection's place back, after a drag has moved one.
+    pub(crate) fn save_order(&mut self, cx: &mut ToolContext) {
+        let dir = self.collections_dir();
+        for (i, c) in self.collections.iter_mut().enumerate() {
+            c.order = i as i32;
+            if let Err(e) = c.save(&dir) {
+                cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                return;
+            }
+        }
+    }
+
     pub(crate) fn save_collection(&self, id: &str, cx: &mut ToolContext) {
         if let Some(c) = self.collections.iter().find(|c| c.id == id)
             && let Err(e) = c.save(&self.collections_dir())

@@ -32,6 +32,7 @@ pub mod i18n;
 pub mod jobs;
 pub mod logging;
 pub mod objstore;
+pub mod open_tabs;
 pub mod paths;
 pub mod portable;
 pub mod runtime;

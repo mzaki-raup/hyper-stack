@@ -37,6 +37,10 @@ pub struct Services {
     pub updater: Updater,
     /// SSH local forwards for any tool (`hs_ssh::tunnels::TunnelManager`).
     pub tunnels: Arc<dyn Tunnels>,
+    /// What every activity has open, published by the shell once a frame
+    /// so a tool's home tab can list its own. Owner's requirement,
+    /// 2026-10-17.
+    pub open_tabs: crate::open_tabs::OpenTabs,
 }
 
 /// What a `{{name}}` resolves to right now (for the peek popups).

@@ -607,6 +607,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A single-line `TextEdit` gives up focus on Escape *before* your code sees
   the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
   `(r.has_focus() || r.lost_focus())` (the terminal find bar does).
+- `ColorImage::region` converts a rectangle of points to pixels with its
+  own rounding and then indexes **without checking**, so a rectangle that
+  reaches the edge of the capture panics ("range end index ... out of
+  range for slice of length ..."). The first thumbnail ever taken hit it.
+  Convert and clamp yourself before reading (`app::crop_pixels`); Snip
+  shared the same hazard and the same fix.
 - `egui_extras::TableBuilder` scrolls **vertically only** — there is a
   `vscroll` but no horizontal equivalent — and its sizing only ever
   divides up the width it is handed, so a table too wide for its pane
@@ -983,6 +989,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   not actually give.
 
 ### Patch scripts
+- A Rust string holding a unicode escape (`\u{b7}`, `\u{2192}`) inside a
+  Python patch script is a **Python** escape first: `\u` must be followed by
+  four hex digits, so the script dies with "truncated \uXXXX escape" before
+  it does anything - including a script written to *record* this lesson,
+  which failed exactly that way. Put the character itself in the
+  replacement text, or build it with `chr()`. Doubling the backslash
+  writes a literal `\\u` into the Rust source, which compiles to the
+  wrong thing.
+
 - A text-replace script re-run after a partial failure inserted the
   editor's debug toolbar block twice (the first run had applied the early
   steps). The symptom was indirect: the configuration picker closed

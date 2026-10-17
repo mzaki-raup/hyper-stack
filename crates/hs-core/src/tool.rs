@@ -303,6 +303,13 @@ pub trait Tool: Send {
         None
     }
 
+    /// A second line for this tab on its activity's dashboard: the
+    /// connection it is bound to, the engine, the file. Empty by default,
+    /// because a title alone is often the whole story.
+    fn subtitle(&self) -> Option<String> {
+        None
+    }
+
     /// Whether this activity's home tab is a **dashboard** rather than a
     /// working tab. A dashboard never takes a connection or a document:
     /// opening one beside it is the point, since the dashboard is what

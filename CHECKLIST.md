@@ -286,7 +286,7 @@ listed first.
 | API client: the list refreshes wherever a request is created | Completed | an `Event::Custom` on `api.collections` after every write; the writing tab skips its own |
 | Terminal: permanent home tab with a dashboard of open terminals | Pending | grid of name, type and a thumbnail of that terminal, clicking one goes to its tab |
 | SSH: permanent home tab with a dashboard of open connections | Pending | grid of connection name and a thumbnail, clicking one goes to its tab |
-| Database: permanent home tab with a dashboard of open connections | Pending | connection name, engine, query name and a thumbnail of the query pane |
+| Database: permanent home tab with a dashboard of open connections | Completed | `hs_ui::dashboard` + `OpenTabs`; verified live — the dashboard showed 1 connection, 1 open tab and a captured thumbnail of the query pane, and clicking the card focused that tab |
 | NoSQL: permanent home tab with a dashboard of open connections | Pending | connection name, store kind and a thumbnail of the data pane |
 | Redis: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
 | S3: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
@@ -296,5 +296,6 @@ listed first.
 | Devtools: permanent home tab with a dashboard of open tools | Pending | tool name, kind and a thumbnail of the working pane |
 | Scratchpad: permanent home tab with a dashboard of open notes | Pending | note name and a thumbnail of the preview pane |
 | Editor: a terminal inside the editor | Pending | default PowerShell 7, set in Settings -> Editor |
+| Editor: detect a project's language and offer its tooling | Pending | Maven/Gradle for Java with configurable paths, a build command, console runs in the editor terminal, a web app opens a Browser tab at its URL, Spring Boot recognised |
 | Shell: a dashboard home tab is never taken over by a connection | Completed | `Tool::home_is_dashboard` keeps `unbound_tab` and the URI router off it; verified live — clicking a Database connection opened a second tab beside the permanent one instead of consuming it |
 | Devtools: bandwidth and speed conversion | Completed | a Bandwidth pane with both families and a transfer-time calculator; two tests |

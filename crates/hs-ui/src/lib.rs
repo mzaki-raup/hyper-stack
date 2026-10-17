@@ -2,6 +2,7 @@
 
 pub mod ai_assistant;
 pub mod badge;
+pub mod dashboard;
 pub mod dialog;
 pub mod env_banner;
 pub mod fileicons;

@@ -1936,3 +1936,12 @@ dt-unit-min = Minutes
 dt-unit-h = Hours
 dt-unit-d = Days
 dt-unit-w = Weeks
+
+# Activity home tabs (dashboards)
+dash-open = Open Here
+dash-nothing-open = Nothing open yet. Pick one in the sidebar to open it in a tab.
+dash-no-preview = Not opened yet
+dash-connections = Connections
+dash-open-tabs = Open Tabs
+dash-summary = { $name }
+db-dashboard-sub = Connections are opened from the sidebar; each gets its own tab.

@@ -151,6 +151,16 @@ pub struct HyperStackApp {
     pending_open_url: Option<String>,
     browser_hub: tool_browser::SharedBrowser,
     browser_host: crate::browser_host::BrowserHost,
+    /// A thumbnail of the active tab's pane was asked for this frame, and
+    /// which tab it is of. The picture arrives on the next frame, by which
+    /// time the active tab could have changed. Owner's requirement,
+    /// 2026-10-17.
+    thumb_wanted: Option<u64>,
+    /// The last picture of each tab, as an egui image URI.
+    thumbs: std::collections::HashMap<u64, String>,
+    /// When the last thumbnail was taken, so this costs a screenshot every
+    /// few seconds rather than every frame.
+    thumb_at: Option<f64>,
     /// A screenshot was requested; crop to the tab (`false`) or keep the window.
     snip: Option<bool>,
 }
@@ -202,6 +212,9 @@ impl HyperStackApp {
             })
             .collect();
         let mut app = Self {
+            thumb_wanted: None,
+            thumb_at: None,
+            thumbs: std::collections::HashMap::new(),
             fallback_notice_open: services.paths.fallback_reason.is_some()
                 && services.settings.read().general.show_fallback_notice,
             dock_open: false,
@@ -2027,9 +2040,7 @@ impl HyperStackApp {
             visible: &visible,
             labels: &labels,
             compact: false,
-            // The window strip has no add-tab button: a tab comes from
-            // an activity's sidebar or from Home.
-            show_new_tab: false,
+            show_new_tab: shows_new_tab(self.group.as_deref()),
         };
         let r = strip.show(ui, &views);
         if let Some(id) = r.activated {
@@ -2690,6 +2701,93 @@ impl HyperStackApp {
         );
     }
 
+    /// Tell every tool what the window has open, and keep a picture of
+    /// the active tab so a dashboard has something to show for it. A tab
+    /// that is not active is not drawn at all, so the only picture there
+    /// can be is the last one taken while it was on screen.
+    fn publish_tabs(&mut self, ctx: &egui::Context) {
+        let active = self.tabs.active;
+        let tabs: Vec<hs_core::open_tabs::TabInfo> = self
+            .tabs
+            .tabs
+            .iter()
+            .map(|t| hs_core::open_tabs::TabInfo {
+                id: t.id,
+                factory_id: t.factory_id.clone(),
+                title: t.tool.title().to_string(),
+                subtitle: t.tool.subtitle().unwrap_or_default(),
+                // Filled in from the cache below: `set` replaces the list,
+                // so the picture has to be put back each frame.
+                thumbnail: None,
+                home: t.home,
+                active: Some(t.id) == active,
+            })
+            .collect();
+        self.services.open_tabs.set(tabs);
+        for (id, uri) in &self.thumbs {
+            self.services.open_tabs.set_thumbnail(*id, uri.clone());
+        }
+        // One capture every few seconds, and only when nothing else wants
+        // the screenshot machinery.
+        let now = ctx.input(|i| i.time);
+        let due = self.thumb_at.is_none_or(|at| now - at > THUMB_EVERY);
+        if due && self.snip.is_none() && self.thumb_wanted.is_none() && active.is_some() {
+            self.thumb_at = Some(now);
+            self.thumb_wanted = active;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+        }
+    }
+
+    /// Take the picture asked for by `publish_tabs` out of the frame's
+    /// events, shrink it and keep it for that tab.
+    fn finish_thumb(&mut self, ctx: &egui::Context) {
+        let Some(id) = self.thumb_wanted else {
+            return;
+        };
+        // Snip wants the same event; let it have it and try again later.
+        if self.snip.is_some() {
+            return;
+        }
+        let shot = ctx.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                egui::Event::Screenshot { image, .. } => Some(image.clone()),
+                _ => None,
+            })
+        });
+        let Some(image) = shot else {
+            return;
+        };
+        self.thumb_wanted = None;
+        if self.main_rect == egui::Rect::NOTHING {
+            return;
+        }
+        let Some(cropped) = crop_pixels(&image, self.main_rect, ctx.pixels_per_point()) else {
+            return;
+        };
+        let Some(small) = shrink(&cropped, THUMB_WIDTH) else {
+            return;
+        };
+        let uri = format!("bytes://hs-thumb/{id}-{}.png", self.thumb_at.unwrap_or(0.0));
+        let mut png = Vec::new();
+        let [w, h] = small.size;
+        let Some(buf) = image::RgbaImage::from_raw(w as u32, h as u32, small.as_raw().to_vec())
+        else {
+            return;
+        };
+        if image::DynamicImage::ImageRgba8(buf)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .is_err()
+        {
+            return;
+        }
+        // A fresh URI each time, so egui shows the new picture rather than
+        // the cached old one. The previous bytes are dropped with the key.
+        if let Some(old) = self.thumbs.insert(id, uri.clone()) {
+            ctx.forget_image(&old);
+        }
+        ctx.include_bytes(uri, png);
+    }
+
     /// Snip: ask for a screenshot; `finish_snip` crops and delivers it on
     /// the next frame. Mandatory tabs have nothing worth snipping but
     /// snip fine anyway.
@@ -2712,7 +2810,9 @@ impl HyperStackApp {
             let cropped = if whole || self.main_rect == egui::Rect::NOTHING {
                 (*image).clone()
             } else {
-                image.region(&self.main_rect, Some(ppp))
+                // Same clamping as a thumbnail: the rectangle can reach
+                // the edge and epaint's own crop does not check.
+                crop_pixels(&image, self.main_rect, ppp).unwrap_or_else(|| (*image).clone())
             };
             ctx.copy_image(cropped.clone());
             let s = self.services.clone();
@@ -3126,6 +3226,8 @@ impl eframe::App for HyperStackApp {
         if let Some(url) = self.pending_open_url.take() {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
+        self.finish_thumb(ctx);
+        self.publish_tabs(ctx);
         // Native web views sit above egui: hide them under any modal,
         // including one a tool opened for itself.
         let tool_modal = self.browser_hub.lock().tabs.values().any(|t| t.overlay);
@@ -3399,12 +3501,90 @@ fn group_of(factory_id: &str) -> &str {
     factory_id
 }
 
+/// Whether this activity's window strip offers an add-tab button.
+///
+/// Not every activity: a tab is opened from the sidebar in the ones where
+/// a tab *is* a connection, a shell or a saved page, and a + there made an
+/// untitled tab nobody asked for. Where a tab is a document the user
+/// creates — the editor's files, an API request, a Graphics image, a
+/// scratchpad note — the button stays. Owner's requirement, 2026-10-17.
+fn shows_new_tab(group: Option<&str>) -> bool {
+    !matches!(
+        group,
+        Some(
+            "terminal" | "ssh" | "db" | "nosql" | "redis" | "s3" | "browser" | "home" | "devtools"
+        )
+    )
+}
+
 /// Write an egui image as PNG.
 fn save_png(img: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {
     let [w, h] = img.size;
     let buf = image::RgbaImage::from_raw(w as u32, h as u32, img.as_raw().to_vec())
         .ok_or_else(|| "image buffer size mismatch".to_string())?;
     buf.save(path).map_err(|e| e.to_string())
+}
+
+/// How often a thumbnail of the active tab is taken. A screenshot is not
+/// free, and a dashboard is read, not watched.
+const THUMB_EVERY: f64 = 3.0;
+/// How wide a thumbnail is kept. Enough to recognise a pane, small enough
+/// that a dozen of them cost nothing.
+const THUMB_WIDTH: usize = 320;
+
+/// Cut a rectangle of points out of a captured image, clamped to what the
+/// image actually holds.
+///
+/// `ColorImage::region` converts points to pixels with its own rounding
+/// and then indexes without checking, so a rectangle that reaches the edge
+/// can run a row past the buffer and panic - which it did, the first time
+/// a thumbnail was taken (`range end index ... out of range`). Doing the
+/// conversion here means the bounds are checked before anything is read.
+fn crop_pixels(img: &egui::ColorImage, rect: egui::Rect, ppp: f32) -> Option<egui::ColorImage> {
+    let [w, h] = img.size;
+    let px = |v: f32| (v * ppp).round().max(0.0) as usize;
+    let x0 = px(rect.min.x).min(w);
+    let y0 = px(rect.min.y).min(h);
+    let x1 = px(rect.max.x).min(w);
+    let y1 = px(rect.max.y).min(h);
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    let (cw, ch) = (x1 - x0, y1 - y0);
+    let mut out = Vec::with_capacity(cw * ch);
+    for y in y0..y1 {
+        let row = y * w;
+        out.extend_from_slice(&img.pixels[row + x0..row + x1]);
+    }
+    Some(egui::ColorImage {
+        size: [cw, ch],
+        pixels: out,
+        source_size: egui::Vec2::new(cw as f32, ch as f32),
+    })
+}
+
+/// Shrink an image to `width`, keeping its shape. `None` when there is
+/// nothing to shrink.
+fn shrink(img: &egui::ColorImage, width: usize) -> Option<egui::ColorImage> {
+    let [w, h] = img.size;
+    if w == 0 || h == 0 {
+        return None;
+    }
+    if w <= width {
+        return Some(img.clone());
+    }
+    let height = (h * width / w).max(1);
+    let buf = image::RgbaImage::from_raw(w as u32, h as u32, img.as_raw().to_vec())?;
+    let small = image::imageops::resize(
+        &buf,
+        width as u32,
+        height as u32,
+        image::imageops::FilterType::Triangle,
+    );
+    Some(egui::ColorImage::from_rgba_unmultiplied(
+        [width, height],
+        small.as_raw(),
+    ))
 }
 
 const RAIL_WIDTH: f32 = 56.0;
@@ -3508,6 +3688,25 @@ fn rail_item(
 #[cfg(test)]
 mod tests {
     use super::{notification_popup_should_close, rail_order};
+
+    #[test]
+    fn the_add_tab_button_is_hidden_only_where_a_tab_is_not_a_document() {
+        use super::shows_new_tab;
+        // A tab here is a connection, a shell or the workspace's browser,
+        // opened from the sidebar.
+        for g in [
+            "terminal", "ssh", "db", "nosql", "redis", "s3", "browser", "home", "devtools",
+        ] {
+            assert!(
+                !shows_new_tab(Some(g)),
+                "{g} should hide the add-tab button"
+            );
+        }
+        // A tab here is a document somebody makes.
+        for g in ["editor", "api", "graphics", "scratchpad", "settings"] {
+            assert!(shows_new_tab(Some(g)), "{g} should keep the add-tab button");
+        }
+    }
 
     #[test]
     fn rail_order_keeps_saved_order_then_defaults_and_skips_mandatory() {

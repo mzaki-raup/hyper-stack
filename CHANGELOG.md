@@ -11,42 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Changed
+- (nothing yet)
 
-- **Open Data** and **Count Rows** write a **terminated statement** —
-  `SELECT * FROM t;` — so what lands in the tab is a statement you can run
-  again, or add to, without first noticing the semicolon is missing.
+## 0.34.0 — 2026-10-17
 
-- **Open Data** and **Count Rows** in the database schema tree run in a
-  query tab of their own, with the statement in the editor above the grid
-  it produced. They used to run from nowhere, which left whatever was in
-  the front tab looking like the cause of the result. An Untitled tab that
-  is still empty is filled rather than added to.
+### Added
+
+- Open Data runs in a query tab of its own (9a272300)
 
 ### Fixed
 
-- The **row number stays put** while a wide result scrolls sideways. It is
-  the thing you count from, so it is the one column a wide result cannot
-  afford to lose off the left edge; it now sits beside the scrolling table
-  rather than inside it.
-
-- The result footer keeps **Copy As and Export reachable** in a narrow
-  pane. The row was laid out left to right and simply ran past the clip
-  edge, slicing Export in half once the AI Assistant took its column; it
-  is laid out from the right now, and the filter box gives up width first.
-
-- The result grid **scrolls horizontally**. `egui_extras`' table scrolls
-  vertically only, so a result wider than the pane had its remaining
-  columns cut off with no way to reach them — a 12-column table showed
-  five, and three once the AI Assistant took its column, which is what
-  made the assistant look as though it were floating over the data rather
-  than beside it. The pane's width now decides how much of a result is
-  visible, never how much of it exists.
-
-- A query tab refilled from the schema tree **shows the whole statement**.
-  Replacing the buffer under an existing editor view left that view's
-  cached line layout behind, so the first Open Data drew a single
-  character of its own `SELECT`.
+- Freeze the row number, keep the footer reachable, terminate statements (56297046)
+- The result grid scrolls horizontally (e4638f7d)
+- A refilled query tab shows its whole statement (cc0b81d2)
 
 ## 0.33.0 — 2026-10-17
 

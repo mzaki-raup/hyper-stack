@@ -1094,6 +1094,16 @@ impl Tool for ApiTool {
         &DESCRIPTOR
     }
 
+    /// Known before the first frame, so the home tab reads as the
+    /// workspace even while it has never been opened. The logo needs an
+    /// egui context and is loaded in `ui`.
+    fn set_home_tab(&mut self, home: bool, services: &Services) {
+        self.is_home = home;
+        if home {
+            self.home_name = services.workspace.read().meta.name.clone();
+        }
+    }
+
     fn title(&self) -> Cow<'_, str> {
         // The home tab is the workspace's, not a request's.
         if self.is_home {

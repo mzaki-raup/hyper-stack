@@ -304,8 +304,13 @@ and `Registry::startup_name` picks the last-opened or first registered
 one when the configured startup workspace is gone. Deleting the open
 workspace switches to another first.
 
-`layout.json` is the serialised `TabSpace`: tab list (factory id + `save_state`
-JSON), active id, split tree, sidebar/dock sizes, active environment. It is
+`layout.json` is the serialised `TabSpace`: tab list (factory id +
+`save_state` JSON, whether the tab is pinned and whether it is its
+activity's permanent **home** tab), active id, split tree, sidebar/dock
+sizes, active environment. The home flag is stored rather than derived
+from the order: a layout written before an activity had a home tab has
+none, and restoring then adds a fresh one instead of turning whichever
+connection or note came first into a dashboard. It is
 written one second after a strip change (open, close, reorder, activate), on
 close, and whenever a five-second poll finds that a tab's `save_state` differs
 from what was last written (a devtools field, an API draft), so a crash or a

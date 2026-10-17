@@ -613,6 +613,26 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   range for slice of length ..."). The first thumbnail ever taken hit it.
   Convert and clamp yourself before reading (`app::crop_pixels`); Snip
   shared the same hazard and the same fix.
+- The tab strip draws **pinned tabs in a fixed leading zone of row 0**,
+  not in the order of the tab vector, so reordering `TabSpace` alone moves
+  nothing on screen: a freshly pinned tab still appeared in front of the
+  activity's permanent tab. Whatever must lead the strip has to lead that
+  zone (`TabLayout::lead` takes the permanent tab first, then the pinned
+  ones) - and the model is kept in the same order anyway, because Close to
+  the Left/Right and drag-reorder read the vector.
+- A tool's `ui` runs **only for a tab that is drawn**, so anything a tool
+  must know about its own tab - that it is the activity's home tab, say -
+  cannot arrive through `ToolContext`: a tab the user never opens would
+  keep a working tab's title for ever (the Devtools home tab read
+  "Base64"). `Tool::set_home_tab` is told when the tab is created instead.
+  The same applies to `toolbar`, whose `ToolContext` had `is_home: false`
+  hard-coded.
+- Which tab is an activity's **home tab must be persisted**, not derived
+  from the order. Deriving it turned the first saved connection, note or
+  shell of each activity into a dashboard on the next start, and that
+  tab's pane was simply gone. `LayoutTab::home` carries it; a layout
+  written before the flag existed gains a *new* home tab
+  (`TabSpace::ensure_home_tabs`) rather than taking one over.
 - `egui_extras::TableBuilder` scrolls **vertically only** — there is a
   `vscroll` but no horizontal equivalent — and its sizing only ever
   divides up the width it is handed, so a table too wide for its pane

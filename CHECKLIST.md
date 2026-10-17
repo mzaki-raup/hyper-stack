@@ -295,6 +295,10 @@ listed first.
 | Graphics: permanent first tab | Completed | `wants_home_tab`; the sidebar and preview pane are untouched |
 | Devtools: permanent home tab with a dashboard of open tools | Completed | counts the utilities the drawer offers |
 | Scratchpad: permanent home tab with a dashboard of open notes | Completed | counts the workspace's notes |
+| Shell: a permanent tab is named after its activity | Completed | `Tool::set_home_tab`, told before the first frame so a tab the user never opened is named too; verified live — "Devtools" (not "Base64"), "Scratchpad" (not "New Note") and "Terminal" (not the saved shell), each with the activity's icon. Owner's report, 2026-10-17 |
+| Shell: pinned tabs start to the right of the permanent tab | Completed | the strip's leading zone is the permanent tab then the pinned ones (`TabLayout::lead`), and `TabSpace::regroup` keeps the saved order to match; verified live — pinning a note moved it next to the Scratchpad tab instead of in front of it. Owner's request, 2026-10-17 |
+| Shell: a dashboard home tab draws no toolbar | Completed | Save, Run and Download would aim at nothing |
+| Shell: a restored layout keeps its tabs | Completed | the home flag is saved with the layout; a layout without one gains a home tab rather than turning the first saved connection or note into a dashboard (`tabspace_tests`, 1 test); verified live — the Database connection, the note and the shells all came back with their panes |
 | Editor: a terminal inside the editor | Pending | default PowerShell 7, set in Settings -> Editor |
 | Editor: detect a project's language and offer its tooling | Pending | Maven/Gradle for Java with configurable paths, a build command, console runs in the editor terminal, a web app opens a Browser tab at its URL, Spring Boot recognised |
 | Shell: a dashboard home tab is never taken over by a connection | Completed | `Tool::home_is_dashboard` keeps `unbound_tab` and the URI router off it; verified live — clicking a Database connection opened a second tab beside the permanent one instead of consuming it |

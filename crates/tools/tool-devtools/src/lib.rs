@@ -251,6 +251,14 @@ impl Tool for DevtoolsTool {
         &DESCRIPTOR
     }
 
+    /// The activity's home tab is named after the activity; a working tab
+    /// after its utility. Owner's report, 2026-10-17.
+    fn set_home_tab(&mut self, home: bool, services: &Services) {
+        if home {
+            self.title = services.t("tool-devtools");
+        }
+    }
+
     fn title(&self) -> Cow<'_, str> {
         if self.title.is_empty() {
             Cow::Borrowed("Devtools")

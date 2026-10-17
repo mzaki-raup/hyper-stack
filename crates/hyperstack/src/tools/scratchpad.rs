@@ -52,6 +52,7 @@ impl ToolFactory for ScratchpadFactory {
         Box::new(Scratchpad {
             saved: state.text.clone(),
             state,
+            home_title: None,
             notes: Vec::new(),
             pins: Vec::new(),
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
@@ -93,6 +94,9 @@ struct NoteMeta {
 
 pub struct Scratchpad {
     state: State,
+    /// Set when this tab is the activity's home tab: its name, which is the
+    /// activity's rather than a note's. Owner's report, 2026-10-17.
+    home_title: Option<String>,
     saved: String,
     notes: Vec<NoteMeta>,
     pins: Vec<String>,
@@ -378,7 +382,15 @@ impl Tool for Scratchpad {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
+    fn set_home_tab(&mut self, home: bool, services: &Services) {
+        self.home_title = home.then(|| services.t("tool-scratchpad"));
+    }
+
     fn title(&self) -> Cow<'_, str> {
+        // The home tab is the activity's; it holds no note.
+        if let Some(name) = &self.home_title {
+            return Cow::Borrowed(name);
+        }
         match title_of(&self.state.text) {
             Some(t) => Cow::Owned(t),
             None => Cow::Borrowed("New Note"),

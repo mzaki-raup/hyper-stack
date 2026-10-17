@@ -50,6 +50,11 @@ struct State {
 
 pub struct TerminalTool {
     state: State,
+    /// Set when this tab is the activity's home tab: its name, which is the
+    /// activity's rather than a shell's. A restored home tab carries a
+    /// saved profile and would otherwise read "PowerShell 7".
+    /// Owner's report, 2026-10-17.
+    home_title: Option<String>,
     /// A command handed over with the open request, typed when the shell is up.
     pending_command: Option<String>,
     profiles: Arc<Vec<ShellProfile>>,
@@ -82,6 +87,7 @@ impl TerminalTool {
         let font_size = services.settings.read().terminal.font_size;
         let mut t = Self {
             state,
+            home_title: None,
             pending_command: None,
             profiles,
             session: None,
@@ -462,7 +468,15 @@ impl Tool for TerminalTool {
         &DESCRIPTOR
     }
 
+    fn set_home_tab(&mut self, home: bool, services: &Services) {
+        self.home_title = home.then(|| services.t("tool-terminal"));
+    }
+
     fn title(&self) -> Cow<'_, str> {
+        // The home tab is the activity's; it has no shell of its own.
+        if let Some(name) = &self.home_title {
+            return Cow::Borrowed(name);
+        }
         // The profile name until the shell sets a real title (a bare exe path
         // or an empty string is not one).
         let profile_name = self

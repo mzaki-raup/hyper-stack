@@ -93,12 +93,18 @@ pub struct Layout {
     pub active_environment: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
 pub struct LayoutTab {
     pub id: u64,
     pub tool: String,
     pub pinned: bool,
     pub colour: Option<[u8; 3]>,
+    /// This tab is its activity's permanent home tab. Remembered, because
+    /// working out which tab it is from the order would turn whichever
+    /// connection happened to be first into a dashboard on the next start.
+    /// Owner's report, 2026-10-17.
+    pub home: bool,
     pub state: serde_json::Value,
 }
 
@@ -516,6 +522,7 @@ mod tests {
                 tool: "scratchpad".into(),
                 pinned: true,
                 colour: None,
+                home: false,
                 state: serde_json::json!({"text": "hi"}),
             }],
             active: Some(1),

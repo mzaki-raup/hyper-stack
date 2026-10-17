@@ -92,13 +92,16 @@ pub fn pinned_slot_width(icon_only: bool) -> f32 {
     }
 }
 
-/// Where each tab goes. Row 0 also holds the pinned tabs and the "+" button
-/// is placed after the last tab of the last row.
+/// Where each tab goes. Row 0 opens with the leading zone - the activity's
+/// permanent tab, then the pinned ones - and the "+" button is placed after
+/// the last tab of the last row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TabLayout {
     pub rows: Vec<Vec<usize>>, // indices into the tab list, per row
     pub tab_width: f32,
-    pub pinned: Vec<usize>,
+    /// Row 0's fixed slots, in the order they are drawn: the permanent tab
+    /// first, then the pinned ones. Owner's requirement, 2026-10-17.
+    pub lead: Vec<usize>,
 }
 
 impl TabLayout {
@@ -109,33 +112,33 @@ impl TabLayout {
 
 /// Pure layout: which tab lands on which row and how wide regular tabs are.
 ///
-/// `pinned` flags per tab; `full_width` is the strip width; `min_width` and
-/// `gap` come from settings. The last row reserves room for the "+" button.
+/// `pinned` and `permanent` are flags per tab; `full_width` is the strip
+/// width; `min_width` and `gap` come from settings. The last row reserves
+/// room for the "+" button. The permanent tab leads the strip and the
+/// pinned tabs follow it, so pinning never puts a tab in front of the
+/// activity's home. Owner's requirement, 2026-10-17.
 pub fn compute_tab_layout(
     pinned: &[bool],
+    permanent: &[bool],
     icon_only: &[bool],
     full_width: f32,
     min_width: f32,
     gap: f32,
 ) -> TabLayout {
-    let pinned_idx: Vec<usize> = pinned
-        .iter()
-        .enumerate()
-        .filter(|(_, p)| **p)
-        .map(|(i, _)| i)
+    let is_permanent = |i: usize| permanent.get(i).copied().unwrap_or(false);
+    // A permanent tab keeps its name even where a pinned one would be an
+    // icon: it is the activity's front page, not a bookmark.
+    let slot_width = |i: usize| {
+        pinned_slot_width(icon_only.get(i).copied().unwrap_or(false) && !is_permanent(i))
+    };
+    let lead: Vec<usize> = (0..pinned.len())
+        .filter(|&i| is_permanent(i))
+        .chain((0..pinned.len()).filter(|&i| pinned[i] && !is_permanent(i)))
         .collect();
-    let regular: Vec<usize> = pinned
-        .iter()
-        .enumerate()
-        .filter(|(_, p)| !**p)
-        .map(|(i, _)| i)
-        .collect();
+    let regular: Vec<usize> = (0..pinned.len()).filter(|i| !lead.contains(i)).collect();
     let min_width = min_width.max(48.0);
     let gap = gap.max(0.0);
-    let pinned_span: f32 = pinned_idx
-        .iter()
-        .map(|i| pinned_slot_width(icon_only.get(*i).copied().unwrap_or(false)) + gap)
-        .sum();
+    let pinned_span: f32 = lead.iter().map(|&i| slot_width(i) + gap).sum();
     let first_row_avail = (full_width - pinned_span - NEW_TAB_WIDTH - gap).max(min_width);
     let other_rows_avail = (full_width - NEW_TAB_WIDTH - gap).max(min_width);
 
@@ -143,7 +146,7 @@ pub fn compute_tab_layout(
         return TabLayout {
             rows: vec![Vec::new()],
             tab_width: min_width,
-            pinned: pinned_idx,
+            lead,
         };
     }
 
@@ -154,7 +157,7 @@ pub fn compute_tab_layout(
         return TabLayout {
             rows: vec![regular],
             tab_width: one_row_width.min(MAX_TAB_WIDTH),
-            pinned: pinned_idx,
+            lead,
         };
     }
 
@@ -177,19 +180,20 @@ pub fn compute_tab_layout(
     TabLayout {
         rows,
         tab_width,
-        pinned: pinned_idx,
+        lead,
     }
 }
 
 /// Number of rows a strip needs (used to size the title-bar region before drawing).
 pub fn tab_row_count(
     pinned: &[bool],
+    permanent: &[bool],
     icon_only: &[bool],
     full_width: f32,
     min_width: f32,
     gap: f32,
 ) -> usize {
-    compute_tab_layout(pinned, icon_only, full_width, min_width, gap).row_count()
+    compute_tab_layout(pinned, permanent, icon_only, full_width, min_width, gap).row_count()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,8 +265,16 @@ impl TabStrip<'_> {
         let mut resp = TabStripResponse::default();
         let full_width = ui.available_width();
         let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
+        let permanent: Vec<bool> = tabs.iter().map(TabItem::permanent).collect();
         let icon_only: Vec<bool> = tabs.iter().map(TabItem::icon_only_when_pinned).collect();
-        let layout = compute_tab_layout(&pinned, &icon_only, full_width, self.min_width, self.gap);
+        let layout = compute_tab_layout(
+            &pinned,
+            &permanent,
+            &icon_only,
+            full_width,
+            self.min_width,
+            self.gap,
+        );
         let total_height = layout.row_count() as f32 * (self.row_h() + self.gap);
         let (strip_rect, _) =
             ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::hover());
@@ -276,8 +288,8 @@ impl TabStrip<'_> {
         for (row_i, row) in layout.rows.iter().enumerate() {
             let mut x = strip_rect.left();
             if row_i == 0 {
-                for &i in &layout.pinned {
-                    let only_icon = icon_only[i];
+                for &i in &layout.lead {
+                    let only_icon = icon_only[i] && !permanent[i];
                     let w = pinned_slot_width(only_icon);
                     let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, self.row_h()));
                     self.draw_tab(ui, &painter, rect, &tabs[i], only_icon, &mut resp, i);
@@ -639,11 +651,11 @@ mod tests {
 
     #[test]
     fn one_row_when_tabs_fit_and_width_is_capped() {
-        let l = compute_tab_layout(&[false; 3], &[false; 3], 1000.0, 140.0, 4.0);
+        let l = compute_tab_layout(&[false; 3], &[false; 3], &[false; 3], 1000.0, 140.0, 4.0);
         assert_eq!(l.rows.len(), 1);
         assert_eq!(l.tab_width, MAX_TAB_WIDTH);
         assert_eq!(
-            tab_row_count(&[false; 3], &[false; 3], 1000.0, 140.0, 4.0),
+            tab_row_count(&[false; 3], &[false; 3], &[false; 3], 1000.0, 140.0, 4.0),
             1
         );
     }
@@ -651,7 +663,7 @@ mod tests {
     #[test]
     fn tabs_shrink_to_minimum_then_wrap_instead_of_going_thinner() {
         // 6 tabs × 140 + gaps + "+" needs more than 600 px → wraps.
-        let l = compute_tab_layout(&[false; 6], &[false; 6], 600.0, 140.0, 4.0);
+        let l = compute_tab_layout(&[false; 6], &[false; 6], &[false; 6], 600.0, 140.0, 4.0);
         assert!(l.rows.len() >= 2, "expected wrapping, got {:?}", l.rows);
         assert!(l.tab_width >= 140.0);
         let total: usize = l.rows.iter().map(Vec::len).sum();
@@ -672,8 +684,8 @@ mod tests {
         let names = [false, false, false, false];
         // Narrow enough that the tabs are not already at MAX_TAB_WIDTH,
         // or both answers are the cap and the test proves nothing.
-        let with_icon = compute_tab_layout(&pinned, &icons, 700.0, 140.0, 4.0);
-        let with_name = compute_tab_layout(&pinned, &names, 700.0, 140.0, 4.0);
+        let with_icon = compute_tab_layout(&pinned, &[false; 4], &icons, 700.0, 140.0, 4.0);
+        let with_name = compute_tab_layout(&pinned, &[false; 4], &names, 700.0, 140.0, 4.0);
         assert!(
             with_name.tab_width < with_icon.tab_width,
             "a named pinned tab should take more of the row"
@@ -685,22 +697,40 @@ mod tests {
     #[test]
     fn pinned_tabs_take_first_row_space_and_are_not_counted_as_regular() {
         let pinned = [true, false, true, false, false];
-        let l = compute_tab_layout(&pinned, &[true; 5], 800.0, 140.0, 4.0);
-        assert_eq!(l.pinned, vec![0, 2]);
+        let l = compute_tab_layout(&pinned, &[false; 5], &[true; 5], 800.0, 140.0, 4.0);
+        assert_eq!(l.lead, vec![0, 2]);
         let regular: Vec<usize> = l.rows.concat();
         assert_eq!(regular, vec![1, 3, 4]);
     }
 
     #[test]
+    fn the_permanent_tab_leads_and_pinned_tabs_follow_it() {
+        // Tab 2 is the activity's home; 0 and 3 are pinned. The home tab is
+        // drawn first whatever the strip order is.
+        let pinned = [true, false, false, true, false];
+        let permanent = [false, false, true, false, false];
+        let l = compute_tab_layout(&pinned, &permanent, &[true; 5], 800.0, 140.0, 4.0);
+        assert_eq!(l.lead, vec![2, 0, 3]);
+        assert_eq!(l.rows.concat(), vec![1, 4]);
+    }
+
+    #[test]
     fn minimum_width_setting_changes_row_count() {
-        let narrow = tab_row_count(&[false; 10], &[false; 10], 900.0, 80.0, 4.0);
-        let wide = tab_row_count(&[false; 10], &[false; 10], 900.0, 200.0, 4.0);
+        let narrow = tab_row_count(&[false; 10], &[false; 10], &[false; 10], 900.0, 80.0, 4.0);
+        let wide = tab_row_count(&[false; 10], &[false; 10], &[false; 10], 900.0, 200.0, 4.0);
         assert!(wide > narrow);
     }
 
     #[test]
     fn no_regular_tabs_is_one_empty_row() {
-        let l = compute_tab_layout(&[true, true], &[true, true], 500.0, 140.0, 4.0);
+        let l = compute_tab_layout(
+            &[true, true],
+            &[false, false],
+            &[true, true],
+            500.0,
+            140.0,
+            4.0,
+        );
         assert_eq!(l.rows, vec![Vec::<usize>::new()]);
         assert_eq!(l.row_count(), 1);
     }

@@ -84,7 +84,13 @@ struct TabModel {
 
 Behaviour, in order:
 
-1. Pinned tabs render first, at icon-only width, never wrap away.
+1. The activity's **permanent tab** renders first, then the pinned tabs,
+   all in fixed-width slots on row 0 that never wrap away. Pinned slots are
+   icon-only where the tool says so (the browser's favicon); a permanent tab
+   always keeps its name, because it is the activity's front page rather
+   than a bookmark. The strip's own order decides nothing here, so pinning
+   can never put a tab in front of the permanent one (owner's requirement,
+   2026-10-17).
 2. Remaining width is divided among tabs down to **minimum tab width**
    (Settings → Appearance → Layout, default 140 px) with **tab gap** (default
    4 px) between them.
@@ -95,6 +101,15 @@ Behaviour, in order:
 4. Tabs are never scrolled off-screen and never shrink below the minimum.
 5. The active tab's row is visually joined to the toolbar below (no bottom
    border) so the user can see which row is "front".
+
+A permanent tab is named after its **activity** ("Devtools",
+"Scratchpad", "Terminal"), not after whatever its tool happens to hold:
+the shell tells a tool it is the home tab through `Tool::set_home_tab`
+before the first frame, so the name is right even for a tab the user has
+not opened yet. The API client is the exception the owner asked for - its
+home tab carries the workspace's name and logo. A dashboard home tab also
+draws no toolbar, since Save, Run and Download would aim at nothing
+(owner's report, 2026-10-17).
 
 Tab anatomy: `[tool icon] [title, middle-elided] [dirty dot | env dot] [✕]`.
 Hover shows a tooltip with the full title, the connection, the environment and

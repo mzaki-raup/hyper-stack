@@ -322,6 +322,15 @@ pub trait Tool: Send {
         false
     }
 
+    /// The shell tells a tool that its tab is the activity's **home** tab
+    /// as soon as that is decided, before the first frame. A dashboard's
+    /// tab has to name the activity ("Devtools", not "Base64"), and
+    /// `ToolContext::is_home` arrives in `ui`, which is only called for a
+    /// tab that is actually drawn - so a home tab the user has not opened
+    /// yet would keep a working tab's title for ever.
+    /// Owner's report, 2026-10-17.
+    fn set_home_tab(&mut self, _home: bool, _services: &Services) {}
+
     /// Whether this activity has a permanent home tab at all. The shell
     /// makes the first tab of such a tool its home: a dashboard that
     /// cannot be closed, pinned or duplicated. The editor says no, because

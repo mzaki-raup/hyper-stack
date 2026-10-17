@@ -179,12 +179,15 @@ impl TabSpace {
     ) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
-        let tool = factory.create(services, restore);
+        let mut tool = factory.create(services, restore);
         let factory_id = factory.descriptor().id.to_string();
         // The first tab of an activity that wants a home becomes it. There
         // is never a second: this is asked before the tab is pushed, so a
         // later tab of the same activity sees one already there.
         let home = tool.wants_home_tab() && !self.tabs.iter().any(|t| t.factory_id == factory_id);
+        // Told before the first frame, so the tab is named right even if
+        // the user never opens it.
+        tool.set_home_tab(home, services);
         self.tabs.push(TabEntry {
             id,
             factory_id,
@@ -280,15 +283,63 @@ impl TabSpace {
         if from < self.tabs.len() && to < self.tabs.len() && from != to {
             let t = self.tabs.remove(from);
             self.tabs.insert(to, t);
+            let id = self.tabs[to.min(self.tabs.len() - 1)].factory_id.clone();
+            self.regroup(&id);
             self.dirty = true;
         }
     }
 
     pub fn set_pinned(&mut self, id: u64, pinned: bool) {
-        if let Some(t) = self.get_mut(id) {
-            t.pinned = pinned;
-            self.dirty = true;
+        let Some(t) = self.get_mut(id) else { return };
+        t.pinned = pinned;
+        let factory_id = t.factory_id.clone();
+        self.regroup(&factory_id);
+        self.dirty = true;
+    }
+
+    /// Order one activity's tabs: its permanent tab first, then the pinned
+    /// ones, then the rest, each group keeping the order it had. Only the
+    /// slots this activity already occupies are rewritten, so the other
+    /// activities do not move. Owner's requirement, 2026-10-17.
+    fn regroup(&mut self, factory_id: &str) {
+        let slots: Vec<usize> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.factory_id == factory_id)
+            .map(|(i, _)| i)
+            .collect();
+        if slots.len() < 2 {
+            return;
         }
+        let mut order = slots.clone();
+        // A stable sort, so a drag inside one of the three groups holds.
+        order.sort_by_key(|&i| {
+            let t = &self.tabs[i];
+            if t.home {
+                0
+            } else if t.pinned {
+                1
+            } else {
+                2
+            }
+        });
+        if order == slots {
+            return;
+        }
+        let mut from: Vec<Option<TabEntry>> = std::mem::take(&mut self.tabs)
+            .into_iter()
+            .map(Some)
+            .collect();
+        let mut out: Vec<TabEntry> = Vec::with_capacity(from.len());
+        for i in 0..from.len() {
+            let src = match slots.iter().position(|&s| s == i) {
+                Some(p) => order[p],
+                None => i,
+            };
+            out.push(from[src].take().expect("every tab is moved once"));
+        }
+        self.tabs = out;
     }
 
     /// Split: the active tab stays on one side, `new_id` shows on the other.
@@ -332,6 +383,7 @@ impl TabSpace {
                     tool: t.factory_id.clone(),
                     pinned: t.pinned,
                     colour: t.colour.map(|c| [c.r(), c.g(), c.b()]),
+                    home: t.home,
                     state: t.tool.save_state(),
                 })
                 .collect(),
@@ -339,6 +391,59 @@ impl TabSpace {
             split: self.split.as_ref().map(to_layout_node),
             active_environment,
             ..Default::default()
+        }
+    }
+
+    /// Give every activity in the restored strip the home tab it wants.
+    ///
+    /// A layout written before an activity had a home tab has none saved,
+    /// and the tab that happens to come first is a working tab - a
+    /// connection, a note - which must not be turned into a dashboard.
+    /// So a dashboard activity gets a *new* first tab, and only an
+    /// activity whose home is a working tab anyway (the browser, Graphics)
+    /// adopts the one that is there. Owner's report, 2026-10-17.
+    fn ensure_home_tabs(
+        &mut self,
+        factories: &HashMap<String, &dyn ToolFactory>,
+        services: &Services,
+    ) {
+        let mut seen: Vec<String> = Vec::new();
+        for i in 0..self.tabs.len() {
+            let id = self.tabs[i].factory_id.clone();
+            if seen.contains(&id) {
+                continue;
+            }
+            seen.push(id.clone());
+            if self.tabs.iter().any(|t| t.factory_id == id && t.home) {
+                continue;
+            }
+            let t = &self.tabs[i];
+            if !t.tool.wants_home_tab() {
+                continue;
+            }
+            if !t.tool.home_is_dashboard() {
+                self.tabs[i].home = true;
+                self.tabs[i].tool.set_home_tab(true, services);
+                continue;
+            }
+            let Some(factory) = factories.get(id.as_str()) else {
+                continue;
+            };
+            let mut tool = factory.create(services, None);
+            tool.set_home_tab(true, services);
+            let new_id = self.next_id;
+            self.next_id += 1;
+            self.tabs.insert(
+                i,
+                TabEntry {
+                    id: new_id,
+                    factory_id: id,
+                    tool,
+                    pinned: false,
+                    colour: None,
+                    home: true,
+                },
+            );
         }
     }
 
@@ -352,8 +457,14 @@ impl TabSpace {
             let Some(factory) = factories.get(lt.tool.as_str()) else {
                 continue;
             };
-            let tool = factory.create(services, Some(lt.state.clone()));
-            let home = tool.wants_home_tab() && !self.tabs.iter().any(|t| t.factory_id == lt.tool);
+            let mut tool = factory.create(services, Some(lt.state.clone()));
+            // Which tab is the home tab was decided when it was opened and
+            // saved with the layout; a tab restored from an older layout,
+            // or from one written before an activity had a home, is never
+            // one. `ensure_home_tabs` makes the missing ones instead, so a
+            // saved connection keeps its own tab.
+            let home = lt.home && !self.tabs.iter().any(|t| t.factory_id == lt.tool && t.home);
+            tool.set_home_tab(home, services);
             self.tabs.push(TabEntry {
                 id: lt.id,
                 factory_id: lt.tool.clone(),
@@ -363,6 +474,19 @@ impl TabSpace {
                 home,
             });
             self.next_id = self.next_id.max(lt.id + 1);
+        }
+        self.ensure_home_tabs(factories, services);
+        let ids: Vec<String> = {
+            let mut seen: Vec<String> = Vec::new();
+            for t in &self.tabs {
+                if !seen.contains(&t.factory_id) {
+                    seen.push(t.factory_id.clone());
+                }
+            }
+            seen
+        };
+        for id in ids {
+            self.regroup(&id);
         }
         self.active = layout
             .active

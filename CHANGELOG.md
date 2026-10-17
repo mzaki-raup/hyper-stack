@@ -13,6 +13,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **A permanent tab is named after its activity**, with that activity's
+  icon: "Devtools" rather than "Base64", "Scratchpad" rather than "New
+  Note", "Terminal" rather than the shell a restored layout had saved.
+  The API client keeps the workspace's name and logo there, as asked.
+
+- **Pinning puts a tab directly after the permanent one.** Pinned tabs
+  used to be drawn in front of everything, so pinning jumped a tab ahead
+  of its activity's home tab.
+
+- A **dashboard home tab draws no toolbar**: Save, Run and Download would
+  all aim at a document or connection the tab does not hold.
+
+### Fixed
+
+- **Restoring a saved layout no longer turns a tab into a dashboard.**
+  Which tab is an activity's home tab was worked out from the order, so
+  the first saved connection, note or shell of each activity became one on
+  the next start and its pane was gone. The flag is saved with the layout
+  now, and a layout that has none gains a new home tab instead of taking
+  one over.
+
 - **An activity's first tab is a dashboard**: what it has open, as a grid
   of cards carrying the last picture taken of each pane, with a summary
   above. Database, Terminal, SSH, Redis, NoSQL, S3, Devtools and the

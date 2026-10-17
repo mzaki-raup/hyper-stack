@@ -17,6 +17,8 @@ mod self_test;
 mod settings_ai;
 mod settings_ui;
 mod tabspace;
+#[cfg(test)]
+mod tabspace_tests;
 mod tools;
 mod window_state;
 

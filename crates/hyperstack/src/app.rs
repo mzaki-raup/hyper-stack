@@ -2161,6 +2161,13 @@ impl HyperStackApp {
         let mut actions = Vec::new();
         let services = self.services.clone();
         if let Some(t) = self.tabs.get_mut(a) {
+            // A dashboard home tab holds no document and no connection, so
+            // its activity's toolbar would aim Save, Run and Download at
+            // nothing. Owner's report, 2026-10-17.
+            if t.home && t.tool.home_is_dashboard() {
+                return;
+            }
+            let is_home = t.home;
             egui::Frame::new()
                 .inner_margin(egui::Margin {
                     left: 8,
@@ -2176,7 +2183,7 @@ impl HyperStackApp {
                             tab_id: a,
                             env_id: env.as_deref(),
                             actions: &mut actions,
-                            is_home: false,
+                            is_home,
                         };
                         t.tool.toolbar(ui, &mut cx);
                     });

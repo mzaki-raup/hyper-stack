@@ -87,6 +87,16 @@ made.
 | ![Environments settings](docs/screenshots/settings-environments.png) | |
 | **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault) | |
 
+Every activity opens on a **permanent tab of its own** - named after the
+activity, with its icon, and it cannot be closed, pinned or duplicated.
+For Terminal, SSH, Database, NoSQL, Redis, S3, Devtools and the Scratchpad
+that tab is a dashboard: a short summary of the activity and a grid of
+what it has open, each card carrying the last picture taken of that pane,
+and clicking one goes to the tab. Opening a connection, a note or a shell
+always makes a tab beside it. The API client's permanent tab is the
+workspace's instead, with its logo and name. Pinning a tab puts it
+directly after the permanent one.
+
 Settings is always open as a pinned tab in each workspace. Settings → Workspace
 lets you rename a non-default workspace and set or remove its logo after
 creation. The title-bar notification bell opens recent notifications; Quick

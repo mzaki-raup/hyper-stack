@@ -20,6 +20,10 @@ pub struct GridState {
     pub selected: Option<(usize, usize)>,
     /// Display order for (row count, filter, sort).
     cache: Option<(OrderKey, Vec<usize>)>,
+    /// What the data columns measured last frame, so the next frame can
+    /// make the scroll content that wide. Read back from the table rather
+    /// than recomputed, so a column the user drags wider is included.
+    wanted_width: f32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -107,6 +111,9 @@ fn cell_preview(v: &Value) -> String {
     out
 }
 
+/// The leading column that carries the row number.
+const ROW_NUMBER_WIDTH: f32 = 48.0;
+
 fn initial_width(col: &Column, rows: &[Row], i: usize) -> f32 {
     let sample = rows
         .iter()
@@ -132,8 +139,80 @@ pub fn show(
 ) -> GridResponse {
     let mut resp = GridResponse::default();
     let mut new_sort = None;
+    // egui_extras' table scrolls vertically only, so every column past
+    // the pane's edge used to be unreachable — most visibly once the AI
+    // assistant took its column and the grid lost 390 px. The table goes
+    // in a horizontal ScrollArea whose content is as wide as the columns
+    // want to be, so the pane's width decides how much is *visible*, never
+    // how much exists. Owner's report, 2026-10-17.
+    let outer_width = ui.available_width();
+    // The width the columns actually want. It has to be worked out here,
+    // from the same measurements the columns are built with: inside the
+    // table, sizing only ever *shares out* the width it is given, so a
+    // table asked to fit a narrow pane shrinks its columns to fit and then
+    // has nothing to scroll. `wanted_width` carries a column the user has
+    // dragged wider than its natural size.
+    let spacing_x = ui.spacing().item_spacing.x;
+    let natural = ROW_NUMBER_WIDTH
+        + spacing_x
+        + columns
+            .iter()
+            .enumerate()
+            .map(|(i, c)| initial_width(c, rows, i) + spacing_x)
+            .sum::<f32>();
+    let content_width = natural.max(state.wanted_width).max(outer_width);
+    let mut measured = state.wanted_width;
+    egui::ScrollArea::horizontal()
+        .id_salt(id.with("hscroll"))
+        .show(ui, |ui| {
+            // Both bounds: the table reads `available_rect_before_wrap` to
+            // share out its width, and inside a horizontal ScrollArea that
+            // is unbounded, which would make the trailing remainder column
+            // infinitely wide.
+            ui.set_min_width(content_width);
+            ui.set_max_width(content_width);
+            grid_table(
+                ui,
+                id,
+                theme,
+                columns,
+                rows,
+                state,
+                labels,
+                order,
+                &mut resp,
+                &mut new_sort,
+                &mut measured,
+            );
+        });
+    state.wanted_width = measured;
+    if let Some(s) = new_sort {
+        state.sort = s;
+    }
+    resp
+}
+
+/// The table itself, inside the scroll area. `measured` comes back as the
+/// width the data columns asked for, the trailing remainder excluded — it
+/// only exists to soak up slack when the columns do not fill the pane, and
+/// counting it would wedge the content at whatever width it first had.
+#[allow(clippy::too_many_arguments)]
+fn grid_table(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    theme: &Theme,
+    columns: &[Column],
+    rows: &[Row],
+    state: &mut GridState,
+    labels: &Labels,
+    order: &[usize],
+    resp: &mut GridResponse,
+    new_sort: &mut Option<Option<(usize, bool)>>,
+    measured: &mut f32,
+) {
     let mono = egui::TextStyle::Monospace;
     let row_h = 22.0;
+    let spacing_x = ui.spacing().item_spacing.x;
     let mut builder = TableBuilder::new(ui)
         .id_salt(id)
         .striped(true)
@@ -141,7 +220,7 @@ pub fn show(
         .auto_shrink([false, false])
         // No row sense: a row-wide click area is registered after the
         // cells and would take their clicks (selection, double-click).
-        .column(TableColumn::exact(48.0));
+        .column(TableColumn::exact(ROW_NUMBER_WIDTH));
     for (i, c) in columns.iter().enumerate() {
         builder = builder.column(
             TableColumn::initial(initial_width(c, rows, i))
@@ -175,7 +254,7 @@ pub fn show(
                         r.on_hover_text(&c.type_name)
                     };
                     if r.clicked() {
-                        new_sort = Some(match state.sort {
+                        *new_sort = Some(match state.sort {
                             Some((col, true)) if col == i => Some((i, false)),
                             Some((col, false)) if col == i => None,
                             _ => Some((i, true)),
@@ -186,6 +265,11 @@ pub fn show(
             header.col(|_| {});
         })
         .body(|body| {
+            // Columns are: the row-number column, one per data column, then
+            // the remainder. Everything but the remainder is real content.
+            let w = body.widths();
+            let n = w.len().saturating_sub(1);
+            *measured = w.iter().take(n).sum::<f32>() + spacing_x * n as f32;
             body.rows(row_h, order.len(), |mut row| {
                 let data_idx = order[row.index()];
                 let r_data = &rows[data_idx];
@@ -265,10 +349,6 @@ pub fn show(
                 row.col(|_| {});
             });
         });
-    if let Some(s) = new_sort {
-        state.sort = s;
-    }
-    resp
 }
 
 #[cfg(test)]

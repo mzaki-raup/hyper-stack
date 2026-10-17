@@ -607,6 +607,19 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A single-line `TextEdit` gives up focus on Escape *before* your code sees
   the key, so `r.has_focus() && key_pressed(Escape)` never fires; test
   `(r.has_focus() || r.lost_focus())` (the terminal find bar does).
+- `egui_extras::TableBuilder` scrolls **vertically only** — there is a
+  `vscroll` but no horizontal equivalent — and its sizing only ever
+  divides up the width it is handed, so a table too wide for its pane
+  silently squeezes its columns and then clips them, with nothing to
+  scroll and no way to reach what is off the edge. Put it in an
+  `egui::ScrollArea::horizontal` whose content width you compute yourself
+  from the columns' own widths, and set **both** `set_min_width` and
+  `set_max_width` on the inner `Ui`: the table reads
+  `available_rect_before_wrap`, which is unbounded inside a horizontal
+  scroll area, and a trailing `remainder()` column would become
+  infinitely wide. `TableBody::widths()` reads the real widths back, which
+  is the only way to notice a column the user has dragged wider
+  (`tool-db::grid`).
 - `egui_extras::TableBuilder::sense(click)` registers a row-wide click area
   *after* the cells, so a cell's own `interact` never sees clicks (no cell
   selection, no double-click). Leave the builder's sense off and put

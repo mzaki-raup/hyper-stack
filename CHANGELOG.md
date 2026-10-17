@@ -21,6 +21,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- The result grid **scrolls horizontally**. `egui_extras`' table scrolls
+  vertically only, so a result wider than the pane had its remaining
+  columns cut off with no way to reach them — a 12-column table showed
+  five, and three once the AI Assistant took its column, which is what
+  made the assistant look as though it were floating over the data rather
+  than beside it. The pane's width now decides how much of a result is
+  visible, never how much of it exists.
+
 - A query tab refilled from the schema tree **shows the whole statement**.
   Replacing the buffer under an existing editor view left that view's
   cached line layout behind, so the first Open Data drew a single

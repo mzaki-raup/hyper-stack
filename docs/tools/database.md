@@ -380,3 +380,23 @@ a new tab is added beside it. The destructive templates (TRUNCATE, DROP)
 keep their old behaviour of inserting into the current tab without
 running, since the point of those is that the user runs them deliberately.
 Owner's requirement, 2026-10-17.
+
+### The grid scrolls sideways (2026-10-17)
+
+A result wider than the pane scrolls horizontally. This had never worked:
+`egui_extras`' table scrolls vertically only and shares out whatever width
+it is given, so a wide result was quietly squeezed and then clipped, and
+the columns past the edge could not be reached at all — a twelve-column
+table showed five. Opening the **AI Assistant** takes 390 px and made it
+unmistakable, which is why it was first reported as the assistant floating
+on top of the data; the assistant was always a column beside the grid, the
+grid just had no way to give ground.
+
+The table now sits in a horizontal `ScrollArea` whose content is as wide as
+the columns want to be — worked out from the same measurements the columns
+are built with, since inside the table sizing only ever divides up the
+width it is handed. A column dragged wider than its natural size is carried
+in `GridState::wanted_width`, read back from `TableBody::widths()` so the
+next frame makes room for it. When the columns do not fill the pane the
+trailing remainder column absorbs the slack exactly as before, so a narrow
+result looks unchanged and shows no scrollbar. Owner's report, 2026-10-17.

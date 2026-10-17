@@ -11,28 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.38.0 — 2026-10-17
+
 ### Added
 
-- **The API client imports Insomnia, Bruno and OpenAPI collections**, not
-  only Postman: Insomnia's v4 export, a Bruno collection folder (pick any
-  of its `.bru` files), and an OpenAPI 3 document in JSON or YAML with one
-  request per operation grouped by tag.
+- Import Insomnia, Bruno and OpenAPI collections (f85354d3)
+- Stage, unstage or discard one hunk from the diff view (f0f1a959)
+- Commit, push, pull, stash and branches from Source Control (9bb7e30f)
+- A favourites bar under the address bar (f8e6cc3e)
 
-- **Git has a write side in the editor's Source Control**: stage, unstage,
-  discard (with a question), commit and amend, commit-and-push, fetch,
-  pull (rebase by default), push, stashes and branches, under each
-  repository's header. Network operations are Jobs, so the dock shows
-  them. A remote or branch matching a protected pattern (Settings →
-  Editor → Git; `prod` and `release` by default) asks before a push, and
-  a plain force push is never issued. In the diff view each hunk can be
-  staged, unstaged or discarded on its own.
+### Fixed
 
-- **A favourites bar in the Browser**, under the address bar, shown or
-  hidden from Settings → Browser. Click opens the site in the current
-  page, middle click or Ctrl+click in a new page behind it, folders open
-  as menus, and what does not fit sits behind a » at the right — the way
-  Chrome's bookmarks bar behaves. Each chip carries the site's favicon,
-  fetched once per site the way a page tab's is.
+- Favicons and room between the favourites bar's chips (cd3b5042)
 
 ## 0.37.0 — 2026-10-17
 

@@ -423,7 +423,15 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 .on_hover_text(s.t("api-new-request"))
                 .clicked()
             {
-                t.new_request();
+                // This used to clear the editor to an unsaved draft, which
+                // from the list looks like nothing happening at all. The
+                // list is where requests live, so the button puts one
+                // there: beside the open request when there is one, else
+                // in the first collection. Owner's report, 2026-10-17.
+                match t.home_for_new_request() {
+                    Some((c, folder)) => actions.push(SideAction::NewRequest(c, folder)),
+                    None => actions.push(SideAction::NewCollection),
+                }
             }
         });
     });
@@ -541,7 +549,10 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 );
             }
             SideAction::NewRequest(c, folder) => {
-                let name = s.t("api-new-request-name");
+                // Numbered against the folder it lands in, so a second
+                // New Request does not collide with the first.
+                let taken = t.sibling_names(&c, folder.as_deref());
+                let name = crate::model::free_name(&s.t("api-new-request-name"), &taken);
                 t.new_request();
                 t.request.name = name.clone();
                 t.save_as(&c, folder.as_deref(), &name, cx);

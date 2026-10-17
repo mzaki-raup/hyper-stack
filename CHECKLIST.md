@@ -244,3 +244,28 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Settings → Connections: Test Connection between Save and Delete | Completed | `conn_test` (2 tests): SSH, S3, SQL, Redis, MongoDB and CouchDB through their own drivers, on the runtime; verified live — SQLite answered "Connected. SQLite 3.50.2" and a Redis server that was not running answered "timed out" |
 | Graphics: one tab per image, reopening focuses the tab that has it | Completed | `uri_affinity` answers only while the tab is empty, both open paths go through `Services::open`; verified live — red then blue made two tabs, reopening red focused its own |
 | Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |
+
+## Owner's requests, 2026-10-17
+
+Raised directly by the repository owner on 2026-10-17, tracked here so
+the queue does not live only in a conversation. Items marked *do not
+start* are held or deferred by the owner's instruction.
+
+| Item | State | Notes |
+|---|---|---|
+| API client: outer-tab Duplicate copies the request, numbered, in its folder | In-Progress | `Tool::duplicate_state` + `ApiTool::duplicate_state`; live check owed |
+| API client: folder New Request numbers against the folder | In-Progress | `free_name` over `sibling_names`; live check owed |
+| API client: the sidebar's New Request button creates a request | In-Progress | `home_for_new_request`; it used to clear the editor to a draft the list never saw |
+| API client: the list is the source of truth for the workspace | Pending | follows from the three rows above; needs a pass over every path that can create a request |
+| API client: request-name row above the action bar, renaming in place | Pending | rename reflected in list and tab, numbered on a clash |
+| API client: drag a request between folders, sibling, parent and sub | Pending | owner reports it still does not work; numbered on a name clash in the target |
+| Browser: one outer tab per workspace, carrying its icon and name | Pending | multi-tab and multi-row move to the inner strip |
+| Browser: Favorites tab - tree with folders, per-workspace store | Pending | favicon or custom icon, right-click manage, delete confirmation, hideable detail pane, drag to reorder with a drop indicator |
+| Browser: Passwords tab - per-workspace store | Pending | name/url/icon/username/password/passkey/apikey; secrets go to the vault as `secret:<ulid>`, never the workspace file |
+| Browser: Add to Favorites in the toolbar | Pending | root, an existing folder, or a new one |
+| Browser: Fill in Password in the toolbar | Pending | match by domain; fill username/password/apikey forms, HTTP basic, and answer a passkey prompt |
+| Editor: Java debug adapter | Pending | java-debug / vscode-java-debug alongside the existing adapters |
+| Editor: Run/Debug asks about unsaved tabs | Pending | Save, Ignore or Cancel; Save writes every dirty open tab first |
+| Devtools: Unit Conversion tool | Pending | time (days/hours/minutes/seconds/ms, epoch), numbers (decimal/binary/octal/hex), and other suitable conversions, each with its own result area per type |
+| Database: word-wrap toggle in the query field | Pending | held by the owner, 2026-10-17 - do not start |
+| Shell: middle-click slowness | Pending | deferred by the owner, not reproducible - do not start |

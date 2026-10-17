@@ -972,6 +972,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   seconds before any Rust step. Always `$x = $null` before `[ref]$x`, and
   reproduce workflow snippets locally under `Stop` before pushing.
 
+### Checking a command's result
+- `cargo test ... | grep -E "FAILED" | head -5; echo "(clean)"` prints
+  "(clean)" whether or not the grep matched, because the `echo` is a
+  separate command with its own exit status. A real failure
+  (`launcher::tests::clicking_a_chip_opens_its_connection`, 2026-10-17)
+  scrolled past under a reassuring line and was committed on a red
+  suite. Let the grep's own output be the answer, or branch on it
+  (`if grep -q ...; then`), and never narrate a result the command did
+  not actually give.
+
 ### Patch scripts
 - A text-replace script re-run after a partial failure inserted the
   editor's debug toolbar block twice (the first run had applied the early

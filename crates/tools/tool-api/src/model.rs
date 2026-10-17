@@ -372,6 +372,28 @@ impl Collection {
         walk(&mut self.items, id)
     }
 
+    /// Items of the folder `folder` (`None` = the collection root), for
+    /// reading - naming a new item against what is already beside it.
+    pub fn items(&self, folder: Option<&str>) -> Option<&Vec<Item>> {
+        fn walk<'a>(items: &'a [Item], id: &str) -> Option<&'a Vec<Item>> {
+            for it in items.iter() {
+                if let Item::Folder(f) = it {
+                    if f.id == id {
+                        return Some(&f.items);
+                    }
+                    if let Some(v) = walk(&f.items, id) {
+                        return Some(v);
+                    }
+                }
+            }
+            None
+        }
+        match folder {
+            None => Some(&self.items),
+            Some(id) => walk(&self.items, id),
+        }
+    }
+
     /// Items of the folder `folder` (`None` = the collection root).
     pub fn items_mut(&mut self, folder: Option<&str>) -> Option<&mut Vec<Item>> {
         fn walk<'a>(items: &'a mut [Item], id: &str) -> Option<&'a mut Vec<Item>> {

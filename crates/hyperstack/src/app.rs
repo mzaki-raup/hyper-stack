@@ -2055,10 +2055,21 @@ impl HyperStackApp {
                     }
                 }
                 TabMenuAction::Duplicate => {
-                    let dup = self
-                        .tabs
-                        .get_mut(id)
-                        .map(|t| (t.factory_id.clone(), t.tool.save_state()));
+                    // The tool decides what a duplicate *is*: a copy of
+                    // the tab for a scratch document, a numbered copy of
+                    // the saved document for the API client.
+                    let mut actions = Vec::new();
+                    let env = self.services.environments.read().active.clone();
+                    let dup = self.tabs.get_mut(id).map(|t| {
+                        let mut cx = ToolContext {
+                            services: &self.services,
+                            tab_id: id,
+                            env_id: env.as_deref(),
+                            actions: &mut actions,
+                        };
+                        (t.factory_id.clone(), t.tool.duplicate_state(&mut cx))
+                    });
+                    self.pending_actions.extend(actions);
                     if let Some((fid, state)) = dup
                         && !is_mandatory(&fid)
                         && let Some(i) = self.factory_index(&fid)

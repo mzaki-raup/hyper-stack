@@ -278,6 +278,18 @@ pub trait Tool: Send {
         None
     }
 
+    /// Make whatever a duplicate of this tab should show, and return the
+    /// state to restore into the new tab. The default copies this tab's
+    /// own state, which is right for a tool whose tab holds a scratch
+    /// document. A tool backed by a saved document copies *that* instead:
+    /// the API client writes a numbered copy of the request into the same
+    /// collection, so Duplicate produces a second request rather than a
+    /// second window onto the one request. Owner's requirement,
+    /// 2026-10-17.
+    fn duplicate_state(&mut self, _cx: &mut ToolContext) -> serde_json::Value {
+        self.save_state()
+    }
+
     /// Whether a second window tab of this tool is meaningful at all.
     /// False for a tool whose tab *is* the thing it holds rather than a
     /// view onto it — Graphics, where a tab is one open image, and the

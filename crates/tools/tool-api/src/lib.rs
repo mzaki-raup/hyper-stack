@@ -243,6 +243,36 @@ impl ApiTool {
     }
 
     /// A fresh unsaved request in this tab.
+    /// The names already used in one collection folder, so a new or
+    /// renamed request can be numbered against them.
+    pub(crate) fn sibling_names(&self, collection: &str, folder: Option<&str>) -> Vec<String> {
+        self.collections
+            .iter()
+            .find(|c| c.id == collection)
+            .and_then(|c| c.items(folder))
+            .map(|items| items.iter().map(|i| i.name().to_string()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Where a request made from the sidebar's New Request button should
+    /// go: beside the one that is open, else the first collection. `None`
+    /// when there are no collections yet and one has to be made first.
+    pub(crate) fn home_for_new_request(&self) -> Option<(String, Option<String>)> {
+        if let Some(c) = self.state.collection.clone()
+            && self.collections.iter().any(|x| x.id == c)
+        {
+            let folder = self.state.request_id.as_ref().and_then(|id| {
+                self.collections
+                    .iter()
+                    .find(|x| x.id == c)
+                    .and_then(|x| x.find(id))
+                    .and_then(|(_, folders)| folders.last().map(|f| f.id.clone()))
+            });
+            return Some((c, folder));
+        }
+        self.collections.first().map(|c| (c.id.clone(), None))
+    }
+
     pub(crate) fn new_request(&mut self) {
         self.state.collection = None;
         self.state.request_id = None;
@@ -1332,6 +1362,56 @@ impl Tool for ApiTool {
             }
             _ => false,
         }
+    }
+
+    /// Duplicating an API tab makes a second *request*, not a second
+    /// window onto the one request: a numbered copy beside the original,
+    /// in the same collection and folder, which the new tab then opens.
+    /// Owner's requirement, 2026-10-17.
+    fn duplicate_state(&mut self, cx: &mut ToolContext) -> serde_json::Value {
+        let here = self
+            .state
+            .collection
+            .clone()
+            .zip(self.state.request_id.clone());
+        let Some((collection, id)) = here else {
+            // An unsaved draft has nothing to copy beside; the new tab
+            // gets the same draft, which is what the default would do.
+            return self.save_state();
+        };
+        let found = self
+            .collections
+            .iter()
+            .find(|x| x.id == collection)
+            .and_then(|x| {
+                x.find(&id)
+                    .map(|(r, folders)| (r.clone(), folders.last().map(|f| f.id.clone())))
+            });
+        let Some((mut copy, folder)) = found else {
+            return self.save_state();
+        };
+        copy.id = hs_core::new_id();
+        let mut new_id = None;
+        if let Some(col) = self.collections.iter_mut().find(|x| x.id == collection)
+            && let Some(items) = col.items_mut(folder.as_deref())
+        {
+            let taken: Vec<String> = items.iter().map(|i| i.name().to_string()).collect();
+            copy.name = crate::model::next_copy_name(&copy.name, &taken);
+            new_id = Some(copy.id.clone());
+            items.push(Item::Request(copy));
+        }
+        let Some(new_id) = new_id else {
+            return self.save_state();
+        };
+        self.save_collection(&collection, cx);
+        let st = State {
+            collection: Some(collection),
+            request_id: Some(new_id),
+            draft: None,
+            req_tab: self.state.req_tab,
+            resp_tab: self.state.resp_tab,
+        };
+        serde_json::to_value(st).unwrap_or(serde_json::Value::Null)
     }
 
     fn save_state(&self) -> serde_json::Value {

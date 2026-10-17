@@ -168,6 +168,39 @@ struct TunnelForm {
 }
 
 impl SshTool {
+    /// The home tab: what this activity has open, with the last picture of
+    /// each pane. Owner's requirement, 2026-10-17.
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        let count = s.connections.read().of_kind("ssh").count();
+        let tabs = s.open_tabs.of("ssh");
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-ssh"),
+            Some(&s.t("ssh-dashboard-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-connections"));
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        egui::ScrollArea::vertical()
+            .id_salt("ssh-dashboard")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+
     fn new(services: &Services, state: State) -> Self {
         let st = services.settings.read();
         let mut view = TerminalView::new(
@@ -1571,6 +1604,10 @@ impl Tool for SshTool {
     fn home_is_dashboard(&self) -> bool {
         true
     }
+    /// Which host this session is on.
+    fn subtitle(&self) -> Option<String> {
+        Some(self.conn_name.clone()).filter(|s| !s.is_empty())
+    }
 
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
@@ -1723,6 +1760,10 @@ impl Tool for SshTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if cx.is_home {
+            self.dashboard(ui, cx);
+            return;
+        }
         // The assistant takes its column first; the file pane and the shell
         // then split what is left, instead of the shell being half covered.
         let (mut content, assistant_rect) =

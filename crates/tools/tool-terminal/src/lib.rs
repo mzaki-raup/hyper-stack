@@ -95,7 +95,10 @@ impl TerminalTool {
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         };
         t.apply_settings(services);
-        t.start(services);
+        // The shell starts on the first frame that actually draws a
+        // terminal. Starting it here would give the home tab a live shell
+        // nobody asked for, and the home tab is a dashboard.
+        // Owner's requirement, 2026-10-17.
         t
     }
 
@@ -380,6 +383,43 @@ impl TerminalTool {
         }
     }
 
+    /// The home tab: the shells this machine offers, what is open, and
+    /// the last picture of each terminal. Owner's requirement, 2026-10-17.
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        let tabs = s.open_tabs.of("terminal");
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-terminal"),
+            Some(&s.t("terminal-dashboard-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(
+                ui,
+                &theme,
+                &self.profiles.len().to_string(),
+                &s.t("dash-shells"),
+            );
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        egui::ScrollArea::vertical()
+            .id_salt("terminal-dashboard")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+
     fn start(&mut self, services: &Services) {
         self.error = None;
         self.exit_code = None;
@@ -411,6 +451,11 @@ impl Tool for TerminalTool {
 
     fn home_is_dashboard(&self) -> bool {
         true
+    }
+
+    /// Which shell this tab is running.
+    fn subtitle(&self) -> Option<String> {
+        self.state.profile.clone()
     }
 
     fn descriptor(&self) -> &ToolDescriptor {
@@ -593,6 +638,16 @@ impl Tool for TerminalTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if cx.is_home {
+            self.dashboard(ui, cx);
+            return;
+        }
+        // First draw of a real terminal tab: this is where the shell comes
+        // up, since the tool is created before anyone knows which tab it
+        // is.
+        if self.session.is_none() && self.error.is_none() {
+            self.start(cx.services);
+        }
         // The assistant takes its column first, so the terminal is narrower
         // while it is open rather than partly hidden behind it.
         let (mut content, assistant_rect) =

@@ -203,6 +203,41 @@ pub struct DevtoolsTool {
     pki: pki::State,
 }
 
+impl DevtoolsTool {
+    /// The home tab: what this activity has open, with the last picture of
+    /// each pane. Owner's requirement, 2026-10-17.
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        let count = Utility::ALL.len();
+        let tabs = s.open_tabs.of("devtools");
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-devtools"),
+            Some(&s.t("devtools-dashboard-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-tools"));
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        egui::ScrollArea::vertical()
+            .id_salt("devtools-dashboard")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+}
+
 impl Tool for DevtoolsTool {
     fn wants_home_tab(&self) -> bool {
         true
@@ -265,6 +300,10 @@ impl Tool for DevtoolsTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if cx.is_home {
+            self.dashboard(ui, cx);
+            return;
+        }
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.title = s.t(self.utility.title_key());

@@ -284,8 +284,8 @@ listed first.
 | API client: a permanent home tab with the workspace logo and name | Pending | collection/request summary when there are any, otherwise what-to-do options; the sidebar keeps create/filter |
 | API client: duplicate a collection or a folder with everything in it | Completed | `model::deep_copy` gives new ids throughout; one test proves a duplicated folder shares no ids with the original |
 | API client: the list refreshes wherever a request is created | Completed | an `Event::Custom` on `api.collections` after every write; the writing tab skips its own |
-| Terminal: permanent home tab with a dashboard of open terminals | Pending | grid of name, type and a thumbnail of that terminal, clicking one goes to its tab |
-| SSH: permanent home tab with a dashboard of open connections | Pending | grid of connection name and a thumbnail, clicking one goes to its tab |
+| Terminal: permanent home tab with a dashboard of open terminals | Completed | the shell now starts on the first frame that draws a terminal, not when the tool is made, so the home tab has none; verified live — the dashboard listed 6 shells and 0 open tabs, and opening one gave a live PowerShell beside it |
+| SSH: permanent home tab with a dashboard of open connections | Completed | same grid; the card carries the host |
 | Database: permanent home tab with a dashboard of open connections | Completed | `hs_ui::dashboard` + `OpenTabs`; verified live — the dashboard showed 1 connection, 1 open tab and a captured thumbnail of the query pane, and clicking the card focused that tab |
 | NoSQL: permanent home tab with a dashboard of open connections | Completed | same `hs_ui::dashboard` grid; the card carries the store kind and connection |
 | Redis: permanent home tab with a dashboard of open connections | Completed | verified live — the permanent Redis tab shows the summary and the empty state |
@@ -293,8 +293,8 @@ listed first.
 | Browser: permanent first tab, no tab context menu | Completed | `has_menu` is false for home and browser tabs; the window strip's + is gone |
 | Home: permanent first tab, no tab context menu | Completed | as above |
 | Graphics: permanent first tab | Completed | `wants_home_tab`; the sidebar and preview pane are untouched |
-| Devtools: permanent home tab with a dashboard of open tools | Pending | tool name, kind and a thumbnail of the working pane |
-| Scratchpad: permanent home tab with a dashboard of open notes | Pending | note name and a thumbnail of the preview pane |
+| Devtools: permanent home tab with a dashboard of open tools | Completed | counts the utilities the drawer offers |
+| Scratchpad: permanent home tab with a dashboard of open notes | Completed | counts the workspace's notes |
 | Editor: a terminal inside the editor | Pending | default PowerShell 7, set in Settings -> Editor |
 | Editor: detect a project's language and offer its tooling | Pending | Maven/Gradle for Java with configurable paths, a build command, console runs in the editor terminal, a web app opens a Browser tab at its URL, Spring Boot recognised |
 | Shell: a dashboard home tab is never taken over by a connection | Completed | `Tool::home_is_dashboard` keeps `unbound_tab` and the URI router off it; verified live — clicking a Database connection opened a second tab beside the permanent one instead of consuming it |

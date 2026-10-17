@@ -13,6 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **An activity's first tab is a dashboard**: what it has open, as a grid
+  of cards carrying the last picture taken of each pane, with a summary
+  above. Database, Terminal, SSH, Redis, NoSQL, S3, Devtools and the
+  Scratchpad all have one; clicking a card goes to that tab. A tab never
+  visited this session says so rather than showing an empty frame, because
+  a tab that is not on screen is never drawn and there is no picture to
+  take.
+
+- **A terminal's shell starts when a terminal is drawn**, not when the tool
+  is made, so the Terminal dashboard does not sit on a live shell nobody
+  asked for.
+
 - **Every activity's first tab is permanent.** It cannot be closed, closed
   past, pinned or duplicated, and its menu offers only Close Others and
   Close to the Right. Home and the browser have no tab menu at all.

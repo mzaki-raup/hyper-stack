@@ -382,10 +382,16 @@ pub(crate) enum SideAction {
     /// `to_folder` at the boundary `to`. The two folders are equal for a
     /// reorder within one level and differ when a row moves between
     /// levels. `collection` empty means the collections themselves.
+    /// Move a request or folder: out of (`from_collection`,
+    /// `from_folder`) at `from`, into (`to_collection`, `to_folder`) at
+    /// `to`. Two empty collection ids mean the collections themselves,
+    /// which are a flat list. `to` may be `usize::MAX` for "at the end",
+    /// which is what a drop onto a folder or a collection means.
     MoveItem {
-        collection: String,
+        from_collection: String,
         from_folder: Option<String>,
         from: usize,
+        to_collection: String,
         to_folder: Option<String>,
         to: usize,
     },
@@ -474,6 +480,25 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         );
                     })
                 });
+                // The collection itself takes a row, so a request can be
+                // dragged to another collection even when that one is
+                // collapsed or empty - the case with no rows to aim
+                // between. Owner's report, 2026-10-18.
+                let root = scope_of(&c.id, None);
+                if hs_ui::reorder::dragged_scope(ui.ctx()).is_some_and(|src| src != root)
+                    && let Some(d) =
+                        hs_ui::reorder::drop_onto(ui, header.header_response.rect, theme.accent)
+                {
+                    let (from_collection, from_folder) = from_scope(&d.scope);
+                    actions.push(SideAction::MoveItem {
+                        from_collection,
+                        from_folder,
+                        from: d.index,
+                        to_collection: c.id.clone(),
+                        to_folder: None,
+                        to: usize::MAX,
+                    });
+                }
                 header.header_response.context_menu(|ui| {
                     if ui.button(s.t("api-new-request")).clicked() {
                         actions.push(SideAction::NewRequest(c.id.clone(), None));
@@ -508,9 +533,10 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
             }
             if let Some((from, to)) = collections.finish(ui, theme.accent) {
                 actions.push(SideAction::MoveItem {
-                    collection: String::new(),
+                    from_collection: String::new(),
                     from_folder: None,
                     from,
+                    to_collection: String::new(),
                     to_folder: None,
                     to,
                 });
@@ -584,54 +610,21 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
             }
             SideAction::Rename(c, id, name) => t.rename = Some((format!("{c}/{id}"), name)),
             SideAction::MoveItem {
-                collection,
+                from_collection,
                 from_folder,
                 from,
+                to_collection,
                 to_folder,
                 to,
-            } => {
-                // An empty collection id means the collections themselves.
-                if collection.is_empty() {
-                    hs_ui::reorder::move_item(&mut t.collections, from, to);
-                    t.save_order(cx);
-                } else if let Some(col) = t.collections.iter_mut().find(|x| x.id == collection) {
-                    if from_folder == to_folder {
-                        if let Some(items) = col.items_mut(to_folder.as_deref()) {
-                            hs_ui::reorder::move_item(items, from, to);
-                        }
-                    } else {
-                        // Out of one level and into another: take it first,
-                        // then insert, so neither index is disturbed by the
-                        // other's edit.
-                        let taken = col
-                            .items_mut(from_folder.as_deref())
-                            .filter(|items| from < items.len())
-                            .map(|items| items.remove(from));
-                        if let Some(mut item) = taken {
-                            if let Some(items) = col.items_mut(to_folder.as_deref()) {
-                                // A name already in use where it lands gets
-                                // the same numbering a copy would.
-                                let names: Vec<String> =
-                                    items.iter().map(|i| i.name().to_string()).collect();
-                                let free = crate::model::free_name(item.name(), &names);
-                                if free != item.name() {
-                                    item.set_name(&free);
-                                }
-                                let at = to.min(items.len());
-                                items.insert(at, item);
-                            } else if let Some(items) = col.items_mut(from_folder.as_deref()) {
-                                // The target went with it: dropping a
-                                // folder inside itself takes the whole
-                                // branch out of the tree, so put it back
-                                // rather than losing it.
-                                let at = from.min(items.len());
-                                items.insert(at, item);
-                            }
-                        }
-                    }
-                    t.save_collection(&collection, cx);
-                }
-            }
+            } => t.move_item(
+                &from_collection,
+                from_folder.as_deref(),
+                from,
+                &to_collection,
+                to_folder.as_deref(),
+                to,
+                cx,
+            ),
             SideAction::Delete(c, item) => match item {
                 Some(id) => {
                     if let Some(col) = t.collections.iter_mut().find(|x| x.id == c) {
@@ -777,9 +770,12 @@ fn items_ui(
                 // which is why dragging "into a folder" looked broken: a
                 // collapsed or empty one had no rows to aim between.
                 // Owner's report, 2026-10-17.
+                // Any level of any collection may send a row here; only
+                // this folder's own rows have nowhere to go.
+                // Owner's report, 2026-10-18.
                 let inside = scope_of(collection, Some(&f.id));
-                let from_elsewhere = hs_ui::reorder::dragged_scope(ui.ctx())
-                    .is_some_and(|src| src != inside && from_scope(&src).0 == collection);
+                let from_elsewhere =
+                    hs_ui::reorder::dragged_scope(ui.ctx()).is_some_and(|src| src != inside);
                 if from_elsewhere {
                     let rect = r.header_response.rect;
                     if ui
@@ -793,13 +789,14 @@ fn items_ui(
                     if let Some(d) = hs_ui::reorder::drop_onto(ui, rect, theme.accent) {
                         let (c, from_folder) = from_scope(&d.scope);
                         actions.push(SideAction::MoveItem {
-                            collection: c,
+                            from_collection: c,
                             from_folder,
                             from: d.index,
+                            to_collection: collection.to_string(),
+                            to_folder: Some(f.id.clone()),
                             // Past the end: the handler clamps, so the row
                             // lands at the bottom of the folder it joined.
                             to: usize::MAX,
-                            to_folder: Some(f.id.clone()),
                         });
                     }
                 }
@@ -919,18 +916,24 @@ fn items_ui(
         let to = match mv {
             Move::Within { to, .. } | Move::From { to, .. } => to,
         };
-        // A row only ever moves inside the collection it belongs to: a
-        // request in another collection is a different file, and dragging
-        // one there would be a copy, not a move.
-        if from_collection == collection {
-            actions.push(SideAction::MoveItem {
-                collection: collection.to_string(),
-                from_folder,
-                from,
-                to_folder: folder.map(str::to_string),
-                to,
-            });
-        }
+        actions.push(SideAction::MoveItem {
+            from_collection,
+            from_folder,
+            from,
+            to_collection: collection.to_string(),
+            to_folder: folder.map(str::to_string),
+            to,
+        });
+    }
+}
+
+/// Every request id an item holds, itself included: a folder that moves to
+/// another collection takes its requests with it, and the open tab has to
+/// follow whichever of them it is showing.
+fn request_ids(item: &Item) -> Vec<String> {
+    match item {
+        Item::Request(r) => vec![r.id.clone()],
+        Item::Folder(f) => f.items.iter().flat_map(request_ids).collect(),
     }
 }
 
@@ -2088,6 +2091,111 @@ impl ApiTool {
     pub(crate) fn set_req_tab(&mut self, i: usize) {
         self.state.req_tab = i;
     }
+    /// Move a request or folder from one place in the sidebar to another:
+    /// the same list, another folder, another collection's root, or a
+    /// folder of another collection. `to == usize::MAX` means "at the
+    /// end", which is what a drop onto a folder or a collection says.
+    ///
+    /// Two empty collection ids are the collections themselves, which are
+    /// a flat list of their own. Owner's report, 2026-10-18.
+    #[allow(clippy::too_many_arguments)]
+    pub fn move_item(
+        &mut self,
+        from_collection: &str,
+        from_folder: Option<&str>,
+        from: usize,
+        to_collection: &str,
+        to_folder: Option<&str>,
+        to: usize,
+        cx: &mut ToolContext,
+    ) {
+        if from_collection.is_empty() && to_collection.is_empty() {
+            hs_ui::reorder::move_item(&mut self.collections, from, to);
+            self.save_order(cx);
+            return;
+        }
+        // Inside one collection and one level: a plain reorder, which is
+        // the only move where the boundary index means what it says.
+        if from_collection == to_collection && from_folder == to_folder {
+            if let Some(col) = self
+                .collections
+                .iter_mut()
+                .find(|x| x.id == from_collection)
+                && let Some(items) = col.items_mut(to_folder)
+            {
+                hs_ui::reorder::move_item(items, from, to);
+                self.save_collection(from_collection, cx);
+            }
+            return;
+        }
+        // Take it out first, so the insert index is not disturbed by the
+        // removal - and so a failed insert can put it back.
+        let Some(src) = self
+            .collections
+            .iter_mut()
+            .find(|x| x.id == from_collection)
+        else {
+            return;
+        };
+        let Some(mut item) = src
+            .items_mut(from_folder)
+            .filter(|items| from < items.len())
+            .map(|items| items.remove(from))
+        else {
+            return;
+        };
+        let moved_ids = request_ids(&item);
+        // `None` means it landed; `Some(item)` hands it back untouched.
+        let orphan = {
+            let dst = self
+                .collections
+                .iter_mut()
+                .find(|x| x.id == to_collection)
+                .and_then(|c| c.items_mut(to_folder));
+            match dst {
+                Some(items) => {
+                    // A name already in use where it lands gets the same
+                    // numbering a copy would.
+                    let names: Vec<String> = items.iter().map(|i| i.name().to_string()).collect();
+                    let free = crate::model::free_name(item.name(), &names);
+                    if free != item.name() {
+                        item.set_name(&free);
+                    }
+                    let at = to.min(items.len());
+                    items.insert(at, item);
+                    None
+                }
+                None => Some(item),
+            }
+        };
+        if let Some(item) = orphan {
+            // The target went with it: dropping a folder inside itself
+            // takes the whole branch out of the tree, so put it back
+            // rather than losing it.
+            if let Some(src) = self
+                .collections
+                .iter_mut()
+                .find(|x| x.id == from_collection)
+                && let Some(items) = src.items_mut(from_folder)
+            {
+                let at = from.min(items.len());
+                items.insert(at, item);
+            }
+            return;
+        }
+        self.save_collection(from_collection, cx);
+        if to_collection != from_collection {
+            self.save_collection(to_collection, cx);
+            // The open request may have just changed collection; the tab
+            // saves into the file its state names, so that has to follow.
+            if let Some(open) = self.state.request_id.clone()
+                && moved_ids.contains(&open)
+            {
+                self.state.collection = Some(to_collection.to_string());
+            }
+        }
+    }
+
     pub(crate) fn state_request_id(&self) -> Option<String> {
         self.state.request_id.clone()
     }

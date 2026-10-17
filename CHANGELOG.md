@@ -91,6 +91,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- **A request or folder can be dragged anywhere in the sidebar.** Only
+  reordering inside one parent worked: a drop in another collection was
+  refused outright, and a folder only took a row from its own collection.
+  A drop onto a collection's header puts the row in that collection's
+  root, which is how a collapsed or empty one is reached.
+
 - **A Devtools utility opens in a tab of its own again.** The home tab
   reported that it was showing Base64 — the default — so clicking Base64
   in the sidebar focused the dashboard and appeared to do nothing.

@@ -258,7 +258,12 @@ pub fn dragged_scope(ctx: &egui::Context) -> Option<String> {
 /// between. Paints `rect` while a dragged row is over it and reports the
 /// source once the pointer is released. Owner's requirement, 2026-10-17.
 pub fn drop_onto(ui: &mut egui::Ui, rect: egui::Rect, colour: egui::Color32) -> Option<Dropped> {
-    egui::DragAndDrop::payload::<DragIndex>(ui.ctx())?;
+    // A row from a list that never named itself (a flat list, such as the
+    // collections themselves) cannot be dropped *into* anything: it has no
+    // scope to report. Ignoring it here matters - taking the payload to
+    // find that out would swallow that list's own reorder.
+    let payload = egui::DragAndDrop::payload::<DragIndex>(ui.ctx())?;
+    payload.scope.as_ref()?;
     let pointer = ui.input(|i| i.pointer.interact_pos())?;
     if !rect.contains(pointer) {
         return None;

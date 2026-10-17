@@ -642,6 +642,10 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   value with the process value
   (`[Environment]::GetEnvironmentVariable('Path','User')` vs `$env:Path`)
   before suspecting the lookup itself.
+- `hs_ui::reorder::drop_onto` **takes the drag payload** to report the
+  source, so it must refuse a payload that cannot belong to it *before*
+  taking it: a collections row (no scope) released over a collection
+  header was swallowed and that list's own reorder was lost.
 - A tool's `current_uri` is what the shell matches an `OpenRequest::File`
   against, so a **dashboard home tab that reports a uri steals every
   request for it**: the Devtools home tab reported `devtools://base64`

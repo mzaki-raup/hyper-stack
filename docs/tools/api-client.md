@@ -272,10 +272,19 @@ A row can also be dragged **out of its level into another** — out of a
 folder, into one, or between a folder and its parent's siblings. Each
 level names itself in the drag payload (`Reorder::scoped`), so the level
 a row is dropped in knows where it came from and the tool takes it from
-there and inserts it here. A row never crosses into another *collection*:
-that is a different file, and a drag there would be a copy rather than a
-move. Dropping a folder inside itself would take the branch out of the
-tree, so the item goes back where it was instead.
+there and inserts it here. Dropping a folder inside itself would take the
+branch out of the tree, so the item goes back where it was instead.
+
+**Including into another collection** (2026-10-18). This was refused at
+first - another collection is another file, and the move looked more like
+a copy - but the owner reported it as the thing that did not work, and it
+is: a request written in the wrong collection has to be able to leave it.
+The move carries both ends now (`from_collection` → `to_collection`),
+takes the row out of one file and inserts it in the other, and saves both;
+a tab showing the moved request follows it, or it would save back into
+the file it left. A **collection's own header** is a drop target as well,
+so a collapsed or empty collection can be dropped into - the same reason
+a folder's header is one.
 
 **A name already in use where a row lands gets numbered**, the same way a
 duplicate does: `List` arriving beside another `List` becomes `List 001`.

@@ -11,76 +11,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.36.0 — 2026-10-17
+
 ### Added
 
-- **An activity's first tab is a dashboard**: what it has open, as a grid
-  of cards carrying the last picture taken of each pane, with a summary
-  above. Database, Terminal, SSH, Redis, NoSQL, S3, Devtools and the
-  Scratchpad all have one; clicking a card goes to that tab. A tab never
-  visited this session says so rather than showing an empty frame, because
-  a tab that is not on screen is never drawn and there is no picture to
-  take.
-
-- The **API client's home tab is the workspace's**: its logo and name on
-  the tab, and a pane saying what the workspace holds — collections,
-  folders, requests, open tabs — with what to do next. With nothing saved
-  it is only the latter, because a summary of nothing is not worth
-  reading.
-
-- A **collection or a folder can be duplicated** in the API client, with
-  everything inside it and new ids throughout, numbered against where it
-  lands the way a request is.
-
-- Unit Conversion gains **Bandwidth**: bits and bytes per second across the
-  decimal and binary families, with how long a given size takes at that
-  rate. A 100 Mbit/s line is 12.5 MB/s.
-
-### Changed
-
-- **Every activity's first tab is permanent.** It cannot be closed, closed
-  past, pinned or duplicated, and its menu offers only Close Others and
-  Close to the Right. Home and the browser have no tab menu at all.
-
-- **A permanent tab is named after its activity**, with that activity's
-  icon: "Devtools" rather than "Base64", "Scratchpad" rather than "New
-  Note", "Terminal" rather than the shell a restored layout had saved.
-  The API client keeps the workspace's name and logo there, as asked.
-
-- **Pinning puts a tab directly after the permanent one.** Pinned tabs
-  used to be drawn in front of everything, so pinning jumped a tab ahead
-  of its activity's home tab.
-
-- A **dashboard home tab draws no toolbar**: Save, Run and Download would
-  all aim at a document or connection the tab does not hold.
-
-- **A terminal's shell starts when a terminal is drawn**, not when the tool
-  is made, so the Terminal dashboard does not sit on a live shell nobody
-  asked for.
-
-- **The window strip has no add-tab button.** A tab comes from an
-  activity's own sidebar or from Home; the + opened an untitled one nobody
-  asked for. The inner strips — editor files, database queries, browser
-  pages — keep theirs, because those are a tool's own documents.
+- A home tab for the workspace's API client (034f41ed)
+- Dashboards for Terminal, SSH, Devtools and the Scratchpad (1a0a901b)
+- Dashboards for Redis, NoSQL and S3 home tabs (9a74c403)
+- Dashboards for an activity's home tab, starting with Database (392adcba)
+- A permanent home tab per activity, and no add-tab button (56bfbed4)
 
 ### Fixed
 
-- **Restoring a saved layout no longer turns a tab into a dashboard.**
-  Which tab is an activity's home tab was worked out from the order, so
-  the first saved connection, note or shell of each activity became one on
-  the next start and its pane was gone. The flag is saved with the layout
-  now, and a layout that has none gains a new home tab instead of taking
-  one over.
-
-- **A dashboard home tab is never taken over.** Opening a connection used
-  to fill the first empty tab of that activity, which is exactly the tab
-  the dashboard lives in; it now opens beside it. The browser and Graphics
-  are unaffected — their first tab is permanent but is still the browser,
-  or still an image.
-
-- **The API client's list refreshes wherever a request is created.** Each
-  tab held the collections it read when it opened, so a request written
-  from one tab — by Duplicate on its window tab, say — was invisible in
-  another until the workspace was switched.
+- A permanent tab is named after its activity, and pinning follows it (27cd3e45)
+- A dashboard home tab is never taken over by a connection (eb76d322)
 
 ## 0.35.0 — 2026-10-17
 

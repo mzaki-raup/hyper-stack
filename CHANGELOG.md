@@ -11,28 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Changed
-
-- **A permanent tab is named after its activity**, with that activity's
-  icon: "Devtools" rather than "Base64", "Scratchpad" rather than "New
-  Note", "Terminal" rather than the shell a restored layout had saved.
-  The API client keeps the workspace's name and logo there, as asked.
-
-- **Pinning puts a tab directly after the permanent one.** Pinned tabs
-  used to be drawn in front of everything, so pinning jumped a tab ahead
-  of its activity's home tab.
-
-- A **dashboard home tab draws no toolbar**: Save, Run and Download would
-  all aim at a document or connection the tab does not hold.
-
-### Fixed
-
-- **Restoring a saved layout no longer turns a tab into a dashboard.**
-  Which tab is an activity's home tab was worked out from the order, so
-  the first saved connection, note or shell of each activity became one on
-  the next start and its pane was gone. The flag is saved with the layout
-  now, and a layout that has none gains a new home tab instead of taking
-  one over.
+### Added
 
 - **An activity's first tab is a dashboard**: what it has open, as a grid
   of cards carrying the last picture taken of each pane, with a summary
@@ -48,25 +27,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   it is only the latter, because a summary of nothing is not worth
   reading.
 
-- **A terminal's shell starts when a terminal is drawn**, not when the tool
-  is made, so the Terminal dashboard does not sit on a live shell nobody
-  asked for.
-
-- **Every activity's first tab is permanent.** It cannot be closed, closed
-  past, pinned or duplicated, and its menu offers only Close Others and
-  Close to the Right. Home and the browser have no tab menu at all.
-
-- **A dashboard home tab is never taken over.** Opening a connection used
-  to fill the first empty tab of that activity, which is exactly the tab
-  the dashboard lives in; it now opens beside it. The browser and Graphics
-  are unaffected — their first tab is permanent but is still the browser,
-  or still an image.
-
-- **The window strip has no add-tab button.** A tab comes from an
-  activity's own sidebar or from Home; the + opened an untitled one nobody
-  asked for. The inner strips — editor files, database queries, browser
-  pages — keep theirs, because those are a tool's own documents.
-
 - A **collection or a folder can be duplicated** in the API client, with
   everything inside it and new ids throughout, numbered against where it
   lands the way a request is.
@@ -75,115 +35,63 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   decimal and binary families, with how long a given size takes at that
   rate. A 100 Mbit/s line is 12.5 MB/s.
 
+### Changed
+
+- **Every activity's first tab is permanent.** It cannot be closed, closed
+  past, pinned or duplicated, and its menu offers only Close Others and
+  Close to the Right. Home and the browser have no tab menu at all.
+
+- **A permanent tab is named after its activity**, with that activity's
+  icon: "Devtools" rather than "Base64", "Scratchpad" rather than "New
+  Note", "Terminal" rather than the shell a restored layout had saved.
+  The API client keeps the workspace's name and logo there, as asked.
+
+- **Pinning puts a tab directly after the permanent one.** Pinned tabs
+  used to be drawn in front of everything, so pinning jumped a tab ahead
+  of its activity's home tab.
+
+- A **dashboard home tab draws no toolbar**: Save, Run and Download would
+  all aim at a document or connection the tab does not hold.
+
+- **A terminal's shell starts when a terminal is drawn**, not when the tool
+  is made, so the Terminal dashboard does not sit on a live shell nobody
+  asked for.
+
+- **The window strip has no add-tab button.** A tab comes from an
+  activity's own sidebar or from Home; the + opened an untitled one nobody
+  asked for. The inner strips — editor files, database queries, browser
+  pages — keep theirs, because those are a tool's own documents.
+
+### Fixed
+
+- **Restoring a saved layout no longer turns a tab into a dashboard.**
+  Which tab is an activity's home tab was worked out from the order, so
+  the first saved connection, note or shell of each activity became one on
+  the next start and its pane was gone. The flag is saved with the layout
+  now, and a layout that has none gains a new home tab instead of taking
+  one over.
+
+- **A dashboard home tab is never taken over.** Opening a connection used
+  to fill the first empty tab of that activity, which is exactly the tab
+  the dashboard lives in; it now opens beside it. The browser and Graphics
+  are unaffected — their first tab is permanent but is still the browser,
+  or still an image.
+
 - **The API client's list refreshes wherever a request is created.** Each
   tab held the collections it read when it opened, so a request written
   from one tab — by Duplicate on its window tab, say — was invisible in
   another until the workspace was switched.
 
-- **Split Right and Split Down are gone from the tab menu**, and from the
-  default keyboard shortcuts with them. Rearranging the whole tab space is
-  not what someone right-clicking a single tab is reaching for. The
-  commands remain in the palette for anyone who wants them deliberately.
+## 0.35.0 — 2026-10-17
 
-- **Duplicate is refused for a tab that cannot meaningfully have a twin**:
-  a tab bound to a connection is a view of a live session, so a second one
-  is a second session against the same server. The entry stays in the menu
-  but disabled, with a reason on hover, rather than vanishing. SSH is the
-  exception at three tabs per host, since separate shells on one host are
-  ordinary practice, and Graphics refuses outright because a tab there is
-  one open image. A new activity type gets the rule by implementing
-  `Tool::current_connection`.
+### Added
 
-- **Pin to Home reaches every connection list.** Database, Redis, NoSQL
-  and S3 had no pin menu at all — only SSH did — so a connection could be
-  pinned from one tool and nowhere else. Every list now draws its rows
-  with `form::connection_row`, which carries the menu, so a new activity
-  type gets it by using the same helper.
-
-- **Home's pinned connections are grouped by type**, each group under a
-  heading with the type's colour and separated from the next, and the
-  groups follow the order of the activity rail (Settings -> Appearance).
-  The pill is just the connection's name now; the heading says the type.
-
-- **Home's sidebar header carries the workspace's own logo**, or a folder
-  glyph when none is set, so the column says which workspace the pins
-  below belong to rather than only naming it.
-
-- The API client's **list is where requests live**. All three ways of
-  making one — the sidebar's New Request button, a folder's New Request,
-  and Duplicate on a window tab — now write into a collection, each
-  numbering its name against the folder it lands in. The button used to
-  clear the editor to an unsaved draft, which from the list looks like
-  nothing happening at all, and Duplicate used to copy the tab, which
-  gave two tabs claiming to be the same request.
-
-- An API request can be **renamed from the request itself**, in a name row
-  above the method and URL. It reaches the collection when the field is
-  left or Enter is pressed, so the list row and the tab title follow
-  without a separate Save; a name already used beside it is numbered.
-
-- An API request can be **dropped onto a folder**, including one that is
-  collapsed or empty. Dropping between rows could only ever reach a folder
-  that was open with rows to aim between, which is what "dragging into a
-  folder does not work" meant.
-
-- The browser is **one tab per workspace**, carrying the workspace's
-  logo and name rather than the open page's. Its pages were always its own
-  inner tabs; a second window tab was a second browser for one project.
-
-- The browser's sidebar holds this workspace's **Favorites and Passwords**,
-  where the application's tagline used to sit. Both are stored beside the
-  workspace, so each project keeps its own.
-
-- **Favorites** are a tree: folders and sub-folders, each site with its own
-  favicon or an icon you set, right-click to edit or delete, a confirmation
-  before anything goes, and rows dragged into order or onto a folder. The
-  editor opens in a column beside the page, which narrows to make room, and
-  closes again from its own button.
-
-- **Passwords** keeps a login's name, URL, icon and username in the
-  workspace file and **every secret in the vault** as a `secret:<ulid>`
-  reference — password, passkey and API key. Revealing or filling one needs
-  the vault unlocked, and the workspace file can be copied or committed
-  without carrying a password with it.
-
-- **Add to Favorites** on the browser toolbar saves the open page to the
-  top level, an existing folder, or a new one.
-
-- **Fill in Password** on the browser toolbar finds the logins saved for
-  the page's host and fills the page's own username, password and API-key
-  fields. HTTP basic authentication is a native dialog outside the page and
-  a passkey is a WebAuthn exchange, so neither can be filled this way; the
-  passkey field is a place to keep recovery material.
-
-- **Devtools gains Unit Conversion**: time, epochs, number bases, data
-  sizes and durations, each with its own inputs and its own result rather
-  than one card shared between them. Time and data size also show every
-  unit at once, since the answer that was not asked for is often the one
-  wanted next.
-
-- **Java has a debug adapter.** `java-debug` serves Java files and answers
-  to a `launch.json` saying `"type": "java"`.
-
-### Fixed
-
-- **Run and Debug now notice a file that has never been saved.** The
-  prompt listed only files that already existed on disk, so a brand-new
-  one was neither mentioned nor written — the one case where running what
-  is on screen rather than what is on disk is certain.
-
-- **A browser dialog is no longer hidden behind the page.** A native web
-  view paints above everything egui draws, and the shell only knew about
-  its own modals, so a dialog a tool opened for itself was invisible.
-
-- **A tab's context-menu action no longer fires twice.** egui lays the
-  frame out again when the strip's size changes and `clicked()` is pointer
-  state rather than an event, so Duplicate ran on both passes and wrote
-  two copies.
-
-- **Home's Recent list is aligned left.** The rows were built with
-  `add_sized`, which centres, leaving a ragged column of titles down the
-  middle of the sidebar.
+- Unit conversion, a Java debug adapter, and unsaved new files (0d981465)
+- Favourites and passwords per workspace, one tab per project (5c326be9)
+- Rename in place, drop onto folders, and one action per click (25e92848)
+- New Request lands in the list, and Duplicate copies the request (37ba8525)
+- Pin from any connection list, and group the pins by type (a8f035f2)
+- No splitting from the tab menu, and Duplicate knows when to refuse (0903720f)
 
 ## 0.34.0 — 2026-10-17
 

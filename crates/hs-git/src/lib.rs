@@ -14,8 +14,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 pub mod diff;
+pub mod write;
 
 pub use diff::{DiffLine, FileDiff, Hunk, LineKind};
+pub use write::{CommitOptions, PushOptions, Remote, Stash};
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum GitError {

@@ -21,6 +21,35 @@ pub struct Settings {
     pub ai: Ai,
     pub accessibility: Accessibility,
     pub browser: Browser,
+    pub git: Git,
+}
+
+/// Settings → Editor → Git: how commits are made and what is protected
+/// (docs/tools/git.md §5, §10).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Git {
+    /// A remote whose URL, or a branch whose name, contains one of these
+    /// is protected: a force push is refused there and a branch delete or
+    /// a discard asks twice.
+    pub protected_patterns: Vec<String>,
+    /// `git pull --rebase` rather than a merge.
+    pub pull_rebase: bool,
+    /// Add a Signed-off-by trailer to every commit.
+    pub signoff: bool,
+    /// Stash untracked files too (`git stash -u`).
+    pub stash_untracked: bool,
+}
+
+impl Default for Git {
+    fn default() -> Self {
+        Self {
+            protected_patterns: vec!["prod".into(), "release".into()],
+            pull_rebase: true,
+            signoff: false,
+            stash_untracked: true,
+        }
+    }
 }
 
 /// Settings → Browser: defaults for new pages.
@@ -174,6 +203,7 @@ impl Default for Settings {
             ai: Ai::default(),
             accessibility: Accessibility::default(),
             browser: Browser::default(),
+            git: Git::default(),
         }
     }
 }

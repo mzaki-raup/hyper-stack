@@ -30,6 +30,7 @@ use hs_ui::tree::{TreeNode, TreeState};
 
 mod ai_panel;
 mod debug;
+mod git_ops;
 mod git_view;
 mod lsp;
 pub mod project;
@@ -1754,6 +1755,7 @@ impl EditorTool {
                     self.open_path(p, None, cx);
                 }
                 git_view::GitAction::CopyPath(p) => ui.ctx().copy_text(p),
+                git_view::GitAction::Toast(level, text) => cx.toast(level, text),
             }
         }
     }

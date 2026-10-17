@@ -1257,6 +1257,86 @@ git-files-changed = { $n ->
 git-committed-by = Committed by { $name }
 git-renamed-from = renamed from { $path }
 git-no-repo-toast = None of this tab's projects is in a Git repository.
+git-fetch = Fetch from every remote
+git-pull = Pull
+git-push = Push
+git-push-protected-tip = Push (This remote or branch is protected; you will be asked first)
+git-protected-tip = Protected: the remote URL or the branch matches a pattern in Settings -> Editor -> Git.
+git-stash = Stashes
+git-stash-new = Stash the changes
+git-stash-hint = Message (optional)
+git-stash-push = Stash
+git-stash-apply = Apply
+git-stash-apply-tip = Apply the stash and keep it
+git-stash-pop = Pop
+git-stash-pop-tip = Apply the stash and drop it
+git-stash-drop = Drop this stash
+git-stash-drop-title = Drop the Stash?
+git-stash-drop-body = "{ $message }" will be gone for good.
+git-branches = Branches
+git-new-branch = New Branch…
+git-new-branch-hint = Branch name, then Enter (Esc cancels)
+git-remote-branches = Remote
+git-delete-branch = Delete this branch
+git-delete-branch-title = Delete the Branch?
+git-delete-branch-body = Delete { $branch }? A branch that is not merged is refused; you will be asked again to force it.
+git-delete-branch-force-body = { $branch } is not merged. Delete it anyway and lose its commits?
+git-commit = Commit
+git-commit-tip = Commit the staged changes (Ctrl+Enter in the message)
+git-commit-push = Commit and Push
+git-commit-hint = Commit message
+git-amend = Amend the Last Commit
+git-nothing-staged = Nothing is staged. Stage files from their menu, or Stage All.
+git-stage = Stage
+git-stage-all = Stage All
+git-unstage = Unstage
+git-unstage-all = Unstage All
+git-discard = Discard Changes…
+git-discard-title = Discard the Changes?
+git-discard-body = { $n ->
+    [one] The change to this file will be thrown away. This cannot be undone.
+   *[other] The changes to { $n } files will be thrown away. This cannot be undone.
+  }
+git-delete-untracked = Delete…
+git-delete-title = Delete the Files?
+git-delete-body = { $n ->
+    [one] This untracked file will be deleted from disk.
+   *[other] { $n } untracked files will be deleted from disk.
+  }
+git-protected-push-title = Push to a Protected Remote?
+git-protected-push-body = The remote or the branch matches a protected pattern (Settings -> Editor -> Git). Push anyway?
+git-confirm-yes = Yes
+git-confirm-no = Cancel
+git-op-staging = Staging…
+git-op-staged = Staged.
+git-op-unstaging = Unstaging…
+git-op-unstaged = Unstaged.
+git-op-discarding = Discarding…
+git-op-discarded = Changes discarded.
+git-op-deleting = Deleting…
+git-op-deleted = Deleted.
+git-op-committing = Committing…
+git-op-committed = Committed.
+git-op-fetching = Fetching…
+git-op-fetched = Fetched; nothing new.
+git-op-pulling = Pulling…
+git-op-pushing = Pushing…
+git-op-pushed = Pushed.
+git-op-stashing = Stashing…
+git-op-stashed = Stashed.
+git-op-stash-applying = Applying the stash…
+git-op-stash-applied = Stash applied.
+git-op-stash-dropping = Dropping the stash…
+git-op-stash-dropped = Stash dropped.
+git-op-switching = Switching branch…
+git-op-switched = On { $branch }.
+git-op-branch-deleted = Deleted { $branch }.
+settings-section-git = Git
+settings-git-protected = Protected Patterns
+settings-git-protected-hint = Comma-separated. A remote whose URL, or a branch whose name, contains one of these is protected: pushing there asks first, and a force push is never issued. Deleting a branch or discarding changes always asks.
+settings-git-pull-rebase = Pull With Rebase
+settings-git-signoff = Add Signed-off-by to Commits
+settings-git-stash-untracked = Stash Untracked Files Too
 
 ## Devtools
 tool-devtools = Devtools

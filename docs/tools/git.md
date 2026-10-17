@@ -201,3 +201,35 @@ Fixture repositories built in tests (`git init` + commits) covering status
 states, renames, submodules present, merge conflicts; porcelain parsers for
 `status --porcelain=v2`, `push --porcelain`, `rebase` todo; hunk patch
 generation round-trips; guard rules; integration with a local bare remote.
+
+## 3b. The write side in the editor (implemented 2026-10-18)
+
+The first slice of M4's Git work, built on `hs-git::write` (every call is
+the user's own `git`, so hooks, signing, credential helpers and config
+apply as on the command line) and shown in the editor's Source Control
+sidebar under each repository's header:
+
+- **Operations row**: Fetch (`--all --prune`), Pull (with `--rebase` when
+  Settings → Editor → Git says so, the default), Push (`-u origin
+  <branch>` for a branch with no upstream yet; a plain `--force` is never
+  issued), the **stash** menu (stash with a message, untracked files too
+  by default; Apply, Pop, Drop per entry) and the **branch** menu (switch,
+  New Branch…, delete with its own question). Fetch, pull and push are
+  Jobs, so the dock lists them and keeps git's output.
+- **Commit box**: message, Amend, Commit and Commit and Push; Ctrl+Enter
+  in the message commits. Nothing staged says so rather than failing.
+- **Change rows**: Stage / Unstage / Discard Changes… / Delete… on the
+  context menu; Stage All / Unstage All on a group's header.
+- **Guards** (§10): discard, delete and branch delete always ask with what
+  would be lost; a push to a remote whose URL, or a branch whose name,
+  matches a protected pattern (default `prod`, `release`) asks once more
+  and shows a shield beside the buttons. `unstage` is `git reset --`
+  rather than `restore --staged`, which resolves HEAD and fails before the
+  first commit.
+- Every finished operation refreshes the status and the lists and reports
+  in a toast. State lives per repository (`git_ops::Ops`), so two projects
+  in one tab do not share a message.
+
+Still to come from §5–§9: per-hunk stage/unstage/discard, the commit
+message template and prefix picker, rename/upstream/merge/rebase of
+branches, remotes and tags management, and the conflict editor.

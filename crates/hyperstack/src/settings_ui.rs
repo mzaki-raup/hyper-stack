@@ -3054,6 +3054,44 @@ fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Sett
         changed |=
             language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
     });
+    form::section(ui, theme, &s.t("settings-section-git"), |ui| {
+        form::field_grid(ui, "editor-git", |ui| {
+            form::label(ui, &s.t("settings-git-protected"));
+            let mut text = settings.git.protected_patterns.join(", ");
+            if ui
+                .add(
+                    egui::TextEdit::singleline(&mut text)
+                        .hint_text("prod, release")
+                        .desired_width(f32::INFINITY),
+                )
+                .changed()
+            {
+                settings.git.protected_patterns = text
+                    .split(',')
+                    .map(|p| p.trim().to_string())
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                changed = true;
+            }
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-git-protected-hint"));
+        changed |= ui
+            .checkbox(
+                &mut settings.git.pull_rebase,
+                s.t("settings-git-pull-rebase"),
+            )
+            .changed();
+        changed |= ui
+            .checkbox(&mut settings.git.signoff, s.t("settings-git-signoff"))
+            .changed();
+        changed |= ui
+            .checkbox(
+                &mut settings.git.stash_untracked,
+                s.t("settings-git-stash-untracked"),
+            )
+            .changed();
+    });
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
         form::hint(ui, theme, &s.t("settings-editor-dap-path-hint"));

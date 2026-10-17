@@ -140,6 +140,8 @@ struct Repo {
     again: bool,
     /// Bumped on every new status.
     generation: u64,
+    /// The write side: commit box, stashes, branches, operations.
+    ops: crate::git_ops::Ops,
 }
 
 impl Repo {
@@ -152,6 +154,7 @@ impl Repo {
             due: Some(Instant::now()),
             again: false,
             generation: 0,
+            ops: crate::git_ops::Ops::default(),
         }
     }
 
@@ -182,6 +185,8 @@ struct ChangeRef {
 pub(crate) enum GitAction {
     OpenFile(PathBuf),
     CopyPath(String),
+    /// What an operation said, for the toast.
+    Toast(hs_core::tool::ToastLevel, String),
 }
 
 // ---- diff rows ------------------------------------------------------------------
@@ -508,6 +513,11 @@ pub(crate) struct Git {
     branches: HashMap<String, String>,
     /// Project roots (tree root ids) and the repository each lies in.
     project_repos: Vec<(PathBuf, Option<PathBuf>)>,
+    /// Results of operations, handed to the editor as toasts on the next
+    /// sidebar pass.
+    toasts: Vec<(hs_core::tool::ToastLevel, String)>,
+    /// A push waiting for the protected-remote confirmation.
+    pending_push: Option<crate::git_ops::Request>,
 }
 
 impl Git {
@@ -522,6 +532,8 @@ impl Git {
             dirs: HashMap::new(),
             branches: HashMap::new(),
             project_repos: Vec::new(),
+            toasts: Vec::new(),
+            pending_push: None,
         }
     }
 
@@ -608,6 +620,21 @@ impl Git {
     pub fn poll(&mut self, s: &Services, ctx: &egui::Context) {
         let now = Instant::now();
         for r in &mut self.repos {
+            r.ops.poll_lists();
+            if let Some((_label, res)) = r.ops.take_result() {
+                self.toasts.push((
+                    crate::git_ops::level(&res),
+                    match res {
+                        Ok(t) | Err(t) => t,
+                    },
+                ));
+                // Whatever it did, the status and the lists are stale.
+                r.schedule(Duration::ZERO);
+                r.ops.lists_due = true;
+            }
+            if r.ops.lists_due && r.ops.busy.is_none() {
+                r.ops.refresh_lists(s, &r.root.clone());
+            }
             if let Some(res) = r.pending.take() {
                 match res {
                     Ok(st) => {
@@ -837,7 +864,11 @@ impl Git {
         let mut show: Option<ChangeRef> = None;
         let mut history: Option<PathBuf> = None;
         let mut refresh = false;
+        let mut requests: Vec<(PathBuf, crate::git_ops::Request, bool)> = Vec::new();
         let selected = self.selected_change().cloned();
+        for (level, text) in self.toasts.drain(..) {
+            actions.push(GitAction::Toast(level, text));
+        }
         egui::ScrollArea::vertical()
             .id_salt("git-sidebar")
             .auto_shrink([false, false])
@@ -845,9 +876,21 @@ impl Git {
                 if projects.is_empty() {
                     ui.label(egui::RichText::new(s.t("editor-no-folder")).weak());
                 }
-                for r in &self.repos {
-                    ui.push_id(&r.root, |ui| {
+                for r in &mut self.repos {
+                    let salt = r.root.clone();
+                    ui.push_id(&salt, |ui| {
                         repo_header(ui, s, theme, r, &mut history, &mut refresh);
+                        if let Some(st) = &r.status {
+                            let protected = {
+                                let settings = s.settings.read();
+                                r.ops.protected(&settings.git, st.branch.as_deref())
+                            };
+                            for req in
+                                crate::git_ops::box_ui(&mut r.ops, ui, s, theme, st, protected)
+                            {
+                                requests.push((r.root.clone(), req, protected));
+                            }
+                        }
                         if let Some(e) = &r.error {
                             let text = if e.contains("not installed") {
                                 s.t("git-not-installed")
@@ -869,7 +912,7 @@ impl Git {
                             if items.is_empty() {
                                 continue;
                             }
-                            egui::CollapsingHeader::new(
+                            let group = egui::CollapsingHeader::new(
                                 egui::RichText::new(format!("{} ({})", s.t(key), items.len()))
                                     .strong(),
                             )
@@ -901,7 +944,52 @@ impl Git {
                                     if resp.double_clicked() && full.is_file() {
                                         actions.push(GitAction::OpenFile(full.clone()));
                                     }
+                                    let path = f.path.clone();
+                                    let root = r.root.clone();
+                                    let untracked = f.kind == Kind::Untracked;
                                     resp.context_menu(|ui| {
+                                        // The write side first: that is what a
+                                        // right-click on a change is for.
+                                        if side == Side::Staged {
+                                            if ui.button(s.t("git-unstage")).clicked() {
+                                                requests.push((
+                                                    root.clone(),
+                                                    crate::git_ops::Request::Unstage(vec![
+                                                        path.clone(),
+                                                    ]),
+                                                    false,
+                                                ));
+                                                ui.close();
+                                            }
+                                        } else {
+                                            if ui.button(s.t("git-stage")).clicked() {
+                                                requests.push((
+                                                    root.clone(),
+                                                    crate::git_ops::Request::Stage(vec![
+                                                        path.clone(),
+                                                    ]),
+                                                    false,
+                                                ));
+                                                ui.close();
+                                            }
+                                            if untracked {
+                                                if ui.button(s.t("git-delete-untracked")).clicked()
+                                                {
+                                                    r.ops.confirm =
+                                                        Some(crate::git_ops::Confirm::Delete(
+                                                            vec![path.clone()],
+                                                        ));
+                                                    ui.close();
+                                                }
+                                            } else if ui.button(s.t("git-discard")).clicked() {
+                                                r.ops.confirm =
+                                                    Some(crate::git_ops::Confirm::Discard(vec![
+                                                        path.clone(),
+                                                    ]));
+                                                ui.close();
+                                            }
+                                        }
+                                        ui.separator();
                                         if ui.button(s.t("git-open-changes")).clicked() {
                                             show = Some(change.clone());
                                             ui.close();
@@ -921,6 +1009,28 @@ impl Git {
                                     });
                                 }
                             });
+                            // Stage All / Unstage All on the group's header.
+                            let all_key = match key {
+                                "git-staged" => Some(("git-unstage-all", true)),
+                                "git-changes" | "git-untracked" => Some(("git-stage-all", false)),
+                                _ => None,
+                            };
+                            if let Some((label, unstage)) = all_key {
+                                group.header_response.context_menu(|ui| {
+                                    if ui.button(s.t(label)).clicked() {
+                                        requests.push((
+                                            r.root.clone(),
+                                            if unstage {
+                                                crate::git_ops::Request::UnstageAll
+                                            } else {
+                                                crate::git_ops::Request::StageAll
+                                            },
+                                            false,
+                                        ));
+                                        ui.close();
+                                    }
+                                });
+                            }
                         }
                     });
                     ui.add_space(8.0);
@@ -943,6 +1053,30 @@ impl Git {
                     ui.add_space(8.0);
                 }
             });
+        // A question first, where one is due; then whatever was asked.
+        let mut pending_push = self.pending_push.take();
+        for r in &mut self.repos {
+            if let Some(req) =
+                crate::git_ops::confirm_ui(&mut r.ops, ui, s, theme, &mut pending_push)
+            {
+                requests.push((r.root.clone(), req, false));
+            }
+        }
+        self.pending_push = pending_push;
+        for (root, req, protected) in requests {
+            let Some(r) = self.repos.iter_mut().find(|r| r.root == root) else {
+                continue;
+            };
+            let Some(st) = r.status.clone() else { continue };
+            // A push to a protected remote asks once more; a plain
+            // --force is never issued, so that is all the guard needs.
+            if protected && matches!(req, crate::git_ops::Request::Push) {
+                self.pending_push = Some(req);
+                r.ops.confirm = Some(crate::git_ops::Confirm::ProtectedPush);
+                continue;
+            }
+            crate::git_ops::run(&mut r.ops, s, &root, &st, req);
+        }
         if refresh {
             self.refresh_all();
         }

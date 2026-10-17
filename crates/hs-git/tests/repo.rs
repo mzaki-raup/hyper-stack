@@ -133,3 +133,123 @@ fn a_repository_in_every_state() {
     assert!(names.contains(&"main") && names.contains(&"feature"));
     assert!(b.iter().find(|b| b.name == "main").unwrap().current);
 }
+
+/// The write side against the same kind of fixture: stage, unstage,
+/// discard, commit, stash, branches and remotes, each checked through the
+/// read side afterwards.
+#[test]
+fn the_write_side_round_trips_through_status() {
+    if hs_git::version().is_err() {
+        eprintln!("git not installed; skipping");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    run(root, &["init", "-q", "-b", "main"]);
+    run(root, &["config", "commit.gpgsign", "false"]);
+    run(root, &["config", "user.name", "Ada"]);
+    run(root, &["config", "user.email", "ada@example.com"]);
+    // A Windows git with core.autocrlf=true would hand back CRLF.
+    run(root, &["config", "core.autocrlf", "false"]);
+    std::fs::write(root.join("a.txt"), "one\n").unwrap();
+    std::fs::write(root.join("b.txt"), "two\n").unwrap();
+
+    // Stage one, leave one untracked.
+    hs_git::write::stage(root, &["a.txt"]).unwrap();
+    let st = hs_git::status(root).unwrap();
+    let a = st.files.iter().find(|f| f.path == "a.txt").unwrap();
+    assert!(a.staged() && !a.unstaged());
+    assert_eq!(
+        st.files.iter().find(|f| f.path == "b.txt").unwrap().kind,
+        Kind::Untracked
+    );
+
+    // Unstage it again, then stage everything and commit.
+    hs_git::write::unstage(root, &["a.txt"]).unwrap();
+    assert_eq!(
+        hs_git::status(root)
+            .unwrap()
+            .files
+            .iter()
+            .filter(|f| f.staged())
+            .count(),
+        0
+    );
+    hs_git::write::stage_all(root).unwrap();
+    hs_git::write::commit(root, "First", &hs_git::CommitOptions::default()).unwrap();
+    assert!(hs_git::status(root).unwrap().files.is_empty());
+    assert_eq!(hs_git::log(root, 0, 10).unwrap()[0].subject, "First");
+
+    // Amend with sign-off.
+    hs_git::write::commit(
+        root,
+        "First, amended",
+        &hs_git::CommitOptions {
+            amend: true,
+            signoff: true,
+        },
+    )
+    .unwrap();
+    let log = hs_git::log(root, 0, 10).unwrap();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0].subject, "First, amended");
+
+    // Discard a tracked change; remove an untracked file.
+    std::fs::write(root.join("a.txt"), "changed\n").unwrap();
+    std::fs::write(root.join("junk.tmp"), "x").unwrap();
+    hs_git::write::discard(root, &["a.txt"]).unwrap();
+    hs_git::write::remove_untracked(root, &["junk.tmp"]).unwrap();
+    assert!(hs_git::status(root).unwrap().files.is_empty());
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "one\n"
+    );
+
+    // Stash and pop.
+    std::fs::write(root.join("a.txt"), "stashed\n").unwrap();
+    hs_git::write::stash_push(root, "keep this", false).unwrap();
+    assert!(hs_git::status(root).unwrap().files.is_empty());
+    let stashes = hs_git::write::stash_list(root).unwrap();
+    assert_eq!(stashes.len(), 1);
+    assert!(stashes[0].message.contains("keep this"));
+    hs_git::write::stash_pop(root, &stashes[0].id).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).unwrap(),
+        "stashed\n"
+    );
+    assert!(hs_git::write::stash_list(root).unwrap().is_empty());
+    hs_git::write::discard(root, &["a.txt"]).unwrap();
+
+    // Branches: create, switch back, delete.
+    hs_git::write::create_branch(root, "feature", None).unwrap();
+    assert_eq!(
+        hs_git::status(root).unwrap().branch.as_deref(),
+        Some("feature")
+    );
+    hs_git::write::checkout(root, "main").unwrap();
+    hs_git::write::delete_branch(root, "feature", false).unwrap();
+    assert!(
+        hs_git::branches(root)
+            .unwrap()
+            .iter()
+            .all(|b| b.name != "feature")
+    );
+
+    // Remotes, and the guard over them.
+    run(
+        root,
+        &[
+            "remote",
+            "add",
+            "origin",
+            "https://example.test/team/prod-api.git",
+        ],
+    );
+    let remotes = hs_git::write::remotes(root).unwrap();
+    assert_eq!(remotes[0].name, "origin");
+    assert!(hs_git::write::is_protected(
+        &["prod".into()],
+        &remotes[0].url,
+        "main"
+    ));
+}

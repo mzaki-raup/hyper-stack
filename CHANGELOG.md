@@ -13,6 +13,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Git has a write side in the editor's Source Control**: stage, unstage,
+  discard (with a question), commit and amend, commit-and-push, fetch,
+  pull (rebase by default), push, stashes and branches, under each
+  repository's header. Network operations are Jobs, so the dock shows
+  them. A remote or branch matching a protected pattern (Settings →
+  Editor → Git; `prod` and `release` by default) asks before a push, and
+  a plain force push is never issued.
+
 - **A favourites bar in the Browser**, under the address bar, shown or
   hidden from Settings → Browser. Click opens the site in the current
   page, middle click or Ctrl+click in a new page behind it, folders open

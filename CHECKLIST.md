@@ -78,7 +78,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | `tool-api`: request editor, auth (incl. OAuth2, SigV4), send, response viewer, history, curl import/export | Pending | |
 | Collections as files, variable scopes, importers (Postman, Insomnia, Bruno, OpenAPI) | Pending | |
 | Git read side in the editor: `hs-git` (status, diffs, log, branches over the git CLI), branch + change letters in the tree, Source Control list, diff viewer (inline / side by side), history with commit details, gutter change markers | Completed | 2026-10-12, ahead of M4 at the owner's request: parsers and a real fixture repository in `hs-git` tests; exercised in the app on a repo with staged/unstaged/deleted/untracked files, a tag and a second branch (tree, list, both diff modes, arrow stepping, history and Down, Esc, live refresh on an outside edit, live gutter while typing) |
-| `tool-git`: stage/unstage (file + hunk), commit, branches, stash, fetch/pull/push via CLI, protected-remote guard | Pending | |
+| `tool-git`: stage/unstage (file + hunk), commit, branches, stash, fetch/pull/push via CLI, protected-remote guard | In-Progress | 2026-10-18: `hs-git::write` (stage, unstage, discard, delete untracked, commit/amend/sign-off, stash push/apply/pop/drop, branch create/switch/delete, remotes, fetch, pull, push; 3 unit tests + a live round trip against a fixture repository) and the editor's Source Control box (`tool-editor::git_ops`): operations row, commit box, row menus, Stage All/Unstage All, confirmations, protected-remote guard, Settings -> Editor -> Git. Per-hunk staging, branch rename/upstream/merge, remotes and tags, and the conflict editor remain |
 
 ### M5 · Logs + Devtools core
 | Item | State | Notes |

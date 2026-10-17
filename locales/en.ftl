@@ -1883,3 +1883,49 @@ browser-fill-pick = Which login should be filled in?
 browser-fill-done = Filled in { $name }.
 browser-fill-nothing = Nothing on this page matched a field to fill.
 browser-fill-no-page = Open a page first.
+
+# Devtools: unit conversion
+dt-convert = Unit Conversion
+dt-convert-sub = Time, epochs, number bases, data sizes and durations.
+dt-conv-time = Time
+dt-conv-epoch = Epoch
+dt-conv-number = Numbers
+dt-conv-data = Data Size
+dt-conv-duration = Duration
+dt-conv-value = Value
+dt-conv-result = Result
+dt-conv-all-units = Every Unit
+dt-conv-swap = Swap the two units
+dt-conv-not-a-number = That is not a number.
+dt-conv-number-hint = 255, 0xFF, 1111_1111
+dt-conv-number-note =
+    Underscores and spaces are ignored, and a 0x, 0o or 0b prefix is
+    accepted when it matches the base being read.
+dt-conv-bad-number = That is not a number in the chosen base.
+dt-conv-character = Character
+dt-conv-data-hint =
+    kB, MB and GB count in powers of ten; KiB, MiB and GiB count in powers
+    of two. A 1 TB disk is about 931 GiB.
+dt-conv-now = Now
+dt-conv-epoch-value = Epoch
+dt-conv-iso-value = ISO-8601 (UTC)
+dt-conv-other-unit = The Other Unit
+dt-conv-epoch-hint =
+    Fill in either field: the other one is the answer. A date on its own is
+    read as midnight UTC.
+dt-conv-bad-epoch = That is not a timestamp.
+dt-conv-bad-iso = That is not an ISO-8601 instant.
+dt-conv-duration-hint = 1d2h3m4s, 90m, or a number of seconds
+dt-conv-duration-note =
+    Weeks, days, hours, minutes and seconds. A number with no unit is read
+    as seconds.
+dt-conv-bad-duration = That is not a duration.
+dt-conv-readable = Readable
+dt-unit-ns = Nanoseconds
+dt-unit-us = Microseconds
+dt-unit-ms = Milliseconds
+dt-unit-s = Seconds
+dt-unit-min = Minutes
+dt-unit-h = Hours
+dt-unit-d = Days
+dt-unit-w = Weeks

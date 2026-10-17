@@ -113,6 +113,27 @@ pub const ADAPTERS: &[AdapterSpec] = &[
         install_url: "https://github.com/microsoft/vscode-js-debug/releases",
     },
     AdapterSpec {
+        // Microsoft's Java debugger ships as a .vsix like CodeLLDB does,
+        // and its adapter is a plain jar: `java -jar` it and it speaks DAP
+        // on stdio. It attaches to a JVM started with `-agentlib:jdwp`,
+        // which is how a Java program is debugged whatever the editor.
+        // Owner's request, 2026-10-17.
+        id: "java-debug",
+        vscode_types: &["java"],
+        languages: &["Java"],
+        command: "java",
+        // Like js-debug above, the path belongs to wherever the release
+        // was unpacked, so the argument is the one a user replaces in
+        // Settings -> Editor -> Debug Adapters. `{port}` is substituted;
+        // nothing substitutes a jar path, so this is a real default rather
+        // than a placeholder that would silently stay unresolved.
+        args: &["-jar", "com.microsoft.java.debug.plugin.jar"],
+        transport: Transport::Stdio,
+        install: "Download the vscode-java-debug .vsix, unzip it, and point java-debug.jar at server/com.microsoft.java.debug.plugin-*.jar",
+        install_command: "",
+        install_url: "https://github.com/microsoft/vscode-java-debug/releases",
+    },
+    AdapterSpec {
         id: "netcoredbg",
         vscode_types: &["coreclr", "netcoredbg"],
         languages: &["C#"],
@@ -825,5 +846,30 @@ mod tests {
         let r = resolve("debugpy", &custom).unwrap();
         assert_eq!(r.command, "C:/venv/Scripts/python.exe");
         assert_eq!(for_language("Rust").len(), 3);
+    }
+
+    #[test]
+    fn java_has_a_debug_adapter() {
+        let java = for_language("Java");
+        assert_eq!(java.len(), 1, "Java was not served by any adapter");
+        assert_eq!(java[0].id, "java-debug");
+        // A `launch.json` written by VS Code says `"type": "java"`.
+        assert_eq!(spec("java").map(|a| a.id), Some("java-debug"));
+    }
+
+    #[test]
+    fn no_adapter_argument_holds_an_unsubstituted_placeholder() {
+        // `{port}` is the only one anything replaces. A different brace
+        // token would reach the adapter verbatim and fail obscurely.
+        for a in ADAPTERS {
+            for arg in a.args {
+                let rest = arg.replace("{port}", "");
+                assert!(
+                    !rest.contains('{'),
+                    "{}: argument {arg:?} has a placeholder nothing substitutes",
+                    a.id
+                );
+            }
+        }
     }
 }

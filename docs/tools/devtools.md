@@ -229,3 +229,35 @@ One test asserts that **every expression the builder writes passes its own
 checker**, for all six frequencies in all three dialects. It caught a real
 bug: the daily and every-N cases were emitting `*` in both Quartz day
 fields, so Quartz output failed Quartz validation.
+
+### Unit Conversion (2026-10-17)
+
+Five panes, each with **its own inputs and its own result**: switching from
+Time to Numbers must not leave a figure on screen that the other pane
+produced, which is the same rule the generators follow.
+
+- **Time** converts between nanoseconds and weeks. Months and years are
+  deliberately absent: neither has a fixed length, so "1 month in hours"
+  would have to invent an answer.
+- **Epoch** converts a timestamp to an ISO-8601 instant in UTC and back,
+  in seconds or milliseconds, with **Now** to stamp the current moment.
+  Either field can be the question; the other is the answer, and a date on
+  its own is read as midnight UTC.
+- **Numbers** reads a value in decimal, binary, octal or hex and shows all
+  four, plus the character when the value is a printable code point — a
+  hex dump is easier to read when 0x41 says `A`. Grouping underscores are
+  ignored, and a `0x`/`0o`/`0b` prefix is accepted only when it agrees with
+  the base being read, so `0x10` typed as decimal is a mistake rather than
+  silently sixteen.
+- **Data Size** keeps the two families apart: kB/MB/GB count in powers of
+  ten, KiB/MiB/GiB in powers of two. It opens on GB → GiB, because "why is
+  my 1 TB disk 931 GiB?" is the question that brings people to a converter.
+- **Duration** reads `1d2h3m4s`, `90m` or a plain number of seconds and
+  writes it back as something readable, with the total in seconds, minutes,
+  hours and days. A number with a unit missing (`1h30`) is refused rather
+  than guessed at.
+
+Time and Data Size also list **every unit at once**, since the conversion
+that was not asked for is often the one wanted next. The arithmetic is
+plain functions over their inputs, so the rounding rules live in one place
+and are covered by tests without a UI. Owner's requirement, 2026-10-17.

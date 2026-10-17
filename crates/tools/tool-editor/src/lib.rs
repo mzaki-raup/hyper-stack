@@ -1393,9 +1393,15 @@ impl EditorTool {
         for pi in 0..self.projects.len() {
             for di in 0..self.projects[pi].docs.len() {
                 let d = &self.projects[pi].docs[di];
-                if !d.buf.dirty() || d.path.is_none() {
+                if !d.buf.dirty() {
                     continue;
                 }
+                // A document with no path is saved too: `save` falls back
+                // to Save As and asks where it should go. It used to be
+                // skipped, so a brand-new file was never written and never
+                // even mentioned - the one case where running what is on
+                // screen rather than on disk is certain. Owner's
+                // requirement, 2026-10-17.
                 self.active = pi;
                 self.projects[pi].active = di;
                 ok &= self.save(cx);
@@ -1411,7 +1417,7 @@ impl EditorTool {
         self.projects
             .iter()
             .flat_map(|p| p.docs.iter())
-            .filter(|d| d.buf.dirty() && d.path.is_some())
+            .filter(|d| d.buf.dirty())
             .map(|d| {
                 let n = d.file_name();
                 if n.is_empty() {

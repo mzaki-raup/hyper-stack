@@ -264,8 +264,8 @@ start* are held or deferred by the owner's instruction.
 | Browser: Passwords tab - per-workspace store | Completed | `store::Passwords`; the three secret fields hold vault references only; verified live — a new login showed `Nothing stored.` and the locked-vault warning |
 | Browser: Add to Favorites in the toolbar | Completed | root, an existing folder or a new one; verified live against `favorites.json` |
 | Browser: Fill in Password in the toolbar | Completed (partly) | matches by host and fills the page's own username/password/API-key fields through `Cmd::Script`; verified live — the dialog matched `duckduckgo.com` and refused while locked. **HTTP basic auth and passkeys cannot be filled**: one is a native dialog outside the page, the other a WebAuthn exchange |
-| Editor: Java debug adapter | Pending | java-debug / vscode-java-debug alongside the existing adapters |
-| Editor: Run/Debug asks about unsaved tabs | Pending | Save, Ignore or Cancel; Save writes every dirty open tab first |
-| Devtools: Unit Conversion tool | Pending | time (days/hours/minutes/seconds/ms, epoch), numbers (decimal/binary/octal/hex), and other suitable conversions, each with its own result area per type |
+| Editor: Java debug adapter | Completed | `java-debug` in `hs_dap::adapters`, answering `"type": "java"`; two tests, one of which refuses any argument holding a placeholder nothing substitutes |
+| Editor: Run/Debug asks about unsaved tabs | Completed | the three-way prompt already existed for both Run and Debug; it skipped documents with no path, so a brand-new file was never mentioned or written. `save` already falls back to Save As, so the filter was the only thing in the way |
+| Devtools: Unit Conversion tool | Completed | `convert.rs`: Time, Epoch, Numbers, Data Size and Duration panes, each with its own inputs and result; 10 unit tests; verified live — 1 hour = 3600 s with every unit listed, and 255 = 0b11111111 = 0o377 = 0xFF = `ÿ` |
 | Database: word-wrap toggle in the query field | Pending | held by the owner, 2026-10-17 - do not start |
 | Shell: middle-click slowness | Pending | deferred by the owner, not reproducible - do not start |

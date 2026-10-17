@@ -5,6 +5,7 @@
 //! them by category and a tab can switch between them.
 
 pub mod base64_tool;
+mod convert;
 mod cron;
 pub mod crypto;
 pub mod firebase;
@@ -52,11 +53,12 @@ pub enum Utility {
     Xml,
     Generate,
     Cron,
+    Convert,
 }
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 12] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 13] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
         (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
         (
@@ -89,6 +91,12 @@ impl Utility {
             ph::DICE_FIVE,
         ),
         (Utility::Cron, "dt-cat-generate", "dt-cron", ph::CLOCK),
+        (
+            Utility::Convert,
+            "dt-cat-generate",
+            "dt-convert",
+            ph::ARROWS_LEFT_RIGHT,
+        ),
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -104,6 +112,7 @@ impl Utility {
             Utility::Xml => "xml",
             Utility::Generate => "generate",
             Utility::Cron => "cron",
+            Utility::Convert => "convert",
         }
     }
     pub fn by_key(key: &str) -> Option<Utility> {
@@ -171,6 +180,7 @@ impl ToolFactory for DevtoolsFactory {
             xml_state: part(&restore, "xml"),
             generate: part(&restore, "generate"),
             cron: part(&restore, "cron"),
+            convert: convert::State::default(),
         })
     }
 }
@@ -185,6 +195,7 @@ pub struct DevtoolsTool {
     xml_state: markup::State,
     generate: generate::State,
     cron: cron::State,
+    convert: convert::State,
     hash: hash::State,
     jwt: jwt::State,
     firebase: firebase::State,
@@ -272,6 +283,7 @@ impl Tool for DevtoolsTool {
                             }
                             Utility::Generate => generate::ui(&mut self.generate, ui, s, &theme),
                             Utility::Cron => cron::ui(&mut self.cron, ui, s, &theme),
+                            Utility::Convert => convert::ui(&mut self.convert, ui, s, &theme),
                             Utility::Jasypt => jasypt::ui(&mut self.jasypt, ui, s, &theme),
                             Utility::Pki => pki::ui(&mut self.pki, ui, s, &theme),
                         }
@@ -358,6 +370,15 @@ impl Tool for DevtoolsTool {
                     Utility::Generate => {}
                     // The expression field takes a pasted expression.
                     Utility::Cron => self.cron.check_input = body,
+                    // Pasted text lands in whichever pane is open, since
+                    // each one reads a different kind of value.
+                    Utility::Convert => match self.convert.pane {
+                        convert::Pane::Time => self.convert.time_input = body,
+                        convert::Pane::Epoch => self.convert.epoch_input = body,
+                        convert::Pane::Number => self.convert.number_input = body,
+                        convert::Pane::Data => self.convert.data_input = body,
+                        convert::Pane::Duration => self.convert.duration_input = body,
+                    },
                 }
                 true
             }

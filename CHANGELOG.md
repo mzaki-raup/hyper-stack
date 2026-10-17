@@ -89,7 +89,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   a passkey is a WebAuthn exchange, so neither can be filled this way; the
   passkey field is a place to keep recovery material.
 
+- **Devtools gains Unit Conversion**: time, epochs, number bases, data
+  sizes and durations, each with its own inputs and its own result rather
+  than one card shared between them. Time and data size also show every
+  unit at once, since the answer that was not asked for is often the one
+  wanted next.
+
+- **Java has a debug adapter.** `java-debug` serves Java files and answers
+  to a `launch.json` saying `"type": "java"`.
+
 ### Fixed
+
+- **Run and Debug now notice a file that has never been saved.** The
+  prompt listed only files that already existed on disk, so a brand-new
+  one was neither mentioned nor written — the one case where running what
+  is on screen rather than what is on disk is certain.
 
 - **A browser dialog is no longer hidden behind the page.** A native web
   view paints above everything egui draws, and the shell only knew about

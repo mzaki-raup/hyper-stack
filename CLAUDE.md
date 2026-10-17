@@ -1044,7 +1044,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   scrolled past under a reassuring line and was committed on a red
   suite. Let the grep's own output be the answer, or branch on it
   (`if grep -q ...; then`), and never narrate a result the command did
-  not actually give.
+  not actually give. The same thing happened again on 2026-10-18 with
+  `clippy ... | grep -E "^error" | head; cargo deny ... && git commit`:
+  the lints were printed and the commit went ahead on them. A gate that
+  decides a commit must be a command whose **exit code** is checked
+  (`cargo clippy ... >/dev/null 2>&1 && git commit`), not one whose
+  output is eyeballed.
 
 ### Patch scripts
 - A Rust string holding a unicode escape (`\u{b7}`, `\u{2192}`) inside a

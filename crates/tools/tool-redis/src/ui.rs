@@ -411,6 +411,10 @@ pub fn info_sections(text: &str) -> Vec<(String, Vec<(String, String)>)> {
 }
 
 impl Tool for RedisTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

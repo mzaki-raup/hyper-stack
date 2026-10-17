@@ -204,6 +204,10 @@ pub struct DevtoolsTool {
 }
 
 impl Tool for DevtoolsTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -378,6 +382,7 @@ impl Tool for DevtoolsTool {
                         convert::Pane::Number => self.convert.number_input = body,
                         convert::Pane::Data => self.convert.data_input = body,
                         convert::Pane::Duration => self.convert.duration_input = body,
+                        convert::Pane::Bandwidth => self.convert.rate_input = body,
                     },
                 }
                 true

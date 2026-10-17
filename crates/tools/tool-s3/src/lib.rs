@@ -995,6 +995,10 @@ impl S3Tool {
 }
 
 impl Tool for S3Tool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

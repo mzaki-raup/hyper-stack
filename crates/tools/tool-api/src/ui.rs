@@ -372,6 +372,8 @@ enum SideAction {
     Rename(String, String, String),
     Delete(String, Option<String>),
     Duplicate(String, String),
+    /// A whole collection copied beside itself, with everything in it.
+    DuplicateCollection(String),
     Export(String),
     Import,
     NewCollection,
@@ -487,6 +489,10 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                             c.id.clone(),
                             c.name.clone(),
                         ));
+                        ui.close();
+                    }
+                    if ui.button(s.t("api-duplicate")).clicked() {
+                        actions.push(SideAction::DuplicateCollection(c.id.clone()));
                         ui.close();
                     }
                     if ui.button(s.t("api-export-postman")).clicked() {
@@ -634,15 +640,22 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                     if t.state_collection().as_deref() == Some(&c) {
                         t.new_request();
                     }
+                    // A deleted collection has no file left to save, so the
+                    // other tabs have to be told separately.
+                    t.announce(cx);
                 }
             },
             SideAction::Duplicate(c, id) => {
-                let copy = t.collections.iter().find(|x| x.id == c).and_then(|x| {
-                    x.find(&id)
-                        .map(|(r, folders)| (r.clone(), folders.last().map(|f| f.id.clone())))
+                // A request or a folder: a folder brings everything inside
+                // it, with new ids throughout so the copies are their own
+                // requests. Owner's requirement, 2026-10-17.
+                let found = t.collections.iter().find(|x| x.id == c).and_then(|col| {
+                    let parent = parent_folder(col, &id);
+                    col.items(parent.as_deref())
+                        .and_then(|items| items.iter().find(|i| i.id() == id))
+                        .map(|item| (crate::model::deep_copy(item), parent))
                 });
-                if let Some((mut r, folder)) = copy {
-                    r.id = hs_core::new_id();
+                if let Some((mut copy, folder)) = found {
                     if let Some(col) = t.collections.iter_mut().find(|x| x.id == c)
                         && let Some(items) = col.items_mut(folder.as_deref())
                     {
@@ -650,10 +663,25 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         // two duplicates never land on the same name.
                         let taken: Vec<String> =
                             items.iter().map(|i| i.name().to_string()).collect();
-                        r.name = crate::model::next_copy_name(&r.name, &taken);
-                        items.push(Item::Request(r));
+                        let free = crate::model::next_copy_name(copy.name(), &taken);
+                        copy.set_name(&free);
+                        items.push(copy);
                     }
                     t.save_collection(&c, cx);
+                }
+            }
+            SideAction::DuplicateCollection(c) => {
+                if let Some(src) = t.collections.iter().find(|x| x.id == c).cloned() {
+                    let mut copy = src.clone();
+                    copy.id = hs_core::new_id();
+                    copy.items = src.items.iter().map(crate::model::deep_copy).collect();
+                    let taken: Vec<String> = t.collections.iter().map(|x| x.name.clone()).collect();
+                    copy.name = crate::model::next_copy_name(&src.name, &taken);
+                    // At the end of the list, where a new collection goes.
+                    copy.order = t.collections.len() as i32;
+                    let id = copy.id.clone();
+                    t.collections.push(copy);
+                    t.save_collection(&id, cx);
                 }
             }
             SideAction::Export(c) => t.export_postman(&c, cx),
@@ -785,6 +813,10 @@ fn items_ui(
                             f.id.clone(),
                             f.name.clone(),
                         ));
+                        ui.close();
+                    }
+                    if ui.button(s.t("api-duplicate")).clicked() {
+                        actions.push(SideAction::Duplicate(collection.into(), f.id.clone()));
                         ui.close();
                     }
                     ui.separator();
@@ -951,6 +983,24 @@ fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
             saved.name = t.request.name.clone();
         }
     });
+}
+
+/// Which folder of `col` holds `id` (`None` = the collection's root).
+fn parent_folder(col: &Collection, id: &str) -> Option<String> {
+    fn walk(items: &[Item], id: &str, here: Option<&str>) -> Option<Option<String>> {
+        for it in items {
+            if it.id() == id {
+                return Some(here.map(str::to_string));
+            }
+            if let Item::Folder(f) = it
+                && let Some(found) = walk(&f.items, id, Some(&f.id))
+            {
+                return Some(found);
+            }
+        }
+        None
+    }
+    walk(&col.items, id, None).flatten()
 }
 
 fn scope_of(collection: &str, folder: Option<&str>) -> String {

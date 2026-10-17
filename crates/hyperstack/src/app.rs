@@ -838,6 +838,7 @@ impl HyperStackApp {
                     tab_id: id,
                     env_id: env.as_deref(),
                     actions: &mut actions,
+                    is_home: false,
                 };
                 t.tool.open(req, &mut cx);
             }
@@ -858,6 +859,7 @@ impl HyperStackApp {
                 tab_id: id,
                 env_id: env.as_deref(),
                 actions: &mut actions,
+                is_home: false,
             };
             t.tool.open(req, &mut cx);
         }
@@ -872,11 +874,14 @@ impl HyperStackApp {
     }
 
     fn close_tab(&mut self, id: u64, force: bool) {
+        // Mandatory shell tabs and an activity's permanent home tab both
+        // stay. Checking here covers Close Others and Close to the Right
+        // as well, which close through this.
         if self
             .tabs
             .tabs
             .iter()
-            .any(|t| t.id == id && is_mandatory(&t.factory_id))
+            .any(|t| t.id == id && (is_mandatory(&t.factory_id) || t.home))
         {
             return;
         }
@@ -1023,6 +1028,7 @@ impl HyperStackApp {
                             tab_id: tab,
                             env_id: env.as_deref(),
                             actions: &mut actions,
+                            is_home: false,
                         };
                         t.tool.open(
                             OpenRequest::File {
@@ -1046,6 +1052,7 @@ impl HyperStackApp {
                             tab_id: a,
                             env_id: env.as_deref(),
                             actions: &mut actions,
+                            is_home: false,
                         };
                         if !t.tool.run_command(cmd, &mut cx) && cmd == "file.new" {
                             cx.open("editor", None);
@@ -2012,6 +2019,9 @@ impl HyperStackApp {
             visible: &visible,
             labels: &labels,
             compact: false,
+            // The window strip has no add-tab button: a tab comes from
+            // an activity's sidebar or from Home.
+            show_new_tab: false,
         };
         let r = strip.show(ui, &views);
         if let Some(id) = r.activated {
@@ -2079,6 +2089,7 @@ impl HyperStackApp {
                             tab_id: id,
                             env_id: env.as_deref(),
                             actions: &mut actions,
+                            is_home: false,
                         };
                         (t.factory_id.clone(), t.tool.duplicate_state(&mut cx))
                     });
@@ -2146,6 +2157,7 @@ impl HyperStackApp {
                             tab_id: a,
                             env_id: env.as_deref(),
                             actions: &mut actions,
+                            is_home: false,
                         };
                         t.tool.toolbar(ui, &mut cx);
                     });
@@ -2258,11 +2270,13 @@ impl HyperStackApp {
         let services = self.services.clone();
         let mut drew = false;
         if let Some(t) = self.tabs.get_mut(a) {
+            let is_home = t.home;
             let mut cx = ToolContext {
                 services: &services,
                 tab_id: a,
                 env_id: env.as_deref(),
                 actions: &mut actions,
+                is_home,
             };
             drew = t.tool.sidebar(ui, &mut cx);
         }
@@ -2345,11 +2359,13 @@ impl HyperStackApp {
                         activate = Some(id);
                     }
                     if let Some(t) = tabs.tabs.iter_mut().find(|t| t.id == id) {
+                        let is_home = t.home;
                         let mut cx = ToolContext {
                             services: &services,
                             tab_id: id,
                             env_id: env.as_deref(),
                             actions: &mut actions,
+                            is_home,
                         };
                         t.tool.ui(ui, &mut cx);
                     }
@@ -2359,11 +2375,13 @@ impl HyperStackApp {
         } else if let Some(a) = self.tabs.active
             && let Some(t) = self.tabs.get_mut(a)
         {
+            let is_home = t.home;
             let mut cx = ToolContext {
                 services: &services,
                 tab_id: a,
                 env_id: env.as_deref(),
                 actions: &mut actions,
+                is_home,
             };
             t.tool.ui(ui, &mut cx);
         }
@@ -2981,6 +2999,7 @@ impl eframe::App for HyperStackApp {
                     tab_id: t.id,
                     env_id: env.as_deref(),
                     actions: &mut actions,
+                    is_home: false,
                 };
                 for e in &events {
                     t.tool.on_event(e, &mut cx);

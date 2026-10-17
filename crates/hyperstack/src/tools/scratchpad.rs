@@ -334,6 +334,10 @@ impl Scratchpad {
 }
 
 impl Tool for Scratchpad {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

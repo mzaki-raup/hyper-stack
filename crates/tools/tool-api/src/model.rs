@@ -574,6 +574,26 @@ pub fn append_history(path: &Path, entry: &HistoryEntry, max: usize) {
 /// "List 001 001". Used both when a request is duplicated and when one is
 /// dragged somewhere a request of that name already lives. Owner's rule,
 /// 2026-10-17.
+/// A copy of an item with new ids throughout, so a duplicated folder's
+/// requests are new requests rather than a second reference to the same
+/// ones. The name is left alone; the caller numbers it against where it
+/// is going. Owner's requirement, 2026-10-17.
+pub fn deep_copy(item: &Item) -> Item {
+    match item {
+        Item::Request(r) => {
+            let mut c = r.clone();
+            c.id = hs_core::new_id();
+            Item::Request(c)
+        }
+        Item::Folder(f) => {
+            let mut c = f.clone();
+            c.id = hs_core::new_id();
+            c.items = f.items.iter().map(deep_copy).collect();
+            Item::Folder(c)
+        }
+    }
+}
+
 pub fn next_copy_name(name: &str, taken: &[String]) -> String {
     let stem = stem_of(name);
     for n in 1..=999 {
@@ -617,6 +637,28 @@ fn short_id() -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_duplicated_folder_gets_new_ids_all_the_way_down() {
+        use super::{Folder, Item, Request, deep_copy};
+        let inner = Item::Request(Request {
+            name: "Get".into(),
+            ..Default::default()
+        });
+        let folder = Item::Folder(Folder {
+            name: "Orders".into(),
+            items: vec![inner],
+            ..Default::default()
+        });
+        let copy = deep_copy(&folder);
+        assert_ne!(copy.id(), folder.id(), "the folder is a new folder");
+        let (Item::Folder(a), Item::Folder(b)) = (&folder, &copy) else {
+            panic!("both are folders");
+        };
+        assert_eq!(b.items.len(), 1, "the contents came too");
+        assert_ne!(a.items[0].id(), b.items[0].id(), "and are new requests");
+        assert_eq!(a.items[0].name(), b.items[0].name(), "with the same names");
+    }
 
     #[test]
     fn a_copy_counts_up_from_the_original_name() {

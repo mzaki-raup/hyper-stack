@@ -182,6 +182,11 @@ pub struct ToolContext<'a> {
     pub tab_id: u64,
     pub env_id: Option<&'a str>,
     pub actions: &'a mut Vec<Action>,
+    /// This tab is its activity's permanent home: the first one, which
+    /// shows a dashboard of what the activity has open rather than a
+    /// document of its own. A tool that has nothing to say here ignores
+    /// it and draws as usual. Owner's requirement, 2026-10-17.
+    pub is_home: bool,
 }
 
 impl ToolContext<'_> {
@@ -296,6 +301,15 @@ pub trait Tool: Send {
     /// set. `None` keeps the descriptor's icon.
     fn tab_icon(&self) -> Option<&'static str> {
         None
+    }
+
+    /// Whether this activity has a permanent home tab at all. The shell
+    /// makes the first tab of such a tool its home: a dashboard that
+    /// cannot be closed, pinned or duplicated. The editor says no, because
+    /// its tabs are projects and none of them is a front page.
+    /// Owner's requirement, 2026-10-17.
+    fn wants_home_tab(&self) -> bool {
+        false
     }
 
     /// Whether this tool has exactly one window tab. The browser is one

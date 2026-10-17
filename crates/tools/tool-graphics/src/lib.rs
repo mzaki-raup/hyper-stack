@@ -1172,6 +1172,10 @@ fn human_size(n: usize) -> String {
 }
 
 impl Tool for GraphicsTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn can_duplicate_tab(&self) -> bool {
         false
     }

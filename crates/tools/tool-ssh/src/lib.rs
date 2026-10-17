@@ -1564,6 +1564,10 @@ fn tunnel_error_text(s: &Services, e: &TunnelError) -> String {
 }
 
 impl Tool for SshTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

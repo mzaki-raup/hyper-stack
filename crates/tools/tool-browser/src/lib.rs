@@ -669,6 +669,10 @@ impl BrowserTool {
 }
 
 impl Tool for BrowserTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -772,6 +776,7 @@ impl Tool for BrowserTool {
                     visible: &[],
                     labels: &labels,
                     compact: true,
+                    show_new_tab: true,
                 }
                 .show(ui, &tabs)
             })

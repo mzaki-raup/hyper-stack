@@ -52,6 +52,17 @@ pub trait TabItem {
     fn can_unpin(&self) -> bool {
         true
     }
+    /// Whether this tab is the activity's permanent home. It cannot be
+    /// closed, closed-to-the-left past, pinned or duplicated, so its menu
+    /// offers only Close Others and Close to the Right. Owner's
+    /// requirement, 2026-10-17.
+    fn permanent(&self) -> bool {
+        false
+    }
+    /// Whether this tab has a context menu at all.
+    fn has_menu(&self) -> bool {
+        true
+    }
     /// Whether Duplicate is offered. A tab bound to a connection is a view
     /// of a live session, so duplicating it would open a second session
     /// against the same server; the entry stays in the menu but disabled,
@@ -230,6 +241,11 @@ pub struct TabStrip<'a> {
     /// Lower rows and a menu of Close / Close Others / Close Left / Close
     /// Right / Copy Path (no pin, duplicate or split).
     pub compact: bool,
+    /// Draw the add-tab button at the end of the last row. The window
+    /// strip does not: a tab is opened from the activity's own sidebar or
+    /// from Home, and a + there opened an untitled one nobody asked for.
+    /// Owner's requirement, 2026-10-17.
+    pub show_new_tab: bool,
 }
 
 impl TabStrip<'_> {
@@ -276,7 +292,7 @@ impl TabStrip<'_> {
                 rects.push((i, rect));
                 x += layout.tab_width + self.gap;
             }
-            if row_i + 1 == layout.rows.len() {
+            if row_i + 1 == layout.rows.len() && self.show_new_tab {
                 let rect =
                     Rect::from_min_size(Pos2::new(x, y), Vec2::new(NEW_TAB_WIDTH, self.row_h()));
                 let r = ui.interact(rect, ui.id().with("new-tab"), Sense::click());
@@ -411,7 +427,10 @@ impl TabStrip<'_> {
         // The pinned marker: a bar down the leading edge in the tab's own
         // colour. A pinned tab keeps its name — losing it was the thing
         // that made pinning feel like the tab had been taken away.
-        let is_pinned = tab.pinned();
+        // A permanent tab wears no close cross for the same reason a
+        // pinned one does not: it is not going anywhere, and the name
+        // wants the room.
+        let is_pinned = tab.pinned() || tab.permanent();
         if is_pinned {
             painter.rect_filled(
                 Rect::from_min_size(rect.left_top(), Vec2::new(3.0, rect.height())),
@@ -531,6 +550,10 @@ impl TabStrip<'_> {
         let pinned = tab.pinned();
         let tid = tab.id();
         let compact = self.compact;
+        if !tab.has_menu() {
+            return;
+        }
+        let permanent = tab.permanent();
         r.context_menu(|ui| {
             let mut pick = |ui: &mut egui::Ui, label: &str, action: TabMenuAction| {
                 if !ui.button(label).clicked() {
@@ -554,10 +577,20 @@ impl TabStrip<'_> {
                 resp.menu = Some((tid, action));
                 ui.close();
             };
-            pick(ui, &labels.close, TabMenuAction::Close);
+            // A permanent tab is the activity's home: closing it, closing
+            // past it or pinning it are all meaningless, so only the two
+            // that act on the tabs beside it are offered.
+            if !permanent {
+                pick(ui, &labels.close, TabMenuAction::Close);
+            }
             pick(ui, &labels.close_others, TabMenuAction::CloseOthers);
-            pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
+            if !permanent {
+                pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
+            }
             pick(ui, &labels.close_right, TabMenuAction::CloseRight);
+            if permanent {
+                return;
+            }
             ui.separator();
             if compact {
                 pick(ui, &labels.copy_path, TabMenuAction::CopyPath);

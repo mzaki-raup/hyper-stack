@@ -143,6 +143,88 @@ pub fn data(value: f64, from: DataUnit, to: DataUnit) -> f64 {
     value * from.bytes() / to.bytes()
 }
 
+// ---- bandwidth ----------------------------------------------------------
+
+/// A rate of data; every variant is per second, which the type says
+/// rather than each name repeating it. Networking counts in bits and storage in bytes, which
+/// is the whole reason a 100 Mb/s line copies a file at about 12 MB/s;
+/// both families are here so that sum can be done without arithmetic in
+/// the head. Owner's requirement, 2026-10-17.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RateUnit {
+    Bit,
+    Kilobit,
+    #[default]
+    Megabit,
+    Gigabit,
+    Byte,
+    Kilobyte,
+    Megabyte,
+    Gigabyte,
+    Mebibyte,
+    Gibibyte,
+}
+
+impl RateUnit {
+    pub const ALL: [RateUnit; 10] = [
+        RateUnit::Bit,
+        RateUnit::Kilobit,
+        RateUnit::Megabit,
+        RateUnit::Gigabit,
+        RateUnit::Byte,
+        RateUnit::Kilobyte,
+        RateUnit::Megabyte,
+        RateUnit::Gigabyte,
+        RateUnit::Mebibyte,
+        RateUnit::Gibibyte,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RateUnit::Bit => "bit/s",
+            RateUnit::Kilobit => "kbit/s",
+            RateUnit::Megabit => "Mbit/s",
+            RateUnit::Gigabit => "Gbit/s",
+            RateUnit::Byte => "B/s",
+            RateUnit::Kilobyte => "kB/s",
+            RateUnit::Megabyte => "MB/s",
+            RateUnit::Gigabyte => "GB/s",
+            RateUnit::Mebibyte => "MiB/s",
+            RateUnit::Gibibyte => "GiB/s",
+        }
+    }
+
+    /// How many bits per second one of these is.
+    fn bits(self) -> f64 {
+        match self {
+            RateUnit::Bit => 1.0,
+            RateUnit::Kilobit => 1e3,
+            RateUnit::Megabit => 1e6,
+            RateUnit::Gigabit => 1e9,
+            RateUnit::Byte => 8.0,
+            RateUnit::Kilobyte => 8e3,
+            RateUnit::Megabyte => 8e6,
+            RateUnit::Gigabyte => 8e9,
+            RateUnit::Mebibyte => 8.0 * 1024f64.powi(2),
+            RateUnit::Gibibyte => 8.0 * 1024f64.powi(3),
+        }
+    }
+}
+
+pub fn rate(value: f64, from: RateUnit, to: RateUnit) -> f64 {
+    value * from.bits() / to.bits()
+}
+
+/// How long `size` bytes take at `value` of `unit`, in seconds. The other
+/// question people bring to a bandwidth converter.
+pub fn transfer_seconds(bytes: f64, value: f64, unit: RateUnit) -> Option<f64> {
+    let bits_per_second = value * unit.bits();
+    if bits_per_second <= 0.0 {
+        return None;
+    }
+    Some(bytes * 8.0 / bits_per_second)
+}
+
 // ---- number bases -------------------------------------------------------
 
 /// One number written every way.
@@ -348,15 +430,17 @@ pub enum Pane {
     Number,
     Data,
     Duration,
+    Bandwidth,
 }
 
 impl Pane {
-    const ALL: [Pane; 5] = [
+    const ALL: [Pane; 6] = [
         Pane::Time,
         Pane::Epoch,
         Pane::Number,
         Pane::Data,
         Pane::Duration,
+        Pane::Bandwidth,
     ];
 
     fn label_key(self) -> &'static str {
@@ -366,6 +450,7 @@ impl Pane {
             Pane::Number => "dt-conv-number",
             Pane::Data => "dt-conv-data",
             Pane::Duration => "dt-conv-duration",
+            Pane::Bandwidth => "dt-conv-bandwidth",
         }
     }
 }
@@ -393,6 +478,12 @@ pub struct State {
     pub data_to: DataUnit,
     // Durations
     pub duration_input: String,
+    // Bandwidth
+    pub rate_input: String,
+    pub rate_from: RateUnit,
+    pub rate_to: RateUnit,
+    /// A size to time at that rate, in megabytes.
+    pub transfer_mb: String,
 }
 
 impl Default for State {
@@ -411,6 +502,10 @@ impl Default for State {
             data_from: DataUnit::Gigabytes,
             data_to: DataUnit::Gibibytes,
             duration_input: String::new(),
+            rate_input: "100".into(),
+            rate_from: RateUnit::Megabit,
+            rate_to: RateUnit::Megabyte,
+            transfer_mb: String::new(),
         }
     }
 }
@@ -430,6 +525,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         Pane::Number => number_pane(st, ui, s, theme),
         Pane::Data => data_pane(st, ui, s, theme),
         Pane::Duration => duration_pane(st, ui, s, theme),
+        Pane::Bandwidth => bandwidth_pane(st, ui, s, theme),
     }
 }
 
@@ -694,6 +790,102 @@ fn epoch_pane(
     }
 }
 
+fn bandwidth_pane(
+    st: &mut State,
+    ui: &mut egui::Ui,
+    s: &hs_core::Services,
+    theme: &hs_ui::theme::Theme,
+) {
+    use hs_ui::form;
+    form::section(ui, theme, &s.t("dt-conv-bandwidth"), |ui| {
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut st.rate_input)
+                    .hint_text(s.t("dt-conv-value"))
+                    .desired_width(120.0),
+            );
+            unit_combo(ui, "dt-rate-from", &mut st.rate_from, &RateUnit::ALL, |u| {
+                u.label().to_string()
+            });
+            ui.label("→");
+            unit_combo(ui, "dt-rate-to", &mut st.rate_to, &RateUnit::ALL, |u| {
+                u.label().to_string()
+            });
+            if ui
+                .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
+                .on_hover_text(s.t("dt-conv-swap"))
+                .clicked()
+            {
+                std::mem::swap(&mut st.rate_from, &mut st.rate_to);
+            }
+        });
+        form::hint(ui, theme, &s.t("dt-conv-bandwidth-hint"));
+    });
+    let Some(v) = st.rate_input.trim().parse::<f64>().ok() else {
+        if !st.rate_input.trim().is_empty() {
+            crate::util::error(ui, theme, &s.t("dt-conv-not-a-number"));
+        }
+        return;
+    };
+    let out = format_number(rate(v, st.rate_from, st.rate_to));
+    crate::util::output(
+        ui,
+        s,
+        theme,
+        &s.t("dt-conv-result"),
+        &format!("{out} {}", st.rate_to.label()),
+        1,
+    );
+    form::section(ui, theme, &s.t("dt-conv-all-units"), |ui| {
+        for u in RateUnit::ALL {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(u.label())
+                        .color(theme.text_muted)
+                        .monospace(),
+                );
+                ui.label(egui::RichText::new(format_number(rate(v, st.rate_from, u))).monospace());
+            });
+        }
+    });
+    // How long something takes at this rate: the other half of the
+    // question people bring to a bandwidth converter.
+    form::section(ui, theme, &s.t("dt-conv-transfer"), |ui| {
+        ui.horizontal(|ui| {
+            ui.add(
+                egui::TextEdit::singleline(&mut st.transfer_mb)
+                    .hint_text(s.t("dt-conv-transfer-hint"))
+                    .desired_width(120.0),
+            );
+            ui.label("MB");
+        });
+    });
+    if st.transfer_mb.trim().is_empty() {
+        return;
+    }
+    match st
+        .transfer_mb
+        .trim()
+        .parse::<f64>()
+        .ok()
+        .and_then(|mb| transfer_seconds(mb * 1e6, v, st.rate_from))
+    {
+        Some(secs) => crate::util::output(
+            ui,
+            s,
+            theme,
+            &s.t("dt-conv-transfer-time"),
+            &format!(
+                "{} ({} s)",
+                humanise(secs.round() as i64),
+                format_number(secs)
+            ),
+            1,
+        ),
+        None => crate::util::error(ui, theme, &s.t("dt-conv-not-a-number")),
+    }
+}
+
 fn duration_pane(
     st: &mut State,
     ui: &mut egui::Ui,
@@ -777,6 +969,26 @@ mod tests {
         // The classic "why is my 1 TB disk 931 GiB?"
         let gib = data(1.0, DataUnit::Terabytes, DataUnit::Gibibytes);
         assert!((gib - 931.32).abs() < 0.01, "{gib}");
+    }
+
+    #[test]
+    fn bandwidth_crosses_between_bits_and_bytes() {
+        // The classic: a 100 Mbit/s line is about 12.5 MB/s.
+        let mbs = rate(100.0, RateUnit::Megabit, RateUnit::Megabyte);
+        assert!((mbs - 12.5).abs() < 1e-9, "{mbs}");
+        assert_eq!(rate(1.0, RateUnit::Byte, RateUnit::Bit), 8.0);
+        // And the two byte families stay apart, as in Data Size.
+        let mib = rate(1.0, RateUnit::Megabyte, RateUnit::Mebibyte);
+        assert!((mib - 0.953_674).abs() < 1e-5, "{mib}");
+    }
+
+    #[test]
+    fn a_transfer_time_is_size_over_rate() {
+        // 1 GB over 100 Mbit/s is about 80 seconds.
+        let secs = transfer_seconds(1e9, 100.0, RateUnit::Megabit).unwrap();
+        assert!((secs - 80.0).abs() < 1e-9, "{secs}");
+        // A rate of zero has no answer rather than an infinite one.
+        assert_eq!(transfer_seconds(1e9, 0.0, RateUnit::Megabit), None);
     }
 
     #[test]

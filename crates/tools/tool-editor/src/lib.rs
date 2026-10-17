@@ -1809,6 +1809,7 @@ impl EditorTool {
                     visible: &[],
                     labels: &labels,
                     compact: true,
+                    show_new_tab: true,
                 }
                 .show(ui, &tabs)
             })

@@ -16,6 +16,11 @@ pub struct TabEntry {
     pub tool: Box<dyn Tool>,
     pub pinned: bool,
     pub colour: Option<Color32>,
+    /// This activity's permanent home tab: the first one opened for a tool
+    /// that wants one. It shows a dashboard of what the activity has open
+    /// and cannot be closed, pinned or duplicated. Owner's requirement,
+    /// 2026-10-17.
+    pub home: bool,
 }
 
 /// A closed tab kept for Ctrl+Shift+T.
@@ -52,6 +57,12 @@ pub struct TabView {
     /// False when the tool refuses a second view of itself, or when a tab
     /// bound to a connection has used up that connection's budget of tabs.
     pub can_duplicate: bool,
+    /// The activity's permanent home tab.
+    pub permanent: bool,
+    /// Whether the tab offers a context menu. Home and the browser do not:
+    /// there is nothing on it that applies to them. Owner's requirement,
+    /// 2026-10-17.
+    pub has_menu: bool,
 }
 
 impl TabItem for TabView {
@@ -77,7 +88,13 @@ impl TabItem for TabView {
         !crate::app::is_mandatory(&self.factory_id)
     }
     fn can_duplicate(&self) -> bool {
-        self.can_duplicate
+        self.can_duplicate && !self.permanent
+    }
+    fn permanent(&self) -> bool {
+        self.permanent
+    }
+    fn has_menu(&self) -> bool {
+        self.has_menu
     }
     fn dirty(&self) -> bool {
         self.dirty
@@ -129,6 +146,8 @@ impl TabSpace {
                 dirty: t.tool.dirty(),
                 colour: t.colour.or_else(|| env_colour(t.tool.environment())),
                 tooltip: format!("{}\n{}", t.tool.title(), t.factory_id),
+                permanent: t.home,
+                has_menu: !matches!(t.factory_id.as_str(), "home" | "browser"),
                 can_duplicate: t.tool.can_duplicate_tab()
                     && match t.tool.current_connection() {
                         None => true,
@@ -161,12 +180,18 @@ impl TabSpace {
         let id = self.next_id;
         self.next_id += 1;
         let tool = factory.create(services, restore);
+        let factory_id = factory.descriptor().id.to_string();
+        // The first tab of an activity that wants a home becomes it. There
+        // is never a second: this is asked before the tab is pushed, so a
+        // later tab of the same activity sees one already there.
+        let home = tool.wants_home_tab() && !self.tabs.iter().any(|t| t.factory_id == factory_id);
         self.tabs.push(TabEntry {
             id,
-            factory_id: factory.descriptor().id.to_string(),
+            factory_id,
             tool,
             pinned: false,
             colour: None,
+            home,
         });
         self.active = Some(id);
         // Opening a tab shows it in the active pane.
@@ -328,12 +353,14 @@ impl TabSpace {
                 continue;
             };
             let tool = factory.create(services, Some(lt.state.clone()));
+            let home = tool.wants_home_tab() && !self.tabs.iter().any(|t| t.factory_id == lt.tool);
             self.tabs.push(TabEntry {
                 id: lt.id,
                 factory_id: lt.tool.clone(),
                 tool,
                 pinned: lt.pinned,
                 colour: lt.colour.map(|[r, g, b]| Color32::from_rgb(r, g, b)),
+                home,
             });
             self.next_id = self.next_id.max(lt.id + 1);
         }

@@ -405,6 +405,10 @@ impl TerminalTool {
 }
 
 impl Tool for TerminalTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

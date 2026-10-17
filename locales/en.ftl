@@ -1921,6 +1921,13 @@ dt-conv-duration-note =
     as seconds.
 dt-conv-bad-duration = That is not a duration.
 dt-conv-readable = Readable
+dt-conv-bandwidth = Bandwidth
+dt-conv-bandwidth-hint =
+    Networking counts in bits and storage in bytes, which is why a 100
+    Mbit/s line copies a file at about 12.5 MB/s.
+dt-conv-transfer = How Long a Transfer Takes
+dt-conv-transfer-hint = Size
+dt-conv-transfer-time = Transfer Time
 dt-unit-ns = Nanoseconds
 dt-unit-us = Microseconds
 dt-unit-ms = Milliseconds

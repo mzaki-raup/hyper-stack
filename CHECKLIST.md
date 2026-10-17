@@ -269,3 +269,30 @@ start* are held or deferred by the owner's instruction.
 | Devtools: Unit Conversion tool | Completed | `convert.rs`: Time, Epoch, Numbers, Data Size and Duration panes, each with its own inputs and result; 10 unit tests; verified live — 1 hour = 3600 s with every unit listed, and 255 = 0b11111111 = 0o377 = 0xFF = `ÿ` |
 | Database: word-wrap toggle in the query field | Pending | held by the owner, 2026-10-17 - do not start |
 | Shell: middle-click slowness | Pending | deferred by the owner, not reproducible - do not start |
+
+## Owner's requests, 2026-10-17 (second batch)
+
+A second set raised by the repository owner on 2026-10-17. Most of
+these share one mechanism - a permanent first tab per activity, with a
+dashboard of what that activity has open - so the shared parts are
+listed first.
+
+| Item | State | Notes |
+|---|---|---|
+| Shell: a tool's first window tab is permanent | Completed | `Tool::wants_home_tab` + `TabEntry::home` + `TabItem::permanent`; verified live — the Database home tab offers only Close Others and Close to the Right and wears no close cross |
+| Shell: remove the add-new-tab button from the window strip | Completed | `TabStrip::show_new_tab`; the inner strips (editor files, database queries, browser pages) keep theirs |
+| API client: a permanent home tab with the workspace logo and name | Pending | collection/request summary when there are any, otherwise what-to-do options; the sidebar keeps create/filter |
+| API client: duplicate a collection or a folder with everything in it | Completed | `model::deep_copy` gives new ids throughout; one test proves a duplicated folder shares no ids with the original |
+| API client: the list refreshes wherever a request is created | Completed | an `Event::Custom` on `api.collections` after every write; the writing tab skips its own |
+| Terminal: permanent home tab with a dashboard of open terminals | Pending | grid of name, type and a thumbnail of that terminal, clicking one goes to its tab |
+| SSH: permanent home tab with a dashboard of open connections | Pending | grid of connection name and a thumbnail, clicking one goes to its tab |
+| Database: permanent home tab with a dashboard of open connections | Pending | connection name, engine, query name and a thumbnail of the query pane |
+| NoSQL: permanent home tab with a dashboard of open connections | Pending | connection name, store kind and a thumbnail of the data pane |
+| Redis: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
+| S3: permanent home tab with a dashboard of open connections | Pending | connection name and a thumbnail of the data pane |
+| Browser: permanent first tab, no tab context menu | Completed | `has_menu` is false for home and browser tabs; the window strip's + is gone |
+| Home: permanent first tab, no tab context menu | Completed | as above |
+| Graphics: permanent first tab | Completed | `wants_home_tab`; the sidebar and preview pane are untouched |
+| Devtools: permanent home tab with a dashboard of open tools | Pending | tool name, kind and a thumbnail of the working pane |
+| Scratchpad: permanent home tab with a dashboard of open notes | Pending | note name and a thumbnail of the preview pane |
+| Devtools: bandwidth and speed conversion | Completed | a Bandwidth pane with both families and a transfer-time calculator; two tests |

@@ -2367,6 +2367,10 @@ impl DbTool {
 }
 
 impl Tool for DbTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -3091,6 +3095,7 @@ impl DbTool {
                     visible: &[],
                     labels: &labels,
                     compact: true,
+                    show_new_tab: true,
                 }
                 .show(ui, &tabs)
             })

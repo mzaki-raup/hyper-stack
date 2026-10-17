@@ -81,6 +81,7 @@ fn one_tab_per_project_with_its_files_inside() {
         tab_id: 1,
         env_id: None,
         actions: &mut actions,
+        is_home: false,
     };
 
     // A layout saved before several projects existed: one folder, one

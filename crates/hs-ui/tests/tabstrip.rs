@@ -71,6 +71,7 @@ fn clicking_the_plus_button_requests_a_new_tab_and_strip_wraps() {
                 visible: &[],
                 labels: &labels,
                 compact: false,
+                show_new_tab: true,
             };
             let r = strip.show(ui, &tabs);
             if let Some(id) = r.activated {

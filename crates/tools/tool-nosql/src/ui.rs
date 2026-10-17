@@ -324,6 +324,10 @@ impl NoSqlTool {
 }
 
 impl Tool for NoSqlTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

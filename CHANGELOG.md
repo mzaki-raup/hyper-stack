@@ -13,6 +13,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- **Every activity's first tab is permanent.** It cannot be closed, closed
+  past, pinned or duplicated, and its menu offers only Close Others and
+  Close to the Right. Home and the browser have no tab menu at all.
+
+- **The window strip has no add-tab button.** A tab comes from an
+  activity's own sidebar or from Home; the + opened an untitled one nobody
+  asked for. The inner strips — editor files, database queries, browser
+  pages — keep theirs, because those are a tool's own documents.
+
+- A **collection or a folder can be duplicated** in the API client, with
+  everything inside it and new ids throughout, numbered against where it
+  lands the way a request is.
+
+- Unit Conversion gains **Bandwidth**: bits and bytes per second across the
+  decimal and binary families, with how long a given size takes at that
+  rate. A 100 Mbit/s line is 12.5 MB/s.
+
+- **The API client's list refreshes wherever a request is created.** Each
+  tab held the collections it read when it opened, so a request written
+  from one tab — by Duplicate on its window tab, say — was invisible in
+  another until the workspace was switched.
+
 - **Split Right and Split Down are gone from the tab menu**, and from the
   default keyboard shortcuts with them. Rearranging the whole tab space is
   not what someone right-clicking a single tab is reaching for. The

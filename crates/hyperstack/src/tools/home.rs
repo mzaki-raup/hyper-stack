@@ -76,6 +76,10 @@ pub struct HomeTool {
 }
 
 impl Tool for HomeTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

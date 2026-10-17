@@ -22,6 +22,7 @@ fn assistant_block_builds_a_collection_and_fills_the_open_request() {
         tab_id: 1,
         env_id: None,
         actions: &mut actions,
+        is_home: false,
     };
     let mut t = tool_api::ApiTool::new_in(s);
     assert!(t.collections().is_empty());

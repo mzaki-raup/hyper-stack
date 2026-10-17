@@ -55,6 +55,9 @@ impl ToolFactory for ApiFactory {
     }
 }
 
+/// The topic every API tab listens on for "the collections changed".
+pub(crate) const COLLECTIONS_CHANGED: &str = "api.collections";
+
 /// Persisted per tab: which saved request is open, or the unsaved draft.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
@@ -315,6 +318,7 @@ impl ApiTool {
                 return;
             }
         }
+        self.announce(cx);
     }
 
     pub(crate) fn save_collection(&self, id: &str, cx: &mut ToolContext) {
@@ -322,7 +326,22 @@ impl ApiTool {
             && let Err(e) = c.save(&self.collections_dir())
         {
             cx.toast(ToastLevel::Error, e.to_string());
+            return;
         }
+        self.announce(cx);
+    }
+
+    /// Say that the collections on disk changed, so every other API tab
+    /// reloads its own copy. Each tab holds the collections it read when it
+    /// opened, so a request written from one tab was invisible in another
+    /// until the workspace was switched. Owner's report, 2026-10-17.
+    pub(crate) fn announce(&self, cx: &mut ToolContext) {
+        cx.services.events.publish(hs_core::events::Event::Custom {
+            topic: COLLECTIONS_CHANGED.into(),
+            // The tab that wrote them already has them; the payload lets it
+            // skip the reload rather than re-reading what it just saved.
+            payload: cx.tab_id.to_string(),
+        });
     }
 
     /// Save the open request into its collection (or ask where to put it).
@@ -1037,6 +1056,10 @@ fn resolve_secrets(s: &Services, text: &str) -> String {
 }
 
 impl Tool for ApiTool {
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -1448,8 +1471,17 @@ impl Tool for ApiTool {
     }
 
     fn on_event(&mut self, ev: &Event, cx: &mut ToolContext) {
-        if let Event::WorkspaceSwitched { .. } = ev {
-            self.reload(cx.services);
+        match ev {
+            Event::WorkspaceSwitched { .. } => self.reload(cx.services),
+            Event::Custom { topic, payload } if topic == COLLECTIONS_CHANGED => {
+                if payload == &cx.tab_id.to_string() {
+                    return;
+                }
+                // Only the collections: the request being edited in this
+                // tab is this tab's business and must not be replaced.
+                self.collections = Collection::load_all(&self.collections_dir());
+            }
+            _ => {}
         }
     }
 

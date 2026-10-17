@@ -293,7 +293,7 @@ pub mod bruno {
                 out.push((seq, Item::Request(req)));
             }
         }
-        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out.sort_by_key(|(seq, _)| *seq);
         Ok(out.into_iter().map(|(_, i)| i).collect())
     }
 
@@ -633,8 +633,9 @@ pub mod openapi {
             .get("requestBody")
             .and_then(|b| b.get("content"))
             .and_then(|c| c.as_object())
+            && let Some((mime, media)) = content.iter().next()
         {
-            if let Some((mime, media)) = content.iter().next() {
+            {
                 req.body.kind = kind_of_mime(mime);
                 let example = media.get("example").cloned().or_else(|| {
                     media

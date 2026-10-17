@@ -648,8 +648,7 @@ impl Tool for BrowserTool {
             pin: String::new(),
             unpin: String::new(),
             duplicate: s.t("tab-duplicate"),
-            split_right: String::new(),
-            split_down: String::new(),
+            duplicate_blocked: String::new(),
             copy_path: s.t("browser-copy-url"),
         };
         let min_width = s.settings.read().appearance.min_file_tab_width;

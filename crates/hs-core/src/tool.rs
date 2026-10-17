@@ -278,6 +278,30 @@ pub trait Tool: Send {
         None
     }
 
+    /// Whether a second window tab of this tool is meaningful at all.
+    /// False for a tool whose tab *is* the thing it holds rather than a
+    /// view onto it — Graphics, where a tab is one open image, and the
+    /// browser, where a tab is the workspace's browser. Duplicating those
+    /// produces a second tab claiming to be the same thing. Owner's
+    /// requirement, 2026-10-17.
+    fn can_duplicate_tab(&self) -> bool {
+        true
+    }
+
+    /// How many window tabs one connection may have. A tab bound to a
+    /// connection is a view of a live session, so a second one is a second
+    /// session against the same server rather than another look at the
+    /// same thing — which is why Duplicate is refused for them. SSH is the
+    /// exception: separate shells on one host are the normal way to work.
+    ///
+    /// A tool that does not implement [`Tool::current_connection`] is not
+    /// connection-bound and is unaffected, so a new activity type gets the
+    /// rule by implementing that one method. Owner's requirement,
+    /// 2026-10-17.
+    fn tabs_per_connection(&self) -> usize {
+        1
+    }
+
     /// Items for the quick-open palette (project files, saved queries, …).
     fn quick_open_items(&self) -> Vec<QuickOpenItem> {
         Vec::new()

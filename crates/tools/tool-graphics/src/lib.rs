@@ -1172,6 +1172,10 @@ fn human_size(n: usize) -> String {
 }
 
 impl Tool for GraphicsTool {
+    fn can_duplicate_tab(&self) -> bool {
+        false
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }

@@ -189,8 +189,6 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("tab.reopen", "Ctrl+Shift+T"),
     ("tab.next", "Ctrl+PageDown"),
     ("tab.prev", "Ctrl+PageUp"),
-    ("tab.split_right", "Ctrl+\\"),
-    ("tab.split_down", "Ctrl+Shift+\\"),
     ("palette.commands", "Ctrl+Shift+P"),
     ("palette.quick_open", "Ctrl+P"),
     ("view.sidebar", "Ctrl+B"),

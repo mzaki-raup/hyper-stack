@@ -37,8 +37,7 @@ fn labels() -> TabStripLabels {
         pin: "Pin".into(),
         unpin: "Unpin".into(),
         duplicate: "Duplicate".into(),
-        split_right: "Split right".into(),
-        split_down: "Split down".into(),
+        duplicate_blocked: "Already open".into(),
         copy_path: "Copy path".into(),
     }
 }

@@ -52,6 +52,14 @@ pub trait TabItem {
     fn can_unpin(&self) -> bool {
         true
     }
+    /// Whether Duplicate is offered. A tab bound to a connection is a view
+    /// of a live session, so duplicating it would open a second session
+    /// against the same server; the entry stays in the menu but disabled,
+    /// because an item that silently vanishes reads as a bug rather than a
+    /// rule. Owner's requirement, 2026-10-17.
+    fn can_duplicate(&self) -> bool {
+        true
+    }
     fn dirty(&self) -> bool {
         false
     }
@@ -182,8 +190,6 @@ pub enum TabMenuAction {
     Pin,
     Unpin,
     Duplicate,
-    SplitRight,
-    SplitDown,
     /// Compact strips only: copy what the tab shows (a file path).
     CopyPath,
 }
@@ -207,8 +213,8 @@ pub struct TabStripLabels {
     pub pin: String,
     pub unpin: String,
     pub duplicate: String,
-    pub split_right: String,
-    pub split_down: String,
+    /// Why Duplicate is refused, shown on the disabled entry.
+    pub duplicate_blocked: String,
     /// Compact strips only.
     pub copy_path: String,
 }
@@ -548,10 +554,16 @@ impl TabStrip<'_> {
             } else {
                 pick(ui, &labels.pin, TabMenuAction::Pin);
             }
-            pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
-            ui.separator();
-            pick(ui, &labels.split_right, TabMenuAction::SplitRight);
-            pick(ui, &labels.split_down, TabMenuAction::SplitDown);
+            // Split Right / Split Down used to sit here. They rearranged
+            // the whole tab space from a menu meant for one tab, which is
+            // not what someone right-clicking a tab is reaching for.
+            // Removed at the owner's request, 2026-10-17.
+            if tab.can_duplicate() {
+                pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
+            } else {
+                ui.add_enabled(false, egui::Button::new(&labels.duplicate))
+                    .on_disabled_hover_text(&labels.duplicate_blocked);
+            }
         });
     }
 }

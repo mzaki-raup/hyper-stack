@@ -1789,8 +1789,7 @@ impl EditorTool {
             pin: String::new(),
             unpin: String::new(),
             duplicate: String::new(),
-            split_right: String::new(),
-            split_down: String::new(),
+            duplicate_blocked: String::new(),
             copy_path: s.t("editor-copy-path"),
         };
         let min_width = s.settings.read().appearance.min_file_tab_width;

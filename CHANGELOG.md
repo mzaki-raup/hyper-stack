@@ -11,7 +11,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- **Split Right and Split Down are gone from the tab menu**, and from the
+  default keyboard shortcuts with them. Rearranging the whole tab space is
+  not what someone right-clicking a single tab is reaching for. The
+  commands remain in the palette for anyone who wants them deliberately.
+
+- **Duplicate is refused for a tab that cannot meaningfully have a twin**:
+  a tab bound to a connection is a view of a live session, so a second one
+  is a second session against the same server. The entry stays in the menu
+  but disabled, with a reason on hover, rather than vanishing. SSH is the
+  exception at three tabs per host, since separate shells on one host are
+  ordinary practice, and Graphics refuses outright because a tab there is
+  one open image. A new activity type gets the rule by implementing
+  `Tool::current_connection`.
+
+### Fixed
+
+- **Home's Recent list is aligned left.** The rows were built with
+  `add_sized`, which centres, leaving a ragged column of titles down the
+  middle of the sidebar.
 
 ## 0.34.0 — 2026-10-17
 

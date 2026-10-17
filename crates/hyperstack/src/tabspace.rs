@@ -49,6 +49,9 @@ pub struct TabView {
     pub dirty: bool,
     pub colour: Option<Color32>,
     pub tooltip: String,
+    /// False when the tool refuses a second view of itself, or when a tab
+    /// bound to a connection has used up that connection's budget of tabs.
+    pub can_duplicate: bool,
 }
 
 impl TabItem for TabView {
@@ -72,6 +75,9 @@ impl TabItem for TabView {
     }
     fn can_unpin(&self) -> bool {
         !crate::app::is_mandatory(&self.factory_id)
+    }
+    fn can_duplicate(&self) -> bool {
+        self.can_duplicate
     }
     fn dirty(&self) -> bool {
         self.dirty
@@ -97,6 +103,19 @@ impl TabSpace {
     }
 
     pub fn views(&self, env_colour: &dyn Fn(Option<String>) -> Option<Color32>) -> Vec<TabView> {
+        // How many tabs each connection already has. Duplicating one would
+        // start a second session against the same server, so it is refused
+        // once the tool's budget is used up - one for most, three for SSH.
+        // A tool that reports no connection is unaffected.
+        let mut per_connection: std::collections::HashMap<(&str, &str), usize> =
+            std::collections::HashMap::new();
+        for t in &self.tabs {
+            if let Some(c) = t.tool.current_connection() {
+                *per_connection
+                    .entry((t.factory_id.as_str(), c))
+                    .or_default() += 1;
+            }
+        }
         self.tabs
             .iter()
             .map(|t| TabView {
@@ -110,6 +129,17 @@ impl TabSpace {
                 dirty: t.tool.dirty(),
                 colour: t.colour.or_else(|| env_colour(t.tool.environment())),
                 tooltip: format!("{}\n{}", t.tool.title(), t.factory_id),
+                can_duplicate: t.tool.can_duplicate_tab()
+                    && match t.tool.current_connection() {
+                        None => true,
+                        Some(c) => {
+                            per_connection
+                                .get(&(t.factory_id.as_str(), c))
+                                .copied()
+                                .unwrap_or(0)
+                                < t.tool.tabs_per_connection()
+                        }
+                    },
             })
             .collect()
     }

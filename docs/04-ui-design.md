@@ -489,3 +489,29 @@ what it was in the API client's method picker beside the URL.
 the field beside it. Use it for any control sharing a row with a text
 field. Owner's report, 2026-10-17.
 
+
+### The tab menu: no splitting, and Duplicate knows when to refuse (2026-10-17)
+
+**Split Right / Split Down are no longer in a tab's context menu**, and
+their default bindings (Ctrl+\ and Ctrl+Shift+\) are gone too. Splitting
+rearranges the whole tab space, which is not what someone right-clicking
+one tab is reaching for, and reaching it by accident costs the user their
+layout. The palette commands stay, so the capability is still there for
+anyone who wants it deliberately. Owner's requirement, 2026-10-17.
+
+**Duplicate is offered but disabled** where a second tab would be a lie.
+Two rules decide it, both on the `Tool` trait so a new activity type
+inherits them rather than being added to a list:
+
+- `Tool::current_connection` already named the connection profile a tab is
+  bound to. A tab bound to one is a view of a live session, so duplicating
+  it starts a second session against the same server. `tabs_per_connection`
+  says how many are allowed — one by default, **three for SSH**, where
+  separate shells on one host are how people work.
+- `Tool::can_duplicate_tab` refuses outright for a tool whose tab *is* the
+  thing it holds rather than a view onto it: **Graphics**, where a tab is
+  one open image.
+
+The entry is disabled rather than hidden, with the reason on hover. A menu
+item that silently disappears reads as a bug; one that is present and
+greyed reads as a rule.

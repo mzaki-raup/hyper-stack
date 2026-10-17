@@ -197,9 +197,19 @@ pub fn side(
                         .find(|t| t.id == factory)
                         .map(|t| t.icon)
                         .unwrap_or("\u{2022}");
-                    let r = ui.add_sized(
-                        Vec2::new(RECENT_WIDTH, 26.0),
-                        egui::Button::new(format!("{icon}  {title}")).frame(false),
+                    // `add_sized` centres what it is given, which left a
+                    // ragged column of titles down the middle of the
+                    // sidebar. A growing spacer after the text holds the
+                    // row at full width with the label against the left
+                    // edge. Owner's report, 2026-10-17.
+                    let r = ui.add(
+                        egui::Button::new((
+                            egui::Atom::from(format!("{icon}  {title}")),
+                            egui::Atom::grow(),
+                        ))
+                        .frame(false)
+                        .wrap_mode(egui::TextWrapMode::Truncate)
+                        .min_size(Vec2::new(RECENT_WIDTH, 26.0)),
                     );
                     if r.on_hover_text(services.t("launcher-reopen")).clicked() {
                         resp.reopen_closed = Some(*idx);

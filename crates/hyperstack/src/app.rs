@@ -1963,8 +1963,7 @@ impl HyperStackApp {
             pin: s.t("tab-pin"),
             unpin: s.t("tab-unpin"),
             duplicate: s.t("tab-duplicate"),
-            split_right: s.t("tab-split-right"),
-            split_down: s.t("tab-split-down"),
+            duplicate_blocked: s.t("tab-duplicate-blocked"),
             copy_path: s.t("editor-copy-path"),
         };
         let theme = self.theme.clone();
@@ -2066,15 +2065,6 @@ impl HyperStackApp {
                     {
                         self.tabs
                             .open(self.factories[i].as_ref(), &self.services, Some(state));
-                    }
-                }
-                TabMenuAction::SplitRight | TabMenuAction::SplitDown => {
-                    let horizontal = action == TabMenuAction::SplitRight;
-                    if let Some(i) = self.factory_index("scratchpad") {
-                        let new_id =
-                            self.tabs
-                                .open(self.factories[i].as_ref(), &self.services, None);
-                        self.tabs.split_with(id, new_id, horizontal);
                     }
                 }
             }

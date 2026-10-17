@@ -2008,6 +2008,14 @@ impl Tool for SshTool {
         serde_json::to_value(&self.state).unwrap_or_default()
     }
 
+    /// Three shells on one host is ordinary SSH practice — a build in one,
+    /// a tail in another, a prompt in the third — so this is the one
+    /// connection-bound tool that may be duplicated, up to that many.
+    /// Owner's requirement, 2026-10-17.
+    fn tabs_per_connection(&self) -> usize {
+        3
+    }
+
     fn current_connection(&self) -> Option<&str> {
         self.state.conn_id.as_deref()
     }

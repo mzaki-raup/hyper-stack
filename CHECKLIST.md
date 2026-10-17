@@ -214,6 +214,9 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | API client: the method picker is as tall as the URL field | Completed | `form::field_row` sizes a control to `form::field_height`; verified live at 4x — both frames share a top and bottom edge |
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
+| Shell: Split Right/Down removed from the tab menu and default keys | Completed | menu entries and `tab.split_*` bindings dropped, palette commands kept; verified live — a Database tab's menu ends at Duplicate |
+| Shell: Duplicate refused where a second tab is meaningless | Completed | `Tool::current_connection` + `tabs_per_connection` (SSH 3) and `can_duplicate_tab` (Graphics); verified live — Duplicate greyed on a Database tab |
+| Home: Recent rows align left | Completed | `Atom::grow()` holds the row at full width with the label at the left edge; verified live |
 | Database: the row number is frozen beside the grid | Completed | `grid::paint_gutter` numbers the rows the table drew, outside the scroll area; verified live — the numbers held while the data scrolled to `PASSPORT_ISSUE_DATE` |
 | Database: the result footer stays reachable when narrow | Completed | laid out right to left, the filter box shrinks first; verified live — Copy As and Export both whole with the assistant open |
 | Database: generated statements are terminated | Completed | Open Data and Count Rows emit `SELECT …;`; verified live against SQLite |

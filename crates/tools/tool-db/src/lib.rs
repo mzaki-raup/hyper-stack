@@ -385,7 +385,7 @@ impl DbTool {
     }
 
     fn new(services: &Services, state: State) -> Self {
-        let first = QueryDoc::new(services, &state.sql);
+        let first = QueryDoc::new(services, "");
         let mut t = Self {
             id: egui::Id::new(("hs-db", hs_core::new_id())),
             docs: vec![first],
@@ -418,9 +418,10 @@ impl DbTool {
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             state,
         };
-        // Reopen the query tabs this tab had. The saved ones come back
-        // with their text; one that was never saved comes back empty, as
-        // it always has — only the active tab's text is kept in the layout.
+        // Reopen the query tabs this tab had. A saved one comes back with
+        // the file's text; one that was never saved comes back empty,
+        // because the layout keeps exactly one buffer's text — the tab
+        // that was in front — and that is put back afterwards.
         let restored: Vec<Option<String>> = t.state.queries.clone();
         for (i, file) in restored.iter().enumerate() {
             if i > 0 {
@@ -429,13 +430,10 @@ impl DbTool {
             let Some(rel) = file.clone() else { continue };
             let path = services.workspace.read().root().join(&rel);
             let name = saved_name(&path, read_saved(&path).map(|h| h.0));
-            let body = read_saved(&path).map(|(_, b)| b);
-            let d = &mut t.docs[i];
-            if let Some(body) = body
-                && i != t.state.active_query
-            {
-                d.buf = Buffer::from_text(&body);
+            if let Some((_, body)) = read_saved(&path) {
+                t.docs[i].buf = Buffer::from_text(&body);
             }
+            let d = &mut t.docs[i];
             d.buf.mark_saved();
             d.file = Some(rel);
             d.name = Some(name);
@@ -450,8 +448,14 @@ impl DbTool {
             d.name = Some(name);
         }
         t.state.active_query = t.state.active_query.min(t.docs.len() - 1);
-        t.query_name = t.doc().name.clone();
+        // The one buffer the layout keeps is the front tab's, so it goes
+        // back there rather than into the first tab.
+        if !t.state.sql.is_empty() {
+            let sql = t.state.sql.clone();
+            t.doc_mut().buf = Buffer::from_text(&sql);
+        }
         t.doc_mut().buf.mark_saved();
+        t.query_name = t.doc().name.clone();
         if t.state.conn_id.is_some() {
             t.connect(services);
         }

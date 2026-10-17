@@ -346,9 +346,11 @@ editor uses for its files. Owner's requirement, 2026-10-17.
   it rather than removing it, because a connection tab with no query in it
   has nothing to show.
 - The layout remembers which saved query each tab held and which was in
-  front (`State::queries`, `State::active_query`). Text that was never
-  saved comes back only for the tab that was active, which is what the
-  layout has always kept.
+  front (`State::queries`, `State::active_query`). The layout keeps one
+  buffer's text, and it is the **front tab's** — a saved tab comes back
+  from its file, an unsaved one comes back empty unless it was the tab in
+  front. Putting that text into the first tab instead of the active one
+  was the one thing this had to get right.
 - Running, completion, Explain, history and Save Query all act on the tab
   in front; `DbTool::doc()`/`doc_mut()` is the one place that decides which
   that is.

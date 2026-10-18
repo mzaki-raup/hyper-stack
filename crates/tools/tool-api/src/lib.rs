@@ -7,6 +7,7 @@
 //! environment (secrets from the vault at send time) and globals.
 
 pub mod assist;
+pub mod env_export;
 pub mod importers;
 pub mod model;
 pub mod postman;

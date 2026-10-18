@@ -139,15 +139,35 @@ pub struct SettingsState {
     /// The Test Connection in flight (or its answer), and the connection it
     /// belongs to, so a slow server cannot report onto another profile.
     pub conn_test: Option<crate::conn_test::Test>,
-    /// Security page: the credentials row whose password is uncovered, and
-    /// the `ui.input().time` it goes back under. One row at a time, and it
-    /// lapses on its own — an uncovered password left on screen is the
+    /// Security page: the credentials row whose secrets are uncovered, and
+    /// the `ui.input().time` they go back under. One row at a time, and it
+    /// lapses on its own — an uncovered secret left on screen is the
     /// thing this page must not leave behind.
     pub reveal: Option<(String, f64)>,
-    /// The row waiting for the master password, and what has been typed.
-    pub reveal_ask: Option<(String, String)>,
-    /// Why the last attempt did not reveal anything.
-    pub reveal_error: Option<String>,
+    /// The master-password prompt that is open, and what it will do.
+    pub ask: Option<Ask>,
+    /// The Edit Secret dialog, once the master password has been accepted.
+    pub edit_secret: Option<EditSecret>,
+}
+
+/// What the master-password prompt is for.
+pub struct Ask {
+    pub row: String,
+    /// `true` opens the edit dialog; `false` only reveals the row.
+    pub edit: bool,
+    pub typed: String,
+    pub error: Option<String>,
+}
+
+/// The password and key of one row, being edited.
+pub struct EditSecret {
+    pub row: String,
+    pub name: String,
+    pub password: String,
+    pub key: String,
+    /// The row has a key secret slot (an SSH key host).
+    pub key_editable: bool,
+    pub error: Option<String>,
 }
 
 /// A workspace's logo, or `None` when it has none set.
@@ -209,6 +229,8 @@ pub enum SettingsEffect {
     EnvironmentsChanged,
     /// Import variables into the environment currently being edited.
     ImportEnvironment,
+    /// Write the environment being edited to a file in this format.
+    ExportEnvironment(tool_api::env_export::Format),
     ConnectionsChanged,
     /// Rename the open workspace (the shell owns the registry).
     RenameWorkspace(String),
@@ -1746,6 +1768,20 @@ fn environments(
                     {
                         effects.push(SettingsEffect::ImportEnvironment);
                     }
+                    ui.menu_button(
+                        format!("{} {}", hs_ui::icons::ph::UPLOAD_SIMPLE, s.t("env-export")),
+                        |ui| {
+                            ui.set_min_width(160.0);
+                            for format in tool_api::env_export::Format::ALL {
+                                if ui.button(format.label()).clicked() {
+                                    effects.push(SettingsEffect::ExportEnvironment(format));
+                                    ui.close();
+                                }
+                            }
+                        },
+                    )
+                    .response
+                    .on_hover_text(s.t("env-export-hint"));
                     if ui
                         .button(format!("{} {}", hs_ui::icons::COPY, s.t("env-copy-from")))
                         .clicked()
@@ -2535,13 +2571,13 @@ fn credentials_section(
         // about with the length of each value. Every other column is left
         // to the grid, which sizes it to its own content.
         let pair_width = credentials_pair_width(ui, s, &rows, state, now);
-        // Seven columns do not fit a settings page, and squeezing them
+        // Eight columns do not fit a settings page, and squeezing them
         // would hide the values this page exists to show.
         egui::ScrollArea::horizontal()
             .id_salt("sec-cred-scroll")
             .show(ui, |ui| {
                 egui::Grid::new("sec-cred-grid")
-                    .num_columns(7)
+                    .num_columns(8)
                     .spacing([18.0, 6.0])
                     .striped(true)
                     .show(ui, |ui| {
@@ -2553,6 +2589,7 @@ fn credentials_section(
                             "settings-cred-user",
                             "settings-cred-password",
                             "settings-cred-key",
+                            "settings-cred-actions",
                         ] {
                             ui.label(
                                 egui::RichText::new(s.t(key))
@@ -2567,14 +2604,50 @@ fn credentials_section(
                             cred_cell(ui, s, theme, &r.host, None, effects);
                             ui.label(&r.port);
                             cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
-                            password_cell(ui, s, theme, state, r, now, pair_width, effects);
-                            cred_cell(ui, s, theme, &r.key, None, effects);
+                            secret_cell(
+                                ui,
+                                s,
+                                theme,
+                                state,
+                                r,
+                                &r.password,
+                                now,
+                                pair_width,
+                                effects,
+                            );
+                            // A key-auth host shows its passphrase here and
+                            // keeps the file path as the tooltip; every
+                            // other row shows the path (or nothing).
+                            if r.key_secret == crate::credentials::Password::None {
+                                cred_cell(ui, s, theme, &r.key, None, effects);
+                            } else {
+                                secret_cell(
+                                    ui,
+                                    s,
+                                    theme,
+                                    state,
+                                    r,
+                                    &r.key_secret,
+                                    now,
+                                    pair_width,
+                                    effects,
+                                )
+                                .on_hover_text(
+                                    if r.key.is_empty() {
+                                        s.t("settings-cred-key-passphrase")
+                                    } else {
+                                        r.key.clone()
+                                    },
+                                );
+                            }
+                            actions_cell(ui, s, state, r, now);
                             ui.end_row();
                         }
                     });
             });
     });
     reveal_dialog(ui, theme, s, state, now);
+    edit_secret_dialog(ui, theme, s, state, effects);
 }
 
 /// How wide the Username and Password columns both are: whatever the
@@ -2619,6 +2692,25 @@ fn credentials_pair_width(
             _ => MASK.to_string(),
         };
         widest = widest.max(width(&shown, &mono));
+        // The Key column shares the same width, so a key passphrase is
+        // measured too.
+        let key_shown = match (&r.key_secret, revealed) {
+            (Password::None, _) => String::new(),
+            (Password::Variable(v), _) => v.clone(),
+            (Password::Plain(p), true) => p.clone(),
+            (Password::Vault(_), true) => s
+                .secrets
+                .get(match &r.key_secret {
+                    Password::Vault(k) => k,
+                    _ => unreachable!(),
+                })
+                .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+                .unwrap_or_else(|_| s.t("settings-cred-missing")),
+            _ => MASK.to_string(),
+        };
+        if !key_shown.is_empty() {
+            widest = widest.max(width(&key_shown, &mono));
+        }
     }
     widest
 }
@@ -2636,7 +2728,7 @@ fn cred_cell(
     value: &str,
     width: Option<f32>,
     effects: &mut Vec<SettingsEffect>,
-) {
+) -> egui::Response {
     ui.horizontal(|ui| {
         let show = |ui: &mut egui::Ui| {
             if value.is_empty() {
@@ -2669,115 +2761,169 @@ fn cred_cell(
                 s.t("settings-cred-copied"),
             ));
         }
-    });
+    })
+    .response
 }
 
 #[allow(clippy::too_many_arguments)] // one cell, one argument each.
-fn password_cell(
+fn secret_cell(
     ui: &mut egui::Ui,
     s: &Services,
     theme: &Theme,
     state: &mut SettingsState,
     row: &crate::credentials::Row,
+    secret: &crate::credentials::Password,
     now: f64,
     width: f32,
     effects: &mut Vec<SettingsEffect>,
-) {
+) -> egui::Response {
     use crate::credentials::Password;
-    match &row.password {
-        Password::None => {
-            cred_cell(ui, s, theme, "", Some(width), effects);
-        }
+    match secret {
+        Password::None => return cred_cell(ui, s, theme, "", Some(width), effects),
         // A variable names an environment value; masking it would hide
         // which one, which is the only thing worth reading here.
-        Password::Variable(v) => cred_cell(ui, s, theme, v, Some(width), effects),
-        secret => {
-            let revealed = state
-                .reveal
-                .as_ref()
-                .is_some_and(|(id, until)| id == &row.id && now < *until);
-            // Read the value out of the vault for this frame only; nothing
-            // keeps plaintext while the page is open.
-            let shown = revealed.then(|| match secret {
-                // A reference the vault does not hold says so; an empty cell
-                // would read as "the password is blank".
-                Password::Vault(r) => s
-                    .secrets
-                    .get(r)
-                    .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
-                    .map_err(|_| s.t("settings-cred-missing")),
-                Password::Plain(p) => Ok(p.clone()),
-                _ => Ok(String::new()),
-            });
-            ui.horizontal(|ui| {
-                ui.scope(|ui| {
-                    ui.set_min_width(width);
-                    ui.set_max_width(width);
-                    match &shown {
-                        Some(Ok(v)) => {
-                            ui.add(
-                                egui::Label::new(egui::RichText::new(v).monospace())
-                                    .selectable(false)
-                                    .truncate(),
-                            );
-                        }
-                        Some(Err(e)) => {
-                            ui.colored_label(theme.error, e);
-                        }
-                        None => {
-                            ui.label(
-                                egui::RichText::new(MASK)
-                                    .monospace()
-                                    .color(theme.text_muted),
-                            );
-                        }
-                    }
+        Password::Variable(v) => return cred_cell(ui, s, theme, v, Some(width), effects),
+        _ => {}
+    }
+    let revealed = state
+        .reveal
+        .as_ref()
+        .is_some_and(|(id, until)| id == &row.id && now < *until);
+    // Read the value out of the vault for this frame only; nothing keeps
+    // plaintext while the page is open.
+    let shown = revealed.then(|| match secret {
+        // A reference the vault does not hold says so; an empty cell
+        // would read as "the secret is blank".
+        Password::Vault(r) => s
+            .secrets
+            .get(r)
+            .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+            .map_err(|_| s.t("settings-cred-missing")),
+        Password::Plain(p) => Ok(p.clone()),
+        _ => Ok(String::new()),
+    });
+    ui.horizontal(|ui| {
+        ui.scope(|ui| {
+            ui.set_min_width(width);
+            ui.set_max_width(width);
+            match &shown {
+                Some(Ok(v)) => {
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(v).monospace())
+                            .selectable(false)
+                            .truncate(),
+                    );
+                }
+                Some(Err(e)) => {
+                    ui.colored_label(theme.error, e);
+                }
+                None => {
+                    ui.label(
+                        egui::RichText::new(MASK)
+                            .monospace()
+                            .color(theme.text_muted),
+                    );
+                }
+            }
+        });
+        if ui
+            .small_button(hs_ui::icons::COPY)
+            .on_hover_text(s.t("dt-copy"))
+            .clicked()
+        {
+            match &shown {
+                // Copying is a reveal by another route, so it is gated the
+                // same way.
+                None => {
+                    state.ask = Some(Ask {
+                        row: row.id.clone(),
+                        edit: false,
+                        typed: String::new(),
+                        error: None,
+                    });
+                }
+                Some(Ok(v)) => effects.push(SettingsEffect::CopySecret(v.clone())),
+                // Nothing to copy when the vault does not have it.
+                Some(Err(_)) => {}
+            }
+        }
+    })
+    .response
+}
+
+/// The Action column: Reveal Secret and Edit Secret, icons only, with space
+/// between them (owner's request, 2026-10-19).
+fn actions_cell(
+    ui: &mut egui::Ui,
+    s: &Services,
+    state: &mut SettingsState,
+    row: &crate::credentials::Row,
+    now: f64,
+) {
+    let revealed = state
+        .reveal
+        .as_ref()
+        .is_some_and(|(id, until)| id == &row.id && now < *until);
+    ui.horizontal(|ui| {
+        let eye = if revealed {
+            hs_ui::icons::EYE_SLASH
+        } else {
+            hs_ui::icons::EYE
+        };
+        if ui
+            .small_button(eye)
+            .on_hover_text(if revealed {
+                s.t("settings-cred-hide")
+            } else {
+                s.t("settings-cred-reveal")
+            })
+            .clicked()
+        {
+            if revealed {
+                state.reveal = None;
+            } else {
+                state.ask = Some(Ask {
+                    row: row.id.clone(),
+                    edit: false,
+                    typed: String::new(),
+                    error: None,
                 });
-                let eye = if revealed {
-                    hs_ui::icons::EYE_SLASH
-                } else {
-                    hs_ui::icons::EYE
-                };
-                if ui
-                    .small_button(eye)
-                    .on_hover_text(if revealed {
-                        s.t("settings-cred-hide")
-                    } else {
-                        s.t("settings-cred-reveal")
-                    })
-                    .clicked()
-                {
-                    if revealed {
-                        state.reveal = None;
-                    } else {
-                        state.reveal_ask = Some((row.id.clone(), String::new()));
-                        state.reveal_error = None;
-                    }
-                }
-                if ui
-                    .small_button(hs_ui::icons::COPY)
-                    .on_hover_text(s.t("dt-copy"))
-                    .clicked()
-                {
-                    match &shown {
-                        // Copying is a reveal by another route, so it is
-                        // gated the same way.
-                        None => {
-                            state.reveal_ask = Some((row.id.clone(), String::new()));
-                            state.reveal_error = None;
-                        }
-                        Some(Ok(v)) => effects.push(SettingsEffect::CopySecret(v.clone())),
-                        // Nothing to copy when the vault does not have it.
-                        Some(Err(_)) => {}
-                    }
-                }
+            }
+        }
+        ui.add_space(8.0);
+        if ui
+            .small_button(hs_ui::icons::EDIT)
+            .on_hover_text(s.t("settings-cred-edit"))
+            .clicked()
+        {
+            state.ask = Some(Ask {
+                row: row.id.clone(),
+                edit: true,
+                typed: String::new(),
+                error: None,
             });
         }
+    });
+}
+
+/// The value of a secret as text, for the edit dialog only: the master
+/// password has just been accepted, so reading it is the point.
+fn read_secret(s: &Services, secret: &crate::credentials::Password) -> String {
+    use crate::credentials::Password;
+    match secret {
+        Password::None => String::new(),
+        Password::Variable(v) => v.clone(),
+        Password::Plain(p) => p.clone(),
+        Password::Vault(r) => s
+            .secrets
+            .get(r)
+            .map(|v| secrecy::ExposeSecret::expose_secret(&v).to_string())
+            .unwrap_or_default(),
     }
 }
 
-/// The master-password prompt. Revealing a stored password asks for it
-/// every time: the vault being unlocked is not the same as the person at
+/// The master-password prompt. Revealing or editing a stored secret asks for
+/// it every time: the vault being unlocked is not the same as the person at
 /// the keyboard being the owner.
 fn reveal_dialog(
     ui: &mut egui::Ui,
@@ -2786,35 +2932,159 @@ fn reveal_dialog(
     state: &mut SettingsState,
     now: f64,
 ) {
-    let Some((id, typed)) = &mut state.reveal_ask else {
+    let (id, edit, unlocked, close) = {
+        let Some(ask) = &mut state.ask else {
+            return;
+        };
+        let mut close = false;
+        let mut accept = false;
+        let modal = egui::Modal::new(egui::Id::new("hs-cred-reveal")).show(ui.ctx(), |ui| {
+            ui.set_width(380.0);
+            ui.heading(s.t(if ask.edit {
+                "settings-cred-edit"
+            } else {
+                "settings-cred-reveal"
+            }));
+            ui.add_space(4.0);
+            let hint = if ask.edit {
+                "settings-cred-edit-ask-hint"
+            } else {
+                "settings-cred-reveal-hint"
+            };
+            form::hint(ui, theme, &s.t(hint));
+            ui.add_space(6.0);
+            let field = form::secret_field(
+                ui,
+                &mut ask.typed,
+                &s.t("settings-cred-master-password"),
+                340.0,
+            );
+            if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                accept = true;
+            }
+            if ui.memory(|m| m.focused().is_none()) {
+                field.request_focus();
+            }
+            if let Some(e) = &ask.error {
+                ui.add_space(4.0);
+                ui.colored_label(theme.error, e);
+            }
+            ui.add_space(10.0);
+            // Right-aligned with the action outermost, as every other dialog
+            // in the app lays its buttons out.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let go = if ask.edit {
+                    "settings-cred-edit-go"
+                } else {
+                    "settings-cred-reveal-go"
+                };
+                if form::primary_button(ui, theme, &s.t(go)).clicked() {
+                    accept = true;
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    close = true;
+                }
+            });
+        });
+        if modal.should_close() {
+            close = true;
+        }
+        let mut unlocked = false;
+        if accept {
+            let master = secrecy::SecretString::from(ask.typed.clone());
+            match s.secrets.unlock(&master) {
+                Ok(()) => {
+                    unlocked = true;
+                    close = true;
+                }
+                Err(_) => ask.error = Some(s.t("settings-cred-wrong-password")),
+            }
+        }
+        (ask.row.clone(), ask.edit, unlocked, close)
+    };
+    if unlocked {
+        let row = crate::credentials::rows(&s.connections.read())
+            .into_iter()
+            .find(|r| r.id == id);
+        if let Some(r) = row {
+            if edit {
+                state.edit_secret = Some(EditSecret {
+                    row: r.id.clone(),
+                    name: r.name.clone(),
+                    password: read_secret(s, &r.password),
+                    key: read_secret(s, &r.key_secret),
+                    key_editable: r.key_secret != crate::credentials::Password::None,
+                    error: None,
+                });
+                state.reveal = None;
+            } else {
+                state.reveal = Some((r.id.clone(), now + REVEAL_SECONDS));
+            }
+        }
+    }
+    if close {
+        state.ask = None;
+    }
+}
+
+/// Edit the password and key of one row. The master password has already
+/// been accepted; typed text moves into the vault on Save.
+fn edit_secret_dialog(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let Some(edit) = &mut state.edit_secret else {
         return;
     };
-    let id = id.clone();
+    let id = edit.row.clone();
+    let name = edit.name.clone();
+    let key_editable = edit.key_editable;
     let mut close = false;
-    let mut accept = false;
-    let modal = egui::Modal::new(egui::Id::new("hs-cred-reveal")).show(ui.ctx(), |ui| {
-        ui.set_width(380.0);
-        ui.heading(s.t("settings-cred-reveal"));
+    let mut save = false;
+    let modal = egui::Modal::new(egui::Id::new("hs-cred-edit")).show(ui.ctx(), |ui| {
+        ui.set_width(420.0);
+        ui.heading(
+            s.i18n
+                .t_args("settings-cred-edit-title", &[("name", &name)]),
+        );
         ui.add_space(4.0);
-        form::hint(ui, theme, &s.t("settings-cred-reveal-hint"));
+        form::hint(ui, theme, &s.t("settings-cred-edit-hint"));
         ui.add_space(6.0);
-        let field = form::secret_field(ui, typed, &s.t("settings-cred-master-password"), 340.0);
-        if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            accept = true;
-        }
-        if ui.memory(|m| m.focused().is_none()) {
-            field.request_focus();
-        }
-        if let Some(e) = &state.reveal_error {
+        form::field_grid(ui, "cred-edit-fields", |ui| {
+            // A key-auth host has no password of its own; the passphrase is
+            // the secret, so only that field is shown.
+            if !key_editable {
+                form::label(ui, &s.t("settings-cred-password"));
+                form::secret_field(
+                    ui,
+                    &mut edit.password,
+                    &s.t("settings-cred-password"),
+                    320.0,
+                );
+                ui.end_row();
+            }
+            if key_editable {
+                form::label(ui, &s.t("settings-cred-key-passphrase"));
+                form::secret_field(
+                    ui,
+                    &mut edit.key,
+                    &s.t("settings-cred-key-passphrase"),
+                    320.0,
+                );
+                ui.end_row();
+            }
+        });
+        if let Some(e) = &edit.error {
             ui.add_space(4.0);
             ui.colored_label(theme.error, e);
         }
         ui.add_space(10.0);
-        // Right-aligned with the action outermost, as every other dialog
-        // in the app lays its buttons out.
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if form::primary_button(ui, theme, &s.t("settings-cred-reveal-go")).clicked() {
-                accept = true;
+            if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                save = true;
             }
             if ui.button(s.t("cancel")).clicked() {
                 close = true;
@@ -2824,19 +3094,112 @@ fn reveal_dialog(
     if modal.should_close() {
         close = true;
     }
-    if accept {
-        let master = secrecy::SecretString::from(typed.clone());
-        match s.secrets.unlock(&master) {
-            Ok(()) => {
-                state.reveal = Some((id, now + REVEAL_SECONDS));
-                close = true;
-            }
-            Err(_) => state.reveal_error = Some(s.t("settings-cred-wrong-password")),
+    if save {
+        let (mut password, mut key) = (edit.password.clone(), edit.key.clone());
+        if apply_secret_edit(s, &id, &mut password, &mut key, key_editable, effects) {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Success,
+                s.t("settings-cred-saved"),
+            ));
+            close = true;
+        } else {
+            edit.error = Some(s.t("settings-cred-save-failed"));
         }
     }
     if close {
-        state.reveal_ask = None;
-        state.reveal_error = None;
+        state.edit_secret = None;
+    }
+}
+
+/// Write the edited secret into the profile and its vault. Only the field
+/// the dialog showed is touched, so editing a password cannot clear a key
+/// passphrase. Returns false when the vault refused the value, in which
+/// case nothing is saved.
+fn apply_secret_edit(
+    s: &Services,
+    id: &str,
+    password: &mut String,
+    key: &mut String,
+    key_editable: bool,
+    effects: &mut Vec<SettingsEffect>,
+) -> bool {
+    let Some(profile) = s.connections.read().by_id(id).cloned() else {
+        return false;
+    };
+    let mut table = profile.fields.clone();
+    let ok = match profile.kind.as_str() {
+        "ssh" => {
+            let mut f = hs_ssh::SshFields::from_table(&table);
+            let ok = if key_editable {
+                f.key_passphrase = std::mem::take(key);
+                store_typed_secrets(
+                    s,
+                    &profile.name,
+                    [("key passphrase", &mut f.key_passphrase)],
+                    effects,
+                )
+            } else {
+                f.password = std::mem::take(password);
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects)
+            };
+            f.write_into(&mut table);
+            ok
+        }
+        "s3" => {
+            let mut f = S3Fields::from_table(&table);
+            f.secret_key = std::mem::take(password);
+            let ok = store_typed_secrets(
+                s,
+                &profile.name,
+                [("secret key", &mut f.secret_key)],
+                effects,
+            );
+            f.write_into(&mut table);
+            ok
+        }
+        "db" => {
+            let mut f = DbFields::from_table(&table);
+            f.password = std::mem::take(password);
+            let ok =
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        "redis" => {
+            let mut f = tool_redis::profile::RedisFields::from_table(&table);
+            f.password = std::mem::take(password);
+            let ok =
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        "mongodb" | "couchdb" => {
+            let mut f = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, &table);
+            f.password = std::mem::take(password);
+            let ok =
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        _ => return false,
+    };
+    if !ok {
+        return false;
+    }
+    let mut updated = profile;
+    updated.fields = table;
+    match s.connections.write().upsert(updated) {
+        Ok(()) => {
+            effects.push(SettingsEffect::ConnectionsChanged);
+            true
+        }
+        Err(e) => {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            ));
+            false
+        }
     }
 }
 

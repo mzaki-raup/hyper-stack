@@ -205,6 +205,14 @@ api    = "01J9ZXD…"
 docker = "01J9ZXE…"
 ```
 
+An environment can be **exported** from the Environments page as Postman
+v2.1 (`values`, with `"type": "secret"` for secret keys), Insomnia v4
+(`_type: "environment"`, a `data` object), Bruno (`vars`) or a flat
+name/value object. A `secret:` reference is written as an empty value — the
+vault is never decrypted for an export — and the page reports how many were
+omitted. The workspace TOML stays the source of truth; an export is a copy
+for another client.
+
 ### 2.4 Variable substitution
 
 Syntax `{{name}}`; scopes resolve innermost first. Environment-aware text

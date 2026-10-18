@@ -1377,6 +1377,69 @@ impl HyperStackApp {
                         }
                     }
                 }
+                SettingsEffect::ExportEnvironment(format) => {
+                    // Copy the draft's rows before the file dialog: the
+                    // settings lock must not be held while a native dialog
+                    // is open.
+                    let payload = {
+                        let hub = self.settings_ui.lock();
+                        hub.state.env_draft.as_ref().map(|(draft, vars)| {
+                            let rows = vars
+                                .iter()
+                                .filter(|r| r.enabled && !r.key.trim().is_empty())
+                                .map(|r| tool_api::env_export::Row {
+                                    key: r.key.trim().to_string(),
+                                    value: r.value.clone(),
+                                    secret: r.secret,
+                                })
+                                .collect::<Vec<_>>();
+                            (draft.name.clone(), rows)
+                        })
+                    };
+                    let Some((name, rows)) = payload else {
+                        continue;
+                    };
+                    let omitted = tool_api::env_export::omitted_secrets(&rows);
+                    let stem = name
+                        .chars()
+                        .map(|c| {
+                            if c.is_alphanumeric() || c == '-' || c == '_' {
+                                c
+                            } else {
+                                '-'
+                            }
+                        })
+                        .collect::<String>();
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Environment JSON", &["json"])
+                        .set_file_name(format!("{stem}-{}.json", format.id()))
+                        .save_file()
+                    {
+                        let text = tool_api::env_export::render(&name, &rows, format);
+                        match std::fs::write(&path, text) {
+                            Ok(()) => {
+                                let count = rows.len().to_string();
+                                let msg = if omitted > 0 {
+                                    self.services.i18n.t_args(
+                                        "env-exported-secrets",
+                                        &[
+                                            ("name", &name),
+                                            ("count", &count),
+                                            ("omitted", &omitted.to_string()),
+                                        ],
+                                    )
+                                } else {
+                                    self.services.i18n.t_args(
+                                        "env-exported",
+                                        &[("name", &name), ("count", &count)],
+                                    )
+                                };
+                                self.toasts.push(ToastLevel::Success, msg);
+                            }
+                            Err(error) => self.toasts.push(ToastLevel::Error, error.to_string()),
+                        }
+                    }
+                }
                 SettingsEffect::ExportSettings => {
                     self.portable = PortableDialog::Export;
                     self.password.reset();

@@ -231,3 +231,21 @@ without opening six forms. Owner's requirement, 2026-10-17.
   environment value rather than being one, and hiding it would hide the only
   thing worth reading. Text sitting in a profile (which the forms refuse to
   write) is masked like a vault secret.
+
+## Addendum (2026-10-19): editing credentials and exporting environments
+
+- **Reveal Secret uncovers every secret in the row.** The Action column has
+  Reveal Secret (eye) and Edit Secret (pencil). Reveal asks for the master
+  password and shows the password and, for an SSH key host, the key
+  passphrase for 30 seconds; the key file path is not a secret and stays
+  visible. One row at a time, as before.
+- **Edit Secret is gated like reveal.** It asks for the master password
+  every time, then opens a dialog for the password and key. A typed value
+  moves into the vault when the profile is saved; an empty field clears the
+  secret; a `{{variable}}` stays a reference. No plaintext reaches the
+  profile TOML, and a save that cannot write the vault does not happen.
+- **An environment export never carries a secret in plaintext.** A
+  `secret:` reference exports as an empty value (Postman keeps
+  `"type": "secret"` on the entry), and the UI reports how many were
+  omitted. Exporting is a deliberate copy for another client, not a way to
+  read the vault.

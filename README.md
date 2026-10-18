@@ -85,7 +85,7 @@ made.
 | ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |
 | **Environment switcher** — colour-coded, protected ones marked | **Protected Production** — red banner and frame on every tab |
 | ![Environments settings](docs/screenshots/settings-environments.png) | |
-| **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault) | |
+| **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault), export to Postman/Insomnia/Bruno | |
 
 Every activity opens on a **permanent tab of its own** - named after the
 activity, with its icon, and it cannot be closed, pinned or duplicated.
@@ -255,7 +255,7 @@ utility are never saved.
 | ![Accessibility](docs/screenshots/settings-accessibility.png) | ![Workspace](docs/screenshots/settings-workspace.png) |
 | **Accessibility** — Read Aloud through the OS voice (a title-bar button lists what the active tab can read), speech rate, reduce motion | **Workspace** — rename, logo, folder, compare environments with another workspace and copy the missing ones |
 | ![Security](docs/screenshots/settings-security.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
-| **Security** — vault status, relock timer, clipboard clearing, change the master password | **Shortcuts** — every action rebindable; conflicts listed |
+| **Security** — vault status, relock timer, clipboard clearing, the credentials table with Reveal Secret / Edit Secret | **Shortcuts** — every action rebindable; conflicts listed |
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
 | **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload |
 | ![About](docs/screenshots/settings-about.png) | |

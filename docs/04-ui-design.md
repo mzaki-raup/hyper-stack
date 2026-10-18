@@ -348,6 +348,18 @@ width, editor file-tab width, and tab gap. The terminal and editor pages carry
 their own font and size; three bundled Nerd Font Mono families are listed in
 `assets/fonts/README.md`, along with fonts installed on the machine.
 
+The **Security** page's credentials grid ends with an **Action** column,
+right-most: **Reveal Secret** (eye) and **Edit Secret** (pencil), icons only,
+with space between them. Reveal uncovers the row's password and key for 30
+seconds after the master password. Edit asks for the master password, then
+opens a dialog for the password and key; saving moves typed values into the
+vault (owner's request, 2026-10-19). The **Environments** page edits an
+environment's variables in place (Key, Value, secret toggle) and saves the
+draft with **Save**; **Import** merges a Postman, Insomnia, Bruno or generic
+JSON environment into that draft, and **Export** writes the selected
+environment in one of those formats. Secrets are never exported in plaintext
+(see [06](06-security.md) §addendum).
+
 ### 9.1 Visual rules
 
 Settings pages are built from `hs_ui::form`: a page title with a one-line

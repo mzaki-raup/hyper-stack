@@ -208,8 +208,18 @@ pub fn remove_remote(root: &Path, name: &str) -> Result<()> {
     git(root, &["remote", "remove", name]).map(|_| ())
 }
 
-pub fn create_tag(root: &Path, name: &str, target: Option<&str>) -> Result<()> {
-    let mut args = vec!["tag"];
+/// Create a tag. An empty `message` makes a lightweight tag; otherwise an
+/// annotated one. `tag.gpgSign` is forced off for this command: the app
+/// cannot answer a pinentry prompt, and a signed tag would hang the
+/// blocking task. A user who wants signed tags can run `git tag -s` in a
+/// terminal.
+pub fn create_tag(root: &Path, name: &str, target: Option<&str>, message: &str) -> Result<()> {
+    let mut args = vec!["-c", "tag.gpgSign=false", "tag"];
+    if !message.trim().is_empty() {
+        args.push("-a");
+        args.push("-m");
+        args.push(message);
+    }
     args.push(name);
     if let Some(target) = target {
         args.push(target);
@@ -284,6 +294,139 @@ pub fn cherry_pick_abort(root: &Path) -> Result<String> {
 /// Skip the current commit during a cherry-pick and carry on with the rest.
 pub fn cherry_pick_skip(root: &Path) -> Result<String> {
     git(root, &["cherry-pick", "--skip"]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+/// One commit in an interactive rebase list: the full and short hashes and
+/// the subject line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RebaseCommit {
+    pub sha: String,
+    pub short: String,
+    pub subject: String,
+}
+
+/// What an interactive rebase does with one commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RebaseAction {
+    Pick,
+    Squash,
+    Fixup,
+    Drop,
+}
+
+impl RebaseAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RebaseAction::Pick => "pick",
+            RebaseAction::Squash => "squash",
+            RebaseAction::Fixup => "fixup",
+            RebaseAction::Drop => "drop",
+        }
+    }
+}
+
+/// Commits from `base` (exclusive) to `HEAD`, oldest first, as `rebase -i`
+/// would list them. Merge commits are omitted: a plain `rebase -i` flattens
+/// history, and listing a merge as `pick` is an error.
+pub fn commits_since(root: &Path, base: &str) -> Result<Vec<RebaseCommit>> {
+    let range = format!("{base}..HEAD");
+    let out = git(
+        root,
+        &[
+            "log",
+            "--reverse",
+            "--no-merges",
+            "--format=%H%x1f%h%x1f%s",
+            &range,
+        ],
+    )?;
+    Ok(String::from_utf8_lossy(&out)
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split('\x1f');
+            let sha = parts.next()?.to_string();
+            let short = parts.next()?.to_string();
+            let subject = parts.next().unwrap_or_default().to_string();
+            Some(RebaseCommit {
+                sha,
+                short,
+                subject,
+            })
+        })
+        .collect())
+}
+
+/// Run `git rebase -i` with a todo list the app supplies, so no editor ever
+/// opens. The todo file and the sequence editor live in the repository's
+/// git dir (never in `%TEMP%`) and are removed afterwards.
+///
+/// Git for Windows runs the sequence editor through its own `sh`, which
+/// eats backslashes in the command: the editor path is passed with forward
+/// slashes and quoted, and a batch file does the copy. On Unix a tiny `sh`
+/// script does the same. `core.editor=true` accepts the generated message
+/// for a `squash`, so a rebase never waits for a prompt.
+pub fn rebase_interactive(
+    root: &Path,
+    base: &str,
+    todo: &[(String, RebaseAction)],
+) -> Result<String> {
+    if todo.is_empty() {
+        return Err(crate::GitError::Failed {
+            command: "rebase".into(),
+            message: "No commits to rebase.".into(),
+        });
+    }
+    if todo.iter().all(|(_, action)| *action == RebaseAction::Drop) {
+        return Err(crate::GitError::Failed {
+            command: "rebase".into(),
+            message: "Every commit is dropped; nothing to rebase.".into(),
+        });
+    }
+    let git_dir = String::from_utf8_lossy(&git(root, &["rev-parse", "--absolute-git-dir"])?)
+        .trim()
+        .to_string();
+    let git_dir = Path::new(&git_dir).to_path_buf();
+    let todo_path = git_dir.join("hyperstack-rebase-todo");
+    let editor_path = if cfg!(windows) {
+        git_dir.join("hyperstack-seq-editor.cmd")
+    } else {
+        git_dir.join("hyperstack-seq-editor.sh")
+    };
+    let text: String = todo
+        .iter()
+        .map(|(sha, action)| format!("{} {}\n", action.as_str(), sha))
+        .collect();
+    std::fs::write(&todo_path, text).map_err(|e| crate::GitError::Failed {
+        command: "rebase".into(),
+        message: e.to_string(),
+    })?;
+    let editor_body = if cfg!(windows) {
+        // %~dp0 is this file's folder; %1 is the todo Git wants written.
+        "@copy /y \"%~dp0hyperstack-rebase-todo\" \"%1\" >nul\r\n"
+    } else {
+        "#!/bin/sh\ncp \"$(dirname \"$0\")/hyperstack-rebase-todo\" \"$1\"\n"
+    };
+    std::fs::write(&editor_path, editor_body).map_err(|e| crate::GitError::Failed {
+        command: "rebase".into(),
+        message: e.to_string(),
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&editor_path, std::fs::Permissions::from_mode(0o755));
+    }
+    // Forward slashes survive Git for Windows' shell; quoting keeps a
+    // repository path with spaces intact.
+    let editor = editor_path.to_string_lossy().replace('\\', "/");
+    let editor = format!("\"{editor}\"");
+    let result = crate::git_with_env(
+        root,
+        &["-c", "core.editor=true", "rebase", "-i", base],
+        &[("GIT_SEQUENCE_EDITOR", &editor)],
+    );
+    let _ = std::fs::remove_file(&todo_path);
+    let _ = std::fs::remove_file(&editor_path);
+    result.map(|out| String::from_utf8_lossy(&out).to_string())
 }
 
 /// Which side of a conflicted file to keep when resolving it whole.
@@ -672,5 +815,113 @@ mod tests {
 
         merge_abort(root).unwrap();
         assert_eq!(crate::operation_state(root), None);
+    }
+
+    fn fixture(root: &Path) {
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        git(root, &["config", "user.name", "HyperStack Test"]).unwrap();
+        git(root, &["config", "user.email", "test@example.invalid"]).unwrap();
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+        git(root, &["config", "tag.gpgSign", "false"]).unwrap();
+    }
+
+    fn commit_file(root: &Path, name: &str, message: &str) -> String {
+        std::fs::write(root.join(name), format!("{name}\n")).unwrap();
+        git(root, &["add", name]).unwrap();
+        git(root, &["commit", "-q", "-m", message]).unwrap();
+        String::from_utf8(git(root, &["rev-parse", "HEAD"]).unwrap())
+            .unwrap()
+            .trim()
+            .to_string()
+    }
+
+    /// `commits_since` lists oldest first, and dropping an entry from the
+    /// todo removes that commit's changes.
+    #[test]
+    fn interactive_rebase_drops_a_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fixture(root);
+        let base = commit_file(root, "base.txt", "base");
+        let one = commit_file(root, "one.txt", "one");
+        let _two = commit_file(root, "two.txt", "two");
+        let three = commit_file(root, "three.txt", "three");
+
+        let commits = commits_since(root, &base).unwrap();
+        assert_eq!(commits.len(), 3);
+        assert_eq!(commits[0].sha, one);
+        assert_eq!(commits[2].sha, three);
+
+        let todo = vec![
+            (commits[0].sha.clone(), RebaseAction::Pick),
+            (commits[2].sha.clone(), RebaseAction::Pick),
+        ];
+        rebase_interactive(root, &base, &todo).unwrap();
+
+        assert!(root.join("one.txt").exists());
+        assert!(!root.join("two.txt").exists(), "two.txt was dropped");
+        assert!(root.join("three.txt").exists());
+        let subjects = String::from_utf8(
+            git(root, &["log", "--format=%s", &format!("{base}..HEAD")]).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(subjects.lines().collect::<Vec<_>>(), ["three", "one"]);
+    }
+
+    /// Squashing folds a commit into the one above it without opening an
+    /// editor: `core.editor=true` keeps the combined message.
+    #[test]
+    fn interactive_rebase_squashes_a_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fixture(root);
+        let base = commit_file(root, "base.txt", "base");
+        commit_file(root, "one.txt", "one");
+        commit_file(root, "two.txt", "two");
+
+        let commits = commits_since(root, &base).unwrap();
+        let todo = vec![
+            (commits[0].sha.clone(), RebaseAction::Pick),
+            (commits[1].sha.clone(), RebaseAction::Squash),
+        ];
+        rebase_interactive(root, &base, &todo).unwrap();
+
+        let count =
+            String::from_utf8(git(root, &["rev-list", "--count", "HEAD"]).unwrap()).unwrap();
+        assert_eq!(count.trim(), "2", "base plus one squashed commit");
+        let files = std::fs::read_dir(root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        assert!(files.iter().any(|f| f == "one.txt"));
+        assert!(files.iter().any(|f| f == "two.txt"));
+    }
+
+    /// A message makes an annotated tag; no message keeps the lightweight
+    /// form. Neither asks for a signature.
+    #[test]
+    fn creates_lightweight_and_annotated_tags() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fixture(root);
+        commit_file(root, "base.txt", "base");
+        // Even with the owner's global `tag.gpgSign=true`, the app's command
+        // overrides it, so this cannot reach a pinentry prompt.
+        git(root, &["config", "tag.gpgSign", "true"]).unwrap();
+
+        create_tag(root, "light", None, "").unwrap();
+        create_tag(root, "release", None, "Release notes").unwrap();
+
+        let light = String::from_utf8(git(root, &["cat-file", "-t", "light"]).unwrap()).unwrap();
+        assert_eq!(light.trim(), "commit");
+        let annotated =
+            String::from_utf8(git(root, &["cat-file", "-t", "release"]).unwrap()).unwrap();
+        assert_eq!(annotated.trim(), "tag");
+        let body = String::from_utf8(
+            git(root, &["tag", "-l", "--format=%(contents)", "release"]).unwrap(),
+        )
+        .unwrap();
+        assert!(body.contains("Release notes"), "tag body: {body}");
     }
 }

@@ -34,8 +34,14 @@ const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
 /// Run `git -C root <args>` and return its stdout.
 fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
-    let out: Output = hs_core::paths::background_command("git")
-        .arg("-C")
+    git_with_env(root, args, &[])
+}
+
+/// `git` with extra environment variables, for the operations that need an
+/// editor or a sequence editor the app controls (`rebase -i`).
+pub(crate) fn git_with_env(root: &Path, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
+    let mut cmd = hs_core::paths::background_command("git");
+    cmd.arg("-C")
         .arg(root)
         .args([
             "--no-optional-locks",
@@ -46,18 +52,20 @@ fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
         ])
         .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
-        .env("LC_ALL", "C")
-        .output()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                GitError::NotInstalled
-            } else {
-                GitError::Failed {
-                    command: args.first().unwrap_or(&"").to_string(),
-                    message: e.to_string(),
-                }
+        .env("LC_ALL", "C");
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    let out: Output = cmd.output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            GitError::NotInstalled
+        } else {
+            GitError::Failed {
+                command: args.first().unwrap_or(&"").to_string(),
+                message: e.to_string(),
             }
-        })?;
+        }
+    })?;
     if !out.status.success() {
         let msg = String::from_utf8_lossy(&out.stderr).trim().to_string();
         return Err(GitError::Failed {

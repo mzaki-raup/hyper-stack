@@ -47,7 +47,7 @@ $cmd = $Args[0]
 switch ($cmd) {
   "start" {
     if ($Args.Count -gt 1 -and $Args[1] -eq "fresh") { Remove-Item -Recurse -Force $data -ErrorAction SilentlyContinue }
-    $p = Start-Process -FilePath $exe -ArgumentList @("--data-dir", $data) -PassThru
+    $p = Start-Process -FilePath $exe -ArgumentList @("--data-dir", $data) -PassThru -WindowStyle Hidden
     $p.Id | Set-Content $pidFile
     Start-Sleep -Seconds 4
     $h = Win

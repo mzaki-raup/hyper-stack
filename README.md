@@ -61,31 +61,44 @@ and theme.
 
 ## Screenshots
 
-Every feature that is built today, captured from a real `HyperStack`
-build. See [docs/screenshots/](docs/screenshots/README.md) for how they were
-made.
+Every feature built today, captured from a real `HyperStack` build on
+Windows 11 (HyperStack Dark, activity rail labels on). See
+[docs/screenshots/](docs/screenshots/README.md) for how they were made and
+the fixtures behind them.
 
-### Shell: launcher, command palette, tabs and splits
+| Category | What the shots cover |
+|---|---|
+| [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, split, dock, workspaces, environments |
+| [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
+| [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
+| [Git](#git) | Tree, Source Control, history, conflict editor, interactive rebase |
+| [Terminal](#terminal) | Shells, search, links |
+| [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
+| [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards |
+| [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
+| [Redis](#redis) | Key tree, type viewers, console |
+| [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, documents |
+| [API client](#api-client) | Requests, scripts, assistant |
+| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff |
+| [Graphics](#graphics) | Operations, crop |
+| [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, dictation |
+| [Browser](#browser) | WebView2 pages |
+| [Settings](#settings) | Every page |
+
+### Shell and workspaces
 
 | | |
 |---|---|
 | ![Home tab](docs/screenshots/home.png) | ![Launcher](docs/screenshots/launcher.png) |
-| **Home** — the pinned first tab of every workspace: Get Started cards, workspaces, tools, recent tabs, pinned connections, keys | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
+| **Home** — the pinned first tab of every workspace: Get Started cards, the workspace switcher and the What do you want to do? tool grid; recent and pinned items live in the sidebar | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
-| **Split panes** (Ctrl+\\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
-
-### Workspaces and environments
-
-| | |
-|---|---|
+| **Split panes** (Ctrl+\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
 | ![Workspace menu](docs/screenshots/workspace-menu.png) | ![New workspace](docs/screenshots/workspace-new.png) |
 | **Workspace switcher** in the title bar, with the selected workspace logo | **New workspace** — name, logo, and copy environments/connections from another |
 | ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |
 | **Environment switcher** — colour-coded, protected ones marked | **Protected Production** — red banner and frame on every tab |
-| ![Environments settings](docs/screenshots/settings-environments.png) | |
-| **Environments** — colour, inheritance, protected flag, variables (secrets go to the vault), export to Postman/Insomnia/Bruno | |
 
 Every activity opens on a **permanent tab of its own** - named after the
 activity, with its icon, and it cannot be closed, pinned or duplicated.
@@ -95,15 +108,9 @@ what it has open, each card carrying the last picture taken of that pane,
 and clicking one goes to the tab. Opening a connection, a note or a shell
 always makes a tab beside it. The API client's permanent tab is the
 workspace's instead, with its logo and name. Pinning a tab puts it
-directly after the permanent one. The Browser shows a **favorites bar**
-under its address bar (Settings → Browser), with Chrome's click rules.
+directly after the permanent one.
 
-Settings is always open as a pinned tab in each workspace. Settings → Workspace
-lets you rename a non-default workspace and set or remove its logo after
-creation. The title-bar notification bell opens recent notifications; Quick
-Open opens the searchable tools, connections and project items palette.
-
-### Secret vault and connections
+### Vault and connections
 
 | | |
 |---|---|
@@ -112,41 +119,45 @@ Open opens the searchable tools, connections and project items palette.
 | ![SSH connection form](docs/screenshots/connection-ssh-form.png) | ![Saved connection](docs/screenshots/connection-saved.png) |
 | **Connection profile** (kind SSH) — host, user, start folder, auth | **Saved** — the password lives in the vault, the profile keeps a `secret:` reference |
 
-### Code editor
+### Editor
 
 | | |
 |---|---|
 | ![Editor](docs/screenshots/editor.png) | ![Markdown preview](docs/screenshots/editor-markdown-preview.png) |
-| **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language); with a language server installed (rust-analyzer, typescript-language-server, pyright, gopls, clangd, …): completion as you type, hover, diagnostics and a Problems panel, go to definition (F12), references, rename (F2) and formatting; with a debug adapter installed (CodeLLDB, lldb-dap, debugpy, delve, netcoredbg): breakpoints, stepping, variables, call stack and a console | **Markdown preview** side by side (Ctrl+Shift+M) |
-| **Encoding** — choose UTF-8/UTF-8 BOM, UTF-16 LE/BE with or without BOM, or Windows-1252 per file; reopen a clean file from disk to decode with a different encoding. | |
+| **Editor** — project tree with file icons, syntax highlighting, status bar (indent, encoding, EOL, language) | **Markdown preview** side by side (Ctrl+Shift+M) |
 | ![Find and replace](docs/screenshots/editor-find-replace.png) | ![Mermaid flowchart](docs/screenshots/editor-mermaid-flowchart.png) |
 | **Find and replace** — case, whole word and regex, match count | **Mermaid flowcharts** drawn natively in the preview — subgraphs, shapes, wrapped wide ranks |
 | ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
-| **Projects as tabs** — each project root has one window tab; opening the same root again focuses it. Inside it, files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. File-tab minimum width is configurable in Settings → Appearance. Files from outside the projects (a terminal Ctrl+click) collect in an **Other Files** tab. Ctrl+F4 closes a file, Ctrl+Alt+PgUp/PgDn walks the file tabs. | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
+| **Projects as tabs** — each project root has one window tab; opening the same root again focuses it. Inside it, files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. Files from outside the projects collect in an **Other Files** tab | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
 | **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
 | ![Completion from rust-analyzer](docs/screenshots/editor-lsp-completion.png) | ![Problems panel](docs/screenshots/editor-lsp-problems.png) |
 | **Language server features** — completion as you type with documentation, hover, go to definition, references, rename and format through any installed LSP server (Settings → Editor → Language Servers shows which are found) | **Problems panel** (Ctrl+Shift+J) — diagnostics as underlines in the text, listed with file and line; the status bar counts errors and warnings |
 | ![Debugger paused at a breakpoint](docs/screenshots/editor-debug.png) | ![Call stack](docs/screenshots/editor-debug-stack.png) |
 | **Debugger** — breakpoints in the gutter (F9), the stopped line with an arrow, Continue/Step controls (F5, F10, F11), and the Variables tab of the debug panel; adapters (CodeLLDB, lldb-dap, debugpy, delve, netcoredbg) are installed by you, configurations come from `.hyperstack/debug.json`, `.vscode/launch.json` or are generated | **Call Stack** — frames of the paused thread; clicking one shows its variables and line |
+| ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | |
+| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **Terminal in the editor** (Ctrl+`) — a shell at the foot of the pane, started in the project's folder, several side by side; Run (F5) and Build go there, and a web app opens in the Browser at the address it prints |
+
+### Git
+
+| | |
+|---|---|
 | ![Git in the project tree](docs/screenshots/editor-git-tree.png) | ![Git diff](docs/screenshots/editor-git-diff.png) |
 | **Git in the editor** — the branch on the project, change letters and colours in the tree, change markers in the gutter as you type | **Source Control** (Ctrl+Shift+G) — staged, changed and untracked files; diffs inline or side by side; Up/Down steps through them |
 | ![Git history](docs/screenshots/editor-git-history.png) | |
-| **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | **Commit, push, pull, stash, branches** — stage and unstage from the list, discard with a question, commit (and push) from the box, fetch/pull/push as jobs, stashes and branches as menus; a protected remote (Settings → Editor → Git) asks before a push and never gets a force |
-| **Conflict editor** — a conflicted file opens block by block: Context, Ours and Theirs under their labels, then Ours / Theirs / Both / a typed result per block; Save and Mark Resolved writes the file and stages it | **Interactive rebase** — pick, squash, fix up, drop or reorder commits; merge, rebase and cherry-pick offer Continue / Skip / Abort when Git pauses |
-| ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | ![AI settings](docs/screenshots/settings-ai.png) |
-| **Terminal in the editor** (Ctrl+`) — a shell at the foot of the pane, started in the project's folder, with as many as you want side by side; PowerShell 7 by default and any installed shell from Settings → Editor → Terminal | **Run and Build** go to that terminal: the project's own commands (Cargo, Maven, Gradle, npm, Go, .NET, Make), Spring Boot through `spring-boot:run` or `bootRun`, and a web application opens in the Browser at the address it prints |
-| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI, or any OpenAI-compatible server (OpenAI, Mistral, Kimi, Hunyuan, OpenRouter, local LM Studio or Ollama with every downloaded model). Add one from a gallery of fifteen services; keys in the vault |
+| **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | **Commit, push, pull, stash, branches, tags** — stage and unstage from the list, discard with a question, commit (and push) with a Conventional Commit prefix, fetch/pull/push as jobs, stashes, branches, remotes and lightweight or annotated tags; a protected remote asks before a push and never gets a force |
+| ![Conflict editor](docs/screenshots/editor-git-conflict.png) | ![Interactive rebase](docs/screenshots/editor-git-rebase.png) |
+| **Conflict editor** — an unmerged file opens block by block: Ours and Theirs under their marker labels, then Ours / Theirs / Both / a typed result per block; **Save and Mark Resolved** writes the file without markers and stages it | **Interactive Rebase** — commits oldest first with Pick / Squash / Fixup / Drop and move arrows; merge, rebase and cherry-pick offer Continue / Skip / Abort when Git pauses |
 
 ### Terminal
 
 | | |
 |---|---|
 | ![Terminal](docs/screenshots/terminal.png) | ![Terminal search](docs/screenshots/terminal-search.png) |
-| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | |
 | **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | **Search** (Ctrl+Shift+F) — plain or regex, match case, every hit highlighted, "n of m" |
+| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | |
+| **Shell list** — PowerShell 7, Command Prompt, Nushell and Git Bash, ordered by preference | **Links** — hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
 | ![Ctrl+click a file location](docs/screenshots/terminal-links.png) | |
-| **Links** — hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor | |
 
 ### SSH and SFTP
 
@@ -157,12 +168,7 @@ Open opens the searchable tools, connections and project items palette.
 | ![File pane follows the shell](docs/screenshots/ssh-follow-shell-folder.png) | ![Remote file in the editor](docs/screenshots/ssh-remote-edit.png) |
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
 | ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | |
-| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | |
-
-**Clipboard** — **Copy** on a remote entry puts it on the system clipboard
-(a folder with everything inside it), ready to paste into the file manager;
-the pane's paste button uploads whatever the clipboard holds into the folder
-on screen. Windows only.
+| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | **Clipboard** — Copy puts a remote entry (a folder with everything in it) on the system clipboard; paste uploads what the clipboard holds (Windows) |
 
 ### S3 and S3-compatible storage
 
@@ -192,15 +198,28 @@ on screen. Windows only.
 | ![DB connection form](docs/screenshots/connection-db-form.png) | |
 | **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile | |
 
+### Redis
+
+| | |
+|---|---|
+| ![Redis key tree and hash viewer](docs/screenshots/redis-browser.png) | |
+| **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | |
+
+### NoSQL (MongoDB and CouchDB)
+
+| | |
+|---|---|
+| ![MongoDB find view](docs/screenshots/nosql-browser.png) | |
+| **Containers** — databases and collections (MongoDB) or databases and document counts (CouchDB); a collection opens in **Find** with filter, projection and sort, the documents as a table and a JSON editor with delete/update guards; **Aggregate** and **Indexes** are beside it | |
+
 ### API client
 
 | | |
 |---|---|
 | ![API client](docs/screenshots/api-client.png) | ![API client scripts](docs/screenshots/api-client-scripts.png) |
 | **Requests** — method, URL with `{{variables}}`, params, headers, body (JSON, text, XML, form, multipart, binary), auth (inherit, basic, bearer, API key); response as pretty, raw or preview with headers, cookies, tests and console; Copy as curl, Import curl; history | **Scripts** — pre-request and post-response JavaScript with the `pm` API (`pm.environment`, `pm.globals`, `pm.collectionVariables`, `pm.request`, `pm.response`, `pm.test`, `pm.expect`, `console`), snippets, collection libraries; Postman v2.1 collections and environments import and export |
-
 | ![API client AI assistant](docs/screenshots/api-client-ai.png) | |
-| **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send. | |
+| **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send | |
 
 Collections are JSON files in the workspace; variables resolve through the
 collection, the active environment (vault secrets only when sending) and
@@ -214,31 +233,33 @@ globals. A non-GET request to a protected environment asks first.
 | **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) and the `{{reference}}` peeked | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
 | ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
-| **Regex Tester** — a pattern with flags, every match with its groups, a replacement preview; the same engine as the app's filters | **Text Diff** — two texts side by side, changed lines marked, whitespace-insensitive mode, copy as a unified diff |
+| ![Regex Tester](docs/screenshots/devtools-regex.png) | ![Text Diff](docs/screenshots/devtools-diff.png) |
+| **Regex Tester** — a pattern with flags, every match with its groups and positions, and the text with matches marked; the same engine as the app's filters | **Text Diff** — two texts side by side, changed lines marked, whitespace-insensitive mode, copy as a unified diff |
 
 Also **Base64** (auto-detect, picture/text/document preview, data URI,
 Basic auth header), **URL** (percent-encode and decode a component, a whole
-URL or form data, with a table of the URL's parts) and **Firebase tokens**
-(custom, access and ID tokens from a service account). Keys typed into a
-utility are never saved.
+URL or form data, with a table of the URL's parts), **YAML/TOML/XML**
+(check, format, convert), **Firebase tokens**, **Generators**, **Cron**,
+**Unit Conversion** and **PKI messages**. Keys typed into a utility are
+never saved.
 
 ### Graphics
 
 | | |
 |---|---|
 | ![Graphics](docs/screenshots/graphics.png) | ![Graphics operations](docs/screenshots/graphics-ops.png) |
+| **Pictures** open from the editor's project tree or a dialog; zoom on a checkerboard; convert between PNG, JPEG, WebP, BMP, GIF and ICO; multi-size ICO export; icon frame extraction | **Operations** — resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen, each removable; review-only AI assistant |
 | ![Crop placeholder](docs/screenshots/graphics-crop.png) | |
 | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow | |
-| **Pictures** open from the editor's project tree or a dialog; zoom on a checkerboard; convert between PNG, JPEG, WebP, BMP, GIF and ICO; multi-size ICO export; icon frame extraction | **Operations** — resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen, each removable; review-only AI assistant |
 
-### Scratchpad
+### Scratchpad and assistant
 
 | | |
 |---|---|
-| ![Dictation into an assistant](docs/screenshots/ai-dictation.png) | |
-| **Dictate to any assistant** — the microphone beside Send runs the operating system's own speech recognition (offline); phrases are typed into the box, a stop keeps the phrase in flight, the session ends on its own after a set time, and nothing is sent until you press Send | |
 | ![Scratchpad](docs/screenshots/scratchpad.png) | ![Scratchpad AI assistant](docs/screenshots/scratchpad-ai.png) |
 | **Notes** — a collection of Markdown notes per workspace: the sidebar lists them newest first with pinned notes on top, one tab per note, source and preview side by side, saved 1.5 s after typing stops | **Assistant** — drafts checklists, tables, Mermaid diagrams and command fences; each block inserts at the cursor |
+| ![Dictation into an assistant](docs/screenshots/ai-dictation.png) | |
+| **Dictate to any assistant** — the microphone beside Send runs the operating system's own speech recognition (offline); phrases are typed into the box, a stop keeps the phrase in flight, the session ends on its own after a set time, and nothing is sent until you press Send | |
 
 ### Browser
 
@@ -252,15 +273,19 @@ utility are never saved.
 | | |
 |---|---|
 | ![General](docs/screenshots/settings-general.png) | ![Appearance](docs/screenshots/settings-appearance.png) |
-| **General** — startup workspace, restore tabs, language; export and import settings and shortcuts behind the master password | **Appearance** — System / Dark / Light mode with a scheme for each (clickable swatches), interface font and size, UI zoom, tab widths, activity rail order and labels |
+| **General** — startup workspace, restore tabs, language; export and import settings and shortcuts behind the master password | **Appearance** — System / Dark / Light mode with a scheme for each (clickable swatches), interface font and size, UI zoom, tab widths, activity rail labels and order |
 | ![Accessibility](docs/screenshots/settings-accessibility.png) | ![Workspace](docs/screenshots/settings-workspace.png) |
-| **Accessibility** — Read Aloud through the OS voice (a title-bar button lists what the active tab can read), speech rate, reduce motion | **Workspace** — rename, logo, folder, compare environments with another workspace and copy the missing ones |
-| ![Security](docs/screenshots/settings-security.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
-| **Security** — vault status, relock timer, clipboard clearing, the credentials table with Reveal Secret / Edit Secret | **Shortcuts** — every action rebindable; conflicts listed |
+| **Accessibility** — Read Aloud through the OS voice, speech rate, reduce motion | **Workspace** — rename, logo, folder, compare environments with another workspace and copy the missing ones |
+| ![Environments](docs/screenshots/settings-environments.png) | ![Security](docs/screenshots/settings-security.png) |
+| **Environments** — colour, inheritance, protected flag; variables edited in place; **Import…** merges Postman/Insomnia/Bruno JSON and **Export…** writes Postman, Insomnia, Bruno or Flat JSON (secrets omitted) | **Security** — unlocked vault, relock and clipboard timers, and the credentials table: masked passwords, **Reveal Secret** and **Edit Secret** in the Action column |
+| ![Edit Secret](docs/screenshots/settings-credential-edit.png) | ![Connections](docs/screenshots/settings-connections.png) |
+| **Edit Secret** — after the master password, the password and key are editable; typed values move into the vault, an empty field clears the secret | **Connections** — every profile by kind, folder and tags, drag to reorder, Edit and Test Connection |
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
-| **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload |
-| ![About](docs/screenshots/settings-about.png) | |
-| **About** — version, update channel, Check Now, release notes, data folder | |
+| **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload, language servers and debug adapters |
+| ![Browser settings](docs/screenshots/settings-browser.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
+| **Browser** — home page, blocking and script defaults, extra blocked hosts | **Shortcuts** — every action rebindable; conflicts listed |
+| ![AI settings](docs/screenshots/settings-ai.png) | ![About](docs/screenshots/settings-about.png) |
+| **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI or any OpenAI-compatible server; add one from a gallery of fifteen services, keys in the vault | **About** — installed version, update channel, Check Now, release notes, data folder |
 
 Every tab can be **snipped** to a PNG (Ctrl+Alt+S, camera menu) or
 **printed** (Ctrl+Alt+P) as an HTML page with a Light/Dark switch that
@@ -324,9 +349,9 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Terminal | [tools/terminal.md](docs/tools/terminal.md) | Yes |
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Completed (core set; JSON query and the P1 extras remain) |
-| [docs/tools/graphics.md](docs/tools/graphics.md) | Graphics: pictures, operations, formats, icons, crop placeholder |
-| [docs/tools/scratchpad.md](docs/tools/scratchpad.md) | Scratchpad: Markdown notes per workspace, pinning, dual pane, AI assistant |
-| [docs/tools/browser.md](docs/tools/browser.md) | Browser: WebView2 pages, blocking, dark mode, devtools |
+| Graphics | [tools/graphics.md](docs/tools/graphics.md) | Yes |
+| Scratchpad | [tools/scratchpad.md](docs/tools/scratchpad.md) | Yes |
+| Browser | [tools/browser.md](docs/tools/browser.md) | Windows |
 
 ## Build and run
 

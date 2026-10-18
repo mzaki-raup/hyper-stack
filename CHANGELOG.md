@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Documentation and screenshots: the README's screenshot set is organised into 16 categories, with new shots for the Git conflict editor and rebase, credentials editing, environment export, Connections, Redis, NoSQL, Regex Tester and Text Diff, retaken Settings/Home/Editor/Terminal/Production shots, and a rebuilt walkthrough GIF.
 
 ## 0.44.0 — 2026-10-18
 

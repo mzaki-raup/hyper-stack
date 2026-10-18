@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API client, graphics, browser, snip/print verified in the running app)
+Last updated: 2026-10-19 (M4 Git complete: branch management, merge/rebase, interactive rebase, tags and the block conflict editor; credentials reveal/edit; environment export; documentation and screenshots update)
 
 ## Planning
 
@@ -165,8 +165,6 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | Title-bar icon rhythm (Read Aloud beside Snip/Print) | Completed | `icon_menu` on `icon_button` (2026-10-15, request 4) |
 | Graphics sidebar tidy: aligned rows, full-width sliders, crop placeholder on the canvas | Completed | `Rows` grid helper, `slider_block`, `crop_overlay` |
 | Scratchpad: notes collection with sidebar list, pinning, one tab per note, dual pane, AI assistant | Completed | `docs/tools/scratchpad.md` |
-| Credentials: Action column with Reveal Secret / Edit Secret, password and key editable behind the master password | Completed | `credentials::Row` carries a password and a key secret (SSH key passphrase); reveal covers both; edit moves typed values into the vault and never writes plaintext. Exercised in the app: reveal showed `hunter2`, edit saved `n3w-secret` as `secret:` and the vault was re-read; profile TOML had no plaintext. |
-| Environments: edit variables in place and export to Postman / Insomnia / Bruno / flat JSON, secrets omitted | Completed | `tool_api::env_export` (2 tests incl. round-trip through the importer); Export menu on the Variables card; secrets (toggle or `secret:`) write empty, Postman keeps `type: secret`. Exercised in the app: edited and saved `api_base`, exported a Postman file with the real value. |
 | API client assistant that fills the client (collections, requests, fields, scripts, docs) | Completed | `tool-api::assist`, `hs-api` blocks with Apply; `api_tests.rs` |
 | Performance pass over the new code | Completed | per-frame digests/verification/parsing cached; assistant context rebuilt on change |
 | Graphics: crop placeholder resizes from every edge/corner; live Adjust sliders; Grayscale/Invert toggles | Completed | press-origin grip test, preview layer, `fix/graphics-crop-live-adjust` |
@@ -245,7 +243,7 @@ Last updated: 2026-10-15 (Home tab, theme modes, accessibility, devtools, API cl
 | UI casing: a parenthetical on a label starts with a capital | Completed | 13 strings in `locales/en.ftl` plus `redis::profile::mode_label`; rule recorded in CLAUDE.md; verified live — "None (Direct connection)", "Standalone" |
 | Settings → Connections: Test Connection between Save and Delete | Completed | `conn_test` (2 tests): SSH, S3, SQL, Redis, MongoDB and CouchDB through their own drivers, on the runtime; verified live — SQLite answered "Connected. SQLite 3.50.2" and a Redis server that was not running answered "timed out" |
 | Graphics: one tab per image, reopening focuses the tab that has it | Completed | `uri_affinity` answers only while the tab is empty, both open paths go through `Services::open`; verified live — red then blue made two tabs, reopening red focused its own |
-| Documentation, screenshots, GIF | In-Progress | docs updated 2026-10-15; new screenshots captured with the PowerShell harness; the walkthrough GIF still shows the 0.17 flows |
+| Documentation, screenshots, GIF | Completed | docs updated 2026-10-15; superseded by the 2026-10-19 documentation and screenshot pass below |
 
 ## Owner's requests, 2026-10-17
 
@@ -311,3 +309,26 @@ listed first.
 | Editor: detect a project's language and offer its tooling | Completed | `tool-editor::project` - Maven, Gradle, Cargo, npm, Go, .NET, Python, Make, CMake, with Spring Boot read from the pom or the Gradle build file; the project's wrapper preferred over the Settings -> Editor -> Build Tools paths; Build (Ctrl+Shift+B) and Run both go to the editor terminal; a web app opens in the Browser at the address it prints (10 tests); verified live - Run on a Node project typed `npm run dev` in the editor terminal and the Browser opened http://localhost:5173 |
 | Shell: a dashboard home tab is never taken over by a connection | Completed | `Tool::home_is_dashboard` keeps `unbound_tab` and the URI router off it; verified live — clicking a Database connection opened a second tab beside the permanent one instead of consuming it |
 | Devtools: bandwidth and speed conversion | Completed | a Bandwidth pane with both families and a transfer-time calculator; two tests |
+
+## Owner's requests, 2026-10-19
+
+Raised during the Git and settings sessions that ran from 2026-10-18 late
+evening into 2026-10-19 (owner's time zone, Asia/Kuala_Lumpur). The two
+process rules are standing instructions, mirrored in CLAUDE.md; every other
+item below was documented in the affected docs before the code was written.
+
+| Item | State | Notes |
+|---|---|---|
+| Process: plan first and document a request in every affected document before coding | In effect | each request's design was written first in `docs/tools/git.md`, `docs/04-ui-design.md`, `docs/05`, `docs/06`, `docs/tools/api-client.md`, `README.md`, this file and `CHANGELOG.md` |
+| Process: create a proper feature branch before editing code | In effect | `feat/m4-git-branch-management`, `feat/m4-git-interactive-rebase`, `feat/credentials-edit-and-env-export`, `feat/git-conflict-editor`; each passed CI before merging |
+| Git: rename a branch and set its upstream | Completed | `write::rename_branch`/`set_upstream`, branch menu; fixture test checks the tracking branch |
+| Git: remotes add/edit/remove; tags create/delete/push | Completed | `write::{add_remote,set_remote_url,remove_remote,tags,create_tag,delete_tag,push_tag}`; a protected remote or tag asks first |
+| Git: merge, rebase and cherry-pick with Continue / Skip / Abort | Completed | `OperationState` detection plus the three commands; the menu follows Git's paused state |
+| Git: Conventional Commit prefix picker in the commit box | Completed | `COMMIT_PREFIXES`; picking a type prepends it once, Clear removes it |
+| Git: whole-file conflict resolution | Completed | Keep Ours / Keep Theirs / Mark as Resolved on a conflicted row; `resolve_conflict` rewrites and stages the file |
+| Git: interactive rebase | Completed | `write::rebase_interactive` writes the todo into the git dir and runs `git rebase -i` with a sequence editor, so no editor opens; pick/squash/fixup/drop/reorder; exercised in the app (a commit dropped) |
+| Git: annotated tags | Completed | a message makes `git tag -a`; `tag.gpgSign=false` so no pinentry can block the app; engine test |
+| Git: line-level conflict editor | Completed | `hs-git::conflict` parses two-way and diff3 blocks (CRLF and malformed blocks kept); the main area shows Context, Ours and Theirs per block with Ours / Theirs / Both / Custom, All Ours / All Theirs, and Save and Mark Resolved; exercised in the app (Both and Custom) |
+| Credentials: Action column with Reveal Secret / Edit Secret, password and key editable behind the master password | Completed | `credentials::Row` carries a password and a key secret (SSH key passphrase); reveal covers both; edit asks the master password, moves typed values into the vault and never writes plaintext. Exercised in the app: reveal showed `hunter2`, edit saved `n3w-secret` as `secret:` and the vault re-read it; the profile TOML had no plaintext |
+| Environments: edit variables in place and export to Postman / Insomnia / Bruno / flat JSON, secrets omitted | Completed | `tool_api::env_export` (2 tests incl. a round-trip through the importer); Export menu on the Variables card; secret rows write an empty value and Postman keeps `type: secret`. Exercised in the app: edited and saved `api_base`, exported a Postman file with the real value |
+| Documentation, screenshots and GIF for every feature | Completed | README screenshots restructured into 16 categories with a category index; new shots for the Git conflict editor and interactive rebase, credentials (table and Edit Secret), environment export, Connections, Redis, NoSQL, Regex Tester and Text Diff; Settings shots retaken on 0.44.0; Home, Editor, Terminal and Production retaken; obsolete Welcome shot removed; walkthrough GIF rebuilt from the current set; `docs/screenshots/README.md` records the fixtures and harness |

@@ -79,3 +79,44 @@ sample token. The walkthrough GIF (`hyperstack-demo.gif`) is now a
 slideshow assembled with ImageMagick from the current screenshots
 (`magick -delay 150 -loop 0 <frames> -resize 1200x hyperstack-demo.gif`),
 one screen every 1.5 s, replacing the 0.17 screen recording.
+
+## 2026-10-19 set: Git, credentials, environments, Redis, NoSQL, Devtools
+
+Captured on Windows 11 from the debug build with
+`scripts/gui-smoke.ps1` (now started with `-WindowStyle Hidden` so the
+debug console does not sit over the window), HyperStack Dark, the
+activity rail labels on, and the window at 0,0 sized 1400x900.
+
+New shots:
+
+- `editor-git-conflict.png` and `editor-git-rebase.png` — a fixture
+  repository with a real `UU shared.txt` merge and three commits loaded
+  into the Interactive Rebase panel (`HEAD~3`).
+- `settings-security.png` (vault unlocked, `hunter2` revealed in the
+  shop-postgres row, Action column) and `settings-credential-edit.png`
+  (Edit Secret for the same row).
+- `settings-environments.png` (the dev environment with its variables and
+  the Export… menu open) and `settings-connections.png`.
+- `redis-browser.png` — a local Redis 8.6 under WSL with string, hash,
+  list, set, sorted set and stream keys; `user:1001` selected.
+- `nosql-browser.png` — MongoDB 7 in the `hs-mongo` Docker container, the
+  `shop.orders` collection in the Find view (filter, projection, sort).
+  `hs-couch` runs beside it for CouchDB.
+- `devtools-regex.png` and `devtools-diff.png` — a pattern with named
+  groups over four lines, and a two-text diff with +3/−2 lines.
+
+Retaken for the current UI: `settings-general.png`,
+`settings-appearance.png`, `settings-accessibility.png`,
+`settings-workspace.png`, `settings-terminal.png`, `settings-editor.png`,
+`settings-browser.png`, `settings-shortcuts.png` and
+`settings-about.png`. The obsolete `welcome.png` (the page moved to Home)
+was removed.
+
+`hyperstack-demo.gif` is regenerated from this set with ImageMagick
+(`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256`), one
+screen every 1.5 s.
+
+Fixtures: the vault's master password is `TestMaster1` (scratch only);
+Redis is started in WSL and the distro held open with a sleeping `wsl`
+process (it stops when the last command exits); `docker start hs-mongo
+hs-couch` after that hold, or the containers stop with the distro.

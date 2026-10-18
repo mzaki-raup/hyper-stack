@@ -11,12 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.39.0 — 2026-10-18
+
 ### Added
 
-- **Devtools: Regex Tester and Text Diff.** Try a pattern with flags on a
-  text and see every match, its groups and a replacement preview; compare
-  two texts line by line, ignoring whitespace if you like, and copy the
-  result as a unified diff.
+- A regex tester and a text diff (d8760636)
 
 ## 0.38.0 — 2026-10-17
 

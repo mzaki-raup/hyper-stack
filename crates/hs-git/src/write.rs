@@ -154,6 +154,21 @@ pub fn create_branch(root: &Path, name: &str, from: Option<&str>) -> Result<()> 
     git(root, &args).map(|_| ())
 }
 
+/// Rename a local branch without switching to it. Git refuses to rename the
+/// branch currently checked out in another worktree.
+pub fn rename_branch(root: &Path, old: &str, new: &str) -> Result<()> {
+    git(root, &["branch", "-m", old, new]).map(|_| ())
+}
+
+/// Set the current branch's upstream (tracking) branch.
+pub fn set_upstream(root: &Path, remote: &str, branch: &str) -> Result<()> {
+    git(
+        root,
+        &["branch", "--set-upstream-to", &format!("{remote}/{branch}")],
+    )
+    .map(|_| ())
+}
+
 /// Delete a local branch. `force` is `-D`, which drops unmerged work; the
 /// caller asks first (docs/tools/git.md §10).
 pub fn delete_branch(root: &Path, name: &str, force: bool) -> Result<()> {
@@ -170,6 +185,128 @@ pub struct Remote {
 pub fn remotes(root: &Path) -> Result<Vec<Remote>> {
     let out = git(root, &["remote", "-v"])?;
     Ok(parse_remotes(&String::from_utf8_lossy(&out)))
+}
+
+/// List local tags by their short names, in refname order.
+pub fn tags(root: &Path) -> Result<Vec<String>> {
+    let out = git(root, &["tag", "--list", "--sort=refname"])?;
+    Ok(String::from_utf8_lossy(&out)
+        .lines()
+        .map(str::to_string)
+        .collect())
+}
+
+pub fn add_remote(root: &Path, name: &str, url: &str) -> Result<()> {
+    git(root, &["remote", "add", name, url]).map(|_| ())
+}
+
+pub fn set_remote_url(root: &Path, name: &str, url: &str) -> Result<()> {
+    git(root, &["remote", "set-url", name, url]).map(|_| ())
+}
+
+pub fn remove_remote(root: &Path, name: &str) -> Result<()> {
+    git(root, &["remote", "remove", name]).map(|_| ())
+}
+
+pub fn create_tag(root: &Path, name: &str, target: Option<&str>) -> Result<()> {
+    let mut args = vec!["tag"];
+    args.push(name);
+    if let Some(target) = target {
+        args.push(target);
+    }
+    git(root, &args).map(|_| ())
+}
+
+pub fn delete_tag(root: &Path, name: &str) -> Result<()> {
+    git(root, &["tag", "-d", name]).map(|_| ())
+}
+
+pub fn push_tag(root: &Path, remote: &str, tag: &str) -> Result<String> {
+    git(root, &["push", remote, tag]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+/// Merge a branch or ref into the current branch. Git may return an error
+/// when conflicts are found; operation state and the index remain for the
+/// user to resolve or abort.
+pub fn merge(root: &Path, source: &str, no_commit: bool, squash: bool) -> Result<String> {
+    let mut args = vec!["merge"];
+    if no_commit {
+        args.push("--no-commit");
+    }
+    if squash {
+        args.push("--squash");
+    }
+    args.push(source);
+    git(root, &args).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn merge_continue(root: &Path) -> Result<String> {
+    git(root, &["-c", "core.editor=true", "merge", "--continue"])
+        .map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn merge_abort(root: &Path) -> Result<String> {
+    git(root, &["merge", "--abort"]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn rebase(root: &Path, onto: &str) -> Result<String> {
+    git(root, &["rebase", onto]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn rebase_continue(root: &Path) -> Result<String> {
+    git(root, &["-c", "core.editor=true", "rebase", "--continue"])
+        .map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn rebase_abort(root: &Path) -> Result<String> {
+    git(root, &["rebase", "--abort"]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+/// Cherry-pick a commit (or range `A..B`) onto the current branch. Git may
+/// return an error when conflicts are found; the operation state remains
+/// for the user to resolve, continue or abort.
+pub fn cherry_pick(root: &Path, commit: &str) -> Result<String> {
+    git(root, &["cherry-pick", commit]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn cherry_pick_continue(root: &Path) -> Result<String> {
+    git(
+        root,
+        &["-c", "core.editor=true", "cherry-pick", "--continue"],
+    )
+    .map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+pub fn cherry_pick_abort(root: &Path) -> Result<String> {
+    git(root, &["cherry-pick", "--abort"]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+/// Skip the current commit during a cherry-pick and carry on with the rest.
+pub fn cherry_pick_skip(root: &Path) -> Result<String> {
+    git(root, &["cherry-pick", "--skip"]).map(|out| String::from_utf8_lossy(&out).to_string())
+}
+
+/// Which side of a conflicted file to keep when resolving it whole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictSide {
+    /// Stage 2, the version on the current branch (`HEAD`).
+    Ours,
+    /// Stage 3, the version from the commit being merged in.
+    Theirs,
+}
+
+/// Resolve a conflicted file by keeping one whole side and staging it.
+///
+/// During a rebase Git's "ours" is the branch being rebased onto and
+/// "theirs" is the commit being replayed; the labels follow Git's own
+/// definitions rather than the user's mental model.
+pub fn resolve_conflict(root: &Path, path: &str, side: ConflictSide) -> Result<()> {
+    let flag = match side {
+        ConflictSide::Ours => "--ours",
+        ConflictSide::Theirs => "--theirs",
+    };
+    git(root, &["checkout", flag, "--", path])?;
+    git(root, &["add", "--", path]).map(|_| ())
 }
 
 /// Parse `git remote -v`, keeping each remote's push URL once.
@@ -384,5 +521,156 @@ mod tests {
         assert!(is_protected(&p, "https://host/x.git", "release/2.0"));
         assert!(!is_protected(&p, "https://host/x.git", "feature/one"));
         assert!(!is_protected(&[], "https://host/prod.git", "prod"));
+    }
+
+    #[test]
+    fn renames_branch_and_sets_tracking_upstream() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        git(root, &["config", "user.name", "HyperStack Test"]).unwrap();
+        git(root, &["config", "user.email", "test@example.invalid"]).unwrap();
+        // The owner's global config signs every commit; a fixture repository
+        // must not depend on a warm GPG agent (see CLAUDE.md gotchas).
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+        git(root, &["config", "tag.gpgSign", "false"]).unwrap();
+        std::fs::write(root.join("tracked.txt"), "tracked\n").unwrap();
+        git(root, &["add", "tracked.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "initial"]).unwrap();
+        git(root, &["branch", "feature/old"]).unwrap();
+
+        rename_branch(root, "feature/old", "feature/new").unwrap();
+        assert!(git(root, &["show-ref", "--verify", "refs/heads/feature/new"]).is_ok());
+        assert!(git(root, &["show-ref", "--verify", "refs/heads/feature/old"]).is_err());
+
+        git(
+            root,
+            &[
+                "remote",
+                "add",
+                "origin",
+                "https://example.invalid/team/project.git",
+            ],
+        )
+        .unwrap();
+        git(
+            root,
+            &["update-ref", "refs/remotes/origin/feature/new", "HEAD"],
+        )
+        .unwrap();
+        set_upstream(root, "origin", "feature/new").unwrap();
+        let status = crate::status(root).unwrap();
+        assert_eq!(status.upstream.as_deref(), Some("origin/feature/new"));
+    }
+
+    /// Cherry-pick a commit from one branch onto another, and detect the
+    /// operation state while it is paused on a conflict.
+    #[test]
+    fn cherry_picks_a_commit_and_reports_operation_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        git(root, &["config", "user.name", "HyperStack Test"]).unwrap();
+        git(root, &["config", "user.email", "test@example.invalid"]).unwrap();
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+
+        std::fs::write(root.join("base.txt"), "line\n").unwrap();
+        git(root, &["add", "base.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "base"]).unwrap();
+
+        // A side branch adds a file and commits it.
+        git(root, &["checkout", "-q", "-b", "side"]).unwrap();
+        std::fs::write(root.join("side.txt"), "side\n").unwrap();
+        git(root, &["add", "side.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "side work"]).unwrap();
+        let side_commit = String::from_utf8(git(root, &["rev-parse", "HEAD"]).unwrap())
+            .unwrap()
+            .trim()
+            .to_string();
+
+        // Back on main, cherry-pick the side commit.
+        git(root, &["checkout", "-q", "main"]).unwrap();
+        cherry_pick(root, &side_commit).unwrap();
+        assert!(root.join("side.txt").exists());
+        assert_eq!(crate::operation_state(root), None);
+
+        // A conflicting cherry-pick leaves the operation state set.
+        git(root, &["checkout", "-q", "-b", "conflict"]).unwrap();
+        std::fs::write(root.join("shared.txt"), "main version\n").unwrap();
+        git(root, &["add", "shared.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "main shared"]).unwrap();
+        let main_commit = String::from_utf8(git(root, &["rev-parse", "HEAD"]).unwrap())
+            .unwrap()
+            .trim()
+            .to_string();
+
+        git(root, &["checkout", "-q", "main"]).unwrap();
+        std::fs::write(root.join("shared.txt"), "side version\n").unwrap();
+        git(root, &["add", "shared.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "side shared"]).unwrap();
+
+        // Cherry-picking the conflicting commit fails; the operation stays.
+        assert!(cherry_pick(root, &main_commit).is_err());
+        assert_eq!(
+            crate::operation_state(root),
+            Some(crate::OperationState::CherryPick)
+        );
+        cherry_pick_abort(root).unwrap();
+        assert_eq!(crate::operation_state(root), None);
+    }
+
+    /// A conflicted file can be resolved whole: keeping one side rewrites
+    /// the work tree and stages it, so the conflict leaves the status.
+    #[test]
+    fn resolves_a_conflict_by_keeping_one_side() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        git(root, &["config", "user.name", "HyperStack Test"]).unwrap();
+        git(root, &["config", "user.email", "test@example.invalid"]).unwrap();
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+
+        std::fs::write(root.join("shared.txt"), "base\n").unwrap();
+        git(root, &["add", "shared.txt"]).unwrap();
+        git(root, &["commit", "-q", "-m", "base"]).unwrap();
+
+        git(root, &["checkout", "-q", "-b", "other"]).unwrap();
+        std::fs::write(root.join("shared.txt"), "theirs\n").unwrap();
+        git(root, &["commit", "-q", "-am", "other side"]).unwrap();
+
+        git(root, &["checkout", "-q", "main"]).unwrap();
+        std::fs::write(root.join("shared.txt"), "ours\n").unwrap();
+        git(root, &["commit", "-q", "-am", "main side"]).unwrap();
+
+        // The merge stops with a conflict.
+        assert!(merge(root, "other", false, false).is_err());
+        assert_eq!(
+            crate::operation_state(root),
+            Some(crate::OperationState::Merge)
+        );
+        let conflicted = crate::status(root)
+            .unwrap()
+            .files
+            .iter()
+            .any(|f| f.kind == crate::Kind::Conflict && f.path == "shared.txt");
+        assert!(conflicted);
+
+        // Keeping ours rewrites the file and stages it.
+        resolve_conflict(root, "shared.txt", ConflictSide::Ours).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("shared.txt"))
+                .unwrap()
+                .trim_end(),
+            "ours"
+        );
+        let status = crate::status(root).unwrap();
+        assert!(
+            !status.files.iter().any(|f| f.kind == crate::Kind::Conflict),
+            "the conflict is gone: {:?}",
+            status.files
+        );
+
+        merge_abort(root).unwrap();
+        assert_eq!(crate::operation_state(root), None);
     }
 }

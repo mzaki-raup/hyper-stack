@@ -173,6 +173,41 @@ pub struct Status {
     pub files: Vec<FileStatus>,
 }
 
+/// An in-progress Git sequencer operation that may need continuation or
+/// abort (merge, rebase or cherry-pick).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationState {
+    Merge,
+    Rebase,
+    CherryPick,
+}
+
+/// Detect an operation from Git's metadata files. Handles linked worktrees,
+/// whose per-worktree metadata is under `.git/worktrees/<name>`.
+pub fn operation_state(root: &Path) -> Option<OperationState> {
+    let git_dir = git_dir(root).unwrap_or_else(|| root.join(".git"));
+    if git_dir.join("rebase-merge").exists() || git_dir.join("rebase-apply").exists() {
+        Some(OperationState::Rebase)
+    } else if git_dir.join("CHERRY_PICK_HEAD").exists() {
+        Some(OperationState::CherryPick)
+    } else if git_dir.join("MERGE_HEAD").exists() {
+        Some(OperationState::Merge)
+    } else {
+        None
+    }
+}
+
+fn git_dir(root: &Path) -> Option<PathBuf> {
+    let marker = std::fs::read_to_string(root.join(".git")).ok()?;
+    let git_dir = marker.trim().strip_prefix("gitdir: ")?;
+    let path = Path::new(git_dir);
+    Some(if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        root.join(path)
+    })
+}
+
 impl Status {
     /// "main", "main ↑2 ↓1", or "(detached 1a2b3c4)".
     pub fn branch_label(&self) -> String {

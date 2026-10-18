@@ -27,6 +27,14 @@ pub(crate) struct Lists {
     pub stashes: Vec<write::Stash>,
     pub branches: Vec<hs_git::Branch>,
     pub remotes: Vec<write::Remote>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct OperationInput {
+    pub source: String,
+    pub no_commit: bool,
+    pub squash: bool,
 }
 
 /// A question asked before something is lost.
@@ -37,13 +45,25 @@ pub(crate) enum Confirm {
     /// Delete these untracked files.
     Delete(Vec<String>),
     /// Delete a branch; `force` when it is not merged.
-    DeleteBranch { name: String, force: bool },
+    DeleteBranch {
+        name: String,
+        force: bool,
+    },
     /// Push to a protected remote or branch.
     ProtectedPush,
     /// Drop a stash.
     DropStash(write::Stash),
     /// Throw one hunk away in the work tree.
-    DiscardHunk { path: String, hunk: hs_git::Hunk },
+    DiscardHunk {
+        path: String,
+        hunk: hs_git::Hunk,
+    },
+    RemoveRemote(String),
+    DeleteTag(String),
+    PushTag {
+        remote: String,
+        tag: String,
+    },
 }
 
 /// Per-repository state of the write side.
@@ -57,10 +77,47 @@ pub(crate) struct Ops {
     lists_rx: Option<mpsc::Receiver<Lists>>,
     /// The lists are stale: fetched again after the next status.
     pub lists_due: bool,
+    pub operation: Option<hs_git::OperationState>,
+    operation_rx: Option<mpsc::Receiver<Option<hs_git::OperationState>>>,
+    operation_check_due: bool,
     pub confirm: Option<Confirm>,
     /// The New Branch field, while it is open.
     pub new_branch: Option<String>,
+    /// The branch being renamed and the new name being edited.
+    pub rename_branch: Option<(String, String)>,
+    pub remote_name: String,
+    pub remote_url: String,
+    pub editing_remote: Option<String>,
+    pub tag_name: String,
+    pub merge_input: OperationInput,
+    pub rebase_onto: String,
+    pub cherry_pick_commit: String,
     pub stash_message: String,
+}
+
+/// Conventional Commit prefixes offered next to the commit box
+/// (docs/tools/git.md §8). Selecting one prepends it to the message when
+/// the message does not already start with a prefix.
+const COMMIT_PREFIXES: &[(&str, &str)] = &[
+    ("feat", "git-prefix-feat"),
+    ("fix", "git-prefix-fix"),
+    ("docs", "git-prefix-docs"),
+    ("style", "git-prefix-style"),
+    ("refactor", "git-prefix-refactor"),
+    ("perf", "git-prefix-perf"),
+    ("test", "git-prefix-test"),
+    ("build", "git-prefix-build"),
+    ("ci", "git-prefix-ci"),
+    ("chore", "git-prefix-chore"),
+];
+
+/// Whether the message already starts with a Conventional Commit type
+/// (`feat:`, `fix!:`, …), so a picked prefix is not stacked on top.
+fn has_commit_prefix(message: &str) -> bool {
+    let text = message.trim_start();
+    COMMIT_PREFIXES.iter().any(|(prefix, _)| {
+        text.starts_with(&format!("{prefix}:")) || text.starts_with(&format!("{prefix}!:"))
+    })
 }
 
 impl Default for Ops {
@@ -73,8 +130,19 @@ impl Default for Ops {
             lists: Lists::default(),
             lists_rx: None,
             lists_due: true,
+            operation: None,
+            operation_rx: None,
+            operation_check_due: true,
             confirm: None,
             new_branch: None,
+            rename_branch: None,
+            remote_name: String::new(),
+            remote_url: String::new(),
+            editing_remote: None,
+            tag_name: String::new(),
+            merge_input: OperationInput::default(),
+            rebase_onto: String::new(),
+            cherry_pick_commit: String::new(),
             stash_message: String::new(),
         }
     }
@@ -102,6 +170,50 @@ pub(crate) enum Request {
     StashDrop(String),
     Checkout(String),
     CreateBranch(String),
+    RenameBranch {
+        old: String,
+        new: String,
+    },
+    SetUpstream {
+        remote: String,
+        branch: String,
+    },
+    AddRemote {
+        name: String,
+        url: String,
+    },
+    SetRemoteUrl {
+        name: String,
+        url: String,
+    },
+    RemoveRemote(String),
+    CreateTag {
+        name: String,
+    },
+    DeleteTag(String),
+    PushTag {
+        remote: String,
+        tag: String,
+    },
+    Merge {
+        source: String,
+        no_commit: bool,
+        squash: bool,
+    },
+    MergeContinue,
+    MergeAbort,
+    Rebase(String),
+    RebaseContinue,
+    RebaseAbort,
+    CherryPick(String),
+    CherryPickContinue,
+    CherryPickAbort,
+    CherryPickSkip,
+    /// Resolve one conflicted file by keeping a whole side.
+    ResolveConflict {
+        path: String,
+        side: write::ConflictSide,
+    },
     DeleteBranch {
         name: String,
         force: bool,
@@ -125,6 +237,7 @@ impl Ops {
         if self.busy.is_some() {
             return;
         }
+        self.operation_check_due = true;
         let (tx, rx) = mpsc::channel();
         self.busy = Some(label.clone());
         self.result = Some(rx);
@@ -144,6 +257,7 @@ impl Ops {
         if self.busy.is_some() {
             return;
         }
+        self.operation_check_due = true;
         let (tx, rx) = mpsc::channel();
         self.busy = Some(label.clone());
         self.result = Some(rx);
@@ -199,6 +313,7 @@ impl Ops {
                 stashes: write::stash_list(&root).unwrap_or_default(),
                 branches: hs_git::branches(&root).unwrap_or_default(),
                 remotes: write::remotes(&root).unwrap_or_default(),
+                tags: write::tags(&root).unwrap_or_default(),
             };
             let _ = tx.send(lists);
         });
@@ -213,6 +328,37 @@ impl Ops {
                 }
                 Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => self.lists_rx = None,
+            }
+        }
+    }
+
+    pub fn ensure_lists(&mut self, s: &Services, root: &Path) {
+        if self.lists_due && self.lists_rx.is_none() {
+            self.refresh_lists(s, root);
+        }
+    }
+
+    pub fn ensure_operation(&mut self, s: &Services, root: &Path) {
+        if !self.operation_check_due && self.operation_rx.is_none() {
+            return;
+        }
+        if self.operation_rx.is_none() {
+            let root = root.to_path_buf();
+            let (tx, rx) = mpsc::channel();
+            self.operation_rx = Some(rx);
+            s.runtime.spawn_blocking(move || {
+                let _ = tx.send(hs_git::operation_state(&root));
+            });
+        }
+        if let Some(rx) = &self.operation_rx {
+            match rx.try_recv() {
+                Ok(state) => {
+                    self.operation = state;
+                    self.operation_rx = None;
+                    self.operation_check_due = false;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => self.operation_rx = None,
+                Err(mpsc::TryRecvError::Empty) => {}
             }
         }
     }
@@ -390,6 +536,183 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
                     .map_err(|e| e.to_string())
             });
         }
+        Request::RenameBranch { old, new } => {
+            let msg = s.i18n.t_args("git-op-branch-renamed", &[("branch", &new)]);
+            ops.start(s, s.t("git-op-branch-renaming"), move || {
+                write::rename_branch(&root, &old, &new)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+        }
+        Request::SetUpstream { remote, branch } => {
+            let upstream = format!("{remote}/{branch}");
+            let msg = s
+                .i18n
+                .t_args("git-op-upstream-set", &[("upstream", &upstream)]);
+            ops.start(s, s.t("git-op-upstream-setting"), move || {
+                write::set_upstream(&root, &remote, &branch)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+        }
+        Request::AddRemote { name, url } => {
+            let msg = s.i18n.t_args("git-op-remote-added", &[("remote", &name)]);
+            ops.start(s, s.t("git-op-remote-adding"), move || {
+                write::add_remote(&root, &name, &url)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+            ops.lists_due = true;
+        }
+        Request::SetRemoteUrl { name, url } => {
+            let msg = s.i18n.t_args("git-op-remote-updated", &[("remote", &name)]);
+            ops.start(s, s.t("git-op-remote-updating"), move || {
+                write::set_remote_url(&root, &name, &url)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+            ops.lists_due = true;
+        }
+        Request::RemoveRemote(name) => {
+            let msg = s.i18n.t_args("git-op-remote-removed", &[("remote", &name)]);
+            ops.start(s, s.t("git-op-remote-removing"), move || {
+                write::remove_remote(&root, &name)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+            ops.lists_due = true;
+        }
+        Request::CreateTag { name } => {
+            let msg = s.i18n.t_args("git-op-tag-created", &[("tag", &name)]);
+            ops.start(s, s.t("git-op-tag-creating"), move || {
+                write::create_tag(&root, &name, None)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+            ops.lists_due = true;
+        }
+        Request::DeleteTag(name) => {
+            let msg = s.i18n.t_args("git-op-tag-deleted", &[("tag", &name)]);
+            ops.start(s, s.t("git-op-tag-deleting"), move || {
+                write::delete_tag(&root, &name)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+            ops.lists_due = true;
+        }
+        Request::PushTag { remote, tag } => {
+            let remote_url = ops
+                .lists
+                .remotes
+                .iter()
+                .find(|r| r.name == remote)
+                .map(|r| r.url.clone())
+                .unwrap_or_default();
+            if write::is_protected(&settings.protected_patterns, &remote_url, &tag) {
+                ops.confirm = Some(Confirm::PushTag { remote, tag });
+                return;
+            }
+            let msg = s
+                .i18n
+                .t_args("git-op-tag-pushed", &[("tag", &tag), ("remote", &remote)]);
+            ops.start_job(
+                s,
+                s.t("git-op-tag-pushing"),
+                s.t("git-op-tag-pushing"),
+                move || {
+                    write::push_tag(&root, &remote, &tag)
+                        .map(|output| {
+                            if output.trim().is_empty() {
+                                msg
+                            } else {
+                                output
+                            }
+                        })
+                        .map_err(|e| e.to_string())
+                },
+            );
+            ops.lists_due = true;
+        }
+        Request::Merge {
+            source,
+            no_commit,
+            squash,
+        } => {
+            ops.operation_check_due = true;
+            ops.start_job(s, s.t("git-op-merging"), s.t("git-op-merging"), move || {
+                write::merge(&root, &source, no_commit, squash).map_err(|e| e.to_string())
+            });
+        }
+        Request::MergeContinue => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-continuing"), move || {
+                write::merge_continue(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::MergeAbort => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-aborting"), move || {
+                write::merge_abort(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::Rebase(onto) => {
+            ops.operation_check_due = true;
+            ops.start_job(
+                s,
+                s.t("git-op-rebasing"),
+                s.t("git-op-rebasing"),
+                move || write::rebase(&root, &onto).map_err(|e| e.to_string()),
+            );
+        }
+        Request::RebaseContinue => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-continuing"), move || {
+                write::rebase_continue(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::RebaseAbort => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-aborting"), move || {
+                write::rebase_abort(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::CherryPick(commit) => {
+            ops.operation_check_due = true;
+            ops.start_job(
+                s,
+                s.t("git-op-cherry-picking"),
+                s.t("git-op-cherry-picking"),
+                move || write::cherry_pick(&root, &commit).map_err(|e| e.to_string()),
+            );
+        }
+        Request::CherryPickContinue => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-continuing"), move || {
+                write::cherry_pick_continue(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::CherryPickAbort => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-aborting"), move || {
+                write::cherry_pick_abort(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::CherryPickSkip => {
+            ops.operation_check_due = true;
+            ops.start(s, s.t("git-op-skipping"), move || {
+                write::cherry_pick_skip(&root).map_err(|e| e.to_string())
+            });
+        }
+        Request::ResolveConflict { path, side } => {
+            let msg = s
+                .i18n
+                .t_args("git-op-conflict-resolved", &[("path", &path)]);
+            ops.start(s, s.t("git-op-resolving"), move || {
+                write::resolve_conflict(&root, &path, side)
+                    .map(|_| msg)
+                    .map_err(|e| e.to_string())
+            });
+        }
         Request::Hunk { path, hunk, op } => {
             let msg = done(match op {
                 write::HunkOp::Stage => "git-op-staged",
@@ -516,6 +839,36 @@ pub(crate) fn box_ui(
             }
         }
     }
+    if let Some((old, new)) = &mut ops.rename_branch {
+        let mut done = None;
+        ui.horizontal(|ui| {
+            ui.label(
+                s.i18n
+                    .t_args("git-rename-branch-prompt", &[("branch", old)]),
+            );
+            let r = ui.add(
+                egui::TextEdit::singleline(new)
+                    .hint_text(s.t("git-rename-branch-hint"))
+                    .desired_width(f32::INFINITY),
+            );
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                done = Some(true);
+            }
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                done = Some(false);
+            }
+            if ui.button(s.t("git-rename-branch-apply")).clicked() {
+                done = Some(true);
+            }
+        });
+        if let Some(apply) = done {
+            let (old, new) = ops.rename_branch.take().unwrap_or_default();
+            let new = new.trim().to_string();
+            if apply && !new.is_empty() && new != old {
+                out.push(Request::RenameBranch { old, new });
+            }
+        }
+    }
     // The commit box.
     let staged = status.files.iter().filter(|f| f.staged()).count();
     ui.add_enabled_ui(enabled, |ui| {
@@ -533,6 +886,36 @@ pub(crate) fn box_ui(
         {
             out.push(Request::Commit { push: false });
         }
+        // A prefix picker for Conventional Commits, next to the message.
+        // Selecting an entry prepends `type:` when the message does not
+        // already begin with one (docs/tools/git.md §8).
+        ui.horizontal(|ui| {
+            let mr = ui.menu_button(
+                egui::RichText::new(format!("{} {}", ph::TAG, s.t("git-prefix"))).small(),
+                |ui| {
+                    ui.set_min_width(180.0);
+                    for (prefix, key) in COMMIT_PREFIXES {
+                        if ui.button(format!("{prefix}:  {}", s.t(key))).clicked() {
+                            if !has_commit_prefix(&ops.message) {
+                                ops.message = format!("{prefix}: {}", ops.message.trim_start());
+                            }
+                            ui.close();
+                        }
+                    }
+                    ui.separator();
+                    if ui.button(s.t("git-prefix-clear")).clicked() {
+                        if has_commit_prefix(&ops.message) {
+                            let text = ops.message.trim_start();
+                            if let Some(i) = text.find(':') {
+                                ops.message = text[i + 1..].trim_start().to_string();
+                            }
+                        }
+                        ui.close();
+                    }
+                },
+            );
+            mr.response.on_hover_text(s.t("git-prefix-tip"));
+        });
         ui.horizontal(|ui| {
             let can = staged > 0 && !ops.message.trim().is_empty();
             if ui
@@ -642,9 +1025,255 @@ fn branch_menu(
 ) {
     ui.menu_button(ph::GIT_BRANCH, |ui| {
         ui.set_min_width(220.0);
-        if ui.button(s.t("git-new-branch")).clicked() {
-            ops.new_branch = Some(String::new());
-            ui.close();
+        ui.horizontal(|ui| {
+            if ui.button(s.t("git-new-branch")).clicked() {
+                ops.new_branch = Some(String::new());
+                ui.close();
+            }
+            ui.menu_button(s.t("git-remotes"), |ui| {
+                ui.set_min_width(320.0);
+                let remotes = ops.lists.remotes.clone();
+                for remote in remotes {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(&remote.name).strong());
+                        let url = if write::is_protected(
+                            &s.settings.read().git.protected_patterns,
+                            &remote.url,
+                            "",
+                        ) {
+                            s.i18n
+                                .t_args("git-remote-url-protected", &[("url", &remote.url)])
+                        } else {
+                            remote.url.clone()
+                        };
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(url).small())
+                                .truncate()
+                                .selectable(false),
+                        );
+                        if ui
+                            .small_button(ph::PENCIL_SIMPLE)
+                            .tip(s.t("git-remote-edit"))
+                            .clicked()
+                        {
+                            ops.editing_remote = Some(remote.name.clone());
+                            ops.remote_name = remote.name.clone();
+                            ops.remote_url = remote.url.clone();
+                            ui.close();
+                        }
+                        if ui
+                            .small_button(ph::TRASH)
+                            .tip(s.t("git-remote-remove"))
+                            .clicked()
+                        {
+                            ops.confirm = Some(Confirm::RemoveRemote(remote.name.clone()));
+                            ui.close();
+                        }
+                    });
+                }
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut ops.remote_name)
+                            .hint_text(s.t("git-remote-name")),
+                    );
+                    ui.add(
+                        egui::TextEdit::singleline(&mut ops.remote_url)
+                            .hint_text(s.t("git-remote-url")),
+                    );
+                    if ui
+                        .button(if ops.editing_remote.is_some() {
+                            s.t("save")
+                        } else {
+                            s.t("git-remote-add")
+                        })
+                        .clicked()
+                        && !ops.remote_name.trim().is_empty()
+                        && !ops.remote_url.trim().is_empty()
+                    {
+                        if ops.editing_remote.is_some() {
+                            out.push(Request::SetRemoteUrl {
+                                name: ops.remote_name.trim().to_string(),
+                                url: ops.remote_url.trim().to_string(),
+                            });
+                        } else {
+                            out.push(Request::AddRemote {
+                                name: ops.remote_name.trim().to_string(),
+                                url: ops.remote_url.trim().to_string(),
+                            });
+                        }
+                        ops.editing_remote = None;
+                        ops.remote_name.clear();
+                        ops.remote_url.clear();
+                        ui.close();
+                    }
+                    if ops.editing_remote.is_some() && ui.small_button(s.t("cancel")).clicked() {
+                        ops.editing_remote = None;
+                        ops.remote_name.clear();
+                        ops.remote_url.clear();
+                        ui.close();
+                    }
+                });
+            });
+            ui.menu_button(s.t("git-tags"), |ui| {
+                ui.set_min_width(280.0);
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::TextEdit::singleline(&mut ops.tag_name)
+                            .hint_text(s.t("git-tag-name")),
+                    );
+                    if ui.button(s.t("git-tag-create")).clicked() && !ops.tag_name.trim().is_empty()
+                    {
+                        let name = ops.tag_name.trim().to_string();
+                        out.push(Request::CreateTag { name });
+                        ops.tag_name.clear();
+                        ui.close();
+                    }
+                });
+                let tags = ops.lists.tags.clone();
+                for tag in tags {
+                    ui.horizontal(|ui| {
+                        ui.label(&tag);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if let Some(remote) = ops.lists.remotes.first()
+                                && ui
+                                    .small_button(ph::ARROW_UP)
+                                    .tip(
+                                        if write::is_protected(
+                                            &s.settings.read().git.protected_patterns,
+                                            &remote.url,
+                                            &tag,
+                                        ) {
+                                            s.t("git-tag-push-protected-tip")
+                                        } else {
+                                            s.t("git-tag-push")
+                                        },
+                                    )
+                                    .clicked()
+                            {
+                                out.push(Request::PushTag {
+                                    remote: remote.name.clone(),
+                                    tag: tag.clone(),
+                                });
+                                ui.close();
+                            }
+                            if ui
+                                .small_button(ph::TRASH)
+                                .tip(s.t("git-tag-delete"))
+                                .clicked()
+                            {
+                                ops.confirm = Some(Confirm::DeleteTag(tag.clone()));
+                                ui.close();
+                            }
+                        });
+                    });
+                }
+            });
+            ui.menu_button(s.t("git-merge-rebase"), |ui| {
+                ui.set_min_width(260.0);
+                if let Some(operation) = ops.operation {
+                    let label = match operation {
+                        hs_git::OperationState::Merge => s.t("git-operation-merge-conflict"),
+                        hs_git::OperationState::Rebase => s.t("git-operation-rebase-conflict"),
+                        hs_git::OperationState::CherryPick => {
+                            s.t("git-operation-cherry-pick-conflict")
+                        }
+                    };
+                    ui.label(egui::RichText::new(label).color(theme.warning));
+                    match operation {
+                        hs_git::OperationState::Merge => {
+                            if ui.button(s.t("git-continue")).clicked() {
+                                out.push(Request::MergeContinue);
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-abort")).clicked() {
+                                out.push(Request::MergeAbort);
+                                ui.close();
+                            }
+                        }
+                        hs_git::OperationState::Rebase => {
+                            if ui.button(s.t("git-continue")).clicked() {
+                                out.push(Request::RebaseContinue);
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-abort")).clicked() {
+                                out.push(Request::RebaseAbort);
+                                ui.close();
+                            }
+                        }
+                        hs_git::OperationState::CherryPick => {
+                            if ui.button(s.t("git-continue")).clicked() {
+                                out.push(Request::CherryPickContinue);
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-skip")).clicked() {
+                                out.push(Request::CherryPickSkip);
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-abort")).clicked() {
+                                out.push(Request::CherryPickAbort);
+                                ui.close();
+                            }
+                        }
+                    }
+                    ui.separator();
+                }
+                if ops.operation.is_none() {
+                    ui.label(egui::RichText::new(s.t("git-merge-heading")).strong());
+                }
+                ui.add(
+                    egui::TextEdit::singleline(&mut ops.merge_input.source)
+                        .hint_text(s.t("git-merge-source")),
+                );
+                ui.checkbox(&mut ops.merge_input.no_commit, s.t("git-merge-no-commit"));
+                ui.checkbox(&mut ops.merge_input.squash, s.t("git-merge-squash"));
+                if ui.button(s.t("git-merge-run")).clicked()
+                    && !ops.merge_input.source.trim().is_empty()
+                {
+                    out.push(Request::Merge {
+                        source: ops.merge_input.source.trim().to_string(),
+                        no_commit: ops.merge_input.no_commit,
+                        squash: ops.merge_input.squash,
+                    });
+                    ops.merge_input = OperationInput::default();
+                    ui.close();
+                }
+                ui.separator();
+                ui.label(egui::RichText::new(s.t("git-rebase-heading")).strong());
+                ui.add(
+                    egui::TextEdit::singleline(&mut ops.rebase_onto)
+                        .hint_text(s.t("git-rebase-onto")),
+                );
+                if ui.button(s.t("git-rebase-run")).clicked() && !ops.rebase_onto.trim().is_empty()
+                {
+                    out.push(Request::Rebase(ops.rebase_onto.trim().to_string()));
+                    ops.rebase_onto.clear();
+                    ui.close();
+                }
+                ui.separator();
+                ui.label(egui::RichText::new(s.t("git-cherry-pick-heading")).strong());
+                ui.add(
+                    egui::TextEdit::singleline(&mut ops.cherry_pick_commit)
+                        .hint_text(s.t("git-cherry-pick-commit")),
+                );
+                if ui.button(s.t("git-cherry-pick-run")).clicked()
+                    && !ops.cherry_pick_commit.trim().is_empty()
+                {
+                    out.push(Request::CherryPick(
+                        ops.cherry_pick_commit.trim().to_string(),
+                    ));
+                    ops.cherry_pick_commit.clear();
+                    ui.close();
+                }
+            });
+        });
+        if let Some(operation) = ops.operation {
+            let label = match operation {
+                hs_git::OperationState::Merge => s.t("git-operation-merge-conflict"),
+                hs_git::OperationState::Rebase => s.t("git-operation-rebase-conflict"),
+                hs_git::OperationState::CherryPick => s.t("git-operation-cherry-pick-conflict"),
+            };
+            ui.colored_label(theme.warning, label);
         }
         ui.separator();
         let current = status.branch.clone();
@@ -661,22 +1290,55 @@ fn branch_menu(
                     out.push(Request::Checkout(b.name.clone()));
                     ui.close();
                 }
-                if !is_current {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if !is_current
+                        && ui
                             .small_button(ph::TRASH)
                             .tip(s.t("git-delete-branch"))
                             .clicked()
-                        {
-                            ops.confirm = Some(Confirm::DeleteBranch {
-                                name: b.name.clone(),
-                                force: false,
-                            });
-                            ui.close();
-                        }
-                    });
-                }
+                    {
+                        ops.confirm = Some(Confirm::DeleteBranch {
+                            name: b.name.clone(),
+                            force: false,
+                        });
+                        ui.close();
+                    }
+                    if ui
+                        .small_button(ph::PENCIL_SIMPLE)
+                        .tip(s.t("git-rename-branch"))
+                        .clicked()
+                    {
+                        ops.rename_branch = Some((b.name.clone(), b.name.clone()));
+                        ui.close();
+                    }
+                });
             });
+        }
+        if let Some(current) = current
+            && let Some(branch) = branches.iter().find(|b| !b.remote && b.name == current)
+            && !branch.remote
+            && !branches
+                .iter()
+                .any(|b| b.remote && b.name.ends_with(&format!("/{current}")))
+        {
+            ui.separator();
+            ui.label(
+                egui::RichText::new(s.t("git-no-upstream"))
+                    .small()
+                    .color(theme.text_muted),
+            );
+            for remote in &ops.lists.remotes {
+                if ui
+                    .button(format!("{} {}/{}", ph::LINK, remote.name, current))
+                    .clicked()
+                {
+                    out.push(Request::SetUpstream {
+                        remote: remote.name.clone(),
+                        branch: current.clone(),
+                    });
+                    ui.close();
+                }
+            }
         }
         let remotes: Vec<&hs_git::Branch> = branches.iter().filter(|b| b.remote).collect();
         if !remotes.is_empty() {
@@ -741,6 +1403,25 @@ pub(crate) fn confirm_ui(
                 .t_args("git-stash-drop-body", &[("message", &st.message)]),
             true,
         ),
+        Confirm::RemoveRemote(remote) => (
+            s.t("git-remote-remove-title"),
+            s.i18n
+                .t_args("git-remote-remove-body", &[("remote", remote)]),
+            true,
+        ),
+        Confirm::DeleteTag(tag) => (
+            s.t("git-tag-delete-title"),
+            s.i18n.t_args("git-tag-delete-body", &[("tag", tag)]),
+            true,
+        ),
+        Confirm::PushTag { remote, tag } => (
+            s.t("git-protected-push-title"),
+            s.i18n.t_args(
+                "git-protected-tag-push-body",
+                &[("tag", tag), ("remote", remote)],
+            ),
+            false,
+        ),
         Confirm::DiscardHunk { hunk, .. } => (
             s.t("git-discard-hunk-title"),
             s.i18n
@@ -783,6 +1464,9 @@ pub(crate) fn confirm_ui(
         Confirm::DeleteBranch { name, force } => Request::DeleteBranch { name, force },
         Confirm::ProtectedPush => pending_push.take()?,
         Confirm::DropStash(st) => Request::StashDrop(st.id),
+        Confirm::RemoveRemote(remote) => Request::RemoveRemote(remote),
+        Confirm::DeleteTag(tag) => Request::DeleteTag(tag),
+        Confirm::PushTag { remote, tag } => Request::PushTag { remote, tag },
         Confirm::DiscardHunk { path, hunk } => Request::Hunk {
             path,
             hunk,
@@ -796,5 +1480,21 @@ pub(crate) fn level(r: &OpResult) -> ToastLevel {
     match r {
         Ok(_) => ToastLevel::Success,
         Err(_) => ToastLevel::Error,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_conventional_prefix_is_recognised_once() {
+        assert!(has_commit_prefix("feat: add a thing"));
+        assert!(has_commit_prefix("fix!: breaking fix"));
+        assert!(has_commit_prefix("  chore: tidy"));
+        assert!(!has_commit_prefix("add a thing"));
+        // A word that merely starts with a type is not a prefix.
+        assert!(!has_commit_prefix("feature request"));
+        assert!(!has_commit_prefix("fixture: not a type"));
     }
 }

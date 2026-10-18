@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Credentials in Settings → Security gain an Action column: Reveal Secret shows the password and key, and Edit Secret saves both after the master password.
-- Environments can be exported to Postman v2.1, Insomnia v4, Bruno and flat JSON; secret values are omitted.
-- Environment variables can be edited and saved in place from Settings → Environments.
+- (nothing yet)
+
+## 0.43.0 — 2026-10-18
+
+### Added
+
+- Edit credential secrets and export environments (2756c9e2)
 
 ## 0.42.0 — 2026-10-18
 

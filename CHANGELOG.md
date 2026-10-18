@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- A conflicted file opens a block-by-block editor: choose Ours, Theirs, Both or a typed result for each conflict, then save and mark it resolved.
+- (nothing yet)
+
+## 0.44.0 — 2026-10-18
+
+### Added
+
+- A block-by-block conflict editor (fd6e08e1)
 
 ## 0.43.0 — 2026-10-18
 

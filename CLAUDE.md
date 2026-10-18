@@ -435,6 +435,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   rejects divergence instead of destroying it.
 
 ### Git and signing
+- A fixture repository in a test inherits the owner's global
+  `commit.gpgsign = true` / `tag.gpgSign = true`, so a `git commit` there
+  can hang on pinentry or fail with "gpg failed to sign the data" the
+  moment the agent's cache goes cold - a test that passed a minute earlier
+  then fails for no code reason. Every fixture repo that commits or tags
+  sets `git config commit.gpgsign false` and `git config tag.gpgSign false`
+  right after `init` (`hs-git::write` tests).
 - Every commit here is GPG-signed with the owner's key, and
   `gpg: signing failed: Timeout` does **not** mean signing is broken — it
   means the agent had nothing cached and the pinentry prompt never got

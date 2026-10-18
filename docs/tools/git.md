@@ -214,10 +214,15 @@ sidebar under each repository's header:
   <branch>` for a branch with no upstream yet; a plain `--force` is never
   issued), the **stash** menu (stash with a message, untracked files too
   by default; Apply, Pop, Drop per entry) and the **branch** menu (switch,
-  New Branch…, delete with its own question). Fetch, pull and push are
+  New Branch…, rename, delete with its own question, remotes and tags).
+  Merge, rebase and cherry-pick controls run the user's Git commands;
+  conflict state is detected and exposes Continue / Abort (and Skip for
+  cherry-pick) when Git leaves the operation paused. Fetch, pull and push are
   Jobs, so the dock lists them and keeps git's output.
 - **Commit box**: message, Amend, Commit and Commit and Push; Ctrl+Enter
   in the message commits. Nothing staged says so rather than failing.
+  A **Prefix** menu inserts Conventional Commit prefixes (feat:, fix:,
+  docs:, …) at the start of the message.
 - **Change rows**: Stage / Unstage / Discard Changes… / Delete… on the
   context menu; Stage All / Unstage All on a group's header.
 - **Guards** (§10): discard, delete and branch delete always ask with what
@@ -236,5 +241,12 @@ sidebar under each repository's header:
   `-R`) as a patch rebuilt from the parsed diff (`write::hunk_patch`), so
   a diff read a moment ago still applies when line counts have shifted.
 
-Still to come from §5–§9: the commit message template and prefix picker, rename/upstream/merge/rebase of
-branches, remotes and tags management, and the conflict editor.
+Still to come from §5–§9: the three-way conflict editor, interactive
+rebase, and annotated/signed tag support. Source Control can run merge,
+basic rebase and cherry-pick, then offers Continue / Skip / Abort when Git
+leaves the operation paused. Conflicted paths appear in the Conflicts list
+with **Keep Ours**, **Keep Theirs** and **Mark as Resolved** (whole-file
+resolution; a conflicted file is never staged by *Stage All*). Line-level
+resolution still needs an external editor or the terminal. Local tags are
+lightweight only; annotated/signed tag creation is not supported because
+signing may require an interactive prompt.

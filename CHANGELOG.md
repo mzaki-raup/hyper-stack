@@ -11,7 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Source Control can merge, rebase and cherry-pick, and exposes Continue / Skip / Abort while those operations are paused.
+- Conflicted files in Source Control offer Keep Ours, Keep Theirs and Mark as Resolved.
+- Source Control can rename branches, set upstream, add/edit/remove remotes, and create/delete/push lightweight tags.
+- Source Control commit box has a Conventional Commit prefix picker (feat:, fix:, docs:, …).
 
 ## 0.40.0 — 2026-10-18
 

@@ -885,6 +885,8 @@ impl Git {
                     let salt = r.root.clone();
                     ui.push_id(&salt, |ui| {
                         repo_header(ui, s, theme, r, &mut history, &mut refresh);
+                        r.ops.ensure_lists(s, &r.root);
+                        r.ops.ensure_operation(s, &r.root);
                         if let Some(st) = &r.status {
                             let protected = {
                                 let settings = s.settings.read();
@@ -955,7 +957,49 @@ impl Git {
                                     resp.context_menu(|ui| {
                                         // The write side first: that is what a
                                         // right-click on a change is for.
-                                        if side == Side::Staged {
+                                        let conflicted = f.kind == Kind::Conflict;
+                                        if conflicted {
+                                            // A conflict cannot be staged as-is:
+                                            // pick a side or say it is resolved.
+                                            ui.label(
+                                                egui::RichText::new(s.t("git-conflict-heading"))
+                                                    .small()
+                                                    .color(theme.warning),
+                                            );
+                                            if ui.button(s.t("git-keep-ours")).clicked() {
+                                                requests.push((
+                                                    root.clone(),
+                                                    crate::git_ops::Request::ResolveConflict {
+                                                        path: path.clone(),
+                                                        side: hs_git::write::ConflictSide::Ours,
+                                                    },
+                                                    false,
+                                                ));
+                                                ui.close();
+                                            }
+                                            if ui.button(s.t("git-keep-theirs")).clicked() {
+                                                requests.push((
+                                                    root.clone(),
+                                                    crate::git_ops::Request::ResolveConflict {
+                                                        path: path.clone(),
+                                                        side: hs_git::write::ConflictSide::Theirs,
+                                                    },
+                                                    false,
+                                                ));
+                                                ui.close();
+                                            }
+                                            if ui.button(s.t("git-mark-resolved")).clicked() {
+                                                requests.push((
+                                                    root.clone(),
+                                                    crate::git_ops::Request::Stage(vec![
+                                                        path.clone(),
+                                                    ]),
+                                                    false,
+                                                ));
+                                                ui.close();
+                                            }
+                                            ui.separator();
+                                        } else if side == Side::Staged {
                                             if ui.button(s.t("git-unstage")).clicked() {
                                                 requests.push((
                                                     root.clone(),

@@ -54,7 +54,16 @@ Regions, top to bottom:
    (`assets/icons/material/`, MIT) through `hs_ui::fileicons`, so a project
    tree reads like VS Code's. Owner's request, 2026-10-11.
    Width persisted per tool.
-6. **Main area** — the active tab's `Tool::ui`, or a split tree of several tabs.
+   **Every sidebar list is a vertical scroll area with a fixed header**
+   (`egui::ScrollArea::vertical().auto_shrink([false, false])` and a stable
+   `id_salt`): a long connection list, the Devtools utilities, the Terminal
+   shells and the Settings page list must never hide their last rows when
+   the window is short, and a future tool or connection must not require a
+   layout change. The DB, Redis, NoSQL, API client, editor tree, Home
+   sidebar, Scratchpad and Graphics lists already worked this way;
+   Devtools, SSH, S3, Terminal and the Settings page list follow now.
+   Owner's request, 2026-10-19.
+6. **Main area** - the active tab's `Tool::ui`, or a split tree of several tabs.
 7. **Bottom dock** — Output (logs), Jobs, Problems (editor diagnostics, failed
    assertions, SQL errors), Terminal (quick local shell). Height persisted.
 8. **Status bar** — tool-supplied left segments, global right segments.

@@ -274,21 +274,26 @@ pub fn page_list(ui: &mut egui::Ui, theme: &Theme, services: &Services, state: &
                 .size(15.0),
         );
     });
-    for (page, key) in Page::all() {
-        if form::list_row(
-            ui,
-            theme,
-            state.page == page,
-            page.icon(),
-            &services.t(key),
-            None,
-        )
-        .clicked()
-        {
-            state.page = page;
-        }
-        ui.add_space(2.0);
-    }
+    egui::ScrollArea::vertical()
+        .id_salt("settings-pages")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            for (page, key) in Page::all() {
+                if form::list_row(
+                    ui,
+                    theme,
+                    state.page == page,
+                    page.icon(),
+                    &services.t(key),
+                    None,
+                )
+                .clicked()
+                {
+                    state.page = page;
+                }
+                ui.add_space(2.0);
+            }
+        });
 }
 
 /// The selected page. Effects are appended for the shell to apply.

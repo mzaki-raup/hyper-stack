@@ -1707,55 +1707,60 @@ impl Tool for SshTool {
             return true;
         }
         // The order is the user's own; a row can be dragged to a new place.
-        let mut reorder = hs_ui::reorder::Reorder::new("ssh-hosts");
-        let mut open: Option<(String, bool)> = None;
-        let mut pin: Option<(String, bool)> = None;
-        for (i, (id, name, label, is_pinned)) in hosts.iter().enumerate() {
-            let selected = self.state.conn_id.as_deref() == Some(id.as_str());
-            reorder.row(ui, i, |ui| {
-                let row = form::connection_row(
-                    ui,
-                    &theme,
-                    selected,
-                    ph::COMPUTER_TOWER,
-                    name,
-                    Some(label),
-                    *is_pinned,
-                    &s.t("conn-pin-home"),
-                    &s.t("conn-unpin-home"),
-                );
-                if row.response.tip(s.t("ssh-open-host")).clicked() {
-                    open = Some((id.clone(), selected));
+        egui::ScrollArea::vertical()
+            .id_salt("ssh-hosts-list")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let mut reorder = hs_ui::reorder::Reorder::new("ssh-hosts");
+                let mut open: Option<(String, bool)> = None;
+                let mut pin: Option<(String, bool)> = None;
+                for (i, (id, name, label, is_pinned)) in hosts.iter().enumerate() {
+                    let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        let row = form::connection_row(
+                            ui,
+                            &theme,
+                            selected,
+                            ph::COMPUTER_TOWER,
+                            name,
+                            Some(label),
+                            *is_pinned,
+                            &s.t("conn-pin-home"),
+                            &s.t("conn-unpin-home"),
+                        );
+                        if row.response.tip(s.t("ssh-open-host")).clicked() {
+                            open = Some((id.clone(), selected));
+                        }
+                        if let Some(p) = row.pin {
+                            pin = Some((id.clone(), p));
+                        }
+                    });
+                    ui.add_space(2.0);
                 }
-                if let Some(p) = row.pin {
-                    pin = Some((id.clone(), p));
+                if let Some((id, p)) = pin
+                    && let Err(e) = s.connections.write().set_pinned(&id, p)
+                {
+                    cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    if let Err(e) = s.connections.write().reorder(&["ssh"], from, to) {
+                        cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                    }
+                    ui.ctx().request_repaint();
+                }
+                // The shell decides which tab this lands in; a host may hold up
+                // to three sessions, so clicking one again opens another until it
+                // has them.
+                if let Some((id, selected)) = open
+                    && !selected
+                {
+                    cx.open("ssh", Some(OpenRequest::Connection { id }));
+                }
+                ui.add_space(10.0);
+                self.tunnels_section(ui, cx, &theme);
+                ui.add_space(10.0);
+                form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-hint"));
             });
-            ui.add_space(2.0);
-        }
-        if let Some((id, p)) = pin
-            && let Err(e) = s.connections.write().set_pinned(&id, p)
-        {
-            cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
-        }
-        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-            if let Err(e) = s.connections.write().reorder(&["ssh"], from, to) {
-                cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
-            }
-            ui.ctx().request_repaint();
-        }
-        // The shell decides which tab this lands in; a host may hold up
-        // to three sessions, so clicking one again opens another until it
-        // has them.
-        if let Some((id, selected)) = open
-            && !selected
-        {
-            cx.open("ssh", Some(OpenRequest::Connection { id }));
-        }
-        ui.add_space(10.0);
-        self.tunnels_section(ui, cx, &theme);
-        ui.add_space(10.0);
-        form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-hint"));
         true
     }
 

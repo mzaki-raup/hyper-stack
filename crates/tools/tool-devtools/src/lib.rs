@@ -293,33 +293,39 @@ impl Tool for DevtoolsTool {
                     .size(15.0),
             );
         });
-        let mut last_cat = "";
-        for (u, cat, title, icon) in Utility::ALL {
-            if cat != last_cat {
-                ui.add_space(6.0);
-                ui.label(
-                    egui::RichText::new(s.t(cat))
-                        .small()
-                        .strong()
-                        .color(theme.text_muted),
-                );
-                last_cat = cat;
-            }
-            // Each utility has its own tab: clicking another one focuses
-            // that tab, or opens it.
-            if form::list_row(ui, &theme, self.utility == u, icon, &s.t(title), None).clicked()
-                && u != self.utility
-            {
-                cx.open(
-                    "devtools",
-                    Some(OpenRequest::File {
-                        uri: format!("devtools://{}", u.key()),
-                        line: None,
-                    }),
-                );
-            }
-            ui.add_space(2.0);
-        }
+        egui::ScrollArea::vertical()
+            .id_salt("devtools-utilities")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let mut last_cat = "";
+                for (u, cat, title, icon) in Utility::ALL {
+                    if cat != last_cat {
+                        ui.add_space(6.0);
+                        ui.label(
+                            egui::RichText::new(s.t(cat))
+                                .small()
+                                .strong()
+                                .color(theme.text_muted),
+                        );
+                        last_cat = cat;
+                    }
+                    // Each utility has its own tab: clicking another one focuses
+                    // that tab, or opens it.
+                    if form::list_row(ui, &theme, self.utility == u, icon, &s.t(title), None)
+                        .clicked()
+                        && u != self.utility
+                    {
+                        cx.open(
+                            "devtools",
+                            Some(OpenRequest::File {
+                                uri: format!("devtools://{}", u.key()),
+                                line: None,
+                            }),
+                        );
+                    }
+                    ui.add_space(2.0);
+                }
+            });
         true
     }
 

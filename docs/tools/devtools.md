@@ -7,6 +7,9 @@
 One tool with the utilities listed in its sidebar by category; **each
 utility has its own tab** (`devtools://<key>`): clicking a utility in the
 sidebar, or its palette command, focuses the tab that shows it or opens one.
+The utility list is a vertical scroll area under the fixed header, so a short
+window or more utilities never hides the last group. Owner's request,
+2026-10-19.
 Inputs are part of the tab's `save_state` and come back after a restart,
 with one rule: a key, password, token or service account is saved **only
 when it is a `{{reference}}`** to an environment variable; a typed secret

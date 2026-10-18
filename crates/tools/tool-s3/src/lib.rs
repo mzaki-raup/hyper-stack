@@ -1144,82 +1144,87 @@ impl Tool for S3Tool {
             form::note(ui, &theme, ph::LIGHTBULB, &s.t("s3-no-profiles"));
             return true;
         }
-        let mut reorder = hs_ui::reorder::Reorder::new("s3-profiles");
-        let mut open_profile: Option<(String, bool)> = None;
-        let mut pin: Option<(String, bool)> = None;
-        for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
-            let selected = self.state.conn_id.as_deref() == Some(id.as_str());
-            reorder.row(ui, i, |ui| {
-                let row = form::connection_row(
-                    ui,
-                    &theme,
-                    selected,
-                    ph::CLOUD,
-                    name,
-                    Some(label),
-                    *is_pinned,
-                    &s.t("conn-pin-home"),
-                    &s.t("conn-unpin-home"),
-                );
-                if row.response.tip(s.t("s3-open-profile")).clicked() {
-                    open_profile = Some((id.clone(), selected));
-                }
-                if let Some(p) = row.pin {
-                    pin = Some((id.clone(), p));
-                }
-            });
-            ui.add_space(2.0);
-            if selected {
-                let buckets: Vec<String> = match &self.shared.lock().buckets {
-                    Load::Ready(b) => b.iter().map(|b| b.name.clone()).collect(),
-                    Load::Loading => {
-                        ui.label(egui::RichText::new(s.t("s3-loading")).weak());
-                        Vec::new()
-                    }
-                    Load::Failed(e) => {
-                        ui.colored_label(theme.error, e);
-                        Vec::new()
-                    }
-                    Load::Idle => Vec::new(),
-                };
-                let mut open: Option<String> = None;
-                for b in buckets {
-                    let on = self.state.bucket.as_deref() == Some(&b);
-                    ui.horizontal(|ui| {
-                        ui.add_space(14.0);
-                        if ui
-                            .selectable_label(on, format!("{} {b}", ph::ARCHIVE))
-                            .clicked()
-                        {
-                            open = Some(b.clone());
+        egui::ScrollArea::vertical()
+            .id_salt("s3-profiles-list")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let mut reorder = hs_ui::reorder::Reorder::new("s3-profiles");
+                let mut open_profile: Option<(String, bool)> = None;
+                let mut pin: Option<(String, bool)> = None;
+                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
+                    let selected = self.state.conn_id.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        let row = form::connection_row(
+                            ui,
+                            &theme,
+                            selected,
+                            ph::CLOUD,
+                            name,
+                            Some(label),
+                            *is_pinned,
+                            &s.t("conn-pin-home"),
+                            &s.t("conn-unpin-home"),
+                        );
+                        if row.response.tip(s.t("s3-open-profile")).clicked() {
+                            open_profile = Some((id.clone(), selected));
+                        }
+                        if let Some(p) = row.pin {
+                            pin = Some((id.clone(), p));
                         }
                     });
+                    ui.add_space(2.0);
+                    if selected {
+                        let buckets: Vec<String> = match &self.shared.lock().buckets {
+                            Load::Ready(b) => b.iter().map(|b| b.name.clone()).collect(),
+                            Load::Loading => {
+                                ui.label(egui::RichText::new(s.t("s3-loading")).weak());
+                                Vec::new()
+                            }
+                            Load::Failed(e) => {
+                                ui.colored_label(theme.error, e);
+                                Vec::new()
+                            }
+                            Load::Idle => Vec::new(),
+                        };
+                        let mut open: Option<String> = None;
+                        for b in buckets {
+                            let on = self.state.bucket.as_deref() == Some(&b);
+                            ui.horizontal(|ui| {
+                                ui.add_space(14.0);
+                                if ui
+                                    .selectable_label(on, format!("{} {b}", ph::ARCHIVE))
+                                    .clicked()
+                                {
+                                    open = Some(b.clone());
+                                }
+                            });
+                        }
+                        if let Some(b) = open {
+                            self.open_bucket(s, b);
+                        }
+                        ui.add_space(6.0);
+                    }
                 }
-                if let Some(b) = open {
-                    self.open_bucket(s, b);
+                if let Some((id, p)) = pin
+                    && let Err(e) = s.connections.write().set_pinned(&id, p)
+                {
+                    cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
-                ui.add_space(6.0);
-            }
-        }
-        if let Some((id, p)) = pin
-            && let Err(e) = s.connections.write().set_pinned(&id, p)
-        {
-            cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
-        }
-        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-            if let Err(e) = s.connections.write().reorder(&["s3"], from, to) {
-                cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
-            }
-            ui.ctx().request_repaint();
-        }
-        // The shell decides which tab this lands in.
-        if let Some((id, selected)) = open_profile
-            && !selected
-        {
-            cx.open("s3", Some(OpenRequest::Connection { id }));
-        }
-        ui.add_space(10.0);
-        form::note(ui, &theme, ph::LIGHTBULB, &s.t("s3-hint"));
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    if let Err(e) = s.connections.write().reorder(&["s3"], from, to) {
+                        cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                    }
+                    ui.ctx().request_repaint();
+                }
+                // The shell decides which tab this lands in.
+                if let Some((id, selected)) = open_profile
+                    && !selected
+                {
+                    cx.open("s3", Some(OpenRequest::Connection { id }));
+                }
+                ui.add_space(10.0);
+                form::note(ui, &theme, ph::LIGHTBULB, &s.t("s3-hint"));
+            });
         true
     }
 

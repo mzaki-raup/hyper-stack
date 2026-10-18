@@ -609,45 +609,57 @@ impl Tool for TerminalTool {
         // Detected shells, in the order the user put them in.
         let saved = s.settings.read().terminal.shell_order.clone();
         let profiles = ordered_shells(&self.profiles, &saved);
-        let mut reorder = hs_ui::reorder::Reorder::new("terminal-shells");
-        let mut open_id: Option<String> = None;
-        for (i, p) in profiles.iter().enumerate() {
-            let icon = shell_icon(&p.id);
-            reorder.row(ui, i, |ui| {
-                if hs_ui::form::list_row(ui, &theme, p.id == current, icon, &p.name, Some(&p.exe))
-                    .tip(s.t("terminal-open-in-new-tab"))
-                    .clicked()
-                {
-                    open_id = Some(p.id.clone());
+        egui::ScrollArea::vertical()
+            .id_salt("terminal-shells-list")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let mut reorder = hs_ui::reorder::Reorder::new("terminal-shells");
+                let mut open_id: Option<String> = None;
+                for (i, p) in profiles.iter().enumerate() {
+                    let icon = shell_icon(&p.id);
+                    reorder.row(ui, i, |ui| {
+                        if hs_ui::form::list_row(
+                            ui,
+                            &theme,
+                            p.id == current,
+                            icon,
+                            &p.name,
+                            Some(&p.exe),
+                        )
+                        .tip(s.t("terminal-open-in-new-tab"))
+                        .clicked()
+                        {
+                            open_id = Some(p.id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
                 }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    let mut ids: Vec<String> = profiles.iter().map(|p| p.id.clone()).collect();
+                    hs_ui::reorder::move_item(&mut ids, from, to);
+                    s.settings.write().terminal.shell_order = ids;
+                    let _ = s.save_settings();
+                    ui.ctx().request_repaint();
+                }
+                if let Some(id) = open_id {
+                    cx.open(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd: None,
+                            host: None,
+                            profile: Some(id),
+                            command: None,
+                        }),
+                    );
+                }
+                ui.add_space(10.0);
+                hs_ui::form::note(
+                    ui,
+                    &theme,
+                    hs_ui::icons::ph::LIGHTBULB,
+                    &s.t("terminal-hint"),
+                );
             });
-            ui.add_space(2.0);
-        }
-        if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-            let mut ids: Vec<String> = profiles.iter().map(|p| p.id.clone()).collect();
-            hs_ui::reorder::move_item(&mut ids, from, to);
-            s.settings.write().terminal.shell_order = ids;
-            let _ = s.save_settings();
-            ui.ctx().request_repaint();
-        }
-        if let Some(id) = open_id {
-            cx.open(
-                "terminal",
-                Some(OpenRequest::Terminal {
-                    cwd: None,
-                    host: None,
-                    profile: Some(id),
-                    command: None,
-                }),
-            );
-        }
-        ui.add_space(10.0);
-        hs_ui::form::note(
-            ui,
-            &theme,
-            hs_ui::icons::ph::LIGHTBULB,
-            &s.t("terminal-hint"),
-        );
         true
     }
 

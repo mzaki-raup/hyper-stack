@@ -59,6 +59,9 @@ pub struct Row {
     pub port: String,
     pub user: String,
     pub password: Password,
+    /// The second secret a kind stores. For SSH key auth this is the key
+    /// passphrase; the file path stays in `key`.
+    pub key_secret: Password,
     /// Key material that is not itself a secret: the SSH key file.
     pub key: String,
 }
@@ -79,6 +82,7 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
         port: String::new(),
         user: String::new(),
         password: Password::None,
+        key_secret: Password::None,
         key: String::new(),
     };
     match profile.kind.as_str() {
@@ -88,13 +92,14 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.port = port(v.port);
             r.user = v.user;
             r.key = v.key_path;
-            // A key-auth host has no password; the passphrase is the secret
-            // that opens it, so that is what this column is for.
-            r.password = Password::read(if v.auth == "key" {
-                &v.key_passphrase
+            // A key-auth host has two credentials: the key file (a path,
+            // shown as it is) and the passphrase that opens it (the secret
+            // in the Key column). Password auth has one.
+            if v.auth == "key" {
+                r.key_secret = Password::read(&v.key_passphrase);
             } else {
-                &v.password
-            });
+                r.password = Password::read(&v.password);
+            }
         }
         "db" => {
             let v = tool_db::profile::DbFields::from_table(f);
@@ -236,9 +241,14 @@ password = ""
         .expect("ssh is listed");
         assert_eq!(r.key, "~/.ssh/id_ed25519");
         assert_eq!(
-            r.password,
+            r.key_secret,
             Password::Vault(SecretRef("01HS".into())),
-            "with key auth the passphrase is the secret that opens the host"
+            "with key auth the passphrase is the secret that opens the key"
+        );
+        assert_eq!(
+            r.password,
+            Password::None,
+            "a key-auth host has no password of its own"
         );
     }
 

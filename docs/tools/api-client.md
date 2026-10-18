@@ -46,7 +46,9 @@
   into a HyperStack environment). The same environment formats can also be
   imported from Settings → Environments → Variables, where they merge into
   the selected draft and require Save to persist; export a collection as
-  Postman v2.1.
+  Postman v2.1. An environment exports as Postman v2.1, Insomnia v4, Bruno
+  or flat JSON; `secret:` values are written empty because the vault is
+  never decrypted for an export.
 - **History** (`<workspace>/api/history.jsonl`, last 200), one click
   re-opens an entry as a draft.
 - **Guards**: a non-GET request against a protected environment asks

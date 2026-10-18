@@ -13,6 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
+pub mod conflict;
 pub mod diff;
 pub mod write;
 

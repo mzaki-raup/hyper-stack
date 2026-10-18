@@ -179,6 +179,8 @@ struct ChangeRef {
     repo: PathBuf,
     path: String,
     side: Side,
+    /// Unmerged: the file opens in the conflict editor, not the diff.
+    conflict: bool,
 }
 
 /// What the sidebar or the main view asks the editor to do.
@@ -347,6 +349,19 @@ struct DiffPane {
     generation: u64,
 }
 
+/// The block-by-block editor for one conflicted file.
+struct ConflictPane {
+    change: ChangeRef,
+    /// The file being read and parsed.
+    load: Pending<GitResult<hs_git::conflict::Parsed>>,
+    parsed: Option<hs_git::conflict::Parsed>,
+    /// One per conflict block, in file order.
+    choices: Vec<hs_git::conflict::Choice>,
+    /// The write-and-stage in flight.
+    save: Pending<GitResult<()>>,
+    error: Option<String>,
+}
+
 struct HistoryPane {
     repo: PathBuf,
     commits: Vec<Commit>,
@@ -461,6 +476,7 @@ impl HistoryPane {
 
 enum MainView {
     Diff(DiffPane),
+    Conflict(ConflictPane),
     History(HistoryPane),
 }
 
@@ -565,6 +581,7 @@ impl Git {
         let keep = |p: &Path| roots.iter().any(|r| p.starts_with(r));
         match &self.main {
             Some(MainView::Diff(d)) if !keep(&d.change.repo) => self.main = None,
+            Some(MainView::Conflict(c)) if !keep(&c.change.repo) => self.main = None,
             Some(MainView::History(h)) if !keep(&h.repo) => self.main = None,
             _ => {}
         }
@@ -665,10 +682,38 @@ impl Git {
                 }
             }
         }
+        let mut resolved = false;
         match &mut self.main {
             Some(MainView::Diff(d)) => d.slot.poll(),
+            Some(MainView::Conflict(c)) => {
+                if let Some(result) = c.load.take() {
+                    match result {
+                        Ok(parsed) => {
+                            c.choices =
+                                vec![hs_git::conflict::Choice::Unresolved; parsed.conflicts()];
+                            c.parsed = Some(parsed);
+                        }
+                        Err(e) => c.error = Some(e),
+                    }
+                }
+                if let Some(result) = c.save.take() {
+                    match result {
+                        Ok(()) => resolved = true,
+                        Err(e) => c.error = Some(e),
+                    }
+                }
+            }
             Some(MainView::History(h)) => h.poll(s),
             None => {}
+        }
+        if resolved {
+            // The file is no longer unmerged: the row moved to Staged.
+            self.main = None;
+            self.toasts.push((
+                hs_core::tool::ToastLevel::Success,
+                s.t("git-conflict-resolved"),
+            ));
+            self.refresh_all();
         }
         // A newer status may have made the shown diff stale.
         if let Some(MainView::Diff(d)) = &self.main
@@ -795,6 +840,7 @@ impl Git {
                         repo: r.root.clone(),
                         path: f.path.clone(),
                         side,
+                        conflict: f.kind == Kind::Conflict,
                     });
                 }
             }
@@ -803,6 +849,24 @@ impl Git {
     }
 
     fn show_change(&mut self, change: ChangeRef, s: &Services) {
+        // An unmerged file opens in the block editor: a diff of a file full
+        // of markers says nothing about which side to keep.
+        if change.conflict {
+            let full = abs(&change.repo, &change.path);
+            let load = Pending::start(s, move || {
+                let text = std::fs::read_to_string(&full).map_err(|e| e.to_string())?;
+                Ok(hs_git::conflict::parse(&text))
+            });
+            self.main = Some(MainView::Conflict(ConflictPane {
+                change,
+                load,
+                parsed: None,
+                choices: Vec::new(),
+                save: Pending::none(),
+                error: None,
+            }));
+            return;
+        }
         let (root, path, side) = (change.repo.clone(), change.path.clone(), change.side);
         let slot = DiffSlot::load(s, move || {
             hs_git::file_diff(&root, &path, side).map_err(err)
@@ -931,6 +995,7 @@ impl Git {
                                         repo: r.root.clone(),
                                         path: f.path.clone(),
                                         side,
+                                        conflict: f.kind == Kind::Conflict,
                                     };
                                     let letter = match side {
                                         Side::Staged => f.index,
@@ -1155,6 +1220,7 @@ impl Git {
             return actions;
         }
         let mut back = false;
+        let mut reload_after: Option<ChangeRef> = None;
         let mut side_by_side = self.side_by_side;
         // A hunk operation asked for in the diff view, run after the match
         // so the repository can be borrowed mutably.
@@ -1212,6 +1278,122 @@ impl Git {
                     && let Some(hunk) = diff.hunks.get(hi).cloned()
                 {
                     hunk_request = Some((d.change.repo.clone(), d.change.path.clone(), hunk, op));
+                }
+            }
+            Some(MainView::Conflict(c)) => {
+                let full = abs(&c.change.repo, &c.change.path);
+                let mut open = false;
+                let mut reload = false;
+                let mut save_now = false;
+                let total = c.parsed.as_ref().map_or(0, |p| p.conflicts());
+                let chosen = c
+                    .choices
+                    .iter()
+                    .filter(|x| **x != hs_git::conflict::Choice::Unresolved)
+                    .count();
+                header(
+                    ui,
+                    s,
+                    theme,
+                    &mut back,
+                    |ui| {
+                        ui.label(egui::RichText::new(&c.change.path).strong());
+                        ui.label(
+                            egui::RichText::new(s.t("git-conflict-heading")).color(theme.warning),
+                        );
+                        if total > 0 {
+                            ui.label(
+                                egui::RichText::new(format!("{chosen}/{total}"))
+                                    .small()
+                                    .color(theme.text_muted),
+                            );
+                        }
+                    },
+                    |ui| {
+                        if full.is_file() && ui.button(s.t("git-open-file")).clicked() {
+                            open = true;
+                        }
+                        if ui.button(s.t("git-refresh")).clicked() {
+                            reload = true;
+                        }
+                    },
+                );
+                if open {
+                    actions.push(GitAction::OpenFile(full.clone()));
+                }
+                if reload {
+                    reload_after = Some(c.change.clone());
+                }
+                if let Some(e) = &c.error {
+                    ui.colored_label(theme.error, e);
+                }
+                if c.parsed.is_none() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(s.t("git-conflict-loading"));
+                    });
+                } else {
+                    let ready = total > 0 && chosen == total;
+                    ui.horizontal(|ui| {
+                        if ui.button(s.t("git-conflict-all-ours")).clicked() {
+                            c.choices.fill(hs_git::conflict::Choice::Ours);
+                        }
+                        if ui.button(s.t("git-conflict-all-theirs")).clicked() {
+                            c.choices.fill(hs_git::conflict::Choice::Theirs);
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .add_enabled(
+                                    ready && !c.save.busy(),
+                                    egui::Button::new(s.t("git-conflict-save")),
+                                )
+                                .clicked()
+                            {
+                                save_now = true;
+                            }
+                        });
+                    });
+                    ui.separator();
+                    egui::ScrollArea::vertical()
+                        .id_salt(("git-conflict", &c.change.path))
+                        .show(ui, |ui| {
+                            if let Some(parsed) = &c.parsed {
+                                let mut index = 0;
+                                for segment in &parsed.segments {
+                                    match segment {
+                                        hs_git::conflict::Segment::Context(text) => {
+                                            conflict_context(ui, theme, text);
+                                        }
+                                        hs_git::conflict::Segment::Conflict(block) => {
+                                            if let Some(choice) = c.choices.get_mut(index) {
+                                                conflict_block(ui, s, theme, block, choice);
+                                            }
+                                            index += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                }
+                if save_now && let Some(parsed) = &c.parsed {
+                    match hs_git::conflict::resolve(parsed, &c.choices) {
+                        Ok(text) => {
+                            let root = c.change.repo.clone();
+                            let path = c.change.path.clone();
+                            let full = abs(&root, &path);
+                            c.save = Pending::start(s, move || {
+                                std::fs::write(&full, text).map_err(|e| e.to_string())?;
+                                hs_git::write::stage(&root, &[path.as_str()]).map_err(err)
+                            });
+                            c.error = None;
+                        }
+                        Err(hs_git::conflict::ResolveError::Unresolved(index)) => {
+                            c.error = Some(s.i18n.t_args(
+                                "git-conflict-unresolved-index",
+                                &[("index", &(index + 1).to_string())],
+                            ));
+                        }
+                    }
                 }
             }
             Some(MainView::History(h)) => {
@@ -1294,6 +1476,9 @@ impl Git {
                     crate::git_ops::Request::Hunk { path, hunk, op },
                 );
             }
+        }
+        if let Some(change) = reload_after {
+            self.show_change(change, s);
         }
         if back {
             self.main = None;
@@ -1473,6 +1658,120 @@ fn repo_header(
                 }
             }
         });
+    });
+}
+
+/// Shared lines around a conflict, capped so a huge file stays responsive.
+fn conflict_context(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    let lines: Vec<&str> = text.lines().collect();
+    let head = 10;
+    let tail = 5;
+    if lines.len() > head + tail + 1 {
+        for line in &lines[..head] {
+            ui.monospace(*line);
+        }
+        ui.label(
+            egui::RichText::new(format!("… {} lines …", lines.len() - head - tail))
+                .small()
+                .color(theme.text_muted),
+        );
+        for line in &lines[lines.len() - tail..] {
+            ui.monospace(*line);
+        }
+    } else {
+        for line in lines {
+            ui.monospace(line);
+        }
+    }
+}
+
+/// One side of a conflict, with its first lines and a count for the rest.
+fn conflict_side(ui: &mut egui::Ui, theme: &Theme, text: &str, empty: &str) {
+    if text.is_empty() {
+        ui.label(egui::RichText::new(empty).italics().color(theme.text_muted));
+        return;
+    }
+    let lines: Vec<&str> = text.lines().collect();
+    let cap = 24;
+    for line in lines.iter().take(cap) {
+        ui.monospace(*line);
+    }
+    if lines.len() > cap {
+        ui.label(
+            egui::RichText::new(format!("… {} more …", lines.len() - cap))
+                .small()
+                .color(theme.text_muted),
+        );
+    }
+}
+
+/// One conflict block: both sides under their marker labels, a choice row,
+/// and a text field when the result is typed.
+fn conflict_block(
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    block: &hs_git::conflict::Conflict,
+    choice: &mut hs_git::conflict::Choice,
+) {
+    use hs_git::conflict::Choice;
+    egui::Frame::group(ui.style()).show(ui, |ui| {
+        ui.label(
+            egui::RichText::new(format!(
+                "{} · {}",
+                s.t("git-conflict-ours"),
+                block.ours_label
+            ))
+            .strong()
+            .color(theme.warning),
+        );
+        conflict_side(ui, theme, &block.ours, &s.t("git-conflict-empty"));
+        ui.add_space(6.0);
+        ui.label(
+            egui::RichText::new(format!(
+                "{} · {}",
+                s.t("git-conflict-theirs"),
+                block.theirs_label
+            ))
+            .strong()
+            .color(theme.accent),
+        );
+        conflict_side(ui, theme, &block.theirs, &s.t("git-conflict-empty"));
+        ui.add_space(8.0);
+        ui.horizontal_wrapped(|ui| {
+            let mut pick = |ui: &mut egui::Ui, value: Choice, key: &str| {
+                if ui.selectable_label(*choice == value, s.t(key)).clicked() {
+                    *choice = value.clone();
+                }
+            };
+            pick(ui, Choice::Ours, "git-conflict-ours");
+            pick(ui, Choice::Theirs, "git-conflict-theirs");
+            pick(ui, Choice::Both, "git-conflict-both");
+            if ui
+                .selectable_label(
+                    matches!(choice, Choice::Custom(_)),
+                    s.t("git-conflict-custom"),
+                )
+                .clicked()
+            {
+                *choice = Choice::Custom(block.ours.clone());
+            }
+            if matches!(choice, Choice::Unresolved) {
+                ui.label(
+                    egui::RichText::new(s.t("git-conflict-unresolved"))
+                        .small()
+                        .color(theme.warning),
+                );
+            }
+        });
+        if let Choice::Custom(text) = choice {
+            ui.add(
+                egui::TextEdit::multiline(text)
+                    .code_editor()
+                    .desired_rows(4)
+                    .desired_width(f32::INFINITY),
+            );
+        }
     });
 }
 

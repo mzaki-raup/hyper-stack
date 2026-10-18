@@ -242,18 +242,28 @@ sidebar under each repository's header:
   in a toast. State lives per repository (`git_ops::Ops`), so two projects
   in one tab do not share a message.
 
+- **Conflict editor** (§9): selecting a conflicted file opens a block-by-block
+  editor in the main area. Context lines are shown read-only; each conflict
+  shows Ours and Theirs under their marker labels, and the user picks
+  **Ours**, **Theirs**, **Both** (ours then theirs) or types a custom result.
+  A conflict with no choice yet is marked; **All Ours** / **All Theirs** fill
+  every block at once. **Save and Mark Resolved** writes the file without
+  markers and stages it (`git add`), then refreshes the status. The parse
+  accepts both two-way markers and `diff3` blocks with a base section; a
+  malformed block is kept as text rather than lost. Binary files keep the
+  whole-file Keep Ours / Keep Theirs actions.
+
 - **Per hunk** (§6): a hunk's banner in the diff view carries Stage Hunk
-  and Discard Hunk… for a work-tree change, Unstage Hunk for a staged
+  and Discard Hunk. for a work-tree change, Unstage Hunk for a staged
   one. The hunk is sent to `git apply --recount` (with `--cached` and/or
   `-R`) as a patch rebuilt from the parsed diff (`write::hunk_patch`), so
   a diff read a moment ago still applies when line counts have shifted.
 
-Still to come from §5–§9: the line-level three-way conflict editor and
-signed tags. Source Control can run merge, basic rebase, interactive rebase
-and cherry-pick, then offers Continue / Skip / Abort when Git leaves the
-operation paused. Conflicted paths appear in the Conflicts list with
-**Keep Ours**, **Keep Theirs** and **Mark as Resolved** (whole-file
-resolution; a conflicted file is never staged by *Stage All*). Line-level
-resolution still needs an external editor or the terminal. Tags are
-annotated or lightweight; signing is left to the terminal because a
-pinentry prompt cannot be answered from the app.
+Still to come from §5–§9: signed tags. Source Control runs merge, basic
+rebase, interactive rebase and cherry-pick, then offers Continue / Skip /
+Abort when Git leaves the operation paused; conflicted paths open in the
+block editor above (a conflicted file is never staged by *Stage All*), and
+the whole-file **Keep Ours** / **Keep Theirs** / **Mark as Resolved**
+actions remain on the row for a quick answer. Tags are annotated or
+lightweight; signing is left to the terminal because a pinentry prompt
+cannot be answered from the app.

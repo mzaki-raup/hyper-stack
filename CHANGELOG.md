@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Source Control can run an interactive rebase: pick, squash, fix up, drop and reorder commits without opening an editor.
-- Tags can be annotated from Source Control by giving them a message; signing stays in the terminal.
-- Release verification retries asset downloads and can lift the metadata rate limit with a token.
+- (nothing yet)
+
+## 0.42.0 — 2026-10-18
+
+### Added
+
+- Interactive rebase and annotated tags in Source Control (f4c593c8)
 
 ## 0.41.0 — 2026-10-18
 

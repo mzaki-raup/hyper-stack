@@ -40,8 +40,13 @@
   Pretty (highlighted JSON/XML/HTML/text), Raw, or Preview (pictures as
   pictures, HTML as sanitised text); headers; cookies; Save…, Copy.
 - **Import/export**: Postman v2.1 collections (folders, requests, auth,
-  bodies incl. GraphQL as JSON, scripts) and Postman environments (into a
-  HyperStack environment); export a collection as Postman v2.1.
+  bodies incl. GraphQL as JSON, scripts) and environments from Postman,
+  Insomnia environment resources/exports, Bruno environment JSON (`vars`),
+  or generic JSON objects with a `values` or `variables` map (all imported
+  into a HyperStack environment). The same environment formats can also be
+  imported from Settings → Environments → Variables, where they merge into
+  the selected draft and require Save to persist; export a collection as
+  Postman v2.1.
 - **History** (`<workspace>/api/history.jsonl`, last 200), one click
   re-opens an entry as a draft.
 - **Guards**: a non-GET request against a protected environment asks

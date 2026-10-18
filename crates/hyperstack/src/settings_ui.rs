@@ -207,6 +207,8 @@ pub enum SettingsEffect {
     LockVault,
     ChangeMasterPassword,
     EnvironmentsChanged,
+    /// Import variables into the environment currently being edited.
+    ImportEnvironment,
     ConnectionsChanged,
     /// Rename the open workspace (the shell owns the registry).
     RenameWorkspace(String),
@@ -1589,7 +1591,26 @@ fn environments(
     ui.horizontal_top(|ui| {
         // Left: the list.
         ui.vertical(|ui| {
-            ui.set_width(240.0);
+            let mut list_width = 320.0_f32;
+            let env_names: Vec<String> = s
+                .environments
+                .read()
+                .all()
+                .iter()
+                .map(|env| env.name.clone())
+                .collect();
+            let font_id = egui::TextStyle::Body.resolve(ui.style());
+            let painter = ui.painter();
+            for name in &env_names {
+                let text_width = painter
+                    .layout_no_wrap(name.clone(), font_id.clone(), theme.text)
+                    .size()
+                    .x;
+                list_width = list_width.max(text_width + 56.0);
+            }
+            list_width = list_width.min((ui.available_width() - 300.0).max(200.0));
+            ui.set_min_width(320.0);
+            ui.set_width(list_width);
             form::section(ui, theme, &s.t("settings-environments"), |ui| {
                 if form::primary_button(
                     ui,
@@ -1715,6 +1736,16 @@ fn environments(
             });
             form::section(ui, theme, &s.t("env-variables"), |ui| {
                 ui.horizontal(|ui| {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                            s.t("env-import")
+                        ))
+                        .clicked()
+                    {
+                        effects.push(SettingsEffect::ImportEnvironment);
+                    }
                     if ui
                         .button(format!("{} {}", hs_ui::icons::COPY, s.t("env-copy-from")))
                         .clicked()

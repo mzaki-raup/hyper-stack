@@ -339,13 +339,36 @@ pub fn import_collection(text: &str) -> Result<Collection, String> {
 
 /// A Postman environment file: `(name, variables)`.
 pub fn import_environment(text: &str) -> Result<(String, Vec<Kv>), String> {
+    import_environment_document(text)
+}
+
+/// Import variables from Postman, Insomnia, Bruno, or the common flat
+/// `{ "name": ..., "values": { "key": "value" } }` JSON shape.
+/// This returns HyperStack's neutral environment representation; client
+/// syntax in values is intentionally preserved for the user to review.
+pub fn import_environment_document(text: &str) -> Result<(String, Vec<Kv>), String> {
     let v: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    if let Ok(result) = postman_environment(&v) {
+        return Ok(result);
+    }
+    if let Ok(result) = insomnia_environment(&v) {
+        return Ok(result);
+    }
+    if let Ok(result) = bruno_environment(&v) {
+        return Ok(result);
+    }
+    flat_environment(&v).ok_or_else(|| {
+        "unrecognized environment JSON; expected Postman, Insomnia, Bruno, or a flat name/values object".into()
+    })
+}
+
+fn postman_environment(v: &Value) -> Result<(String, Vec<Kv>), String> {
     let values = v
         .get("values")
         .and_then(|x| x.as_array())
         .ok_or("not a Postman environment (no \"values\")")?;
     Ok((
-        s(&v, "name"),
+        s(v, "name"),
         values
             .iter()
             .map(|e| Kv {
@@ -356,6 +379,82 @@ pub fn import_environment(text: &str) -> Result<(String, Vec<Kv>), String> {
             })
             .collect(),
     ))
+}
+
+fn insomnia_environment(v: &Value) -> Result<(String, Vec<Kv>), String> {
+    if s(v, "_type") != "environment" && s(v, "_type") != "export" {
+        return Err("not an Insomnia environment".into());
+    }
+    let resource = v
+        .get("resources")
+        .and_then(Value::as_array)
+        .and_then(|resources| {
+            resources
+                .iter()
+                .find(|item| s(item, "_type") == "environment")
+        });
+    let source = resource.unwrap_or(v);
+    let data = source
+        .get("data")
+        .and_then(Value::as_object)
+        .ok_or("not an Insomnia environment (no data object)")?;
+    Ok((
+        nonempty_or(s(source, "name"), "Imported Insomnia Environment"),
+        data.iter()
+            .map(|(key, value)| Kv::new(key, &value_to_text(value)))
+            .collect(),
+    ))
+}
+
+fn bruno_environment(v: &Value) -> Result<(String, Vec<Kv>), String> {
+    let vars = v
+        .get("vars")
+        .and_then(Value::as_array)
+        .ok_or("not a Bruno environment (no vars array)")?;
+    Ok((
+        nonempty_or(s(v, "name"), "Imported Bruno Environment"),
+        vars.iter()
+            .filter_map(|item| {
+                let key = s(item, "name");
+                (!key.is_empty()).then(|| Kv {
+                    key,
+                    value: value_to_text(item.get("value").unwrap_or(&Value::Null)),
+                    enabled: !item.get("enabled").is_some_and(|enabled| enabled == false),
+                    description: s(item, "description"),
+                })
+            })
+            .collect(),
+    ))
+}
+
+fn flat_environment(v: &Value) -> Option<(String, Vec<Kv>)> {
+    let values = v
+        .get("values")?
+        .as_object()
+        .or_else(|| v.get("variables")?.as_object())?;
+    Some((
+        nonempty_or(s(v, "name"), "Imported Environment"),
+        values
+            .iter()
+            .map(|(key, value)| Kv::new(key, &value_to_text(value)))
+            .collect(),
+    ))
+}
+
+fn nonempty_or(value: String, fallback: &str) -> String {
+    if value.trim().is_empty() {
+        fallback.to_string()
+    } else {
+        value
+    }
+}
+
+fn value_to_text(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Null => String::new(),
+        other => other.to_string(),
+    }
 }
 
 fn kv_json(list: &[Kv]) -> Value {
@@ -572,5 +671,39 @@ mod tests {
         let out = export_environment("staging", &[("base".into(), "https://s".into())]);
         assert!(out.contains("\"key\": \"base\""));
         assert!(import_collection("{}").is_err());
+    }
+
+    #[test]
+    fn imports_common_environment_formats() {
+        let (name, vars) = import_environment_document(
+            r#"{"_type":"environment","name":"Insomnia Dev","data":{"base":"https://api.test","port":8080}}"#,
+        ).unwrap();
+        assert_eq!(name, "Insomnia Dev");
+        assert_eq!(vars.len(), 2);
+        assert_eq!(vars.iter().find(|v| v.key == "port").unwrap().value, "8080");
+
+        let (name, vars) = import_environment_document(
+            r#"{"name":"Bruno Local","vars":[{"name":"token","value":"abc","enabled":false},{"name":"host","value":"localhost"}]}"#,
+        ).unwrap();
+        assert_eq!(name, "Bruno Local");
+        assert!(!vars[0].enabled);
+        assert_eq!(vars[1].key, "host");
+
+        let (name, vars) = import_environment_document(
+            r#"{"name":"Generic","values":{"host":"https://example.test","port":443}}"#,
+        )
+        .unwrap();
+        assert_eq!(name, "Generic");
+        assert_eq!(vars.len(), 2);
+        assert!(import_environment_document("{\"hello\":\"world\"}").is_err());
+    }
+
+    #[test]
+    fn imports_insomnia_export_environment_resource() {
+        let (name, vars) = import_environment_document(
+            r#"{"_type":"export","resources":[{"_type":"environment","name":"Workspace","data":{"api":"https://api.test"}}]}"#,
+        ).unwrap();
+        assert_eq!(name, "Workspace");
+        assert_eq!(vars[0].key, "api");
     }
 }

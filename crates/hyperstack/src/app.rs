@@ -1329,6 +1329,54 @@ impl HyperStackApp {
                 }
                 SettingsEffect::WorkspaceLogoChanged => ctx.request_repaint(),
                 SettingsEffect::Toast(level, text) => self.toasts.push(level, text),
+                SettingsEffect::ImportEnvironment => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Environment JSON", &["json"])
+                        .pick_file()
+                    {
+                        let result = std::fs::read_to_string(&path)
+                            .map_err(|error| error.to_string())
+                            .and_then(|text| tool_api::postman::import_environment_document(&text));
+                        match result {
+                            Ok((name, imported)) => {
+                                let count = imported.iter().filter(|row| row.enabled).count();
+                                let mut hub = self.settings_ui.lock();
+                                if let Some((draft, vars)) = &mut hub.state.env_draft {
+                                    if !name.trim().is_empty() {
+                                        draft.name = name;
+                                    }
+                                    for row in imported.into_iter().filter(|row| row.enabled) {
+                                        let secret = hs_core::secrets::SecretRef::parse(&row.value)
+                                            .is_some();
+                                        if let Some(existing) =
+                                            vars.iter_mut().find(|v| v.key == row.key)
+                                        {
+                                            existing.value = row.value;
+                                            existing.enabled = true;
+                                            existing.secret = secret;
+                                        } else {
+                                            vars.push(hs_ui::kv_editor::KvRow {
+                                                enabled: true,
+                                                key: row.key,
+                                                value: row.value,
+                                                secret,
+                                            });
+                                        }
+                                    }
+                                    vars.sort_by(|a, b| a.key.cmp(&b.key));
+                                    self.toasts.push(
+                                        ToastLevel::Success,
+                                        self.services.i18n.t_args(
+                                            "env-imported",
+                                            &[("name", &draft.name), ("count", &count.to_string())],
+                                        ),
+                                    );
+                                }
+                            }
+                            Err(error) => self.toasts.push(ToastLevel::Error, error),
+                        }
+                    }
+                }
                 SettingsEffect::ExportSettings => {
                     self.portable = PortableDialog::Export;
                     self.password.reset();

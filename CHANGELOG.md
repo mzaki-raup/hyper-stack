@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- API environment imports now accept Postman, Insomnia, Bruno and common JSON variable maps, including from Settings → Environments.
 
 ## 0.39.0 — 2026-10-18
 

@@ -79,7 +79,7 @@ pub(crate) struct Ops {
     pub lists_due: bool,
     pub operation: Option<hs_git::OperationState>,
     operation_rx: Option<mpsc::Receiver<Option<hs_git::OperationState>>>,
-    operation_check_due: bool,
+    pub(crate) operation_check_due: bool,
     pub confirm: Option<Confirm>,
     /// The New Branch field, while it is open.
     pub new_branch: Option<String>,

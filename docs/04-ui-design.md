@@ -343,7 +343,7 @@ import/export) · Appearance (theme mode and the dark and light schemes,
 clickable swatches, interface font, tabs, activity rail order and labels)
 · Accessibility (Read Aloud through the OS voice, speech rate, reduce
 motion) · Workspace (name, logo, folder, environment compare and sync with
-another workspace) · Environments · Security · Connections · Terminal ·
+another workspace) · Environments · Security · Terminal · Connections ·
 Editor · Browser (home page, blocking and script defaults, extra blocked
 hosts) · AI Assistant (providers, models, Cascade rounds; ADR-019) ·
 Shortcuts · About, which also holds **Updates** (installed version with sha/date/channel, channel, automatic
@@ -368,6 +368,15 @@ draft with **Save**; **Import** merges a Postman, Insomnia, Bruno or generic
 JSON environment into that draft, and **Export** writes the selected
 environment in one of those formats. Secrets are never exported in plaintext
 (see [06](06-security.md) §addendum).
+
+The **Terminal** page sits between Security and Connections: session defaults
+above, then the **Terminal List** - every shell and CLI the Terminal
+activity shows, in its order. A row is dragged to reorder or moved with
+arrows; **Add CLI**, **Edit** and **Remove** (with a question) sit beside it,
+and a **Suggestions** card offers commands found on PATH (mysql, psql,
+mongosh, redis-cli, claude, opencode, ...) as one-click additions. A
+disabled row stays in the list and leaves the activity sidebar. Owner's
+request, 2026-10-19; details in [tools/terminal.md](tools/terminal.md) 5.
 
 ### 9.1 Visual rules
 

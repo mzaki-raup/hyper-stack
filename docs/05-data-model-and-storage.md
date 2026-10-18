@@ -395,3 +395,14 @@ The API client keeps its collections as one JSON file each under
 200 sends in `api/history.jsonl`; values may be `secret:<id>` references
 that only the vault resolves at send time.
 
+
+**Amended 2026-10-19.** `settings.toml` gains `[terminal] cli` — an ordered
+array of tables, one per CLI profile the Terminal activity lists below its
+shells: `id`, `name`, `command`, `args`, `cwd` (empty = the activity's
+default, `{{project}}` = the editor project's folder), `environment` (empty
+= the active one), `icon`, `colour`, `enabled`. The array order is the
+sidebar order, so reordering on Settings → Terminal writes the array; a
+disabled profile stays in it. The same section holds `shell_order`, which
+already existed for the detected shells. No secret is stored: `command`,
+`args` and `cwd` may hold `{{variables}}`, resolved only when a session
+starts.

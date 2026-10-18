@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Release verification retries asset downloads and can lift the metadata rate limit with a token.
 
 ## 0.41.0 — 2026-10-18
 

@@ -132,7 +132,10 @@ the runner's timeout.
 9  scripts/verify-release.ps1 -Tag v<v>
                                      → anonymously downloads manifest + signature + every asset,
                                        checks signature, size, sha256, SHA256SUMS agreement,
-                                       `--version` and `--self-test`; fails the job if anything is off
+                                       `--version` and `--self-test`; fails the job if anything is off.
+                                       Downloads retry (a Cloudflare reset mid-exe is not a bad release);
+                                       on github.com the token, when given, lifts only the metadata
+                                       read's shared-IP rate limit.
 ```
 
 Nothing is pushed or published until step 5 succeeds, so a failed build leaves

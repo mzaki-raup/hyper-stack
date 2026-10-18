@@ -665,6 +665,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   flashed for one frame (`any_popup_open` true in pass state, false in
   memory) and read as a dead click. Give the second popup its own id
   (`Popup::context_menu(&r).id(r.id.with(..)).show(..)`).
+- A `TextEdit` inside a **nested** `menu_button` popup is unusable: the
+  first click into the field closes the popup, so the typed text lands
+  nowhere (or in whatever field holds focus next, which looked like the
+  commit box swallowing a tag message). A tall nested popup was also drawn
+  *under* its parent menu. Put fields that need typing in an inline panel
+  beside the menu (rename, interactive rebase, New Tag do), or make the
+  menu top-level; keep nested menus to buttons.
 - The GUI harness's instant down/up click opens no `menu_button` at
   all: a real press spans frames. `Dev-Click` sleeps 80 ms between the
   two `mouse_event`s now; right-click menus never needed it.

@@ -88,11 +88,39 @@ pub(crate) struct Ops {
     pub remote_name: String,
     pub remote_url: String,
     pub editing_remote: Option<String>,
-    pub tag_name: String,
+    /// The New Tag panel, while it is open: name and message.
+    pub new_tag: Option<(String, String)>,
     pub merge_input: OperationInput,
     pub rebase_onto: String,
     pub cherry_pick_commit: String,
     pub stash_message: String,
+    /// The interactive rebase panel, while it is open.
+    pub rebase_ui: Option<RebaseUi>,
+}
+
+/// The state of the Interactive Rebase panel: the base the user typed, the
+/// commits loaded for it, and the action chosen for each.
+pub(crate) struct RebaseUi {
+    pub base: String,
+    pub commits: Vec<hs_git::write::RebaseCommit>,
+    /// Parallel to `commits`.
+    pub actions: Vec<hs_git::write::RebaseAction>,
+    loading: bool,
+    rx: Option<mpsc::Receiver<Result<Vec<hs_git::write::RebaseCommit>, String>>>,
+    pub error: Option<String>,
+}
+
+impl RebaseUi {
+    fn new() -> Self {
+        Self {
+            base: String::new(),
+            commits: Vec::new(),
+            actions: Vec::new(),
+            loading: false,
+            rx: None,
+            error: None,
+        }
+    }
 }
 
 /// Conventional Commit prefixes offered next to the commit box
@@ -139,11 +167,12 @@ impl Default for Ops {
             remote_name: String::new(),
             remote_url: String::new(),
             editing_remote: None,
-            tag_name: String::new(),
+            new_tag: None,
             merge_input: OperationInput::default(),
             rebase_onto: String::new(),
             cherry_pick_commit: String::new(),
             stash_message: String::new(),
+            rebase_ui: None,
         }
     }
 }
@@ -189,6 +218,8 @@ pub(crate) enum Request {
     RemoveRemote(String),
     CreateTag {
         name: String,
+        /// Empty makes a lightweight tag; otherwise annotated.
+        message: String,
     },
     DeleteTag(String),
     PushTag {
@@ -209,6 +240,11 @@ pub(crate) enum Request {
     CherryPickContinue,
     CherryPickAbort,
     CherryPickSkip,
+    /// `git rebase -i` with the todo the panel built.
+    RebaseInteractive {
+        base: String,
+        todo: Vec<(String, hs_git::write::RebaseAction)>,
+    },
     /// Resolve one conflicted file by keeping a whole side.
     ResolveConflict {
         path: String,
@@ -582,10 +618,10 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
             });
             ops.lists_due = true;
         }
-        Request::CreateTag { name } => {
+        Request::CreateTag { name, message } => {
             let msg = s.i18n.t_args("git-op-tag-created", &[("tag", &name)]);
             ops.start(s, s.t("git-op-tag-creating"), move || {
-                write::create_tag(&root, &name, None)
+                write::create_tag(&root, &name, None, &message)
                     .map(|_| msg)
                     .map_err(|e| e.to_string())
             });
@@ -703,6 +739,17 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
                 write::cherry_pick_skip(&root).map_err(|e| e.to_string())
             });
         }
+        Request::RebaseInteractive { base, todo } => {
+            ops.operation_check_due = true;
+            ops.rebase_ui = None;
+            ops.lists_due = true;
+            ops.start_job(
+                s,
+                s.t("git-op-rebasing"),
+                s.t("git-op-rebasing"),
+                move || write::rebase_interactive(&root, &base, &todo).map_err(|e| e.to_string()),
+            );
+        }
         Request::ResolveConflict { path, side } => {
             let msg = s
                 .i18n
@@ -766,6 +813,7 @@ pub(crate) fn box_ui(
     ui: &mut egui::Ui,
     s: &Services,
     theme: &Theme,
+    root: &Path,
     status: &hs_git::Status,
     protected: bool,
 ) -> Vec<Request> {
@@ -809,6 +857,7 @@ pub(crate) fn box_ui(
             }
             stash_menu(ops, ui, s, theme, &mut out);
             branch_menu(ops, ui, s, theme, status, &mut out);
+            tag_menu(ops, ui, s, &mut out);
             if let Some(label) = &ops.busy {
                 ui.spinner();
                 ui.label(egui::RichText::new(label).small().color(theme.text_muted));
@@ -869,6 +918,8 @@ pub(crate) fn box_ui(
             }
         }
     }
+    rebase_panel(ops, ui, s, theme, root, &mut out);
+    tag_panel(ops, ui, s, theme, &mut out);
     // The commit box.
     let staged = status.files.iter().filter(|f| f.staged()).count();
     ui.add_enabled_ui(enabled, |ui| {
@@ -942,6 +993,363 @@ pub(crate) fn box_ui(
         }
     });
     out
+}
+
+/// The Interactive Rebase panel: a base, the commits loaded for it, and an
+/// action and position per commit. Nothing opens an editor: the engine
+/// writes the todo list Git would have asked for.
+fn rebase_panel(
+    ops: &mut Ops,
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    root: &Path,
+    out: &mut Vec<Request>,
+) {
+    let mut close = false;
+    let mut start = false;
+    {
+        let Some(panel) = &mut ops.rebase_ui else {
+            return;
+        };
+        panel.poll();
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("git-rebase-interactive-heading"))
+                    .strong()
+                    .color(theme.accent),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(s.t("cancel")).clicked() {
+                    close = true;
+                }
+            });
+        });
+        form_hint_line(ui, theme, &s.t("git-rebase-interactive-hint"));
+        // The field takes the row on its own: an infinite width beside a
+        // button in a narrow sidebar pushes the button out of sight.
+        ui.add(
+            egui::TextEdit::singleline(&mut panel.base)
+                .hint_text(s.t("git-rebase-base-hint"))
+                .desired_width(f32::INFINITY),
+        );
+        if ui
+            .add_enabled(!panel.loading, egui::Button::new(s.t("git-rebase-load")))
+            .clicked()
+        {
+            panel.load(s, root);
+        }
+        if panel.loading {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label(s.t("git-rebase-loading"));
+            });
+        }
+        if let Some(error) = &panel.error {
+            ui.colored_label(theme.error, error);
+        }
+        if !panel.commits.is_empty() {
+            let mut up: Option<usize> = None;
+            let mut down: Option<usize> = None;
+            egui::ScrollArea::vertical()
+                .id_salt("rebase-commits")
+                .max_height(220.0)
+                .show(ui, |ui| {
+                    for i in 0..panel.commits.len() {
+                        let commit = &panel.commits[i];
+                        ui.horizontal(|ui| {
+                            let first = i == 0;
+                            let selected = action_label(panel.actions[i], s);
+                            egui::ComboBox::from_id_salt(("rebase-action", i))
+                                .width(78.0)
+                                .selected_text(selected)
+                                .show_ui(ui, |ui| {
+                                    for action in [
+                                        hs_git::write::RebaseAction::Pick,
+                                        hs_git::write::RebaseAction::Squash,
+                                        hs_git::write::RebaseAction::Fixup,
+                                        hs_git::write::RebaseAction::Drop,
+                                    ] {
+                                        // Git cannot squash or fix up the
+                                        // first entry: there is nothing to
+                                        // fold it into.
+                                        if first
+                                            && matches!(
+                                                action,
+                                                hs_git::write::RebaseAction::Squash
+                                                    | hs_git::write::RebaseAction::Fixup
+                                            )
+                                        {
+                                            continue;
+                                        }
+                                        ui.selectable_value(
+                                            &mut panel.actions[i],
+                                            action,
+                                            action_label(action, s),
+                                        );
+                                    }
+                                });
+                            ui.monospace(&commit.short);
+                            ui.add(
+                                egui::Label::new(&commit.subject)
+                                    .truncate()
+                                    .selectable(false),
+                            );
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if i + 1 < panel.commits.len()
+                                        && ui
+                                            .small_button(ph::ARROW_DOWN)
+                                            .tip(s.t("git-rebase-move-down"))
+                                            .clicked()
+                                    {
+                                        down = Some(i);
+                                    }
+                                    if i > 0
+                                        && ui
+                                            .small_button(ph::ARROW_UP)
+                                            .tip(s.t("git-rebase-move-up"))
+                                            .clicked()
+                                    {
+                                        up = Some(i);
+                                    }
+                                },
+                            );
+                        });
+                    }
+                });
+            // Move the clicked row; the actions travel with their commits.
+            let swap = |panel: &mut RebaseUi, a: usize, b: usize| {
+                panel.commits.swap(a, b);
+                panel.actions.swap(a, b);
+                if matches!(
+                    panel.actions[0],
+                    hs_git::write::RebaseAction::Squash | hs_git::write::RebaseAction::Fixup
+                ) {
+                    panel.actions[0] = hs_git::write::RebaseAction::Pick;
+                }
+            };
+            if let Some(i) = up {
+                swap(panel, i, i - 1);
+            }
+            if let Some(i) = down {
+                swap(panel, i, i + 1);
+            }
+            ui.add_space(4.0);
+            let runnable = panel
+                .actions
+                .iter()
+                .any(|a| *a != hs_git::write::RebaseAction::Drop);
+            if ui
+                .add_enabled(runnable, egui::Button::new(s.t("git-rebase-start")))
+                .clicked()
+            {
+                start = true;
+            }
+        }
+    }
+    if start {
+        if let Some(panel) = &ops.rebase_ui {
+            let base = panel.base.trim().to_string();
+            let todo: Vec<(String, hs_git::write::RebaseAction)> = panel
+                .commits
+                .iter()
+                .zip(panel.actions.iter())
+                .map(|(commit, action)| (commit.sha.clone(), *action))
+                .collect();
+            out.push(Request::RebaseInteractive { base, todo });
+        }
+    } else if close {
+        ops.rebase_ui = None;
+    }
+}
+
+fn action_label(action: hs_git::write::RebaseAction, s: &Services) -> String {
+    match action {
+        hs_git::write::RebaseAction::Pick => s.t("git-rebase-action-pick"),
+        hs_git::write::RebaseAction::Squash => s.t("git-rebase-action-squash"),
+        hs_git::write::RebaseAction::Fixup => s.t("git-rebase-action-fixup"),
+        hs_git::write::RebaseAction::Drop => s.t("git-rebase-action-drop"),
+    }
+}
+
+fn form_hint_line(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label(egui::RichText::new(text).small().color(theme.text_muted));
+}
+
+impl RebaseUi {
+    /// Load `base..HEAD` on the blocking pool; the answer arrives through
+    /// `poll` on a later frame.
+    fn load(&mut self, s: &Services, root: &Path) {
+        if self.rx.is_some() {
+            return;
+        }
+        let base = self.base.trim().to_string();
+        if base.is_empty() {
+            self.error = Some(s.t("git-rebase-base-required"));
+            return;
+        }
+        let root = root.to_path_buf();
+        let (tx, rx) = mpsc::channel();
+        self.rx = Some(rx);
+        self.loading = true;
+        self.error = None;
+        self.commits.clear();
+        self.actions.clear();
+        s.runtime.spawn_blocking(move || {
+            let _ = tx.send(hs_git::write::commits_since(&root, &base).map_err(|e| e.to_string()));
+        });
+    }
+
+    fn poll(&mut self) {
+        let Some(rx) = &self.rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(commits)) => {
+                self.actions = vec![hs_git::write::RebaseAction::Pick; commits.len()];
+                self.commits = commits;
+                self.rx = None;
+                self.loading = false;
+            }
+            Ok(Err(error)) => {
+                self.error = Some(error);
+                self.rx = None;
+                self.loading = false;
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.rx = None;
+                self.loading = false;
+            }
+        }
+    }
+}
+
+/// The New Tag panel: a name and an optional message. Creating a tag needs
+/// text input, and a text field inside a menu popup closed the menu on the
+/// first click, so this follows the inline-panel pattern of rename/rebase.
+fn tag_panel(
+    ops: &mut Ops,
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    out: &mut Vec<Request>,
+) {
+    let mut close = false;
+    let mut create = false;
+    {
+        let Some((name, message)) = &mut ops.new_tag else {
+            return;
+        };
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("git-tag-new"))
+                    .strong()
+                    .color(theme.accent),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button(s.t("cancel")).clicked() {
+                    close = true;
+                }
+            });
+        });
+        ui.add(
+            egui::TextEdit::singleline(name)
+                .hint_text(s.t("git-tag-name"))
+                .desired_width(f32::INFINITY),
+        );
+        ui.add(
+            egui::TextEdit::singleline(message)
+                .hint_text(s.t("git-tag-message-hint"))
+                .desired_width(f32::INFINITY),
+        );
+        form_hint_line(ui, theme, &s.t("git-tag-message-tip"));
+        if ui
+            .add_enabled(
+                !name.trim().is_empty(),
+                egui::Button::new(s.t("git-tag-create")),
+            )
+            .clicked()
+        {
+            create = true;
+        }
+    }
+    if create {
+        if let Some((name, message)) = ops.new_tag.take() {
+            out.push(Request::CreateTag {
+                name: name.trim().to_string(),
+                message: message.trim().to_string(),
+            });
+        }
+    } else if close {
+        ops.new_tag = None;
+    }
+}
+
+/// Create a tag (annotated when a message is given) and manage the local
+/// tags. A top-level menu rather than a submenu of the branch menu: a nested
+/// popup tall enough for the fields was drawn under its parent.
+fn tag_menu(ops: &mut Ops, ui: &mut egui::Ui, s: &Services, out: &mut Vec<Request>) {
+    let label = if ops.lists.tags.is_empty() {
+        ph::TAG.to_string()
+    } else {
+        format!("{} {}", ph::TAG, ops.lists.tags.len())
+    };
+    ui.menu_button(label, |ui| {
+        ui.set_min_width(280.0);
+        ui.set_max_width(320.0);
+        if ui
+            .button(s.t("git-tag-new"))
+            .tip(s.t("git-tag-new-tip"))
+            .clicked()
+        {
+            ops.new_tag = Some((String::new(), String::new()));
+            ui.close();
+        }
+        ui.separator();
+        let tags = ops.lists.tags.clone();
+        for tag in tags {
+            ui.horizontal(|ui| {
+                ui.label(&tag);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(remote) = ops.lists.remotes.first()
+                        && ui
+                            .small_button(ph::ARROW_UP)
+                            .tip(
+                                if write::is_protected(
+                                    &s.settings.read().git.protected_patterns,
+                                    &remote.url,
+                                    &tag,
+                                ) {
+                                    s.t("git-tag-push-protected-tip")
+                                } else {
+                                    s.t("git-tag-push")
+                                },
+                            )
+                            .clicked()
+                    {
+                        out.push(Request::PushTag {
+                            remote: remote.name.clone(),
+                            tag: tag.clone(),
+                        });
+                        ui.close();
+                    }
+                    if ui
+                        .small_button(ph::TRASH)
+                        .tip(s.t("git-tag-delete"))
+                        .clicked()
+                    {
+                        ops.confirm = Some(Confirm::DeleteTag(tag.clone()));
+                        ui.close();
+                    }
+                });
+            });
+        }
+    });
 }
 
 fn stash_menu(
@@ -1115,60 +1523,6 @@ fn branch_menu(
                     }
                 });
             });
-            ui.menu_button(s.t("git-tags"), |ui| {
-                ui.set_min_width(280.0);
-                ui.horizontal(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut ops.tag_name)
-                            .hint_text(s.t("git-tag-name")),
-                    );
-                    if ui.button(s.t("git-tag-create")).clicked() && !ops.tag_name.trim().is_empty()
-                    {
-                        let name = ops.tag_name.trim().to_string();
-                        out.push(Request::CreateTag { name });
-                        ops.tag_name.clear();
-                        ui.close();
-                    }
-                });
-                let tags = ops.lists.tags.clone();
-                for tag in tags {
-                    ui.horizontal(|ui| {
-                        ui.label(&tag);
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if let Some(remote) = ops.lists.remotes.first()
-                                && ui
-                                    .small_button(ph::ARROW_UP)
-                                    .tip(
-                                        if write::is_protected(
-                                            &s.settings.read().git.protected_patterns,
-                                            &remote.url,
-                                            &tag,
-                                        ) {
-                                            s.t("git-tag-push-protected-tip")
-                                        } else {
-                                            s.t("git-tag-push")
-                                        },
-                                    )
-                                    .clicked()
-                            {
-                                out.push(Request::PushTag {
-                                    remote: remote.name.clone(),
-                                    tag: tag.clone(),
-                                });
-                                ui.close();
-                            }
-                            if ui
-                                .small_button(ph::TRASH)
-                                .tip(s.t("git-tag-delete"))
-                                .clicked()
-                            {
-                                ops.confirm = Some(Confirm::DeleteTag(tag.clone()));
-                                ui.close();
-                            }
-                        });
-                    });
-                }
-            });
             ui.menu_button(s.t("git-merge-rebase"), |ui| {
                 ui.set_min_width(260.0);
                 if let Some(operation) = ops.operation {
@@ -1248,6 +1602,21 @@ fn branch_menu(
                 {
                     out.push(Request::Rebase(ops.rebase_onto.trim().to_string()));
                     ops.rebase_onto.clear();
+                    ui.close();
+                }
+                if ui
+                    .button(s.t("git-rebase-interactive-open"))
+                    .tip(s.t("git-rebase-interactive-tip"))
+                    .clicked()
+                {
+                    let mut panel = RebaseUi::new();
+                    // The upstream is the usual base; otherwise the last
+                    // commit's parent. The user can always change it.
+                    panel.base = status
+                        .upstream
+                        .clone()
+                        .unwrap_or_else(|| "HEAD~1".to_string());
+                    ops.rebase_ui = Some(panel);
                     ui.close();
                 }
                 ui.separator();

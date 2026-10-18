@@ -892,9 +892,9 @@ impl Git {
                                 let settings = s.settings.read();
                                 r.ops.protected(&settings.git, st.branch.as_deref())
                             };
-                            for req in
-                                crate::git_ops::box_ui(&mut r.ops, ui, s, theme, st, protected)
-                            {
+                            for req in crate::git_ops::box_ui(
+                                &mut r.ops, ui, s, theme, &r.root, st, protected,
+                            ) {
                                 requests.push((r.root.clone(), req, protected));
                             }
                         }

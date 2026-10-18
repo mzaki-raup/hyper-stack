@@ -413,6 +413,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   green having uploaded nothing. Every step starts with
   `$ErrorActionPreference = "Stop"` and the packaging step asserts every
   contracted asset exists on disk before upload.
+- The verification step can fail on infrastructure, not on the release:
+  on github.com the anonymous API allows 60 calls an hour **per IP**, and a
+  shared Actions runner exhausts that before the step runs ("API rate limit
+  exceeded for 40.65.61.144"), while git.zacx.net's Cloudflare can reset the
+  97 MB `HyperStack.exe` download mid-stream. Neither means the assets are
+  wrong: check the release (`gh release view`, or the local
+  `verify-release.ps1`) before rebuilding. The script now retries downloads
+  and takes `-Token` for the metadata read only; asset downloads stay
+  anonymous, exactly as the updater makes them.
 - `rsign generate -W` ("passwordless") keys are still in the encrypted format
   and `rsign sign` prompts for the password on the console (not stdin, so
   piping does not help); on the runner that is a hang. Only

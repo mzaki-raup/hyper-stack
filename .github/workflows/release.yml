@@ -139,11 +139,13 @@ jobs:
           }
           Write-Host "Published $tag with $($assets.Count) assets."
 
-      # The end-to-end test: download anonymously exactly as the app does,
-      # verify the signature, sizes and hashes, then run --self-test.
+      # The end-to-end test: download the assets anonymously exactly as the
+      # app does, verify the signature, sizes and hashes, then run --self-test.
+      # The token lifts only the metadata read's shared-IP rate limit.
       - name: Verify the published release as a user would
         run: |
           pwsh -NoProfile -File scripts/verify-release.ps1 `
             -Tag ${{ steps.plan.outputs.tag }} `
             -Repository ${{ github.repository }} `
-            -Server https://github.com
+            -Server https://github.com `
+            -Token ${{ github.token }}

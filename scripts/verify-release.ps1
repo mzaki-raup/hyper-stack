@@ -3,11 +3,11 @@
   Verifies a published HyperStack release exactly as the in-app updater would.
 
 .DESCRIPTION
-  Anonymously (no token) reads the release for -Tag from the forge API, then:
+  Reads the release for -Tag from the forge API, then:
     1. the release is not a draft and has a non-empty body;
     2. every contracted asset is attached;
-    3. manifest.json downloads and its minisign signature verifies against
-       keys/minisign.pub;
+    3. manifest.json downloads (anonymously, like the app) and its minisign
+       signature verifies against keys/minisign.pub;
     4. the manifest's version, tag and channel match the release;
     5. every asset listed in the manifest downloads with the stated size and
        sha256, and SHA256SUMS.txt agrees;
@@ -27,6 +27,11 @@ param(
   # below works unchanged against either.
   [string]$Server = "https://git.zacx.net",
   [string]$PublicKey = "keys/minisign.pub",
+  # Used only for the release metadata request, never for an asset download:
+  # github.com limits anonymous calls to 60/hour per IP and a shared Actions
+  # runner can exhaust that before this step runs. Assets are still fetched
+  # anonymously, exactly as the app fetches them.
+  [string]$Token = $(if ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } elseif ($env:GH_TOKEN) { $env:GH_TOKEN } else { "" }),
   [switch]$NoSelfTest
 )
 
@@ -48,7 +53,26 @@ $api = if ($Server -match '^https://(api\.)?github\.com/?$') {
   "$Server/api/v1/repos/$Repository"
 }
 $ua  = @{ "User-Agent" = "HyperStack-verify-release" }
-$release = Invoke-RestMethod -Method Get -Headers $ua -Uri "$api/releases/tags/$([uri]::EscapeDataString($Tag))"
+$metaHeaders = @{ "User-Agent" = "HyperStack-verify-release" }
+if ($Token) { $metaHeaders["Authorization"] = "Bearer $Token" }
+
+# Retry the metadata read: github.com answers 403/429 when the shared runner
+# IP has used its anonymous hour, and a transient 5xx should not fail a
+# release that is otherwise fine.
+$release = $null
+for ($attempt = 1; ; $attempt++) {
+  try {
+    $release = Invoke-RestMethod -Method Get -Headers $metaHeaders -Uri "$api/releases/tags/$([uri]::EscapeDataString($Tag))" -TimeoutSec 60
+    break
+  } catch {
+    $code = 0
+    try { $code = [int]$_.Exception.Response.StatusCode } catch { }
+    if ($attempt -ge 3 -or ($code -ne 403 -and $code -ne 429 -and $code -lt 500)) { throw }
+    $wait = 10 * $attempt
+    Write-Host "Release metadata read returned $code (attempt $attempt); retrying in $wait s."
+    Start-Sleep -Seconds $wait
+  }
+}
 
 if ($release.draft) { throw "Release $Tag is still a draft." }
 if ([string]::IsNullOrWhiteSpace($release.body)) { throw "Release $Tag has an empty body." }
@@ -65,8 +89,21 @@ New-Item -ItemType Directory -Path $work | Out-Null
 try {
   function Fetch([string]$name) {
     $path = Join-Path $work $name
-    Invoke-WebRequest -Headers $ua -Uri $assets[$name].browser_download_url -OutFile $path
-    return $path
+    for ($attempt = 1; ; $attempt++) {
+      try {
+        Invoke-WebRequest -Headers $ua -Uri $assets[$name].browser_download_url -OutFile $path -TimeoutSec 600
+        return $path
+      } catch {
+        # A half-written file would fail the hash anyway; start clean.
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        if ($attempt -ge 4) {
+          throw "Downloading $name failed after $attempt attempts: $($_.Exception.Message)"
+        }
+        $wait = 3 * [math]::Pow(2, $attempt - 1)
+        Write-Host "Downloading $name failed (attempt $attempt): $($_.Exception.Message). Retrying in $wait s."
+        Start-Sleep -Seconds $wait
+      }
+    }
   }
 
   $manifestPath = Fetch "manifest.json"

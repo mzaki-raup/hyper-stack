@@ -666,6 +666,8 @@ impl Git {
                     Err(e) => r.error = Some(e.to_string()),
                 }
                 r.generation += 1;
+                // A merge, rebase or cherry-pick may have ended outside the app.
+                r.ops.operation_check_due = true;
                 if std::mem::take(&mut r.again) {
                     r.due = Some(now + DEBOUNCE);
                 }

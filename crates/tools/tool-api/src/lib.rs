@@ -461,7 +461,7 @@ impl ApiTool {
                         .t_args("api-imported-collection", &[("count", &n.to_string())]),
                 );
             }
-            Err(collection_err) => match postman::import_environment(&text) {
+            Err(collection_err) => match postman::import_environment_document(&text) {
                 Ok((name, vars)) => {
                     let mut env = hs_core::environments::Environment {
                         name: if name.is_empty() {

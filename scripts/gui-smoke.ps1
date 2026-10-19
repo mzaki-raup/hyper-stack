@@ -94,6 +94,41 @@ switch ($cmd) {
     Start-Sleep -Milliseconds 400
     "clicked $x,$y"
   }
+  "dclick" {
+    $h = Win
+    [W]::SetForegroundWindow($h) | Out-Null
+    $r = New-Object W+R
+    [W]::GetWindowRect($h, [ref]$r) | Out-Null
+    $x = $r.L + [int]$Args[1]; $y = $r.T + [int]$Args[2]
+    [W]::SetCursorPos($x, $y) | Out-Null
+    Start-Sleep -Milliseconds 120
+    for ($i = 0; $i -lt 2; $i++) {
+      [W]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); [W]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+      Start-Sleep -Milliseconds 60
+    }
+    Start-Sleep -Milliseconds 400
+    "double-clicked $x,$y"
+  }
+  "drag" {
+    $h = Win
+    [W]::SetForegroundWindow($h) | Out-Null
+    $r = New-Object W+R
+    [W]::GetWindowRect($h, [ref]$r) | Out-Null
+    $x1 = $r.L + [int]$Args[1]; $y1 = $r.T + [int]$Args[2]
+    $x2 = $r.L + [int]$Args[3]; $y2 = $r.T + [int]$Args[4]
+    [W]::SetCursorPos($x1, $y1) | Out-Null
+    Start-Sleep -Milliseconds 200
+    [W]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 150
+    for ($i = 1; $i -le 12; $i++) {
+      $mx = [int]($x1 + ($x2 - $x1) * $i / 12); $my = [int]($y1 + ($y2 - $y1) * $i / 12)
+      [W]::SetCursorPos($mx, $my) | Out-Null
+      Start-Sleep -Milliseconds 25
+    }
+    [W]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 400
+    "dragged $x1,$y1 -> $x2,$y2"
+  }
   "rclick" {
     $h = Win
     [W]::SetForegroundWindow($h) | Out-Null

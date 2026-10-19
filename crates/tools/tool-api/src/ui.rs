@@ -1142,6 +1142,11 @@ pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                     .push(hs_core::tool::Action::FocusTab { tab_id: id });
             }
         });
+    // The dashboard has its own New Collection button and the sidebar's
+    // folder-plus works here too, so the dialog has to be drawn on this tab.
+    // `Tool::ui` returns right after `home`, and the request view is the only
+    // other caller of `dialogs`, which left the button looking dead.
+    dialogs(t, ui, cx, theme);
 }
 
 /// How many requests a tree holds, at any depth.

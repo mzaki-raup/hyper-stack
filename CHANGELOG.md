@@ -11,8 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Terminal settings moves between Security and Connections and gains a reorderable CLI list (mysql, psql, mongosh, redis-cli, claude, opencode, custom), with PATH suggestions and a Refresh that re-reads PATH; a CLI opens a terminal tab and types its command.
-- Documentation and screenshots: the README's screenshot set is organised into 16 categories, with new shots for the Git conflict editor and rebase, credentials editing, environment export, Connections, Redis, NoSQL, Regex Tester, Text Diff and the Terminal CLI list, retaken Settings/Home/Editor/Terminal/Production shots, and a rebuilt walkthrough GIF.
+- (nothing yet)
+
+## 0.45.0 — 2026-10-19
+
+### Added
+
+- A reorderable CLI list in Terminal settings (f4d132e7)
+
+### Fixed
+
+- Re-read PATH when refreshing the CLI suggestions (2ff826b1)
 
 ## 0.44.2 - 2026-10-18
 

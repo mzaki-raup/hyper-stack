@@ -3641,7 +3641,10 @@ fn terminal(
             state.cli_suggestions = None;
             changed = true;
         }
-        if ui.button(s.t("refresh")).clicked() {
+        if ui.button(s.t("settings-terminal-refresh")).clicked() {
+            // A CLI installed while the app is open is not in the inherited
+            // PATH; re-read the system value before scanning again.
+            hs_core::env_path::refresh();
             state.cli_suggestions = None;
         }
     });

@@ -501,6 +501,7 @@ settings-terminal-remove-cli = Remove {  }?
 settings-terminal-suggestions = Suggestions
 settings-terminal-suggestions-hint = Commands found on PATH that are not in the list yet. Adding one does not run it.
 settings-terminal-suggestions-none = Nothing new found on PATH.
+settings-terminal-refresh = Refresh
 settings-terminal-add = Add
 settings-terminal-icon-terminal = Terminal
 settings-terminal-icon-database = Database

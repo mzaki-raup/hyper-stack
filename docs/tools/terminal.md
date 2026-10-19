@@ -122,8 +122,10 @@ activity sidebar. The shells keep their existing order (`shell_order`).
 list yet, each with an Add button: `mysql`, `psql`, `sqlite3`, `mongosh`,
 `redis-cli`, `aws`, `kubectl`, `docker`, `claude`, `opencode`, `gemini`,
 `aider`, `ollama`. Adding one creates a **disabled** profile with a sensible
-name and icon; nothing is run or executed by detection. Refresh scans PATH
-again.
+name and icon; nothing is run or executed by detection. The list is scanned
+when the page is first opened in a session (so a restart picks up a new
+install); **Refresh** re-reads PATH from the system and scans again, which
+also finds a CLI installed while the app is open.
 
 A **CLI profile** has these fields:
 

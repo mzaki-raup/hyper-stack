@@ -161,6 +161,15 @@ source); `launcher.png`, `command-palette.png`, `dock.png`,
 folder) and the SSH and S3 connection forms. `editor-git-tree.png`,
 `editor-git-diff.png` and `editor-git-history.png` were retaken from the
 ir-conflict fixture: a modified `note1.txt` in Source Control, its inline
-diff, and the commit list with the `v1.0-demo` tag. The S3 *browser* shots still come
-from the earlier moto set; the form is current and shows the provider
-presets.
+diff, and the commit list with the `v1.0-demo` tag.
+
+S3 pass, 2026-10-19: `moto_server` 5.2.4 on `127.0.0.1:5055`
+(`testing`/`testing`) seeded three buckets - `assets-bucket` with
+`config/`, `data/`, `docs/` and `images/`, `shop-backups` and
+`release-artifacts` - and a `mock-s3` profile with path-style addressing.
+That produced `s3-browser.png` (bucket list and a prefix), `s3-edit.png`
+(`config/app.toml` opened in the editor from its temp copy),
+`s3-presign.png` (a signed GET URL with its expiry), `s3-delete-guard.png`
+(a single-object confirmation that notes versioning is off) and
+`s3-import-aws.png` (the import dialog's empty state, because this machine
+has no AWS CLI profiles).

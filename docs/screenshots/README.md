@@ -197,7 +197,10 @@ Variables tab with `orders`, `editor-debug-stack.png` the Call Stack
 preview widened and its scrollbar dragged; the second shows the runtime
 sequence diagram.
 
-Two images still come from the 2026-10-15 set: `db-completion.png` needs a
-PostgreSQL server with the shop schema (the SQLite catalog does not feed
-completion), and `split-scratchpad.png` was not retaken in this pass.
+## Final SQL and split pass (2026-10-19)
 
+- PostgreSQL 16 in Docker (WSL) with the `shop` database (customers, products,
+  orders) and `shop-postgres` pointing at 127.0.0.1; `db-completion.png` shows
+  table completion after `FROM or` with the schema cache loaded.
+- `split-scratchpad.png` is the Scratchpad split with `Release checklist` on
+  the left and `Build ideas` on the right.

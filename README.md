@@ -94,7 +94,7 @@ the fixtures behind them.
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
-| **Split panes** (Ctrl+\) — here README preview beside the Scratchpad notes | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
+| **Split panes** (Ctrl+\) — two Scratchpad notes side by side, each with source and preview | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
 | ![Workspace menu](docs/screenshots/workspace-menu.png) | ![New workspace](docs/screenshots/workspace-new.png) |
 | **Workspace switcher** in the title bar, with the selected workspace logo | **New workspace** — name, logo, and copy environments/connections from another |
 | ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |

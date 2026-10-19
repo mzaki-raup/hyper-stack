@@ -151,7 +151,8 @@ environments); `devtools-jwt.png`, `devtools-hashes.png`,
 `terminal-search.png` and `terminal-links.png`; `ssh-tunnels.png` and
 `ssh-remote-edit.png` (`remote-note.txt` was uploaded over SFTP because the
 test shell understands only `echo`/`cd`/`pwd`, not redirection);
-`graphics.png` and `graphics-crop.png` with the app icon; `scratchpad.png`
+`graphics.png`, `graphics-ops.png` (Brightness +35 and Grayscale in the
+Operations list) and `graphics-crop.png` with the app icon; `scratchpad.png`
 with a new note; `editor-projects.png`, `editor-find-replace.png` and
 `editor-markdown-preview.png` (the architecture flowchart rendered beside its
 source); `launcher.png`, `command-palette.png`, `dock.png`,

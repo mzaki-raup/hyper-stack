@@ -614,7 +614,7 @@ assistant never applies an edit. Image and Icon context is text-only in R1
 
 **Implemented 2026-10-19.** The activity sidebar, the dashboard with Recent and
 the screenshot grid, the separate Image and Icon tabs, the in-pane settings
-panel and Convert to Icon are in the app and verified live. Colour-key
-transparency and the diagram panes are still pending; the Diagram Editor and
-Diagram Generator rows are shown disabled with a “later phase” tooltip until
-their panes exist.
+panel and Convert to Icon are in the app and verified live. Colour-key transparency is implemented in the Icon tab (eyedropper,
+tolerance, Make Transparent); the diagram panes are still pending, and the
+Diagram Editor and Diagram Generator rows are shown disabled with a “later
+phase” tooltip until their panes exist.

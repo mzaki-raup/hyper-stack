@@ -117,8 +117,10 @@ with the same harness, HyperStack Dark, the rail labels on and the window at
   captured thumbnail of the image tab.
 - `graphics-image-tab.png` — an image tab with the settings panel on the left
   and the preview on the right, and Convert to Icon in the toolbar.
-- `graphics-icon-tab.png` — the Icon tab created from that picture, with its
-  own Icon Settings panel.
+- `graphics-icon-tab.png` — the Icon tab created from that picture; the
+  Transparency panel picked `#285AA0` from the canvas, Tolerance 24, and
+  Make Transparent cleared the blue background to the checkerboard while the
+  white label remained.
 
 The layout was seeded with one `graphics` tab
 (`{"kind":"image","path":"D:\\Temp\\hs-gfx-test.png"}`) so the dashboard and

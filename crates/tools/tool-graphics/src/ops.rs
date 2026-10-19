@@ -127,6 +127,13 @@ pub enum Op {
         sigma: f32,
         threshold: i32,
     },
+    /// Make every pixel within `tolerance` (0…100, per channel) of `colour`
+    /// fully transparent. Used by the Icon tab's eyedropper (owner's
+    /// request, 2026-10-19).
+    TransparentColor {
+        colour: [u8; 4],
+        tolerance: u8,
+    },
 }
 
 impl Op {
@@ -160,6 +167,10 @@ impl Op {
             Op::Invert => "Invert".into(),
             Op::Blur { sigma } => format!("Blur σ{sigma:.1}"),
             Op::Sharpen { sigma, threshold } => format!("Sharpen σ{sigma:.1} t{threshold}"),
+            Op::TransparentColor { colour, tolerance } => format!(
+                "Transparent #{:02X}{:02X}{:02X} (tol {tolerance})",
+                colour[0], colour[1], colour[2]
+            ),
         }
     }
 }
@@ -244,6 +255,18 @@ pub fn apply(img: &DynamicImage, op: &Op) -> DynamicImage {
         }
         Op::Blur { sigma } => img.blur(sigma.max(0.1)),
         Op::Sharpen { sigma, threshold } => img.unsharpen(sigma.max(0.1), *threshold),
+        Op::TransparentColor { colour, tolerance } => {
+            let limit = ((*tolerance as u16) * 255 / 100) as u8;
+            let mut out = img.to_rgba8();
+            for p in out.pixels_mut() {
+                let [r, g, b, _] = p.0;
+                let close = |a: u8, b: u8| a.abs_diff(b) <= limit;
+                if close(r, colour[0]) && close(g, colour[1]) && close(b, colour[2]) {
+                    p.0[3] = 0;
+                }
+            }
+            DynamicImage::ImageRgba8(out)
+        }
     }
 }
 
@@ -454,6 +477,30 @@ mod tests {
         assert_eq!(inv.get_pixel(0, 0)[0], 255 - img.get_pixel(0, 0)[0]);
         let chain = apply_all(&img, &[Op::Scale { factor: 0.5 }, Op::Rotate90]);
         assert_eq!(chain.dimensions(), (2, 4));
+    }
+
+    #[test]
+    fn colour_key_transparency() {
+        let img = DynamicImage::ImageRgba8(
+            RgbaImage::from_raw(2, 1, vec![255, 0, 0, 255, 0, 0, 255, 255]).unwrap(),
+        );
+        let exact = apply(
+            &img,
+            &Op::TransparentColor {
+                colour: [255, 0, 0, 255],
+                tolerance: 0,
+            },
+        );
+        assert_eq!(exact.get_pixel(0, 0)[3], 0, "the picked colour is clear");
+        assert_eq!(exact.get_pixel(1, 0)[3], 255, "other colours stay");
+        let loose = apply(
+            &img,
+            &Op::TransparentColor {
+                colour: [255, 0, 0, 255],
+                tolerance: 100,
+            },
+        );
+        assert_eq!(loose.get_pixel(1, 0)[3], 0, "tol 100 covers every colour");
     }
 
     #[test]

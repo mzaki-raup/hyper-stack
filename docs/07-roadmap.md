@@ -140,7 +140,7 @@ Diagram Generator — split into two releases. The requirements and design are i
       Recent section, right-click menus, commands (2026-10-19)
 - [x] Separate Image and Icon tabs; in-pane settings and preview; image → icon
       (2026-10-19)
-- [ ] Icon colour-key transparency with eyedropper and tolerance
+- [x] Icon colour-key transparency with eyedropper and tolerance (2026-10-19)
 - [ ] `hs-diagram`: model, validation, scene, layout, SVG and PNG/PDF export
 - [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
       save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart

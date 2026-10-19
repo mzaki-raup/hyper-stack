@@ -269,12 +269,12 @@ keys typed into a utility are never saved.
 | ![Graphics activity](docs/screenshots/graphics-dashboard.png) | ![Image tab](docs/screenshots/graphics-image-tab.png) |
 | **Graphics activity** — the sidebar lists Image, Icon, Diagram Editor and Diagram Generator plus a scrollable Recent section; the permanent first tab is a dashboard with “What To Do”, the function list and a screenshot grid of the open Graphics tabs | **Image tab** — the picture keeps the tab, the operations and settings sit on the left and the preview on the right; **Convert to Icon** opens the result in a new Icon tab |
 | ![Icon tab](docs/screenshots/graphics-icon-tab.png) | ![Crop placeholder](docs/screenshots/graphics-crop.png) |
-| **Icon tab** — the same operations plus ICO frame selection and sizes; colour-key transparency follows in this release | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow |
+| **Icon tab** — the same operations plus ICO frame selection, sizes and colour-key transparency; here the blue background was picked on the canvas and cleared, leaving the label | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow |
 
 **Implemented (2026-10-19):** the activity shell, the dashboard and Recent
-list, the separate Image and Icon tabs and Convert to Icon. The diagram editor
-and generator follow in the same release; ERD, sequence, Archify JSON and
-draw.io XML import follow in Release 2. See
+list, the separate Image and Icon tabs, Convert to Icon and icon colour-key
+transparency. The diagram editor and generator follow in the same release;
+ERD, sequence, Archify JSON and draw.io XML import follow in Release 2. See
 [docs/tools/diagrams.md](docs/tools/diagrams.md).
 
 The picture operations are resize, scale, extend canvas, crop, rotate, flip,

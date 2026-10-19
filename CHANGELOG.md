@@ -17,6 +17,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Icon, Diagram Editor and Diagram Generator, a persisted Recent list, separate
   Image and Icon tabs with the picture settings in an in-pane panel, and Convert
   to Icon.
+- Icon colour-key transparency: pick a colour on the canvas (or use the colour
+  button), set a tolerance and clear every matching pixel; the operation is
+  removable like any other.
 
 ### Changed
 

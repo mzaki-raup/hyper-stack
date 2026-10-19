@@ -1925,6 +1925,13 @@ gfx-icon-settings = Icon Settings
 gfx-convert-to-icon = Convert to Icon
 gfx-stat-open = Open Tabs
 gfx-stat-recent = Recent
+gfx-transparency = Transparency
+gfx-transparent-colour = Colour
+gfx-transparent-tolerance = Tolerance
+gfx-pick-on-canvas = Pick on Canvas
+gfx-pick-hint = Click the colour to clear on the picture.
+gfx-transparent-apply = Make Transparent
+gfx-transparent-hint = Pick a colour on the picture, set how close a pixel must be, then apply. The operation can be removed like any other.
 
 ## Browser
 tool-browser = Browser

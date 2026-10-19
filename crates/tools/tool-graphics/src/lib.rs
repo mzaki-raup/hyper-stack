@@ -108,6 +108,8 @@ struct Controls {
     blur: f32,
     sharpen: f32,
     ico_sizes: [bool; 7],
+    transparent_colour: [u8; 4],
+    transparent_tolerance: u8,
 }
 
 /// Which part of the crop placeholder a drag took hold of.
@@ -152,6 +154,8 @@ pub struct GraphicsTool {
     assistant: hs_ui::ai_assistant::AssistantPanel,
     /// The crop placeholder is shown on the canvas and can be dragged.
     crop_select: bool,
+    /// The next click on the picture picks the colour to make transparent.
+    pick_transparent: bool,
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
@@ -182,12 +186,15 @@ impl Default for GraphicsTool {
                 blur: 0.0,
                 sharpen: 0.0,
                 ico_sizes: [true, false, true, true, false, false, true],
+                transparent_colour: [255, 255, 255, 255],
+                transparent_tolerance: 24,
                 ..Default::default()
             },
             frames: Vec::new(),
             error: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             crop_select: false,
+            pick_transparent: false,
             crop_drag: None,
         }
     }
@@ -476,8 +483,81 @@ impl GraphicsTool {
         self.error = None;
     }
 
+    fn transparency_section(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        let has = self.original.is_some();
+        // Transparency: pick a colour on the canvas and clear every pixel
+        // close to it. An icon-only tool; a picture tab keeps its ops list
+        // unchanged.
+        if self.kind == Kind::Icon {
+            form::section(ui, theme, &s.t("gfx-transparency"), |ui| {
+                ui.add_enabled_ui(has, |ui| {
+                    Rows::show(ui, theme, "gfx-rows-transparency", |rows| {
+                        rows.row(&s.t("gfx-transparent-colour"), None, |ui| {
+                            let mut c = egui::Color32::from_rgba_unmultiplied(
+                                self.controls.transparent_colour[0],
+                                self.controls.transparent_colour[1],
+                                self.controls.transparent_colour[2],
+                                self.controls.transparent_colour[3],
+                            );
+                            if ui.color_edit_button_srgba(&mut c).changed() {
+                                self.controls.transparent_colour = c.to_srgba_unmultiplied();
+                            }
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "#{:02X}{:02X}{:02X}",
+                                    self.controls.transparent_colour[0],
+                                    self.controls.transparent_colour[1],
+                                    self.controls.transparent_colour[2]
+                                ))
+                                .small()
+                                .monospace()
+                                .color(theme.text_muted),
+                            );
+                        });
+                        rows.row(&s.t("gfx-transparent-tolerance"), None, |ui| {
+                            ui.spacing_mut().slider_width = 120.0;
+                            let v = ui.visuals_mut();
+                            v.widgets.inactive.bg_fill = theme.border;
+                            v.widgets.hovered.bg_fill = theme.surface_hover;
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut self.controls.transparent_tolerance,
+                                    0..=100,
+                                )
+                                .suffix("%")
+                                .trailing_fill(true),
+                            );
+                        });
+                    });
+                    if ui
+                        .checkbox(&mut self.pick_transparent, s.t("gfx-pick-on-canvas"))
+                        .changed()
+                        && self.pick_transparent
+                    {
+                        self.crop_select = false;
+                    }
+                    if self.pick_transparent {
+                        form::hint(ui, theme, &s.t("gfx-pick-hint"));
+                    }
+                    ui.add_space(4.0);
+                    if form::primary_button(ui, theme, &s.t("gfx-transparent-apply")).clicked() {
+                        self.push(Op::TransparentColor {
+                            colour: self.controls.transparent_colour,
+                            tolerance: self.controls.transparent_tolerance,
+                        });
+                    }
+                    form::hint(ui, theme, &s.t("gfx-transparent-hint"));
+                });
+            });
+        }
+    }
+
     fn sidebar_sections(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
+        if self.kind == Kind::Icon {
+            self.transparency_section(ui, cx, theme);
+        }
         let has = self.original.is_some();
         let apply = s.t("gfx-apply");
         // Transform
@@ -1055,6 +1135,30 @@ impl GraphicsTool {
     /// moved by its inside and resized by its edges and corners; a drag
     /// outside it draws a new one. Every change lands in the X/Y/W/H
     /// inputs of the Crop group (image pixels).
+    /// The eyedropper: one click on the picture becomes the colour to clear.
+    fn pick_overlay(&mut self, ui: &mut egui::Ui, img_rect: egui::Rect, z: f32) {
+        if ui.rect_contains_pointer(img_rect) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        }
+        // Read the click from the input rather than `ui.interact`: the
+        // scroll area around the canvas owns the pointer for dragging, and
+        // an interaction layered under it never sees the click.
+        let (clicked, pos) = ui.input(|i| (i.pointer.primary_clicked(), i.pointer.interact_pos()));
+        let Some(pos) = pos else { return };
+        if !clicked || !img_rect.contains(pos) {
+            return;
+        }
+        let Some(img) = &self.current else { return };
+        let (w, h) = img.dimensions();
+        if w == 0 || h == 0 || z <= 0.0 {
+            return;
+        }
+        let x = (((pos.x - img_rect.left()) / z).floor() as i64).clamp(0, w as i64 - 1) as u32;
+        let y = (((pos.y - img_rect.top()) / z).floor() as i64).clamp(0, h as i64 - 1) as u32;
+        self.controls.transparent_colour = img.to_rgba8().get_pixel(x, y).0;
+        self.pick_transparent = false;
+    }
+
     fn crop_overlay(&mut self, ui: &mut egui::Ui, theme: &Theme, img_rect: egui::Rect, z: f32) {
         let Some((iw, ih)) = self.current.as_ref().map(|i| i.dimensions()) else {
             return;
@@ -1741,6 +1845,9 @@ impl Tool for GraphicsTool {
                             egui::FontId::proportional(11.0),
                             theme.text_muted,
                         );
+                        if self.pick_transparent {
+                            self.pick_overlay(ui, img_rect, z);
+                        }
                         if self.crop_select {
                             self.crop_overlay(ui, &theme, img_rect, z);
                         }

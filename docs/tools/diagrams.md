@@ -12,7 +12,7 @@ owner's process rules require.
 | Phase | State |
 |---|---|
 | Graphics activity shell: sidebar, dashboard, Recent, Image/Icon tabs, Convert to Icon | Implemented 2026-10-19 |
-| Icon colour-key transparency | Pending |
+| Icon colour-key transparency | Implemented 2026-10-19 |
 | `hs-diagram`, Diagram Editor and Generator (flowchart, architecture) | Pending |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 

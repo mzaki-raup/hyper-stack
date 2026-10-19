@@ -48,10 +48,10 @@ generated for Cargo, Python and Go projects.**
 Image, Icon, Diagram Editor and Diagram Generator — with a dashboard home tab,
 an activity sidebar and a Recent section. Phase 1 landed: the sidebar and
 dashboard, separate Image/Icon tabs with the settings in an in-pane panel, and
-Convert to Icon (`GraphicsHub`, `Tool::wants_dashboard_home`). Still to come:
-icon colour-key transparency, the `hs-diagram` editor/generator (flowchart and
-architecture), the four AI assistants, and Release 2's ERD/sequence and
-Archify/draw.io imports. The requirements are in `docs/tools/diagrams.md`, the
+Convert to Icon and icon colour-key transparency (`GraphicsHub`,
+`Tool::wants_dashboard_home`, `Op::TransparentColor`). Still to come: the
+`hs-diagram` editor/generator (flowchart and architecture), the four AI
+assistants, and Release 2's ERD/sequence and Archify/draw.io imports. The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The
 diagram library will be `hs-diagram`; the UI stays in `tool-graphics`.
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,

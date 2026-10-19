@@ -117,7 +117,7 @@ directly after the permanent one.
 | ![Create vault](docs/screenshots/vault-create.png) | ![Unlock vault](docs/screenshots/vault-unlock.png) |
 | **Create the vault** on first run (Argon2id + XChaCha20-Poly1305) | **Unlock** on start; the title-bar padlock locks it again |
 | ![SSH connection form](docs/screenshots/connection-ssh-form.png) | ![Saved connection](docs/screenshots/connection-saved.png) |
-| **Connection profile** (kind SSH) — host, user, start folder, auth | **Saved** — the password lives in the vault, the profile keeps a `secret:` reference |
+| **Connection profile** (kind SSH) — host, user, start folder, auth | **Saved** — every tool sees the profile at once; typed secrets go to the vault and the profile keeps a `secret:` reference |
 
 ### Editor
 

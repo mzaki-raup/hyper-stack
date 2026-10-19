@@ -158,6 +158,9 @@ source); `launcher.png`, `command-palette.png`, `dock.png`,
 `workspace-menu.png`, `workspace-new.png`, `environment-switcher.png`,
 `tabs-multi-row.png` (from the 32-tab session before duplicates were closed),
 `vault-unlock.png`, `vault-create.png` (a second instance on a fresh data
-folder) and the SSH and S3 connection forms. The S3 *browser* shots still come
+folder) and the SSH and S3 connection forms. `editor-git-tree.png`,
+`editor-git-diff.png` and `editor-git-history.png` were retaken from the
+ir-conflict fixture: a modified `note1.txt` in Source Control, its inline
+diff, and the commit list with the `v1.0-demo` tag. The S3 *browser* shots still come
 from the earlier moto set; the form is current and shows the provider
 presets.

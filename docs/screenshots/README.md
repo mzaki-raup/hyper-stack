@@ -133,4 +133,13 @@ pane), plus `db-browse.png`, `db-query.png` and `db-cell-viewer.png` against
 the SQLite `shop.db` (schema tree with columns and indexes, a JOIN with
 results, and a pretty-printed JSON cell). The SQL shots no longer depend on
 a PostgreSQL server. `scripts/gui-smoke.ps1` gained `dclick` and `drag` for
-these captures (a table's rows, the editor/result splitter).
+these captures (a table's rows, the editor/result splitter). The API client
+shots were reworked in the same pass: `api-client.png` shows a saved
+`Shop API` collection and a live `GET https://httpbin.org/json` with the 200
+response, and `api-client-scripts.png` a completed `pm.test` in the
+post-response editor. Capturing them uncovered the dashboard's **New
+Collection** button doing nothing (its dialog was only drawn on a request
+tab); that is fixed in the same set. `browser.png` also shows the current
+Browser sidebar (Favorites and Passwords) with DuckDuckGo open, and
+`settings-ai.png` the Add a Provider gallery (OpenAI, Anthropic, Gemini,
+Azure, Bedrock, Mistral, Moonshot, Hunyuan, 1min.AI and the rest).

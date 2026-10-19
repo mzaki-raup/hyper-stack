@@ -277,7 +277,7 @@ keys typed into a utility are never saved.
 | | |
 |---|---|
 | ![Browser](docs/screenshots/browser.png) | |
-| **Browser** — WebView2 pages in multi-row tabs: address bar with search fallback, back/forward/reload/home, per-page ad and tracker blocking, JavaScript switch, forced dark rendering, zoom, Inspect, Print; pages restored per workspace; Shift+click a terminal link to open it here (Windows) | |
+| **Browser** — WebView2 pages in multi-row tabs, with favourites and saved logins in the sidebar: address bar with search fallback, back/forward/reload/home, per-page ad and tracker blocking, JavaScript switch, forced dark rendering, zoom, Inspect, Print; pages restored per workspace; Shift+click a terminal link to open it here (Windows) | |
 | ![Favourites](docs/screenshots/browser-favourites.png) | ![Passwords](docs/screenshots/browser-passwords.png) |
 | **Favourites** - a per-workspace tree with folders and a bar under the address bar, Chrome's click rules; the star adds the open page | **Passwords** - per-workspace logins; username, password, passkey and API key live in the vault, and Fill in Password is in the toolbar |
 

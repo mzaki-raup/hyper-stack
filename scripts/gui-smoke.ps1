@@ -29,6 +29,7 @@ public static class W {
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, UIntPtr e);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
   [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rr, B; }
 }
 "@
@@ -147,6 +148,17 @@ switch ($cmd) {
     [W]::mouse_event(8, 0, 0, 0, [UIntPtr]::Zero); [W]::mouse_event(16, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 400
     "right-clicked $x,$y"
+  }
+  "focus" {
+    # Windows rejects SetForegroundWindow from a background process. Going
+    # topmost for a moment is allowed, and the window comes back to normal
+    # before the next frame, so other windows are not left underneath.
+    $h = Win
+    [W]::SetWindowPos($h, [IntPtr](-1), 0, 0, 0, 0, 0x0013) | Out-Null
+    [W]::SetForegroundWindow($h) | Out-Null
+    Start-Sleep -Milliseconds 250
+    [W]::SetWindowPos($h, [IntPtr](-2), 0, 0, 0, 0, 0x0013) | Out-Null
+    "focused"
   }
   "wait" { Start-Sleep -Milliseconds ([int]$Args[1]); "waited" }
   "dark" { Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name AppsUseLightTheme -Value 0; "apps dark" }

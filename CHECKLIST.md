@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-19 (M4 Git complete: branch management, merge/rebase, interactive rebase, tags and the block conflict editor; credentials reveal/edit; environment export; documentation and screenshots update)
+Last updated: 2026-10-19 (Graphics diagrams planned: activity shell, Image/Icon split, flow/architecture editor and generator, AI assistants; Archify schema adaptation pinned to v3.2.0; Release 2 ERD/sequence/imports recorded)
 
 ## Planning
 
@@ -334,3 +334,26 @@ item below was documented in the affected docs before the code was written.
 | Scrollable sidebar lists: Home, Terminal, SSH hosts, database, NoSQL, Redis, S3, API client, Browser, Graphics, Devtools and Scratchpad | Completed | Every tool sidebar list is a ScrollArea under a fixed header; DB, Redis, NoSQL, API, editor, Home, Scratchpad, Browser and Graphics already were, and Devtools, SSH, S3, Terminal and the Settings page list now match. The Devtools list hid its last group at 900 px. See `docs/04` §1.5 |
 | Terminal: a Settings page between Security and Connections with a reorderable Terminal List of CLI profiles (mysql, psql, mongosh, redis-cli, claude, opencode, custom) and PATH suggestions; each shows in the Terminal activity sidebar | Completed | `CliProfile` + `Terminal.cli` in `settings.toml [[terminal.cli]]`; arrows reorder, Add/Edit/Remove, enabled toggle, Suggestions from PATH, icons, `{{workspace}}` start folder; clicking a CLI opens a tab and types its command line. Verified live: added Test Shell (`cmd /k echo Hello from CLI`) and it ran in a new tab; added Claude Code from Suggestions (disabled) and moved it above Test Shell, the TOML order changed. P1: per-profile environment injection and icon colour |
 | Documentation, screenshots and GIF for every feature | Completed | README screenshots restructured into 16 categories with a category index; new shots for the Git conflict editor and interactive rebase, credentials (table and Edit Secret), environment export, Connections, Redis, NoSQL, Regex Tester and Text Diff; Settings shots retaken on 0.44.0; Home, Editor, Terminal and Production retaken; obsolete Welcome shot removed; walkthrough GIF rebuilt from the current set; `docs/screenshots/README.md` records the fixtures and harness |
+
+## Owner's requests, 2026-10-19 (Graphics diagrams)
+
+The Graphics activity becomes four tools — Image, Icon, Diagram Editor and
+Diagram Generator — in two releases. Requirements and design:
+[docs/tools/diagrams.md](docs/tools/diagrams.md). The Archify schema adaptation
+is pinned to v3.2.0 and recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+and ADR-025.
+
+| Item | State | Notes |
+|---|---|---|
+| Process: plan and document this request before coding | Completed | `docs/tools/diagrams.md`, `docs/02`, `docs/03`, `docs/04`, `docs/07`, `docs/08` (ADR-025), `README.md`, this file and `CHANGELOG.md` updated 2026-10-19; branch `feat/graphics-diagram-suite` |
+| Release 1: Graphics activity sidebar, dashboard home and Recent section | Pending | Sidebar lists Image/Icon/Diagram Editor/Diagram Generator with right-click menus; home shows What To Do and the screenshot grid; drafts stay in Recent |
+| Release 1: separate Image and Icon tabs, settings left and preview right | Pending | Existing operations preserved; icon colour-key transparency with eyedropper and tolerance; image → icon |
+| Release 1: `hs-diagram` model, validation, layout, scene and PNG/SVG/PDF export | Pending | Archify-adapted IR and `.hdiag` editor document |
+| Release 1: Diagram Editor, flowchart and architecture | Pending | Shapes, connectors, labels, align, grid/snap, undo/redo, save/open, drafts, project save, templates, Mermaid flowchart import |
+| Release 1: Diagram Generator | Pending | Prompt, examples, AI providers, offline templates, validation/repair, preview, open in editor, export |
+| Release 1: AI assistant in all four tools | Pending | Four quick actions each plus More Suggestions; review-only; text-only Image/Icon context |
+| Release 1: Archify schema adaptation and notices | Pending | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md`; About page; release zip; notice test |
+| Release 1: tests, documentation, screenshots and GIF | Pending | Update every affected document after the feature is verified |
+| Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
+| Release 2: Archify JSON import and draw.io XML import | Pending | Plain and compressed draw.io, first page; strict validation for Archify JSON |
+| Release 2: `.diagram.json` alias and schema migration | Pending | Same JSON, second extension |

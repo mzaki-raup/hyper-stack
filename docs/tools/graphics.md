@@ -74,3 +74,15 @@ Opening a file that is already open focuses that tab instead of making a
 duplicate, which falls out of the same rule: the tab holding that path
 claims it. Both paths go through `Services::open`, so a file arriving from
 elsewhere in the app behaves the same way. Owner's requirement, 2026-10-17.
+
+## Addendum (2026-10-19): four tools in one activity
+
+The Graphics activity is being split into **Image**, **Icon**, **Diagram
+Editor** and **Diagram Generator**, with a permanent dashboard home tab and an
+activity sidebar that lists all four plus a scrollable Recent section. The
+picture editor described above becomes the Image tab; the Icon tab keeps the
+ICO operations and adds colour-key transparency. The diagram suite is specified
+separately in [diagrams.md](diagrams.md); it is two releases (flowchart and
+architecture first, ERD and sequence plus imports second). This addendum only
+records the split: the existing image operations and their tests remain the
+Image tab's behaviour.

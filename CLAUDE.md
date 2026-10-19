@@ -43,6 +43,16 @@ stepping, variables, call stack and console through installed debug
 adapters (CodeLLDB, lldb-dap, GDB, debugpy, delve, netcoredbg), with
 configurations from `.hyperstack/debug.json`, `.vscode/launch.json` or
 generated for Cargo, Python and Go projects.**
+
+**Planned (2026-10-19):** the Graphics activity grows into four tools — Image,
+Icon, Diagram Editor and Diagram Generator — with a dashboard home tab, an
+activity sidebar and a Recent section. Release 1 adds the Image/Icon split,
+flowchart/architecture diagrams, a prompt generator with the existing AI
+providers or offline templates, and an AI assistant in every tool; Release 2
+adds ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
+requirements are in `docs/tools/diagrams.md`, the pinned Archify schema
+adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The diagram library will be
+`hs-diagram`; the UI stays in `tool-graphics`.
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
@@ -62,9 +72,10 @@ is done; releases are published automatically from `main`.
 | Portable data folder, workspace files, environments, vault, history db, importers | `docs/05-data-model-and-storage.md` |
 | Threat model, vault format, protected environments, destructive-action guards | `docs/06-security.md` |
 | Phases, milestones, checklists, risks | `docs/07-roadmap.md` (progress is tracked in `CHECKLIST.md`) |
-| Why each major choice was made (ADR-001 … ADR-019) | `docs/08-decisions.md` |
+| Why each major choice was made (ADR-001 … ADR-025) | `docs/08-decisions.md` |
 | CI, automatic releases, asset contract, in-app updater | `docs/09-ci-cd-and-updates.md`; live workflows in `.forgejo/workflows/`, scripts in `scripts/`, signing key notes in `keys/README.md` |
 | One design document per tool | `docs/tools/*.md` |
+| Graphics activity, diagram editor/generator, Archify-adapted IR | `docs/tools/diagrams.md`, `THIRD_PARTY_NOTICES.md` |
 | README screenshots and walkthrough GIF, and how to retake them | `docs/screenshots/` (`README.md` there) |
 | App icon and every derived size | `assets/icon/` (master `hyperstack.png`; regenerate with `scripts/make-icons.ps1`, never by hand; usage in `docs/03-architecture.md` §13) |
 
@@ -519,6 +530,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - BOM-less UTF-16 BE is ambiguous with other byte sequences; do not guess it
   during automatic decode. Offer an explicit encoding choice to reopen the
   original bytes instead.
+- The DSH Windows sandbox can fail before a command starts with
+  `SetNamedSecurityInfoW … grantWrite` or `sandbox-local windows-acl temp
+  grant materialization failed`. On 2026-10-19 the workspace root and
+  `D:\Temp` both lacked effective `WRITE_OWNER` for the signed-in user; the
+  `diagnose-windows-sandbox-acl` skill (one unconfined run per path) repaired
+  those two objects and verified the rights. Do not widen the workspace or
+  edit ACLs by hand; if it recurs, run the skill on the failing path and on
+  `%TEMP%`.
 
 ### egui / eframe 0.35
 - `egui::Id::new(x)` needs `x: Hash + Debug`; a helper taking

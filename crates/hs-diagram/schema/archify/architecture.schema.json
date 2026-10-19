@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperstack.local/schema/archify/architecture.schema.json",
+  "$comment": "Adapted from Archify v3.2.0 (MIT), commit 208acba8d412335185b2056fedf54b3405df43fb. Reduced to layout, components, boundaries and connections; HTML/agent-only fields and absolute pos/size were removed from the strict IR. See THIRD_PARTY_NOTICES.md. The renderer is not copied.",
+  "title": "HyperStack architecture diagram IR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "diagram_type", "meta", "components"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "diagram_type": { "const": "architecture" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "subtitle": { "type": "string", "maxLength": 300 }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["grid"] },
+        "origin": { "$ref": "common.schema.json#/$defs/point" },
+        "cols": { "type": "integer", "minimum": 1, "maximum": 12 },
+        "gapX": { "type": "number", "minimum": 0 },
+        "gapY": { "type": "number", "minimum": 0 },
+        "cellW": { "type": "number", "minimum": 40 },
+        "cellH": { "type": "number", "minimum": 24 }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "label"],
+        "properties": {
+          "id": { "$ref": "common.schema.json#/$defs/id" },
+          "type": { "$ref": "common.schema.json#/$defs/componentType" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "sublabel": { "type": "string", "maxLength": 200 },
+          "tag": { "type": "string", "maxLength": 80 },
+          "row": { "type": "integer", "minimum": 0 },
+          "col": { "type": "integer", "minimum": 0, "maximum": 11 }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "label", "wraps"],
+        "properties": {
+          "kind": { "enum": ["region", "security-group"] },
+          "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "wraps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": { "$ref": "common.schema.json#/$defs/id" }
+          },
+          "pad": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": {
+          "id": { "$ref": "common.schema.json#/$defs/id" },
+          "from": { "$ref": "common.schema.json#/$defs/id" },
+          "to": { "$ref": "common.schema.json#/$defs/id" },
+          "label": { "type": "string", "maxLength": 200 },
+          "variant": { "$ref": "common.schema.json#/$defs/variant" },
+          "fromSide": { "$ref": "common.schema.json#/$defs/side" },
+          "toSide": { "$ref": "common.schema.json#/$defs/side" },
+          "route": {
+            "enum": ["auto", "straight", "orthogonal-h", "orthogonal-v"]
+          }
+        }
+      }
+    }
+  }
+}

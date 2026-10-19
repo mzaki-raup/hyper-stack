@@ -103,6 +103,7 @@ New-Item -ItemType Directory -Path $staging -Force | Out-Null
 Copy-Item $built "$staging/$exeName"
 Copy-Item "$dist/$noteName" $staging
 if (Test-Path LICENSE) { Copy-Item LICENSE $staging }
+if (Test-Path THIRD_PARTY_NOTICES.md) { Copy-Item THIRD_PARTY_NOTICES.md $staging }
 @"
 HyperStack $Version ($Channel)
 
@@ -121,6 +122,7 @@ every file, and manifest.json is signed (minisign) with the key printed in
 Settings > About.
 
 Release notes: see $noteName
+Third-party notices: THIRD_PARTY_NOTICES.md
 Project: $RepoUrl
 "@ | Set-Content "$staging/README.txt" -Encoding utf8
 Compress-Archive -Path "$staging/*" -DestinationPath "$dist/$zipName"

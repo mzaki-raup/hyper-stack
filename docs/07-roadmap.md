@@ -127,6 +127,38 @@ in the e2e test).
 - [x] Graphics tool (`tool-graphics`) and embedded Browser (`tool-browser`, WebView2 on Windows) — owner's requests, 2026-10-15
 - [x] Home tab, theme modes, Read Aloud, Snip/Print, settings bundles — 2026-10-15 (ADR-022)
 
+## Graphics diagram suite (owner's request, 2026-10-19)
+
+The Graphics activity becomes four tools — Image, Icon, Diagram Editor and
+Diagram Generator — split into two releases. The requirements and design are in
+[tools/diagrams.md](tools/diagrams.md); the Archify adaptation is recorded in
+`THIRD_PARTY_NOTICES.md` and ADR-025.
+
+### Release 1 — activity, Image/Icon and flow/architecture diagrams
+
+- [ ] Graphics activity shell: dashboard home tab, sidebar function list,
+      Recent section, right-click menus, commands
+- [ ] Separate Image and Icon tabs; in-pane settings and preview; icon
+      colour-key transparency; image → icon
+- [ ] `hs-diagram`: model, validation, scene, layout, SVG and PNG/PDF export
+- [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
+      save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart
+      import
+- [ ] Diagram Generator: prompt, examples, AI providers, offline templates,
+      validation/repair, preview, open in editor, export
+- [ ] AI assistant in all four tools with quick actions and More Suggestions
+- [ ] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0
+- [ ] Tests, documentation, screenshots and GIF
+
+### Release 2 — more diagram types and imports
+
+- [ ] ERD: entities, columns, types, keys and cardinality
+- [ ] Sequence: participants, messages, returns, notes and fragments
+- [ ] Archify JSON import from the adapted schemas
+- [ ] draw.io XML import: plain and compressed, first page, basic styles
+- [ ] `.diagram.json` alias and schema migration
+- [ ] Mermaid sequence import
+
 ## Release cadence
 
 Releases are automatic: every push to `main` with a `feat`/`fix`/`perf`/

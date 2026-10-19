@@ -11,7 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Documented the Graphics diagram suite: Release 1 (Image/Icon split,
+  flowchart/architecture editor and generator, AI assistants) and Release 2
+  (ERD, sequence, Archify JSON and draw.io XML import), with the Archify schema
+  adaptation pinned to v3.2.0 and recorded in `THIRD_PARTY_NOTICES.md`.
 
 ## 0.45.1 — 2026-10-19
 

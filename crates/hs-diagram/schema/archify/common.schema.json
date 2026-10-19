@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hyperstack.local/schema/archify/common.schema.json",
+  "$comment": "Adapted from Archify v3.2.0 (MIT), commit 208acba8d412335185b2056fedf54b3405df43fb. Only the definitions HyperStack's diagram IR uses are kept. See THIRD_PARTY_NOTICES.md. The renderer is not copied.",
+  "title": "HyperStack shared diagram definitions",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+    },
+    "point": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "side": {
+      "enum": ["left", "right", "top", "bottom"]
+    },
+    "relationshipWidth": {
+      "type": "number",
+      "minimum": 0.5
+    },
+    "componentType": {
+      "enum": [
+        "frontend",
+        "backend",
+        "database",
+        "cloud",
+        "security",
+        "messagebus",
+        "external"
+      ]
+    },
+    "variant": {
+      "enum": ["default", "emphasis", "security", "dashed"]
+    }
+  }
+}

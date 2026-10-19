@@ -674,3 +674,44 @@ language; HyperStack must stay a portable exe and cannot carry CodeLLDB
 what is missing otherwise. One session per editor tab. The build step is
 a child process with its output in the console; nothing runs in the
 shell's terminal tool.
+
+## ADR-025 · Native diagram document, scene/export pipeline and an Archify-adapted IR
+
+**Status.** Accepted, 2026-10-19.
+
+**Context.** The owner asked for a diagram generator and a draw.io-like
+editor inside the Graphics activity, with diagrams saved into a project
+folder, unsaved work surviving a restart, and PNG/PDF export. Archify was
+named as a reference. Archify is an MIT-licensed Node.js agent skill that
+turns a typed JSON IR into standalone HTML; it has no WYSIWYG editor and no
+general auto-layout, and its renderer is browser-oriented. HyperStack is a
+portable Rust/egui binary whose CI runner has no Node.
+
+**Decision.**
+- Build a native diagram document and editor. `hs-diagram` owns the
+  editor-native `.hdiag` format, a separate semantic IR, deterministic
+  layout, a resolved `Scene`, and SVG → PNG (`resvg`) and SVG → PDF
+  (`svg2pdf`) export. The renderer is one pipeline for screen and files; no
+  Archify HTML/CSS/SVG/JS is copied.
+- Adapt Archify's JSON Schema and validation rules only, pinned to v3.2.0
+  (commit `208acba8d412335185b2056fedf54b3405df43fb`), as a semantic IR for
+  the generator and (in Release 2) Archify JSON import. The adapted files
+  carry the MIT notice and both copyright lines in
+  `THIRD_PARTY_NOTICES.md`, on the About page and in the release zip. Brand
+  marks, fonts, the viewer and the generated validators are not copied.
+- Keep `.hdiag` editor-native (absolute geometry, styles, page) and the IR
+  semantic (lanes/columns/rows, no coordinates). Storing the IR in the file
+  would drag renderer-oriented fields into every save and complicate
+  editing; importing Archify JSON maps the IR to the document instead.
+- Release 1 ships flowchart and architecture, the Graphics activity shell,
+  the Image/Icon split, the generator and the four AI assistants. Release 2
+  adds ERD, sequence, draw.io XML import and Archify JSON import.
+- Drafts and recents live under `HyperStackData/graphics/`, not inside the
+  workspace, because a workspace can be an external `.hyperstack/` folder in
+  a git repository.
+
+**Consequences.** The editor is the expensive part, not the file format or
+the export; the IR and schema adaptation are bounded. PDF export is vector
+with a subset font and the same scene as the screen. A future Archify upgrade
+requires a deliberate re-pin and a notice update. Full draw.io parity is
+explicitly out of scope.

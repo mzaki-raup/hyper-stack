@@ -560,3 +560,54 @@ inherits them rather than being added to a list:
 The entry is disabled rather than hidden, with the reason on hover. A menu
 item that silently disappears reads as a bug; one that is present and
 greyed reads as a rule.
+
+## Addendum (2026-10-19): the Graphics activity
+
+Graphics stops being a picture tab with a settings sidebar. It becomes an
+activity with four tools and a permanent dashboard home tab, following the
+Devtools pattern: every Graphics tab draws the same activity sidebar, so the
+list does not change as the user moves between an image, an icon, a diagram and
+a generator. The full requirements are in
+[tools/diagrams.md](tools/diagrams.md).
+
+**Sidebar.** `Image`, `Icon`, `Diagram Editor` and `Diagram Generator`, each a
+clickable row with a right-click menu (Open, New, From Example, Import Mermaid,
+Convert to Icon). Below a separator, **Recent** takes about half the remaining
+column height, scrolls on its own (stable `id_salt`, `auto_shrink([false,
+false])`), is left-indented, and shows an icon, a title and a Draft/saved badge.
+Clicking a row focuses the tab whose `current_uri` matches, or opens the saved
+file/draft. The outer sidebar is not one scroll area wrapped around another:
+the function list takes its natural height and the Recent area gets a fixed
+maximum.
+
+**Permanent home tab.** A dashboard: “What To Do” cards (Open Image, Open Icon,
+New Diagram, Generate Diagram), the four functions with one-line descriptions,
+and the shared `hs_ui::dashboard::open_tabs` grid of Graphics tabs with their
+last screenshot. It reports no `current_uri` and no `uri_affinity`, so opening
+a picture never consumes it. `home_is_dashboard()` is true; an old saved
+layout with an image as `home` is migrated by clearing that flag and inserting
+a dashboard.
+
+**Image and Icon tabs.** The picture stays the whole tab, but the settings move
+into a resizable in-pane panel on the left (280–320 px), preview on the right,
+so the activity sidebar can keep the function list. The Icon tab adds frames,
+ICO sizes, a pixel grid at high zoom and colour-key transparency (eyedropper +
+tolerance). The assistant remains the last toolbar button, hard right.
+
+**Diagram Editor.** Toolbar: Select, Shape, Connector, Text, Pan, Zoom, Grid,
+Align, Undo/Redo, Export, AI. Properties panel on the left (geometry, style,
+text, z-order, align/distribute) with an **Outline** list of nodes and edges —
+the keyboard and screen-reader path to the canvas. Canvas in the centre.
+Double-click edits a label in place; drag handles resize; Space+drag or the
+middle mouse pans; Ctrl+wheel zooms.
+
+**Diagram Generator.** Type picker and prompt on the left (360 px) with three
+clickable examples and a template button; preview on the right; “Open in
+Editor” and “Export” above the preview. With no AI provider configured,
+templates and examples still produce diagrams and a hint links to Settings → AI
+Assistant.
+
+**AI assistant.** Four quick actions per tool plus **More Suggestions**, which
+asks for three tailored actions and shows them as buttons. Review-only: the
+assistant never applies an edit. Image and Icon context is text-only in R1
+(metadata and the operation list, never pixels).

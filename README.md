@@ -43,8 +43,7 @@ and theme.
 > import/export, **Devtools** (Base64, URL encoding, hashes, JWT, Firebase
 > tokens, Jasypt, PKI messages; one tab per utility, inputs persisted, secrets
 > saved to the environment vault and used as `{{variables}}`), a **Graphics** tool (convert, resize, extend,
-> adjust, icons), an embedded **Browser** (WebView2, ad and script
-> blocking, forced dark, inspect, print), **Snip** and **Print…** for every
+> adjust, icons), an embedded **Browser** (WebView2, ad and script> blocking, forced dark, inspect, print), **Snip** and **Print…** for every
 > tab, an optional AI assistant in the editor (Anthropic, Gemini, Azure
 > OpenAI, AWS Bedrock, 1min.AI, LM Studio, Ollama or any OpenAI-compatible
 > service) and a review-only assistant in
@@ -56,6 +55,16 @@ and theme.
 > only**: HyperStack studies how it solved the multi-row tab strip,
 > terminal, SSH/SFTP, S3 and Git status, then writes its own
 > implementation. No code is copied or shared.
+
+The Graphics activity is being expanded (owner's request, 2026-10-19) into four
+tools — Image, Icon, Diagram Editor and Diagram Generator — in two releases.
+Release 1 covers the Graphics activity shell, the Image/Icon split, flowchart
+and architecture diagrams, a prompt generator that works with the existing AI
+providers or offline templates, and an AI assistant in every tool. Release 2
+adds ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
+requirements and design are in [docs/tools/diagrams.md](docs/tools/diagrams.md);
+the pinned Archify schema adaptation is recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
@@ -261,6 +270,18 @@ keys typed into a utility are never saved.
 | ![Crop placeholder](docs/screenshots/graphics-crop.png) | |
 | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow | |
 
+**Planned (2026-10-19).** The activity grows into four tools. The sidebar lists
+**Image**, **Icon**, **Diagram Editor** and **Diagram Generator**, with a
+scrollable **Recent** section; the permanent home tab becomes a dashboard with
+“What To Do” and a screenshot grid of the open Graphics tabs. Image and Icon
+get their own tabs (settings left, preview right), and Icon adds colour-key
+transparency. The diagram editor covers flowcharts and architecture diagrams
+with shapes, connectors, labels, align, grid, undo, save/reopen `.hdiag`,
+drafts and PNG/SVG/PDF export. The generator turns a prompt into a first draft
+using the existing AI providers, or offline templates when none is configured.
+ERD and sequence diagrams, Archify JSON import and draw.io XML import follow in
+Release 2. See [docs/tools/diagrams.md](docs/tools/diagrams.md).
+
 ### Scratchpad and assistant
 
 | | |
@@ -365,6 +386,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Phase 2 |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Completed (core set; JSON query and the P1 extras remain) |
 | Graphics | [tools/graphics.md](docs/tools/graphics.md) | Yes |
+| Graphics diagrams (editor and generator) | [tools/diagrams.md](docs/tools/diagrams.md) | Planned (R1: flowchart, architecture) |
 | Scratchpad | [tools/scratchpad.md](docs/tools/scratchpad.md) | Yes |
 | Browser | [tools/browser.md](docs/tools/browser.md) | Windows |
 

@@ -237,6 +237,14 @@ suggestion.
 | Convert between PNG, JPEG, WebP, BMP, GIF, ICO; multi-size ICO export; icon frame extraction | P1 | S |
 | Review-only AI assistant on the picture's metadata and operations | P1 | S |
 | AI enhancement/outpainting through a provider | P2 | M |
+| Graphics activity: permanent dashboard home tab, sidebar with Image / Icon / Diagram Editor / Diagram Generator and a scrollable Recent section, right-click menus, drafts kept in Recent (R1) | P1 | M |
+| Separate Image and Icon tabs: in-pane settings left, preview right; icon colour-key transparency with an eyedropper and tolerance; image → icon (R1) | P1 | M |
+| Diagram Editor: flowchart and architecture, shapes, connectors, labels, align, grid/snap, undo/redo, zoom/pan, save/open `.hdiag`, drafts, PNG/SVG/PDF export, templates, Mermaid flowchart import (R1) | P1 | L |
+| Diagram Generator: prompt + examples + preview, existing AI providers, offline templates, semantic IR, validation/repair, open in editor, export (R1) | P1 | L |
+| AI assistant with four quick actions and More Suggestions in all four Graphics tools, review-only (R1) | P1 | M |
+| Diagram types: ERD and sequence, with the editor and generator support (R2) | P1 | L |
+| Archify JSON import and draw.io XML import (plain and compressed, first page) (R2) | P1 | L |
+| `.diagram.json` alias of `.hdiag`, schema migration (R2) | P1 | S |
 
 ## 10. Devtools drawer (suggested) — [spec](tools/devtools.md)
 

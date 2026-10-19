@@ -79,6 +79,7 @@ hyper-stack/
 │   ├── hs-git/                     # Git read side over the git CLI: status, diffs, log, branches, line changes
 │   ├── hs-lsp/                     # Language Server Protocol client: JSON-RPC over stdio, server registry, position encodings
 │   ├── hs-dap/                     # Debug Adapter Protocol client: adapters over stdio/TCP, launch configurations, breakpoints
+│   ├── hs-diagram/                 # (planned, Release 1) diagram document, Archify-adapted IR and validation, layout, scene, SVG/PNG/PDF export
 │   ├── hs-term/                    # alacritty_terminal grid, portable-pty, russh shell
 │   └── tools/
 │       ├── tool-editor/
@@ -117,6 +118,33 @@ Rules:
   their tool crate so a minimal build stays small.
 - Platform code (`windows`, `security-framework`, `secret-service`) is confined
   to `hs-core::secrets`, `hs-core::storage::paths` and `hs-term::pty`.
+
+### 2.1 Diagram pipeline and new shell seams
+
+`hs-diagram` is a helper library, not a tool. It owns the editor document, the
+Archify-adapted semantic IR and its validation, deterministic layout, the
+resolved `Scene`, and the exports. It has no egui dependency: layout takes a
+`measure` callback, so it is testable without a window. `tool-graphics` is the
+only UI consumer.
+
+```text
+Doc → validate → layout(measure) → Scene ──► egui painter
+                                           ├──► SVG ──► resvg ──► PNG
+                                           └──► SVG ──► svg2pdf ──► PDF
+```
+
+The Graphics activity adds three small seams to the shell:
+
+- `GraphicsHub` (`Arc<Mutex<...>>`), passed to `GraphicsFactory`, for recents,
+  drafts, the last save folder and the image→icon handoff.
+- `OpenRequest::NewDocument { kind, options }` for “new diagram/generation”
+  requests from the sidebar and palette.
+- `OpenProjects` in `hs-core`, published by the editor like `OpenTabs`, so the
+  save dialog can list the Editor's open project roots.
+
+`TabInfo` gains a `uri` so a Recent row can focus the exact open tab. The
+Graphics home tab becomes a dashboard; the saved-layout migration is described
+in `docs/tools/diagrams.md` §8.4.
 
 ## 3. Runtime model
 

@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- New Collection on the API client dashboard now opens its dialog
+- (nothing yet)
+
+## 0.45.1 — 2026-10-19
+
+### Fixed
+
+- Open the New Collection dialog on the dashboard (034accb0)
 
 ## 0.45.0 — 2026-10-19
 

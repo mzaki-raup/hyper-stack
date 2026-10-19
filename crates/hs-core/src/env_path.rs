@@ -28,6 +28,45 @@ pub fn current() -> OsString {
     inherited()
 }
 
+/// Resolve a command on [`current`]'s `PATH`. On Windows the name is tried
+/// with each `PATHEXT` suffix (`mysql` finds `mysql.exe`), and a bare name is
+/// never accepted: `CreateProcess` cannot start a file without one.
+pub fn find(name: &str) -> Option<std::path::PathBuf> {
+    let name = name.trim();
+    if name.is_empty() {
+        return None;
+    }
+    let path = current();
+    let exts: Vec<String> = if cfg!(windows) {
+        std::env::var("PATHEXT")
+            .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
+            .split(';')
+            .filter(|e| !e.is_empty())
+            .map(|e| e.to_ascii_lowercase())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let has_extension = std::path::Path::new(name).extension().is_some();
+    for dir in std::env::split_paths(&path) {
+        if has_extension || !cfg!(windows) {
+            let direct = dir.join(name);
+            if direct.is_file() {
+                return Some(direct);
+            }
+        }
+        if cfg!(windows) {
+            for ext in &exts {
+                let candidate = dir.join(format!("{name}{ext}"));
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Read `PATH` from the system again. Returns whether the value changed, so
 /// a caller can say "nothing new" rather than claim the refresh did
 /// something.

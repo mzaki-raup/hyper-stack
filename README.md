@@ -155,9 +155,10 @@ directly after the permanent one.
 |---|---|
 | ![Terminal](docs/screenshots/terminal.png) | ![Terminal search](docs/screenshots/terminal-search.png) |
 | **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | **Search** (Ctrl+Shift+F) — plain or regex, match case, every hit highlighted, "n of m" |
-| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | |
-| **Shell list** — PowerShell 7, Command Prompt, Nushell and Git Bash, ordered by preference | **Links** — hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
-| ![Ctrl+click a file location](docs/screenshots/terminal-links.png) | |
+| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | ![Ctrl+click a file location](docs/screenshots/terminal-links.png) |
+| **Shell list** - PowerShell 7, Command Prompt, Nushell and Git Bash, ordered by preference | **Links** - hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
+| ![CLI tools](docs/screenshots/terminal-cli.png) | |
+| **CLI tools** (Settings → Terminal) - a profile such as `cmd /k echo Hello from CLI`, `mysql`, `psql`, `claude` or `opencode` opens a terminal tab and types its command line once the shell is ready | |
 
 ### SSH and SFTP
 
@@ -282,6 +283,8 @@ never saved.
 | **Edit Secret** — after the master password, the password and key are editable; typed values move into the vault, an empty field clears the secret | **Connections** — every profile by kind, folder and tags, drag to reorder, Edit and Test Connection |
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
 | **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload, language servers and debug adapters |
+| ![Terminal List](docs/screenshots/settings-terminal-list.png) | |
+| **Terminal List** - shells and CLI profiles in order, with Add CLI, Edit, Remove and PATH suggestions (sqlite3, claude and opencode here); a disabled CLI stays in the list and leaves the sidebar | |
 | ![Browser settings](docs/screenshots/settings-browser.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
 | **Browser** — home page, blocking and script defaults, extra blocked hosts | **Shortcuts** — every action rebindable; conflicts listed |
 | ![AI settings](docs/screenshots/settings-ai.png) | ![About](docs/screenshots/settings-about.png) |

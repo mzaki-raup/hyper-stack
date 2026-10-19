@@ -11,6 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- Terminal settings moves between Security and Connections and gains a reorderable CLI list (mysql, psql, mongosh, redis-cli, claude, opencode, custom), with PATH suggestions; a CLI opens a terminal tab and types its command.
 - Devtools utilities, SSH hosts, S3 profiles, Terminal shells and the Settings page list scroll under their fixed header.
 - Documentation and screenshots: the README's screenshot set is organised into 16 categories, with new shots for the Git conflict editor and rebase, credentials editing, environment export, Connections, Redis, NoSQL, Regex Tester and Text Diff, retaken Settings/Home/Editor/Terminal/Production shots, and a rebuilt walkthrough GIF.
 

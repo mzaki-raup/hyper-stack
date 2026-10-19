@@ -44,8 +44,8 @@ impl Page {
             (Page::Workspace, "settings-workspace"),
             (Page::Environments, "settings-environments"),
             (Page::Security, "settings-security"),
-            (Page::Connections, "settings-connections"),
             (Page::Terminal, "settings-terminal"),
+            (Page::Connections, "settings-connections"),
             (Page::Editor, "settings-editor"),
             (Page::Browser, "settings-browser"),
             (Page::Ai, "settings-ai"),
@@ -148,6 +148,12 @@ pub struct SettingsState {
     pub ask: Option<Ask>,
     /// The Edit Secret dialog, once the master password has been accepted.
     pub edit_secret: Option<EditSecret>,
+    /// Terminal page: the CLI profile being added or edited.
+    pub cli_draft: Option<hs_core::settings::CliProfile>,
+    /// Terminal page: the CLI profile whose removal is being confirmed.
+    pub cli_confirm: Option<String>,
+    /// Terminal page: commands found on PATH that are not in the list yet.
+    pub cli_suggestions: Option<Vec<String>>,
 }
 
 /// What the master-password prompt is for.
@@ -313,7 +319,7 @@ pub fn page(
         Page::Environments => environments(ui, theme, services, state, effects),
         Page::Connections => connections(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
-        Page::Terminal => terminal(ui, theme, services, effects),
+        Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, effects),
         Page::Browser => browser(ui, theme, services, effects),
         Page::Ai => crate::settings_ai::page(ui, theme, services, &mut state.ai, effects),
@@ -3208,7 +3214,84 @@ fn apply_secret_edit(
     }
 }
 
-fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+/// Commands the Terminal page offers when they are found on PATH:
+/// `(command, display name, icon key)`.
+const CLI_CANDIDATES: &[(&str, &str, &str)] = &[
+    ("mysql", "MySQL CLI", "database"),
+    ("psql", "PostgreSQL CLI", "database"),
+    ("sqlite3", "SQLite CLI", "database"),
+    ("mongosh", "MongoDB Shell", "database"),
+    ("redis-cli", "Redis CLI", "database"),
+    ("aws", "AWS CLI", "cloud"),
+    ("kubectl", "kubectl", "cloud"),
+    ("docker", "Docker", "cloud"),
+    ("claude", "Claude Code", "sparkle"),
+    ("opencode", "OpenCode", "sparkle"),
+    ("gemini", "Gemini CLI", "sparkle"),
+    ("aider", "Aider", "sparkle"),
+    ("ollama", "Ollama", "sparkle"),
+];
+
+/// The Phosphor icon for a stored icon key.
+fn cli_icon(key: &str) -> &'static str {
+    use hs_ui::icons::ph;
+    match key {
+        "database" => ph::DATABASE,
+        "cloud" => ph::CLOUD,
+        "sparkle" => ph::SPARKLE,
+        _ => ph::TERMINAL_WINDOW,
+    }
+}
+
+fn cli_icon_label(key: &str, s: &Services) -> String {
+    let text = match key {
+        "database" => s.t("settings-terminal-icon-database"),
+        "cloud" => s.t("settings-terminal-icon-cloud"),
+        "sparkle" => s.t("settings-terminal-icon-ai"),
+        _ => s.t("settings-terminal-icon-terminal"),
+    };
+    format!("{} {text}", cli_icon(key))
+}
+
+/// The detected shells in the stored order, then any newly detected ones.
+fn ordered_shell_ids(profiles: &[hs_term::shells::ShellProfile], saved: &[String]) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for id in saved {
+        if profiles.iter().any(|p| p.id == *id) && !ids.contains(id) {
+            ids.push(id.clone());
+        }
+    }
+    for p in profiles {
+        if !ids.contains(&p.id) {
+            ids.push(p.id.clone());
+        }
+    }
+    ids
+}
+
+/// Candidate commands found on PATH and not already in the list.
+fn cli_suggestions(settings: &hs_core::settings::Settings) -> Vec<String> {
+    CLI_CANDIDATES
+        .iter()
+        .filter(|(command, _, _)| {
+            !settings
+                .terminal
+                .cli
+                .iter()
+                .any(|c| c.command.eq_ignore_ascii_case(command))
+        })
+        .filter(|(command, _, _)| hs_core::env_path::find(command).is_some())
+        .map(|(command, _, _)| (*command).to_string())
+        .collect()
+}
+
+fn terminal(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
     form::page_title(
         ui,
         theme,
@@ -3297,6 +3380,270 @@ fn terminal(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Se
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-terminal-links-hint"));
+    });
+    form::section(ui, theme, &s.t("settings-terminal-list"), |ui| {
+        form::hint(ui, theme, &s.t("settings-terminal-list-hint"));
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(s.t("settings-terminal-shells"))
+                .small()
+                .strong()
+                .color(theme.text_muted),
+        );
+        let ids = ordered_shell_ids(&profiles, &settings.terminal.shell_order);
+        let mut move_shell: Option<(usize, usize)> = None;
+        for (i, id) in ids.iter().enumerate() {
+            let Some(profile) = profiles.iter().find(|p| p.id == *id) else {
+                continue;
+            };
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                    .clicked()
+                {
+                    move_shell = Some((i, i - 1));
+                }
+                if ui
+                    .add_enabled(
+                        i + 1 < ids.len(),
+                        egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
+                    )
+                    .clicked()
+                {
+                    move_shell = Some((i, i + 1));
+                }
+                ui.label(&profile.name);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(&profile.exe)
+                            .small()
+                            .color(theme.text_muted),
+                    )
+                    .truncate()
+                    .selectable(false),
+                );
+            });
+        }
+        if let Some((a, b)) = move_shell {
+            let mut order = ids;
+            order.swap(a, b);
+            settings.terminal.shell_order = order;
+            changed = true;
+        }
+
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(s.t("settings-terminal-cli"))
+                .small()
+                .strong()
+                .color(theme.text_muted),
+        );
+        if settings.terminal.cli.is_empty() {
+            form::hint(ui, theme, &s.t("settings-terminal-cli-empty"));
+        }
+        let count = settings.terminal.cli.len();
+        let mut move_cli: Option<(usize, usize)> = None;
+        let mut edit_cli: Option<String> = None;
+        let mut remove_cli: Option<String> = None;
+        for i in 0..count {
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                    .clicked()
+                {
+                    move_cli = Some((i, i - 1));
+                }
+                if ui
+                    .add_enabled(
+                        i + 1 < count,
+                        egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
+                    )
+                    .clicked()
+                {
+                    move_cli = Some((i, i + 1));
+                }
+                changed |= ui
+                    .checkbox(&mut settings.terminal.cli[i].enabled, "")
+                    .changed();
+                ui.label(&settings.terminal.cli[i].name);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(settings.terminal.cli[i].command_line())
+                            .small()
+                            .monospace()
+                            .color(theme.text_muted),
+                    )
+                    .truncate()
+                    .selectable(false),
+                );
+                let id = settings.terminal.cli[i].id.clone();
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.small_button(hs_ui::icons::ph::TRASH).clicked() {
+                        remove_cli = Some(id.clone());
+                    }
+                    if ui.small_button(hs_ui::icons::ph::PENCIL_SIMPLE).clicked() {
+                        edit_cli = Some(id.clone());
+                    }
+                });
+            });
+        }
+        if let Some((a, b)) = move_cli {
+            settings.terminal.cli.swap(a, b);
+            changed = true;
+        }
+        if let Some(id) = edit_cli
+            && let Some(profile) = settings.terminal.cli.iter().find(|c| c.id == id)
+        {
+            state.cli_draft = Some(profile.clone());
+        }
+        if let Some(id) = remove_cli {
+            state.cli_confirm = Some(id);
+        }
+        if let Some(id) = state.cli_confirm.clone() {
+            let name = settings
+                .terminal
+                .cli
+                .iter()
+                .find(|c| c.id == id)
+                .map(|c| c.name.clone())
+                .unwrap_or_default();
+            ui.horizontal(|ui| {
+                ui.label(
+                    s.i18n
+                        .t_args("settings-terminal-remove-cli", &[("name", &name)]),
+                );
+                if ui.button(s.t("delete")).clicked() {
+                    settings.terminal.cli.retain(|c| c.id != id);
+                    state.cli_confirm = None;
+                    changed = true;
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    state.cli_confirm = None;
+                }
+            });
+        }
+        ui.add_space(4.0);
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("settings-terminal-add-cli")
+            ))
+            .clicked()
+        {
+            state.cli_draft = Some(hs_core::settings::CliProfile::default());
+        }
+        let mut save = false;
+        let mut cancel = false;
+        if let Some(draft) = &mut state.cli_draft {
+            ui.separator();
+            ui.label(egui::RichText::new(s.t("settings-terminal-cli-edit")).strong());
+            form::field_grid(ui, "cli-editor", |ui| {
+                form::label(ui, &s.t("settings-terminal-cli-name"));
+                form::text_field(ui, &mut draft.name, &s.t("settings-terminal-cli-name"));
+                ui.end_row();
+                form::label(ui, &s.t("settings-terminal-cli-command"));
+                form::text_field(ui, &mut draft.command, "mysql");
+                ui.end_row();
+                form::label(ui, &s.t("settings-terminal-cli-args"));
+                form::text_field(ui, &mut draft.args, "-u root");
+                ui.end_row();
+                form::label(ui, &s.t("settings-terminal-cli-cwd"));
+                form::text_field(ui, &mut draft.cwd, "{{workspace}}");
+                ui.end_row();
+                form::label(ui, &s.t("settings-terminal-cli-icon"));
+                egui::ComboBox::from_id_salt("cli-icon")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(cli_icon_label(&draft.icon, s))
+                    .show_ui(ui, |ui| {
+                        for key in ["terminal", "database", "cloud", "sparkle"] {
+                            if ui
+                                .selectable_label(draft.icon == key, cli_icon_label(key, s))
+                                .clicked()
+                            {
+                                draft.icon = key.to_string();
+                            }
+                        }
+                    });
+                ui.end_row();
+            });
+            changed |= ui
+                .checkbox(&mut draft.enabled, s.t("settings-terminal-cli-enabled"))
+                .changed();
+            ui.horizontal(|ui| {
+                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                    save = true;
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    cancel = true;
+                }
+            });
+        }
+        if save && let Some(mut draft) = state.cli_draft.take() {
+            if draft.id.is_empty() {
+                draft.id = hs_core::new_id();
+                settings.terminal.cli.push(draft);
+            } else if let Some(existing) =
+                settings.terminal.cli.iter_mut().find(|c| c.id == draft.id)
+            {
+                *existing = draft;
+            }
+            changed = true;
+        }
+        if cancel {
+            state.cli_draft = None;
+        }
+    });
+    form::section(ui, theme, &s.t("settings-terminal-suggestions"), |ui| {
+        form::hint(ui, theme, &s.t("settings-terminal-suggestions-hint"));
+        if state.cli_suggestions.is_none() {
+            state.cli_suggestions = Some(cli_suggestions(&settings));
+        }
+        let suggestions = state.cli_suggestions.clone().unwrap_or_default();
+        if suggestions.is_empty() {
+            form::hint(ui, theme, &s.t("settings-terminal-suggestions-none"));
+        }
+        let mut add: Option<String> = None;
+        for command in &suggestions {
+            let (label, icon) = CLI_CANDIDATES
+                .iter()
+                .find(|(c, _, _)| c == command)
+                .map(|(_, l, i)| (*l, *i))
+                .unwrap_or((command.as_str(), "terminal"));
+            ui.horizontal(|ui| {
+                ui.label(cli_icon(icon));
+                ui.label(label);
+                ui.label(
+                    egui::RichText::new(command)
+                        .monospace()
+                        .small()
+                        .color(theme.text_muted),
+                );
+                if ui.button(s.t("settings-terminal-add")).clicked() {
+                    add = Some(command.clone());
+                }
+            });
+        }
+        if let Some(command) = add {
+            let (label, icon) = CLI_CANDIDATES
+                .iter()
+                .find(|(c, _, _)| *c == command)
+                .map(|(_, l, i)| (*l, *i))
+                .unwrap_or((command.as_str(), "terminal"));
+            settings.terminal.cli.push(hs_core::settings::CliProfile {
+                id: hs_core::new_id(),
+                name: label.to_string(),
+                command,
+                icon: icon.to_string(),
+                enabled: false,
+                ..Default::default()
+            });
+            state.cli_suggestions = None;
+            changed = true;
+        }
+        if ui.button(s.t("refresh")).clicked() {
+            state.cli_suggestions = None;
+        }
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);

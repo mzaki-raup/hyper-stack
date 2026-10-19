@@ -13,20 +13,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- The Graphics activity shell: a permanent dashboard, a sidebar listing Image,
-  Icon, Diagram Editor and Diagram Generator, a persisted Recent list, separate
-  Image and Icon tabs with the picture settings in an in-pane panel, and Convert
-  to Icon.
 - Icon colour-key transparency: pick a colour on the canvas (or use the colour
   button), set a tolerance and clear every matching pixel; the operation is
   removable like any other.
 
-### Changed
+## 0.46.0 — 2026-10-19
 
-- Documented the Graphics diagram suite: Release 1 (Image/Icon split,
-  flowchart/architecture editor and generator, AI assistants) and Release 2
-  (ERD, sequence, Archify JSON and draw.io XML import), with the Archify schema
-  adaptation pinned to v3.2.0 and recorded in `THIRD_PARTY_NOTICES.md`.
+### Added
+
+- Add the Graphics activity shell (519fdba0)
 
 ## 0.45.1 — 2026-10-19
 

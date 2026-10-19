@@ -133,17 +133,27 @@ Doc → validate → layout(measure) → Scene ──► egui painter
                                            └──► SVG ──► svg2pdf ──► PDF
 ```
 
-The Graphics activity adds three small seams to the shell:
+The first phase added two shell seams:
 
 - `GraphicsHub` (`Arc<Mutex<...>>`), passed to `GraphicsFactory`, for recents,
-  drafts, the last save folder and the image→icon handoff.
-- `OpenRequest::NewDocument { kind, options }` for “new diagram/generation”
-  requests from the sidebar and palette.
+  drafts, the last save folder and the image→icon handoff. Implemented with
+  `recents.json` under the portable data folder (not the workspace).
+- `Tool::wants_dashboard_home` plus the `ensure_home_tabs` migration: a saved
+  Graphics image tab marked home is cleared and a dashboard is inserted.
+  Implemented and covered by `tabspace_tests`.
+
+Image→Icon and “open this as an icon” use `OpenRequest::Text` with a private
+MIME (`application/x-hyperstack-graphics`) so no core enum change is needed
+yet. The remaining seams are for the diagram phases:
+
+- `OpenRequest::NewDocument` for “new diagram/generation” requests (or the same
+  private Text channel), so the sidebar and palette can create a document.
 - `OpenProjects` in `hs-core`, published by the editor like `OpenTabs`, so the
   save dialog can list the Editor's open project roots.
+- `TabInfo.uri` so a Recent row can focus an unsaved draft, not only a saved
+  file. Saved files already focus through `OpenRequest::File`.
 
-`TabInfo` gains a `uri` so a Recent row can focus the exact open tab. The
-Graphics home tab becomes a dashboard; the saved-layout migration is described
+The Graphics home tab is a dashboard; the saved-layout migration is described
 in `docs/tools/diagrams.md` §8.4.
 
 ## 3. Runtime model

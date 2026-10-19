@@ -400,8 +400,10 @@ impl TabSpace {
     /// and the tab that happens to come first is a working tab - a
     /// connection, a note - which must not be turned into a dashboard.
     /// So a dashboard activity gets a *new* first tab, and only an
-    /// activity whose home is a working tab anyway (the browser, Graphics)
-    /// adopts the one that is there. Owner's report, 2026-10-17.
+    /// activity whose home is a working tab anyway (the browser) adopts the
+    /// one that is there. An activity that has just gained a dashboard
+    /// (Graphics, 2026-10-19) clears the old flag and gets a new one.
+    /// Owner's report, 2026-10-17.
     fn ensure_home_tabs(
         &mut self,
         factories: &HashMap<String, &dyn ToolFactory>,
@@ -414,17 +416,34 @@ impl TabSpace {
                 continue;
             }
             seen.push(id.clone());
-            if self.tabs.iter().any(|t| t.factory_id == id && t.home) {
+            if self
+                .tabs
+                .iter()
+                .any(|t| t.factory_id == id && t.home && t.tool.home_is_dashboard())
+            {
                 continue;
             }
-            let t = &self.tabs[i];
-            if !t.tool.wants_home_tab() {
+            let (wants_home, is_dashboard, wants_dashboard) = {
+                let t = &self.tabs[i];
+                (
+                    t.tool.wants_home_tab(),
+                    t.tool.home_is_dashboard(),
+                    t.tool.wants_dashboard_home(),
+                )
+            };
+            if !wants_home {
                 continue;
             }
-            if !t.tool.home_is_dashboard() {
-                self.tabs[i].home = true;
-                self.tabs[i].tool.set_home_tab(true, services);
-                continue;
+            if !is_dashboard {
+                if !wants_dashboard {
+                    self.tabs[i].home = true;
+                    self.tabs[i].tool.set_home_tab(true, services);
+                    continue;
+                }
+                // An older working home tab (Graphics before the dashboard)
+                // must not stay home; clear it and insert a dashboard below.
+                self.tabs[i].home = false;
+                self.tabs[i].tool.set_home_tab(false, services);
             }
             let Some(factory) = factories.get(id.as_str()) else {
                 continue;

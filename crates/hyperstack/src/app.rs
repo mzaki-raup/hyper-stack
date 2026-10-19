@@ -199,8 +199,13 @@ impl HyperStackApp {
         let settings_hub = SharedSettings::default();
         let home_hub = SharedHome::default();
         let browser_hub = crate::browser_host::new_hub();
-        let factories =
-            crate::tools::factories(settings_hub.clone(), home_hub.clone(), browser_hub.clone());
+        let graphics_hub = tool_graphics::GraphicsHub::shared(&services);
+        let factories = crate::tools::factories(
+            settings_hub.clone(),
+            home_hub.clone(),
+            browser_hub.clone(),
+            graphics_hub,
+        );
         home_hub.lock().tools = factories.iter().map(|f| f.descriptor().clone()).collect();
         settings_hub.lock().state.rail_tools = factories
             .iter()

@@ -105,6 +105,37 @@ a system sshd. The database shots use a SQLite file
 (`D:\Temp\opencode\shop.db`) with customers, products and orders, opened
 through a seeded `shop-sqlite` profile; no server is required.
 
+## 2026-10-19 set: Graphics activity (Phase 1)
+
+Three shots of the Graphics activity shell, captured from the debug build
+with the same harness, HyperStack Dark, the rail labels on and the window at
+0,0 sized 1400x900:
+
+- `graphics-dashboard.png` — the permanent Graphics dashboard: the sidebar
+  with Image / Icon / Diagram Editor / Diagram Generator and the Recent row,
+  the What To Do cards, the function list and the Open Here grid with the
+  captured thumbnail of the image tab.
+- `graphics-image-tab.png` — an image tab with the settings panel on the left
+  and the preview on the right, and Convert to Icon in the toolbar.
+- `graphics-icon-tab.png` — the Icon tab created from that picture, with its
+  own Icon Settings panel.
+
+The layout was seeded with one `graphics` tab
+(`{"kind":"image","path":"D:\\Temp\\hs-gfx-test.png"}`) so the dashboard and
+the image tab could be opened deterministically; the app added the dashboard
+and the icon tab itself. The source picture is a 320x200 PNG generated with
+`System.Drawing` at `D:\Temp\hs-gfx-test.png`. The Diagram Editor and
+Diagram Generator rows are visibly disabled because those panes are the next
+phase; the shots will be retaken when they work.
+
+The harness needed an explicit foreground push: `SetForegroundWindow` and
+`WScript.Shell.AppActivate` both failed silently while another app stayed on
+top, so `D:\Temp\focus-hs.ps1` attaches to the foreground thread, restores and
+raises the window before the keys and the capture. See the gotcha in
+`CLAUDE.md`.
+
+Fixtures: vault `TestMaster1`; the seeded Graphics tab above; no server.
+
 Added with the Terminal CLI list (2026-10-19): `settings-terminal-list.png`
 (the Terminal page's Shells and CLI groups with Add CLI and PATH suggestions
 - `sqlite3`, `claude` and `opencode` were found on the capture machine) and

@@ -58,10 +58,11 @@ and theme.
 
 The Graphics activity is being expanded (owner's request, 2026-10-19) into four
 tools — Image, Icon, Diagram Editor and Diagram Generator — in two releases.
-Release 1 covers the Graphics activity shell, the Image/Icon split, flowchart
-and architecture diagrams, a prompt generator that works with the existing AI
-providers or offline templates, and an AI assistant in every tool. Release 2
-adds ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
+The first Release 1 phase landed on 2026-10-19: the activity sidebar, the
+dashboard with Recent and screenshots, the separate Image and Icon tabs, and
+Convert to Icon. The flowchart/architecture editor and the prompt generator
+follow in the same release, with an AI assistant in every tool. Release 2 adds
+ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
 requirements and design are in [docs/tools/diagrams.md](docs/tools/diagrams.md);
 the pinned Archify schema adaptation is recorded in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
@@ -89,7 +90,7 @@ the fixtures behind them.
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units |
-| [Graphics](#graphics) | Operations, crop |
+| [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
 | [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, pinning, dictation |
 | [Browser](#browser) | WebView2 pages, favourites, passwords |
 | [Settings](#settings) | Every page |
@@ -265,22 +266,20 @@ keys typed into a utility are never saved.
 
 | | |
 |---|---|
-| ![Graphics](docs/screenshots/graphics.png) | ![Graphics operations](docs/screenshots/graphics-ops.png) |
-| **Pictures** open from the editor's project tree or a dialog; zoom on a checkerboard; convert between PNG, JPEG, WebP, BMP, GIF and ICO; multi-size ICO export; icon frame extraction | **Operations** — resize, scale, extend canvas, crop, rotate, flip, brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen, each removable; review-only AI assistant |
-| ![Crop placeholder](docs/screenshots/graphics-crop.png) | |
-| **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow | |
+| ![Graphics activity](docs/screenshots/graphics-dashboard.png) | ![Image tab](docs/screenshots/graphics-image-tab.png) |
+| **Graphics activity** — the sidebar lists Image, Icon, Diagram Editor and Diagram Generator plus a scrollable Recent section; the permanent first tab is a dashboard with “What To Do”, the function list and a screenshot grid of the open Graphics tabs | **Image tab** — the picture keeps the tab, the operations and settings sit on the left and the preview on the right; **Convert to Icon** opens the result in a new Icon tab |
+| ![Icon tab](docs/screenshots/graphics-icon-tab.png) | ![Crop placeholder](docs/screenshots/graphics-crop.png) |
+| **Icon tab** — the same operations plus ICO frame selection and sizes; colour-key transparency follows in this release | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow |
 
-**Planned (2026-10-19).** The activity grows into four tools. The sidebar lists
-**Image**, **Icon**, **Diagram Editor** and **Diagram Generator**, with a
-scrollable **Recent** section; the permanent home tab becomes a dashboard with
-“What To Do” and a screenshot grid of the open Graphics tabs. Image and Icon
-get their own tabs (settings left, preview right), and Icon adds colour-key
-transparency. The diagram editor covers flowcharts and architecture diagrams
-with shapes, connectors, labels, align, grid, undo, save/reopen `.hdiag`,
-drafts and PNG/SVG/PDF export. The generator turns a prompt into a first draft
-using the existing AI providers, or offline templates when none is configured.
-ERD and sequence diagrams, Archify JSON import and draw.io XML import follow in
-Release 2. See [docs/tools/diagrams.md](docs/tools/diagrams.md).
+**Implemented (2026-10-19):** the activity shell, the dashboard and Recent
+list, the separate Image and Icon tabs and Convert to Icon. The diagram editor
+and generator follow in the same release; ERD, sequence, Archify JSON and
+draw.io XML import follow in Release 2. See
+[docs/tools/diagrams.md](docs/tools/diagrams.md).
+
+The picture operations are resize, scale, extend canvas, crop, rotate, flip,
+brightness, contrast, hue, saturation, grayscale, invert, blur and sharpen,
+each removable; the AI assistant is review-only.
 
 ### Scratchpad and assistant
 

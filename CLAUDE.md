@@ -44,15 +44,16 @@ adapters (CodeLLDB, lldb-dap, GDB, debugpy, delve, netcoredbg), with
 configurations from `.hyperstack/debug.json`, `.vscode/launch.json` or
 generated for Cargo, Python and Go projects.**
 
-**Planned (2026-10-19):** the Graphics activity grows into four tools — Image,
-Icon, Diagram Editor and Diagram Generator — with a dashboard home tab, an
-activity sidebar and a Recent section. Release 1 adds the Image/Icon split,
-flowchart/architecture diagrams, a prompt generator with the existing AI
-providers or offline templates, and an AI assistant in every tool; Release 2
-adds ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
-requirements are in `docs/tools/diagrams.md`, the pinned Archify schema
-adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The diagram library will be
-`hs-diagram`; the UI stays in `tool-graphics`.
+**In progress (2026-10-19):** the Graphics activity grows into four tools —
+Image, Icon, Diagram Editor and Diagram Generator — with a dashboard home tab,
+an activity sidebar and a Recent section. Phase 1 landed: the sidebar and
+dashboard, separate Image/Icon tabs with the settings in an in-pane panel, and
+Convert to Icon (`GraphicsHub`, `Tool::wants_dashboard_home`). Still to come:
+icon colour-key transparency, the `hs-diagram` editor/generator (flowchart and
+architecture), the four AI assistants, and Release 2's ERD/sequence and
+Archify/draw.io imports. The requirements are in `docs/tools/diagrams.md`, the
+pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The
+diagram library will be `hs-diagram`; the UI stays in `tool-graphics`.
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
@@ -983,6 +984,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   silently. Check `GetForegroundWindow`, and `WindowFromPoint` +
   `GetWindowThreadProcessId` against the dev pid, before any click
   (`scratchpad/devclick.ps1`, `devshot.ps1`).
+- `SetForegroundWindow` from a non-foreground process fails silently even
+  when the HWND is right, and `WScript.Shell.AppActivate` can return `true`
+  while another window stays in front: keys and screenshots then go to
+  whatever is actually on top (a stray `mailto` dialog opened in an
+  unrelated app on 2026-10-19). Force it with `AttachThreadInput` to the
+  foreground thread, `ShowWindow(SW_RESTORE)`, `SetWindowPos(HWND_TOPMOST)`,
+  `SetForegroundWindow`, then clear topmost. `D:\Temp\focus-hs.ps1` was the
+  working pattern; do not send the vault password until a screenshot proves
+  the HyperStack window is in front.
 
 - A connection profile's file name is derived from the profile's *name*
   (`ConnectionStore::file_for` slugifies the profile's *name*), so a

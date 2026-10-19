@@ -2,12 +2,19 @@
 
 **Crate:** `tool-graphics` (UI) + `hs-diagram` (model, layout, scene, export) ·
 **Priority:** P1 (owner's request, 2026-10-19) ·
-**Status:** planned — Release 1 begins 2026-10-19
+**Status:** in progress — Phase 1 implemented 2026-10-19
 
 This document is the requirements and design for the Graphics activity as it
 grows from a picture editor into four tools: **Image**, **Icon**, **Diagram
 Editor** and **Diagram Generator**. It is written before the code, as the
 owner's process rules require.
+
+| Phase | State |
+|---|---|
+| Graphics activity shell: sidebar, dashboard, Recent, Image/Icon tabs, Convert to Icon | Implemented 2026-10-19 |
+| Icon colour-key transparency | Pending |
+| `hs-diagram`, Diagram Editor and Generator (flowchart, architecture) | Pending |
+| ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),
 [../03-architecture.md](../03-architecture.md),

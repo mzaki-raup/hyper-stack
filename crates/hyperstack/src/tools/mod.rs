@@ -15,6 +15,7 @@ pub fn factories(
     settings: SharedSettings,
     home: SharedHome,
     browser: tool_browser::SharedBrowser,
+    graphics: tool_graphics::SharedGraphics,
 ) -> Vec<Box<dyn ToolFactory>> {
     vec![
         Box::new(home::HomeFactory { hub: home }),
@@ -27,7 +28,7 @@ pub fn factories(
         Box::new(tool_nosql::NoSqlFactory),
         Box::new(tool_api::ApiFactory),
         Box::new(tool_browser::BrowserFactory { hub: browser }),
-        Box::new(tool_graphics::GraphicsFactory),
+        Box::new(tool_graphics::GraphicsFactory { hub: graphics }),
         Box::new(tool_devtools::DevtoolsFactory),
         Box::new(scratchpad::ScratchpadFactory),
         Box::new(settings::SettingsFactory { hub: settings }),

@@ -13,6 +13,7 @@ use hs_core::workspace::{Layout, LayoutTab};
 
 use crate::tabspace::TabSpace;
 use crate::tools::scratchpad::ScratchpadFactory;
+use tool_graphics::{GraphicsFactory, GraphicsHub};
 
 fn note(id: u64, text: &str, home: bool) -> LayoutTab {
     LayoutTab {
@@ -92,6 +93,55 @@ fn an_old_layout_keeps_its_notes_and_gains_a_home_tab() {
         .map(|t| t.tool.title().to_string())
         .collect();
     assert_eq!(order, ["Scratchpad", "first", "second"]);
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn an_old_graphics_image_home_gains_a_dashboard() {
+    let tmp = std::env::temp_dir().join(format!("hs-gfx-home-{}", hs_core::new_id()));
+    let paths = DataDir::resolve(Some(&tmp)).unwrap();
+    let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+    let s = &boot.services;
+    let hub = GraphicsHub::shared(s);
+    let factory = GraphicsFactory { hub };
+    let mut factories: HashMap<String, &dyn ToolFactory> = HashMap::new();
+    factories.insert("graphics".into(), &factory);
+
+    // A picture on disk, so the restored tab really holds a document.
+    let image_path = tmp.join("old.png");
+    image::RgbaImage::from_pixel(2, 2, image::Rgba([255, 0, 0, 255]))
+        .save(&image_path)
+        .unwrap();
+    let old = LayoutTab {
+        id: 1,
+        tool: "graphics".into(),
+        pinned: false,
+        colour: None,
+        home: true,
+        state: serde_json::json!({
+            "kind": "image",
+            "path": image_path.to_string_lossy(),
+        }),
+    };
+    let layout = Layout {
+        tabs: vec![old],
+        active: Some(1),
+        ..Default::default()
+    };
+    let mut tabs = TabSpace::new();
+    tabs.restore(&layout, &factories, s);
+
+    assert_eq!(
+        tabs.tabs.len(),
+        2,
+        "the old image stays, a dashboard is added"
+    );
+    assert!(tabs.tabs[0].home);
+    assert!(tabs.tabs[0].tool.home_is_dashboard());
+    assert_eq!(tabs.tabs[0].tool.title(), "Graphics");
+    assert!(!tabs.tabs[1].home, "the image is no longer the home tab");
+    assert_eq!(tabs.tabs[1].tool.title(), "old.png");
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

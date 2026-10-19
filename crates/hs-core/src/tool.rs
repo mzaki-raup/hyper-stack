@@ -322,6 +322,15 @@ pub trait Tool: Send {
         false
     }
 
+    /// Whether the activity's home should be a dashboard even when a saved
+    /// layout still has an older working tab marked as home. A tool that
+    /// gains a dashboard (Graphics, 2026-10-19) returns true here; the
+    /// restore path then clears the old flag and inserts a fresh dashboard
+    /// instead of leaving the activity without one.
+    fn wants_dashboard_home(&self) -> bool {
+        false
+    }
+
     /// The shell tells a tool that its tab is the activity's **home** tab
     /// as soon as that is decided, before the first frame. A dashboard's
     /// tab has to name the activity ("Devtools", not "Base64"), and

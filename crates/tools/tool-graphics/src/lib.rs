@@ -7,15 +7,17 @@
 //! The review-only AI assistant sees the picture's metadata and the
 //! operation list, never the pixels.
 
+pub mod activity;
 pub mod ops;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+pub use activity::{Function, GraphicsHub, Kind, SharedGraphics};
 use hs_core::Services;
 use hs_core::tool::{
-    Accept, CommandDescriptor, OpenRequest, Printable, Speakable, ToastLevel, Tool, ToolCategory,
-    ToolContext, ToolDescriptor, ToolFactory,
+    Accept, Action, CommandDescriptor, OpenRequest, Printable, Speakable, ToastLevel, Tool,
+    ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
 };
 use hs_ui::form;
 use hs_ui::icons::ph;
@@ -33,20 +35,48 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     accepts: &[Accept::LocalFile],
 };
 
-pub struct GraphicsFactory;
+pub struct GraphicsFactory {
+    pub hub: SharedGraphics,
+}
 
 impl ToolFactory for GraphicsFactory {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
     fn create(&self, _services: &Services, restore: Option<serde_json::Value>) -> Box<dyn Tool> {
-        let mut t = GraphicsTool::default();
+        let mut t = GraphicsTool {
+            hub: self.hub.clone(),
+            ..Default::default()
+        };
+        if let Some(kind) = restore
+            .as_ref()
+            .and_then(|v| v.get("kind"))
+            .and_then(|v| v.as_str())
+            .and_then(Kind::parse)
+        {
+            t.kind = kind;
+        }
         if let Some(p) = restore
             .as_ref()
             .and_then(|v| v.get("path"))
             .and_then(|v| v.as_str())
         {
-            let _ = t.load(Path::new(p));
+            let path = Path::new(p);
+            // An older saved tab carries no kind; the extension decides
+            // whether it was an icon or a picture.
+            if restore
+                .as_ref()
+                .and_then(|v| v.get("kind"))
+                .and_then(|v| v.as_str())
+                .is_none()
+                && path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("ico"))
+            {
+                t.kind = Kind::Icon;
+            }
+            let _ = t.load(path);
         }
         if let Some(ops) = restore
             .as_ref()
@@ -97,6 +127,8 @@ enum CropGrip {
 }
 
 pub struct GraphicsTool {
+    hub: SharedGraphics,
+    kind: Kind,
     path: Option<PathBuf>,
     original: Option<DynamicImage>,
     original_bytes: Vec<u8>,
@@ -128,6 +160,8 @@ pub struct GraphicsTool {
 impl Default for GraphicsTool {
     fn default() -> Self {
         Self {
+            hub: GraphicsHub::memory(),
+            kind: Kind::Image,
             path: None,
             original: None,
             original_bytes: Vec::new(),
@@ -161,6 +195,9 @@ impl Default for GraphicsTool {
 
 const ICO_SIZES: [u32; 7] = [16, 24, 32, 48, 64, 128, 256];
 
+/// A private request body for "open this as an icon" and "make a new icon".
+const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
+
 impl GraphicsTool {
     fn load(&mut self, path: &Path) -> Result<(), String> {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
@@ -183,6 +220,13 @@ impl GraphicsTool {
         self.texture = None;
         self.dirty = true;
         self.error = None;
+        let title = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| self.kind.as_str().to_string());
+        self.hub
+            .lock()
+            .touch(self.kind, &title, Some(path.to_string_lossy().to_string()));
         Ok(())
     }
 
@@ -333,14 +377,23 @@ impl GraphicsTool {
         else {
             return;
         };
-        match ops::encode(img, self.format, self.quality)
-            .and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string()))
-        {
-            Ok(()) => cx.toast(
-                ToastLevel::Success,
-                s.i18n
-                    .t_args("gfx-saved", &[("path", &path.display().to_string())]),
-            ),
+        let encoded = ops::encode(img, self.format, self.quality);
+        match encoded.and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())) {
+            Ok(()) => {
+                let title = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "image".into());
+                self.path = Some(path.clone());
+                self.hub
+                    .lock()
+                    .touch(self.kind, &title, Some(path.to_string_lossy().to_string()));
+                cx.toast(
+                    ToastLevel::Success,
+                    s.i18n
+                        .t_args("gfx-saved", &[("path", &path.display().to_string())]),
+                );
+            }
             Err(e) => cx.toast(ToastLevel::Error, e),
         }
     }
@@ -370,14 +423,57 @@ impl GraphicsTool {
         match ops::multi_ico(img, &sizes)
             .and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string()))
         {
-            Ok(()) => cx.toast(
-                ToastLevel::Success,
-                cx.services
-                    .i18n
-                    .t_args("gfx-saved", &[("path", &path.display().to_string())]),
-            ),
+            Ok(()) => {
+                let title = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "icon.ico".into());
+                self.path = Some(path.clone());
+                self.hub
+                    .lock()
+                    .touch(Kind::Icon, &title, Some(path.to_string_lossy().to_string()));
+                cx.toast(
+                    ToastLevel::Success,
+                    cx.services
+                        .i18n
+                        .t_args("gfx-saved", &[("path", &path.display().to_string())]),
+                );
+            }
             Err(e) => cx.toast(ToastLevel::Error, e),
         }
+    }
+
+    /// Render the current picture and open it in a new Icon tab.
+    fn convert_to_icon(&mut self, cx: &mut ToolContext) {
+        let Some(img) = self.current.clone() else {
+            return;
+        };
+        self.hub.lock().set_pending_icon(img);
+        cx.open_new_tab(
+            "graphics",
+            Some(OpenRequest::Text {
+                mime: GRAPHICS_MIME.into(),
+                body: "{\"new\":\"icon\"}".into(),
+            }),
+        );
+    }
+
+    fn adopt_icon(&mut self, img: image::DynamicImage) {
+        let (w, h) = img.dimensions();
+        self.kind = Kind::Icon;
+        self.path = None;
+        self.original_bytes.clear();
+        self.original = Some(img.clone());
+        self.current = Some(img);
+        self.texture = None;
+        self.ops.clear();
+        self.frames.clear();
+        self.controls.width = w;
+        self.controls.height = h;
+        self.controls.crop = [0, 0, w, h];
+        self.format = Format::Png;
+        self.dirty = true;
+        self.error = None;
     }
 
     fn sidebar_sections(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -728,48 +824,51 @@ impl GraphicsTool {
                 });
             }
         });
-        // Icons
-        form::section(ui, theme, &s.t("gfx-icons"), |ui| {
-            ui.add_enabled_ui(has, |ui| {
-                Rows::show(ui, theme, "gfx-rows-icons", |rows| {
-                    if self.frames.len() > 1 {
-                        let mut pick = None;
-                        rows.row(&s.t("gfx-frames-label"), None, |ui| {
-                            for (i, (w, h, _)) in self.frames.iter().enumerate() {
-                                if ui.small_button(format!("{w}×{h}")).clicked() {
-                                    pick = Some(i);
+        // Icons: an icon tab edits frames and ICO sizes; a picture tab does
+        // not carry icon controls (owner's request, 2026-10-19).
+        if self.kind == Kind::Icon {
+            form::section(ui, theme, &s.t("gfx-icons"), |ui| {
+                ui.add_enabled_ui(has, |ui| {
+                    Rows::show(ui, theme, "gfx-rows-icons", |rows| {
+                        if self.frames.len() > 1 {
+                            let mut pick = None;
+                            rows.row(&s.t("gfx-frames-label"), None, |ui| {
+                                for (i, (w, h, _)) in self.frames.iter().enumerate() {
+                                    if ui.small_button(format!("{w}×{h}")).clicked() {
+                                        pick = Some(i);
+                                    }
                                 }
+                            });
+                            rows.hint(&s.i18n.t_args(
+                                "gfx-frames",
+                                &[("count", &self.frames.len().to_string())],
+                            ));
+                            if let Some(i) = pick {
+                                let img = self.frames[i].2.clone();
+                                self.original = Some(img);
+                                self.ops.clear();
+                                self.dirty = true;
+                            }
+                            rows.space(4.0);
+                        }
+                        rows.title(&s.t("gfx-make-ico"));
+                        rows.row(&s.t("gfx-sizes"), None, |ui| {
+                            for (i, size) in ICO_SIZES.iter().enumerate() {
+                                ui.checkbox(&mut self.controls.ico_sizes[i], size.to_string());
                             }
                         });
-                        rows.hint(
-                            &s.i18n
-                                .t_args("gfx-frames", &[("count", &self.frames.len().to_string())]),
-                        );
-                        if let Some(i) = pick {
-                            let img = self.frames[i].2.clone();
-                            self.original = Some(img);
-                            self.ops.clear();
-                            self.dirty = true;
-                        }
-                        rows.space(4.0);
-                    }
-                    rows.title(&s.t("gfx-make-ico"));
-                    rows.row(&s.t("gfx-sizes"), None, |ui| {
-                        for (i, size) in ICO_SIZES.iter().enumerate() {
-                            ui.checkbox(&mut self.controls.ico_sizes[i], size.to_string());
-                        }
                     });
+                    ui.add_space(4.0);
+                    if ui
+                        .button(format!("{} {}", ph::FLOPPY_DISK, s.t("gfx-save-ico")))
+                        .clicked()
+                    {
+                        self.save_ico(cx);
+                    }
+                    form::hint(ui, theme, &s.t("gfx-ico-hint"));
                 });
-                ui.add_space(4.0);
-                if ui
-                    .button(format!("{} {}", ph::FLOPPY_DISK, s.t("gfx-save-ico")))
-                    .clicked()
-                {
-                    self.save_ico(cx);
-                }
-                form::hint(ui, theme, &s.t("gfx-ico-hint"));
             });
-        });
+        }
         // Export
         form::section(ui, theme, &s.t("gfx-export"), |ui| {
             ui.add_enabled_ui(has, |ui| {
@@ -1161,6 +1260,24 @@ fn open_image(cx: &mut ToolContext, path: &Path) {
     );
 }
 
+/// Open a Recent row as the kind it was saved as: a picture goes through the
+/// normal file route (which focuses an open tab), an icon keeps its intent
+/// even when the file is a PNG.
+fn open_recent(cx: &mut ToolContext, path: &str, kind: Kind) {
+    if kind == Kind::Icon {
+        let body = serde_json::json!({ "open_icon": path }).to_string();
+        cx.open(
+            "graphics",
+            Some(OpenRequest::Text {
+                mime: GRAPHICS_MIME.into(),
+                body,
+            }),
+        );
+    } else {
+        open_image(cx, Path::new(path));
+    }
+}
+
 fn human_size(n: usize) -> String {
     if n < 1024 {
         format!("{n} B")
@@ -1171,9 +1288,228 @@ fn human_size(n: usize) -> String {
     }
 }
 
+impl GraphicsTool {
+    fn settings_panel(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services.clone();
+        let key = if self.kind == Kind::Icon {
+            "gfx-icon-settings"
+        } else {
+            "gfx-image-settings"
+        };
+        form::header_bar(ui, theme, |ui| {
+            ui.label(egui::RichText::new(s.t(key)).strong().size(14.0));
+        });
+        egui::ScrollArea::vertical()
+            .id_salt("gfx-settings")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                self.sidebar_sections(ui, cx, theme);
+            });
+    }
+
+    fn function_row(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, f: Function) {
+        let s = cx.services.clone();
+        let title = s.t(f.title_key());
+        let desc = s.t(f.description_key());
+        let label = format!("{}  {}", f.icon(), title);
+        let enabled = f.enabled();
+        let r = ui
+            .add_enabled_ui(enabled, |ui| ui.selectable_label(false, label))
+            .inner
+            .on_hover_text(if enabled {
+                desc.clone()
+            } else {
+                s.t("gfx-coming-soon")
+            });
+        if r.clicked() {
+            if enabled {
+                self.pick_and_open(cx, f);
+            } else {
+                cx.toast(ToastLevel::Info, s.t("gfx-coming-soon"));
+            }
+        }
+        let open = s.t(f.action_key());
+        let coming = s.t("gfx-coming-soon");
+        r.context_menu(|ui| {
+            if enabled {
+                if ui.button(&open).clicked() {
+                    ui.close();
+                    self.pick_and_open(cx, f);
+                }
+            } else {
+                let _ = ui.add_enabled(false, egui::Button::new(&coming));
+            }
+        });
+    }
+
+    fn pick_and_open(&mut self, cx: &mut ToolContext, f: Function) {
+        let icon = f == Function::Icon;
+        let filter = if icon { "Icons" } else { "Images" };
+        if let Some(p) = rfd::FileDialog::new()
+            .add_filter(filter, IMAGE_EXTS)
+            .pick_file()
+        {
+            if icon {
+                // A file opened from the Icon function is an icon even when it
+                // is a PNG; the new tab is told so explicitly.
+                let body = serde_json::json!({
+                    "open_icon": p.to_string_lossy().to_string()
+                })
+                .to_string();
+                cx.open_new_tab(
+                    "graphics",
+                    Some(OpenRequest::Text {
+                        mime: GRAPHICS_MIME.into(),
+                        body,
+                    }),
+                );
+            } else {
+                open_image(cx, &p);
+            }
+        }
+    }
+
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services.clone();
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let tabs = s.open_tabs.of("graphics");
+        let recents = self.hub.lock().recents();
+        form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-graphics"),
+            Some(&s.t("gfx-activity-subtitle")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("gfx-stat-open"));
+            hs_ui::dashboard::stat(
+                ui,
+                &theme,
+                &recents.len().to_string(),
+                &s.t("gfx-stat-recent"),
+            );
+        });
+        egui::ScrollArea::vertical()
+            .id_salt("gfx-home")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(s.t("gfx-what-to-do"))
+                        .strong()
+                        .size(13.0)
+                        .color(theme.text_muted),
+                );
+                ui.add_space(6.0);
+                ui.horizontal_top(|ui| {
+                    let actions = [
+                        (
+                            ph::IMAGE,
+                            "gfx-open",
+                            "gfx-fn-image-desc",
+                            true,
+                            Function::Image,
+                        ),
+                        (
+                            ph::APP_WINDOW,
+                            "gfx-open-icon",
+                            "gfx-fn-icon-desc",
+                            true,
+                            Function::Icon,
+                        ),
+                        (
+                            ph::TREE_STRUCTURE,
+                            "gfx-new-diagram",
+                            "gfx-fn-diagram-desc",
+                            false,
+                            Function::Diagram,
+                        ),
+                        (
+                            ph::SPARKLE,
+                            "gfx-new-generation",
+                            "gfx-fn-generator-desc",
+                            false,
+                            Function::Generator,
+                        ),
+                    ];
+                    for (icon, label_key, desc_key, enabled, f) in actions {
+                        let label = format!("{}\n{}", icon, s.t(label_key));
+                        let r = ui.add_enabled(
+                            enabled,
+                            egui::Button::new(label).min_size(egui::vec2(170.0, 54.0)),
+                        );
+                        if r.on_hover_text(s.t(desc_key)).clicked() {
+                            self.pick_and_open(cx, f);
+                        }
+                        ui.add_space(8.0);
+                    }
+                });
+                ui.add_space(14.0);
+                ui.label(
+                    egui::RichText::new(s.t("gfx-functions"))
+                        .strong()
+                        .size(13.0)
+                        .color(theme.text_muted),
+                );
+                ui.add_space(4.0);
+                for f in Function::ALL {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(f.icon()).size(18.0));
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new(s.t(f.title_key())).strong());
+                            ui.label(
+                                egui::RichText::new(s.t(f.description_key()))
+                                    .small()
+                                    .color(theme.text_muted),
+                            );
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .add_enabled(f.enabled(), egui::Button::new(s.t(f.action_key())))
+                                .clicked()
+                            {
+                                self.pick_and_open(cx, f);
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                }
+                ui.add_space(8.0);
+                let labels = hs_ui::dashboard::DashboardLabels {
+                    open_heading: &s.t("dash-open"),
+                    nothing_open: &s.t("dash-nothing-open"),
+                    no_preview: &s.t("dash-no-preview"),
+                };
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions.push(Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+}
+
 impl Tool for GraphicsTool {
     fn wants_home_tab(&self) -> bool {
         true
+    }
+
+    /// The activity's home is a dashboard, not a blank picture tab.
+    fn wants_dashboard_home(&self) -> bool {
+        true
+    }
+
+    fn home_is_dashboard(&self) -> bool {
+        self.kind == Kind::Home
+    }
+
+    fn set_home_tab(&mut self, home: bool, _services: &Services) {
+        if home {
+            // A restored working tab keeps its document and loses the home
+            // flag; the shell replaces it with a dashboard.
+            if self.path.is_none() && self.original.is_none() {
+                self.kind = Kind::Home;
+            }
+        } else if self.kind == Kind::Home {
+            self.kind = Kind::Image;
+        }
     }
 
     fn can_duplicate_tab(&self) -> bool {
@@ -1185,10 +1521,30 @@ impl Tool for GraphicsTool {
     }
 
     fn title(&self) -> Cow<'_, str> {
+        if self.kind == Kind::Home {
+            return Cow::Borrowed("Graphics");
+        }
         match self.path.as_ref().and_then(|p| p.file_name()) {
             Some(n) => Cow::Owned(n.to_string_lossy().to_string()),
-            None => Cow::Borrowed("Graphics"),
+            None => Cow::Borrowed(match self.kind {
+                Kind::Icon => "Icon",
+                Kind::Diagram => "Diagram",
+                Kind::Generator => "Diagram Generator",
+                _ => "Image",
+            }),
         }
+    }
+
+    fn subtitle(&self) -> Option<String> {
+        self.path
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .or_else(|| match self.kind {
+                Kind::Icon => Some("Icon".into()),
+                Kind::Diagram => Some("Diagram".into()),
+                Kind::Generator => Some("Generator".into()),
+                _ => None,
+            })
     }
 
     fn dirty(&self) -> bool {
@@ -1196,7 +1552,7 @@ impl Tool for GraphicsTool {
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
-        let s = cx.services;
+        let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         form::header_bar(ui, &theme, |ui| {
             ui.label(
@@ -1205,38 +1561,75 @@ impl Tool for GraphicsTool {
                     .size(15.0),
             );
         });
-        ui.horizontal(|ui| {
-            if ui
-                .button(format!("{} {}", ph::FOLDER_OPEN, s.t("gfx-open")))
-                .clicked()
-                && let Some(p) = rfd::FileDialog::new()
-                    .add_filter("Images", IMAGE_EXTS)
-                    .pick_file()
-            {
-                // Through the shell, so the picture lands in its own tab —
-                // or focuses the tab already showing it.
-                open_image(cx, &p);
-            }
-        });
-        if self.original.is_none() {
-            ui.add_space(6.0);
-            form::note(ui, &theme, hs_ui::icons::INFO, &s.t("gfx-empty-hint"));
+        ui.add_space(2.0);
+        for f in Function::ALL {
+            self.function_row(ui, cx, f);
         }
+        ui.add_space(6.0);
+        ui.separator();
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(s.t("gfx-recent"))
+                .strong()
+                .size(12.0)
+                .color(theme.text_muted),
+        );
+        ui.add_space(2.0);
+        // About half the remaining column: the function list keeps its
+        // natural height and only Recent scrolls (owner's request).
+        let h = (ui.available_height() * 0.55).clamp(80.0, 360.0);
+        let hub = self.hub.clone();
+        let recents = hub.lock().recents();
         egui::ScrollArea::vertical()
-            .id_salt("gfx-sidebar")
+            .id_salt("gfx-recent")
+            .max_height(h)
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                self.sidebar_sections(ui, cx, &theme);
+                if recents.is_empty() {
+                    form::note(ui, &theme, hs_ui::icons::INFO, &s.t("gfx-recent-empty"));
+                    return;
+                }
+                ui.indent("gfx-recent-indent", |ui| {
+                    for r in recents {
+                        let Some(path) = r.path.clone() else { continue };
+                        let row = ui
+                            .selectable_label(false, format!("{}  {}", r.kind.icon(), r.title))
+                            .on_hover_text(path.clone());
+                        if row.clicked() {
+                            open_recent(cx, &path, r.kind);
+                        }
+                        let remove = s.t("gfx-remove-recent");
+                        row.context_menu(|ui| {
+                            if ui.button(&remove).clicked() {
+                                hub.lock().remove_path(&path);
+                                ui.close();
+                            }
+                        });
+                    }
+                });
             });
         true
     }
 
+    /// The picture/icon controls, inside the tab rather than the activity
+    /// sidebar, so the sidebar can keep the function list.
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if self.kind == Kind::Home {
+            return;
+        }
         let s = cx.services;
         let info = self.info_line();
         if !info.is_empty() {
             ui.label(egui::RichText::new(info).monospace().small());
             ui.separator();
+        }
+        if self.kind == Kind::Image
+            && self.original.is_some()
+            && ui
+                .button(format!("{} {}", ph::APP_WINDOW, s.t("gfx-convert-to-icon")))
+                .clicked()
+        {
+            self.convert_to_icon(cx);
         }
         if ui.button(s.t("gfx-zoom-fit")).clicked() {
             self.zoom = 0.0;
@@ -1264,12 +1657,23 @@ impl Tool for GraphicsTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
-        let s = cx.services;
+        let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.refresh(ui.ctx());
+        if self.kind == Kind::Home {
+            self.dashboard(ui, cx);
+            return;
+        }
         if let Some(e) = &self.error {
             ui.colored_label(theme.error, e);
         }
+        // The picture keeps the tab, but its controls move into this panel so
+        // the activity sidebar can list the four tools (owner's request).
+        egui::Panel::left("gfx-settings")
+            .default_size(300.0)
+            .size_range(220.0..=460.0)
+            .resizable(true)
+            .show(ui, |ui| self.settings_panel(ui, cx, &theme));
         let full = ui.available_rect_before_wrap();
         let canvas_w = if self.assistant.open {
             full.width() - 390.0
@@ -1366,9 +1770,9 @@ impl Tool for GraphicsTool {
             if self.assistant.quick_actions.is_empty() {
                 use hs_ui::ai_assistant::QuickAction;
                 self.assistant.quick_actions = vec![
-                    QuickAction::new(s, "ai-qa-image-explain", "ai-qa-image-explain-prompt", ""),
-                    QuickAction::new(s, "ai-qa-image-edits", "ai-qa-image-edits-prompt", ""),
-                    QuickAction::new(s, "ai-qa-image-export", "ai-qa-image-export-prompt", ""),
+                    QuickAction::new(&s, "ai-qa-image-explain", "ai-qa-image-explain-prompt", ""),
+                    QuickAction::new(&s, "ai-qa-image-edits", "ai-qa-image-edits-prompt", ""),
+                    QuickAction::new(&s, "ai-qa-image-export", "ai-qa-image-export-prompt", ""),
                 ];
             }
             let panel = egui::Rect::from_min_max(
@@ -1387,7 +1791,7 @@ impl Tool for GraphicsTool {
                 .show(&mut child, |ui| {
                     ui.set_min_width(370.0);
                     self.assistant.can_insert = false;
-                    let _ = self.assistant.ui(ui, s, &theme, "graphics");
+                    let _ = self.assistant.ui(ui, &s, &theme, "graphics");
                 });
         }
     }
@@ -1400,9 +1804,29 @@ impl Tool for GraphicsTool {
                 shortcut_action: Some("file.open".into()),
             },
             CommandDescriptor {
+                id: "graphics.open_icon".into(),
+                title: "Graphics: Open Icon…".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
+                id: "graphics.convert_to_icon".into(),
+                title: "Graphics: Convert to Icon".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
                 id: "graphics.save_as".into(),
                 title: "Graphics: Save As…".into(),
                 shortcut_action: Some("file.save_as".into()),
+            },
+            CommandDescriptor {
+                id: "graphics.new_diagram".into(),
+                title: "Graphics: New Diagram…".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
+                id: "graphics.new_generation".into(),
+                title: "Graphics: New Generation…".into(),
+                shortcut_action: None,
             },
             CommandDescriptor {
                 id: "graphics.ai".into(),
@@ -1415,12 +1839,19 @@ impl Tool for GraphicsTool {
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
             "graphics.open" | "file.open" => {
-                if let Some(p) = rfd::FileDialog::new()
-                    .add_filter("Images", IMAGE_EXTS)
-                    .pick_file()
-                {
-                    open_image(cx, &p);
-                }
+                self.pick_and_open(cx, Function::Image);
+                true
+            }
+            "graphics.open_icon" => {
+                self.pick_and_open(cx, Function::Icon);
+                true
+            }
+            "graphics.convert_to_icon" => {
+                self.convert_to_icon(cx);
+                true
+            }
+            "graphics.new_diagram" | "graphics.new_generation" => {
+                cx.toast(ToastLevel::Info, cx.services.t("gfx-coming-soon"));
                 true
             }
             "graphics.save_as" | "file.save_as" => {
@@ -1436,20 +1867,32 @@ impl Tool for GraphicsTool {
     }
 
     fn current_uri(&self) -> Option<String> {
+        if self.kind == Kind::Home {
+            return None;
+        }
         self.path.as_ref().map(|p| p.to_string_lossy().to_string())
     }
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
+        if self.kind == Kind::Home || self.path.is_some() {
+            return None;
+        }
         let p = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
         if !is_image_path(p) {
             return None;
         }
-        // Only a tab holding no image will take one: every image gets its
-        // own tab, and an image that is already open is found by
-        // `current_uri` before this is consulted. Claiming any unedited
-        // tab, as this used to, meant opening a second picture quietly
-        // replaced the first.
-        self.path.is_none().then_some(50)
+        let ico = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("ico"));
+        // One tab per document: a loaded tab is found by `current_uri`
+        // before affinity is consulted. An empty Icon tab takes `.ico`
+        // files; an empty Image tab takes the rest.
+        match self.kind {
+            Kind::Icon => ico.then_some(50),
+            Kind::Image => (!ico).then_some(50),
+            _ => None,
+        }
     }
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {
@@ -1459,6 +1902,15 @@ impl Tool for GraphicsTool {
                 if !is_image_path(&p) {
                     return false;
                 }
+                let icon = p
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("ico"));
+                if icon {
+                    self.kind = Kind::Icon;
+                } else if self.kind != Kind::Icon {
+                    self.kind = Kind::Image;
+                }
                 match self.load(&p) {
                     Ok(()) => true,
                     Err(e) => {
@@ -1467,12 +1919,36 @@ impl Tool for GraphicsTool {
                     }
                 }
             }
+            OpenRequest::Text { mime, body } if mime == GRAPHICS_MIME => {
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+                    return false;
+                };
+                if v.get("new").and_then(|n| n.as_str()) == Some("icon") {
+                    let Some(img) = self.hub.lock().take_pending_icon() else {
+                        return false;
+                    };
+                    self.adopt_icon(img);
+                    return true;
+                }
+                if let Some(path) = v.get("open_icon").and_then(|p| p.as_str()) {
+                    self.kind = Kind::Icon;
+                    return match self.load(Path::new(path)) {
+                        Ok(()) => true,
+                        Err(e) => {
+                            cx.toast(ToastLevel::Error, e);
+                            false
+                        }
+                    };
+                }
+                false
+            }
             _ => false,
         }
     }
 
     fn save_state(&self) -> serde_json::Value {
         serde_json::json!({
+            "kind": self.kind.as_str(),
             "path": self.path.as_ref().map(|p| p.to_string_lossy().to_string()),
             "ops": self.ops,
         })

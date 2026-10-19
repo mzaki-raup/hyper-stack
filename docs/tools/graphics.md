@@ -86,3 +86,7 @@ separately in [diagrams.md](diagrams.md); it is two releases (flowchart and
 architecture first, ERD and sequence plus imports second). This addendum only
 records the split: the existing image operations and their tests remain the
 Image tab's behaviour.
+
+**Implemented 2026-10-19:** the activity shell, the dashboard and Recent list,
+the separate Image and Icon tabs with the settings in an in-pane panel, and
+Convert to Icon. Colour-key transparency and the diagram panes are pending.

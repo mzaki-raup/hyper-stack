@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-19 (Graphics diagrams planned: activity shell, Image/Icon split, flow/architecture editor and generator, AI assistants; Archify schema adaptation pinned to v3.2.0; Release 2 ERD/sequence/imports recorded)
+Last updated: 2026-10-19 (Graphics diagrams Phase 1: activity shell, dashboard/Recent, separate Image/Icon tabs and Convert to Icon verified in the app; diagram editor, generator, icon transparency and R2 imports remain)
 
 ## Planning
 
@@ -345,15 +345,16 @@ and ADR-025.
 
 | Item | State | Notes |
 |---|---|---|
-| Process: plan and document this request before coding | Completed | `docs/tools/diagrams.md`, `docs/02`, `docs/03`, `docs/04`, `docs/07`, `docs/08` (ADR-025), `README.md`, this file and `CHANGELOG.md` updated 2026-10-19; branch `feat/graphics-diagram-suite` |
-| Release 1: Graphics activity sidebar, dashboard home and Recent section | Pending | Sidebar lists Image/Icon/Diagram Editor/Diagram Generator with right-click menus; home shows What To Do and the screenshot grid; drafts stay in Recent |
-| Release 1: separate Image and Icon tabs, settings left and preview right | Pending | Existing operations preserved; icon colour-key transparency with eyedropper and tolerance; image → icon |
+| Process: plan and document this request before coding | Completed | `docs/tools/diagrams.md`, `docs/02`, `docs/03`, `docs/04`, `docs/07`, `docs/08` (ADR-025), `README.md`, this file and `CHANGELOG.md` updated 2026-10-19; branches `feat/graphics-diagram-suite` (docs) and `feat/graphics-activity-shell` (Phase 1) |
+| Release 1: Graphics activity sidebar, dashboard home and Recent section | Completed | Sidebar lists Image/Icon/Diagram Editor/Diagram Generator with right-click menus; the permanent tab is a dashboard with What To Do, the function list and the screenshot grid; Recent persists and focuses a tab; verified in the running app — dashboard, two tabs and a focused card; `feat/graphics-activity-shell` |
+| Release 1: separate Image and Icon tabs, settings left, preview right, Convert to Icon | Completed | Image and Icon are separate tabs; the activity sidebar keeps the functions, the picture settings moved into an in-pane panel; Convert to Icon opened an Icon tab with its own settings; verified in the running app |
+| Release 1: icon colour-key transparency with eyedropper and tolerance | Pending | The Icon tab exists; the transparency operation is not written yet |
 | Release 1: `hs-diagram` model, validation, layout, scene and PNG/SVG/PDF export | Pending | Archify-adapted IR and `.hdiag` editor document |
 | Release 1: Diagram Editor, flowchart and architecture | Pending | Shapes, connectors, labels, align, grid/snap, undo/redo, save/open, drafts, project save, templates, Mermaid flowchart import |
 | Release 1: Diagram Generator | Pending | Prompt, examples, AI providers, offline templates, validation/repair, preview, open in editor, export |
 | Release 1: AI assistant in all four tools | Pending | Four quick actions each plus More Suggestions; review-only; text-only Image/Icon context |
-| Release 1: Archify schema adaptation and notices | Pending | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md`; About page; release zip; notice test |
-| Release 1: tests, documentation, screenshots and GIF | Pending | Update every affected document after the feature is verified |
+| Release 1: Archify schema adaptation and notices | In-Progress | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md` and the adapted schemas are committed; the zip already copies the notice; the About page, notice test and Rust validator are pending |
+| Release 1: tests, documentation, screenshots and GIF | In-Progress | 21 shell tests, 5 Graphics tests and the migration test pass; the dashboard, image-tab and icon-tab screenshots are added; the walkthrough GIF waits for the diagram tools |
 | Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
 | Release 2: Archify JSON import and draw.io XML import | Pending | Plain and compressed draw.io, first page; strict validation for Archify JSON |
 | Release 2: `.diagram.json` alias and schema migration | Pending | Same JSON, second extension |

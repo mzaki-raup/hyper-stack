@@ -11,6 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- The Graphics activity shell: a permanent dashboard, a sidebar listing Image,
+  Icon, Diagram Editor and Diagram Generator, a persisted Recent list, separate
+  Image and Icon tabs with the picture settings in an in-pane panel, and Convert
+  to Icon.
+
 ### Changed
 
 - Documented the Graphics diagram suite: Release 1 (Image/Icon split,

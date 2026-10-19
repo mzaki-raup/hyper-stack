@@ -136,10 +136,11 @@ Diagram Generator — split into two releases. The requirements and design are i
 
 ### Release 1 — activity, Image/Icon and flow/architecture diagrams
 
-- [ ] Graphics activity shell: dashboard home tab, sidebar function list,
-      Recent section, right-click menus, commands
-- [ ] Separate Image and Icon tabs; in-pane settings and preview; icon
-      colour-key transparency; image → icon
+- [x] Graphics activity shell: dashboard home tab, sidebar function list,
+      Recent section, right-click menus, commands (2026-10-19)
+- [x] Separate Image and Icon tabs; in-pane settings and preview; image → icon
+      (2026-10-19)
+- [ ] Icon colour-key transparency with eyedropper and tolerance
 - [ ] `hs-diagram`: model, validation, scene, layout, SVG and PNG/PDF export
 - [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
       save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart
@@ -148,6 +149,8 @@ Diagram Generator — split into two releases. The requirements and design are i
       validation/repair, preview, open in editor, export
 - [ ] AI assistant in all four tools with quick actions and More Suggestions
 - [ ] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0
+      (schemas and notice committed; validator, About page and notice test
+      pending)
 - [ ] Tests, documentation, screenshots and GIF
 
 ### Release 2 — more diagram types and imports

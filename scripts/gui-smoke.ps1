@@ -64,6 +64,13 @@ switch ($cmd) {
   "shot" {
     $h = Win
     [W]::SetForegroundWindow($h) | Out-Null
+    # A click-only frame can leave egui waiting for the next event, so the
+    # consequence of the last click (a modal, a tab switch) is not painted.
+    # Nudge the pointer by a pixel to force one more frame before capturing.
+    $cur = [System.Windows.Forms.Cursor]::Position
+    [W]::SetCursorPos($cur.X + 1, $cur.Y + 1) | Out-Null
+    Start-Sleep -Milliseconds 150
+    [W]::SetCursorPos($cur.X, $cur.Y) | Out-Null
     Start-Sleep -Milliseconds 400
     $r = New-Object W+R
     [W]::GetWindowRect($h, [ref]$r) | Out-Null

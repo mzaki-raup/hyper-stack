@@ -137,6 +137,18 @@ switch ($cmd) {
     Start-Sleep -Milliseconds 400
     "dragged $x1,$y1 -> $x2,$y2"
   }
+  "mclick" {
+    $h = Win
+    [W]::SetForegroundWindow($h) | Out-Null
+    $r = New-Object W+R
+    [W]::GetWindowRect($h, [ref]$r) | Out-Null
+    $x = $r.L + [int]$Args[1]; $y = $r.T + [int]$Args[2]
+    [W]::SetCursorPos($x, $y) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [W]::mouse_event(32, 0, 0, 0, [UIntPtr]::Zero); [W]::mouse_event(64, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 400
+    "middle-clicked $x,$y"
+  }
   "rclick" {
     $h = Win
     [W]::SetForegroundWindow($h) | Out-Null
@@ -148,6 +160,18 @@ switch ($cmd) {
     [W]::mouse_event(8, 0, 0, 0, [UIntPtr]::Zero); [W]::mouse_event(16, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 400
     "right-clicked $x,$y"
+  }
+  "wheel" {
+    $h = Win
+    [W]::SetForegroundWindow($h) | Out-Null
+    $r = New-Object W+R
+    [W]::GetWindowRect($h, [ref]$r) | Out-Null
+    $x = $r.L + [int]$Args[1]; $y = $r.T + [int]$Args[2]
+    [W]::SetCursorPos($x, $y) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [W]::mouse_event(0x0800, 0, 0, [int]$Args[3], [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+    "wheeled $($Args[3]) at $x,$y"
   }
   "focus" {
     # Windows rejects SetForegroundWindow from a background process. Going

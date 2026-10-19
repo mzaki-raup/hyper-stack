@@ -5,8 +5,8 @@ repository, not mock-ups; the set was last refreshed on Windows 11 for 0.45.x.
 
 ## How they were made
 
-Captured from the debug build with `scripts/gui-smoke.ps1` (`start`, `click`,
-`dclick`, `drag`, `keys`, `shot`, `stop`). The app runs against a scratch
+Captured from the debug build with `scripts/gui-smoke.ps1` (`start`, `click`, `dclick`, `rclick`, `mclick`,
+`drag`, `wheel`, `focus`, `keys`, `shot`, `stop`). The app runs against a scratch
 `--data-dir`; the window sits at 0,0 and is sized 1400x900, and the capture is
 `GetWindowRect`, so the invisible 8 px border is part of each PNG. HyperStack
 Dark, activity rail labels on. Clicks and keys go through `mouse_event` and
@@ -143,3 +143,21 @@ tab); that is fixed in the same set. `browser.png` also shows the current
 Browser sidebar (Favorites and Passwords) with DuckDuckGo open, and
 `settings-ai.png` the Add a Provider gallery (OpenAI, Anthropic, Gemini,
 Azure, Bedrock, Mistral, Moonshot, Hunyuan, 1min.AI and the rest).
+
+Fourth pass, 2026-10-19: the SQL error, guard, refused and manual-transaction
+shots and the database connection form (SQLite, dev and Production
+environments); `devtools-jwt.png`, `devtools-hashes.png`,
+`devtools-jasypt.png` and `devtools-pki.png`; `terminal-shells.png`,
+`terminal-search.png` and `terminal-links.png`; `ssh-tunnels.png` and
+`ssh-remote-edit.png` (`remote-note.txt` was uploaded over SFTP because the
+test shell understands only `echo`/`cd`/`pwd`, not redirection);
+`graphics.png` and `graphics-crop.png` with the app icon; `scratchpad.png`
+with a new note; `editor-projects.png`, `editor-find-replace.png` and
+`editor-markdown-preview.png` (the architecture flowchart rendered beside its
+source); `launcher.png`, `command-palette.png`, `dock.png`,
+`workspace-menu.png`, `workspace-new.png`, `environment-switcher.png`,
+`tabs-multi-row.png` (from the 32-tab session before duplicates were closed),
+`vault-unlock.png`, `vault-create.png` (a second instance on a fresh data
+folder) and the SSH and S3 connection forms. The S3 *browser* shots still come
+from the earlier moto set; the form is current and shows the provider
+presets.

@@ -130,13 +130,13 @@ directly after the permanent one.
 | ![Several projects](docs/screenshots/editor-projects.png) | ![AI model picker](docs/screenshots/editor-ai-models.png) |
 | **Projects as tabs** — each project root has one window tab; opening the same root again focuses it. Inside it, files are a second strip of tabs; both strips wrap onto more rows instead of hiding tabs. Files from outside the projects collect in an **Other Files** tab | **Model picker** — the models the provider lists (LM Studio: every downloaded model; 1min.AI: a built-in list), or type any other id |
 | ![Mermaid sequence diagram](docs/screenshots/editor-mermaid-sequence.png) | ![AI review](docs/screenshots/editor-ai-review.png) |
-| **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; proposed changes as diffs with Apply / Reject |
+| **Mermaid sequence diagrams** — participants, messages, notes, loop/alt blocks | **AI Assistant** (Ctrl+Shift+I) — chat about the file or the selection; Explain, Review, Improve, Add Comments; answers are review-only, with Insert for a code block and nothing run automatically |
 | ![Completion from rust-analyzer](docs/screenshots/editor-lsp-completion.png) | ![Problems panel](docs/screenshots/editor-lsp-problems.png) |
 | **Language server features** — completion as you type with documentation, hover, go to definition, references, rename and format through any installed LSP server (Settings → Editor → Language Servers shows which are found) | **Problems panel** (Ctrl+Shift+J) — diagnostics as underlines in the text, listed with file and line; the status bar counts errors and warnings |
 | ![Debugger paused at a breakpoint](docs/screenshots/editor-debug.png) | ![Call stack](docs/screenshots/editor-debug-stack.png) |
 | **Debugger** — breakpoints in the gutter (F9), the stopped line with an arrow, Continue/Step controls (F5, F10, F11), and the Variables tab of the debug panel; adapters (CodeLLDB, lldb-dap, debugpy, delve, netcoredbg) are installed by you, configurations come from `.hyperstack/debug.json`, `.vscode/launch.json` or are generated | **Call Stack** — frames of the paused thread; clicking one shows its variables and line |
 | ![AI Cascade](docs/screenshots/editor-ai-cascade.png) | |
-| **Cascade** — the assistant applies its changes (one undo step each) and keeps going on the updated file until it answers DONE | **Terminal in the editor** (Ctrl+`) — a shell at the foot of the pane, started in the project's folder, several side by side; Run (F5) and Build go there, and a web app opens in the Browser at the address it prints |
+| **Cascade** — toggle it beside the scope to keep the assistant working on the updated file, one reviewable step at a time | **Terminal in the editor** (Ctrl+`) — a shell at the foot of the pane, started in the project's folder, several side by side; Run (F5) and Build go there, and a web app opens in the Browser at the address it prints |
 
 ### Git
 

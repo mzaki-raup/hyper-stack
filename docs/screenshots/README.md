@@ -174,3 +174,26 @@ That produced `s3-browser.png` (bucket list and a prefix), `s3-edit.png`
 (a single-object confirmation that notes versioning is off) and
 `s3-import-aws.png` (the import dialog's empty state, because this machine
 has no AWS CLI profiles).
+
+AI pass, 2026-10-19: a local mock OpenAI-compatible server
+(`D:\Temp\opencode\mock_ai.py`) on `127.0.0.1:11434` served
+`mock-small`/`mock-large` and streamed canned answers; it was added as
+**Mock OpenAI** in Settings. That produced `editor-ai-review.png` (Review
+with a code block and Insert), `editor-ai-models.png` (the model picker),
+`editor-ai-cascade.png` (Cascade armed), `api-client-ai.png` (an `hs-api`
+block with Copy and Apply), `scratchpad-ai.png` (Markdown and Mermaid blocks
+with Insert) and `ai-dictation.png` (the microphone listening, with the
+countdown). No real provider was contacted.
+
+Editor pass, 2026-10-19: `lsp-demo` (a Point struct) produced
+`editor-lsp-completion.png` through the palette's **Editor: Show
+Completions** action, and a `let n: i32 = "not a number";` line produced
+`editor-lsp-problems.png` with the editor's own Problems panel (NOT the
+bottom dock, which lists another source). `debug-demo/app.py` ran under
+debugpy and paused on a breakpoint at line 12: `editor-debug.png` shows the
+Variables tab with `orders`, `editor-debug-stack.png` the Call Stack
+(`main` app.py:12, `<module>` app.py:16). `editor-mermaid-flowchart.png` and
+`editor-mermaid-sequence.png` come from `docs/03-architecture.md` with the
+preview widened and its scrollbar dragged; the second shows the runtime
+sequence diagram.
+

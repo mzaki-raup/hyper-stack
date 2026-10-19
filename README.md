@@ -71,18 +71,18 @@ the fixtures behind them.
 | [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, split, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
-| [Git](#git) | Tree, Source Control, history, conflict editor, interactive rebase |
+| [Git](#git) | Tree, Source Control, history, tags, prefixes, conflict editor, interactive rebase |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
-| [Redis](#redis) | Key tree, type viewers, console |
-| [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, documents |
+| [Redis](#redis) | Key tree, type viewers, console, info |
+| [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents |
 | [API client](#api-client) | Requests, scripts, assistant |
-| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff |
+| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units |
 | [Graphics](#graphics) | Operations, crop |
-| [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, dictation |
-| [Browser](#browser) | WebView2 pages |
+| [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, pinning, dictation |
+| [Browser](#browser) | WebView2 pages, favourites, passwords |
 | [Settings](#settings) | Every page |
 
 ### Shell and workspaces
@@ -148,6 +148,8 @@ directly after the permanent one.
 | **History** (Ctrl+Shift+H) — commits with branch and tag chips; each commit's message, files and diffs | **Commit, push, pull, stash, branches, tags** — stage and unstage from the list, discard with a question, commit (and push) with a Conventional Commit prefix, fetch/pull/push as jobs, stashes, branches, remotes and lightweight or annotated tags; a protected remote asks before a push and never gets a force |
 | ![Conflict editor](docs/screenshots/editor-git-conflict.png) | ![Interactive rebase](docs/screenshots/editor-git-rebase.png) |
 | **Conflict editor** — an unmerged file opens block by block: Ours and Theirs under their marker labels, then Ours / Theirs / Both / a typed result per block; **Save and Mark Resolved** writes the file without markers and stages it | **Interactive Rebase** — commits oldest first with Pick / Squash / Fixup / Drop and move arrows; merge, rebase and cherry-pick offer Continue / Skip / Abort when Git pauses |
+| ![Tags](docs/screenshots/editor-git-tags.png) | ![Commit prefix](docs/screenshots/editor-git-prefix.png) |
+| **Tags** - lightweight or annotated, created from their own menu and pushed or deleted per tag | **Commit prefixes** - pick a Conventional Commit type; it is inserted once with its meaning, and Clear Prefix removes it |
 
 ### Terminal
 
@@ -189,7 +191,7 @@ directly after the permanent one.
 | | |
 |---|---|
 | ![Schema browser and rows](docs/screenshots/db-browse.png) | ![Completion](docs/screenshots/db-completion.png) |
-| **Schema browser** — schemas, tables, views, functions, columns with PK/FK/NOT NULL, indexes; double-click a table for its rows | **Completion** from the schema cache — tables after FROM/JOIN, columns after an alias |
+| **Schema browser** — schemas, tables, views and columns with types, indexes (functions and PK/FK/NOT NULL badges where the engine reports them); double-click a table for its rows | **Completion** from the schema cache — tables after FROM/JOIN, columns after an alias |
 | ![Query and result grid](docs/screenshots/db-query.png) | ![Script with an error](docs/screenshots/db-script-error.png) |
 | **Result grid** — streamed rows, NULL shown as NULL, numbers right-aligned, sort, filter, Copy As, Export | **Scripts** — one result tab per statement; the failing one is selected and the server's error position underlined |
 | ![Refused on a protected environment](docs/screenshots/db-refused.png) | ![Guarded statement](docs/screenshots/db-guard.png) |
@@ -205,6 +207,8 @@ directly after the permanent one.
 |---|---|
 | ![Redis key tree and hash viewer](docs/screenshots/redis-browser.png) | |
 | **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | |
+| ![Console](docs/screenshots/redis-console.png) | ![Info](docs/screenshots/redis-info.png) |
+| **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - server version, build, process, listeners and keyspace |
 
 ### NoSQL (MongoDB and CouchDB)
 
@@ -212,6 +216,8 @@ directly after the permanent one.
 |---|---|
 | ![MongoDB find view](docs/screenshots/nosql-browser.png) | |
 | **Containers** — databases and collections (MongoDB) or databases and document counts (CouchDB); a collection opens in **Find** with filter, projection and sort, the documents as a table and a JSON editor with delete/update guards; **Aggregate** and **Indexes** are beside it | |
+| ![Aggregate](docs/screenshots/nosql-aggregate.png) | |
+| **Aggregate** - a JSON pipeline with a page limit, previewed as a table or JSON; **Indexes** lists each collection's indexes | |
 
 ### API client
 
@@ -236,13 +242,15 @@ globals. A non-GET request to a protected environment asks first.
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
 | ![Regex Tester](docs/screenshots/devtools-regex.png) | ![Text Diff](docs/screenshots/devtools-diff.png) |
 | **Regex Tester** — a pattern with flags, every match with its groups and positions, and the text with matches marked; the same engine as the app's filters | **Text Diff** — two texts side by side, changed lines marked, whitespace-insensitive mode, copy as a unified diff |
+| ![Base64](docs/screenshots/devtools-base64.png) | ![URL](docs/screenshots/devtools-url.png) |
+| **Base64** - auto-detected text, pictures and documents, data URIs and Basic auth headers; the decoded text with a hex dump | **URL** - Component, Full URL or Form encoding, a parts table and strict mode |
+| ![YAML](docs/screenshots/devtools-yaml.png) | ![Generators](docs/screenshots/devtools-generators.png) |
+| **YAML** - check with line-numbered problems and convert to and from Java `.properties` | **Generators** - UUID v4/v7/Nil, numbers, passwords and passphrases with a seed and entropy |
+| ![Cron](docs/screenshots/devtools-cron.png) | ![Unit conversion](docs/screenshots/devtools-units.png) |
+| **Cron** - build a schedule and read it in Unix, Spring and Quartz dialects, with an expression checker | **Units** - time, epochs, number bases, data sizes, durations and bandwidth, with every unit listed |
 
-Also **Base64** (auto-detect, picture/text/document preview, data URI,
-Basic auth header), **URL** (percent-encode and decode a component, a whole
-URL or form data, with a table of the URL's parts), **YAML/TOML/XML**
-(check, format, convert), **Firebase tokens**, **Generators**, **Cron**,
-**Unit Conversion** and **PKI messages**. Keys typed into a utility are
-never saved.
+Also **TOML** and **XML** (check, format, convert) and **Firebase tokens**;
+keys typed into a utility are never saved.
 
 ### Graphics
 
@@ -259,6 +267,8 @@ never saved.
 |---|---|
 | ![Scratchpad](docs/screenshots/scratchpad.png) | ![Scratchpad AI assistant](docs/screenshots/scratchpad-ai.png) |
 | **Notes** — a collection of Markdown notes per workspace: the sidebar lists them newest first with pinned notes on top, one tab per note, source and preview side by side, saved 1.5 s after typing stops | **Assistant** — drafts checklists, tables, Mermaid diagrams and command fences; each block inserts at the cursor |
+| ![Pinned note](docs/screenshots/scratchpad-pin.png) | |
+| **Pinned notes** - right-click a note to pin it above the rest; source and preview share the pane and save a moment after typing stops | |
 | ![Dictation into an assistant](docs/screenshots/ai-dictation.png) | |
 | **Dictate to any assistant** — the microphone beside Send runs the operating system's own speech recognition (offline); phrases are typed into the box, a stop keeps the phrase in flight, the session ends on its own after a set time, and nothing is sent until you press Send | |
 
@@ -268,6 +278,8 @@ never saved.
 |---|---|
 | ![Browser](docs/screenshots/browser.png) | |
 | **Browser** — WebView2 pages in multi-row tabs: address bar with search fallback, back/forward/reload/home, per-page ad and tracker blocking, JavaScript switch, forced dark rendering, zoom, Inspect, Print; pages restored per workspace; Shift+click a terminal link to open it here (Windows) | |
+| ![Favourites](docs/screenshots/browser-favourites.png) | ![Passwords](docs/screenshots/browser-passwords.png) |
+| **Favourites** - a per-workspace tree with folders and a bar under the address bar, Chrome's click rules; the star adds the open page | **Passwords** - per-workspace logins; username, password, passkey and API key live in the vault, and Fill in Password is in the toolbar |
 
 ### Settings
 

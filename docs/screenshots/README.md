@@ -1,49 +1,28 @@
 # Screenshots
 
-Images used by the top-level [README](../../README.md). They show HyperStack
-0.11.0 as built from this repository, not mock-ups.
+Images used by the top-level [README](../../README.md). They show the build from this
+repository, not mock-ups; the set was last refreshed on Windows 11 for 0.45.x.
 
 ## How they were made
 
-- Built with `cargo build --release -p hyperstack` on Linux x64 and run under
-  Xvfb at 1440×900 (Mesa software rendering), driven with `xdotool`.
-- Fresh portable data folder (`HyperStackData/` beside the executable); the
-  vault, the SSH connection profile and the folder sync were created and
-  exercised through the UI. The three environments (Development, Staging,
-  Production) and a second, illustrative SSH profile (`db-01 (production)`)
-  were written as workspace files first.
-- The SSH/SFTP shots use a local OpenSSH server (`127.0.0.1:2200`, user
-  `deploy`) so the shell and SFTP pane are real; the shell prompt sets the
-  xterm title, which is what **Follow Shell Folder** reads.
-- The S3 shots use moto's S3 server (`moto_server -p 5055`, keys
-  `testing`/`testing`) seeded with a few buckets; the profiles were imported
-  through the tool's "Import AWS Profiles" from a `~/.aws` pair pointing at it.
-  The tunnel shot forwards a local port through the same OpenSSH server to a
-  small HTTP service.
-- The database shots and `database-walkthrough.gif` (12 fps x11grab → 10 fps,
-  1200 px GIF) use a local PostgreSQL 16 and MariaDB 10.11 seeded with a small
-  shop schema (customers, products, 600 orders, order items, an `audit`
-  schema), and a SQLite copy of it. The PostgreSQL and MariaDB profiles were
-  created through Settings → Connections by pasting a URL (the password went
-  into the vault); "orders (production)" points at the same database under the
-  protected Production environment, and "orders via web-01" tunnels through
-  the local OpenSSH server.
-- `hyperstack-demo.gif` is an `ffmpeg x11grab` recording of one scripted run
-  (vault unlock → launcher → terminal with search and a Ctrl+clicked
-  `path:line` → editor at that line → Markdown preview with a Mermaid diagram
-  → SSH/SFTP and a new tunnel → S3 bucket browsing and a presigned URL →
-  Production environment), converted at 10 fps, 1200 px wide with a generated
-  palette.
-- PNGs are quantised to 256 colours to keep the repository small.
+Captured from the debug build with `scripts/gui-smoke.ps1` (`start`, `click`,
+`dclick`, `drag`, `keys`, `shot`, `stop`). The app runs against a scratch
+`--data-dir`; the window sits at 0,0 and is sized 1400x900, and the capture is
+`GetWindowRect`, so the invisible 8 px border is part of each PNG. HyperStack
+Dark, activity rail labels on. Clicks and keys go through `mouse_event` and
+`SendKeys` at window-relative coordinates.
 
-## AI assistant imagery
+PNGs are quantised to 256 colours (`magick <in> -colors 256 -depth 8 <out>`)
+to keep the repository small. `hyperstack-demo.gif` is a slideshow assembled
+from the current set with
+`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256 -layers Optimize hyperstack-demo.gif`,
+one screen every 1.5 s.
 
-The AI assistant now appears in the terminal, SSH, SQL and S3 toolbars. The
-existing screenshots and GIFs have **not** yet been retaken for this UI: doing
-so requires an interactive desktop/Xvfb capture session with the relevant
-connection and test-provider setup. When recaptured, add dedicated shots for
-terminal, SSH, SQL and S3 assistant panels, plus an updated walkthrough GIF;
-retain current filenames and README links for existing shots.
+The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
+`editor-ai-cascade.png`, `editor-ai-models.png`, `api-client-ai.png`,
+`scratchpad-ai.png` and `ai-dictation.png`. The per-tool review-only panels
+(terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
+captures are kept for each.
 
 ## 2026-10-15 set: Home, settings pages, Devtools, API client, Graphics, Browser
 
@@ -119,7 +98,12 @@ screen every 1.5 s.
 Fixtures: the vault's master password is `TestMaster1` (scratch only);
 Redis is started in WSL and the distro held open with a sleeping `wsl`
 process (it stops when the last command exits); `docker start hs-mongo
-hs-couch` after that hold, or the containers stop with the distro.
+hs-couch` after that hold, or the containers stop with the distro. SSH uses
+the in-repo test server (`cargo run -p hs-ssh --features testserver
+--example devsshd -- 2222`, user `dev`/`dev`, files under `/home/dev`), not
+a system sshd. The database shots use a SQLite file
+(`D:\Temp\opencode\shop.db`) with customers, products and orders, opened
+through a seeded `shop-sqlite` profile; no server is required.
 
 Added with the Terminal CLI list (2026-10-19): `settings-terminal-list.png`
 (the Terminal page's Shells and CLI groups with Add CLI and PATH suggestions
@@ -129,3 +113,24 @@ profile, and the tab it opened running `cmd /k echo Hello from CLI`). The
 profile was added through the Settings page; the suggestion "Claude Code" was
 added disabled and moved above it to check that the TOML order follows the
 page.
+
+Second gap-filling pass, 2026-10-19: `browser-favourites.png` (DuckDuckGo
+added from the toolbar star, shown in the sidebar and the bar under the
+address) and `browser-passwords.png` (a "Shop Staging" login with its
+username and vault-stored password); `devtools-base64.png`,
+`devtools-url.png`, `devtools-yaml.png`, `devtools-generators.png`,
+`devtools-cron.png` and `devtools-units.png`; `redis-console.png` and
+`redis-info.png`; `nosql-aggregate.png` (the pipeline editor on shop.orders);
+`scratchpad-pin.png` (a "Release checklist" note pinned to the top); and
+`editor-git-tags.png` / `editor-git-prefix.png` (a v1.0-demo annotated tag and
+the Conventional Commit prefix menu). The walkthrough GIF is rebuilt from
+this set.
+
+Third pass, 2026-10-19: `ssh-host-key.png`, `ssh-sftp.png` and
+`ssh-follow-shell-folder.png` against `devsshd` (host key prompt for
+127.0.0.1, dual pane at /home/dev, and `cd projects` followed by the file
+pane), plus `db-browse.png`, `db-query.png` and `db-cell-viewer.png` against
+the SQLite `shop.db` (schema tree with columns and indexes, a JOIN with
+results, and a pretty-printed JSON cell). The SQL shots no longer depend on
+a PostgreSQL server. `scripts/gui-smoke.ps1` gained `dclick` and `drag` for
+these captures (a table's rows, the editor/result splitter).

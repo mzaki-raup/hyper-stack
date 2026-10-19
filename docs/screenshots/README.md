@@ -120,3 +120,12 @@ Fixtures: the vault's master password is `TestMaster1` (scratch only);
 Redis is started in WSL and the distro held open with a sleeping `wsl`
 process (it stops when the last command exits); `docker start hs-mongo
 hs-couch` after that hold, or the containers stop with the distro.
+
+Added with the Terminal CLI list (2026-10-19): `settings-terminal-list.png`
+(the Terminal page's Shells and CLI groups with Add CLI and PATH suggestions
+- `sqlite3`, `claude` and `opencode` were found on the capture machine) and
+`terminal-cli.png` (the Terminal activity sidebar with a "Test Shell" CLI
+profile, and the tab it opened running `cmd /k echo Hello from CLI`). The
+profile was added through the Settings page; the suggestion "Claude Code" was
+added disabled and moved above it to check that the TOML order follows the
+page.

@@ -652,6 +652,73 @@ impl Tool for TerminalTool {
                         }),
                     );
                 }
+                // CLI tools from Settings -> Terminal, below the shells.
+                let cli: Vec<hs_core::settings::CliProfile> = s
+                    .settings
+                    .read()
+                    .terminal
+                    .cli
+                    .iter()
+                    .filter(|c| c.enabled)
+                    .cloned()
+                    .collect();
+                if !cli.is_empty() {
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(s.t("settings-terminal-cli"))
+                            .small()
+                            .strong()
+                            .color(theme.text_muted),
+                    );
+                }
+                let mut open_cli: Option<(String, Option<String>)> = None;
+                for c in &cli {
+                    let found = hs_core::env_path::find(&c.command).is_some();
+                    let line = if found {
+                        c.command_line()
+                    } else {
+                        format!("{} - {}", c.command_line(), s.t("terminal-cli-not-found"))
+                    };
+                    let row = hs_ui::form::list_row(
+                        ui,
+                        &theme,
+                        false,
+                        cli_icon(&c.icon),
+                        &c.name,
+                        Some(&line),
+                    );
+                    if found && row.clicked() {
+                        let cwd = if c.cwd.trim().is_empty() {
+                            None
+                        } else if c.cwd.trim() == "{{workspace}}" {
+                            Some(s.workspace.read().root().to_string_lossy().to_string())
+                        } else {
+                            Some(c.cwd.trim().to_string())
+                        };
+                        open_cli = Some((c.command_line(), cwd));
+                    }
+                    ui.add_space(2.0);
+                }
+                if let Some((command, cwd)) = open_cli {
+                    let shell = self
+                        .state
+                        .profile
+                        .clone()
+                        .or_else(|| {
+                            let d = s.settings.read().terminal.default_profile.clone();
+                            (!d.is_empty()).then_some(d)
+                        })
+                        .or_else(|| self.profiles.first().map(|p| p.id.clone()));
+                    cx.open(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd,
+                            host: None,
+                            profile: shell,
+                            command: Some(command),
+                        }),
+                    );
+                }
                 ui.add_space(10.0);
                 hs_ui::form::note(
                     ui,
@@ -977,6 +1044,17 @@ fn ordered_shells(detected: &[ShellProfile], saved: &[String]) -> Vec<ShellProfi
         }
     }
     out
+}
+
+/// The sidebar icon for a CLI profile's stored key.
+fn cli_icon(key: &str) -> &'static str {
+    use hs_ui::icons::ph;
+    match key {
+        "database" => ph::DATABASE,
+        "cloud" => ph::CLOUD,
+        "sparkle" => ph::SPARKLE,
+        _ => ph::TERMINAL_WINDOW,
+    }
 }
 
 fn shell_icon(id: &str) -> &'static str {

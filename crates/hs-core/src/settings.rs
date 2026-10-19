@@ -226,6 +226,54 @@ pub struct Terminal {
     /// are not named here follow, in the order they were detected, so a
     /// newly installed shell appears without the list being rewritten.
     pub shell_order: Vec<String>,
+    /// CLI tools the Terminal activity lists below its shells, in order.
+    /// Owner's request, 2026-10-19.
+    pub cli: Vec<CliProfile>,
+}
+
+/// One CLI tool that opens as a terminal: `mysql`, `psql`, `claude`,
+/// `opencode` or anything the user adds.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct CliProfile {
+    pub id: String,
+    pub name: String,
+    /// The executable, resolved through PATH/PATHEXT when it starts.
+    pub command: String,
+    /// Passed to the shell as a command line, so quoting stays the user's.
+    pub args: String,
+    /// Empty starts in the activity's default folder; `{{workspace}}` is the
+    /// workspace folder.
+    pub cwd: String,
+    /// A sidebar icon key: `terminal`, `database`, `cloud` or `sparkle`.
+    pub icon: String,
+    pub enabled: bool,
+}
+
+impl Default for CliProfile {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            command: String::new(),
+            args: String::new(),
+            cwd: String::new(),
+            icon: "terminal".into(),
+            enabled: true,
+        }
+    }
+}
+
+impl CliProfile {
+    /// The line typed into the shell when the profile opens.
+    pub fn command_line(&self) -> String {
+        let args = self.args.trim();
+        if args.is_empty() {
+            self.command.trim().to_string()
+        } else {
+            format!("{} {}", self.command.trim(), args)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -392,6 +440,7 @@ impl Default for Terminal {
             right_click_copy_paste: true,
             link_detection: true,
             shell_order: Vec::new(),
+            cli: Vec::new(),
         }
     }
 }
@@ -486,5 +535,19 @@ mod tests {
         assert_eq!(s2.appearance.min_file_tab_width, 160.0);
         assert_eq!(s2.appearance.tab_gap, 4.0);
         assert_eq!(s2.general.startup_workspace, "default");
+    }
+    #[test]
+    fn a_cli_profile_builds_its_command_line() {
+        let mut profile = CliProfile {
+            command: "mysql".into(),
+            ..Default::default()
+        };
+        assert_eq!(profile.command_line(), "mysql");
+        profile.args = " -u root -p shop ".into();
+        assert_eq!(profile.command_line(), "mysql -u root -p shop");
+        assert!(
+            CliProfile::default().enabled,
+            "a new profile is shown unless it is switched off"
+        );
     }
 }

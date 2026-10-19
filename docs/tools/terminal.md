@@ -100,46 +100,48 @@ Font fallback) but no code is taken from them.
 - **Command history across sessions (P2)**: Ctrl+R-like palette over the
   SQLite command history (captured via shell integration marks).
 
-## 5. Settings and CLI profiles (planned 2026-10-19)
+## 5. Settings and CLI profiles (implemented 2026-10-19)
 
-The Terminal page moves in the Settings menu to sit **between Security and
-Connections**, beside the other connection-shaped pages. It has three cards.
+The Terminal page sits **between Security and Connections**, beside the other
+connection-shaped pages. It has three cards.
 
-**Session defaults** — default shell profile, font (Nerd Font bundled), size,
+**Session defaults** - default shell profile, font (Nerd Font bundled), size,
 line height, cursor, scrollback, colour scheme (16 ANSI from the theme or
 custom), bell, copy on select, paste warning for multi-line, right-click
 behaviour, confirm close with a running process, word separators, link
 detection on/off, OSC 52 allow.
 
-**Terminal List** — every shell and CLI the Terminal activity shows in its
-sidebar, in the order the sidebar uses. Rows are dragged by a grip (the same
-`hs_ui::reorder` control as the connection lists) or moved with arrow
-buttons. **Add CLI**, **Edit** and **Remove** sit beside the list; Remove
-asks first. A row can be disabled without being deleted: it stays in this
-list and leaves the activity sidebar.
+**Terminal List** - the shells and CLI tools the Terminal activity shows in
+its sidebar, in the order the sidebar uses. The **arrow buttons** move a row
+up or down (the activity's own shell list keeps its drag grip); **Add CLI**,
+**Edit** and **Remove** sit beside the list, and Remove asks first. A CLI row
+can be disabled without being deleted: it stays in this list and leaves the
+activity sidebar. The shells keep their existing order (`shell_order`).
 
-**Suggestions** — commands found through PATH/PATHEXT that are not in the
+**Suggestions** - commands found through PATH/PATHEXT that are not in the
 list yet, each with an Add button: `mysql`, `psql`, `sqlite3`, `mongosh`,
 `redis-cli`, `aws`, `kubectl`, `docker`, `claude`, `opencode`, `gemini`,
-`aider`, `ollama`. Adding one creates a disabled profile with a sensible
-name and icon; nothing is run or executed by detection.
+`aider`, `ollama`. Adding one creates a **disabled** profile with a sensible
+name and icon; nothing is run or executed by detection. The list is scanned
+when the page is first opened in a session (so a restart picks up a new
+install); **Refresh** re-reads PATH from the system and scans again, which
+also finds a CLI installed while the app is open.
 
 A **CLI profile** has these fields:
 
 | Field | Meaning |
 |---|---|
-| Name | the sidebar label and the terminal tab title |
+| Name | the sidebar label |
 | Command | the executable, resolved through PATH/PATHEXT at launch |
 | Arguments | passed to the shell as a command line, so quoting stays the user's |
-| Start folder | empty = the activity's default folder; `{{project}}` = the editor project's folder |
-| Environment | the active HyperStack environment (default) or a named one; `{{variables}}` resolve at launch and a `secret:` is read only then |
-| Icon, colour | a Phosphor icon and an accent for the sidebar row |
+| Start folder | empty = the activity's default folder; `{{workspace}}` = the workspace folder; anything else is that path |
+| Icon | `terminal`, `database`, `cloud` or `ai`, drawn beside the row |
 | Enabled | shown in the activity sidebar |
 
 The ordered list is stored in `settings.toml` as `[terminal] cli` (an array
 of tables; docs/05), so the settings page's order is the sidebar's order.
-Profiles never store a secret: a `{{variable}}` is a reference and a vault
-secret is read when the session starts, the same rule as every other field.
+Profiles never store a secret: `{{variables}}` are references reserved for
+the next phase.
 
 The Terminal activity sidebar shows the two groups in one scroll area under
 the fixed header (docs/04 §1.5):
@@ -154,15 +156,20 @@ Shells                    CLI
 ```
 
 Clicking a CLI opens a terminal tab in the profile's folder and, once the
-shell is ready, types its command line and Return — the same path as the
+shell is ready, types its command line and Return - the same path as the
 assistant's **Insert and Run**, so the command stays visible and editable. A
-profile whose command is no longer found shows "not found" and offers Edit.
+profile whose command is not found on PATH shows "Not found on PATH" and does
+not open; Edit it in Settings.
 
 The editor's terminal panel reads the same list but offers the enabled
 **shells** only, so a database CLI does not appear at the foot of every
 file. A future `tool-cli` host with its own tabs is out of scope: opening
 `mysql`, `psql`, `claude` and the like in a terminal is enough for this
 phase.
+
+**P1, not in this first pass:** per-profile environment variables (injecting
+the active or a named environment into the session) and an icon accent
+colour. The profile stores neither yet.
 
 ## 6. Keyboard (terminal scope)
 

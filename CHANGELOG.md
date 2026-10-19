@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.47.0 — 2026-10-19
+
 ### Added
 
-- Icon colour-key transparency: pick a colour on the canvas (or use the colour
-  button), set a tolerance and clear every matching pixel; the operation is
-  removable like any other.
+- Add icon colour-key transparency (2480bb24)
 
 ## 0.46.0 — 2026-10-19
 

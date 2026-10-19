@@ -197,3 +197,7 @@ Variables tab with `orders`, `editor-debug-stack.png` the Call Stack
 preview widened and its scrollbar dragged; the second shows the runtime
 sequence diagram.
 
+Two images still come from the 2026-10-15 set: `db-completion.png` needs a
+PostgreSQL server with the shop schema (the SQLite catalog does not feed
+completion), and `split-scratchpad.png` was not retaken in this pass.
+

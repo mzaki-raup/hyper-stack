@@ -151,7 +151,8 @@ Diagram Generator — split into two releases. The requirements and design are i
       validation/repair, preview, open in editor, export (prompt, examples, AI,
       offline templates, preview, open in editor and export implemented
       2026-10-20; the repair round remains)
-- [ ] AI assistant in all four tools with quick actions and More Suggestions
+- [x] AI assistant in all four tools with quick actions and More Suggestions
+      (review-only; implemented 2026-10-20)
 - [x] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0,
       and the strict IR validator (2026-10-19)
       (schemas and notice committed; validator, About page and notice test

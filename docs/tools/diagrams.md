@@ -2,7 +2,7 @@
 
 **Crate:** `tool-graphics` (UI) + `hs-diagram` (model, layout, scene, export) ·
 **Priority:** P1 (owner's request, 2026-10-19) ·
-**Status:** in progress — Phase 5 (Diagram Generator) implemented 2026-10-20
+**Status:** in progress — Phase 6 (AI assistants) implemented 2026-10-20
 
 This document is the requirements and design for the Graphics activity as it
 grows from a picture editor into four tools: **Image**, **Icon**, **Diagram
@@ -16,6 +16,7 @@ owner's process rules require.
 | `hs-diagram` model, validation, flow/architecture layout, scene, SVG/PNG/PDF export | Implemented 2026-10-19 |
 | Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
 | Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20; repair round pending |
+| Review-only AI assistant in all four tools | Implemented 2026-10-20 |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),
@@ -416,8 +417,8 @@ provides a context builder and quick actions:
 
 | Tool | Context | Quick actions |
 |---|---|---|
-| Image | path, dimensions, format, operation list | Explain Image, Suggest Edits, Best Export, Convert to Icon |
-| Icon | sizes, frames, transparency operations | Explain Sizes, Clean Edges, Suggest Sizes, Export Advice |
+| Image | path, dimensions, format, operation list | Explain Image, Suggest Edits, Best Export, Check Accessibility |
+| Icon | the same text context and actions as Image | Explain Image, Suggest Edits, Best Export, Check Accessibility |
 | Diagram Editor | outline of nodes/edges/groups, no pixels | Review Layout, Suggest Missing Nodes, Name Diagram, Accessibility Check |
 | Diagram Generator | type, prompt, last result summary | Refine Prompt, Critique Result, Alternative Layout, Explain Diagram |
 
@@ -427,6 +428,11 @@ provides a context builder and quick actions:
 - **Review-only.** The assistant never applies an edit; the user applies it by
   hand. Image/Icon context is text-only in R1 (no pixels).
 - No provider configured: the buttons are disabled with a Settings link.
+- **Implemented 2026-10-20.** All four tools show the shared panel; the
+  Diagram Editor and Generator add an Assistant button to their toolbar and
+  pass a text outline/prompt summary as context, with the four actions above.
+  Verified in the app with the generator panel open (no provider, so the
+  Settings hint is what the screenshot shows).
 
 ---
 

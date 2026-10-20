@@ -16,6 +16,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - A Diagram Generator tab: flowchart/architecture picker, prompt and
   examples, async AI generation into the strict IR, validation with the offline
   template fallback, preview, Open in Editor and PNG/PDF export.
+- The review-only AI assistant in all four Graphics tools: four quick
+  actions each, More Suggestions, text-only diagram/generator context, and the
+  shared provider picker; the assistant never applies an edit.
 
 ## 0.48.0 — 2026-10-20
 

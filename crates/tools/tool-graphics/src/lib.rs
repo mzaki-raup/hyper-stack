@@ -243,6 +243,20 @@ impl Default for GraphicsTool {
 
 const ICO_SIZES: [u32; 7] = [16, 24, 32, 48, 64, 128, 256];
 
+const DIAGRAM_QA: [(&str, &str); 4] = [
+    ("ai-qa-diagram-layout", "ai-qa-diagram-layout-prompt"),
+    ("ai-qa-diagram-missing", "ai-qa-diagram-missing-prompt"),
+    ("ai-qa-diagram-name", "ai-qa-diagram-name-prompt"),
+    ("ai-qa-diagram-a11y", "ai-qa-diagram-a11y-prompt"),
+];
+
+const GENERATOR_QA: [(&str, &str); 4] = [
+    ("ai-qa-gen-refine", "ai-qa-gen-refine-prompt"),
+    ("ai-qa-gen-critique", "ai-qa-gen-critique-prompt"),
+    ("ai-qa-gen-layout", "ai-qa-gen-layout-prompt"),
+    ("ai-qa-gen-explain", "ai-qa-gen-explain-prompt"),
+];
+
 /// A private request body for "open this as an icon" and "make a new icon".
 const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
 
@@ -1434,6 +1448,50 @@ fn open_recent(cx: &mut ToolContext, path: &str, kind: Kind) {
     }
 }
 
+fn diagram_context(doc: &hs_diagram::DiagramDoc) -> String {
+    let mut out = format!(
+        "Diagram: {}\nType: {:?}\nNodes ({}):\n",
+        doc.title,
+        doc.kind,
+        doc.nodes.len()
+    );
+    for node in &doc.nodes {
+        out.push_str(&format!("- {} [{:?}] {}\n", node.id, node.kind, node.label));
+    }
+    out.push_str(&format!("Edges ({}):\n", doc.edges.len()));
+    for edge in &doc.edges {
+        out.push_str(&format!(
+            "- {} -> {}{}\n",
+            edge.from,
+            edge.to,
+            if edge.label.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", edge.label)
+            }
+        ));
+    }
+    out
+}
+
+fn generator_context(state: &generator::GeneratorState) -> String {
+    let mut out = format!(
+        "Generator type: {:?}\nPrompt: {}\n",
+        state.kind, state.prompt
+    );
+    if let Some(doc) = &state.doc {
+        out.push_str(&format!(
+            "Preview: {} ({} nodes, {} edges)\n",
+            doc.title,
+            doc.nodes.len(),
+            doc.edges.len()
+        ));
+    } else {
+        out.push_str("Preview: none yet\n");
+    }
+    out
+}
+
 fn human_size(n: usize) -> String {
     if n < 1024 {
         format!("{n} B")
@@ -1460,6 +1518,59 @@ impl GraphicsTool {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 self.sidebar_sections(ui, cx, theme);
+            });
+    }
+
+    fn assistant_button(&mut self, ui: &mut egui::Ui, s: &Services) {
+        if ui
+            .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            .tip(s.t("ai-shared-button-tip"))
+            .clicked()
+        {
+            self.assistant.toggle("graphics");
+        }
+    }
+
+    /// The review-only assistant over a diagram or generator tab. The context
+    /// is text (ids, labels, counts), never pixels or project files.
+    fn assistant_overlay(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &mut ToolContext,
+        theme: &Theme,
+        context: String,
+        quick: &[(&str, &str)],
+    ) {
+        if !self.assistant.open {
+            return;
+        }
+        let s = cx.services.clone();
+        let full = ui.max_rect();
+        self.assistant.set_context("diagram state", context);
+        if self.assistant.quick_actions.is_empty() {
+            use hs_ui::ai_assistant::QuickAction;
+            self.assistant.quick_actions = quick
+                .iter()
+                .map(|(label, prompt)| QuickAction::new(&s, label, prompt, ""))
+                .collect();
+        }
+        let panel = egui::Rect::from_min_max(
+            egui::pos2(full.right() - 390.0, full.top()),
+            full.right_bottom(),
+        );
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(ui.clip_rect()));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                self.assistant.can_insert = false;
+                let _ = self.assistant.ui(ui, &s, theme, "graphics");
             });
     }
 
@@ -1829,12 +1940,14 @@ impl Tool for GraphicsTool {
                     );
                 }
             }
+            self.assistant_button(ui, cx.services);
             return;
         }
         if self.kind == Kind::Generator {
             if let Some(state) = &mut self.generator {
                 state.toolbar(ui, cx);
             }
+            self.assistant_button(ui, cx.services);
             return;
         }
         let s = cx.services;
@@ -1885,6 +1998,11 @@ impl Tool for GraphicsTool {
             return;
         }
         if self.kind == Kind::Diagram {
+            let context = self
+                .diagram
+                .as_ref()
+                .map(|state| diagram_context(&state.doc))
+                .unwrap_or_default();
             if let Some(state) = &mut self.diagram {
                 state.ui(ui, cx, &theme);
                 if let Some(path) = state.take_saved() {
@@ -1900,12 +2018,19 @@ impl Tool for GraphicsTool {
                     );
                 }
             }
+            self.assistant_overlay(ui, cx, &theme, context, &DIAGRAM_QA);
             return;
         }
         if self.kind == Kind::Generator {
+            let context = self
+                .generator
+                .as_ref()
+                .map(|state| generator_context(state))
+                .unwrap_or_default();
             if let Some(state) = &mut self.generator {
                 state.ui(ui, cx, &theme);
             }
+            self.assistant_overlay(ui, cx, &theme, context, &GENERATOR_QA);
             return;
         }
         if let Some(e) = &self.error {
@@ -2020,6 +2145,7 @@ impl Tool for GraphicsTool {
                     QuickAction::new(&s, "ai-qa-image-explain", "ai-qa-image-explain-prompt", ""),
                     QuickAction::new(&s, "ai-qa-image-edits", "ai-qa-image-edits-prompt", ""),
                     QuickAction::new(&s, "ai-qa-image-export", "ai-qa-image-export-prompt", ""),
+                    QuickAction::new(&s, "ai-qa-image-a11y", "ai-qa-image-a11y-prompt", ""),
                 ];
             }
             let panel = egui::Rect::from_min_max(

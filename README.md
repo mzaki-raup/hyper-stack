@@ -284,9 +284,11 @@ that scene on a pannable/zoomable canvas, with selection, node dragging, adding
 shapes, connecting, undo/redo, the properties panel, templates and save/export.
 The **Diagram Generator** turns a prompt into the strict IR through the
 configured AI provider, falls back to the offline template, validates the
-result, previews it and opens it in the editor. The repair round, drafts and
-the AI assistants follow in the same release; ERD, sequence, Archify JSON and
-draw.io XML import follow in Release 2. See
+result, previews it and opens it in the editor. The review-only **AI
+Assistant** is available in all four tools with four quick actions each,
+More Suggestions and text-only context for the diagram and generator. The
+repair round and drafts follow in the same release; ERD, sequence, Archify JSON
+and draw.io XML import follow in Release 2. See
 [docs/tools/diagrams.md](docs/tools/diagrams.md).
 
 The picture operations are resize, scale, extend canvas, crop, rotate, flip,

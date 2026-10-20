@@ -46,16 +46,17 @@ generated for Cargo, Python and Go projects.**
 
 **In progress (2026-10-20):** the Graphics activity grows into four tools —
 Image, Icon, Diagram Editor and Diagram Generator — with a dashboard home tab,
-an activity sidebar and a Recent section. Phases 1-5 landed: the sidebar and
+an activity sidebar and a Recent section. Phases 1-6 landed: the sidebar and
 dashboard, separate Image/Icon tabs, Convert to Icon, icon colour-key
 transparency (`GraphicsHub`, `Tool::wants_dashboard_home`,
 `Op::TransparentColor`), the `hs-diagram` core (model, strict Archify-adapted
 IR, validation, flow/grid layout, scene, SVG/PNG/PDF export), the Diagram
 Editor (canvas, selection, drag, add/connect, undo, properties, templates,
-save/export) and the Diagram Generator (prompt/examples, async AI into the
-strict IR, validation, offline templates, preview, Open in Editor, export).
-Still to come: the generator repair round, drafts, the four AI assistants, and
-Release 2's ERD/sequence and Archify/draw.io imports.
+save/export), the Diagram Generator (prompt/examples, async AI into the strict
+IR, validation, offline templates, preview, Open in Editor, export) and the
+review-only AI assistant in all four tools. Still to come: the generator repair
+round, drafts, About/notices and Release 2's ERD/sequence and Archify/draw.io
+imports.
 The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The
 diagram library is `hs-diagram`; the UI stays in `tool-graphics`.

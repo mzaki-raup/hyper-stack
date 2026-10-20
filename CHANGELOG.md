@@ -9,10 +9,15 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'## Unreleased
+''## Unreleased
+
+### Security
+
+- Updated `rustls-webpki`, `webpki-roots` and `webpki-root-certs` to clear
+  RUSTSEC-2026-0381/0382/0383.
 
 ### Added
-
+'
 - Dashboard: New Diagram and New Generation are enabled.
 - AI Assistant: assistant requests and answers render Markdown (headings,
   bullets, bold/italic and inline code); every answer has inline Copy,

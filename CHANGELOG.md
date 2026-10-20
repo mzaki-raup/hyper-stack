@@ -11,21 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.58.0 — 2026-10-20
+
 ### Added
 
-- Diagram Editor: **Show Title and Frame** wraps the diagram in a dashed frame
-  with the title; off shows the bare diagram.
-- Diagram Editor: dragging a frame border moves its nodes; edge labels drag
-  along the line; line style is Solid, Dashed or Dotted and the selected edge
-  highlights its routed path.
-- Diagram Editor and Generator: the AI Assistant is a fixed right-hand column
-  with Copy / Update or Generate actions at the top of the suggestions.
-- Dashboard cards centre their icon and label with a custom painted card.
-
-### Fixed
-
-- Tab rows are sized from the narrowest row budget, so a wrapped row can no
-  longer push its last tab past the strip.
+- Improve diagram selection, frames and assistant layout (bf9bdf02)
 
 ## 0.57.0 — 2026-10-20
 

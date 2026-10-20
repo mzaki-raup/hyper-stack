@@ -520,6 +520,8 @@ The Diagram Editor's **Import** menu reads:
   changes.
 - **Mermaid sequence** — a `sequenceDiagram` block, participants, solid and
   dashed arrows and message labels; notes and fragments are ignored for now.
+- **Offline Draft** — splits the prompt at commas, semicolons, `then`
+  and `→` into steps and chains them locally; no provider is called.
 - **draw.io XML** — the plain or compressed `mxGraphModel` form. Vertices become
   nodes at their own geometry (rounded, rhombus, ellipse start/end, cylinder,
   note and text styles are mapped), edges with a source and target become

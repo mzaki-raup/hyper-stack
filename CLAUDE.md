@@ -136,6 +136,18 @@ in the same commit.
   of that sentence and stays lower case ("Opens .hyperstack/debug.json in the
   project (created with a template when missing)."), which is what sentence
   case means. Owner's rule, 2026-10-17.
+- **One UI/UX language across every activity and tool.** Dashboards use the
+  same section headings and top spacing; list cards centre their icon and
+  label vertically; row actions sit in a fixed, aligned column rather than
+  floating at the far edge; the **AI Assistant** control is always the hard
+  right item of a tool toolbar; empty, error and hint text follow the shared
+  form/dashboard helpers. When a new or recent surface differs, audit and fix
+  it in the same change. Owner's rule, 2026-10-20.
+- **Every action, option, form and label looks professional, tidy and
+  appropriate.** Reuse the existing `hs_ui::form`, `hs_ui::dashboard` and
+  toolbar patterns before inventing a one-off control; keep Title Case for
+  labels and sentence case for hints, and leave consistent padding and
+  separators. Owner's rule, 2026-10-20.
 - **Right-click copy/paste in text surfaces (PuTTY convention).** In the
   terminal and in every editor/text field we draw ourselves: right-click with
   a selection copies it to the clipboard and clears the selection; right-click

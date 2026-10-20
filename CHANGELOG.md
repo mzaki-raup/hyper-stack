@@ -11,15 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 '## Unreleased
 
+- (nothing yet)
+
+## 0.57.0 — 2026-10-20
+
 ### Added
 
-- Diagram Editor: frames appear in the Outline and show the same accent
-  selection frame as nodes.
+- Select and highlight diagram frames (5013b559)
 
 ### Fixed
 
-- The tab close cross uses the normal text colour and a larger glyph, so the
-  last tab is not mistaken for an unclosable one.
+- Keep every tab close cross visible (97143ac8)
 
 ## 0.56.0 — 2026-10-20
 

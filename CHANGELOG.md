@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.51.0 — 2026-10-20
+
 ### Added
 
-- Diagram Editor: Save to Project (Project / Subfolder `docs/diagrams` / File name, overwrite confirmation), with open project roots published by the Editor through `OpenTabs`.
-- Diagram Editor: debounced autosave of a dirty diagram into the same stable Recent draft file.
-- Diagram Editor: resize grip, Shift-click multi-select, six align actions, two distribute actions, edge selection with label editing, waypoints (add, clear, drag) and edge deletion.
+- Finish the diagram editor project, draft and edge work (90e74ddd)
 
 ## 0.50.0 — 2026-10-20
 

@@ -262,6 +262,10 @@ The editor shots are from the running app (data folder
 - `graphics-diagram-generator.png` — the Generator tab with the offline
   template preview and the no-provider message; the same dialog can show the
   AI result once a provider is configured.
+- `graphics-erd.png` — the ERD template with entities, columns, keys and a
+  `1 .. *` relationship.
+- `graphics-sequence.png` — the basic sequence template with Client, API and
+  Database participants and labelled messages.
 - `graphics-save-project.png` — the Save to Project modal with the project,
   `docs/diagrams` subfolder, file name and overwrite checkbox.
 - `graphics-diagram-edge.png` — an edge selected from the Outline, with its

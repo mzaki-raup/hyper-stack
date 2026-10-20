@@ -10,6 +10,8 @@ pub enum DiagramKind {
     #[default]
     Flow,
     Architecture,
+    Erd,
+    Sequence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

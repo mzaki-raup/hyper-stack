@@ -76,6 +76,8 @@ impl DiagramState {
         let doc = match kind {
             DiagramKind::Flow => hs_diagram::template::flow(),
             DiagramKind::Architecture => hs_diagram::template::architecture(),
+            DiagramKind::Erd => hs_diagram::template::erd(),
+            DiagramKind::Sequence => hs_diagram::template::sequence(),
         };
         Self::from_doc(doc)
     }
@@ -708,6 +710,12 @@ impl DiagramState {
                     }
                     if ui.button(s.t("gfx-diagram-arch-template")).clicked() {
                         self.replace(hs_diagram::template::architecture());
+                    }
+                    if ui.button(s.t("gfx-diagram-erd-template")).clicked() {
+                        self.replace(hs_diagram::template::erd());
+                    }
+                    if ui.button(s.t("gfx-diagram-sequence-template")).clicked() {
+                        self.replace(hs_diagram::template::sequence());
                     }
                     if ui.button(s.t("gfx-diagram-blank")).clicked() {
                         self.replace(DiagramDoc::new(DiagramKind::Flow, "Untitled diagram"));

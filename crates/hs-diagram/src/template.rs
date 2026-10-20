@@ -122,3 +122,71 @@ pub fn architecture() -> DiagramDoc {
     });
     doc
 }
+
+pub fn erd() -> DiagramDoc {
+    let mut doc = DiagramDoc::new(DiagramKind::Erd, "Order data model");
+    doc.subtitle = "Two entities and a one-to-many relationship.".into();
+    doc.auto_layout = true;
+    for (id, label, kind) in [
+        (
+            "customers",
+            "customers\nid UUID PK\nemail TEXT\ncreated_at TIMESTAMP",
+            NodeKind::Container,
+        ),
+        (
+            "orders",
+            "orders\nid UUID PK\ncustomer_id UUID FK\ntotal NUMERIC",
+            NodeKind::Container,
+        ),
+    ] {
+        doc.nodes.push(Node {
+            id: id.into(),
+            label: label.into(),
+            kind,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            style: Style::default(),
+        });
+    }
+    chain(&mut doc, &[("customers", "orders")]);
+    if let Some(edge) = doc.edges.first_mut() {
+        edge.label = "1 .. *".into();
+        edge.route = EdgeRoute::Straight;
+    }
+    doc
+}
+
+pub fn sequence() -> DiagramDoc {
+    let mut doc = DiagramDoc::new(DiagramKind::Sequence, "Checkout sequence");
+    doc.subtitle = "A client request, the API and the database.".into();
+    doc.auto_layout = true;
+    for (id, label, kind) in [
+        ("client", "Client", NodeKind::Frontend),
+        ("api", "API", NodeKind::Backend),
+        ("db", "Database", NodeKind::Database),
+    ] {
+        doc.nodes.push(Node {
+            id: id.into(),
+            label: label.into(),
+            kind,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            style: Style::default(),
+        });
+    }
+    chain(&mut doc, &[("client", "api"), ("api", "db")]);
+    if let Some(edge) = doc.edges.first_mut() {
+        edge.label = "POST /orders".into();
+        edge.route = EdgeRoute::Straight;
+    }
+    if let Some(edge) = doc.edges.get_mut(1) {
+        edge.label = "INSERT order".into();
+        edge.route = EdgeRoute::Straight;
+        edge.dashed = true;
+    }
+    doc
+}

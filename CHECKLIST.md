@@ -359,6 +359,6 @@ and ADR-025.
 | R1.1: Draft autosave while typing | Completed | Debounced (1 s) hash-checked autosave into the same stable draft file the close path uses; `dirty` stays set; unit test covers the debounce |
 | R1.1: Resize handles, multi-select align/distribute | Completed | Bottom-right grip; Shift-click selection; six align actions and two distribute actions; unit test for align-left |
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
-| Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
+| Release 2: ERD and sequence diagrams | In-Progress | Basic `DiagramKind::Erd`/`Sequence` with grid layout, ERD and sequence templates, editor buttons, generator fallbacks and validation/layout tests; full participants/messages/fragments and Mermaid sequence import remain |
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and the first page. Multiple-page selection is not exposed |
 | Release 2: `.diagram.json` alias and schema migration | In-Progress | Open/affinity accept `.diagram.json` as well as `.hdiag`; schema migration remains |

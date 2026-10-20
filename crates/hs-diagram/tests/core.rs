@@ -161,3 +161,29 @@ fn hdiag_round_trips_through_disk() {
     assert!(validate::is_valid(&issues));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn erd_and_sequence_templates_validate_and_lay_out() {
+    for doc in [
+        hs_diagram::template::erd(),
+        hs_diagram::template::sequence(),
+    ] {
+        let issues = hs_diagram::validate::validate(&doc);
+        assert!(
+            issues
+                .iter()
+                .all(|i| i.severity != hs_diagram::Severity::Error),
+            "{:?}: {issues:?}",
+            doc.kind
+        );
+        let scene = hs_diagram::layout_approx(&doc);
+        assert_eq!(
+            scene
+                .prims
+                .iter()
+                .filter(|p| matches!(p, hs_diagram::Prim::Shape { .. }))
+                .count(),
+            doc.nodes.len()
+        );
+    }
+}

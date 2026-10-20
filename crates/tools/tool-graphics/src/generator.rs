@@ -144,6 +144,10 @@ impl GeneratorState {
                                     DiagramKind::Architecture => {
                                         s.t("gfx-diagram-arch-template")
                                     }
+                                    DiagramKind::Erd => s.t("gfx-diagram-erd-template"),
+                                    DiagramKind::Sequence => {
+                                        s.t("gfx-diagram-sequence-template")
+                                    }
                                 })
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(
@@ -181,6 +185,16 @@ impl GeneratorState {
                                 "A web app with browser, API, worker, Redis and PostgreSQL; group the API, worker and databases behind a private network.",
                                 "Mobile client, CDN, API gateway, two services, a queue and a database, with the services inside a VPC.",
                                 "Event-driven orders: web, order service, payment service, event bus and two databases.",
+                            ],
+                            DiagramKind::Erd => [
+                                "Customers and orders: a customer has many orders; show the primary and foreign keys.",
+                                "A blog: users, posts, comments and tags with their relationships.",
+                                "Inventory: products, warehouses and stock levels.",
+                            ],
+                            DiagramKind::Sequence => [
+                                "Client calls the API, the API reads the database and returns the order.",
+                                "Login: client, auth service, user store and token store.",
+                                "Payment: client, order service, payment provider and webhook.",
                             ],
                         };
                         for example in examples {
@@ -370,7 +384,7 @@ impl GeneratorState {
         };
         self.repair_sent = true;
         let kind = match self.kind {
-            DiagramKind::Flow => "workflow",
+            DiagramKind::Flow | DiagramKind::Erd | DiagramKind::Sequence => "workflow",
             DiagramKind::Architecture => "architecture",
         };
         let msgs = vec![
@@ -485,7 +499,7 @@ impl GeneratorState {
                 format!(
                     "Diagram type: {}\n\n{}",
                     match self.kind {
-                        DiagramKind::Flow => "workflow",
+                        DiagramKind::Flow | DiagramKind::Erd | DiagramKind::Sequence => "workflow",
                         DiagramKind::Architecture => "architecture",
                     },
                     prompt
@@ -529,6 +543,8 @@ impl GeneratorState {
         let doc = match self.kind {
             DiagramKind::Flow => hs_diagram::template::flow(),
             DiagramKind::Architecture => hs_diagram::template::architecture(),
+            DiagramKind::Erd => hs_diagram::template::erd(),
+            DiagramKind::Sequence => hs_diagram::template::sequence(),
         };
         self.doc = Some(doc);
         self.error = None;

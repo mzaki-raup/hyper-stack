@@ -59,6 +59,7 @@ pub struct DiagramState {
     /// Additional nodes selected with Shift-click; the primary is `selected`.
     multi: Vec<String>,
     selected_edge: Option<String>,
+    selected_group: Option<String>,
     /// World-space polyline of every edge from the last painted scene.
     edge_paths: Vec<Vec<Point>>,
     view: DiagramView,
@@ -109,6 +110,7 @@ impl DiagramState {
             selected,
             multi: Vec::new(),
             selected_edge: None,
+            selected_group: None,
             edge_paths: Vec::new(),
             view: DiagramView::Preview,
             zoom: 0.0,
@@ -1323,6 +1325,22 @@ impl DiagramState {
                 let p = to_screen(*via);
                 painter.circle_filled(p, 5.0, theme.panel_bg);
                 painter.circle_stroke(p, 5.0, egui::Stroke::new(2.0, theme.accent));
+            }
+        }
+        if let Some(gid) = &self.selected_group
+            && let Some(group) = self.doc.groups.iter().find(|g| &g.id == gid)
+        {
+            for prim in &scene.prims {
+                if let Prim::Frame { rect, label, .. } = prim
+                    && label == &group.label
+                {
+                    painter.rect_stroke(
+                        srect(*rect).expand(2.0),
+                        8.0,
+                        egui::Stroke::new(2.0, theme.accent),
+                        egui::StrokeKind::Outside,
+                    );
+                }
             }
         }
         // Keep "add at the viewport centre" honest across panning.

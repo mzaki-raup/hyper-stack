@@ -13,6 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Diagram Editor: import Archify JSON through the strict IR and uncompressed draw.io XML into a fixed-layout flow document.
+
 - Diagram Editor: Save to Project (Project / Subfolder `docs/diagrams` / File name, overwrite confirmation), with open project roots published by the Editor through `OpenTabs`.
 - Diagram Editor: debounced autosave of a dirty diagram into the same stable Recent draft file.
 - Diagram Editor: resize grip, Shift-click multi-select, six align actions, two distribute actions, edge selection with label editing, waypoints (add, clear, drag) and edge deletion.

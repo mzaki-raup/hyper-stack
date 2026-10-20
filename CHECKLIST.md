@@ -360,5 +360,5 @@ and ADR-025.
 | R1.1: Resize handles, multi-select align/distribute | Completed | Bottom-right grip; Shift-click selection; six align actions and two distribute actions; unit test for align-left |
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
 | Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
-| Release 2: Archify JSON import and draw.io XML import | Pending | Plain and compressed draw.io, first page; strict validation for Archify JSON |
+| Release 2: Archify JSON import and draw.io XML import | In-Progress | Archify JSON through the strict IR and uncompressed draw.io XML (vertices, edges, shape mapping) imported into the editor; compressed pages and multiple-page selection remain |
 | Release 2: `.diagram.json` alias and schema migration | Pending | Same JSON, second extension |

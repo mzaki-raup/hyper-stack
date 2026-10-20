@@ -3460,6 +3460,7 @@ name = "hs-diagram"
 version = "0.50.0"
 dependencies = [
  "resvg",
+ "roxmltree",
  "serde",
  "serde_json",
  "svg2pdf",

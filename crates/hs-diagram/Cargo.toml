@@ -12,3 +12,4 @@ serde.workspace = true
 serde_json.workspace = true
 resvg = "0.45"
 svg2pdf = "0.13"
+roxmltree = "0.20"

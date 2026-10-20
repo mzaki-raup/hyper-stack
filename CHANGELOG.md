@@ -11,17 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.48.0 — 2026-10-20
+
 ### Added
 
-- `hs-diagram`: the `.hdiag` document model, strict Archify-adapted workflow
-  and architecture IR, validation codes and limits, deterministic flow and grid
-  layout, orthogonal routing, a shared scene, and SVG/PNG/PDF export.
-- Offline flowchart and architecture templates, plus an export example for
-  visual checks.
-- A Diagram Editor tab: pan/zoom canvas over the shared scene, node
-  selection and dragging, add process/decision/note, connect mode, undo/redo,
-  properties and outline, flow/architecture templates, `.hdiag` save/open and
-  SVG/PNG/PDF export.
+- Add the diagram core and editor (32cc1ccc)
+
+### Fixed
+
+- Update the hs-diagram lock entry to 0.47.0 (37f80cdd)
 
 ## 0.47.0 — 2026-10-19
 

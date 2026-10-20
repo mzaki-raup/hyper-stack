@@ -521,11 +521,10 @@ impl TabStrip<'_> {
                 if tab.dirty() && !cr.hovered() {
                     painter.circle_filled(close_rect.center(), 4.0, colour);
                 } else {
-                    let c = if cr.hovered() {
-                        self.theme.text
-                    } else {
-                        self.theme.text_muted
-                    };
+                    // The close cross is a real control, not a hover secret:
+                    // keep it visible at rest so the last tab is never
+                    // mistaken for an unclosable one.
+                    let c = self.theme.text;
                     if cr.hovered() {
                         painter.rect_filled(
                             close_rect,
@@ -537,7 +536,7 @@ impl TabStrip<'_> {
                         close_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         crate::icons::TAB_CLOSE,
-                        egui::FontId::proportional(12.0),
+                        egui::FontId::proportional(13.0),
                         c,
                     );
                 }

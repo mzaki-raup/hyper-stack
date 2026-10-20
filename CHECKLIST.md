@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-20 (Graphics diagrams: Phases 1-7 (activity, Image/Icon, editor, generator, AI assistants, About notices) verified; the project-save dialog and R2 imports remain)
+Last updated: 2026-10-20 (Graphics diagrams: R1.1 (project save, autosave, resize/align, edge labels/waypoints) merged; Release 2 (ERD, sequence, Archify/draw.io import) remains)
 
 ## Planning
 

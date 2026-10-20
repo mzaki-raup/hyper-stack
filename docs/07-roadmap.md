@@ -160,11 +160,11 @@ Diagram Generator — split into two releases. The requirements and design are i
       pending)
 - [ ] Tests, documentation, screenshots and GIF
 
-### R1.1 — finishing the editor (planned 2026-10-20)
-- [ ] Save Diagram modal into a project's `docs/diagrams/` folder
-- [ ] Debounced draft autosave
-- [ ] Resize handles and multi-select align/distribute
-- [ ] Edge label and waypoint editing
+### R1.1 — finishing the editor (implemented 2026-10-20)
+- [x] Save Diagram modal into a project's `docs/diagrams/` folder
+- [x] Debounced draft autosave
+- [x] Resize handles and multi-select align/distribute
+- [x] Edge label and waypoint editing
 
 ### Release 2 — more diagram types and imports
 

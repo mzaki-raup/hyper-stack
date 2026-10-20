@@ -13,9 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Icon colour-key transparency: pick a colour on the canvas (or use the colour
-  button), set a tolerance and clear every matching pixel; the operation is
-  removable like any other.
 - `hs-diagram`: the `.hdiag` document model, strict Archify-adapted workflow
   and architecture IR, validation codes and limits, deterministic flow and grid
   layout, orthogonal routing, a shared scene, and SVG/PNG/PDF export.
@@ -25,6 +22,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   selection and dragging, add process/decision/note, connect mode, undo/redo,
   properties and outline, flow/architecture templates, `.hdiag` save/open and
   SVG/PNG/PDF export.
+
+## 0.47.0 — 2026-10-19
+
+### Added
+
+- Add icon colour-key transparency (2480bb24)
 
 ## 0.46.0 — 2026-10-19
 

@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.55.0 — 2026-10-20
+
+### Added
+
+- Align Graphics UI and add offline diagram drafts (a65be63e)
+
 ## 0.54.0 — 2026-10-20
 
 ### Added

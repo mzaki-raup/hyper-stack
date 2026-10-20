@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.53.0 — 2026-10-20
+
 ### Added
 
-- Diagram Editor: accept `.diagram.json` as an alias for `.hdiag` when opening, matching and listing documents.
+- Accept the .diagram.json alias (60062238)
 
 ## 0.52.0 — 2026-10-20
 

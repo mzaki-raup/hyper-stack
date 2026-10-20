@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.49.0 — 2026-10-20
+
 ### Added
 
-- A Diagram Generator tab: flowchart/architecture picker, prompt and
-  examples, async AI generation into the strict IR, validation with the offline
-  template fallback, preview, Open in Editor and PNG/PDF export.
+- Add the diagram generator (39693ee2)
 
 ## 0.48.0 — 2026-10-20
 

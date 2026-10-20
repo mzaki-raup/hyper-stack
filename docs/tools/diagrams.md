@@ -450,7 +450,7 @@ The R1 core is merged. This is the remaining work, in order, with the branch
 | 8b | Draft autosave | Debounced (1 s) while a diagram is dirty, writing the same stable draft file as close; close still writes synchronously. | Completed 2026-10-20 |
 | 8c | Resize and align | Bottom-right resize grip on the selected node; Shift-click multi-select (outline clears it); Align left/centre/right/top/middle/bottom and Distribute horizontally/vertically over the selection. | Completed 2026-10-20 |
 | 8d | Edge labels and waypoints | Click an edge near its route to select it, edit its label, Add Waypoint / Clear Waypoints, and drag the circular waypoint handles. Delete removes the selected edge. | Completed 2026-10-20 |
-| 9 | Release 2 imports | ERD and sequence diagram types, Archify JSON import and draw.io XML import, each with validation and a round-trip test. | In progress 2026-10-20: Archify JSON (strict IR) and uncompressed draw.io XML import into the existing flow/architecture editor; ERD, sequence and compressed draw.io remain |
+| 9 | Release 2 imports | ERD and sequence diagram types, Archify JSON import and draw.io XML import, each with validation and a round-trip test. | Partial 2026-10-20: Archify JSON (strict IR) and plain/compressed draw.io XML import into the existing flow/architecture editor; ERD and sequence remain |
 
 The project list is deliberately owned by the Editor: Graphics must not guess
 from recent files, and a tool may not depend on `tool-editor`. The shell owns

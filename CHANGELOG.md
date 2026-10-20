@@ -13,15 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- A Diagram Generator tab: flowchart/architecture picker, prompt and
-  examples, async AI generation into the strict IR, validation with the offline
-  template fallback, preview, Open in Editor and PNG/PDF export.
 - The review-only AI assistant in all four Graphics tools: four quick
   actions each, More Suggestions, text-only diagram/generator context, and the
   shared provider picker; the assistant never applies an edit.
 - About now shows the compiled-in Third-Party Notices, including the Archify
   schema adaptation, with a test that the pinned commit and MIT text are
   present.
+
+## 0.49.0 — 2026-10-20
+
+### Added
+
+- Add the diagram generator (39693ee2)
 
 ## 0.48.0 — 2026-10-20
 

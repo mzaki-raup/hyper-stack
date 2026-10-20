@@ -2489,6 +2489,8 @@ impl Tool for GraphicsTool {
                 match state.kind {
                     hs_diagram::DiagramKind::Flow => "flow",
                     hs_diagram::DiagramKind::Architecture => "architecture",
+                    hs_diagram::DiagramKind::Erd => "erd",
+                    hs_diagram::DiagramKind::Sequence => "sequence",
                 }
                 .into(),
             );

@@ -34,7 +34,9 @@ pub fn layout(doc: &DiagramDoc, measure: Measure<'_>) -> Scene {
     let rects = if doc.auto_layout {
         match doc.kind {
             DiagramKind::Flow => flow::place(doc, measure),
-            DiagramKind::Architecture => grid::place(doc, measure),
+            DiagramKind::Architecture | DiagramKind::Erd | DiagramKind::Sequence => {
+                grid::place(doc, measure)
+            }
         }
     } else {
         geometry(doc, measure)

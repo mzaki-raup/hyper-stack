@@ -169,12 +169,12 @@ Diagram Generator — split into two releases. The requirements and design are i
 ### Release 2 — more diagram types and imports
 
 - [ ] ERD: entities, columns, types, keys and cardinality
-- [ ] Sequence: participants, messages, returns, notes and fragments
+- [x] Sequence: basic participants/messages template and Mermaid sequence import (2026-10-20)
 - [x] Archify JSON import from the adapted schemas (2026-10-20)
 - [x] draw.io XML import: plain and compressed, first page, basic styles
       (2026-10-20)
 - [x] `.diagram.json` alias (2026-10-20); schema migration still open
-- [ ] Mermaid sequence import
+- [x] Mermaid sequence import (2026-10-20)
 
 ## Release cadence
 

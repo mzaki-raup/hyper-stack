@@ -11,7 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Diagram Editor: ERD and basic sequence diagram types with templates
+  (entities/columns/keys and cardinality; participants and labelled messages)
+  plus Mermaid `sequenceDiagram` import.
 
 ## 0.53.0 — 2026-10-20
 

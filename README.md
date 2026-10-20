@@ -276,6 +276,8 @@ keys typed into a utility are never saved.
 | **Diagram Generator** — type picker, prompt, examples, Use Template and Generate; with no AI provider the offline template is a real result and the message says so | **Same scene, exported** — the generator’s preview is the editor’s scene and the SVG/PNG/PDF writer, so the export matches the screen |
 | ![Save to Project](docs/screenshots/graphics-save-project.png) | ![Edge properties](docs/screenshots/graphics-diagram-edge.png) |
 | **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file and confirm an overwrite | **Edge editing** — select an edge from the Outline to edit its label, add or clear waypoints and delete it |
+| ![ERD](docs/screenshots/graphics-erd.png) | ![Sequence](docs/screenshots/graphics-sequence.png) |
+| **ERD template** — entities with columns and keys, and a `1 .. *` relationship | **Sequence template** — Client, API and Database with labelled request and insert messages |
 
 **Implemented (2026-10-20):** the activity shell, the dashboard and Recent
 list, the separate Image and Icon tabs, Convert to Icon and icon colour-key

@@ -38,6 +38,7 @@ pub fn flow() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: false,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc.edges.push(Edge {
         id: "e4".into(),
@@ -48,6 +49,7 @@ pub fn flow() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: false,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc.edges.push(Edge {
         id: "e5".into(),
@@ -58,6 +60,7 @@ pub fn flow() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: true,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc
 }
@@ -99,6 +102,7 @@ pub fn architecture() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: false,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc.edges.push(Edge {
         id: "c2".into(),
@@ -109,6 +113,7 @@ pub fn architecture() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: false,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc.edges.push(Edge {
         id: "c3".into(),
@@ -119,6 +124,7 @@ pub fn architecture() -> DiagramDoc {
         arrow: crate::model::Arrow::End,
         dashed: true,
         via: Vec::new(),
+        style: Style::default(),
     });
     doc
 }
@@ -186,6 +192,97 @@ pub fn sequence() -> DiagramDoc {
     if let Some(edge) = doc.edges.get_mut(1) {
         edge.label = "INSERT order".into();
         edge.route = EdgeRoute::Straight;
+        edge.dashed = true;
+    }
+    doc
+}
+
+/// A linear flow used by the extra template gallery.
+fn linear(title: &str, subtitle: &str, steps: &[(&str, NodeKind)]) -> DiagramDoc {
+    let mut doc = DiagramDoc::new(DiagramKind::Flow, title);
+    doc.subtitle = subtitle.into();
+    doc.auto_layout = true;
+    for (i, (label, kind)) in steps.iter().enumerate() {
+        doc.nodes.push(Node {
+            id: format!("s{i}"),
+            label: (*label).into(),
+            kind: *kind,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            style: Style::default(),
+        });
+    }
+    let pairs: Vec<(String, String)> = (1..steps.len())
+        .map(|i| (format!("s{}", i - 1), format!("s{i}")))
+        .collect();
+    let refs: Vec<(&str, &str)> = pairs
+        .iter()
+        .map(|(a, b)| (a.as_str(), b.as_str()))
+        .collect();
+    chain(&mut doc, &refs);
+    doc
+}
+
+pub fn ci_pipeline() -> DiagramDoc {
+    linear(
+        "CI pipeline",
+        "Checkout, build, test, scan, stage and production.",
+        &[
+            ("Checkout", NodeKind::StartEnd),
+            ("Build", NodeKind::Process),
+            ("Test", NodeKind::Process),
+            ("Scan", NodeKind::Process),
+            ("Deploy to Staging", NodeKind::Process),
+            ("Approve", NodeKind::Decision),
+            ("Deploy to Production", NodeKind::StartEnd),
+        ],
+    )
+}
+
+pub fn support_triage() -> DiagramDoc {
+    linear(
+        "Support triage",
+        "Classify a ticket and choose a runbook or an escalation.",
+        &[
+            ("Ticket Arrives", NodeKind::StartEnd),
+            ("Classify", NodeKind::Process),
+            ("Known Issue?", NodeKind::Decision),
+            ("Reply with Runbook", NodeKind::Process),
+            ("Escalate", NodeKind::StartEnd),
+        ],
+    )
+}
+
+pub fn event_architecture() -> DiagramDoc {
+    let mut doc = DiagramDoc::new(DiagramKind::Architecture, "Event-driven orders");
+    doc.subtitle = "A web client, order and payment services, a bus and a store.".into();
+    doc.auto_layout = false;
+    for (id, label, kind, x, y) in [
+        ("web", "Web", NodeKind::Frontend, 0.0, 0.0),
+        ("orders", "Orders", NodeKind::Backend, 220.0, 0.0),
+        ("pay", "Payments", NodeKind::Backend, 440.0, 0.0),
+        ("bus", "Event Bus", NodeKind::Queue, 220.0, 150.0),
+        ("db", "Database", NodeKind::Database, 440.0, 150.0),
+    ] {
+        doc.nodes.push(Node {
+            id: id.into(),
+            label: label.into(),
+            kind,
+            x,
+            y,
+            w: 160.0,
+            h: 64.0,
+            style: Style::default(),
+        });
+    }
+    chain(
+        &mut doc,
+        &[("web", "orders"), ("orders", "pay"), ("orders", "bus")],
+    );
+    if let Some(edge) = doc.edges.get_mut(2) {
+        edge.label = "events".into();
         edge.dashed = true;
     }
     doc

@@ -42,10 +42,17 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
     ));
     for prim in &scene.prims {
         match prim {
-            Prim::Frame { rect, label } => {
+            Prim::Frame { rect, label, style } => {
+                let fill = style.fill.as_deref().unwrap_or("none");
+                let stroke = style.stroke.as_deref().unwrap_or("#8a94a6");
                 out.push_str(&format!(
-                    "<rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" rx=\"10\" fill=\"none\" stroke=\"#8a94a6\" stroke-width=\"1.2\" stroke-dasharray=\"6 4\"/>\n",
-                    rect.x, rect.y, rect.w, rect.h
+                    "<rect x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" rx=\"10\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.2\" stroke-dasharray=\"6 4\"/>\n",
+                    rect.x,
+                    rect.y,
+                    rect.w,
+                    rect.h,
+                    escape(fill),
+                    escape(stroke)
                 ));
                 if !label.is_empty() {
                     text(
@@ -56,7 +63,7 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                         },
                         label,
                         12.0,
-                        "#5b6472",
+                        style.text.as_deref().unwrap_or("#5b6472"),
                         "start",
                         true,
                         false,

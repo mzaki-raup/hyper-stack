@@ -349,7 +349,11 @@ item below was documented in the affected docs before the code was written.
 | Tab strip right margin / last close button | Completed | `STRIP_RIGHT_PAD` 14 px in `hs_ui::tabs` |
 | Image and Icon Undo/Redo, Ctrl+Z / Ctrl+Y, global limit | Completed | snapshots in `GraphicsTool`, Settings → General → Behaviour → Undo Limit 1–100 |
 | Diagram database cylinder and edge arrow/route/line attributes | Completed | Cylinder draws the body, full top ellipse and only the front half of the bottom ellipse; edge grid has Arrow/Route/Line |
-| Offline diagram generation without an AI provider | Completed | **Offline Draft** splits the prompt into steps and chains them; tested in the app and unit-tested |
+'| Offline diagram generation without an AI provider | Completed | **Offline Draft** splits the prompt into steps and chains them; tested in the app and unit-tested |
+| Generator provider/model picker and Set AI Provider | Completed | Per-run Provider and Model; **Set AI Provider** opens Settings → AI Assistant (`settings:ai`) |
+| More templates | Completed | CI Pipeline, Support Triage and Event Architecture added to the template gallery |
+| Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG |
+| Empty separator hidden | Completed | Separators only render when a node or edge is selected |'
 | Refresh every screenshot and the walkthrough GIF, README licence MIT | In-Progress | README licence MIT; five key screenshots and `hyperstack-demo.gif` refreshed, the remaining 100+ shots are still the 0.45–0.54 set |
 ## Owner's requests, 2026-10-19 (Graphics diagrams)
 

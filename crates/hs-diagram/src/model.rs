@@ -150,6 +150,8 @@ pub struct Edge {
     pub dashed: bool,
     #[serde(default)]
     pub via: Vec<Point>,
+    #[serde(default, skip_serializing_if = "Style::is_empty")]
+    pub style: Style,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]

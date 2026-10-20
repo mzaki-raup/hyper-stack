@@ -520,8 +520,14 @@ The Diagram Editor's **Import** menu reads:
   changes.
 - **Mermaid sequence** — a `sequenceDiagram` block, participants, solid and
   dashed arrows and message labels; notes and fragments are ignored for now.
+- **Templates** — Flowchart, Architecture, CI Pipeline, Support Triage,
+  Event Architecture, ERD and Sequence, from the generator's Templates menu.
 - **Offline Draft** — splits the prompt at commas, semicolons, `then`
   and `→` into steps and chains them locally; no provider is called.
+- **Provider and Model** — pick any configured provider for this run; with
+  none configured, **Set AI Provider** opens Settings → AI Assistant.
+- **Properties** — node outline/fill/text, edge outline/label and frame
+  text/outline/fill/text are colour pickers; Reset returns to the theme.
 - **draw.io XML** — the plain or compressed `mxGraphModel` form. Vertices become
   nodes at their own geometry (rounded, rhombus, ellipse start/end, cylinder,
   note and text styles are mapped), edges with a source and target become

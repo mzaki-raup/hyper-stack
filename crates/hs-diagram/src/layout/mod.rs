@@ -77,6 +77,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             scene.push(Prim::Frame {
                 rect: r.inflate(18.0),
                 label: group.label.clone(),
+                style: group.style.clone(),
             });
         }
     }
@@ -104,7 +105,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             dashed: edge.dashed,
             arrow_start,
             arrow_end,
-            style: crate::model::Style::default(),
+            style: edge.style.clone(),
         });
         if !edge.label.is_empty()
             && let Some(at) = midpoint(&points)

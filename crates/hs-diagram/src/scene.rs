@@ -15,6 +15,7 @@ pub enum Prim {
     Frame {
         rect: Rect,
         label: String,
+        style: Style,
     },
     Line {
         points: Vec<Point>,

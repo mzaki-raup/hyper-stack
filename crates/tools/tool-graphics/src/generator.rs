@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use hs_core::Services;
 use hs_core::ai::{self, Message, Role};
-use hs_core::tool::{OpenRequest, ToastLevel, ToolContext};
+use hs_core::tool::{Action, OpenRequest, ToastLevel, ToolContext};
 use hs_diagram::export::{PngOptions, pdf, png};
 use hs_diagram::model::{
     Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Node, NodeKind, Point, Style,
@@ -61,6 +61,8 @@ pub struct GeneratorState {
     pub error: Option<String>,
     running: Option<Running>,
     repair_sent: bool,
+    provider_id: String,
+    model: String,
     view: GeneratorView,
     zoom: f32,
     saved: Option<PathBuf>,
@@ -88,6 +90,8 @@ impl GeneratorState {
             error: None,
             running: None,
             repair_sent: false,
+            provider_id: String::new(),
+            model: String::new(),
             view: GeneratorView::Preview,
             zoom: 0.0,
             saved: None,
@@ -184,8 +188,61 @@ impl GeneratorState {
                                         DiagramKind::Architecture,
                                         s.t("gfx-diagram-arch-template"),
                                     );
+                                    ui.selectable_value(
+                                        &mut self.kind,
+                                        DiagramKind::Erd,
+                                        s.t("gfx-diagram-erd-template"),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.kind,
+                                        DiagramKind::Sequence,
+                                        s.t("gfx-diagram-sequence-template"),
+                                    );
                                 });
                         });
+                        ui.add_space(4.0);
+                        let providers = s.settings.read().ai.providers.clone();
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("gfx-gen-provider"));
+                            let selected_name = providers
+                                .iter()
+                                .find(|p| p.id == self.provider_id)
+                                .map(|p| p.name.clone())
+                                .unwrap_or_else(|| s.t("gfx-gen-provider-default"));
+                            egui::ComboBox::from_id_salt("gfx-gen-provider")
+                                .selected_text(selected_name)
+                                .show_ui(ui, |ui| {
+                                    for p in &providers {
+                                        if ui
+                                            .selectable_label(
+                                                self.provider_id == p.id,
+                                                &p.name,
+                                            )
+                                            .clicked()
+                                        {
+                                            self.provider_id = p.id.clone();
+                                            self.model = p.model.clone();
+                                        }
+                                    }
+                                });
+                            if providers.is_empty()
+                                && ui.button(s.t("gfx-gen-set-provider")).clicked()
+                            {
+                                cx.actions.push(Action::RunCommand {
+                                    id: "settings:ai".into(),
+                                });
+                            }
+                        });
+                        if !providers.is_empty() {
+                            ui.horizontal(|ui| {
+                                ui.label(s.t("gfx-gen-model"));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.model)
+                                        .hint_text(s.t("gfx-gen-model-hint"))
+                                        .desired_width(f32::INFINITY),
+                                );
+                            });
+                        }
                         ui.add_space(4.0);
                         ui.add(
                             egui::TextEdit::multiline(&mut self.prompt)
@@ -250,6 +307,31 @@ impl GeneratorState {
                             {
                                 self.template(&s);
                             }
+                            ui.menu_button(s.t("gfx-gen-templates"), |ui| {
+                                for (label, doc) in [
+                                    ("CI Pipeline", hs_diagram::template::ci_pipeline()),
+                                    ("Support Triage", hs_diagram::template::support_triage()),
+                                    (
+                                        "Event Architecture",
+                                        hs_diagram::template::event_architecture(),
+                                    ),
+                                    ("Checkout Flow", hs_diagram::template::flow()),
+                                    (
+                                        "Service Architecture",
+                                        hs_diagram::template::architecture(),
+                                    ),
+                                    ("Order Data Model", hs_diagram::template::erd()),
+                                    ("Checkout Sequence", hs_diagram::template::sequence()),
+                                ] {
+                                    if ui.button(label).clicked() {
+                                        self.doc = Some(doc);
+                                        self.error = None;
+                                        self.view = GeneratorView::Preview;
+                                        self.status = Some(format!("{label} loaded."));
+                                        ui.close();
+                                    }
+                                }
+                            });
                             if self.running.is_some() {
                                 if ui.button(s.t("gfx-gen-stop")).clicked() {
                                     self.stop();
@@ -552,29 +634,11 @@ impl GeneratorState {
             self.error = Some(s.t("gfx-gen-need-prompt"));
             return;
         }
-        let provider = {
-            let settings = s.settings.read();
-            settings
-                .ai
-                .providers
-                .iter()
-                .find(|p| p.id == settings.ai.default_provider)
-                .or_else(|| settings.ai.chosen())
-                .cloned()
-        };
-        let Some(provider) = provider else {
+        let Some((provider, cfg, key)) = self.provider(s) else {
             let hint = s.t("gfx-gen-no-provider");
             self.template_with(s, &hint);
             return;
         };
-        let key = match s.ai_credentials(&provider) {
-            Ok(key) => key,
-            Err(e) => {
-                self.error = Some(e);
-                return;
-            }
-        };
-        let cfg = provider.config("");
         let msgs = vec![
             Message::new(Role::System, SYSTEM),
             Message::new(
@@ -792,6 +856,7 @@ fn offline_doc(kind: DiagramKind, prompt: &str) -> DiagramDoc {
             arrow: Arrow::End,
             dashed: false,
             via: Vec::new(),
+            style: Style::default(),
         });
     }
     doc

@@ -2015,9 +2015,15 @@ gfx-shape-external = External
 
 ## Diagram generator
 gfx-gen-title = Diagram Generator
+gfx-gen-provider = Provider
+gfx-gen-provider-default = Default provider
+gfx-gen-model = Model
+gfx-gen-model-hint = Provider default
+gfx-gen-set-provider = Set AI Provider
 gfx-gen-type = Type
 gfx-gen-prompt-hint = Describe the flow or architecture you want…
 gfx-gen-examples = Examples
+gfx-gen-templates = Templates
 gfx-gen-template = Use Template
 gfx-gen-offline = Offline Draft
 gfx-gen-offline-tip = Build a diagram locally from the prompt list; no AI provider is needed.

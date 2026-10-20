@@ -52,6 +52,7 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
             arrow: Arrow::End,
             dashed: edge.variant == "dashed",
             via: Vec::new(),
+            style: Style::default(),
         });
     }
     for group in &w.groups {
@@ -105,6 +106,7 @@ fn architecture(a: &ArchitectureIr) -> DiagramDoc {
             arrow: Arrow::End,
             dashed: false,
             via: Vec::new(),
+            style: Style::default(),
         });
     }
     doc
@@ -159,6 +161,7 @@ pub fn chain(doc: &mut DiagramDoc, pairs: &[(&str, &str)]) {
             arrow: Arrow::End,
             dashed: false,
             via: Vec::<Point>::new(),
+            style: Style::default(),
         });
     }
 }

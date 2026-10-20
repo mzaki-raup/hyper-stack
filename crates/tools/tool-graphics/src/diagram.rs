@@ -794,9 +794,10 @@ impl DiagramState {
                     }
                 });
                 ui.add_space(8.0);
-                ui.separator();
-                ui.add_space(6.0);
-                ui.separator();
+                if self.selected.is_some() || self.selected_edge.is_some() {
+                    ui.separator();
+                    ui.add_space(6.0);
+                }
                 if let Some(id) = self.selected.clone() {
                     let mut changed = false;
                     let mut remove = false;
@@ -847,6 +848,9 @@ impl DiagramState {
                                     }
                                 });
                         });
+                        color_row(ui, "Outline", &mut node.style.stroke, &mut changed);
+                        color_row(ui, "Fill", &mut node.style.fill, &mut changed);
+                        color_row(ui, "Text", &mut node.style.text, &mut changed);
                         if ui.button(s.t("gfx-diagram-delete")).clicked() {
                             remove = true;
                         }
@@ -915,6 +919,8 @@ impl DiagramState {
                                 changed |= ui.checkbox(&mut edge.dashed, "Dashed").changed();
                                 ui.end_row();
                             });
+                        color_row(ui, "Outline", &mut edge.style.stroke, &mut changed);
+                        color_row(ui, "Label", &mut edge.style.text, &mut changed);
                         if ui.button("Add Waypoint").clicked() {
                             add = true;
                         }
@@ -942,7 +948,32 @@ impl DiagramState {
                     ui.add_space(6.0);
                 }
 
-                ui.separator();
+                if !self.doc.groups.is_empty() {
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("Frames").strong().color(theme.text));
+                    let mut frame_changed = false;
+                    for group in &mut self.doc.groups {
+                        ui.horizontal(|ui| {
+                            ui.label("Text");
+                            frame_changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut group.label)
+                                        .desired_width(f32::INFINITY),
+                                )
+                                .changed();
+                        });
+                        color_row(ui, "Outline", &mut group.style.stroke, &mut frame_changed);
+                        color_row(ui, "Fill", &mut group.style.fill, &mut frame_changed);
+                        color_row(ui, "Text", &mut group.style.text, &mut frame_changed);
+                    }
+                    if frame_changed {
+                        self.dirty = true;
+                    }
+                }
+                if self.selected.is_some() || self.selected_edge.is_some() {
+                    ui.separator();
+                }
                 ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new(s.t("gfx-diagram-outline"))
@@ -1189,6 +1220,7 @@ impl DiagramState {
                                 arrow: Arrow::End,
                                 dashed: false,
                                 via: Vec::new(),
+                                style: Style::default(),
                             });
                         }
                     } else {
@@ -1350,11 +1382,27 @@ impl DiagramState {
     ) {
         for prim in &scene.prims {
             match prim {
-                Prim::Frame { rect, label } => {
-                    painter.rect_stroke(
+                Prim::Frame { rect, label, style } => {
+                    let fill = style
+                        .fill
+                        .as_deref()
+                        .and_then(parse_hex)
+                        .unwrap_or(egui::Color32::TRANSPARENT);
+                    let stroke = style
+                        .stroke
+                        .as_deref()
+                        .and_then(parse_hex)
+                        .unwrap_or(theme.text_muted);
+                    let label_color = style
+                        .text
+                        .as_deref()
+                        .and_then(parse_hex)
+                        .unwrap_or(theme.text_muted);
+                    painter.rect(
                         srect(*rect),
                         8.0 * z,
-                        egui::Stroke::new(1.2, theme.text_muted),
+                        fill,
+                        egui::Stroke::new(1.2, stroke),
                         egui::StrokeKind::Inside,
                     );
                     if !label.is_empty() {
@@ -1363,7 +1411,7 @@ impl DiagramState {
                             egui::Align2::LEFT_TOP,
                             label,
                             egui::FontId::proportional((12.0 * z).max(9.0)),
-                            theme.text_muted,
+                            label_color,
                         );
                     }
                 }
@@ -1651,6 +1699,39 @@ pub(crate) fn sanitise(title: &str) -> String {
     }
 }
 
+fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<String>, changed: &mut bool) {
+    let mut color = value
+        .as_deref()
+        .and_then(parse_hex)
+        .unwrap_or(egui::Color32::from_rgb(0x88, 0x94, 0xa6));
+    ui.horizontal(|ui| {
+        ui.label(label);
+        if ui.color_edit_button_srgba(&mut color).changed() {
+            *value = Some(format!(
+                "#{:02x}{:02x}{:02x}",
+                color.r(),
+                color.g(),
+                color.b()
+            ));
+            *changed = true;
+        }
+        if value.is_some() && ui.small_button("Reset").clicked() {
+            *value = None;
+            *changed = true;
+        }
+    });
+}
+
+fn parse_hex(text: &str) -> Option<egui::Color32> {
+    let hex = text.trim().trim_start_matches('#');
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some(egui::Color32::from_rgb(r, g, b))
+}
 fn shape_label(kind: NodeKind, s: &hs_core::Services) -> String {
     let key = match kind {
         NodeKind::Process => "gfx-shape-process",

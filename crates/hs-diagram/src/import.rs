@@ -95,6 +95,7 @@ pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
             arrow: Arrow::End,
             dashed: arrow.starts_with("--"),
             via: Vec::new(),
+            style: Style::default(),
         });
     }
     if messages == 0 {
@@ -210,6 +211,7 @@ pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
             arrow: Arrow::End,
             dashed: false,
             via: Vec::new(),
+            style: Style::default(),
         });
     }
     Ok(out)

@@ -5,6 +5,10 @@
 //! the uncompressed `mxGraphModel` form: vertices become nodes at their own
 //! geometry, edges become connections, and the first page is the one imported.
 
+use base64::Engine as _;
+use std::io::Read;
+use std::io::Write;
+
 use crate::convert;
 use crate::model::{Arrow, DiagramDoc, Edge, EdgeRoute, Node, NodeKind, Style};
 use crate::schema::{Ir, validate};
@@ -31,6 +35,11 @@ pub fn archify_json(text: &str) -> Result<DiagramDoc, String> {
 pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
     let doc = roxmltree::Document::parse(text)
         .map_err(|e| format!("draw.io XML is not well formed: {e}"))?;
+    if !doc.descendants().any(|n| n.has_tag_name("mxCell")) {
+        if let Some(decoded) = decode_page(&doc) {
+            return drawio_xml(&decoded);
+        }
+    }
     let mut out = DiagramDoc::new(crate::model::DiagramKind::Flow, "Imported draw.io diagram");
     out.auto_layout = false;
     let mut node_count = 0usize;
@@ -112,6 +121,37 @@ pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
         });
     }
     Ok(out)
+}
+
+fn decode_page(doc: &roxmltree::Document<'_>) -> Option<String> {
+    let raw = doc
+        .descendants()
+        .find(|n| n.has_tag_name("diagram"))
+        .and_then(|n| n.text())?
+        .trim();
+    if raw.is_empty() || raw.contains('<') {
+        return None;
+    }
+    let mut encoded = String::new();
+    let bytes = raw.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?;
+            encoded.push(u8::from_str_radix(hex, 16).ok()? as char);
+            i += 3;
+        } else {
+            encoded.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    let packed = base64::engine::general_purpose::STANDARD
+        .decode(encoded.trim())
+        .ok()?;
+    let mut inflate = flate2::read::DeflateDecoder::new(packed.as_slice());
+    let mut xml = String::new();
+    inflate.read_to_string(&mut xml).ok()?;
+    Some(xml)
 }
 
 fn geometry(cell: roxmltree::Node<'_, '_>) -> (f32, f32, f32, f32) {
@@ -203,6 +243,20 @@ mod tests {
         assert_eq!(doc.edges.len(), 1);
         assert_eq!(doc.edges[0].from, "a");
         assert!(!doc.auto_layout);
+    }
+
+    #[test]
+    fn compressed_drawio_is_decoded() {
+        let inner = r#"<mxGraphModel><root><mxCell id="a" value="A" vertex="1" parent="0"><mxGeometry x="0" y="0" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel>"#;
+        let mut enc =
+            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(inner.as_bytes()).unwrap();
+        let packed = enc.finish().unwrap();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(packed);
+        let xml = format!("<mxfile><diagram name=\"p\" id=\"x\">{encoded}</diagram></mxfile>");
+        let doc = drawio_xml(&xml).unwrap();
+        assert_eq!(doc.nodes.len(), 1);
+        assert_eq!(doc.nodes[0].label, "A");
     }
 
     #[test]

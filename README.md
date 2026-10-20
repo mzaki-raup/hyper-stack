@@ -287,7 +287,7 @@ shapes, connecting, undo/redo, the properties panel, templates and save/export.
 The editor saves into an open project's `docs/diagrams/` folder through a
 Save to Project dialog and autosaves a draft while typing. The canvas has
 resize grips, Shift-click multi-select align/distribute, edge label and
-waypoint editing, and Import for Archify JSON and uncompressed draw.io XML. The **Diagram
+waypoint editing, and Import for Archify JSON and plain or compressed draw.io XML. The **Diagram
 Generator** turns a prompt into the strict IR through the
 configured AI provider, falls back to the offline template, validates the
 result, previews it and opens it in the editor. The review-only **AI

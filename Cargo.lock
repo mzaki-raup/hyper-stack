@@ -3459,6 +3459,8 @@ dependencies = [
 name = "hs-diagram"
 version = "0.50.0"
 dependencies = [
+ "base64 0.22.1",
+ "flate2",
  "resvg",
  "roxmltree",
  "serde",

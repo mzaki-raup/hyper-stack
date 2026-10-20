@@ -515,12 +515,12 @@ The Diagram Editor's **Import** menu reads:
 - **Archify JSON** — the same strict workflow/architecture IR and validator as
   the generator; an invalid document is refused with the rule codes and no tab
   changes.
-- **draw.io XML** — the uncompressed `mxGraphModel` form. Vertices become
+- **draw.io XML** — the plain or compressed `mxGraphModel` form. Vertices become
   nodes at their own geometry (rounded, rhombus, ellipse start/end, cylinder,
   note and text styles are mapped), edges with a source and target become
   connections, and the document is fixed-layout (`auto_layout = false`).
-  Compressed `.drawio` pages and multiple pages are refused with a clear
-  message; they are the remaining part of this item.
+  Compressed pages are inflated transparently. Multiple pages still import the
+  first one.
 
 Import replaces the current diagram and marks the tab dirty; undo returns to
 the previous document.

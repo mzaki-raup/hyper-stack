@@ -14,7 +14,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Diagram Editor: ERD and basic sequence diagram types with templates
-  (entities/columns/keys and cardinality; participants and labelled messages).
+  (entities/columns/keys and cardinality; participants and labelled messages)
+  plus Mermaid `sequenceDiagram` import.
 
 - Diagram Editor: accept `.diagram.json` as an alias for `.hdiag` when opening, matching and listing documents.
 

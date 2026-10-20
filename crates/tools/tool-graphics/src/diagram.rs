@@ -31,6 +31,7 @@ enum AlignMode {
 enum ImportKind {
     Archify,
     DrawIo,
+    Mermaid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -427,6 +428,10 @@ impl DiagramState {
             }
             if ui.button("draw.io XML…").clicked() {
                 self.import(cx, ImportKind::DrawIo);
+                ui.close();
+            }
+            if ui.button("Mermaid Sequence…").clicked() {
+                self.import(cx, ImportKind::Mermaid);
                 ui.close();
             }
         });
@@ -1384,6 +1389,7 @@ impl DiagramState {
         let (title, filter) = match kind {
             ImportKind::Archify => ("Archify JSON", "json"),
             ImportKind::DrawIo => ("draw.io XML", "drawio"),
+            ImportKind::Mermaid => ("Mermaid sequence", "mmd"),
         };
         let Some(path) = rfd::FileDialog::new()
             .add_filter(title, &[filter])
@@ -1401,6 +1407,7 @@ impl DiagramState {
         let imported = match kind {
             ImportKind::Archify => hs_diagram::import::archify_json(&text),
             ImportKind::DrawIo => hs_diagram::import::drawio_xml(&text),
+            ImportKind::Mermaid => hs_diagram::import::mermaid_sequence(&text),
         };
         match imported {
             Ok(doc) => {

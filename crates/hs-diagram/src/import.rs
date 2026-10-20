@@ -30,6 +30,99 @@ pub fn archify_json(text: &str) -> Result<DiagramDoc, String> {
     Ok(convert::convert(&ir))
 }
 
+/// Import a Mermaid `sequenceDiagram` into the basic sequence document.
+pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
+    let mut doc = DiagramDoc::new(
+        crate::model::DiagramKind::Sequence,
+        "Imported Mermaid sequence",
+    );
+    let mut labels: std::collections::HashMap<String, String> = Default::default();
+    let mut order: Vec<String> = Vec::new();
+    let mut messages = 0usize;
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty()
+            || line.starts_with("sequenceDiagram")
+            || line.starts_with("autonumber")
+            || line.starts_with("title ")
+            || line.starts_with("Note ")
+            || line.starts_with("note ")
+            || line.starts_with("%%")
+        {
+            continue;
+        }
+        if let Some(rest) = line
+            .strip_prefix("participant ")
+            .or_else(|| line.strip_prefix("actor "))
+        {
+            let (id, label) = match rest.split_once(" as ") {
+                Some((id, label)) => (id.trim(), label.trim()),
+                None => (rest.trim(), rest.trim()),
+            };
+            let id = valid_id(id);
+            labels
+                .entry(id.clone())
+                .or_insert_with(|| label.to_string());
+            if !order.contains(&id) {
+                order.push(id);
+            }
+            continue;
+        }
+        let Some((head, label)) = line.split_once(':') else {
+            continue;
+        };
+        let Some((left, arrow, right)) = split_arrow(head) else {
+            continue;
+        };
+        let left = valid_id(left.trim());
+        let right = valid_id(right.trim());
+        if left.is_empty() || right.is_empty() || left == right {
+            continue;
+        }
+        for id in [&left, &right] {
+            if !order.contains(id) {
+                order.push(id.clone());
+                labels.entry(id.clone()).or_insert_with(|| id.clone());
+            }
+        }
+        messages += 1;
+        doc.edges.push(Edge {
+            id: format!("m{messages}"),
+            from: left,
+            to: right,
+            label: label.trim().to_string(),
+            route: EdgeRoute::Straight,
+            arrow: Arrow::End,
+            dashed: arrow.starts_with("--"),
+            via: Vec::new(),
+        });
+    }
+    if messages == 0 {
+        return Err("the Mermaid sequence has no messages".into());
+    }
+    for id in order {
+        doc.nodes.push(Node {
+            id: id.clone(),
+            label: labels.remove(&id).unwrap_or(id),
+            kind: NodeKind::Backend,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            style: Style::default(),
+        });
+    }
+    Ok(doc)
+}
+
+fn split_arrow(head: &str) -> Option<(&str, &str, &str)> {
+    for arrow in ["-->>", "->>", "--x", "-x", "-->", "->", "--)", "-)"] {
+        if let Some(i) = head.find(arrow) {
+            return Some((&head[..i], arrow, &head[i + arrow.len()..]));
+        }
+    }
+    None
+}
 /// Import the first page of an uncompressed draw.io document.
 pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
     let doc = roxmltree::Document::parse(text)
@@ -264,4 +357,16 @@ mod tests {
         let err = drawio_xml("<mxfile><diagram>N4Ig...</diagram></mxfile>").unwrap_err();
         assert!(err.contains("compressed"), "{err}");
     }
+}
+
+#[test]
+fn mermaid_sequence_imports_messages() {
+    let doc = mermaid_sequence(
+        "sequenceDiagram\n  participant C as Client\n  participant A as API\n  C->>A: POST /orders\n  A-->>C: 201 Created\n",
+    )
+    .unwrap();
+    assert_eq!(doc.nodes.len(), 2);
+    assert_eq!(doc.edges.len(), 2);
+    assert_eq!(doc.edges[1].label, "201 Created");
+    assert!(doc.edges[1].dashed);
 }

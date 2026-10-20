@@ -450,7 +450,7 @@ The R1 core is merged. This is the remaining work, in order, with the branch
 | 8b | Draft autosave | Debounced (1 s) while a diagram is dirty, writing the same stable draft file as close; close still writes synchronously. | Completed 2026-10-20 |
 | 8c | Resize and align | Bottom-right resize grip on the selected node; Shift-click multi-select (outline clears it); Align left/centre/right/top/middle/bottom and Distribute horizontally/vertically over the selection. | Completed 2026-10-20 |
 | 8d | Edge labels and waypoints | Click an edge near its route to select it, edit its label, Add Waypoint / Clear Waypoints, and drag the circular waypoint handles. Delete removes the selected edge. | Completed 2026-10-20 |
-| 9 | Release 2 imports | ERD and sequence diagram types, Archify JSON import and draw.io XML import, each with validation and a round-trip test. | Imports done 2026-10-20; ERD and basic sequence templates done 2026-10-20; full participants/messages/fragments and Mermaid sequence import remain |
+| 9 | Release 2 imports | ERD and sequence diagram types, Archify JSON import and draw.io XML import, each with validation and a round-trip test. | Imports done 2026-10-20; ERD, basic sequence templates and Mermaid sequence import done 2026-10-20; full participants/messages/fragments remain |
 
 The project list is deliberately owned by the Editor: Graphics must not guess
 from recent files, and a tool may not depend on `tool-editor`. The shell owns
@@ -518,6 +518,8 @@ The Diagram Editor's **Import** menu reads:
 - **Archify JSON** — the same strict workflow/architecture IR and validator as
   the generator; an invalid document is refused with the rule codes and no tab
   changes.
+- **Mermaid sequence** — a `sequenceDiagram` block, participants, solid and
+  dashed arrows and message labels; notes and fragments are ignored for now.
 - **draw.io XML** — the plain or compressed `mxGraphModel` form. Vertices become
   nodes at their own geometry (rounded, rhombus, ellipse start/end, cylinder,
   note and text styles are mapped), edges with a source and target become

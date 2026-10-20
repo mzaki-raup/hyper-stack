@@ -262,6 +262,10 @@ The editor shots are from the running app (data folder
 - `graphics-diagram-generator.png` — the Generator tab with the offline
   template preview and the no-provider message; the same dialog can show the
   AI result once a provider is configured.
+- `graphics-save-project.png` — the Save to Project modal with the project,
+  `docs/diagrams` subfolder, file name and overwrite checkbox.
+- `graphics-diagram-edge.png` — an edge selected from the Outline, with its
+  label field, Add/Clear Waypoints and Delete Edge.
 - `graphics-assistant.png` — the review-only assistant open over the generator
   with no provider configured; with a provider the same panel shows the
   four quick actions and More Suggestions.

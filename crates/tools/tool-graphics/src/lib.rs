@@ -198,6 +198,10 @@ pub struct GraphicsTool {
     generator: Option<Box<generator::GeneratorState>>,
     /// Where a diagram tab writes its close-time draft.
     drafts: Option<PathBuf>,
+    /// The stable draft file this tab has been autosaving into.
+    draft_path: Option<PathBuf>,
+    draft_at: Option<std::time::Instant>,
+    draft_hash: u64,
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
@@ -240,6 +244,9 @@ impl Default for GraphicsTool {
             diagram: None,
             generator: None,
             drafts: None,
+            draft_path: None,
+            draft_at: None,
+            draft_hash: 0,
             crop_drag: None,
         }
     }
@@ -1777,6 +1784,65 @@ impl GraphicsTool {
                 }
             });
     }
+
+    /// Debounced (1 s) autosave of a dirty diagram into the same stable draft
+    /// file the close path uses. The tab's `dirty` flag stays set: a draft is
+    /// not a saved document.
+    fn autosave_draft(&mut self) {
+        use std::hash::{Hash, Hasher};
+        let (Some(dir), Some(state)) = (self.drafts.clone(), self.diagram.as_ref()) else {
+            return;
+        };
+        if !state.dirty || state.doc.nodes.is_empty() {
+            return;
+        }
+        let text = hs_diagram::io::to_json(&state.doc);
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut hasher);
+        let hash = hasher.finish();
+        if hash == self.draft_hash {
+            return;
+        }
+        let now = std::time::Instant::now();
+        if let Some(at) = self.draft_at {
+            if now.duration_since(at).as_millis() < 1000 {
+                return;
+            }
+        } else {
+            self.draft_at = Some(now);
+            return;
+        }
+        let title = if state.doc.title.trim().is_empty() {
+            "Diagram".to_string()
+        } else {
+            state.doc.title.clone()
+        };
+        let doc = state.doc.clone();
+        let path = self.draft_path.clone().unwrap_or_else(|| {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            dir.join(format!(
+                "{}-draft-{stamp}.hdiag",
+                crate::diagram::sanitise(&title)
+            ))
+        });
+        if std::fs::create_dir_all(&dir).is_err() || hs_diagram::io::save(&path, &doc).is_err() {
+            return;
+        }
+        let first = self.draft_path.is_none();
+        self.draft_path = Some(path.clone());
+        self.draft_hash = hash;
+        self.draft_at = Some(now);
+        if first {
+            self.hub.lock().touch(
+                Kind::Diagram,
+                &format!("{title} (draft)"),
+                Some(path.to_string_lossy().to_string()),
+            );
+        }
+    }
 }
 
 impl Tool for GraphicsTool {
@@ -1875,7 +1941,7 @@ impl Tool for GraphicsTool {
         if (!state.dirty && state.path.is_some()) || state.doc.nodes.is_empty() {
             return CloseDecision::Close;
         }
-        let Some(dir) = &self.drafts else {
+        let Some(dir) = self.drafts.clone() else {
             return CloseDecision::AskUnsavedChanges;
         };
         let title = if state.doc.title.trim().is_empty() {
@@ -1883,18 +1949,21 @@ impl Tool for GraphicsTool {
         } else {
             state.doc.title.clone()
         };
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let path = dir.join(format!(
-            "{}-draft-{stamp}.hdiag",
-            crate::diagram::sanitise(&title)
-        ));
-        if std::fs::create_dir_all(dir).is_err() || hs_diagram::io::save(&path, &state.doc).is_err()
-        {
+        let doc = state.doc.clone();
+        let path = self.draft_path.clone().unwrap_or_else(|| {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            dir.join(format!(
+                "{}-draft-{stamp}.hdiag",
+                crate::diagram::sanitise(&title)
+            ))
+        });
+        if std::fs::create_dir_all(&dir).is_err() || hs_diagram::io::save(&path, &doc).is_err() {
             return CloseDecision::AskUnsavedChanges;
         }
+        self.draft_path = Some(path.clone());
         self.hub.lock().touch(
             Kind::Diagram,
             &format!("{title} (draft)"),
@@ -2063,6 +2132,7 @@ impl Tool for GraphicsTool {
                     );
                 }
             }
+            self.autosave_draft();
             self.assistant_overlay(ui, cx, &theme, context, &DIAGRAM_QA);
             return;
         }
@@ -2451,6 +2521,30 @@ impl Tool for GraphicsTool {
 #[cfg(test)]
 mod close_tests {
     use super::*;
+
+    #[test]
+    fn a_dirty_diagram_autosaves_after_the_debounce() {
+        let dir = std::env::temp_dir().join(format!("hs-graphics-autosave-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut t = GraphicsTool {
+            kind: Kind::Diagram,
+            drafts: Some(dir.clone()),
+            ..Default::default()
+        };
+        t.diagram = Some(Box::new(diagram::DiagramState::from_doc(
+            hs_diagram::template::flow(),
+        )));
+        t.diagram.as_mut().unwrap().dirty = true;
+        t.draft_at = Some(std::time::Instant::now() - std::time::Duration::from_secs(2));
+        t.autosave_draft();
+        let names: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names.len(), 1, "one autosaved draft: {names:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn closing_a_diagram_writes_a_draft() {

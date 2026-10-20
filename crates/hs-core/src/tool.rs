@@ -236,6 +236,14 @@ pub trait Tool: Send {
         false
     }
 
+    /// Project folders this tab has open. The Editor is the only tool that
+    /// answers with more than an empty list; the shell publishes them through
+    /// `OpenTabs` so another tool (Graphics) can offer a project save target
+    /// without depending on the editor crate.
+    fn project_roots(&self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+
     /// Environment this tab is bound to (drives the banner colour).
     fn environment(&self) -> Option<String> {
         None

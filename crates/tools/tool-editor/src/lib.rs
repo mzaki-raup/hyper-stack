@@ -2595,6 +2595,13 @@ impl Tool for EditorTool {
             .any(|p| p.docs.iter().any(|d| d.buf.dirty()))
     }
 
+    fn project_roots(&self) -> Vec<PathBuf> {
+        self.projects
+            .iter()
+            .filter_map(|p| p.root.clone())
+            .collect()
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         self.tab_id = cx.tab_id;

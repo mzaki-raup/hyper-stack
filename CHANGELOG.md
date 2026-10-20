@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Diagram Editor: Save to Project (Project / Subfolder `docs/diagrams` / File name, overwrite confirmation), with open project roots published by the Editor through `OpenTabs`.
+- Diagram Editor: debounced autosave of a dirty diagram into the same stable Recent draft file.
+- Diagram Editor: resize grip, Shift-click multi-select, six align actions, two distribute actions, edge selection with label editing, waypoints (add, clear, drag) and edge deletion.
+
 - The review-only AI assistant in all four Graphics tools: four quick
   actions each, More Suggestions, text-only diagram/generator context, and the
   shared provider picker; the assistant never applies an edit.

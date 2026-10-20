@@ -1954,6 +1954,15 @@ gfx-transparent-hint = Pick a colour on the picture, set how close a pixel must 
 
 ## Diagram editor
 gfx-diagram-save = Save
+gfx-diagram-save-project = Save to Project…
+gfx-diagram-project = Project
+gfx-diagram-subfolder = Subfolder
+gfx-diagram-filename = File Name
+gfx-diagram-overwrite = Overwrite Existing File
+gfx-diagram-exists = That file exists; tick Overwrite Existing File.
+gfx-diagram-no-projects = Open a folder as a project in the Editor first.
+gfx-diagram-cancel = Cancel
+gfx-diagram-saved = Saved
 gfx-diagram-properties = Diagram
 gfx-diagram-title = Title
 gfx-diagram-flow-template = Flowchart
@@ -1963,6 +1972,7 @@ gfx-diagram-node = Node
 gfx-diagram-label = Label
 gfx-diagram-shape = Shape
 gfx-diagram-delete = Delete Node
+gfx-diagram-delete-edge = Delete Edge
 gfx-diagram-outline = Outline
 gfx-diagram-errors = { $count } validation error(s)
 gfx-diagram-valid = The diagram is valid.

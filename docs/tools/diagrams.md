@@ -439,6 +439,24 @@ provides a context builder and quick actions:
 
 ---
 
+## 7.1 Outstanding R1.1 work (planned 2026-10-20)
+
+The R1 core is merged. This is the remaining work, in order, with the branch
+`feat/diagram-project-save`:
+
+| Phase | Item | Approach | State |
+|---|---|---|---|
+| 8a | Save to project | `Tool::project_roots` is published by the shell through `OpenTabs`; the Save to Project modal has Project, Subfolder (default `docs/diagrams`), File name and overwrite confirmation; `hs_diagram::io::save` writes atomically and the tab takes the saved path. | Completed 2026-10-20 |
+| 8b | Draft autosave | Debounced (1 s) while a diagram is dirty, writing the same stable draft file as close; close still writes synchronously. | Completed 2026-10-20 |
+| 8c | Resize and align | Bottom-right resize grip on the selected node; Shift-click multi-select (outline clears it); Align left/centre/right/top/middle/bottom and Distribute horizontally/vertically over the selection. | Completed 2026-10-20 |
+| 8d | Edge labels and waypoints | Click an edge near its route to select it, edit its label, Add Waypoint / Clear Waypoints, and drag the circular waypoint handles. Delete removes the selected edge. | Completed 2026-10-20 |
+| 9 | Release 2 imports | ERD and sequence diagram types, Archify JSON import and draw.io XML import, each with validation and a round-trip test. | Pending |
+
+The project list is deliberately owned by the Editor: Graphics must not guess
+from recent files, and a tool may not depend on `tool-editor`. The shell owns
+`Services`, so the Editor publishes roots there and Graphics only reads them.
+
+---
 ## 8. Files, drafts and recents
 
 ### 8.1 `.hdiag` (editor-native)

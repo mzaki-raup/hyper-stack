@@ -274,6 +274,8 @@ keys typed into a utility are never saved.
 | **Diagram Editor** — the flowchart template on the canvas with the Diagram panel, Outline, shape picker and undo/redo; nodes can be selected, moved and connected, and the same scene exports as SVG, PNG or PDF | **Architecture template** — the grid with a VPC boundary, database cylinder and labelled async links; the properties panel shows the selected component |
 | ![Diagram Generator](docs/screenshots/graphics-diagram-generator.png) | ![Rendered flowchart](docs/screenshots/graphics-diagram-flow.png) |
 | **Diagram Generator** — type picker, prompt, examples, Use Template and Generate; with no AI provider the offline template is a real result and the message says so | **Same scene, exported** — the generator’s preview is the editor’s scene and the SVG/PNG/PDF writer, so the export matches the screen |
+| ![Save to Project](docs/screenshots/graphics-save-project.png) | ![Edge properties](docs/screenshots/graphics-diagram-edge.png) |
+| **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file and confirm an overwrite | **Edge editing** — select an edge from the Outline to edit its label, add or clear waypoints and delete it |
 
 **Implemented (2026-10-20):** the activity shell, the dashboard and Recent
 list, the separate Image and Icon tabs, Convert to Icon and icon colour-key
@@ -282,7 +284,11 @@ Archify-adapted IR, validation, deterministic flow/architecture layout,
 routing, a shared scene, and SVG/PNG/PDF export. The **Diagram Editor** renders
 that scene on a pannable/zoomable canvas, with selection, node dragging, adding
 shapes, connecting, undo/redo, the properties panel, templates and save/export.
-The **Diagram Generator** turns a prompt into the strict IR through the
+The editor saves into an open project's `docs/diagrams/` folder through a
+Save to Project dialog and autosaves a draft while typing. The canvas has
+resize grips, Shift-click multi-select align/distribute and edge label and
+waypoint editing. The **Diagram
+Generator** turns a prompt into the strict IR through the
 configured AI provider, falls back to the offline template, validates the
 result, previews it and opens it in the editor. The review-only **AI
 Assistant** is available in all four tools with four quick actions each,

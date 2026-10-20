@@ -2809,6 +2809,15 @@ impl HyperStackApp {
             })
             .collect();
         self.services.open_tabs.set(tabs);
+        let mut roots = Vec::new();
+        for t in &self.tabs.tabs {
+            for root in t.tool.project_roots() {
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+        }
+        self.services.open_tabs.set_projects(roots);
         for (id, uri) in &self.thumbs {
             self.services.open_tabs.set_thumbnail(*id, uri.clone());
         }

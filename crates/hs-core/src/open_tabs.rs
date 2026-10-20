@@ -11,6 +11,7 @@
 //! of that tab while it was on screen, so a tab never visited this session
 //! has none. Owner's requirement, 2026-10-17.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
@@ -38,6 +39,7 @@ pub struct TabInfo {
 #[derive(Clone, Default)]
 pub struct OpenTabs {
     inner: Arc<RwLock<Vec<TabInfo>>>,
+    projects: Arc<RwLock<Vec<PathBuf>>>,
 }
 
 impl OpenTabs {
@@ -48,6 +50,17 @@ impl OpenTabs {
     /// Replace the list. Called once a frame by the shell.
     pub fn set(&self, tabs: Vec<TabInfo>) {
         *self.inner.write() = tabs;
+    }
+
+    /// Replace the open project roots. Called once a frame by the shell from
+    /// every tab's Tool::project_roots.
+    pub fn set_projects(&self, roots: Vec<PathBuf>) {
+        *self.projects.write() = roots;
+    }
+
+    /// Every open Editor project root, deduplicated by the shell.
+    pub fn projects(&self) -> Vec<PathBuf> {
+        self.projects.read().clone()
     }
 
     /// Every open tab.
@@ -101,6 +114,13 @@ mod tests {
         assert_eq!(db, vec![2], "the home tab is not in its own grid");
         assert_eq!(tabs.of("ssh").len(), 1);
         assert!(tabs.of("redis").is_empty());
+    }
+
+    #[test]
+    fn project_roots_are_published() {
+        let tabs = OpenTabs::new();
+        tabs.set_projects(vec![PathBuf::from("C:/work/shop")]);
+        assert_eq!(tabs.projects(), vec![PathBuf::from("C:/work/shop")]);
     }
 
     #[test]

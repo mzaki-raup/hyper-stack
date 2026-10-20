@@ -12,7 +12,20 @@ use hs_diagram::model::{
     Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Node, NodeKind, Point, Style,
 };
 use hs_diagram::{Prim, Rect, Scene, layout_approx, validate};
+use hs_ui::form;
 use hs_ui::theme::Theme;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AlignMode {
+    Left,
+    CentreX,
+    Right,
+    Top,
+    MiddleY,
+    Bottom,
+    DistributeX,
+    DistributeY,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolMode {
@@ -27,16 +40,29 @@ pub struct DiagramState {
     undo: Vec<DiagramDoc>,
     redo: Vec<DiagramDoc>,
     selected: Option<String>,
+    /// Additional nodes selected with Shift-click; the primary is `selected`.
+    multi: Vec<String>,
+    selected_edge: Option<String>,
+    /// World-space polyline of every edge from the last painted scene.
+    edge_paths: Vec<Vec<Point>>,
     zoom: f32,
     pan: egui::Vec2,
     show_grid: bool,
     tool: ToolMode,
     edge_from: Option<String>,
     drag_node: Option<(String, Point, egui::Pos2)>,
+    drag_resize: Option<(String, f32, f32, egui::Pos2)>,
+    drag_via: Option<(String, usize, Point, egui::Pos2)>,
     drag_pan: Option<(egui::Vec2, egui::Pos2)>,
     last_center: Point,
     saved: Option<PathBuf>,
     status: Option<String>,
+    save_open: bool,
+    save_project: usize,
+    save_subfolder: String,
+    save_name: String,
+    save_overwrite: bool,
+    save_error: Option<String>,
 }
 
 impl DiagramState {
@@ -61,16 +87,27 @@ impl DiagramState {
             undo: Vec::new(),
             redo: Vec::new(),
             selected,
+            multi: Vec::new(),
+            selected_edge: None,
+            edge_paths: Vec::new(),
             zoom: 0.0,
             pan: egui::Vec2::ZERO,
             show_grid: true,
             tool: ToolMode::Select,
             edge_from: None,
             drag_node: None,
+            drag_resize: None,
+            drag_via: None,
             drag_pan: None,
             last_center: Point { x: 0.0, y: 0.0 },
             saved: None,
             status: None,
+            save_open: false,
+            save_project: 0,
+            save_subfolder: "docs/diagrams".into(),
+            save_name: String::new(),
+            save_overwrite: false,
+            save_error: None,
         };
         state.dirty = false;
         state
@@ -130,6 +167,42 @@ impl DiagramState {
         true
     }
 
+    fn add_edge_waypoint(&mut self, id: &str) {
+        let Some(edge) = self.doc.edges.iter().find(|e| e.id == id) else {
+            return;
+        };
+        let from = self.doc.nodes.iter().find(|n| n.id == edge.from);
+        let to = self.doc.nodes.iter().find(|n| n.id == edge.to);
+        let (Some(from), Some(to)) = (from, to) else {
+            return;
+        };
+        let ro = |n: &Node| Rect {
+            x: n.x,
+            y: n.y,
+            w: n.w,
+            h: n.h,
+        };
+        let index = self.doc.edges.iter().position(|e| e.id == id);
+        let mid = index
+            .and_then(|i| self.edge_paths.get(i))
+            .and_then(|p| p.get(p.len() / 2))
+            .copied()
+            .unwrap_or_else(|| {
+                hs_diagram::route::route(ro(from), ro(to), edge.route, &edge.via)
+                    .first()
+                    .copied()
+                    .unwrap_or(Point {
+                        x: from.x + from.w / 2.0,
+                        y: from.y + from.h / 2.0,
+                    })
+            });
+        self.push_undo();
+        if let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == id) {
+            edge.via.push(mid);
+        }
+        self.dirty = true;
+    }
+
     fn node_rects(&self, scene: &Scene) -> Vec<Rect> {
         scene
             .prims
@@ -161,6 +234,7 @@ impl DiagramState {
             {
                 self.selected = None;
             }
+            self.multi.retain(|id| self.doc.node(id).is_some());
         }
     }
 
@@ -175,6 +249,7 @@ impl DiagramState {
             {
                 self.selected = None;
             }
+            self.multi.retain(|id| self.doc.node(id).is_some());
         }
     }
 
@@ -206,14 +281,121 @@ impl DiagramState {
     }
 
     fn delete_selected(&mut self) {
-        let Some(id) = self.selected.clone() else {
+        if let Some(id) = self.selected_edge.take() {
+            self.push_undo();
+            self.doc.edges.retain(|e| e.id != id);
+            self.dirty = true;
             return;
-        };
+        }
+        let mut ids = self.multi.clone();
+        if let Some(id) = &self.selected {
+            ids.push(id.clone());
+        }
+        if ids.is_empty() {
+            return;
+        }
         self.push_undo();
         self.freeze();
-        self.doc.nodes.retain(|n| n.id != id);
-        self.doc.edges.retain(|e| e.from != id && e.to != id);
+        self.doc.nodes.retain(|n| !ids.contains(&n.id));
+        self.doc
+            .edges
+            .retain(|e| !ids.contains(&e.from) && !ids.contains(&e.to));
         self.selected = None;
+        self.multi.clear();
+    }
+
+    /// All selected node ids, primary first.
+    fn selection(&self) -> Vec<String> {
+        let mut ids = Vec::new();
+        if let Some(id) = &self.selected {
+            ids.push(id.clone());
+        }
+        for id in &self.multi {
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        ids
+    }
+
+    fn align_selection(&mut self, mode: AlignMode) {
+        let ids = self.selection();
+        if ids.len() < 2 {
+            return;
+        }
+        self.push_undo();
+        self.freeze();
+        let mut boxes = Vec::new();
+        for id in &ids {
+            if let Some(n) = self.doc.nodes.iter().find(|n| &n.id == id) {
+                boxes.push((n.x, n.y, n.w, n.h));
+            }
+        }
+        if boxes.len() < 2 {
+            return;
+        }
+        let min_x = boxes.iter().map(|b| b.0).fold(f32::INFINITY, f32::min);
+        let max_x = boxes
+            .iter()
+            .map(|b| b.0 + b.2)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_y = boxes.iter().map(|b| b.1).fold(f32::INFINITY, f32::min);
+        let max_y = boxes
+            .iter()
+            .map(|b| b.1 + b.3)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let cy = (min_y + max_y) / 2.0;
+        let cx = (min_x + max_x) / 2.0;
+        for (id, (_, _, w, h)) in ids.iter().zip(boxes) {
+            let Some(n) = self.doc.node_mut(id) else {
+                continue;
+            };
+            match mode {
+                AlignMode::Left => n.x = min_x,
+                AlignMode::CentreX => n.x = cx - w / 2.0,
+                AlignMode::Right => n.x = max_x - w,
+                AlignMode::Top => n.y = min_y,
+                AlignMode::MiddleY => n.y = cy - h / 2.0,
+                AlignMode::Bottom => n.y = max_y - h,
+                AlignMode::DistributeX | AlignMode::DistributeY => {}
+            }
+        }
+        if matches!(mode, AlignMode::DistributeX | AlignMode::DistributeY) {
+            let mut order = ids.clone();
+            let key = |diagram: &DiagramDoc, id: &str| -> f32 {
+                diagram
+                    .nodes
+                    .iter()
+                    .find(|n| n.id == id)
+                    .map(|n| {
+                        if mode == AlignMode::DistributeX {
+                            n.x + n.w / 2.0
+                        } else {
+                            n.y + n.h / 2.0
+                        }
+                    })
+                    .unwrap_or(0.0)
+            };
+            order.sort_by(|a, b| {
+                key(&self.doc, a)
+                    .partial_cmp(&key(&self.doc, b))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let first = key(&self.doc, &order[0]);
+            let last = key(&self.doc, &order[order.len() - 1]);
+            let step = (last - first) / (order.len() - 1) as f32;
+            for (i, id) in order.iter().enumerate() {
+                let target = first + step * i as f32;
+                if let Some(n) = self.doc.node_mut(id) {
+                    if mode == AlignMode::DistributeX {
+                        n.x = target - n.w / 2.0;
+                    } else {
+                        n.y = target - n.h / 2.0;
+                    }
+                }
+            }
+        }
+        self.dirty = true;
     }
 
     pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -229,6 +411,12 @@ impl DiagramState {
         }
         if ui.button(s.t("gfx-diagram-save")).clicked() {
             self.save(cx);
+        }
+        if ui.button(s.t("gfx-diagram-save-project")).clicked() {
+            self.save_name = crate::diagram::sanitise(&self.doc.title);
+            self.save_error = None;
+            self.save_overwrite = false;
+            self.save_open = true;
         }
         ui.menu_button(format!("{} Export", hs_ui::icons::ph::EXPORT), |ui| {
             if ui.button("PNG (2×)").clicked() {
@@ -318,9 +506,147 @@ impl DiagramState {
             self.tool = ToolMode::Edge;
             self.edge_from = None;
         }
+        ui.menu_button("Align", |ui| {
+            let enough = self.selection().len() >= 2;
+            for (label, mode) in [
+                ("Align Left", AlignMode::Left),
+                ("Align Centre", AlignMode::CentreX),
+                ("Align Right", AlignMode::Right),
+                ("Align Top", AlignMode::Top),
+                ("Align Middle", AlignMode::MiddleY),
+                ("Align Bottom", AlignMode::Bottom),
+            ] {
+                if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
+                    self.align_selection(mode);
+                    ui.close();
+                }
+            }
+            ui.separator();
+            for (label, mode) in [
+                ("Distribute Horizontally", AlignMode::DistributeX),
+                ("Distribute Vertically", AlignMode::DistributeY),
+            ] {
+                if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
+                    self.align_selection(mode);
+                    ui.close();
+                }
+            }
+        });
+    }
+
+    /// Where a project save lands: `<root>/<subfolder>/<sanitised title>.hdiag`.
+    pub(crate) fn project_save_path(root: &Path, subfolder: &str, name: &str) -> PathBuf {
+        let raw = name.trim();
+        let stem = raw.strip_suffix(".hdiag").unwrap_or(raw);
+        let stem = if stem.trim().is_empty() {
+            "diagram".to_string()
+        } else {
+            sanitise(stem)
+        };
+        root.join(subfolder.trim()).join(format!("{stem}.hdiag"))
+    }
+
+    /// The Save to Project dialog: project roots come from the Editor through
+    /// `OpenTabs`, so Graphics never guesses or depends on the editor crate.
+    fn save_window(&mut self, ctx: &egui::Context, cx: &mut ToolContext) {
+        if !self.save_open {
+            return;
+        }
+        let s = cx.services.clone();
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let projects = s.open_tabs.projects();
+        let mut close = false;
+        let modal = egui::Modal::new(egui::Id::new("gfx-save-project")).show(ctx, |ui| {
+            ui.set_width(480.0);
+            ui.painter().rect_filled(ui.max_rect(), 8.0, theme.panel_bg);
+            ui.heading(s.t("gfx-diagram-save-project"));
+            if projects.is_empty() {
+                ui.label(s.t("gfx-diagram-no-projects"));
+                if ui.button(s.t("gfx-diagram-cancel")).clicked() {
+                    close = true;
+                }
+                return;
+            }
+            form::field_grid(ui, "gfx-save-project-grid", |ui| {
+                form::label(ui, &s.t("gfx-diagram-project"));
+                let current = self.save_project.min(projects.len().saturating_sub(1));
+                egui::ComboBox::from_id_salt("gfx-save-project")
+                    .selected_text(
+                        projects[current]
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_else(|| projects[current].display().to_string()),
+                    )
+                    .show_ui(ui, |ui| {
+                        for (i, root) in projects.iter().enumerate() {
+                            let label = root
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_else(|| root.display().to_string());
+                            ui.selectable_value(&mut self.save_project, i, label);
+                        }
+                    });
+                ui.end_row();
+                form::label(ui, &s.t("gfx-diagram-subfolder"));
+                form::text_field(ui, &mut self.save_subfolder, "docs/diagrams");
+                ui.end_row();
+                form::label(ui, &s.t("gfx-diagram-filename"));
+                form::text_field(ui, &mut self.save_name, "checkout-flow");
+                ui.end_row();
+            });
+            let root = &projects[self.save_project.min(projects.len() - 1)];
+            let path = Self::project_save_path(root, &self.save_subfolder, &self.save_name);
+            ui.add_space(4.0);
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(path.display().to_string())
+                        .small()
+                        .color(egui::Color32::GRAY),
+                )
+                .truncate(),
+            )
+            .on_hover_text(path.display().to_string());
+            if path.exists() {
+                ui.checkbox(&mut self.save_overwrite, s.t("gfx-diagram-overwrite"));
+            }
+            if let Some(error) = &self.save_error {
+                ui.colored_label(egui::Color32::from_rgb(220, 90, 90), error);
+            }
+            ui.add_space(8.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if form::primary_button(ui, &theme, &s.t("gfx-diagram-save")).clicked() {
+                    if path.exists() && !self.save_overwrite {
+                        self.save_error = Some(s.t("gfx-diagram-exists"));
+                    } else {
+                        match hs_diagram::io::save(&path, &self.doc) {
+                            Ok(()) => {
+                                self.path = Some(path.clone());
+                                self.saved = Some(path.clone());
+                                self.dirty = false;
+                                self.save_open = false;
+                                self.save_error = None;
+                                self.status = Some(format!(
+                                    "{} {}",
+                                    s.t("gfx-diagram-saved"),
+                                    path.display()
+                                ));
+                            }
+                            Err(e) => self.save_error = Some(e),
+                        }
+                    }
+                }
+                if ui.button(s.t("gfx-diagram-cancel")).clicked() {
+                    close = true;
+                }
+            });
+        });
+        if close || modal.should_close() {
+            self.save_open = false;
+        }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        self.save_window(ui.ctx(), cx);
         egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
             .size_range(240.0..=430.0)
@@ -438,6 +764,54 @@ impl DiagramState {
                     ui.add_space(6.0);
                 }
 
+                if let Some(eid) = self.selected_edge.clone() {
+                    let mut changed = false;
+                    let mut remove = false;
+                    let mut add = false;
+                    let mut clear = false;
+                    if let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == eid) {
+                        ui.label(egui::RichText::new("Edge").strong().color(theme.text));
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("gfx-diagram-label"));
+                            changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut edge.label)
+                                        .desired_width(f32::INFINITY),
+                                )
+                                .changed();
+                        });
+                        ui.label(
+                            egui::RichText::new(format!("{} → {}", edge.from, edge.to))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                        if ui.button("Add Waypoint").clicked() {
+                            add = true;
+                        }
+                        if !edge.via.is_empty() && ui.button("Clear Waypoints").clicked() {
+                            clear = true;
+                        }
+                        if ui.button(s.t("gfx-diagram-delete-edge")).clicked() {
+                            remove = true;
+                        }
+                    }
+                    if add {
+                        self.add_edge_waypoint(&eid);
+                    }
+                    if clear && let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == eid) {
+                        edge.via.clear();
+                        self.dirty = true;
+                    }
+                    if changed {
+                        self.dirty = true;
+                    }
+                    if remove {
+                        self.selected_edge = Some(eid);
+                        self.delete_selected();
+                    }
+                    ui.add_space(6.0);
+                }
+
                 ui.label(
                     egui::RichText::new(s.t("gfx-diagram-outline"))
                         .strong()
@@ -454,6 +828,20 @@ impl DiagramState {
                     let selected = self.selected.as_deref() == Some(id.as_str());
                     if ui.selectable_label(selected, label).clicked() {
                         self.selected = Some(id);
+                        self.multi.clear();
+                    }
+                }
+                for edge in &self.doc.edges {
+                    let label = if edge.label.is_empty() {
+                        format!("{} → {}", edge.from, edge.to)
+                    } else {
+                        format!("{} → {} ({})", edge.from, edge.to, edge.label)
+                    };
+                    let selected = self.selected_edge.as_deref() == Some(edge.id.as_str());
+                    if ui.selectable_label(selected, label).clicked() {
+                        self.selected_edge = Some(edge.id.clone());
+                        self.selected = None;
+                        self.multi.clear();
                     }
                 }
                 ui.add_space(6.0);
@@ -518,34 +906,107 @@ impl DiagramState {
         Self::paint_scene(&painter, &scene, &to_screen, &srect, z, theme);
 
         let node_rects = self.node_rects(&scene);
+        let edge_lines: Vec<Vec<Point>> = scene
+            .prims
+            .iter()
+            .filter_map(|p| match p {
+                Prim::Line { points, .. } => Some(points.clone()),
+                _ => None,
+            })
+            .collect();
+        self.edge_paths = edge_lines.clone();
         let pointer = response.interact_pointer_pos();
         let space = ui.input(|i| i.key_down(egui::Key::Space));
         if response.drag_started() {
             if space || ui.input(|i| i.pointer.middle_down()) {
                 self.drag_pan = Some((self.pan, pointer.unwrap_or(rect.center())));
             } else if let Some(pos) = pointer {
-                let hit = self.hit(pos, &node_rects, origin, z);
-                if let Some(i) = hit {
-                    self.push_undo();
-                    self.freeze();
-                    let id = self.doc.nodes[i].id.clone();
-                    self.selected = Some(id.clone());
-                    self.drag_node = Some((
-                        id,
-                        Point {
-                            x: self.doc.nodes[i].x,
-                            y: self.doc.nodes[i].y,
-                        },
-                        pos,
-                    ));
-                } else {
-                    self.selected = None;
+                let mut grip = false;
+                if let Some(id) = &self.selected
+                    && let Some(i) = self.doc.nodes.iter().position(|n| &n.id == id)
+                    && i < node_rects.len()
+                {
+                    let br = srect(node_rects[i]).right_bottom();
+                    if (pos - br).abs().max_elem() < 12.0 {
+                        self.push_undo();
+                        self.freeze();
+                        if let Some(n) = self.doc.nodes.get(i) {
+                            self.drag_resize = Some((n.id.clone(), n.w, n.h, pos));
+                        }
+                        grip = true;
+                    }
+                }
+                if !grip && let Some(eid) = self.selected_edge.clone() {
+                    let vias = self
+                        .doc
+                        .edges
+                        .iter()
+                        .find(|e| e.id == eid)
+                        .map(|e| e.via.clone())
+                        .unwrap_or_default();
+                    for (i, via) in vias.iter().enumerate() {
+                        if (pos - to_screen(*via)).length() < 11.0 {
+                            self.push_undo();
+                            self.drag_via = Some((eid.clone(), i, *via, pos));
+                            grip = true;
+                            break;
+                        }
+                    }
+                }
+                if !grip {
+                    let hit = self.hit(pos, &node_rects, origin, z);
+                    if let Some(i) = hit {
+                        self.push_undo();
+                        self.freeze();
+                        let shift = ui.input(|i| i.modifiers.shift);
+                        let id = self.doc.nodes[i].id.clone();
+                        if shift {
+                            if !self.multi.contains(&id)
+                                && self.selected.as_deref() != Some(id.as_str())
+                            {
+                                self.multi.push(id.clone());
+                            }
+                        } else {
+                            self.selected = Some(id.clone());
+                            self.multi.clear();
+                            self.selected_edge = None;
+                        }
+                        self.drag_node = Some((
+                            id,
+                            Point {
+                                x: self.doc.nodes[i].x,
+                                y: self.doc.nodes[i].y,
+                            },
+                            pos,
+                        ));
+                    } else if !ui.input(|i| i.modifiers.shift) {
+                        self.selected = None;
+                        self.multi.clear();
+                    }
                 }
             }
         }
         if response.dragged() {
             if let (Some((start, from)), Some(pos)) = (self.drag_pan, pointer) {
                 self.pan = start + (pos - from);
+            } else if let (Some((id, idx, start, from)), Some(pos)) = (&self.drag_via, pointer) {
+                let dx = (pos.x - from.x) / z;
+                let dy = (pos.y - from.y) / z;
+                if let Some(edge) = self.doc.edges.iter_mut().find(|e| &e.id == id)
+                    && let Some(via) = edge.via.get_mut(*idx)
+                {
+                    via.x = start.x + dx;
+                    via.y = start.y + dy;
+                }
+                self.dirty = true;
+            } else if let (Some((id, sw, sh, from)), Some(pos)) = (&self.drag_resize, pointer) {
+                let dx = (pos.x - from.x) / z;
+                let dy = (pos.y - from.y) / z;
+                if let Some(node) = self.doc.node_mut(id) {
+                    node.w = (sw + dx).max(40.0);
+                    node.h = (sh + dy).max(36.0);
+                }
+                self.dirty = true;
             } else if let (Some((id, start, from)), Some(pos)) = (&self.drag_node, pointer) {
                 let dx = (pos.x - from.x) / z;
                 let dy = (pos.y - from.y) / z;
@@ -558,11 +1019,14 @@ impl DiagramState {
         }
         if response.drag_stopped() {
             self.drag_node = None;
+            self.drag_resize = None;
+            self.drag_via = None;
             self.drag_pan = None;
         }
-        if response.clicked()
-            && let Some(pos) = pointer
-        {
+        let clicked =
+            response.clicked() || (response.hovered() && ui.input(|i| i.pointer.primary_clicked()));
+        let clicked_pos = pointer.or_else(|| ui.input(|i| i.pointer.interact_pos()));
+        if clicked && let Some(pos) = clicked_pos {
             if let Some(i) = self.hit(pos, &node_rects, origin, z) {
                 let id = self.doc.nodes[i].id.clone();
                 if self.tool == ToolMode::Edge {
@@ -585,9 +1049,31 @@ impl DiagramState {
                         self.edge_from = Some(id.clone());
                     }
                 }
-                self.selected = Some(id);
+                if self.tool == ToolMode::Select && ui.input(|i| i.modifiers.shift) {
+                    if !self.multi.contains(&id) && self.selected.as_deref() != Some(id.as_str()) {
+                        self.multi.push(id);
+                    }
+                    self.selected_edge = None;
+                } else {
+                    self.selected = Some(id);
+                    self.multi.clear();
+                    self.selected_edge = None;
+                }
             } else {
+                let mut hit_edge = None;
+                for (i, edge) in self.doc.edges.iter().enumerate() {
+                    if edge_lines.get(i).is_some_and(|points| {
+                        points.windows(2).any(|seg| {
+                            point_to_segment(pos, to_screen(seg[0]), to_screen(seg[1])) < 8.0
+                        })
+                    }) {
+                        hit_edge = Some(edge.id.clone());
+                        break;
+                    }
+                }
+                self.selected_edge = hit_edge;
                 self.selected = None;
+                self.multi.clear();
             }
         }
         if response.double_clicked()
@@ -597,6 +1083,7 @@ impl DiagramState {
             // The properties panel edits the label; this only keeps the
             // selected node visible there.
             self.selected = Some(self.doc.nodes[i].id.clone());
+            self.multi.clear();
         }
         if response.hovered() {
             let scroll = ui.input(|i| i.smooth_scroll_delta.y);
@@ -631,16 +1118,34 @@ impl DiagramState {
                 self.save(cx);
             }
         }
-        if let Some(id) = &self.selected
-            && let Some(i) = self.doc.nodes.iter().position(|n| &n.id == id)
-            && i < node_rects.len()
+        for id in self.selection() {
+            if let Some(i) = self.doc.nodes.iter().position(|n| n.id == id)
+                && i < node_rects.len()
+            {
+                let r = srect(node_rects[i]).expand(3.0);
+                painter.rect_stroke(
+                    r,
+                    4.0,
+                    egui::Stroke::new(2.0, theme.accent),
+                    egui::StrokeKind::Outside,
+                );
+                if self.selected.as_deref() == Some(id.as_str()) {
+                    painter.rect_filled(
+                        egui::Rect::from_center_size(r.right_bottom(), egui::vec2(9.0, 9.0)),
+                        1.0,
+                        theme.accent,
+                    );
+                }
+            }
+        }
+        if let Some(eid) = &self.selected_edge
+            && let Some(edge) = self.doc.edges.iter().find(|e| &e.id == eid)
         {
-            painter.rect_stroke(
-                srect(node_rects[i]).expand(3.0),
-                4.0,
-                egui::Stroke::new(2.0, theme.accent),
-                egui::StrokeKind::Outside,
-            );
+            for via in &edge.via {
+                let p = to_screen(*via);
+                painter.circle_filled(p, 5.0, theme.panel_bg);
+                painter.circle_stroke(p, 5.0, egui::Stroke::new(2.0, theme.accent));
+            }
         }
         // Keep "add at the viewport centre" honest across panning.
         self.last_center = Point {
@@ -932,6 +1437,16 @@ impl ExportKind {
     }
 }
 
+fn point_to_segment(p: egui::Pos2, a: egui::Pos2, b: egui::Pos2) -> f32 {
+    let ab = b - a;
+    let len = ab.length_sq();
+    if len <= f32::EPSILON {
+        return (p - a).length();
+    }
+    let t = ((p - a).dot(ab) / len).clamp(0.0, 1.0);
+    (p - (a + ab * t)).length()
+}
+
 pub(crate) fn sanitise(title: &str) -> String {
     let mut out: String = title
         .chars()
@@ -1137,5 +1652,46 @@ mod tests {
         assert_eq!(state.doc.title, "Checkout flow");
         assert_eq!(state.path.as_deref(), Some(path.as_path()));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn adding_a_waypoint_keeps_the_edge_and_adds_a_point() {
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        state.doc.auto_layout = false;
+        let id = state.doc.edges[0].id.clone();
+        let before = state.doc.edges[0].via.len();
+        state.add_edge_waypoint(&id);
+        assert_eq!(state.doc.edges[0].via.len(), before + 1);
+        state.selected_edge = Some(id.clone());
+        state.delete_selected();
+        assert!(state.doc.edges.iter().all(|e| e.id != id));
+    }
+
+    #[test]
+    fn align_left_moves_the_selected_nodes() {
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        state.doc.auto_layout = false;
+        assert!(state.doc.nodes.len() >= 2);
+        state.doc.nodes[0].x = 100.0;
+        state.doc.nodes[1].x = 300.0;
+        let a = state.doc.nodes[0].id.clone();
+        let b = state.doc.nodes[1].id.clone();
+        state.selected = Some(a.clone());
+        state.multi = vec![b.clone()];
+        state.align_selection(AlignMode::Left);
+        let ax = state.doc.node(&a).unwrap().x;
+        let bx = state.doc.node(&b).unwrap().x;
+        assert_eq!(ax, bx);
+        assert_eq!(ax, 100.0);
+    }
+
+    #[test]
+    fn project_save_path_uses_the_subfolder_and_extension() {
+        let root = std::path::Path::new("C:/work/shop");
+        let path = DiagramState::project_save_path(root, "docs/diagrams", "Checkout flow");
+        assert!(path.ends_with("docs/diagrams/Checkout-flow.hdiag"));
+        let custom = DiagramState::project_save_path(root, "", "plan.hdiag");
+        assert!(custom.ends_with("plan.hdiag"));
+        assert_eq!(custom.parent(), Some(root));
     }
 }

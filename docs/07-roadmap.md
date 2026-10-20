@@ -145,8 +145,9 @@ Diagram Generator — split into two releases. The requirements and design are i
       (2026-10-19)
 - [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
       save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart
-      import (canvas, selection, drag, add/connect, undo, templates and
-      save/export implemented 2026-10-19; resize/align/drafts/Mermaid remain)
+      import (canvas, selection, drag, add/connect, undo, templates,
+      save/export and close-time drafts implemented; project save,
+      debounced autosave, resize/align and Mermaid remain)
 - [ ] Diagram Generator: prompt, examples, AI providers, offline templates,
       validation/repair, preview, open in editor, export (prompt, examples, AI,
       offline templates, the one repair round, preview, open in editor and export
@@ -158,6 +159,12 @@ Diagram Generator — split into two releases. The requirements and design are i
       (schemas and notice committed; validator, About page and notice test
       pending)
 - [ ] Tests, documentation, screenshots and GIF
+
+### R1.1 — finishing the editor (planned 2026-10-20)
+- [ ] Save Diagram modal into a project's `docs/diagrams/` folder
+- [ ] Debounced draft autosave
+- [ ] Resize handles and multi-select align/distribute
+- [ ] Edge label and waypoint editing
 
 ### Release 2 — more diagram types and imports
 

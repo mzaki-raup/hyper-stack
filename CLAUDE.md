@@ -55,9 +55,11 @@ Editor (canvas, selection, drag, add/connect, undo, properties, templates,
 save/export), the Diagram Generator (prompt/examples, async AI into the strict
 IR, validation, offline templates, preview, Open in Editor, export) and the
 review-only AI assistant in all four tools. The generator now has its one repair
-round and a diagram tab writes a close-time draft into Recent. Still to come:
-the `docs/diagrams/` project-save dialog and Release 2's ERD/sequence and
-Archify/draw.io imports. The
+round. A diagram tab writes a debounced and close-time draft into Recent, and
+Save to Project writes into an open Editor project's `docs/diagrams/` folder
+(Editor roots are published through `OpenTabs`), with resize grips,
+multi-select align/distribute and edge label/waypoint editing. Still to come:
+Release 2's ERD/sequence and Archify/draw.io imports. The
 About page now carries the compiled-in `THIRD_PARTY_NOTICES.md`.
 The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The

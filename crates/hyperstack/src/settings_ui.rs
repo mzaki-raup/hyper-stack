@@ -4322,6 +4322,11 @@ fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
     }
 }
 
+/// The third-party inventory shown on About. It lives at the repository root
+/// and is compiled in so an installed copy can show it without the source
+/// tree (docs/03 §7, `THIRD_PARTY_NOTICES.md`).
+const THIRD_PARTY_NOTICES: &str = include_str!("../../../THIRD_PARTY_NOTICES.md");
+
 fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     form::page_title(
         ui,
@@ -4348,6 +4353,27 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Setti
         form::hint(ui, theme, &s.t("settings-about-fonts"));
         form::hint(ui, theme, &s.t("settings-about-icons"));
     });
+    egui::CollapsingHeader::new(s.t("settings-about-notices"))
+        .id_salt("about-notices")
+        .show(ui, |ui| {
+            let mut text = THIRD_PARTY_NOTICES;
+            ui.add(
+                egui::TextEdit::multiline(&mut text)
+                    .desired_width(f32::INFINITY)
+                    .interactive(false),
+            );
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn third_party_notices_name_archify_and_mit() {
+        let text = super::THIRD_PARTY_NOTICES;
+        assert!(text.contains("Archify"), "Archify notice missing");
+        assert!(text.contains("MIT"), "MIT licence text missing");
+        assert!(text.contains("208acba8"), "pinned commit missing");
+    }
 }
 
 /// SSH host form (docs/tools/ssh-sftp.md §4) bound to the profile's `[ssh]`

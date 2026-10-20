@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-19 (Graphics diagrams: Phase 1 activity shell, Phase 2 icon transparency, Phase 3 `hs-diagram` core and Phases 1-6 (activity, Image/Icon, editor, generator, AI assistants) verified; the generator repair round, drafts, About/notices and R2 imports remain)
+Last updated: 2026-10-20 (Graphics diagrams: Phases 1-7 (activity, Image/Icon, editor, generator, AI assistants, About notices) verified; the generator repair round, drafts and R2 imports remain)
 
 ## Planning
 
@@ -353,7 +353,7 @@ and ADR-025.
 | Release 1: Diagram Editor, flowchart and architecture | In-Progress | Implemented: Diagram tab from the sidebar, canvas with pan/zoom/grid, selection and node drag, add process/decision/note, connect mode, undo/redo, properties/outline, flow and architecture templates, save/open `.hdiag`, SVG/PNG/PDF export. Still to do: resize handles, align/distribute, edge labels/waypoints, drafts and project-save dialog, Mermaid import; verified in the running app (flow and architecture templates, node drag, add, undo) |
 | Release 1: Diagram Generator | In-Progress | Flowchart/architecture picker, prompt, three examples, Use Template, Generate/Stop, async `hs_core::ai` call, strict IR parse/validation, offline template fallback, preview, Open in Editor (writes a generated `.hdiag`) and PNG/PDF export. Still to do: the one repair round on invalid IR and a real-provider test; verified in the app with the offline path |
 | Release 1: AI assistant in all four tools | Completed | Image, Icon, Diagram Editor and Diagram Generator all open the shared review-only assistant; four quick actions each plus More Suggestions (the shared panel); text-only context (picture metadata/operations, diagram/outline ids and labels); verified in the app with the generator panel open |
-| Release 1: Archify schema adaptation and notices | In-Progress | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md`, the adapted schemas and the strict Rust validator are committed; the About page and the notice test are pending |
+| Release 1: Archify schema adaptation and notices | Completed | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md`, the adapted schemas and the strict Rust validator are committed; About now shows the compiled-in Third-Party Notices in a collapsible section, with a test that the pinned commit, Archify and MIT text are present |
 | Release 1: tests, documentation, screenshots and GIF | In-Progress | 21 shell tests, 13 Graphics tests, 16 `hs-diagram` tests and the migration test pass; the dashboard, image-tab and icon-tab (with transparency) screenshots are added; the walkthrough GIF waits for the diagram tools |
 | Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
 | Release 2: Archify JSON import and draw.io XML import | Pending | Plain and compressed draw.io, first page; strict validation for Archify JSON |

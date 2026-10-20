@@ -348,7 +348,9 @@ Editor · Browser (home page, blocking and script defaults, extra blocked
 hosts) · AI Assistant (providers, models, Cascade rounds; ADR-019) ·
 Shortcuts · About, which also holds **Updates** (installed version with sha/date/channel, channel, automatic
 check, check now, release notes, download/install, revert; see
-[09](09-ci-cd-and-updates.md) §5.1). The About → Installed card also shows the
+[09](09-ci-cd-and-updates.md) §5.1). The About page also shows a **Third-Party
+Notices** section (compiled in from `THIRD_PARTY_NOTICES.md`, including the
+Archify schema adaptation). The About → Installed card also shows the
 data folder with **Open Data Folder**, which opens it in Eden Explorer when
 that is running or installed, or in the system file manager otherwise; there
 is no separate Data page any more (owner's request, 2026-10-11). Appearance

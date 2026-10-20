@@ -407,6 +407,7 @@ settings-about-signing-key = Release Signing Key
 settings-about-project = Project
 settings-about-license = MIT license · no telemetry · portable
 settings-about-icons = File and folder icons: Material Icon Theme (MIT), assets/icons/material.
+settings-about-notices = Third-Party Notices
 settings-about-fonts = Bundled fonts: JetBrainsMono, Fira Code (SIL OFL 1.1) and Bitstream Vera Sans Mono (Bitstream Vera licence), Nerd Fonts patched (MIT). Licence texts ship in assets/fonts.
 
 ## Environments editor

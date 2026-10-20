@@ -173,7 +173,7 @@ Diagram Generator — split into two releases. The requirements and design are i
 - [x] Archify JSON import from the adapted schemas (2026-10-20)
 - [x] draw.io XML import: plain and compressed, first page, basic styles
       (2026-10-20)
-- [ ] `.diagram.json` alias and schema migration
+- [x] `.diagram.json` alias (2026-10-20); schema migration still open
 - [ ] Mermaid sequence import
 
 ## Release cadence

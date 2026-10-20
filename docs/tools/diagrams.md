@@ -461,7 +461,10 @@ from recent files, and a tool may not depend on `tool-editor`. The shell owns
 
 ### 8.1 `.hdiag` (editor-native)
 
-A single pretty-printed JSON file:
+A single pretty-printed JSON file. The same bytes may also be named
+`<name>.diagram.json`; open, affinity and recent handling treat both
+extensions alike, and Save always writes the canonical `.hdiag`.
+
 
 ```json
 {

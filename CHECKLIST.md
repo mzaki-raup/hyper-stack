@@ -361,4 +361,4 @@ and ADR-025.
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
 | Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and the first page. Multiple-page selection is not exposed |
-| Release 2: `.diagram.json` alias and schema migration | Pending | Same JSON, second extension |
+| Release 2: `.diagram.json` alias and schema migration | In-Progress | Open/affinity accept `.diagram.json` as well as `.hdiag`; schema migration remains |

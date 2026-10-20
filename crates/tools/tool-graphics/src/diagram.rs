@@ -1357,7 +1357,7 @@ impl DiagramState {
 
     fn open_dialog(&mut self, cx: &mut ToolContext) {
         let Some(path) = rfd::FileDialog::new()
-            .add_filter("HyperStack diagram", &["hdiag"])
+            .add_filter("HyperStack diagram", &["hdiag", "diagram.json"])
             .pick_file()
         else {
             return;

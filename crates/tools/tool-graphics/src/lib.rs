@@ -271,13 +271,20 @@ const GENERATOR_QA: [(&str, &str); 4] = [
 /// A private request body for "open this as an icon" and "make a new icon".
 const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
 
+/// `.hdiag` or the Release 2 alias `.diagram.json`.
+fn is_diagram_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
+        || path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| n.to_ascii_lowercase().ends_with(".diagram.json"))
+}
+
 impl GraphicsTool {
     fn load(&mut self, path: &Path) -> Result<(), String> {
-        if path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
-        {
+        if is_diagram_path(path) {
             let state = diagram::DiagramState::open_path(path)?;
             self.kind = Kind::Diagram;
             self.diagram = Some(Box::new(state));
@@ -2366,10 +2373,7 @@ impl Tool for GraphicsTool {
             return None;
         }
         let p = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
-        if p.extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
-        {
+        if is_diagram_path(p) {
             return (self.kind == Kind::Diagram).then_some(60);
         }
         if !is_image_path(p) {
@@ -2393,10 +2397,7 @@ impl Tool for GraphicsTool {
         match item {
             OpenRequest::File { uri, .. } => {
                 let p = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
-                if p.extension()
-                    .and_then(|e| e.to_str())
-                    .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
-                {
+                if is_diagram_path(&p) {
                     match self.load(&p) {
                         Ok(()) => return true,
                         Err(e) => {
@@ -2544,6 +2545,14 @@ mod close_tests {
             .collect();
         assert_eq!(names.len(), 1, "one autosaved draft: {names:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_diagram_alias_is_recognised() {
+        assert!(is_diagram_path(Path::new("a.hdiag")));
+        assert!(is_diagram_path(Path::new("a.diagram.json")));
+        assert!(is_diagram_path(Path::new("A.DIAGRAM.JSON")));
+        assert!(!is_diagram_path(Path::new("a.json")));
     }
 
     #[test]

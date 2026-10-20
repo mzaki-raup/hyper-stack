@@ -9,9 +9,16 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+'## Unreleased
 
-- (nothing yet)
+### Added
+
+- Diagram Editor: node outline/fill/text, edge outline/label and frame
+  text/outline/fill/text colour editing; empty property separators hidden.
+- Diagram Generator: Templates gallery (CI Pipeline, Support Triage, Event
+  Architecture), per-run Provider and Model pickers, and **Set AI Provider**
+  opening Settings → AI Assistant when none is configured.
+'
 
 ## 0.55.0 — 2026-10-20
 

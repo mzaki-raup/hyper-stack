@@ -200,7 +200,7 @@ undo/redo, Fit and Grid. The properties panel edits the title and the selected
 node's label and shape; the Outline selects nodes; the validation state is
 shown. Templates and Save/Open `.hdiag` and Export PNG/SVG/PDF are wired.
 Still to do for the release: resize handles, alignment/distribution, edge
-labels and waypoints in the UI, drafts/project-save, Mermaid import. The
+labels and waypoints in the UI, the project-save dialog, Mermaid import. Close-time drafts are implemented. The
 editor screenshots are in `docs/screenshots/graphics-diagram-editor.png` and
 `graphics-diagram-architecture-editor.png`.
 
@@ -472,15 +472,18 @@ A single pretty-printed JSON file:
 ### 8.2 Drafts and recents
 
 ```text
-HyperStackData/graphics/<workspace-key>/drafts/<draft-id>.hdiag
-HyperStackData/graphics/<workspace-key>/recents.json
+HyperStackData/graphics/drafts/<sanitised-title>-draft-<unix>.hdiag
+HyperStackData/graphics/recents.json
 ```
 
 - Never inside the workspace: a workspace can be an external `.hyperstack/`
   folder in a git repo, and drafts must not pollute it.
-- `save_state` stores `{ kind, path, draft_id, title }`, not the document.
-- Autosave the draft on a debounce (~1 s) and on close, atomically.
-- A successful save writes the final `.hdiag` and clears the draft pointer.
+- The tab's `save_state` carries `{ kind, doc, ... }`, so a running tab
+  survives a restart with its document intact.
+- Closing a diagram tab writes the draft (close-time autosave) and adds a
+  `(draft)` row to Recent. A debounced autosave while typing is still to do.
+- A successful save writes the final `.hdiag`; closing a clean saved tab
+  writes no draft.
 - Closing a diagram tab keeps the draft and its Recent entry. There is no
   “lose your work” prompt for diagrams.
 - Recent rows: kind, title, path or draft id, last touched. Cap 50, dedupe by

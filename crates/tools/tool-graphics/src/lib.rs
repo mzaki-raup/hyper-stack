@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 pub use activity::{Function, GraphicsHub, Kind, SharedGraphics};
 use hs_core::Services;
 use hs_core::tool::{
-    Accept, Action, CommandDescriptor, OpenRequest, Printable, Speakable, ToastLevel, Tool,
-    ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
+    Accept, Action, CloseDecision, CommandDescriptor, OpenRequest, Printable, Speakable,
+    ToastLevel, Tool, ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
 };
 use hs_ui::form;
 use hs_ui::icons::ph;
@@ -45,9 +45,10 @@ impl ToolFactory for GraphicsFactory {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
-    fn create(&self, _services: &Services, restore: Option<serde_json::Value>) -> Box<dyn Tool> {
+    fn create(&self, services: &Services, restore: Option<serde_json::Value>) -> Box<dyn Tool> {
         let mut t = GraphicsTool {
             hub: self.hub.clone(),
+            drafts: Some(services.paths.root().join("graphics").join("drafts")),
             ..Default::default()
         };
         if let Some(kind) = restore
@@ -195,6 +196,8 @@ pub struct GraphicsTool {
     diagram: Option<Box<diagram::DiagramState>>,
     /// The diagram generator, when this tab is a prompt/preview surface.
     generator: Option<Box<generator::GeneratorState>>,
+    /// Where a diagram tab writes its close-time draft.
+    drafts: Option<PathBuf>,
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
@@ -236,6 +239,7 @@ impl Default for GraphicsTool {
             pick_transparent: false,
             diagram: None,
             generator: None,
+            drafts: None,
             crop_drag: None,
         }
     }
@@ -1858,6 +1862,47 @@ impl Tool for GraphicsTool {
         !self.ops.is_empty() || !self.pending_ops().is_empty()
     }
 
+    /// Closing a diagram tab writes a draft under `graphics/drafts/` and
+    /// lists it in Recent, so the work survives the tab (owner's request).
+    fn on_close(&mut self) -> CloseDecision {
+        let Some(state) = &self.diagram else {
+            return if self.dirty() {
+                CloseDecision::AskUnsavedChanges
+            } else {
+                CloseDecision::Close
+            };
+        };
+        if (!state.dirty && state.path.is_some()) || state.doc.nodes.is_empty() {
+            return CloseDecision::Close;
+        }
+        let Some(dir) = &self.drafts else {
+            return CloseDecision::AskUnsavedChanges;
+        };
+        let title = if state.doc.title.trim().is_empty() {
+            "Diagram".to_string()
+        } else {
+            state.doc.title.clone()
+        };
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let path = dir.join(format!(
+            "{}-draft-{stamp}.hdiag",
+            crate::diagram::sanitise(&title)
+        ));
+        if std::fs::create_dir_all(dir).is_err() || hs_diagram::io::save(&path, &state.doc).is_err()
+        {
+            return CloseDecision::AskUnsavedChanges;
+        }
+        self.hub.lock().touch(
+            Kind::Diagram,
+            &format!("{title} (draft)"),
+            Some(path.to_string_lossy().to_string()),
+        );
+        CloseDecision::Close
+    }
+
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
@@ -2400,5 +2445,33 @@ impl Tool for GraphicsTool {
             subtitle: self.info_line(),
             html: format!("<img alt=\"\" src=\"data:image/png;base64,{b64}\">"),
         })
+    }
+}
+
+#[cfg(test)]
+mod close_tests {
+    use super::*;
+
+    #[test]
+    fn closing_a_diagram_writes_a_draft() {
+        let dir = std::env::temp_dir().join(format!("hs-graphics-draft-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut t = GraphicsTool {
+            kind: Kind::Diagram,
+            drafts: Some(dir.clone()),
+            ..Default::default()
+        };
+        t.diagram = Some(Box::new(diagram::DiagramState::from_doc(
+            hs_diagram::template::flow(),
+        )));
+        assert!(matches!(t.on_close(), CloseDecision::Close));
+        let names: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names.len(), 1, "one draft: {names:?}");
+        assert!(names[0].ends_with(".hdiag"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

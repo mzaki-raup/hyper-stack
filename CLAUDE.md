@@ -46,16 +46,19 @@ generated for Cargo, Python and Go projects.**
 
 **In progress (2026-10-19):** the Graphics activity grows into four tools —
 Image, Icon, Diagram Editor and Diagram Generator — with a dashboard home tab,
-an activity sidebar and a Recent section. Phase 1 landed: the sidebar and
-dashboard, separate Image/Icon tabs with the settings in an in-pane panel, and
-Convert to Icon and icon colour-key transparency (`GraphicsHub`,
-`Tool::wants_dashboard_home`, `Op::TransparentColor`). Still to come: the
-`hs-diagram` editor/generator (flowchart and architecture), the four AI
-assistants, and Release 2's ERD/sequence and Archify/draw.io imports. The requirements are in `docs/tools/diagrams.md`, the
+an activity sidebar and a Recent section. Phases 1-4 landed: the sidebar and
+dashboard, separate Image/Icon tabs, Convert to Icon, icon colour-key
+transparency (`GraphicsHub`, `Tool::wants_dashboard_home`,
+`Op::TransparentColor`), the `hs-diagram` core (model, strict Archify-adapted
+IR, validation, flow/grid layout, scene, SVG/PNG/PDF export) and the Diagram
+Editor (canvas, selection, drag, add/connect, undo, properties, templates,
+save/export). Still to come: generator, drafts, the four AI assistants, and
+Release 2's ERD/sequence and Archify/draw.io imports.
+The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The
-diagram library will be `hs-diagram`; the UI stays in `tool-graphics`.
+diagram library is `hs-diagram`; the UI stays in `tool-graphics`.
 The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
-`hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `tools/tool-terminal`, `tools/tool-editor`,
+`hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `hs-diagram`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
 `tools/tool-redis`, `tools/tool-nosql`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
@@ -454,6 +457,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   read-only, so neither is usable for a two-way GitHub mirror. Two push URLs
   on `origin` plus a fast-forward-only pull script is the arrangement that
   rejects divergence instead of destroying it.
+- `cargo deny check` reads the live advisory database, so a gate that was
+  green can go red without a code change. Adding `resvg`/`svg2pdf` as direct
+  dependencies surfaced `RUSTSEC-2026-0206` (`rustybuzz` unmaintained) even
+  though it was already transitive through `egui_extras`; the ignore in
+  `deny.toml` records why (local SVG rendering only, no fixed version).
 
 ### Git and signing
 - A fixture repository in a test inherits the owner's global
@@ -590,6 +598,10 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   HyperStack's dark theme sets to the panel colour, so a slider at its
   minimum looks like a lone box. Set that fill (and `hovered.bg_fill`) on
   the slider's `Ui` and use `trailing_fill(true)`.
+- A canvas click inside a `ScrollArea` is swallowed by the scroll area's
+  drag sense: `ui.interact(img_rect, …)` never sees it. Read
+  `i.pointer.primary_clicked()` and `interact_pos()` and test the position
+  against the rectangle (the Graphics eyedropper does this).
 - A non-wrapping `ui.horizontal` row inside a resizable side panel (seven
   checkboxes, four drag values) is the runaway-width case again: give the
   controls cell `set_max_width` and `horizontal_wrapped`.

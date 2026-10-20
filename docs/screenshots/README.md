@@ -237,3 +237,25 @@ sequence diagram.
   table completion after `FROM or` with the schema cache loaded.
 - `split-scratchpad.png` is the Scratchpad split with `Release checklist` on
   the left and `Build ideas` on the right.
+
+## Diagram core exports (2026-10-19)
+
+These two are produced by `hs-diagram`, not by the editor UI:
+
+- `graphics-diagram-flow.png` — the offline `Checkout flow` template: start,
+  add to cart, stock decision, payment, cancelled branch and order placed.
+- `graphics-diagram-architecture.png` — the `Service architecture` template
+  with the VPC boundary, client, API, database and events.
+
+Both were written at 2× with a white background by
+`cargo run -p hs-diagram --example export -- D:\Temp\hs-diagram-out`; the same
+scene also produced the SVG and PDF files.
+
+The editor shots are from the running app (data folder
+`%TEMP%\hs-gui-data`, vault `TestMaster1`):
+
+- `graphics-diagram-editor.png` — a Diagram tab with the `Checkout flow`
+  template loaded from the Diagram panel, the canvas fitted, the Start node
+  selected and the properties/outline column on the left.
+- `graphics-diagram-architecture-editor.png` — the `Architecture` template in
+  the same tab, showing the grid, the VPC boundary and labelled connectors.

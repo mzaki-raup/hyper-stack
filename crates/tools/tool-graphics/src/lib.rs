@@ -8,6 +8,7 @@
 //! operation list, never the pixels.
 
 pub mod activity;
+pub mod diagram;
 pub mod ops;
 
 use std::borrow::Cow;
@@ -77,6 +78,17 @@ impl ToolFactory for GraphicsFactory {
                 t.kind = Kind::Icon;
             }
             let _ = t.load(path);
+        }
+        if t.kind == Kind::Diagram && t.diagram.is_none() {
+            if let Some(doc) = restore
+                .as_ref()
+                .and_then(|v| v.get("doc"))
+                .and_then(|v| serde_json::from_value::<hs_diagram::DiagramDoc>(v.clone()).ok())
+            {
+                t.diagram = Some(Box::new(diagram::DiagramState::from_doc(doc)));
+            } else {
+                t.diagram = Some(Box::new(diagram::DiagramState::blank()));
+            }
         }
         if let Some(ops) = restore
             .as_ref()
@@ -156,6 +168,8 @@ pub struct GraphicsTool {
     crop_select: bool,
     /// The next click on the picture picks the colour to make transparent.
     pick_transparent: bool,
+    /// The diagram editor, when this tab is a `.hdiag` document.
+    diagram: Option<Box<diagram::DiagramState>>,
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
@@ -195,6 +209,7 @@ impl Default for GraphicsTool {
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             crop_select: false,
             pick_transparent: false,
+            diagram: None,
             crop_drag: None,
         }
     }
@@ -207,6 +222,17 @@ const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
 
 impl GraphicsTool {
     fn load(&mut self, path: &Path) -> Result<(), String> {
+        if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
+        {
+            let state = diagram::DiagramState::open_path(path)?;
+            self.kind = Kind::Diagram;
+            self.diagram = Some(Box::new(state));
+            self.path = Some(path.to_path_buf());
+            return Ok(());
+        }
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
         self.frames = ops::ico_frames(&bytes);
@@ -1447,6 +1473,17 @@ impl GraphicsTool {
     }
 
     fn pick_and_open(&mut self, cx: &mut ToolContext, f: Function) {
+        if f == Function::Diagram {
+            let body = serde_json::json!({ "new": "diagram" }).to_string();
+            cx.open_new_tab(
+                "graphics",
+                Some(OpenRequest::Text {
+                    mime: GRAPHICS_MIME.into(),
+                    body,
+                }),
+            );
+            return;
+        }
         let icon = f == Function::Icon;
         let filter = if icon { "Icons" } else { "Images" };
         if let Some(p) = rfd::FileDialog::new()
@@ -1608,7 +1645,7 @@ impl Tool for GraphicsTool {
         if home {
             // A restored working tab keeps its document and loses the home
             // flag; the shell replaces it with a dashboard.
-            if self.path.is_none() && self.original.is_none() {
+            if self.path.is_none() && self.original.is_none() && self.diagram.is_none() {
                 self.kind = Kind::Home;
             }
         } else if self.kind == Kind::Home {
@@ -1627,6 +1664,17 @@ impl Tool for GraphicsTool {
     fn title(&self) -> Cow<'_, str> {
         if self.kind == Kind::Home {
             return Cow::Borrowed("Graphics");
+        }
+        if self.kind == Kind::Diagram {
+            if let Some(path) = self.path.as_ref().and_then(|p| p.file_name()) {
+                return Cow::Owned(path.to_string_lossy().to_string());
+            }
+            if let Some(state) = &self.diagram
+                && !state.doc.title.is_empty()
+            {
+                return Cow::Owned(state.doc.title.clone());
+            }
+            return Cow::Borrowed("Diagram");
         }
         match self.path.as_ref().and_then(|p| p.file_name()) {
             Some(n) => Cow::Owned(n.to_string_lossy().to_string()),
@@ -1652,6 +1700,9 @@ impl Tool for GraphicsTool {
     }
 
     fn dirty(&self) -> bool {
+        if let Some(state) = &self.diagram {
+            return state.dirty();
+        }
         !self.ops.is_empty() || !self.pending_ops().is_empty()
     }
 
@@ -1721,6 +1772,24 @@ impl Tool for GraphicsTool {
         if self.kind == Kind::Home {
             return;
         }
+        if self.kind == Kind::Diagram {
+            if let Some(state) = &mut self.diagram {
+                state.toolbar(ui, cx);
+                if let Some(path) = state.take_saved() {
+                    let title = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "Diagram".into());
+                    self.path = Some(path.clone());
+                    self.hub.lock().touch(
+                        Kind::Diagram,
+                        &title,
+                        Some(path.to_string_lossy().to_string()),
+                    );
+                }
+            }
+            return;
+        }
         let s = cx.services;
         let info = self.info_line();
         if !info.is_empty() {
@@ -1766,6 +1835,24 @@ impl Tool for GraphicsTool {
         self.refresh(ui.ctx());
         if self.kind == Kind::Home {
             self.dashboard(ui, cx);
+            return;
+        }
+        if self.kind == Kind::Diagram {
+            if let Some(state) = &mut self.diagram {
+                state.ui(ui, cx, &theme);
+                if let Some(path) = state.take_saved() {
+                    let title = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "Diagram".into());
+                    self.path = Some(path.clone());
+                    self.hub.lock().touch(
+                        Kind::Diagram,
+                        &title,
+                        Some(path.to_string_lossy().to_string()),
+                    );
+                }
+            }
             return;
         }
         if let Some(e) = &self.error {
@@ -1985,6 +2072,12 @@ impl Tool for GraphicsTool {
             return None;
         }
         let p = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
+        if p.extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
+        {
+            return (self.kind == Kind::Diagram).then_some(60);
+        }
         if !is_image_path(p) {
             return None;
         }
@@ -2006,6 +2099,18 @@ impl Tool for GraphicsTool {
         match item {
             OpenRequest::File { uri, .. } => {
                 let p = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
+                if p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("hdiag"))
+                {
+                    match self.load(&p) {
+                        Ok(()) => return true,
+                        Err(e) => {
+                            cx.toast(ToastLevel::Error, e);
+                            return false;
+                        }
+                    }
+                }
                 if !is_image_path(&p) {
                     return false;
                 }
@@ -2037,6 +2142,21 @@ impl Tool for GraphicsTool {
                     self.adopt_icon(img);
                     return true;
                 }
+                if v.get("new").and_then(|n| n.as_str()) == Some("diagram") {
+                    self.kind = Kind::Diagram;
+                    self.path = None;
+                    self.diagram = Some(Box::new(diagram::DiagramState::blank()));
+                    return true;
+                }
+                if let Some(doc) = v
+                    .get("open_diagram")
+                    .and_then(|d| serde_json::from_value::<hs_diagram::DiagramDoc>(d.clone()).ok())
+                {
+                    self.kind = Kind::Diagram;
+                    self.path = None;
+                    self.diagram = Some(Box::new(diagram::DiagramState::from_doc(doc)));
+                    return true;
+                }
                 if let Some(path) = v.get("open_icon").and_then(|p| p.as_str()) {
                     self.kind = Kind::Icon;
                     return match self.load(Path::new(path)) {
@@ -2054,11 +2174,15 @@ impl Tool for GraphicsTool {
     }
 
     fn save_state(&self) -> serde_json::Value {
-        serde_json::json!({
+        let mut value = serde_json::json!({
             "kind": self.kind.as_str(),
             "path": self.path.as_ref().map(|p| p.to_string_lossy().to_string()),
             "ops": self.ops,
-        })
+        });
+        if let Some(state) = &self.diagram {
+            value["doc"] = serde_json::to_value(&state.doc).unwrap_or(serde_json::Value::Null);
+        }
+        value
     }
 
     fn speakable(&self) -> Vec<Speakable> {

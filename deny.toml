@@ -35,6 +35,11 @@ ignore = [
   { id = "RUSTSEC-2026-0370", reason = "zvariant folded into zbus 6.0; transitive via accesskit_unix/atspi" },
   { id = "RUSTSEC-2026-0371", reason = "zbus_names folded into zbus 6.0; transitive via accesskit_unix/atspi" },
   { id = "RUSTSEC-2026-0372", reason = "zvariant_derive folded into zbus 6.0; transitive via accesskit_unix/atspi" },
+  # rustybuzz is declared unmaintained upstream. It reaches us through
+  # usvg -> resvg: egui_extras' SVG preview and hs-diagram's PNG export. No
+  # fixed version exists; the renderer processes local SVG only, never remote
+  # content. Revisit when usvg moves to harfrust.
+  { id = "RUSTSEC-2026-0206", reason = "transitive via usvg/resvg; local SVG rendering only, no fixed version" },
 ]
 
 [licenses]

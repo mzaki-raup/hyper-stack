@@ -141,14 +141,17 @@ Diagram Generator — split into two releases. The requirements and design are i
 - [x] Separate Image and Icon tabs; in-pane settings and preview; image → icon
       (2026-10-19)
 - [x] Icon colour-key transparency with eyedropper and tolerance (2026-10-19)
-- [ ] `hs-diagram`: model, validation, scene, layout, SVG and PNG/PDF export
+- [x] `hs-diagram`: model, validation, scene, layout, SVG and PNG/PDF export
+      (2026-10-19)
 - [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
       save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart
-      import
+      import (canvas, selection, drag, add/connect, undo, templates and
+      save/export implemented 2026-10-19; resize/align/drafts/Mermaid remain)
 - [ ] Diagram Generator: prompt, examples, AI providers, offline templates,
       validation/repair, preview, open in editor, export
 - [ ] AI assistant in all four tools with quick actions and More Suggestions
-- [ ] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0
+- [x] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0,
+      and the strict IR validator (2026-10-19)
       (schemas and notice committed; validator, About page and notice test
       pending)
 - [ ] Tests, documentation, screenshots and GIF

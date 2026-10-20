@@ -2,7 +2,7 @@
 
 **Crate:** `tool-graphics` (UI) + `hs-diagram` (model, layout, scene, export) ·
 **Priority:** P1 (owner's request, 2026-10-19) ·
-**Status:** in progress — Phase 1 implemented 2026-10-19
+**Status:** in progress — Phase 4 (Diagram Editor) implemented 2026-10-19
 
 This document is the requirements and design for the Graphics activity as it
 grows from a picture editor into four tools: **Image**, **Icon**, **Diagram
@@ -13,7 +13,9 @@ owner's process rules require.
 |---|---|
 | Graphics activity shell: sidebar, dashboard, Recent, Image/Icon tabs, Convert to Icon | Implemented 2026-10-19 |
 | Icon colour-key transparency | Implemented 2026-10-19 |
-| `hs-diagram`, Diagram Editor and Generator (flowchart, architecture) | Pending |
+| `hs-diagram` model, validation, flow/architecture layout, scene, SVG/PNG/PDF export | Implemented 2026-10-19 |
+| Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
+| Diagram Generator UI | Pending |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),
@@ -124,19 +126,23 @@ for architecture (until a later release).
 ### 3.1 Crates
 
 ```text
-crates/hs-diagram/                  new library, no egui dependency
+crates/hs-diagram/                  library, no egui dependency (implemented)
+  lib.rs                            re-exports + layout_approx
   model.rs                          DiagramDoc, Node, Edge, Group, Style, Page
   schema/archify/                   adapted JSON Schema files (see §9)
-  schema/mod.rs                     serde types for the generator IR
-  validate.rs                       rule codes + Fluent message keys
-  text.rs                           font bytes, measurement callback, wrapping
-  layout/flow.rs                    ranks, ordering, placement
-  layout/architecture.rs            grid, boundaries
-  route.rs                          ports, orthogonal routes, arrowheads
+  schema/mod.rs                     strict serde types + IR validation
+  validate.rs                       rule codes + limits
+  text.rs                           measurement callback, approximation, wrapping
+  layout/mod.rs                     scene builder, node sizing, page fit
+  layout/flow.rs                    ranks, barycentre ordering, placement
+  layout/grid.rs                    architecture grid and boundaries
+  route.rs                          ports, straight/orthogonal/curved routes
   scene.rs                          Prim/Scene, resolved geometry, text lines
   svg.rs                            Scene -> SVG
   export.rs                         SVG -> PNG (resvg), SVG -> PDF (svg2pdf)
-  convert.rs                        IR -> DiagramDoc (and import mode)
+  convert.rs                        IR -> DiagramDoc
+  template.rs                       offline flowchart and architecture templates
+  io.rs                             `.hdiag` read/write with limits and atomic replace
 
 crates/tools/tool-graphics/         UI
   lib.rs                            factory, tab dispatch, title/dirty/open
@@ -173,6 +179,29 @@ Doc -> validate -> layout(measure) -> Scene ──► egui painter
 - `svg2pdf` 0.13 uses `usvg ^0.45`, `resvg ^0.45` and `tiny-skia ^0.11.4`, the
   versions already in `Cargo.lock` through `egui_extras`' SVG loader. The new
   dependency is MIT/Apache-2.0 and passes `deny.toml`.
+
+**Implemented 2026-10-19.** `hs-diagram` is a workspace member with
+`model`, `schema`, `validate`, `text`, `layout` (`flow`, `grid`), `route`,
+`scene`, `svg`, `export`, `convert`, `template` and `io`. The tests cover the
+flow and architecture templates, deterministic layout, validation codes,
+strict IR parsing, SVG escaping, `.hdiag` round-trip, PNG signature and PDF
+header (16 tests at this phase). The example
+`cargo run -p hs-diagram --example export -- <dir>` writes both templates as
+SVG, PNG and PDF; the PNGs were checked visually (flowchart flow and the
+architecture boundary grid). The `resvg`/`svg2pdf` graph added the unmaintained
+`rustybuzz` advisory, ignored in `deny.toml` with its reason.
+
+**Editor implemented 2026-10-19.** A Diagram tab opens from the activity
+sidebar. The canvas pans (Space+drag or middle drag), zooms (Ctrl+wheel) and
+shows the grid; clicking selects, dragging moves a node, the shape buttons
+place a process/decision/note, Connect links two nodes, and the toolbar has
+undo/redo, Fit and Grid. The properties panel edits the title and the selected
+node's label and shape; the Outline selects nodes; the validation state is
+shown. Templates and Save/Open `.hdiag` and Export PNG/SVG/PDF are wired.
+Still to do for the release: resize handles, alignment/distribution, edge
+labels and waypoints in the UI, drafts/project-save, Mermaid import. The
+editor screenshots are in `docs/screenshots/graphics-diagram-editor.png` and
+`graphics-diagram-architecture-editor.png`.
 
 ### 3.3 Shell changes
 

@@ -1,0 +1,1142 @@
+//! Diagram Editor: a direct-manipulation canvas over `hs-diagram`.
+//!
+//! Release 1 deliberately keeps one scene: the canvas paints the same
+//! `hs_diagram::Scene` that SVG, PNG and PDF export, so what the user moves is
+//! what the file contains.
+
+use std::path::{Path, PathBuf};
+
+use hs_core::tool::{ToastLevel, ToolContext};
+use hs_diagram::export::{PngOptions, pdf, png, svg};
+use hs_diagram::model::{
+    Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Node, NodeKind, Point, Style,
+};
+use hs_diagram::{Prim, Rect, Scene, layout_approx, validate};
+use hs_ui::theme::Theme;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolMode {
+    Select,
+    Edge,
+}
+
+pub struct DiagramState {
+    pub doc: DiagramDoc,
+    pub path: Option<PathBuf>,
+    pub dirty: bool,
+    undo: Vec<DiagramDoc>,
+    redo: Vec<DiagramDoc>,
+    selected: Option<String>,
+    zoom: f32,
+    pan: egui::Vec2,
+    show_grid: bool,
+    tool: ToolMode,
+    edge_from: Option<String>,
+    drag_node: Option<(String, Point, egui::Pos2)>,
+    drag_pan: Option<(egui::Vec2, egui::Pos2)>,
+    last_center: Point,
+    saved: Option<PathBuf>,
+    status: Option<String>,
+}
+
+impl DiagramState {
+    pub fn new(kind: DiagramKind) -> Self {
+        let doc = match kind {
+            DiagramKind::Flow => hs_diagram::template::flow(),
+            DiagramKind::Architecture => hs_diagram::template::architecture(),
+        };
+        Self::from_doc(doc)
+    }
+
+    pub fn blank() -> Self {
+        Self::from_doc(DiagramDoc::new(DiagramKind::Flow, "Untitled diagram"))
+    }
+
+    pub fn from_doc(doc: DiagramDoc) -> Self {
+        let selected = doc.nodes.first().map(|n| n.id.clone());
+        let mut state = Self {
+            doc,
+            path: None,
+            dirty: false,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            selected,
+            zoom: 0.0,
+            pan: egui::Vec2::ZERO,
+            show_grid: true,
+            tool: ToolMode::Select,
+            edge_from: None,
+            drag_node: None,
+            drag_pan: None,
+            last_center: Point { x: 0.0, y: 0.0 },
+            saved: None,
+            status: None,
+        };
+        state.dirty = false;
+        state
+    }
+
+    pub fn open_path(path: &Path) -> Result<Self, String> {
+        let (doc, issues) = hs_diagram::io::load(path)?;
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == hs_diagram::Severity::Error)
+            .collect();
+        if !errors.is_empty() {
+            return Err(format!(
+                "the diagram has {} validation error(s), first: {}",
+                errors.len(),
+                errors[0].message
+            ));
+        }
+        let mut state = Self::from_doc(doc);
+        state.path = Some(path.to_path_buf());
+        Ok(state)
+    }
+
+    pub fn dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn take_saved(&mut self) -> Option<PathBuf> {
+        self.saved.take()
+    }
+
+    /// Freeze the automatic layout into node geometry the first time the user
+    /// edits it, so the document is the editor's from then on.
+    fn freeze(&mut self) -> bool {
+        if !self.doc.auto_layout {
+            return false;
+        }
+        let scene = layout_approx(&self.doc);
+        let rects: Vec<Rect> = scene
+            .prims
+            .iter()
+            .filter_map(|p| match p {
+                Prim::Shape { rect, .. } => Some(*rect),
+                _ => None,
+            })
+            .collect();
+        if rects.len() != self.doc.nodes.len() {
+            return false;
+        }
+        for (node, r) in self.doc.nodes.iter_mut().zip(rects) {
+            node.x = r.x;
+            node.y = r.y;
+            node.w = r.w;
+            node.h = r.h;
+        }
+        self.doc.auto_layout = false;
+        true
+    }
+
+    fn node_rects(&self, scene: &Scene) -> Vec<Rect> {
+        scene
+            .prims
+            .iter()
+            .filter_map(|p| match p {
+                Prim::Shape { rect, .. } => Some(*rect),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn push_undo(&mut self) {
+        self.undo.push(self.doc.clone());
+        if self.undo.len() > 80 {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+        self.dirty = true;
+    }
+
+    fn undo(&mut self) {
+        if let Some(doc) = self.undo.pop() {
+            self.redo.push(std::mem::replace(&mut self.doc, doc));
+            self.dirty = true;
+            if self
+                .selected
+                .as_ref()
+                .is_some_and(|id| self.doc.node(id).is_none())
+            {
+                self.selected = None;
+            }
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(doc) = self.redo.pop() {
+            self.undo.push(std::mem::replace(&mut self.doc, doc));
+            self.dirty = true;
+            if self
+                .selected
+                .as_ref()
+                .is_some_and(|id| self.doc.node(id).is_none())
+            {
+                self.selected = None;
+            }
+        }
+    }
+
+    fn add_node_at(&mut self, kind: NodeKind, at: Point) {
+        self.push_undo();
+        self.freeze();
+        let mut n = self.doc.nodes.len() + 1;
+        while self.doc.nodes.iter().any(|x| x.id == format!("node{n}")) {
+            n += 1;
+        }
+        let size = match kind {
+            NodeKind::Decision => (150.0, 90.0),
+            NodeKind::Note => (170.0, 90.0),
+            _ => (160.0, 64.0),
+        };
+        let node = Node {
+            id: format!("node{n}"),
+            label: format!("Node {n}"),
+            kind,
+            x: at.x - size.0 / 2.0,
+            y: at.y - size.1 / 2.0,
+            w: size.0,
+            h: size.1,
+            style: Style::default(),
+        };
+        self.selected = Some(node.id.clone());
+        self.doc.nodes.push(node);
+        self.tool = ToolMode::Select;
+    }
+
+    fn delete_selected(&mut self) {
+        let Some(id) = self.selected.clone() else {
+            return;
+        };
+        self.push_undo();
+        self.freeze();
+        self.doc.nodes.retain(|n| n.id != id);
+        self.doc.edges.retain(|e| e.from != id && e.to != id);
+        self.selected = None;
+    }
+
+    pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        if ui
+            .button(format!("{} New", hs_ui::icons::ph::FILE_PLUS))
+            .clicked()
+        {
+            self.replace(hs_diagram::template::flow());
+        }
+        if ui.button(hs_ui::icons::ph::FOLDER_OPEN).clicked() {
+            self.open_dialog(cx);
+        }
+        if ui.button(s.t("gfx-diagram-save")).clicked() {
+            self.save(cx);
+        }
+        ui.menu_button(format!("{} Export", hs_ui::icons::ph::EXPORT), |ui| {
+            if ui.button("PNG (2×)").clicked() {
+                self.export(cx, ExportKind::Png);
+                ui.close();
+            }
+            if ui.button("SVG").clicked() {
+                self.export(cx, ExportKind::Svg);
+                ui.close();
+            }
+            if ui.button("PDF").clicked() {
+                self.export(cx, ExportKind::Pdf);
+                ui.close();
+            }
+        });
+        ui.separator();
+        if ui
+            .add_enabled(
+                !self.undo.is_empty(),
+                egui::Button::new(hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE),
+            )
+            .on_hover_text(s.t("gfx-diagram-undo"))
+            .clicked()
+        {
+            self.undo();
+        }
+        if ui
+            .add_enabled(
+                !self.redo.is_empty(),
+                egui::Button::new(hs_ui::icons::ph::ARROW_CLOCKWISE),
+            )
+            .on_hover_text(s.t("gfx-diagram-redo"))
+            .clicked()
+        {
+            self.redo();
+        }
+        ui.separator();
+        if ui.button(s.t("gfx-zoom-fit")).clicked() {
+            self.zoom = 0.0;
+            self.pan = egui::Vec2::ZERO;
+        }
+        ui.checkbox(&mut self.show_grid, s.t("gfx-diagram-grid"));
+        ui.separator();
+        if ui
+            .selectable_label(self.tool == ToolMode::Select, hs_ui::icons::ph::CURSOR)
+            .on_hover_text(s.t("gfx-diagram-select"))
+            .clicked()
+        {
+            self.tool = ToolMode::Select;
+            self.edge_from = None;
+        }
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::RECTANGLE,
+                s.t("gfx-diagram-add-process")
+            ))
+            .clicked()
+        {
+            self.add_node_at(NodeKind::Process, self.last_center);
+        }
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::DIAMOND,
+                s.t("gfx-diagram-add-decision")
+            ))
+            .clicked()
+        {
+            self.add_node_at(NodeKind::Decision, self.last_center);
+        }
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::NOTE_PENCIL,
+                s.t("gfx-diagram-add-note")
+            ))
+            .clicked()
+        {
+            self.add_node_at(NodeKind::Note, self.last_center);
+        }
+        if ui
+            .selectable_label(self.tool == ToolMode::Edge, hs_ui::icons::ph::ARROW_RIGHT)
+            .on_hover_text(s.t("gfx-diagram-add-edge"))
+            .clicked()
+        {
+            self.tool = ToolMode::Edge;
+            self.edge_from = None;
+        }
+    }
+
+    pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        egui::Panel::left("gfx-diagram-props")
+            .default_size(290.0)
+            .size_range(240.0..=430.0)
+            .resizable(true)
+            .show(ui, |ui| self.properties(ui, cx, theme));
+        let canvas = ui.available_rect_before_wrap();
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(canvas)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(canvas);
+        self.canvas(&mut child, cx, theme);
+    }
+
+    fn properties(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        egui::ScrollArea::vertical()
+            .id_salt("gfx-diagram-props-scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(s.t("gfx-diagram-properties"))
+                        .strong()
+                        .color(theme.text),
+                );
+                ui.add_space(4.0);
+                if ui
+                    .add(
+                        egui::TextEdit::singleline(&mut self.doc.title)
+                            .hint_text(s.t("gfx-diagram-title")),
+                    )
+                    .changed()
+                {
+                    self.dirty = true;
+                }
+                ui.add_space(8.0);
+
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button(s.t("gfx-diagram-flow-template")).clicked() {
+                        self.replace(hs_diagram::template::flow());
+                    }
+                    if ui.button(s.t("gfx-diagram-arch-template")).clicked() {
+                        self.replace(hs_diagram::template::architecture());
+                    }
+                    if ui.button(s.t("gfx-diagram-blank")).clicked() {
+                        self.replace(DiagramDoc::new(DiagramKind::Flow, "Untitled diagram"));
+                    }
+                });
+                ui.add_space(8.0);
+                ui.separator();
+                ui.add_space(6.0);
+
+                if let Some(id) = self.selected.clone() {
+                    let mut changed = false;
+                    let mut remove = false;
+                    if let Some(node) = self.doc.node_mut(&id) {
+                        ui.label(
+                            egui::RichText::new(s.t("gfx-diagram-node"))
+                                .strong()
+                                .color(theme.text),
+                        );
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("gfx-diagram-label"));
+                            changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut node.label)
+                                        .desired_width(f32::INFINITY),
+                                )
+                                .changed();
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("gfx-diagram-shape"));
+                            egui::ComboBox::from_id_salt("gfx-diagram-shape")
+                                .selected_text(shape_label(node.kind, s))
+                                .show_ui(ui, |ui| {
+                                    for kind in [
+                                        NodeKind::Process,
+                                        NodeKind::RoundedRectangle,
+                                        NodeKind::Decision,
+                                        NodeKind::StartEnd,
+                                        NodeKind::InputOutput,
+                                        NodeKind::Database,
+                                        NodeKind::Note,
+                                        NodeKind::Text,
+                                        NodeKind::Frontend,
+                                        NodeKind::Backend,
+                                        NodeKind::Store,
+                                        NodeKind::Queue,
+                                    ] {
+                                        if ui
+                                            .selectable_value(
+                                                &mut node.kind,
+                                                kind,
+                                                shape_label(kind, s),
+                                            )
+                                            .changed()
+                                        {
+                                            changed = true;
+                                        }
+                                    }
+                                });
+                        });
+                        if ui.button(s.t("gfx-diagram-delete")).clicked() {
+                            remove = true;
+                        }
+                        if changed {
+                            self.dirty = true;
+                        }
+                    }
+                    if remove {
+                        self.delete_selected();
+                    }
+                    ui.add_space(6.0);
+                }
+
+                ui.label(
+                    egui::RichText::new(s.t("gfx-diagram-outline"))
+                        .strong()
+                        .color(theme.text),
+                );
+                ui.add_space(2.0);
+                let nodes: Vec<(String, String)> = self
+                    .doc
+                    .nodes
+                    .iter()
+                    .map(|n| (n.id.clone(), n.label.clone()))
+                    .collect();
+                for (id, label) in nodes {
+                    let selected = self.selected.as_deref() == Some(id.as_str());
+                    if ui.selectable_label(selected, label).clicked() {
+                        self.selected = Some(id);
+                    }
+                }
+                ui.add_space(6.0);
+                let issues = validate::validate(&self.doc);
+                let errors = issues
+                    .iter()
+                    .filter(|i| i.severity == hs_diagram::Severity::Error)
+                    .count();
+                if errors > 0 {
+                    ui.colored_label(
+                        theme.error,
+                        s.i18n
+                            .t_args("gfx-diagram-errors", &[("count", &errors.to_string())]),
+                    );
+                } else {
+                    ui.label(
+                        egui::RichText::new(s.t("gfx-diagram-valid"))
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                }
+                if let Some(status) = &self.status {
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(status).small().color(theme.text_muted));
+                }
+            });
+    }
+
+    fn canvas(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let rect = ui.max_rect();
+        let scene = layout_approx(&self.doc);
+        let z = if self.zoom == 0.0 {
+            ((rect.width() - 48.0) / scene.size.w.max(1.0))
+                .min((rect.height() - 48.0) / scene.size.h.max(1.0))
+                .clamp(0.15, 4.0)
+        } else {
+            self.zoom
+        };
+        let mut pan = self.pan;
+        if self.zoom == 0.0 {
+            pan = egui::Vec2::ZERO;
+        }
+        let origin = rect.center() - egui::vec2(scene.size.w, scene.size.h) * (z / 2.0) + pan;
+        let to_screen =
+            |p: Point| -> egui::Pos2 { egui::pos2(origin.x + p.x * z, origin.y + p.y * z) };
+        let srect = |r: Rect| -> egui::Rect {
+            egui::Rect::from_min_max(
+                to_screen(Point { x: r.x, y: r.y }),
+                to_screen(Point {
+                    x: r.right(),
+                    y: r.bottom(),
+                }),
+            )
+        };
+
+        let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 0.0, theme.panel_bg);
+        if self.show_grid {
+            self.paint_grid(&painter, rect, origin, z, theme);
+        }
+        self.paint_scene(&painter, &scene, &to_screen, &srect, z, theme);
+
+        let node_rects = self.node_rects(&scene);
+        let pointer = response.interact_pointer_pos();
+        let space = ui.input(|i| i.key_down(egui::Key::Space));
+        if response.drag_started() {
+            if space || ui.input(|i| i.pointer.middle_down()) {
+                self.drag_pan = Some((self.pan, pointer.unwrap_or(rect.center())));
+            } else if let Some(pos) = pointer {
+                let hit = self.hit(pos, &node_rects, origin, z);
+                if let Some(i) = hit {
+                    self.push_undo();
+                    self.freeze();
+                    let id = self.doc.nodes[i].id.clone();
+                    self.selected = Some(id.clone());
+                    self.drag_node = Some((
+                        id,
+                        Point {
+                            x: self.doc.nodes[i].x,
+                            y: self.doc.nodes[i].y,
+                        },
+                        pos,
+                    ));
+                } else {
+                    self.selected = None;
+                }
+            }
+        }
+        if response.dragged() {
+            if let (Some((start, from)), Some(pos)) = (self.drag_pan, pointer) {
+                self.pan = start + (pos - from);
+            } else if let (Some((id, start, from)), Some(pos)) = (&self.drag_node, pointer) {
+                let dx = (pos.x - from.x) / z;
+                let dy = (pos.y - from.y) / z;
+                if let Some(node) = self.doc.node_mut(id) {
+                    node.x = start.x + dx;
+                    node.y = start.y + dy;
+                }
+                self.dirty = true;
+            }
+        }
+        if response.drag_stopped() {
+            self.drag_node = None;
+            self.drag_pan = None;
+        }
+        if response.clicked()
+            && let Some(pos) = pointer
+        {
+            if let Some(i) = self.hit(pos, &node_rects, origin, z) {
+                let id = self.doc.nodes[i].id.clone();
+                if self.tool == ToolMode::Edge {
+                    if let Some(from) = self.edge_from.take() {
+                        if from != id {
+                            self.push_undo();
+                            self.freeze();
+                            self.doc.edges.push(Edge {
+                                id: format!("e{}", self.doc.edges.len() + 1),
+                                from,
+                                to: id.clone(),
+                                label: String::new(),
+                                route: EdgeRoute::Orthogonal,
+                                arrow: Arrow::End,
+                                dashed: false,
+                                via: Vec::new(),
+                            });
+                        }
+                    } else {
+                        self.edge_from = Some(id.clone());
+                    }
+                }
+                self.selected = Some(id);
+            } else {
+                self.selected = None;
+            }
+        }
+        if response.double_clicked()
+            && let Some(pos) = pointer
+            && let Some(i) = self.hit(pos, &node_rects, origin, z)
+        {
+            // The properties panel edits the label; this only keeps the
+            // selected node visible there.
+            self.selected = Some(self.doc.nodes[i].id.clone());
+        }
+        if response.hovered() {
+            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+            let ctrl = ui.input(|i| i.modifiers.ctrl);
+            if scroll != 0.0 {
+                if ctrl {
+                    let old = z;
+                    let factor = if scroll > 0.0 { 1.1 } else { 0.9 };
+                    let new = (old * factor).clamp(0.1, 4.0);
+                    if let Some(p) = pointer {
+                        let world = Point {
+                            x: (p.x - origin.x) / old,
+                            y: (p.y - origin.y) / old,
+                        };
+                        self.pan += (p - to_screen(world)) * (new / old);
+                    }
+                    self.zoom = new;
+                } else {
+                    self.pan.y += scroll;
+                }
+            }
+            if ui.input(|i| i.key_pressed(egui::Key::Delete)) {
+                self.delete_selected();
+            }
+            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z)) {
+                self.undo();
+            }
+            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y)) {
+                self.redo();
+            }
+            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
+                self.save(cx);
+            }
+        }
+        if let Some(id) = &self.selected
+            && let Some(i) = self.doc.nodes.iter().position(|n| &n.id == id)
+            && i < node_rects.len()
+        {
+            painter.rect_stroke(
+                srect(node_rects[i]).expand(3.0),
+                4.0,
+                egui::Stroke::new(2.0, theme.accent),
+                egui::StrokeKind::Outside,
+            );
+        }
+        // Keep "add at the viewport centre" honest across panning.
+        self.last_center = Point {
+            x: (rect.center().x - origin.x) / z,
+            y: (rect.center().y - origin.y) / z,
+        };
+        self.status = Some(format!(
+            "{}  ·  {:.0}%",
+            if self.edge_from.is_some() {
+                "Click the target node"
+            } else {
+                "Drag to move · Ctrl+wheel to zoom · Space+drag to pan"
+            },
+            z * 100.0
+        ));
+    }
+
+    fn paint_grid(
+        &self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        origin: egui::Pos2,
+        z: f32,
+        theme: &Theme,
+    ) {
+        let step = 20.0 * z;
+        if step < 6.0 {
+            return;
+        }
+        let stroke = egui::Stroke::new(1.0, theme.border.linear_multiply(0.5));
+        let mut x = origin.x - ((origin.x - rect.left()) / step).floor() * step;
+        while x < rect.right() {
+            painter.line_segment(
+                [egui::pos2(x, rect.top()), egui::pos2(x, rect.bottom())],
+                stroke,
+            );
+            x += step;
+        }
+        let mut y = origin.y - ((origin.y - rect.top()) / step).floor() * step;
+        while y < rect.bottom() {
+            painter.line_segment(
+                [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
+                stroke,
+            );
+            y += step;
+        }
+    }
+
+    fn paint_scene(
+        &self,
+        painter: &egui::Painter,
+        scene: &Scene,
+        _to_screen: &dyn Fn(Point) -> egui::Pos2,
+        srect: &dyn Fn(Rect) -> egui::Rect,
+        z: f32,
+        theme: &Theme,
+    ) {
+        for prim in &scene.prims {
+            match prim {
+                Prim::Frame { rect, label } => {
+                    painter.rect_stroke(
+                        srect(*rect),
+                        8.0 * z,
+                        egui::Stroke::new(1.2, theme.text_muted),
+                        egui::StrokeKind::Inside,
+                    );
+                    if !label.is_empty() {
+                        painter.text(
+                            srect(*rect).left_top() + egui::vec2(6.0, 4.0),
+                            egui::Align2::LEFT_TOP,
+                            label,
+                            egui::FontId::proportional((12.0 * z).max(9.0)),
+                            theme.text_muted,
+                        );
+                    }
+                }
+                Prim::Shape {
+                    rect,
+                    kind,
+                    label,
+                    style,
+                } => {
+                    let r = srect(*rect);
+                    let fill = color(
+                        style
+                            .fill
+                            .as_deref()
+                            .unwrap_or(hs_diagram::scene::default_fill(*kind)),
+                    );
+                    let stroke = egui::Stroke::new(
+                        (1.4 * z).max(1.0),
+                        color(
+                            style
+                                .stroke
+                                .as_deref()
+                                .unwrap_or(hs_diagram::scene::default_stroke(*kind)),
+                        ),
+                    );
+                    paint_shape(painter, r, *kind, fill, stroke, z);
+                    if !label.is_empty() {
+                        let size = (style.font_size.unwrap_or(14.0) * z).max(8.0);
+                        let lines: Vec<&str> = label.lines().collect();
+                        let lh = size * 1.25;
+                        let top = r.center().y - (lines.len() as f32 - 1.0) * lh / 2.0;
+                        for (i, line) in lines.iter().enumerate() {
+                            painter.text(
+                                egui::pos2(r.center().x, top + i as f32 * lh),
+                                egui::Align2::CENTER_CENTER,
+                                line,
+                                egui::FontId::proportional(size),
+                                color(style.text.as_deref().unwrap_or("#1f2328")),
+                            );
+                        }
+                    }
+                }
+                Prim::Line {
+                    points,
+                    dashed,
+                    arrow_start,
+                    arrow_end,
+                    style,
+                } => {
+                    if points.len() < 2 {
+                        continue;
+                    }
+                    let pts: Vec<egui::Pos2> = points.iter().map(|p| _to_screen(*p)).collect();
+                    let stroke = egui::Stroke::new(
+                        (1.5 * z).max(1.0),
+                        color(style.stroke.as_deref().unwrap_or("#5b6472")),
+                    );
+                    if *dashed || style.dashed {
+                        for pair in pts.windows(2) {
+                            painter.line_segment([pair[0], pair[1]], stroke);
+                        }
+                    } else {
+                        painter.add(egui::Shape::line(pts.clone(), stroke));
+                    }
+                    if *arrow_end {
+                        arrow_head(painter, &pts, stroke, z, false);
+                    }
+                    if *arrow_start {
+                        arrow_head(painter, &pts, stroke, z, true);
+                    }
+                }
+                Prim::Text {
+                    at,
+                    label,
+                    boxed,
+                    style,
+                } => {
+                    let pos = _to_screen(*at);
+                    let size = (style.font_size.unwrap_or(12.0) * z).max(8.0);
+                    let label_color = color(style.text.as_deref().unwrap_or("#1f2328"));
+                    let galley = painter.layout_no_wrap(
+                        label.clone(),
+                        egui::FontId::proportional(size),
+                        label_color,
+                    );
+                    if *boxed {
+                        let r = egui::Rect::from_center_size(
+                            pos,
+                            galley.size() + egui::vec2(10.0 * z, 4.0 * z),
+                        );
+                        painter.rect_filled(r, 4.0 * z, egui::Color32::WHITE);
+                        painter.rect_stroke(
+                            r,
+                            4.0 * z,
+                            egui::Stroke::new(1.0, theme.border),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    painter.galley(pos - galley.size() / 2.0, galley, label_color);
+                }
+            }
+        }
+    }
+
+    fn hit(&self, pos: egui::Pos2, rects: &[Rect], origin: egui::Pos2, z: f32) -> Option<usize> {
+        let world = Point {
+            x: (pos.x - origin.x) / z,
+            y: (pos.y - origin.y) / z,
+        };
+        rects.iter().rposition(|r| r.contains(world))
+    }
+
+    fn replace(&mut self, doc: DiagramDoc) {
+        self.push_undo();
+        self.doc = doc;
+        self.selected = self.doc.nodes.first().map(|n| n.id.clone());
+        self.dirty = true;
+        self.zoom = 0.0;
+        self.pan = egui::Vec2::ZERO;
+    }
+
+    fn open_dialog(&mut self, cx: &mut ToolContext) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("HyperStack diagram", &["hdiag"])
+            .pick_file()
+        else {
+            return;
+        };
+        match Self::open_path(&path) {
+            Ok(mut state) => {
+                state.path = Some(path);
+                *self = state;
+                cx.toast(ToastLevel::Success, cx.services.t("gfx-diagram-opened"));
+            }
+            Err(e) => cx.toast(ToastLevel::Error, e),
+        }
+    }
+
+    fn save(&mut self, cx: &mut ToolContext) {
+        if self.path.is_none() {
+            let stem = sanitise(&self.doc.title);
+            let Some(path) = rfd::FileDialog::new()
+                .add_filter("HyperStack diagram", &["hdiag"])
+                .set_file_name(format!("{stem}.hdiag"))
+                .save_file()
+            else {
+                return;
+            };
+            self.path = Some(path);
+        }
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match hs_diagram::io::save(&path, &self.doc) {
+            Ok(()) => {
+                self.dirty = false;
+                self.saved = Some(path.clone());
+                cx.toast(
+                    ToastLevel::Success,
+                    cx.services
+                        .i18n
+                        .t_args("gfx-saved", &[("path", &path.display().to_string())]),
+                );
+            }
+            Err(e) => cx.toast(ToastLevel::Error, e),
+        }
+    }
+
+    fn export(&mut self, cx: &mut ToolContext, kind: ExportKind) {
+        let stem = sanitise(&self.doc.title);
+        let (filter, ext) = kind.filter();
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(filter, &[ext])
+            .set_file_name(format!("{stem}.{ext}"))
+            .save_file()
+        else {
+            return;
+        };
+        let scene = layout_approx(&self.doc);
+        let bytes = match kind {
+            ExportKind::Png => png(
+                &scene,
+                &PngOptions {
+                    scale: 2.0,
+                    background: Some("#ffffff".into()),
+                },
+            ),
+            ExportKind::Svg => Ok(svg(&scene, Some("#ffffff")).into_bytes()),
+            ExportKind::Pdf => pdf(&scene, Some("#ffffff")),
+        };
+        match bytes.and_then(|b| std::fs::write(&path, b).map_err(|e| e.to_string())) {
+            Ok(()) => cx.toast(
+                ToastLevel::Success,
+                cx.services
+                    .i18n
+                    .t_args("gfx-saved", &[("path", &path.display().to_string())]),
+            ),
+            Err(e) => cx.toast(ToastLevel::Error, e),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ExportKind {
+    Png,
+    Svg,
+    Pdf,
+}
+
+impl ExportKind {
+    fn filter(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Png => ("PNG image", "png"),
+            Self::Svg => ("SVG image", "svg"),
+            Self::Pdf => ("PDF document", "pdf"),
+        }
+    }
+}
+
+fn sanitise(title: &str) -> String {
+    let mut out: String = title
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    while out.contains("--") {
+        out = out.replace("--", "-");
+    }
+    let out = out.trim_matches('-').to_string();
+    if out.is_empty() {
+        "diagram".into()
+    } else {
+        out
+    }
+}
+
+fn shape_label(kind: NodeKind, s: &hs_core::Services) -> String {
+    let key = match kind {
+        NodeKind::Process => "gfx-shape-process",
+        NodeKind::RoundedRectangle => "gfx-shape-rounded",
+        NodeKind::Ellipse => "gfx-shape-ellipse",
+        NodeKind::Decision => "gfx-shape-decision",
+        NodeKind::StartEnd => "gfx-shape-start",
+        NodeKind::InputOutput => "gfx-shape-io",
+        NodeKind::Database => "gfx-shape-database",
+        NodeKind::Note => "gfx-shape-note",
+        NodeKind::Text => "gfx-shape-text",
+        NodeKind::Container => "gfx-shape-container",
+        NodeKind::Frontend => "gfx-shape-frontend",
+        NodeKind::Backend => "gfx-shape-backend",
+        NodeKind::Store => "gfx-shape-store",
+        NodeKind::Queue => "gfx-shape-queue",
+        NodeKind::External => "gfx-shape-external",
+    };
+    s.t(key)
+}
+
+fn color(hex: &str) -> egui::Color32 {
+    let hex = hex.trim_start_matches('#');
+    let n = u32::from_str_radix(hex, 16).unwrap_or(0x1f2328);
+    let (r, g, b) = if hex.len() >= 6 {
+        ((n >> 16) as u8, (n >> 8) as u8, n as u8)
+    } else {
+        (31, 35, 40)
+    };
+    egui::Color32::from_rgb(r, g, b)
+}
+
+fn paint_shape(
+    painter: &egui::Painter,
+    r: egui::Rect,
+    kind: NodeKind,
+    fill: egui::Color32,
+    stroke: egui::Stroke,
+    z: f32,
+) {
+    match kind {
+        NodeKind::Text => {}
+        NodeKind::Ellipse => {
+            painter.add(egui::Shape::ellipse_filled(
+                r.center(),
+                r.size() / 2.0,
+                fill,
+            ));
+            painter.add(egui::Shape::ellipse_stroke(
+                r.center(),
+                r.size() / 2.0,
+                stroke,
+            ));
+        }
+        NodeKind::Decision => {
+            let points = vec![
+                egui::pos2(r.center().x, r.top()),
+                egui::pos2(r.right(), r.center().y),
+                egui::pos2(r.center().x, r.bottom()),
+                egui::pos2(r.left(), r.center().y),
+            ];
+            painter.add(egui::Shape::convex_polygon(points, fill, stroke));
+        }
+        NodeKind::StartEnd => {
+            painter.rect(r, r.height() / 2.0, fill, stroke, egui::StrokeKind::Inside);
+        }
+        NodeKind::InputOutput => {
+            let skew = (14.0 * z).min(r.width() * 0.2);
+            let points = vec![
+                egui::pos2(r.left() + skew, r.top()),
+                egui::pos2(r.right(), r.top()),
+                egui::pos2(r.right() - skew, r.bottom()),
+                egui::pos2(r.left(), r.bottom()),
+            ];
+            painter.add(egui::Shape::convex_polygon(points, fill, stroke));
+        }
+        NodeKind::Database => {
+            painter.rect(r, 8.0 * z, fill, stroke, egui::StrokeKind::Inside);
+            let ry = (r.height() * 0.12).min(10.0 * z);
+            painter.add(egui::Shape::ellipse_stroke(
+                egui::pos2(r.center().x, r.top() + ry),
+                egui::vec2(r.width() / 2.0, ry),
+                stroke,
+            ));
+        }
+        NodeKind::Note => {
+            painter.rect(r, 0.0, fill, stroke, egui::StrokeKind::Inside);
+            let fold = (16.0 * z).min(r.width() * 0.25).min(r.height() * 0.25);
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(r.right() - fold, r.top()),
+                    egui::pos2(r.right(), r.top() + fold),
+                    egui::pos2(r.right() - fold, r.top() + fold),
+                ],
+                stroke.color,
+                egui::Stroke::NONE,
+            ));
+        }
+        NodeKind::Container => {
+            painter.rect(
+                r,
+                10.0 * z,
+                egui::Color32::TRANSPARENT,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+        }
+        _ => {
+            let radius = if kind == NodeKind::RoundedRectangle {
+                14.0 * z
+            } else {
+                6.0 * z
+            };
+            painter.rect(r, radius, fill, stroke, egui::StrokeKind::Inside);
+        }
+    }
+}
+
+fn arrow_head(
+    painter: &egui::Painter,
+    points: &[egui::Pos2],
+    stroke: egui::Stroke,
+    z: f32,
+    reverse: bool,
+) {
+    let (a, b) = if reverse {
+        (points[1], points[0])
+    } else {
+        (points[points.len() - 2], points[points.len() - 1])
+    };
+    let dir = (b - a).normalized();
+    let n = egui::vec2(-dir.y, dir.x);
+    let len = (10.0 * z).max(5.0);
+    let half = (5.0 * z).max(3.0);
+    let base = b - dir * len;
+    painter.add(egui::Shape::convex_polygon(
+        vec![b, base + n * half, base - n * half],
+        stroke.color,
+        egui::Stroke::NONE,
+    ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn freezing_layout_gives_nodes_geometry() {
+        let mut state = DiagramState::new(DiagramKind::Flow);
+        assert!(state.doc.auto_layout);
+        assert!(state.freeze());
+        assert!(!state.doc.auto_layout);
+        assert!(state.doc.nodes.iter().all(|n| n.w > 0.0 && n.h > 0.0));
+    }
+
+    #[test]
+    fn add_and_undo_restore_the_document() {
+        let mut state = DiagramState::new(DiagramKind::Flow);
+        let before = state.doc.nodes.len();
+        state.add_node_at(NodeKind::Process, Point { x: 300.0, y: 200.0 });
+        assert_eq!(state.doc.nodes.len(), before + 1);
+        assert!(!state.doc.auto_layout);
+        state.undo();
+        assert_eq!(state.doc.nodes.len(), before);
+    }
+
+    #[test]
+    fn file_names_are_sanitised() {
+        assert_eq!(sanitise("Checkout flow"), "Checkout-flow");
+        assert_eq!(sanitise("../"), "diagram");
+        assert_eq!(sanitise("A  B"), "A-B");
+    }
+
+    #[test]
+    fn open_path_reads_a_saved_document() {
+        let dir = std::env::temp_dir().join(format!("hs-gfx-diagram-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("flow.hdiag");
+        hs_diagram::io::save(&path, &hs_diagram::template::flow()).unwrap();
+        let state = DiagramState::open_path(&path).unwrap();
+        assert_eq!(state.doc.title, "Checkout flow");
+        assert_eq!(state.path.as_deref(), Some(path.as_path()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

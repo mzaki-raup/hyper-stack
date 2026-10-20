@@ -79,7 +79,7 @@ hyper-stack/
 │   ├── hs-git/                     # Git read side over the git CLI: status, diffs, log, branches, line changes
 │   ├── hs-lsp/                     # Language Server Protocol client: JSON-RPC over stdio, server registry, position encodings
 │   ├── hs-dap/                     # Debug Adapter Protocol client: adapters over stdio/TCP, launch configurations, breakpoints
-│   ├── hs-diagram/                 # (planned, Release 1) diagram document, Archify-adapted IR and validation, layout, scene, SVG/PNG/PDF export
+│   ├── hs-diagram/                 # diagram document, Archify-adapted IR and validation, flow/grid layout, scene, SVG/PNG/PDF export
 │   ├── hs-term/                    # alacritty_terminal grid, portable-pty, russh shell
 │   └── tools/
 │       ├── tool-editor/

@@ -136,7 +136,7 @@ impl Function {
     /// Release 1 ships Image and Icon in the first phase; the diagram tools
     /// arrive with their own phases and say so instead of pretending.
     pub fn enabled(self) -> bool {
-        matches!(self, Self::Image | Self::Icon)
+        matches!(self, Self::Image | Self::Icon | Self::Diagram)
     }
 }
 

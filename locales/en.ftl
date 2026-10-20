@@ -1933,6 +1933,45 @@ gfx-pick-hint = Click the colour to clear on the picture.
 gfx-transparent-apply = Make Transparent
 gfx-transparent-hint = Pick a colour on the picture, set how close a pixel must be, then apply. The operation can be removed like any other.
 
+## Diagram editor
+gfx-diagram-save = Save
+gfx-diagram-properties = Diagram
+gfx-diagram-title = Title
+gfx-diagram-flow-template = Flowchart
+gfx-diagram-arch-template = Architecture
+gfx-diagram-blank = Blank
+gfx-diagram-node = Node
+gfx-diagram-label = Label
+gfx-diagram-shape = Shape
+gfx-diagram-delete = Delete Node
+gfx-diagram-outline = Outline
+gfx-diagram-errors = { $count } validation error(s)
+gfx-diagram-valid = The diagram is valid.
+gfx-diagram-undo = Undo
+gfx-diagram-redo = Redo
+gfx-diagram-grid = Grid
+gfx-diagram-select = Select
+gfx-diagram-add-process = Add Process
+gfx-diagram-add-decision = Add Decision
+gfx-diagram-add-note = Add Note
+gfx-diagram-add-edge = Connect
+gfx-diagram-opened = Diagram opened
+gfx-shape-process = Process
+gfx-shape-rounded = Rounded Rectangle
+gfx-shape-ellipse = Ellipse
+gfx-shape-decision = Decision
+gfx-shape-start = Start / End
+gfx-shape-io = Input / Output
+gfx-shape-database = Database
+gfx-shape-note = Note
+gfx-shape-text = Text
+gfx-shape-container = Container
+gfx-shape-frontend = Frontend
+gfx-shape-backend = Backend
+gfx-shape-store = Store
+gfx-shape-queue = Queue
+gfx-shape-external = External
+
 ## Browser
 tool-browser = Browser
 browser-new-tab = New Page

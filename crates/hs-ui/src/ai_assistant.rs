@@ -131,6 +131,11 @@ pub struct AssistantPanel {
     /// Whether answers offer an **Insert** button (the host tool has a
     /// place to put a command or query). Copy is always offered.
     pub can_insert: bool,
+    /// Label for the host's whole-answer action (Graphics: Update Diagram).
+    /// None hides the button.
+    pub apply_label: Option<String>,
+    /// Label for the append variant (Graphics: Append JSON). None hides it.
+    pub append_label: Option<String>,
     /// Whether answers also offer **Insert and Run**: the host puts the
     /// block where it belongs and runs it the way its own Run button
     /// does, guards included (ADR-019).
@@ -524,12 +529,12 @@ impl AssistantPanel {
                             if text.is_empty() && self.running.is_some() {
                                 ui.spinner();
                             } else if *role == Role::User {
-                                ui.add(egui::Label::new(text).wrap());
+                                markdown_text(ui, text, theme);
                             } else {
                                 for (n, seg) in split_fences(text).into_iter().enumerate() {
                                     match seg {
                                         Segment::Text(t) => {
-                                            ui.add(egui::Label::new(t).wrap());
+                                            markdown_text(ui, &t, theme);
                                         }
                                         Segment::Code { lang, body } => {
                                             let is_action = self
@@ -555,6 +560,25 @@ impl AssistantPanel {
                                         }
                                     }
                                 }
+                                ui.horizontal_wrapped(|ui| {
+                                    if ui.button(s.t("ai-copy-answer")).clicked() {
+                                        ui.ctx().copy_text(text.clone());
+                                    }
+                                    if let Some(label) = &self.apply_label
+                                        && ui.button(label).clicked()
+                                    {
+                                        output.use_block = Some(text.clone());
+                                        output.use_block_lang = String::new();
+                                        output.run = false;
+                                    }
+                                    if let Some(label) = &self.append_label
+                                        && ui.button(label).clicked()
+                                    {
+                                        output.use_block = Some(text.clone());
+                                        output.use_block_lang = String::new();
+                                        output.run = true;
+                                    }
+                                });
                             }
                         });
                     ui.add_space(6.0);
@@ -647,6 +671,90 @@ impl Drop for AssistantPanel {
         }
         self.stt.abort();
     }
+}
+
+/// A deliberately small Markdown renderer for assistant prose: headings,
+/// bullets, bold, italic and inline code. Fenced code is already split out by
+/// `split_fences`, so this never has to guess at a fence.
+fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
+    for line in text.lines() {
+        let trimmed = line.trim_end();
+        if trimmed.trim().is_empty() {
+            ui.add_space(3.0);
+            continue;
+        }
+        if let Some(heading) = trimmed.strip_prefix("### ") {
+            ui.label(egui::RichText::new(heading).strong().size(14.0));
+            continue;
+        }
+        if let Some(heading) = trimmed.strip_prefix("## ") {
+            ui.label(egui::RichText::new(heading).strong().size(15.0));
+            continue;
+        }
+        if let Some(heading) = trimmed.strip_prefix("# ") {
+            ui.label(egui::RichText::new(heading).strong().size(16.0));
+            continue;
+        }
+        if let Some(item) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        {
+            ui.horizontal_wrapped(|ui| {
+                ui.label("•");
+                inline_markdown(ui, item, theme);
+            });
+            continue;
+        }
+        inline_markdown(ui, trimmed, theme);
+    }
+}
+
+fn inline_markdown(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
+    let mut job = egui::text::LayoutJob::default();
+    let base = egui::TextFormat {
+        font_id: egui::FontId::proportional(13.5),
+        color: theme.text,
+        ..Default::default()
+    };
+    let mut bold = false;
+    let mut italic = false;
+    let mut code = false;
+    let mut rest = text;
+    while !rest.is_empty() {
+        let next = if rest.starts_with("**") {
+            bold = !bold;
+            Some(2)
+        } else if rest.starts_with('`') {
+            code = !code;
+            Some(1)
+        } else if rest.starts_with('*') {
+            italic = !italic;
+            Some(1)
+        } else {
+            None
+        };
+        if let Some(len) = next {
+            rest = &rest[len..];
+            continue;
+        }
+        let end = rest.find(['*', '`']).unwrap_or(rest.len());
+        let mut fmt = base.clone();
+        fmt.italics = italic;
+        fmt.font_id = if code {
+            egui::FontId::monospace(12.5)
+        } else {
+            egui::FontId::proportional(13.5)
+        };
+        if bold && !code {
+            fmt.color = theme.text;
+        }
+        if code {
+            fmt.background = theme.surface;
+        }
+        job.append(&rest[..end], 0.0, fmt);
+        rest = &rest[end..];
+    }
+    ui.add(egui::Label::new(job).wrap());
 }
 
 #[cfg(test)]

@@ -356,7 +356,9 @@ item below was documented in the affected docs before the code was written.
 | Frame drag and selection | Completed | Outline selection and accent frame; dragging the frame border moves its nodes |
 | Edge label drag and line styles | Completed | `label_at`, draggable label, Solid/Dashed/Dotted painting and SVG |
 | Assistant as a column | Completed | `assistant_column` uses a right `Panel`; Copy and Update/Generate at the top |
-| Dashboard card centring | Completed | Custom painted card with a centred icon and label |
+'| Dashboard New Diagram/Generation enabled | Completed | Cards and function rows enable both actions |
+| Assistant Markdown and inline actions | Completed | Shared panel renders headings/lists/inline code; Copy, Replace Diagram and Append JSON per answer; JSON example hint |
+| Dashboard card centring | Completed |' Custom painted card with a centred icon and label |
 | Tab rows fit | Completed | Layout uses the narrowest row budget; `every_row_fits_inside_the_strip` test || Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG and show a selection accent from the Outline |
 | Empty separator hidden | Completed | Separators only render when a node or edge is selected |'
 | Refresh every screenshot and the walkthrough GIF, README licence MIT | In-Progress | README licence MIT; five key screenshots and `hyperstack-demo.gif` refreshed, the remaining 100+ shots are still the 0.45–0.54 set |

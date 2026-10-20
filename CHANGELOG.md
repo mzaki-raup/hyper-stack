@@ -9,10 +9,16 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+'## Unreleased
 
 ### Added
 
+- Dashboard: New Diagram and New Generation are enabled.
+- AI Assistant: assistant requests and answers render Markdown (headings,
+  bullets, bold/italic and inline code); every answer has inline Copy,
+  Replace Diagram and Append JSON actions. Diagram/Generator quick prompts ask
+  for a complete `.hdiag` JSON example.
+'
 - Diagram Editor: **Show Title and Frame** wraps the diagram in a dashed frame
   with the title; off shows the bare diagram.
 - Diagram Editor: dragging a frame border moves its nodes; edge labels drag

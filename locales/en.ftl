@@ -1149,6 +1149,7 @@ ai-make-default = Make Default
 ai-remove = Remove
 
 ## AI assistant (editor panel)
+ai-copy-answer = Copy
 ai-assistant = AI Assistant
 ai-shared-button-tip = Ask for help with the current tool context. Nothing is sent until you ask.
 ai-shared-input-hint = Ask about this context… (Ctrl+Enter sends)
@@ -1981,6 +1982,8 @@ gfx-diagram-shape = Shape
 gfx-diagram-delete = Delete Node
 gfx-diagram-delete-edge = Delete Edge
 gfx-ai-copy = Copy
+gfx-ai-replace = Replace Diagram
+gfx-ai-append = Append JSON
 gfx-ai-update-diagram = Update Diagram
 gfx-ai-generate-diagram = Generate Diagram
 gfx-ai-apply-tip = Apply the JSON in the assistant answer to the diagram.

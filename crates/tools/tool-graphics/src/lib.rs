@@ -261,6 +261,15 @@ impl Default for GraphicsTool {
 
 const ICO_SIZES: [u32; 7] = [16, 24, 32, 48, 64, 128, 256];
 
+/// Shared instruction for the Graphics assistant quick actions: ask for a
+/// complete document we can Replace or Append, with a concrete example.
+const DIAGRAM_JSON_HINT: &str = r##"
+
+When the answer changes the diagram, include the complete .hdiag document as a
+```json fenced block so I can Replace or Append it. Example:
+{"schema":1,"kind":"flow","title":"Checkout","subtitle":"","page":{"size":"fit","margin":24,"background":"#ffffff"},"nodes":[{"id":"start","label":"Start","kind":"start_end","x":0,"y":0,"w":0,"h":0}],"edges":[],"groups":[],"auto_layout":true}
+Keep ids unique and endpoint ids valid.
+"##;
 const DIAGRAM_QA: [(&str, &str); 4] = [
     ("ai-qa-diagram-layout", "ai-qa-diagram-layout-prompt"),
     ("ai-qa-diagram-missing", "ai-qa-diagram-missing-prompt"),
@@ -1668,7 +1677,14 @@ impl GraphicsTool {
             use hs_ui::ai_assistant::QuickAction;
             self.assistant.quick_actions = quick
                 .iter()
-                .map(|(label, prompt)| QuickAction::new(&s, label, prompt, ""))
+                .map(|(label, prompt)| {
+                    let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
+                        DIAGRAM_JSON_HINT
+                    } else {
+                        ""
+                    };
+                    QuickAction::new(&s, label, &format!("{}{hint}", s.t(prompt)), "")
+                })
                 .collect();
         }
         egui::Panel::right("gfx-assistant-column")
@@ -1697,11 +1713,79 @@ impl GraphicsTool {
                 });
                 ui.separator();
                 self.assistant.can_insert = true;
+                self.assistant.apply_label = Some(s.t("gfx-ai-replace"));
+                self.assistant.append_label = Some(s.t("gfx-ai-append"));
                 let output = self.assistant.ui(ui, &s, theme, "graphics");
                 if let Some(block) = output.use_block {
-                    self.apply_assistant_text(&block);
+                    if output.run {
+                        self.append_assistant_text(&block);
+                    } else {
+                        self.apply_assistant_text(&block);
+                    }
                 }
             });
+    }
+
+    /// Append the nodes, edges and groups from an assistant answer, with
+    /// fresh ids so nothing collides with what is already on the canvas.
+    fn append_assistant_text(&mut self, text: &str) -> bool {
+        let Some(start) = text.find('{') else {
+            return false;
+        };
+        let Some(end) = text.rfind('}') else {
+            return false;
+        };
+        if end <= start {
+            return false;
+        }
+        let candidate = &text[start..=end];
+        let Ok(doc) = hs_diagram::import::archify_json(candidate)
+            .or_else(|_| hs_diagram::io::from_json(candidate))
+        else {
+            return false;
+        };
+        let Kind::Diagram = self.kind else {
+            return false;
+        };
+        let Some(state) = &mut self.diagram else {
+            return false;
+        };
+        let stamp = state.doc.nodes.len() + state.doc.edges.len() + 1;
+        let prefix = |id: &str| format!("ai{stamp}_{id}");
+        let mut max_x = state
+            .doc
+            .nodes
+            .iter()
+            .map(|n| n.x + n.w)
+            .fold(0.0_f32, f32::max);
+        let mut groups = doc.groups.clone();
+        for group in &mut groups {
+            group.id = prefix(&group.id);
+            group.nodes = group.nodes.iter().map(|id| prefix(id)).collect();
+        }
+        for (i, mut node) in doc.nodes.into_iter().enumerate() {
+            node.id = prefix(&node.id);
+            if node.x <= 0.0 && node.y <= 0.0 {
+                node.x = max_x + 40.0;
+                node.y = 40.0 + i as f32 * 90.0;
+                node.w = node.w.max(160.0);
+                node.h = node.h.max(60.0);
+            }
+            max_x = max_x.max(node.x + node.w);
+            state.doc.nodes.push(node);
+        }
+        for mut edge in doc.edges {
+            edge.id = prefix(&edge.id);
+            edge.from = prefix(&edge.from);
+            edge.to = prefix(&edge.to);
+            state.doc.edges.push(edge);
+        }
+        state.doc.groups.extend(groups);
+        state.doc.auto_layout = false;
+        state.dirty = true;
+        state.status = Some("Appended from the assistant.".into());
+        self.dirty = true;
+        true
     }
 
     fn assistant_overlay(
@@ -1722,7 +1806,14 @@ impl GraphicsTool {
             use hs_ui::ai_assistant::QuickAction;
             self.assistant.quick_actions = quick
                 .iter()
-                .map(|(label, prompt)| QuickAction::new(&s, label, prompt, ""))
+                .map(|(label, prompt)| {
+                    let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
+                        DIAGRAM_JSON_HINT
+                    } else {
+                        ""
+                    };
+                    QuickAction::new(&s, label, &format!("{}{hint}", s.t(prompt)), "")
+                })
                 .collect();
         }
         let panel = egui::Rect::from_min_max(
@@ -2834,6 +2925,27 @@ mod close_tests {
         );
         assert!(t.apply_assistant_text(&answer));
         assert_eq!(t.diagram.as_ref().unwrap().doc.title, doc.title);
+    }
+
+    #[test]
+    fn an_assistant_answer_can_append_to_the_diagram() {
+        let mut t = GraphicsTool {
+            kind: Kind::Diagram,
+            diagram: Some(Box::new(diagram::DiagramState::new(
+                hs_diagram::DiagramKind::Flow,
+            ))),
+            ..GraphicsTool::default()
+        };
+        let before = t.diagram.as_ref().unwrap().doc.nodes.len();
+        let doc = hs_diagram::template::flow();
+        let answer = format!(
+            "Add these:\n```json\n{}\n```",
+            hs_diagram::io::to_json(&doc)
+        );
+        assert!(t.append_assistant_text(&answer));
+        let state = t.diagram.as_ref().unwrap();
+        assert!(state.doc.nodes.len() > before);
+        assert!(state.doc.nodes.iter().any(|n| n.id.starts_with("ai")));
     }
 
     #[test]

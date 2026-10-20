@@ -531,7 +531,10 @@ The Diagram Editor's **Import** menu reads:
 - **Interaction** — frames are outlined and selectable, dragging their border
   moves their nodes; edge labels drag along the line; edges can be Solid,
   Dashed or Dotted.
-- **Properties** — node outline/fill/text, edge outline/label and frame'
+'- **Assistant** — the shared assistant renders Markdown, asks for a full
+  `.hdiag` JSON example in the Graphics quick actions, and offers Copy,
+  Replace Diagram and Append JSON inline on each answer.
+- **Properties** — node outline/fill/text, edge outline/label and frame''
   text/outline/fill/text are colour pickers; Reset returns to the theme.
 - **draw.io XML** — the plain or compressed `mxGraphModel` form. Vertices become
   nodes at their own geometry (rounded, rhombus, ellipse start/end, cylinder,

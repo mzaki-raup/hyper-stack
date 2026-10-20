@@ -34,6 +34,14 @@ enum ImportKind {
     Mermaid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum DiagramView {
+    #[default]
+    Preview,
+    Source,
+    Split,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolMode {
     Select,
@@ -46,12 +54,14 @@ pub struct DiagramState {
     pub dirty: bool,
     undo: Vec<DiagramDoc>,
     redo: Vec<DiagramDoc>,
+    undo_limit: usize,
     selected: Option<String>,
     /// Additional nodes selected with Shift-click; the primary is `selected`.
     multi: Vec<String>,
     selected_edge: Option<String>,
     /// World-space polyline of every edge from the last painted scene.
     edge_paths: Vec<Vec<Point>>,
+    view: DiagramView,
     zoom: f32,
     pan: egui::Vec2,
     show_grid: bool,
@@ -63,7 +73,7 @@ pub struct DiagramState {
     drag_pan: Option<(egui::Vec2, egui::Pos2)>,
     last_center: Point,
     saved: Option<PathBuf>,
-    status: Option<String>,
+    pub(crate) status: Option<String>,
     save_open: bool,
     save_project: usize,
     save_subfolder: String,
@@ -95,10 +105,12 @@ impl DiagramState {
             dirty: false,
             undo: Vec::new(),
             redo: Vec::new(),
+            undo_limit: 20,
             selected,
             multi: Vec::new(),
             selected_edge: None,
             edge_paths: Vec::new(),
+            view: DiagramView::Preview,
             zoom: 0.0,
             pan: egui::Vec2::ZERO,
             show_grid: true,
@@ -225,7 +237,8 @@ impl DiagramState {
 
     fn push_undo(&mut self) {
         self.undo.push(self.doc.clone());
-        if self.undo.len() > 80 {
+        let limit = self.undo_limit.clamp(1, 100);
+        while self.undo.len() > limit {
             self.undo.remove(0);
         }
         self.redo.clear();
@@ -440,6 +453,16 @@ impl DiagramState {
             self.save_error = None;
             self.save_overwrite = false;
             self.save_open = true;
+        }
+        ui.separator();
+        for (view, key) in [
+            (DiagramView::Preview, "gfx-view-preview"),
+            (DiagramView::Source, "gfx-view-source"),
+            (DiagramView::Split, "gfx-view-split"),
+        ] {
+            if ui.selectable_label(self.view == view, s.t(key)).clicked() {
+                self.view = view;
+            }
         }
         ui.menu_button(format!("{} Export", hs_ui::icons::ph::EXPORT), |ui| {
             if ui.button("PNG (2×)").clicked() {
@@ -669,12 +692,24 @@ impl DiagramState {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        self.undo_limit = cx.services.settings.read().general.undo_limit as usize;
         self.save_window(ui.ctx(), cx);
         egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
             .size_range(240.0..=430.0)
             .resizable(true)
             .show(ui, |ui| self.properties(ui, cx, theme));
+        if self.view == DiagramView::Split {
+            egui::Panel::right("gfx-diagram-source")
+                .default_size(420.0)
+                .size_range(260.0..=760.0)
+                .resizable(true)
+                .show(ui, |ui| self.source_view(ui, theme));
+        }
+        if self.view == DiagramView::Source {
+            self.source_view(ui, theme);
+            return;
+        }
         let canvas = ui.available_rect_before_wrap();
         let mut child = ui.new_child(
             egui::UiBuilder::new()
@@ -683,6 +718,38 @@ impl DiagramState {
         );
         child.set_clip_rect(canvas);
         self.canvas(&mut child, cx, theme);
+    }
+
+    fn source_view(&mut self, ui: &mut egui::Ui, theme: &Theme) {
+        let text = hs_diagram::io::to_json(&self.doc);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Source (JSON)").strong());
+            if ui.button("Copy").clicked() {
+                ui.ctx().copy_text(text.clone());
+            }
+        });
+        ui.separator();
+        egui::ScrollArea::both()
+            .id_salt((
+                "gfx-diagram-source-scroll",
+                matches!(self.view, DiagramView::Source),
+            ))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let mut read_only = text;
+                ui.add(
+                    egui::TextEdit::multiline(&mut read_only)
+                        .code_editor()
+                        .desired_width(f32::INFINITY)
+                        .interactive(false),
+                );
+            });
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new("The source follows every edit in the properties pane.")
+                .small()
+                .color(theme.text_muted),
+        );
     }
 
     fn properties(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -729,7 +796,7 @@ impl DiagramState {
                 ui.add_space(8.0);
                 ui.separator();
                 ui.add_space(6.0);
-
+                ui.separator();
                 if let Some(id) = self.selected.clone() {
                     let mut changed = false;
                     let mut remove = false;
@@ -814,6 +881,40 @@ impl DiagramState {
                                 .small()
                                 .color(theme.text_muted),
                         );
+                        egui::Grid::new("gfx-edge-grid")
+                            .num_columns(2)
+                            .spacing([8.0, 4.0])
+                            .show(ui, |ui| {
+                                ui.label("Arrow");
+                                ui.horizontal(|ui| {
+                                    for (value, label) in [
+                                        (Arrow::None, "None"),
+                                        (Arrow::End, "End"),
+                                        (Arrow::Both, "Both"),
+                                    ] {
+                                        changed |= ui
+                                            .selectable_value(&mut edge.arrow, value, label)
+                                            .changed();
+                                    }
+                                });
+                                ui.end_row();
+                                ui.label("Route");
+                                ui.horizontal(|ui| {
+                                    for (value, label) in [
+                                        (EdgeRoute::Straight, "Straight"),
+                                        (EdgeRoute::Orthogonal, "Orthogonal"),
+                                        (EdgeRoute::Curved, "Curved"),
+                                    ] {
+                                        changed |= ui
+                                            .selectable_value(&mut edge.route, value, label)
+                                            .changed();
+                                    }
+                                });
+                                ui.end_row();
+                                ui.label("Line");
+                                changed |= ui.checkbox(&mut edge.dashed, "Dashed").changed();
+                                ui.end_row();
+                            });
                         if ui.button("Add Waypoint").clicked() {
                             add = true;
                         }
@@ -841,39 +942,55 @@ impl DiagramState {
                     ui.add_space(6.0);
                 }
 
+                ui.separator();
+                ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new(s.t("gfx-diagram-outline"))
                         .strong()
                         .color(theme.text),
                 );
                 ui.add_space(2.0);
-                let nodes: Vec<(String, String)> = self
+                let nodes: Vec<(String, String, &str)> = self
                     .doc
                     .nodes
                     .iter()
-                    .map(|n| (n.id.clone(), n.label.clone()))
+                    .map(|n| (n.id.clone(), n.label.clone(), shape_icon(n.kind)))
                     .collect();
-                for (id, label) in nodes {
-                    let selected = self.selected.as_deref() == Some(id.as_str());
-                    if ui.selectable_label(selected, label).clicked() {
-                        self.selected = Some(id);
-                        self.multi.clear();
+                ui.indent("gfx-outline-nodes", |ui| {
+                    for (id, label, icon) in nodes {
+                        let selected = self.selected.as_deref() == Some(id.as_str());
+                        if ui
+                            .selectable_label(selected, format!("{icon}  {label}"))
+                            .clicked()
+                        {
+                            self.selected = Some(id);
+                            self.multi.clear();
+                        }
                     }
-                }
-                for edge in &self.doc.edges {
-                    let label = if edge.label.is_empty() {
-                        format!("{} → {}", edge.from, edge.to)
-                    } else {
-                        format!("{} → {} ({})", edge.from, edge.to, edge.label)
-                    };
-                    let selected = self.selected_edge.as_deref() == Some(edge.id.as_str());
-                    if ui.selectable_label(selected, label).clicked() {
-                        self.selected_edge = Some(edge.id.clone());
-                        self.selected = None;
-                        self.multi.clear();
+                });
+                ui.indent("gfx-outline-edges", |ui| {
+                    for edge in &self.doc.edges {
+                        let label = if edge.label.is_empty() {
+                            format!("{} → {}", edge.from, edge.to)
+                        } else {
+                            format!("{} → {} ({})", edge.from, edge.to, edge.label)
+                        };
+                        let selected = self.selected_edge.as_deref() == Some(edge.id.as_str());
+                        if ui
+                            .selectable_label(
+                                selected,
+                                format!("{}  {}", hs_ui::icons::ph::ARROW_RIGHT, label),
+                            )
+                            .clicked()
+                        {
+                            self.selected_edge = Some(edge.id.clone());
+                            self.selected = None;
+                            self.multi.clear();
+                        }
                     }
-                }
-                ui.add_space(6.0);
+                });
+                ui.separator();
+                ui.add_space(4.0);
                 let issues = validate::validate(&self.doc);
                 let errors = issues
                     .iter()
@@ -1359,7 +1476,7 @@ impl DiagramState {
         rects.iter().rposition(|r| r.contains(world))
     }
 
-    fn replace(&mut self, doc: DiagramDoc) {
+    pub(crate) fn replace(&mut self, doc: DiagramDoc) {
         self.push_undo();
         self.doc = doc;
         self.selected = self.doc.nodes.first().map(|n| n.id.clone());
@@ -1611,13 +1728,51 @@ fn paint_shape(
             painter.add(egui::Shape::convex_polygon(points, fill, stroke));
         }
         NodeKind::Database => {
-            painter.rect(r, 8.0 * z, fill, stroke, egui::StrokeKind::Inside);
-            let ry = (r.height() * 0.12).min(10.0 * z);
-            painter.add(egui::Shape::ellipse_stroke(
-                egui::pos2(r.center().x, r.top() + ry),
-                egui::vec2(r.width() / 2.0, ry),
+            // A real cylinder: body, full top ellipse and only the *front*
+            // half of the bottom ellipse. A full bottom ellipse reads as an
+            // oval underneath the shape.
+            let ry = (r.height() * 0.12).min(12.0 * z).max(4.0);
+            let rx = r.width() / 2.0;
+            let top = egui::pos2(r.center().x, r.top() + ry);
+            let bottom = egui::pos2(r.center().x, r.bottom() - ry);
+            let steps = 16;
+            let mut body = vec![
+                egui::pos2(r.left(), r.top() + ry),
+                egui::pos2(r.right(), r.top() + ry),
+                egui::pos2(r.right(), r.bottom() - ry),
+            ];
+            for i in 0..=steps {
+                let angle = std::f32::consts::PI * (i as f32 / steps as f32);
+                body.push(egui::pos2(
+                    bottom.x + rx * angle.cos(),
+                    bottom.y + ry * angle.sin(),
+                ));
+            }
+            body.push(egui::pos2(r.left(), r.bottom() - ry));
+            painter.add(egui::Shape::convex_polygon(body, fill, egui::Stroke::NONE));
+            painter.add(egui::Shape::ellipse_filled(top, egui::vec2(rx, ry), fill));
+            painter.add(egui::Shape::ellipse_stroke(top, egui::vec2(rx, ry), stroke));
+            painter.line_segment(
+                [
+                    egui::pos2(r.left(), r.top() + ry),
+                    egui::pos2(r.left(), r.bottom() - ry),
+                ],
                 stroke,
-            ));
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(r.right(), r.top() + ry),
+                    egui::pos2(r.right(), r.bottom() - ry),
+                ],
+                stroke,
+            );
+            let arc: Vec<egui::Pos2> = (0..=steps)
+                .map(|i| {
+                    let angle = std::f32::consts::PI * (i as f32 / steps as f32);
+                    egui::pos2(bottom.x + rx * angle.cos(), bottom.y + ry * angle.sin())
+                })
+                .collect();
+            painter.add(egui::Shape::line(arc, stroke));
         }
         NodeKind::Note => {
             painter.rect(r, 0.0, fill, stroke, egui::StrokeKind::Inside);
@@ -1674,6 +1829,20 @@ fn arrow_head(
         stroke.color,
         egui::Stroke::NONE,
     ));
+}
+
+fn shape_icon(kind: NodeKind) -> &'static str {
+    use hs_ui::icons::ph;
+    match kind {
+        NodeKind::Decision => ph::DIAMOND,
+        NodeKind::StartEnd | NodeKind::Ellipse => ph::SELECTION,
+        NodeKind::Note | NodeKind::Text => ph::NOTE_PENCIL,
+        NodeKind::Container => ph::TREE_STRUCTURE,
+        NodeKind::Database | NodeKind::Store => ph::RECTANGLE,
+        NodeKind::Queue => ph::ARROW_RIGHT,
+        NodeKind::Frontend | NodeKind::Backend | NodeKind::External => ph::APP_WINDOW,
+        NodeKind::Process | NodeKind::RoundedRectangle | NodeKind::InputOutput => ph::RECTANGLE,
+    }
 }
 
 #[cfg(test)]

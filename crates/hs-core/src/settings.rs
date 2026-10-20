@@ -131,6 +131,9 @@ pub struct General {
     /// Fluent locale, e.g. "en"; empty = detect from the OS.
     pub language: String,
     pub show_fallback_notice: bool,
+    /// Maximum number of undo steps kept by tools that implement their own
+    /// history (image/icon edits today). Clamped to 1..=100.
+    pub undo_limit: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -452,6 +455,7 @@ impl Default for General {
             restore_tabs: true,
             language: String::new(),
             show_fallback_notice: true,
+            undo_limit: 20,
         }
     }
 }

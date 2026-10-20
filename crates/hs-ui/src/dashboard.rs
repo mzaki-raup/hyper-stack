@@ -46,7 +46,9 @@ pub fn open_tabs(
     // a frame reports its size only after it is drawn, so wrapping on it
     // never happens (see the CLAUDE.md gotcha).
     let spacing = ui.spacing().item_spacing.x;
-    let avail = ui.available_width();
+    // Leave a little room for a scrollbar or panel edge: the last card used to
+    // be clipped by the right edge on a 1400 px window.
+    let avail = (ui.available_width() - 32.0).max(CARD_WIDTH);
     let columns = (((avail + spacing) / (CARD_WIDTH + spacing)).floor() as usize).max(1);
     egui::Grid::new("hs-dashboard-tabs")
         .num_columns(columns)

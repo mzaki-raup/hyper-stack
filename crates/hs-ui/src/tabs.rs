@@ -20,6 +20,9 @@ pub const PINNED_WIDTH: f32 = 36.0;
 pub const PINNED_TEXT_WIDTH: f32 = 132.0;
 pub const MAX_TAB_WIDTH: f32 = 240.0;
 pub const NEW_TAB_WIDTH: f32 = 32.0;
+/// Breathing room at the strip's right edge so the last close button is never
+/// clipped by the window frame or the "+" slot.
+pub const STRIP_RIGHT_PAD: f32 = 14.0;
 /// Row height of a compact strip.
 pub const COMPACT_ROW_HEIGHT: f32 = 26.0;
 
@@ -264,6 +267,7 @@ impl TabStrip<'_> {
     pub fn show<T: TabItem>(&self, ui: &mut egui::Ui, tabs: &[T]) -> TabStripResponse {
         let mut resp = TabStripResponse::default();
         let full_width = ui.available_width();
+        let layout_width = (full_width - STRIP_RIGHT_PAD).max(1.0);
         let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
         let permanent: Vec<bool> = tabs.iter().map(TabItem::permanent).collect();
         let icon_only: Vec<bool> = tabs.iter().map(TabItem::icon_only_when_pinned).collect();
@@ -271,7 +275,7 @@ impl TabStrip<'_> {
             &pinned,
             &permanent,
             &icon_only,
-            full_width,
+            layout_width,
             self.min_width,
             self.gap,
         );

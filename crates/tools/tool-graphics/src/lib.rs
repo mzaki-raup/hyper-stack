@@ -171,6 +171,10 @@ pub struct GraphicsTool {
     original: Option<DynamicImage>,
     original_bytes: Vec<u8>,
     ops: Vec<Op>,
+    /// Snapshots before each edit, capped by Settings → General → Behaviour.
+    undo_stack: Vec<Vec<Op>>,
+    redo_stack: Vec<Vec<Op>>,
+    undo_limit: usize,
     current: Option<DynamicImage>,
     texture: Option<egui::TextureHandle>,
     dirty: bool,
@@ -216,6 +220,9 @@ impl Default for GraphicsTool {
             original: None,
             original_bytes: Vec::new(),
             ops: Vec::new(),
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
+            undo_limit: 20,
             current: None,
             texture: None,
             dirty: false,
@@ -307,6 +314,8 @@ impl GraphicsTool {
         self.original = Some(img);
         self.original_bytes = bytes;
         self.ops.clear();
+        self.undo_stack.clear();
+        self.redo_stack.clear();
         self.current = None;
         self.texture = None;
         self.dirty = true;
@@ -321,7 +330,32 @@ impl GraphicsTool {
         Ok(())
     }
 
+    fn remember(&mut self) {
+        self.undo_stack.push(self.ops.clone());
+        let limit = self.undo_limit.clamp(1, 100);
+        while self.undo_stack.len() > limit {
+            self.undo_stack.remove(0);
+        }
+        self.redo_stack.clear();
+    }
+
+    fn undo_edit(&mut self) {
+        if let Some(previous) = self.undo_stack.pop() {
+            self.redo_stack
+                .push(std::mem::replace(&mut self.ops, previous));
+            self.dirty = true;
+        }
+    }
+
+    fn redo_edit(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            self.undo_stack.push(std::mem::replace(&mut self.ops, next));
+            self.dirty = true;
+        }
+    }
+
     fn push(&mut self, op: Op) {
+        self.remember();
         self.ops.push(op);
         self.dirty = true;
     }
@@ -365,6 +399,7 @@ impl GraphicsTool {
         if pending.is_empty() {
             return;
         }
+        self.remember();
         self.ops.extend(pending);
         let c = &mut self.controls;
         c.brightness = 0;
@@ -558,6 +593,8 @@ impl GraphicsTool {
         self.current = Some(img);
         self.texture = None;
         self.ops.clear();
+        self.undo_stack.clear();
+        self.redo_stack.clear();
         self.frames.clear();
         self.controls.width = w;
         self.controls.height = h;
@@ -931,11 +968,13 @@ impl GraphicsTool {
                         _ => inv_on,
                     };
                     if on && last_is_same {
+                        self.remember();
                         self.ops.pop();
                         self.dirty = true;
                     } else if on {
                         // Switched on earlier in the list: take that one out.
                         if let Some(i) = self.ops.iter().rposition(|o| *o == op) {
+                            self.remember();
                             self.ops.remove(i);
                             self.dirty = true;
                         }
@@ -971,17 +1010,33 @@ impl GraphicsTool {
                 });
             }
             if let Some(i) = remove {
+                self.remember();
                 self.ops.remove(i);
                 self.dirty = true;
             }
             if !self.ops.is_empty() {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    if ui.button(s.t("gfx-undo")).clicked() {
-                        self.ops.pop();
-                        self.dirty = true;
+                    if ui
+                        .add_enabled(
+                            !self.undo_stack.is_empty(),
+                            egui::Button::new(s.t("gfx-undo")),
+                        )
+                        .clicked()
+                    {
+                        self.undo_edit();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.redo_stack.is_empty(),
+                            egui::Button::new(s.t("gfx-redo")),
+                        )
+                        .clicked()
+                    {
+                        self.redo_edit();
                     }
                     if ui.button(s.t("gfx-reset")).clicked() {
+                        self.remember();
                         self.ops.clear();
                         self.dirty = true;
                     }
@@ -1011,6 +1066,8 @@ impl GraphicsTool {
                                 let img = self.frames[i].2.clone();
                                 self.original = Some(img);
                                 self.ops.clear();
+                                self.undo_stack.clear();
+                                self.redo_stack.clear();
                                 self.dirty = true;
                             }
                             rows.space(4.0);
@@ -1539,6 +1596,13 @@ impl GraphicsTool {
             });
     }
 
+    /// The shared assistant control always ends at the toolbar's hard right.
+    fn assistant_right(&mut self, ui: &mut egui::Ui, s: &Services) {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            self.assistant_button(ui, s);
+        });
+    }
+
     fn assistant_button(&mut self, ui: &mut egui::Ui, s: &Services) {
         if ui
             .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
@@ -1551,6 +1615,43 @@ impl GraphicsTool {
 
     /// The review-only assistant over a diagram or generator tab. The context
     /// is text (ids, labels, counts), never pixels or project files.
+    /// Apply a diagram document or Archify IR found in an assistant answer.
+    fn apply_assistant_text(&mut self, text: &str) -> bool {
+        let Some(start) = text.find('{') else {
+            return false;
+        };
+        let Some(end) = text.rfind('}') else {
+            return false;
+        };
+        if end <= start {
+            return false;
+        }
+        let candidate = &text[start..=end];
+        let parsed = hs_diagram::import::archify_json(candidate)
+            .or_else(|_| hs_diagram::io::from_json(candidate));
+        let Ok(doc) = parsed else {
+            return false;
+        };
+        match self.kind {
+            Kind::Diagram => {
+                if let Some(state) = &mut self.diagram {
+                    state.replace(doc);
+                    state.status = Some("Updated from the assistant.".into());
+                }
+            }
+            Kind::Generator => {
+                if let Some(state) = &mut self.generator {
+                    state.doc = Some(doc);
+                    state.status = Some("Generated from the assistant.".into());
+                    state.error = None;
+                }
+            }
+            _ => return false,
+        }
+        self.dirty = true;
+        true
+    }
+
     fn assistant_overlay(
         &mut self,
         ui: &mut egui::Ui,
@@ -1587,8 +1688,25 @@ impl GraphicsTool {
             .stroke(egui::Stroke::new(1.0, theme.border))
             .show(&mut child, |ui| {
                 ui.set_min_width(370.0);
-                self.assistant.can_insert = false;
-                let _ = self.assistant.ui(ui, &s, theme, "graphics");
+                self.assistant.can_insert = true;
+                let output = self.assistant.ui(ui, &s, theme, "graphics");
+                if let Some(block) = output.use_block {
+                    self.apply_assistant_text(&block);
+                }
+                if let Some(answer) = self.assistant.last_answer().map(str::to_owned) {
+                    let label = if self.kind == Kind::Generator {
+                        s.t("gfx-ai-generate-diagram")
+                    } else {
+                        s.t("gfx-ai-update-diagram")
+                    };
+                    if ui
+                        .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, label))
+                        .on_hover_text(s.t("gfx-ai-apply-tip"))
+                        .clicked()
+                    {
+                        self.apply_assistant_text(&answer);
+                    }
+                }
             });
     }
 
@@ -1700,6 +1818,7 @@ impl GraphicsTool {
             .id_salt("gfx-home")
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                ui.add_space(16.0);
                 ui.label(
                     egui::RichText::new(s.t("gfx-what-to-do"))
                         .strong()
@@ -1739,10 +1858,13 @@ impl GraphicsTool {
                         ),
                     ];
                     for (icon, label_key, desc_key, enabled, f) in actions {
-                        let label = format!("{}\n{}", icon, s.t(label_key));
+                        let label = format!("{}  {}", icon, s.t(label_key));
                         let r = ui.add_enabled(
                             enabled,
-                            egui::Button::new(label).min_size(egui::vec2(170.0, 54.0)),
+                            egui::Button::new(
+                                egui::RichText::new(label).size(14.0).color(theme.text),
+                            )
+                            .min_size(egui::vec2(180.0, 44.0)),
                         );
                         if r.on_hover_text(s.t(desc_key)).clicked() {
                             self.pick_and_open(cx, f);
@@ -1750,35 +1872,56 @@ impl GraphicsTool {
                         ui.add_space(8.0);
                     }
                 });
-                ui.add_space(14.0);
+                ui.add_space(18.0);
                 ui.label(
                     egui::RichText::new(s.t("gfx-functions"))
                         .strong()
                         .size(13.0)
                         .color(theme.text_muted),
                 );
-                ui.add_space(4.0);
+                ui.add_space(6.0);
                 for f in Function::ALL {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new(f.icon()).size(18.0));
-                        ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(s.t(f.title_key())).strong());
-                            ui.label(
-                                egui::RichText::new(s.t(f.description_key()))
-                                    .small()
-                                    .color(theme.text_muted),
-                            );
-                        });
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui
-                                .add_enabled(f.enabled(), egui::Button::new(s.t(f.action_key())))
-                                .clicked()
-                            {
-                                self.pick_and_open(cx, f);
-                            }
-                        });
+                    ui.horizontal_top(|ui| {
+                        ui.add_sized(
+                            [24.0, 24.0],
+                            egui::Label::new(egui::RichText::new(f.icon()).size(18.0))
+                                .selectable(false),
+                        );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(330.0, 58.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                ui.set_min_width(330.0);
+                                ui.set_max_width(330.0);
+                                ui.label(egui::RichText::new(s.t(f.title_key())).strong());
+                                ui.label(
+                                    egui::RichText::new(s.t(f.description_key()))
+                                        .small()
+                                        .color(theme.text_muted),
+                                );
+                            },
+                        );
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(150.0, 58.0),
+                            egui::Layout::top_down(egui::Align::Center),
+                            |ui| {
+                                ui.set_min_width(150.0);
+                                ui.set_max_width(150.0);
+                                ui.add_space(12.0);
+                                if ui
+                                    .add_enabled(
+                                        f.enabled(),
+                                        egui::Button::new(s.t(f.action_key()))
+                                            .min_size(egui::vec2(140.0, 28.0)),
+                                    )
+                                    .clicked()
+                                {
+                                    self.pick_and_open(cx, f);
+                                }
+                            },
+                        );
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(2.0);
                 }
                 ui.add_space(8.0);
                 let labels = hs_ui::dashboard::DashboardLabels {
@@ -2061,14 +2204,14 @@ impl Tool for GraphicsTool {
                     );
                 }
             }
-            self.assistant_button(ui, cx.services);
+            self.assistant_right(ui, cx.services);
             return;
         }
         if self.kind == Kind::Generator {
             if let Some(state) = &mut self.generator {
                 state.toolbar(ui, cx);
             }
-            self.assistant_button(ui, cx.services);
+            self.assistant_right(ui, cx.services);
             return;
         }
         let s = cx.services;
@@ -2077,6 +2220,27 @@ impl Tool for GraphicsTool {
             ui.label(egui::RichText::new(info).monospace().small());
             ui.separator();
         }
+        if ui
+            .add_enabled(
+                !self.undo_stack.is_empty(),
+                egui::Button::new(ph::ARROW_COUNTER_CLOCKWISE),
+            )
+            .on_hover_text(s.t("gfx-undo"))
+            .clicked()
+        {
+            self.undo_edit();
+        }
+        if ui
+            .add_enabled(
+                !self.redo_stack.is_empty(),
+                egui::Button::new(ph::ARROW_CLOCKWISE),
+            )
+            .on_hover_text(s.t("gfx-redo"))
+            .clicked()
+        {
+            self.redo_edit();
+        }
+        ui.separator();
         if self.kind == Kind::Image
             && self.original.is_some()
             && ui
@@ -2113,6 +2277,21 @@ impl Tool for GraphicsTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        self.undo_limit = s.settings.read().general.undo_limit as usize;
+        if matches!(self.kind, Kind::Image | Kind::Icon) && !ui.ctx().egui_wants_keyboard_input() {
+            let undo =
+                ui.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z));
+            let redo = ui.input(|i| {
+                i.modifiers.ctrl
+                    && (i.key_pressed(egui::Key::Y)
+                        || (i.modifiers.shift && i.key_pressed(egui::Key::Z)))
+            });
+            if undo {
+                self.undo_edit();
+            } else if redo {
+                self.redo_edit();
+            }
+        }
         self.refresh(ui.ctx());
         if self.kind == Kind::Home {
             self.dashboard(ui, cx);
@@ -2547,6 +2726,51 @@ mod close_tests {
             .collect();
         assert_eq!(names.len(), 1, "one autosaved draft: {names:?}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_assistant_answer_can_replace_the_diagram() {
+        let mut t = GraphicsTool {
+            kind: Kind::Diagram,
+            diagram: Some(Box::new(diagram::DiagramState::new(
+                hs_diagram::DiagramKind::Flow,
+            ))),
+            ..GraphicsTool::default()
+        };
+        let doc = hs_diagram::template::flow();
+        let answer = format!(
+            "Here is the diagram:\n```json\n{}\n```",
+            hs_diagram::io::to_json(&doc)
+        );
+        assert!(t.apply_assistant_text(&answer));
+        assert_eq!(t.diagram.as_ref().unwrap().doc.title, doc.title);
+    }
+
+    #[test]
+    fn undo_and_redo_restore_the_image_operations() {
+        let mut t = GraphicsTool::default();
+        t.push(Op::FlipH);
+        t.push(Op::Grayscale);
+        assert_eq!(t.ops.len(), 2);
+        t.undo_edit();
+        assert_eq!(t.ops, vec![Op::FlipH]);
+        t.undo_edit();
+        assert!(t.ops.is_empty());
+        t.redo_edit();
+        assert_eq!(t.ops, vec![Op::FlipH]);
+        t.redo_edit();
+        assert_eq!(t.ops, vec![Op::FlipH, Op::Grayscale]);
+    }
+
+    #[test]
+    fn a_new_edit_clears_the_redo_stack() {
+        let mut t = GraphicsTool::default();
+        t.push(Op::FlipH);
+        t.undo_edit();
+        assert_eq!(t.redo_stack.len(), 1);
+        t.push(Op::FlipV);
+        assert!(t.redo_stack.is_empty());
+        assert_eq!(t.ops, vec![Op::FlipV]);
     }
 
     #[test]

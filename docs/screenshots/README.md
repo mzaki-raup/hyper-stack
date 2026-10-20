@@ -273,3 +273,23 @@ The editor shots are from the running app (data folder
 - `graphics-assistant.png` — the review-only assistant open over the generator
   with no provider configured; with a provider the same panel shows the
   four quick actions and More Suggestions.
+
+## 2026-10-20 set: UI consistency, live source and shapes
+
+Recaptured from the debug build at 1400x900, HyperStack Dark, rail labels
+on, after the UI consistency pass:
+
+- `graphics-dashboard.png` — the dashboard with the "What To Do" spacing,
+  centred cards and the aligned function action column.
+- `graphics-source-preview.png` — the Diagram Editor's Split view: live
+  JSON source to the right of the canvas.
+- `graphics-node-shapes.png` — the architecture template with the database
+  drawn as a real cylinder, shape icons in the Outline and separated
+  properties sections.
+- `graphics-edge-properties.png` — an edge selected, with label, Arrow,
+  Route, Line, Add Waypoint and Delete Edge in the properties pane.
+- `settings-general.png` — the new Behaviour card with the visible Undo
+  Limit slider (1–100).
+
+`hyperstack-demo.gif` was rebuilt from these five frames with
+`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256 -layers Optimize`.

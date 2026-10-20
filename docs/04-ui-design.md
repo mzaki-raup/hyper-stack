@@ -68,6 +68,36 @@ Regions, top to bottom:
    assertions, SQL errors), Terminal (quick local shell). Height persisted.
 8. **Status bar** — tool-supplied left segments, global right segments.
 
+### 1.6 UI/UX consistency rules
+
+Owner's rules, 2026-10-20. They apply to every activity dashboard, tool
+toolbar, properties pane and dialog:
+
+- **Dashboards share one rhythm.** A section heading starts with the same
+  top spacing as the other activities (Graphics' "What To Do" follows
+  Devtools' "Open Here"), actions use the same card padding, and the label
+  and icon are vertically centred inside each card.
+- **Row actions sit in a fixed column.** A list of functions puts its action
+  buttons in one aligned column next to the description, not at the far right
+  of a wide pane; the AI Assistant is the one control that belongs at the hard
+  right of a toolbar.
+- **One assistant position.** The AI Assistant button is the hard-right item
+  of every tool toolbar, whether the tool draws a toolbar or a diagram canvas.
+- **Source and preview are peers.** Where a document has a source form, the
+  Preview / Source / Split control sits in the toolbar and Split puts the
+  source to the right of the preview. The source follows edits immediately.
+- **Undo is universal.** Every visual editor gets Undo and Redo, Ctrl+Z and
+  Ctrl+Y, and the number of steps comes from Settings → General → Behaviour →
+  Undo Limit (1–100), so changing the setting changes every tool that keeps
+  its own history.
+- **Shape-specific drawing.** Diagram nodes use the shape their type names
+  (a cylinder for a database, a diamond for a decision, a folded note), and
+  edge, node and canvas attributes live in the properties pane with the same
+  label/field grid.
+- **Nothing is clipped at the edge.** The tab strip reserves a right margin
+  so the last tab's title and close button stay visible and the strip wraps
+  before the window edge.
+
 ## 2. The tab space
 
 ### 2.1 Model

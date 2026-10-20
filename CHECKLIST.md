@@ -335,6 +335,22 @@ item below was documented in the affected docs before the code was written.
 | Terminal: a Settings page between Security and Connections with a reorderable Terminal List of CLI profiles (mysql, psql, mongosh, redis-cli, claude, opencode, custom) and PATH suggestions; each shows in the Terminal activity sidebar | Completed | `CliProfile` + `Terminal.cli` in `settings.toml [[terminal.cli]]`; arrows reorder, Add/Edit/Remove, enabled toggle, Suggestions from PATH, icons, `{{workspace}}` start folder; clicking a CLI opens a tab and types its command line. Verified live: added Test Shell (`cmd /k echo Hello from CLI`) and it ran in a new tab; added Claude Code from Suggestions (disabled) and moved it above Test Shell, the TOML order changed. P1: per-profile environment injection and icon colour |
 | Documentation, screenshots and GIF for every feature | Completed | README screenshots restructured into 16 categories with a category index; new shots for the Git conflict editor and interactive rebase, credentials (table and Edit Secret), environment export, Connections, Redis, NoSQL, Regex Tester and Text Diff; Settings shots retaken on 0.44.0; Home, Editor, Terminal and Production retaken; obsolete Welcome shot removed; walkthrough GIF rebuilt from the current set; `docs/screenshots/README.md` records the fixtures and harness |
 
+## Owner's requests, 2026-10-20 (UI/UX consistency)
+
+| Item | State | Notes |
+|---|---|---|
+| Document the UI/UX consistency rules | Completed | `CLAUDE.md` Project rules and `docs/04-ui-design.md` §1.6; branch `fix/ui-ux-consistency` |
+| Graphics dashboard: "What To Do" top spacing, centred cards, aligned function actions | Completed | 10 px heading offset, one-line 180×44 cards, three-column function grid with a 140 px action column |
+| AI Assistant hard right in the Diagram Editor and Generator | Completed | `assistant_right` wraps the shared button in a `right_to_left` layout |
+| Diagram Outline icons and section separators | Completed | Shape icons per node, arrow icon per edge, separators before Properties, Outline and Status |
+| Diagram Preview / Source / Split, source on the right and live | Completed | Toolbar modes; JSON is regenerated from the document every frame in a read-only code editor |
+| Generator prompt clears the old diagram and names the rejected field | Completed | `start` clears `doc`/view; repair text now carries the validator message |
+| Assistant answer → Update/Generate Diagram | Completed | `can_insert` plus a labelled button; parses Archify IR or `.hdiag` JSON |
+| Tab strip right margin / last close button | Completed | `STRIP_RIGHT_PAD` 14 px in `hs_ui::tabs` |
+| Image and Icon Undo/Redo, Ctrl+Z / Ctrl+Y, global limit | Completed | snapshots in `GraphicsTool`, Settings → General → Behaviour → Undo Limit 1–100 |
+| Diagram database cylinder and edge arrow/route/line attributes | Completed | Cylinder draws the body, full top ellipse and only the front half of the bottom ellipse; edge grid has Arrow/Route/Line |
+| Offline diagram generation without an AI provider | Completed | **Offline Draft** splits the prompt into steps and chains them; tested in the app and unit-tested |
+| Refresh every screenshot and the walkthrough GIF, README licence MIT | In-Progress | README licence MIT; five key screenshots and `hyperstack-demo.gif` refreshed, the remaining 100+ shots are still the 0.45–0.54 set |
 ## Owner's requests, 2026-10-19 (Graphics diagrams)
 
 The Graphics activity becomes four tools — Image, Icon, Diagram Editor and

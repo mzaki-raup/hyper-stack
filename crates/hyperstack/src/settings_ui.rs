@@ -758,6 +758,34 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             )
             .changed();
     });
+    form::section(ui, theme, &s.t("settings-section-behaviour"), |ui| {
+        form::field_grid(ui, "behaviour-grid", |ui| {
+            form::label(ui, &s.t("settings-undo-limit"));
+            let mut limit = settings.general.undo_limit.clamp(1, 100);
+            let response = ui
+                .scope(|ui| {
+                    ui.spacing_mut().slider_width = 260.0;
+                    let widgets = &mut ui.visuals_mut().widgets;
+                    widgets.inactive.bg_fill = theme.border;
+                    widgets.hovered.bg_fill = theme.surface_hover;
+                    ui.add(
+                        egui::Slider::new(&mut limit, 1..=100)
+                            .suffix(" steps")
+                            .trailing_fill(true),
+                    )
+                })
+                .inner;
+            if response
+                .on_hover_text(s.t("settings-undo-limit-hint"))
+                .changed()
+            {
+                settings.general.undo_limit = limit;
+                changed = true;
+            }
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-undo-limit-hint"));
+    });
     drop(settings);
     form::section(ui, theme, &s.t("settings-section-portable"), |ui| {
         form::hint(ui, theme, &s.t("settings-portable-hint"));

@@ -11,7 +11,9 @@ use hs_core::Services;
 use hs_core::ai::{self, Message, Role};
 use hs_core::tool::{OpenRequest, ToastLevel, ToolContext};
 use hs_diagram::export::{PngOptions, pdf, png};
-use hs_diagram::model::{DiagramDoc, DiagramKind, Point};
+use hs_diagram::model::{
+    Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Node, NodeKind, Point, Style,
+};
 use hs_diagram::schema::{Ir, is_valid, validate};
 use hs_diagram::{Rect, Scene, layout_approx};
 use hs_ui::theme::Theme;
@@ -43,6 +45,14 @@ and 500 edges/connections maximum; never emit x/y, size, viewBox, HTML, brand,
 views or any field outside the shapes above. Use "decision" for a decision,
 "start"/"end" for terminators, "database" for a store, "queue" for a broker."#;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum GeneratorView {
+    #[default]
+    Preview,
+    Source,
+    Split,
+}
+
 pub struct GeneratorState {
     pub kind: DiagramKind,
     pub prompt: String,
@@ -51,6 +61,7 @@ pub struct GeneratorState {
     pub error: Option<String>,
     running: Option<Running>,
     repair_sent: bool,
+    view: GeneratorView,
     zoom: f32,
     saved: Option<PathBuf>,
 }
@@ -77,6 +88,7 @@ impl GeneratorState {
             error: None,
             running: None,
             repair_sent: false,
+            view: GeneratorView::Preview,
             zoom: 0.0,
             saved: None,
         }
@@ -114,6 +126,18 @@ impl GeneratorState {
                 }
             });
         });
+        if self.doc.is_some() {
+            ui.separator();
+            for (view, key) in [
+                (GeneratorView::Preview, "gfx-view-preview"),
+                (GeneratorView::Source, "gfx-view-source"),
+                (GeneratorView::Split, "gfx-view-split"),
+            ] {
+                if ui.selectable_label(self.view == view, s.t(key)).clicked() {
+                    self.view = view;
+                }
+            }
+        }
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -210,6 +234,17 @@ impl GeneratorState {
                         ui.add_space(6.0);
                         ui.horizontal_wrapped(|ui| {
                             if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::TREE_STRUCTURE,
+                                    s.t("gfx-gen-offline")
+                                ))
+                                .on_hover_text(s.t("gfx-gen-offline-tip"))
+                                .clicked()
+                            {
+                                self.offline(&s);
+                            }
+                            if ui
                                 .button(s.t("gfx-gen-template"))
                                 .clicked()
                             {
@@ -261,10 +296,53 @@ impl GeneratorState {
                     });
             });
 
+        if self.view == GeneratorView::Split {
+            egui::Panel::right("gfx-generator-source")
+                .default_size(420.0)
+                .size_range(260.0..=760.0)
+                .resizable(true)
+                .show(ui, |ui| self.source_view(ui, theme));
+        }
+        if self.view == GeneratorView::Source {
+            self.source_view(ui, theme);
+            return;
+        }
         let rect = ui.available_rect_before_wrap();
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
         child.set_clip_rect(rect);
         self.preview(&mut child, theme, &s);
+    }
+
+    fn source_view(&mut self, ui: &mut egui::Ui, theme: &Theme) {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Source (JSON)").strong());
+            if let Some(doc) = &self.doc
+                && ui.button("Copy").clicked()
+            {
+                ui.ctx().copy_text(hs_diagram::io::to_json(doc));
+            }
+        });
+        ui.separator();
+        let Some(doc) = &self.doc else {
+            ui.label(
+                egui::RichText::new("Generate a diagram to see its source.")
+                    .small()
+                    .color(theme.text_muted),
+            );
+            return;
+        };
+        let mut text = hs_diagram::io::to_json(doc);
+        egui::ScrollArea::both()
+            .id_salt("gfx-generator-source-scroll")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(&mut text)
+                        .code_editor()
+                        .desired_width(f32::INFINITY)
+                        .interactive(false),
+                );
+            });
     }
 
     fn preview(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
@@ -347,7 +425,7 @@ impl GeneratorState {
                         .iter()
                         .filter(|i| i.severity == hs_diagram::Severity::Error)
                         .take(6)
-                        .map(|i| format!("{} at {}", i.code, i.path))
+                        .map(|i| format!("{}: {} ({})", i.code, i.message, i.path))
                         .collect::<Vec<_>>()
                         .join("; ");
                     let reason = format!("validation failed: {errors}");
@@ -464,6 +542,11 @@ impl GeneratorState {
     fn start(&mut self, s: &Services) {
         self.error = None;
         self.repair_sent = false;
+        // A new prompt is a new request: never leave the previous diagram on
+        // screen looking like the result. The old one comes back only if this
+        // response is accepted.
+        self.doc = None;
+        self.view = GeneratorView::Preview;
         let prompt = self.prompt.trim().to_string();
         if prompt.is_empty() {
             self.error = Some(s.t("gfx-gen-need-prompt"));
@@ -537,6 +620,17 @@ impl GeneratorState {
         }
         self.running = None;
         self.status = Some("Stopped.".into());
+    }
+
+    /// The prompt is a list of steps, so an offline draft needs no provider:
+    /// split it, make one node per step and chain them. Anything too short
+    /// falls back to the selected template.
+    fn offline(&mut self, s: &Services) {
+        let doc = offline_doc(self.kind, &self.prompt);
+        self.doc = Some(doc);
+        self.error = None;
+        self.view = GeneratorView::Preview;
+        self.status = Some(s.t("gfx-gen-offline-used"));
     }
 
     fn template(&mut self, s: &Services) {
@@ -638,6 +732,70 @@ fn json_object(text: &str) -> Option<&str> {
     (end > start).then_some(&text[start..=end])
 }
 
+fn offline_doc(kind: DiagramKind, prompt: &str) -> DiagramDoc {
+    let cleaned = prompt
+        .replace(" then ", ",")
+        .replace("->", ",")
+        .replace('→', ",");
+    let parts: Vec<String> = cleaned
+        .split([',', ';', '\n'])
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(|p| p.chars().take(48).collect::<String>())
+        .collect();
+    if parts.len() < 2 {
+        return match kind {
+            DiagramKind::Flow => hs_diagram::template::flow(),
+            DiagramKind::Architecture => hs_diagram::template::architecture(),
+            DiagramKind::Erd => hs_diagram::template::erd(),
+            DiagramKind::Sequence => hs_diagram::template::sequence(),
+        };
+    }
+    let mut doc = DiagramDoc::new(kind, "Offline draft");
+    doc.subtitle = "Built locally from the prompt; no AI provider was used.".into();
+    doc.auto_layout = true;
+    for (i, part) in parts.iter().enumerate() {
+        let (kind, label) = match kind {
+            DiagramKind::Erd => (
+                NodeKind::Container,
+                format!("entity_{i}\nid UUID PK\n{part} TEXT"),
+            ),
+            DiagramKind::Sequence => (NodeKind::Backend, part.clone()),
+            DiagramKind::Architecture => (NodeKind::Backend, part.clone()),
+            DiagramKind::Flow if part.ends_with('?') => (NodeKind::Decision, part.clone()),
+            DiagramKind::Flow if i == 0 => (NodeKind::StartEnd, part.clone()),
+            DiagramKind::Flow if i + 1 == parts.len() => (NodeKind::StartEnd, part.clone()),
+            DiagramKind::Flow => (NodeKind::Process, part.clone()),
+        };
+        doc.nodes.push(Node {
+            id: format!("n{i}"),
+            label,
+            kind,
+            x: 0.0,
+            y: 0.0,
+            w: 0.0,
+            h: 0.0,
+            style: Style::default(),
+        });
+    }
+    for i in 1..parts.len() {
+        doc.edges.push(Edge {
+            id: format!("e{i}"),
+            from: format!("n{}", i - 1),
+            to: format!("n{i}"),
+            label: match kind {
+                DiagramKind::Erd => "1 .. *".into(),
+                DiagramKind::Sequence => "call".into(),
+                _ => String::new(),
+            },
+            route: EdgeRoute::Orthogonal,
+            arrow: Arrow::End,
+            dashed: false,
+            via: Vec::new(),
+        });
+    }
+    doc
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -662,6 +820,18 @@ mod tests {
             "{\"a\":1}"
         );
         assert!(json_object("no object").is_none());
+    }
+
+    #[test]
+    fn offline_draft_splits_the_prompt_into_steps() {
+        let doc = offline_doc(
+            DiagramKind::Flow,
+            "checkout, build, test, scan, deploy to staging, approve, deploy to production",
+        );
+        assert_eq!(doc.nodes.len(), 7);
+        assert_eq!(doc.edges.len(), 6);
+        assert_eq!(doc.nodes[0].kind, NodeKind::StartEnd);
+        assert_eq!(doc.nodes[6].kind, NodeKind::StartEnd);
     }
 
     #[test]

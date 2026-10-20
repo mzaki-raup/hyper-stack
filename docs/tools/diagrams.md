@@ -15,7 +15,7 @@ owner's process rules require.
 | Icon colour-key transparency | Implemented 2026-10-19 |
 | `hs-diagram` model, validation, flow/architecture layout, scene, SVG/PNG/PDF export | Implemented 2026-10-19 |
 | Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
-| Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20; repair round pending |
+| Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20 |
 | Review-only AI assistant in all four tools | Implemented 2026-10-20 |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 
@@ -213,8 +213,11 @@ the last good preview and shows the validation codes. With no provider (or an
 empty prompt) the offline template is used and the message says so. Open in
 Editor writes a generated `.hdiag` under
 `HyperStackData/graphics/generated/` and opens it as a normal Diagram tab;
-Export offers PNG and PDF. Still to do: one repair round on invalid IR and a
-real-provider integration test (the offline path is verified in the app). The
+Export offers PNG and PDF. Invalid IR is now rejected, sent back once with the validation reasons, and
+the corrected reply is used; a second failure keeps the last good preview and
+shows the reason. The real-provider path is not exercised here because no
+provider is configured in the test data folder; the offline path is verified
+in the app. The
 screenshot is `docs/screenshots/graphics-diagram-generator.png`.
 
 ### 3.3 Shell changes

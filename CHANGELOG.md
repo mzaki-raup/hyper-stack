@@ -19,6 +19,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - About now shows the compiled-in Third-Party Notices, including the Archify
   schema adaptation, with a test that the pinned commit and MIT text are
   present.
+- The diagram generator sends an invalid IR back to the model once with the
+  validation reasons, uses the corrected reply if it validates, and otherwise
+  keeps the last good preview and shows the reason.
 
 ## 0.49.0 — 2026-10-20
 

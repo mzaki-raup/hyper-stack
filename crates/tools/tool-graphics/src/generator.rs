@@ -50,6 +50,7 @@ pub struct GeneratorState {
     pub status: Option<String>,
     pub error: Option<String>,
     running: Option<Running>,
+    repair_sent: bool,
     zoom: f32,
     saved: Option<PathBuf>,
 }
@@ -75,6 +76,7 @@ impl GeneratorState {
             status: None,
             error: None,
             running: None,
+            repair_sent: false,
             zoom: 0.0,
             saved: None,
         }
@@ -115,8 +117,8 @@ impl GeneratorState {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
-        self.poll();
         let s = cx.services.clone();
+        self.poll(&s);
         egui::Panel::left("gfx-generator-prompt")
             .default_size(370.0)
             .size_range(300.0..=520.0)
@@ -291,7 +293,7 @@ impl GeneratorState {
         );
     }
 
-    fn poll(&mut self) {
+    fn poll(&mut self, s: &Services) {
         let Some(run) = &self.running else {
             return;
         };
@@ -300,7 +302,11 @@ impl GeneratorState {
         if let Some(result) = done {
             self.running = None;
             match result {
-                Ok(text) => self.apply(&text),
+                Ok(text) => {
+                    if let Some(reason) = self.apply(&text) {
+                        self.repair(s, &text, &reason);
+                    }
+                }
                 Err(e) => {
                     self.error = Some(e);
                     self.status = None;
@@ -311,38 +317,139 @@ impl GeneratorState {
         }
     }
 
-    fn apply(&mut self, text: &str) {
+    /// Parse and validate a reply. `Some(reason)` means it was rejected and
+    /// the caller should try one repair round; the last good document stays.
+    fn apply(&mut self, text: &str) -> Option<String> {
         let Some(json) = json_object(text) else {
-            self.error = Some("The response contained no JSON object.".into());
-            return;
+            let reason = "the response contained no JSON object".to_string();
+            self.error = Some(format!("The generated IR is invalid: {reason}"));
+            return Some(reason);
         };
         match Ir::parse(json) {
             Ok(ir) => {
                 let issues = validate(&ir);
                 if !is_valid(&issues) {
-                    self.error = Some(format!(
-                        "The generated IR is invalid: {}",
-                        issues
-                            .iter()
-                            .filter(|i| i.severity == hs_diagram::Severity::Error)
-                            .take(3)
-                            .map(|i| format!("{} ({})", i.code, i.path))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                    return;
+                    let errors = issues
+                        .iter()
+                        .filter(|i| i.severity == hs_diagram::Severity::Error)
+                        .take(6)
+                        .map(|i| format!("{} at {}", i.code, i.path))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    let reason = format!("validation failed: {errors}");
+                    self.error = Some(format!("The generated IR is invalid: {reason}"));
+                    return Some(reason);
                 }
                 self.doc = Some(hs_diagram::convert::convert(&ir));
                 self.error = None;
+                self.repair_sent = false;
                 self.status =
                     Some("Generated; opening it in the editor keeps the geometry editable.".into());
+                None
             }
-            Err(e) => self.error = Some(e),
+            Err(e) => {
+                self.error = Some(format!("The generated IR is invalid: {e}"));
+                Some(e)
+            }
         }
+    }
+
+    /// One repair round: hand the rejected output and the reason back to the
+    /// model and ask for the corrected JSON only. A second failure is shown.
+    fn repair(&mut self, s: &Services, rejected: &str, reason: &str) {
+        if self.repair_sent {
+            self.error = Some(format!(
+                "The generated IR is still invalid after one repair: {reason}"
+            ));
+            self.status = None;
+            return;
+        }
+        let Some((provider, cfg, key)) = self.provider(s) else {
+            self.error = Some(s.t("gfx-gen-no-provider"));
+            return;
+        };
+        self.repair_sent = true;
+        let kind = match self.kind {
+            DiagramKind::Flow => "workflow",
+            DiagramKind::Architecture => "architecture",
+        };
+        let msgs = vec![
+            Message::new(Role::System, SYSTEM),
+            Message::new(
+                Role::User,
+                format!("Diagram type: {kind}\n\n{}", self.prompt.trim()),
+            ),
+            Message::new(Role::Assistant, rejected.to_string()),
+            Message::new(
+                Role::User,
+                format!(
+                    "That output was rejected because {reason}. Reply with only the corrected JSON object, no fences and no prose."
+                ),
+            ),
+        ];
+        self.spawn_chat(s, cfg, key, msgs, provider.name);
+        self.status = Some("Repairing the generated JSON…".into());
+    }
+
+    fn provider(
+        &self,
+        s: &Services,
+    ) -> Option<(
+        hs_core::settings::AiProvider,
+        hs_core::ai::AiConfig,
+        hs_core::ai::Credentials,
+    )> {
+        let provider = {
+            let settings = s.settings.read();
+            settings
+                .ai
+                .providers
+                .iter()
+                .find(|p| p.id == settings.ai.default_provider)
+                .or_else(|| settings.ai.chosen())
+                .cloned()
+        }?;
+        let key = s.ai_credentials(&provider).ok()?;
+        let cfg = provider.config("");
+        Some((provider, cfg, key))
+    }
+
+    fn spawn_chat(
+        &mut self,
+        s: &Services,
+        cfg: hs_core::ai::AiConfig,
+        key: hs_core::ai::Credentials,
+        msgs: Vec<Message>,
+        provider_name: String,
+    ) {
+        let text = Arc::new(Mutex::new(String::new()));
+        let done = Arc::new(Mutex::new(None));
+        let out_text = text.clone();
+        let out_done = done.clone();
+        let waker = s.runtime.waker();
+        let repaint = waker.clone();
+        let handle = s.runtime.spawn(async move {
+            let http = ai::http_client();
+            let sink = out_text.clone();
+            let r = ai::chat(&http, &cfg, &key, &msgs, &mut move |t: &str| {
+                sink.lock().push_str(t);
+                repaint.request_repaint();
+            })
+            .await;
+            *out_done.lock() = Some(r.map_err(|e| e.to_string()));
+            waker.request_repaint();
+        });
+        self.running = Some(Running {
+            text,
+            done,
+            abort: handle.abort_handle(),
+        });
+        self.status = Some(format!("Asking {provider_name}…"));
     }
 
     fn start(&mut self, s: &Services) {
         self.error = None;
+        self.repair_sent = false;
         let prompt = self.prompt.trim().to_string();
         if prompt.is_empty() {
             self.error = Some(s.t("gfx-gen-need-prompt"));
@@ -544,7 +651,7 @@ mod tests {
     #[test]
     fn apply_accepts_a_valid_workflow() {
         let mut state = GeneratorState::new();
-        state.apply(WORKFLOW);
+        let _ = state.apply(WORKFLOW);
         let doc = state.doc.expect("a document");
         assert_eq!(doc.title, "Checkout");
         assert_eq!(doc.nodes.len(), 2);
@@ -554,9 +661,9 @@ mod tests {
     #[test]
     fn apply_keeps_the_last_good_document_on_bad_output() {
         let mut state = GeneratorState::new();
-        state.apply(WORKFLOW);
+        let _ = state.apply(WORKFLOW);
         let before = state.doc.clone();
-        state.apply("not json");
+        let _ = state.apply("not json");
         assert_eq!(state.doc, before);
         assert!(state.error.is_some());
     }

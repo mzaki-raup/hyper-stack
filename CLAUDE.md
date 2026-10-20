@@ -54,8 +54,9 @@ IR, validation, flow/grid layout, scene, SVG/PNG/PDF export), the Diagram
 Editor (canvas, selection, drag, add/connect, undo, properties, templates,
 save/export), the Diagram Generator (prompt/examples, async AI into the strict
 IR, validation, offline templates, preview, Open in Editor, export) and the
-review-only AI assistant in all four tools. Still to come: the generator repair
-round, drafts and Release 2's ERD/sequence and Archify/draw.io imports. The
+review-only AI assistant in all four tools. The generator now has its one repair
+round. Still to come: drafts and Release 2's ERD/sequence and Archify/draw.io
+imports. The
 About page now carries the compiled-in `THIRD_PARTY_NOTICES.md`.
 The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The

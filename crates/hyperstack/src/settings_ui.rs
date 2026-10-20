@@ -4365,17 +4365,6 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Setti
         });
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn third_party_notices_name_archify_and_mit() {
-        let text = super::THIRD_PARTY_NOTICES;
-        assert!(text.contains("Archify"), "Archify notice missing");
-        assert!(text.contains("MIT"), "MIT licence text missing");
-        assert!(text.contains("208acba8"), "pinned commit missing");
-    }
-}
-
 /// SSH host form (docs/tools/ssh-sftp.md §4) bound to the profile's `[ssh]`
 /// table. Secrets typed here go to the vault on save and are kept as refs.
 fn ssh_form(
@@ -5235,4 +5224,15 @@ fn open_folder(s: &Services, path: &std::path::Path) {
             Ok(opener) => tracing::info!("opened {} with {opener:?}", path.display()),
             Err(e) => tracing::warn!("could not open {}: {e}", path.display()),
         });
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn third_party_notices_name_archify_and_mit() {
+        let text = super::THIRD_PARTY_NOTICES;
+        assert!(text.contains("Archify"), "Archify notice missing");
+        assert!(text.contains("MIT"), "MIT licence text missing");
+        assert!(text.contains("208acba8"), "pinned commit missing");
+    }
 }

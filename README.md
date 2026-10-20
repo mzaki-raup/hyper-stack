@@ -288,8 +288,9 @@ result, previews it and opens it in the editor. The review-only **AI
 Assistant** is available in all four tools with four quick actions each,
 More Suggestions and text-only context for the diagram and generator. The
 repair round and drafts follow in the same release; ERD, sequence, Archify JSON
-and draw.io XML import follow in Release 2. See
-[docs/tools/diagrams.md](docs/tools/diagrams.md).
+and draw.io XML import follow in Release 2. About → Third-Party Notices
+lists the bundled third-party work, including the Archify schema adaptation.
+See [docs/tools/diagrams.md](docs/tools/diagrams.md).
 
 The picture operations are resize, scale, extend canvas, crop, rotate, flip,
 brightness, contrast, hue, saturation, grayscale, invert, blur and sharpen,

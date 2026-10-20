@@ -33,6 +33,10 @@ pub struct Page {
     pub background: String,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_margin() -> f32 {
     24.0
 }
@@ -149,9 +153,13 @@ pub struct Edge {
     #[serde(default)]
     pub dashed: bool,
     #[serde(default)]
+    pub dotted: bool,
+    #[serde(default)]
     pub via: Vec<Point>,
     #[serde(default, skip_serializing_if = "Style::is_empty")]
     pub style: Style,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label_at: Option<Point>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
@@ -197,10 +205,6 @@ impl Default for Meta {
     }
 }
 
-fn default_true() -> bool {
-    true
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagramDoc {
     #[serde(default = "default_schema")]
@@ -209,6 +213,9 @@ pub struct DiagramDoc {
     pub kind: DiagramKind,
     #[serde(default)]
     pub title: String,
+    /// Draw a frame around the diagram and show the title above it.
+    #[serde(default = "default_true")]
+    pub show_title: bool,
     #[serde(default)]
     pub subtitle: String,
     #[serde(default)]
@@ -237,6 +244,7 @@ impl DiagramDoc {
             schema: SCHEMA_VERSION,
             kind,
             title: title.into(),
+            show_title: true,
             subtitle: String::new(),
             page: Page::default(),
             nodes: Vec::new(),

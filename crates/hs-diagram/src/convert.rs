@@ -51,8 +51,10 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
             route: route(&edge.route),
             arrow: Arrow::End,
             dashed: edge.variant == "dashed",
+            dotted: false,
             via: Vec::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
     for group in &w.groups {
@@ -105,8 +107,10 @@ fn architecture(a: &ArchitectureIr) -> DiagramDoc {
             route: route(&connection.route),
             arrow: Arrow::End,
             dashed: false,
+            dotted: false,
             via: Vec::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
     doc
@@ -160,8 +164,10 @@ pub fn chain(doc: &mut DiagramDoc, pairs: &[(&str, &str)]) {
             route: EdgeRoute::Orthogonal,
             arrow: Arrow::End,
             dashed: false,
+            dotted: false,
             via: Vec::<Point>::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
 }

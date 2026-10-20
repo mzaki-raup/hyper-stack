@@ -1652,6 +1652,58 @@ impl GraphicsTool {
         true
     }
 
+    /// The assistant as a real right-hand column, not a floating card: the
+    /// canvas keeps its own width and is never painted underneath.
+    fn assistant_column(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &mut ToolContext,
+        theme: &Theme,
+        context: String,
+        quick: &[(&str, &str)],
+    ) {
+        let s = cx.services.clone();
+        self.assistant.set_context("diagram state", context);
+        if self.assistant.quick_actions.is_empty() {
+            use hs_ui::ai_assistant::QuickAction;
+            self.assistant.quick_actions = quick
+                .iter()
+                .map(|(label, prompt)| QuickAction::new(&s, label, prompt, ""))
+                .collect();
+        }
+        egui::Panel::right("gfx-assistant-column")
+            .default_size(390.0)
+            .size_range(300.0..=560.0)
+            .resizable(true)
+            .show(ui, |ui| {
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    if let Some(answer) = self.assistant.last_answer().map(str::to_owned) {
+                        if ui.button(s.t("gfx-ai-copy")).clicked() {
+                            ui.ctx().copy_text(answer.clone());
+                        }
+                        let label = if self.kind == Kind::Generator {
+                            s.t("gfx-ai-generate-diagram")
+                        } else {
+                            s.t("gfx-ai-update-diagram")
+                        };
+                        if ui
+                            .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, label))
+                            .clicked()
+                        {
+                            self.apply_assistant_text(&answer);
+                        }
+                    }
+                });
+                ui.separator();
+                self.assistant.can_insert = true;
+                let output = self.assistant.ui(ui, &s, theme, "graphics");
+                if let Some(block) = output.use_block {
+                    self.apply_assistant_text(&block);
+                }
+            });
+    }
+
     fn assistant_overlay(
         &mut self,
         ui: &mut egui::Ui,
@@ -1858,15 +1910,51 @@ impl GraphicsTool {
                         ),
                     ];
                     for (icon, label_key, desc_key, enabled, f) in actions {
-                        let label = format!("{}  {}", icon, s.t(label_key));
-                        let r = ui.add_enabled(
-                            enabled,
-                            egui::Button::new(
-                                egui::RichText::new(label).size(14.0).color(theme.text),
-                            )
-                            .min_size(egui::vec2(180.0, 44.0)),
+                        let label = s.t(label_key);
+                        let (rect, r) =
+                            ui.allocate_exact_size(egui::vec2(180.0, 44.0), egui::Sense::click());
+                        let colour = if enabled {
+                            theme.text
+                        } else {
+                            theme.text_muted
+                        };
+                        let painter = ui.painter();
+                        painter.rect(
+                            rect,
+                            6.0,
+                            if r.hovered() && enabled {
+                                theme.surface_hover
+                            } else {
+                                theme.surface
+                            },
+                            egui::Stroke::new(1.0, theme.border),
+                            egui::StrokeKind::Inside,
                         );
-                        if r.on_hover_text(s.t(desc_key)).clicked() {
+                        let icon_galley = painter.layout_no_wrap(
+                            icon.to_string(),
+                            egui::FontId::proportional(18.0),
+                            colour,
+                        );
+                        let text_galley =
+                            painter.layout_no_wrap(label, egui::FontId::proportional(14.0), colour);
+                        let gap = 8.0;
+                        let total_w = icon_galley.size().x + gap + text_galley.size().x;
+                        let start_x = rect.center().x - total_w / 2.0;
+                        let centre_y = rect.center().y;
+                        painter.galley(
+                            egui::pos2(start_x, centre_y - icon_galley.size().y / 2.0),
+                            icon_galley.clone(),
+                            colour,
+                        );
+                        painter.galley(
+                            egui::pos2(
+                                start_x + icon_galley.size().x + gap,
+                                centre_y - text_galley.size().y / 2.0,
+                            ),
+                            text_galley,
+                            colour,
+                        );
+                        if enabled && r.on_hover_text(s.t(desc_key)).clicked() {
                             self.pick_and_open(cx, f);
                         }
                         ui.add_space(8.0);
@@ -2303,6 +2391,9 @@ impl Tool for GraphicsTool {
                 .as_ref()
                 .map(|state| diagram_context(&state.doc))
                 .unwrap_or_default();
+            if self.assistant.open {
+                self.assistant_column(ui, cx, &theme, context, &DIAGRAM_QA);
+            }
             if let Some(state) = &mut self.diagram {
                 state.ui(ui, cx, &theme);
                 if let Some(path) = state.take_saved() {
@@ -2319,7 +2410,6 @@ impl Tool for GraphicsTool {
                 }
             }
             self.autosave_draft();
-            self.assistant_overlay(ui, cx, &theme, context, &DIAGRAM_QA);
             return;
         }
         if self.kind == Kind::Generator {

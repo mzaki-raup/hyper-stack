@@ -37,8 +37,10 @@ pub fn flow() -> DiagramDoc {
         route: EdgeRoute::Orthogonal,
         arrow: crate::model::Arrow::End,
         dashed: false,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc.edges.push(Edge {
         id: "e4".into(),
@@ -48,8 +50,10 @@ pub fn flow() -> DiagramDoc {
         route: EdgeRoute::Orthogonal,
         arrow: crate::model::Arrow::End,
         dashed: false,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc.edges.push(Edge {
         id: "e5".into(),
@@ -59,8 +63,10 @@ pub fn flow() -> DiagramDoc {
         route: EdgeRoute::Orthogonal,
         arrow: crate::model::Arrow::End,
         dashed: true,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc
 }
@@ -101,8 +107,10 @@ pub fn architecture() -> DiagramDoc {
         route: EdgeRoute::Straight,
         arrow: crate::model::Arrow::End,
         dashed: false,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc.edges.push(Edge {
         id: "c2".into(),
@@ -112,8 +120,10 @@ pub fn architecture() -> DiagramDoc {
         route: EdgeRoute::Orthogonal,
         arrow: crate::model::Arrow::End,
         dashed: false,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc.edges.push(Edge {
         id: "c3".into(),
@@ -123,8 +133,10 @@ pub fn architecture() -> DiagramDoc {
         route: EdgeRoute::Orthogonal,
         arrow: crate::model::Arrow::End,
         dashed: true,
+        dotted: false,
         via: Vec::new(),
         style: Style::default(),
+        label_at: None,
     });
     doc
 }

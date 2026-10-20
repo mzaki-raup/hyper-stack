@@ -15,6 +15,9 @@ use hs_diagram::{Prim, Rect, Scene, layout_approx, validate};
 use hs_ui::form;
 use hs_ui::theme::Theme;
 
+/// Frame id, press position and the nodes captured for a frame drag.
+type FrameDrag = (String, egui::Pos2, Vec<(String, Point)>);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlignMode {
     Left,
@@ -71,6 +74,7 @@ pub struct DiagramState {
     drag_node: Option<(String, Point, egui::Pos2)>,
     drag_resize: Option<(String, f32, f32, egui::Pos2)>,
     drag_via: Option<(String, usize, Point, egui::Pos2)>,
+    drag_frame: Option<FrameDrag>,
     drag_pan: Option<(egui::Vec2, egui::Pos2)>,
     last_center: Point,
     saved: Option<PathBuf>,
@@ -121,6 +125,7 @@ impl DiagramState {
             drag_node: None,
             drag_resize: None,
             drag_via: None,
+            drag_frame: None,
             drag_pan: None,
             last_center: Point { x: 0.0, y: 0.0 },
             saved: None,
@@ -776,6 +781,12 @@ impl DiagramState {
                 {
                     self.dirty = true;
                 }
+                if ui
+                    .checkbox(&mut self.doc.show_title, s.t("gfx-diagram-show-title"))
+                    .changed()
+                {
+                    self.dirty = true;
+                }
                 ui.add_space(8.0);
 
                 ui.horizontal_wrapped(|ui| {
@@ -917,10 +928,26 @@ impl DiagramState {
                                     }
                                 });
                                 ui.end_row();
-                                ui.label("Line");
-                                changed |= ui.checkbox(&mut edge.dashed, "Dashed").changed();
-                                ui.end_row();
                             });
+                        ui.horizontal(|ui| {
+                            ui.label("Line");
+                            let solid = !edge.dashed && !edge.dotted;
+                            if ui.selectable_label(solid, "Solid").clicked() {
+                                edge.dashed = false;
+                                edge.dotted = false;
+                                changed = true;
+                            }
+                            if ui.selectable_label(edge.dashed, "Dashed").clicked() {
+                                edge.dashed = true;
+                                edge.dotted = false;
+                                changed = true;
+                            }
+                            if ui.selectable_label(edge.dotted, "Dotted").clicked() {
+                                edge.dotted = true;
+                                edge.dashed = false;
+                                changed = true;
+                            }
+                        });
                         color_row(ui, "Outline", &mut edge.style.stroke, &mut changed);
                         color_row(ui, "Label", &mut edge.style.text, &mut changed);
                         if ui.button("Add Waypoint").clicked() {
@@ -1133,6 +1160,49 @@ impl DiagramState {
                     }
                 }
                 if !grip {
+                    let frame_hit = scene.prims.iter().find_map(|p| {
+                        let Prim::Frame { rect, label, .. } = p else {
+                            return None;
+                        };
+                        let r = srect(*rect);
+                        let edge_dist = (pos.x - r.left())
+                            .abs()
+                            .min((pos.x - r.right()).abs())
+                            .min((pos.y - r.top()).abs())
+                            .min((pos.y - r.bottom()).abs());
+                        if r.contains(pos) && (edge_dist < 10.0 || (pos.y - r.top()).abs() < 22.0) {
+                            Some(label.clone())
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(label) = frame_hit
+                        && let Some((gid, ids)) = self
+                            .doc
+                            .groups
+                            .iter()
+                            .find(|g| g.label == label)
+                            .map(|g| (g.id.clone(), g.nodes.clone()))
+                    {
+                        self.push_undo();
+                        self.freeze();
+                        let nodes: Vec<(String, Point)> = ids
+                            .iter()
+                            .filter_map(|id| {
+                                self.doc
+                                    .node(id)
+                                    .map(|n| (id.clone(), Point { x: n.x, y: n.y }))
+                            })
+                            .collect();
+                        self.selected_group = Some(gid.clone());
+                        self.selected = None;
+                        self.selected_edge = None;
+                        self.multi.clear();
+                        self.drag_frame = Some((gid, pos, nodes));
+                        grip = true;
+                    }
+                }
+                if !grip {
                     let hit = self.hit(pos, &node_rects, origin, z);
                     if let Some(i) = hit {
                         self.push_undo();
@@ -1178,6 +1248,16 @@ impl DiagramState {
                     via.y = start.y + dy;
                 }
                 self.dirty = true;
+            } else if let (Some((_, from, nodes)), Some(pos)) = (&self.drag_frame, pointer) {
+                let dx = (pos.x - from.x) / z;
+                let dy = (pos.y - from.y) / z;
+                for (id, start) in nodes {
+                    if let Some(node) = self.doc.nodes.iter_mut().find(|n| &n.id == id) {
+                        node.x = start.x + dx;
+                        node.y = start.y + dy;
+                    }
+                }
+                self.dirty = true;
             } else if let (Some((id, sw, sh, from)), Some(pos)) = (&self.drag_resize, pointer) {
                 let dx = (pos.x - from.x) / z;
                 let dy = (pos.y - from.y) / z;
@@ -1200,6 +1280,7 @@ impl DiagramState {
             self.drag_node = None;
             self.drag_resize = None;
             self.drag_via = None;
+            self.drag_frame = None;
             self.drag_pan = None;
         }
         let clicked =
@@ -1221,8 +1302,10 @@ impl DiagramState {
                                 route: EdgeRoute::Orthogonal,
                                 arrow: Arrow::End,
                                 dashed: false,
+                                dotted: false,
                                 via: Vec::new(),
                                 style: Style::default(),
+                                label_at: None,
                             });
                         }
                     } else {
@@ -1316,6 +1399,52 @@ impl DiagramState {
                         theme.accent,
                     );
                 }
+            }
+        }
+        if let Some(pos) = self
+            .selected_edge
+            .as_ref()
+            .and_then(|id| self.doc.edges.iter().position(|e| &e.id == id))
+        {
+            let edge = &self.doc.edges[pos];
+            if !edge.label.is_empty() {
+                let at = edge.label_at.or_else(|| {
+                    self.edge_paths
+                        .get(pos)
+                        .and_then(|p| p.get(p.len() / 2).copied())
+                });
+                if let Some(at) = at {
+                    let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(140.0, 28.0));
+                    let r = ui.interact(
+                        rect,
+                        ui.id().with(("edge-label", &edge.id)),
+                        egui::Sense::drag(),
+                    );
+                    if r.dragged()
+                        && let Some(p) = ui.input(|i| i.pointer.interact_pos())
+                    {
+                        let at = Point {
+                            x: (p.x - origin.x) / z,
+                            y: (p.y - origin.y) / z,
+                        };
+                        if let Some(edge) = self.doc.edges.get_mut(pos) {
+                            edge.label_at = Some(at);
+                        }
+                        self.dirty = true;
+                    }
+                }
+            }
+        }
+        if let Some(eid) = &self.selected_edge
+            && let Some(pos) = self.doc.edges.iter().position(|e| &e.id == eid)
+            && let Some(path) = self.edge_paths.get(pos)
+        {
+            let points: Vec<egui::Pos2> = path.iter().map(|p| to_screen(*p)).collect();
+            if points.len() >= 2 {
+                painter.add(egui::Shape::line(
+                    points,
+                    egui::Stroke::new(3.0, theme.accent),
+                ));
             }
         }
         if let Some(eid) = &self.selected_edge
@@ -1475,6 +1604,7 @@ impl DiagramState {
                 Prim::Line {
                     points,
                     dashed,
+                    dotted,
                     arrow_start,
                     arrow_end,
                     style,
@@ -1487,10 +1617,10 @@ impl DiagramState {
                         (1.5 * z).max(1.0),
                         color(style.stroke.as_deref().unwrap_or("#5b6472")),
                     );
-                    if *dashed || style.dashed {
-                        for pair in pts.windows(2) {
-                            painter.line_segment([pair[0], pair[1]], stroke);
-                        }
+                    if *dotted {
+                        dashed_polyline(painter, &pts, stroke, z.max(1.0), 4.0 * z);
+                    } else if *dashed || style.dashed {
+                        dashed_polyline(painter, &pts, stroke, 6.0 * z, 4.0 * z);
                     } else {
                         painter.add(egui::Shape::line(pts.clone(), stroke));
                     }
@@ -1906,6 +2036,30 @@ fn paint_shape(
     }
 }
 
+fn dashed_polyline(
+    painter: &egui::Painter,
+    points: &[egui::Pos2],
+    stroke: egui::Stroke,
+    dash: f32,
+    gap: f32,
+) {
+    let dash = dash.max(1.0);
+    let gap = gap.max(1.0);
+    for pair in points.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        let length = (b - a).length();
+        if length <= f32::EPSILON {
+            continue;
+        }
+        let dir = (b - a) / length;
+        let mut t = 0.0;
+        while t < length {
+            let end = (t + dash).min(length);
+            painter.line_segment([a + dir * t, a + dir * end], stroke);
+            t = end + gap;
+        }
+    }
+}
 fn arrow_head(
     painter: &egui::Painter,
     points: &[egui::Pos2],

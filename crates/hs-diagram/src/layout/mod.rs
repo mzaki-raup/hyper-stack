@@ -103,12 +103,13 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
         scene.push(Prim::Line {
             points: points.clone(),
             dashed: edge.dashed,
+            dotted: edge.dotted,
             arrow_start,
             arrow_end,
             style: edge.style.clone(),
         });
         if !edge.label.is_empty()
-            && let Some(at) = midpoint(&points)
+            && let Some(at) = edge.label_at.or_else(|| midpoint(&points))
         {
             scene.push(Prim::Text {
                 at,
@@ -120,6 +121,17 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                 },
             });
         }
+    }
+    if doc.show_title && !doc.nodes.is_empty() {
+        let b = scene.bounds();
+        scene.push(Prim::Frame {
+            rect: b.inflate(24.0),
+            label: doc.title.clone(),
+            style: crate::model::Style {
+                dashed: true,
+                ..Default::default()
+            },
+        });
     }
     let margin = doc.page.margin.clamp(8.0, 160.0);
     let bounds = scene.bounds();

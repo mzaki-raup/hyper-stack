@@ -178,8 +178,22 @@ pub fn compute_tab_layout(
         rows.push(rest[..take].to_vec());
         rest = &rest[take..];
     }
-    let widest_row = rows.iter().map(Vec::len).max().unwrap_or(1) as f32;
-    let tab_width = ((other_rows_avail + gap) / widest_row - gap).clamp(min_width, MAX_TAB_WIDTH);
+    // One shared width for every row, so take the narrowest row's budget:
+    // row 0 also carries the permanent/pinned lead, and sizing every row from
+    // `other_rows_avail` overflowed it and hid its last tab.
+    let mut fit = f32::MAX;
+    for (i, row) in rows.iter().enumerate() {
+        if row.is_empty() {
+            continue;
+        }
+        let avail = if i == 0 {
+            first_row_avail
+        } else {
+            other_rows_avail
+        };
+        fit = fit.min((avail + gap) / row.len() as f32 - gap);
+    }
+    let tab_width = fit.clamp(min_width, MAX_TAB_WIDTH);
     TabLayout {
         rows,
         tab_width,
@@ -695,6 +709,28 @@ mod tests {
         );
         assert_eq!(pinned_slot_width(true), PINNED_WIDTH);
         assert_eq!(pinned_slot_width(false), PINNED_TEXT_WIDTH);
+    }
+
+    #[test]
+    fn every_row_fits_inside_the_strip() {
+        let pinned = vec![false; 20];
+        let mut permanent = vec![false; 20];
+        permanent[0] = true;
+        let icon_only = vec![false; 20];
+        let width = 900.0;
+        let gap = 4.0;
+        let l = compute_tab_layout(&pinned, &permanent, &icon_only, width, 120.0, gap);
+        let lead_span: f32 = l.lead.iter().map(|_| pinned_slot_width(false) + gap).sum();
+        for (i, row) in l.rows.iter().enumerate() {
+            let used =
+                if i == 0 { lead_span } else { 0.0 } + row.len() as f32 * (l.tab_width + gap);
+            assert!(
+                used <= width + 0.5,
+                "row {i} uses {used} of {width} ({} tabs, {})",
+                row.len(),
+                l.tab_width
+            );
+        }
     }
 
     #[test]

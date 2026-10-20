@@ -94,8 +94,10 @@ pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
             route: EdgeRoute::Straight,
             arrow: Arrow::End,
             dashed: arrow.starts_with("--"),
+            dotted: false,
             via: Vec::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
     if messages == 0 {
@@ -210,8 +212,10 @@ pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
             route: EdgeRoute::Orthogonal,
             arrow: Arrow::End,
             dashed: false,
+            dotted: false,
             via: Vec::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
     Ok(out)

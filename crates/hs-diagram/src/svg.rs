@@ -80,6 +80,7 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
             Prim::Line {
                 points,
                 dashed,
+                dotted,
                 arrow_start,
                 arrow_end,
                 style,
@@ -92,7 +93,9 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                     .iter()
                     .map(|p| format!("{:.2},{:.2}", p.x, p.y))
                     .collect();
-                let dash = if *dashed || style.dashed {
+                let dash = if *dotted {
+                    " stroke-dasharray=\"2 4\""
+                } else if *dashed || style.dashed {
                     " stroke-dasharray=\"6 4\""
                 } else {
                     ""

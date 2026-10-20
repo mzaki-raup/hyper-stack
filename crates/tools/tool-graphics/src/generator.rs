@@ -855,8 +855,10 @@ fn offline_doc(kind: DiagramKind, prompt: &str) -> DiagramDoc {
             route: EdgeRoute::Orthogonal,
             arrow: Arrow::End,
             dashed: false,
+            dotted: false,
             via: Vec::new(),
             style: Style::default(),
+            label_at: None,
         });
     }
     doc

@@ -9,17 +9,26 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'## Unreleased
+## Unreleased
 
 ### Added
 
-- Diagram Editor: frames appear in the Outline and show the same accent
-  selection frame as nodes.
+- Diagram Editor: **Show Title and Frame** wraps the diagram in a dashed frame
+  with the title; off shows the bare diagram.
+- Diagram Editor: frames appear in the Outline, show the accent selection
+  frame, and can be dragged (with their nodes) on the canvas.
+- Diagram Editor: edge labels can be dragged along the line; line style is
+  Solid, Dashed or Dotted; selected edges highlight their routed path.
+- Diagram Editor and Generator: the AI Assistant is a fixed right-hand column
+  with Copy / Update or Generate actions at the top of the suggestions.
+- Dashboard cards centre their icon and label with a custom painted card.
 
 ### Fixed
 
 - The tab close cross uses the normal text colour and a larger glyph, so the
   last tab is not mistaken for an unclosable one.
+- Tab rows are sized from the narrowest row budget, so a wrapped row can no
+  longer push its last tab past the strip.
 
 ## 0.56.0 — 2026-10-20
 

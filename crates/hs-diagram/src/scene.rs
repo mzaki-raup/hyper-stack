@@ -20,6 +20,7 @@ pub enum Prim {
     Line {
         points: Vec<Point>,
         dashed: bool,
+        dotted: bool,
         arrow_start: bool,
         arrow_end: bool,
         style: Style,

@@ -352,7 +352,12 @@ item below was documented in the affected docs before the code was written.
 '| Offline diagram generation without an AI provider | Completed | **Offline Draft** splits the prompt into steps and chains them; tested in the app and unit-tested |
 | Generator provider/model picker and Set AI Provider | Completed | Per-run Provider and Model; **Set AI Provider** opens Settings → AI Assistant (`settings:ai`) |
 | More templates | Completed | CI Pipeline, Support Triage and Event Architecture added to the template gallery |
-| Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG and show a selection accent from the Outline |
+| Diagram title/frame toggle | Completed | `DiagramDoc.show_title`; layout emits a dashed title frame, properties has the checkbox |
+| Frame drag and selection | Completed | Outline selection and accent frame; dragging the frame border moves its nodes |
+| Edge label drag and line styles | Completed | `label_at`, draggable label, Solid/Dashed/Dotted painting and SVG |
+| Assistant as a column | Completed | `assistant_column` uses a right `Panel`; Copy and Update/Generate at the top |
+| Dashboard card centring | Completed | Custom painted card with a centred icon and label |
+| Tab rows fit | Completed | Layout uses the narrowest row budget; `every_row_fits_inside_the_strip` test || Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG and show a selection accent from the Outline |
 | Empty separator hidden | Completed | Separators only render when a node or edge is selected |'
 | Refresh every screenshot and the walkthrough GIF, README licence MIT | In-Progress | README licence MIT; five key screenshots and `hyperstack-demo.gif` refreshed, the remaining 100+ shots are still the 0.45–0.54 set |
 ## Owner's requests, 2026-10-19 (Graphics diagrams)

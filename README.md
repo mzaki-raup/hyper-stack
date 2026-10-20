@@ -272,17 +272,22 @@ keys typed into a utility are never saved.
 | **Icon tab** — the same operations plus ICO frame selection, sizes and colour-key transparency; here the blue background was picked on the canvas and cleared, leaving the label | **Crop placeholder** — Select on Canvas shows a rectangle with grips; move it, resize it by an edge or corner, or draw a new one, and the X/Y/W/H boxes follow |
 | ![Diagram Editor](docs/screenshots/graphics-diagram-editor.png) | ![Architecture in the editor](docs/screenshots/graphics-diagram-architecture-editor.png) |
 | **Diagram Editor** — the flowchart template on the canvas with the Diagram panel, Outline, shape picker and undo/redo; nodes can be selected, moved and connected, and the same scene exports as SVG, PNG or PDF | **Architecture template** — the grid with a VPC boundary, database cylinder and labelled async links; the properties panel shows the selected component |
+| ![Diagram Generator](docs/screenshots/graphics-diagram-generator.png) | ![Rendered flowchart](docs/screenshots/graphics-diagram-flow.png) |
+| **Diagram Generator** — type picker, prompt, examples, Use Template and Generate; with no AI provider the offline template is a real result and the message says so | **Same scene, exported** — the generator’s preview is the editor’s scene and the SVG/PNG/PDF writer, so the export matches the screen |
 
-**Implemented (2026-10-19):** the activity shell, the dashboard and Recent
+**Implemented (2026-10-20):** the activity shell, the dashboard and Recent
 list, the separate Image and Icon tabs, Convert to Icon and icon colour-key
 transparency. The `hs-diagram` core is in place: the `.hdiag` model and strict
 Archify-adapted IR, validation, deterministic flow/architecture layout,
-routing, a shared scene, and SVG/PNG/PDF export. The **Diagram Editor** now
-renders that scene on a pannable/zoomable canvas, with selection, node dragging,
-adding shapes, connecting, undo/redo, the properties panel, templates and save
-/export. The generator, drafts and the AI assistants follow in the same
-release; ERD, sequence, Archify JSON and draw.io XML import follow in Release
-2. See [docs/tools/diagrams.md](docs/tools/diagrams.md).
+routing, a shared scene, and SVG/PNG/PDF export. The **Diagram Editor** renders
+that scene on a pannable/zoomable canvas, with selection, node dragging, adding
+shapes, connecting, undo/redo, the properties panel, templates and save/export.
+The **Diagram Generator** turns a prompt into the strict IR through the
+configured AI provider, falls back to the offline template, validates the
+result, previews it and opens it in the editor. The repair round, drafts and
+the AI assistants follow in the same release; ERD, sequence, Archify JSON and
+draw.io XML import follow in Release 2. See
+[docs/tools/diagrams.md](docs/tools/diagrams.md).
 
 The picture operations are resize, scale, extend canvas, crop, rotate, flip,
 brightness, contrast, hue, saturation, grayscale, invert, blur and sharpen,

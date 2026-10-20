@@ -2,7 +2,7 @@
 
 **Crate:** `tool-graphics` (UI) + `hs-diagram` (model, layout, scene, export) ·
 **Priority:** P1 (owner's request, 2026-10-19) ·
-**Status:** in progress — Phase 4 (Diagram Editor) implemented 2026-10-19
+**Status:** in progress — Phase 5 (Diagram Generator) implemented 2026-10-20
 
 This document is the requirements and design for the Graphics activity as it
 grows from a picture editor into four tools: **Image**, **Icon**, **Diagram
@@ -15,7 +15,7 @@ owner's process rules require.
 | Icon colour-key transparency | Implemented 2026-10-19 |
 | `hs-diagram` model, validation, flow/architecture layout, scene, SVG/PNG/PDF export | Implemented 2026-10-19 |
 | Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
-| Diagram Generator UI | Pending |
+| Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20; repair round pending |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Pending |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),
@@ -202,6 +202,19 @@ Still to do for the release: resize handles, alignment/distribution, edge
 labels and waypoints in the UI, drafts/project-save, Mermaid import. The
 editor screenshots are in `docs/screenshots/graphics-diagram-editor.png` and
 `graphics-diagram-architecture-editor.png`.
+
+**Generator implemented 2026-10-20.** A Diagram Generator tab has the
+flowchart/architecture picker, a prompt, three examples per type, Use Template,
+Generate/Stop, and a preview of the same scene. Generate asks the configured
+provider for the strict IR asynchronously (`hs_core::ai::chat`), strips fences,
+parses and validates it, then converts to a `DiagramDoc`; invalid output keeps
+the last good preview and shows the validation codes. With no provider (or an
+empty prompt) the offline template is used and the message says so. Open in
+Editor writes a generated `.hdiag` under
+`HyperStackData/graphics/generated/` and opens it as a normal Diagram tab;
+Export offers PNG and PDF. Still to do: one repair round on invalid IR and a
+real-provider integration test (the offline path is verified in the app). The
+screenshot is `docs/screenshots/graphics-diagram-generator.png`.
 
 ### 3.3 Shell changes
 

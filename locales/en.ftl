@@ -1972,6 +1972,22 @@ gfx-shape-store = Store
 gfx-shape-queue = Queue
 gfx-shape-external = External
 
+## Diagram generator
+gfx-gen-title = Diagram Generator
+gfx-gen-type = Type
+gfx-gen-prompt-hint = Describe the flow or architecture you want…
+gfx-gen-examples = Examples
+gfx-gen-template = Use Template
+gfx-gen-generate = Generate
+gfx-gen-stop = Stop
+gfx-gen-open-editor = Open in Editor
+gfx-gen-export = Export
+gfx-gen-empty = Generate a diagram or load the template.
+gfx-gen-empty-hint = With no AI provider, Generate uses the offline template and still opens in the editor.
+gfx-gen-need-prompt = Add a prompt or use the template.
+gfx-gen-template-used = Template loaded; it is an ordinary diagram.
+gfx-gen-no-provider = No AI provider configured; used the offline template. Add one in Settings → AI Assistant.
+
 ## Browser
 tool-browser = Browser
 browser-new-tab = New Page

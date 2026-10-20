@@ -259,3 +259,6 @@ The editor shots are from the running app (data folder
   selected and the properties/outline column on the left.
 - `graphics-diagram-architecture-editor.png` — the `Architecture` template in
   the same tab, showing the grid, the VPC boundary and labelled connectors.
+- `graphics-diagram-generator.png` — the Generator tab with the offline
+  template preview and the no-provider message; the same dialog can show the
+  AI result once a provider is configured.

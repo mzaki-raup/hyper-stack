@@ -515,7 +515,7 @@ impl DiagramState {
         if self.show_grid {
             self.paint_grid(&painter, rect, origin, z, theme);
         }
-        self.paint_scene(&painter, &scene, &to_screen, &srect, z, theme);
+        Self::paint_scene(&painter, &scene, &to_screen, &srect, z, theme);
 
         let node_rects = self.node_rects(&scene);
         let pointer = response.interact_pointer_pos();
@@ -689,8 +689,7 @@ impl DiagramState {
         }
     }
 
-    fn paint_scene(
-        &self,
+    pub(crate) fn paint_scene(
         painter: &egui::Painter,
         scene: &Scene,
         _to_screen: &dyn Fn(Point) -> egui::Pos2,
@@ -933,7 +932,7 @@ impl ExportKind {
     }
 }
 
-fn sanitise(title: &str) -> String {
+pub(crate) fn sanitise(title: &str) -> String {
     let mut out: String = title
         .chars()
         .map(|c| {

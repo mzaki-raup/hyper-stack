@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-19 (Graphics diagrams: Phase 1 activity shell, Phase 2 icon transparency, Phase 3 `hs-diagram` core and Phase 4 Diagram Editor verified; the generator, drafts, AI assistants and R2 imports remain)
+Last updated: 2026-10-19 (Graphics diagrams: Phase 1 activity shell, Phase 2 icon transparency, Phase 3 `hs-diagram` core and Phase 4 Diagram Editor and the generator shell verified; the generator repair round, drafts, AI assistants and R2 imports remain)
 
 ## Planning
 
@@ -351,10 +351,10 @@ and ADR-025.
 | Release 1: icon colour-key transparency with eyedropper and tolerance | Completed | `Op::TransparentColor` (per-channel tolerance 0–100), the Transparency section at the top of Icon Settings, Pick on Canvas, live checkerboard preview and a removable operation; 6 Graphics tests; verified live — picked `#285AA0` on the canvas, cleared the background, the white label remained; `feat/graphics-icon-transparency` |
 | Release 1: `hs-diagram` model, validation, layout, scene and PNG/SVG/PDF export | Completed | `crates/hs-diagram` with model, strict Archify-adapted IR, validation codes/limits, flow ranks and architecture grid, routing, scene, SVG, PNG (`resvg`) and PDF (`svg2pdf`); 16 tests; both templates exported and the PNGs checked visually; branch `feat/hs-diagram-core` |
 | Release 1: Diagram Editor, flowchart and architecture | In-Progress | Implemented: Diagram tab from the sidebar, canvas with pan/zoom/grid, selection and node drag, add process/decision/note, connect mode, undo/redo, properties/outline, flow and architecture templates, save/open `.hdiag`, SVG/PNG/PDF export. Still to do: resize handles, align/distribute, edge labels/waypoints, drafts and project-save dialog, Mermaid import; verified in the running app (flow and architecture templates, node drag, add, undo) |
-| Release 1: Diagram Generator | Pending | Prompt, examples, AI providers, offline templates, validation/repair, preview, open in editor, export |
+| Release 1: Diagram Generator | In-Progress | Flowchart/architecture picker, prompt, three examples, Use Template, Generate/Stop, async `hs_core::ai` call, strict IR parse/validation, offline template fallback, preview, Open in Editor (writes a generated `.hdiag`) and PNG/PDF export. Still to do: the one repair round on invalid IR and a real-provider test; verified in the app with the offline path |
 | Release 1: AI assistant in all four tools | Pending | Four quick actions each plus More Suggestions; review-only; text-only Image/Icon context |
 | Release 1: Archify schema adaptation and notices | In-Progress | Pinned v3.2.0; `THIRD_PARTY_NOTICES.md`, the adapted schemas and the strict Rust validator are committed; the About page and the notice test are pending |
-| Release 1: tests, documentation, screenshots and GIF | In-Progress | 21 shell tests, 10 Graphics tests, 16 `hs-diagram` tests and the migration test pass; the dashboard, image-tab and icon-tab (with transparency) screenshots are added; the walkthrough GIF waits for the diagram tools |
+| Release 1: tests, documentation, screenshots and GIF | In-Progress | 21 shell tests, 13 Graphics tests, 16 `hs-diagram` tests and the migration test pass; the dashboard, image-tab and icon-tab (with transparency) screenshots are added; the walkthrough GIF waits for the diagram tools |
 | Release 2: ERD and sequence diagrams | Pending | Editor and generator; Mermaid sequence import |
 | Release 2: Archify JSON import and draw.io XML import | Pending | Plain and compressed draw.io, first page; strict validation for Archify JSON |
 | Release 2: `.diagram.json` alias and schema migration | Pending | Same JSON, second extension |

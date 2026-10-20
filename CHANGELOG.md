@@ -22,6 +22,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   selection and dragging, add process/decision/note, connect mode, undo/redo,
   properties and outline, flow/architecture templates, `.hdiag` save/open and
   SVG/PNG/PDF export.
+- A Diagram Generator tab: flowchart/architecture picker, prompt and
+  examples, async AI generation into the strict IR, validation with the offline
+  template fallback, preview, Open in Editor and PNG/PDF export.
 
 ## 0.47.0 — 2026-10-19
 

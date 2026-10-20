@@ -9,6 +9,7 @@
 
 pub mod activity;
 pub mod diagram;
+pub mod generator;
 pub mod ops;
 
 use std::borrow::Cow;
@@ -90,6 +91,28 @@ impl ToolFactory for GraphicsFactory {
                 t.diagram = Some(Box::new(diagram::DiagramState::blank()));
             }
         }
+        if t.kind == Kind::Generator {
+            let mut g = generator::GeneratorState::new();
+            if let Some(v) = restore.as_ref() {
+                if let Some(prompt) = v.get("prompt").and_then(|p| p.as_str()) {
+                    g.prompt = prompt.to_string();
+                }
+                if let Some(kind) = v.get("diagram_kind").and_then(|k| k.as_str()) {
+                    g.kind = if kind == "architecture" {
+                        hs_diagram::DiagramKind::Architecture
+                    } else {
+                        hs_diagram::DiagramKind::Flow
+                    };
+                }
+                if let Some(doc) = v
+                    .get("doc")
+                    .and_then(|d| serde_json::from_value::<hs_diagram::DiagramDoc>(d.clone()).ok())
+                {
+                    g.doc = Some(doc);
+                }
+            }
+            t.generator = Some(Box::new(g));
+        }
         if let Some(ops) = restore
             .as_ref()
             .and_then(|v| v.get("ops"))
@@ -170,6 +193,8 @@ pub struct GraphicsTool {
     pick_transparent: bool,
     /// The diagram editor, when this tab is a `.hdiag` document.
     diagram: Option<Box<diagram::DiagramState>>,
+    /// The diagram generator, when this tab is a prompt/preview surface.
+    generator: Option<Box<generator::GeneratorState>>,
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
@@ -210,6 +235,7 @@ impl Default for GraphicsTool {
             crop_select: false,
             pick_transparent: false,
             diagram: None,
+            generator: None,
             crop_drag: None,
         }
     }
@@ -1484,6 +1510,17 @@ impl GraphicsTool {
             );
             return;
         }
+        if f == Function::Generator {
+            let body = serde_json::json!({ "new": "generator" }).to_string();
+            cx.open_new_tab(
+                "graphics",
+                Some(OpenRequest::Text {
+                    mime: GRAPHICS_MIME.into(),
+                    body,
+                }),
+            );
+            return;
+        }
         let icon = f == Function::Icon;
         let filter = if icon { "Icons" } else { "Images" };
         if let Some(p) = rfd::FileDialog::new()
@@ -1645,7 +1682,11 @@ impl Tool for GraphicsTool {
         if home {
             // A restored working tab keeps its document and loses the home
             // flag; the shell replaces it with a dashboard.
-            if self.path.is_none() && self.original.is_none() && self.diagram.is_none() {
+            if self.path.is_none()
+                && self.original.is_none()
+                && self.diagram.is_none()
+                && self.generator.is_none()
+            {
                 self.kind = Kind::Home;
             }
         } else if self.kind == Kind::Home {
@@ -1790,6 +1831,12 @@ impl Tool for GraphicsTool {
             }
             return;
         }
+        if self.kind == Kind::Generator {
+            if let Some(state) = &mut self.generator {
+                state.toolbar(ui, cx);
+            }
+            return;
+        }
         let s = cx.services;
         let info = self.info_line();
         if !info.is_empty() {
@@ -1852,6 +1899,12 @@ impl Tool for GraphicsTool {
                         Some(path.to_string_lossy().to_string()),
                     );
                 }
+            }
+            return;
+        }
+        if self.kind == Kind::Generator {
+            if let Some(state) = &mut self.generator {
+                state.ui(ui, cx, &theme);
             }
             return;
         }
@@ -2148,6 +2201,12 @@ impl Tool for GraphicsTool {
                     self.diagram = Some(Box::new(diagram::DiagramState::blank()));
                     return true;
                 }
+                if v.get("new").and_then(|n| n.as_str()) == Some("generator") {
+                    self.kind = Kind::Generator;
+                    self.path = None;
+                    self.generator = Some(Box::new(generator::GeneratorState::new()));
+                    return true;
+                }
                 if let Some(doc) = v
                     .get("open_diagram")
                     .and_then(|d| serde_json::from_value::<hs_diagram::DiagramDoc>(d.clone()).ok())
@@ -2181,6 +2240,19 @@ impl Tool for GraphicsTool {
         });
         if let Some(state) = &self.diagram {
             value["doc"] = serde_json::to_value(&state.doc).unwrap_or(serde_json::Value::Null);
+        }
+        if let Some(state) = &self.generator {
+            value["prompt"] = serde_json::Value::String(state.prompt.clone());
+            value["diagram_kind"] = serde_json::Value::String(
+                match state.kind {
+                    hs_diagram::DiagramKind::Flow => "flow",
+                    hs_diagram::DiagramKind::Architecture => "architecture",
+                }
+                .into(),
+            );
+            if let Some(doc) = &state.doc {
+                value["doc"] = serde_json::to_value(doc).unwrap_or(serde_json::Value::Null);
+            }
         }
         value
     }

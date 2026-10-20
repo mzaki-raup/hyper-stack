@@ -618,5 +618,7 @@ panel and Convert to Icon are in the app and verified live. Colour-key
 transparency is implemented in the Icon tab (eyedropper, tolerance, Make
 Transparent). The Diagram Editor pane is implemented too: a properties/outline
 column, a pan/zoom canvas over the shared scene, selection/drag, shape tools,
-connect mode, undo/redo, templates and save/export. The Diagram Generator row
-is still disabled with a “later phase” tooltip until its pane exists.
+connect mode, undo/redo, templates and save/export. The Diagram Generator pane
+is implemented as well: a prompt column with examples and the offline
+template, an async AI call into the strict IR, and a preview with Open in
+Editor and export.

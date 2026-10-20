@@ -44,15 +44,17 @@ adapters (CodeLLDB, lldb-dap, GDB, debugpy, delve, netcoredbg), with
 configurations from `.hyperstack/debug.json`, `.vscode/launch.json` or
 generated for Cargo, Python and Go projects.**
 
-**In progress (2026-10-19):** the Graphics activity grows into four tools —
+**In progress (2026-10-20):** the Graphics activity grows into four tools —
 Image, Icon, Diagram Editor and Diagram Generator — with a dashboard home tab,
-an activity sidebar and a Recent section. Phases 1-4 landed: the sidebar and
+an activity sidebar and a Recent section. Phases 1-5 landed: the sidebar and
 dashboard, separate Image/Icon tabs, Convert to Icon, icon colour-key
 transparency (`GraphicsHub`, `Tool::wants_dashboard_home`,
 `Op::TransparentColor`), the `hs-diagram` core (model, strict Archify-adapted
-IR, validation, flow/grid layout, scene, SVG/PNG/PDF export) and the Diagram
+IR, validation, flow/grid layout, scene, SVG/PNG/PDF export), the Diagram
 Editor (canvas, selection, drag, add/connect, undo, properties, templates,
-save/export). Still to come: generator, drafts, the four AI assistants, and
+save/export) and the Diagram Generator (prompt/examples, async AI into the
+strict IR, validation, offline templates, preview, Open in Editor, export).
+Still to come: the generator repair round, drafts, the four AI assistants, and
 Release 2's ERD/sequence and Archify/draw.io imports.
 The requirements are in `docs/tools/diagrams.md`, the
 pinned Archify schema adaptation in `THIRD_PARTY_NOTICES.md` and ADR-025. The
@@ -489,6 +491,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `default-cache-ttl 14400`, so one unlock covers a long session; the
   agent only re-reads it after `gpgconf --reload gpg-agent`, and
   `gpgconf --kill gpg-agent` drops the cache outright.
+- Adding a **new workspace member** on a branch and then merging a release
+  bump from `main` leaves that member at its old version in `Cargo.lock`
+  (`update-version.ps1` could not see a crate that only existed on the
+  branch). Every `--locked` command then dies with "cannot update the lock
+  file"; run a plain `cargo check` after such a merge, commit the one-line
+  lock fix, and remember the release job may already have tagged `main`
+  before the merge.
 
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it

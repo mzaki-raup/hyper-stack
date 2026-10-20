@@ -3459,7 +3459,10 @@ dependencies = [
 name = "hs-diagram"
 version = "0.51.0"
 dependencies = [
+ "base64 0.22.1",
+ "flate2",
  "resvg",
+ "roxmltree",
  "serde",
  "serde_json",
  "svg2pdf",

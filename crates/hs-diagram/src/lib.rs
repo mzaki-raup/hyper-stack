@@ -4,6 +4,7 @@
 
 pub mod convert;
 pub mod export;
+pub mod import;
 pub mod io;
 pub mod layout;
 pub mod model;

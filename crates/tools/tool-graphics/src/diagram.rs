@@ -28,6 +28,12 @@ enum AlignMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ImportKind {
+    Archify,
+    DrawIo,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolMode {
     Select,
     Edge,
@@ -412,6 +418,16 @@ impl DiagramState {
         if ui.button(s.t("gfx-diagram-save")).clicked() {
             self.save(cx);
         }
+        ui.menu_button("Import", |ui| {
+            if ui.button("Archify JSON…").clicked() {
+                self.import(cx, ImportKind::Archify);
+                ui.close();
+            }
+            if ui.button("draw.io XML…").clicked() {
+                self.import(cx, ImportKind::DrawIo);
+                ui.close();
+            }
+        });
         if ui.button(s.t("gfx-diagram-save-project")).clicked() {
             self.save_name = crate::diagram::sanitise(&self.doc.title);
             self.save_error = None;
@@ -1353,6 +1369,40 @@ impl DiagramState {
                 cx.toast(ToastLevel::Success, cx.services.t("gfx-diagram-opened"));
             }
             Err(e) => cx.toast(ToastLevel::Error, e),
+        }
+    }
+
+    fn import(&mut self, cx: &mut ToolContext, kind: ImportKind) {
+        let (title, filter) = match kind {
+            ImportKind::Archify => ("Archify JSON", "json"),
+            ImportKind::DrawIo => ("draw.io XML", "drawio"),
+        };
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(title, &[filter])
+            .pick_file()
+        else {
+            return;
+        };
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) => {
+                cx.toast(ToastLevel::Error, e.to_string());
+                return;
+            }
+        };
+        let imported = match kind {
+            ImportKind::Archify => hs_diagram::import::archify_json(&text),
+            ImportKind::DrawIo => hs_diagram::import::drawio_xml(&text),
+        };
+        match imported {
+            Ok(doc) => {
+                self.replace(doc);
+                self.path = None;
+                self.status = Some(format!("Imported {}", path.display()));
+            }
+            Err(e) => {
+                cx.toast(ToastLevel::Error, e);
+            }
         }
     }
 

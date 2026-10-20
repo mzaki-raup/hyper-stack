@@ -27,7 +27,7 @@ members = [
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
 # never edit it by hand (docs/09-ci-cd-and-updates.md §3).
 [workspace.package]
-version = "0.47.0"
+version = "0.48.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"

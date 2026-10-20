@@ -11,19 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.50.0 — 2026-10-20
+
 ### Added
 
-- The review-only AI assistant in all four Graphics tools: four quick
-  actions each, More Suggestions, text-only diagram/generator context, and the
-  shared provider picker; the assistant never applies an edit.
-- About now shows the compiled-in Third-Party Notices, including the Archify
-  schema adaptation, with a test that the pinned commit and MIT text are
-  present.
-- Closing a Diagram Editor tab writes a draft under `graphics/drafts/` and
-  lists it in Recent, with a test for the draft file.
-- The diagram generator sends an invalid IR back to the model once with the
-  validation reasons, uses the corrected reply if it validates, and otherwise
-  keeps the last good preview and shows the reason.
+- Keep closed diagram tabs as Recent drafts (3a221236)
+- Repair invalid generated diagram IR once (1dfe6bf7)
+- Show third-party notices on About (dae76a33)
+- Add Graphics AI assistants to diagrams and the generator (d8e6b6bd)
 
 ## 0.49.0 — 2026-10-20
 

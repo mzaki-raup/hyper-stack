@@ -13,8 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Diagram Editor: import Archify JSON through the strict IR and plain and compressed draw.io XML into a fixed-layout flow document.
 - Diagram Editor: accept `.diagram.json` as an alias for `.hdiag` when opening, matching and listing documents.
+
+## 0.52.0 — 2026-10-20
+
+### Added
+
+- Import compressed draw.io pages (59b2b526)
+- Import Archify JSON and draw.io XML (4186cd63)
+
+### Fixed
+
+- Decode compressed draw.io percent escapes as bytes (2b2d496c)
 
 ## 0.51.0 — 2026-10-20
 

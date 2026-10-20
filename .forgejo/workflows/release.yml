@@ -57,7 +57,24 @@ jobs:
           $auth = "http.extraheader=Authorization: Basic $basic"
           # Not shallow, and with every tag: the version and the notes are both
           # worked out from the commits since the last tag.
-          git -c $auth fetch --quiet --tags origin
+          # Cloudflare sometimes resets this fetch mid-pack. A partial pack
+          # cannot be resumed, so throw the repository away and start clean.
+          $fetched = $false
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            git -c $auth fetch --quiet --tags origin
+            if ($LASTEXITCODE -eq 0) {
+              $fetched = $true
+              break
+            }
+            Write-Host "fetch failed (attempt $attempt/5); restarting the checkout"
+            Remove-Item .git -Recurse -Force -ErrorAction SilentlyContinue
+            git init --quiet --initial-branch=release .
+            git remote add origin "${{ github.server_url }}/${{ github.repository }}.git"
+            Start-Sleep -Seconds (5 * $attempt)
+          }
+          if (-not $fetched) {
+            throw "could not fetch the repository after 5 attempts"
+          }
           git checkout --quiet --detach ${{ github.sha }}
           git log --oneline -1
 

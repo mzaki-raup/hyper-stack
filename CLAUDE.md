@@ -412,6 +412,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   steps are skipped on a republish). This forge has no rerun API -
   `POST /actions/runs/<id>/rerun` is 404 - so it is either that push or the
   Re-run button in the Actions page.
+- The release checkout can die before planning with `RPC failed; curl 56
+  Recv failure: Connection was reset`, `early EOF` and `unable to read tree`:
+  a partial pack from the full-history fetch cannot be resumed, so nothing is
+  tagged or published. `.forgejo/workflows/release.yml` now throws the `.git`
+  directory away and retries the fetch five times with a growing pause; a
+  failure after that is a real outage, not a build problem.
 - `git.zacx.net` is served through Cloudflare, which gives the origin about
   **100 seconds** to answer and then cuts the request with a **524**. A
   release asset is too big for that: the 34 MB archive needed six minutes

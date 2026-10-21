@@ -13,12 +13,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Graphics R2: schema version 2 migrates version-1 diagrams on load, ERD entity
-  nodes with **Add Entity**, structured column/type/key editing, an edge
-  cardinality picker, and a sequence layout with participants, dashed
-  lifelines, horizontal messages, **Add Participant**, alt/loop/opt fragments
-  and activation bars.
+- Graphics R2 depth: ERD entity columns are named, typed and keyed
+  (PK/FK/UQ) with Add/Remove Column, ERD edges get a cardinality picker, and
+  sequence diagrams gain alt/loop/opt fragments and activation bars.
 
+## 0.63.0 — 2026-10-21
+
+### Added
+
+- Continue graphics R2 with schema migration and diagram types (8b544666)
 ## 0.62.2 — 2026-10-21
 
 ### Fixed
@@ -74,6 +77,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.63.0 — 2026-10-21
+
+### Added
+
+- Continue graphics R2 with schema migration and diagram types (8b544666)
 
 ## 0.62.2 — 2026-10-21
 

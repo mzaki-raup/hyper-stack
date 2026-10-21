@@ -9,9 +9,13 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+'## Unreleased
 
-### Fixed
+### Changed
+
+- README walkthrough GIF pauses for 3 seconds per screenshot instead of 1.5.
+
+### Fixed'
 
 - Diagram Editor: the Outline separator now appears when a frame is selected,
   not only for a node or edge.

@@ -15,8 +15,8 @@ Dark, activity rail labels on. Clicks and keys go through `mouse_event` and
 PNGs are quantised to 256 colours (`magick <in> -colors 256 -depth 8 <out>`)
 to keep the repository small. `hyperstack-demo.gif` is a slideshow assembled
 from the current set with
-`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256 -layers Optimize hyperstack-demo.gif`,
-one screen every 1.5 s.
+`magick <frames> -set delay 300 -loop 0 -resize 1200x -colors 256 -layers Optimize hyperstack-demo.gif`,
+one screen every 3 s.
 
 The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 `editor-ai-cascade.png`, `editor-ai-models.png`, `api-client-ai.png`,
@@ -56,8 +56,8 @@ shot shows a real `GET https://httpbin.org/json`, the browser shot the
 DuckDuckGo home page in a WebView2 child view, the JWT shot the jwt.io
 sample token. The walkthrough GIF (`hyperstack-demo.gif`) is now a
 slideshow assembled with ImageMagick from the current screenshots
-(`magick -delay 150 -loop 0 <frames> -resize 1200x hyperstack-demo.gif`),
-one screen every 1.5 s, replacing the 0.17 screen recording.
+(`magick <frames> -set delay 300 -loop 0 -resize 1200x hyperstack-demo.gif`),
+one screen every 3 s, replacing the 0.17 screen recording.
 
 ## 2026-10-19 set: Git, credentials, environments, Redis, NoSQL, Devtools
 
@@ -92,7 +92,7 @@ Retaken for the current UI: `settings-general.png`,
 was removed.
 
 `hyperstack-demo.gif` is regenerated from this set with ImageMagick
-(`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256`), one
+(`magick <frames> -set delay 300 -loop 0 -resize 1200x -colors 256`), one
 screen every 1.5 s.
 
 Fixtures: the vault's master password is `TestMaster1` (scratch only);
@@ -292,7 +292,7 @@ on, after the UI consistency pass:
   Limit slider (1–100).
 
 `hyperstack-demo.gif` was rebuilt from these five frames with
-`magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256 -layers Optimize`.
+`magick <frames> -set delay 300 -loop 0 -resize 1200x -colors 256 -layers Optimize`.
 ## 2026-10-21: frame resize, title frame and assistant column
 
 - `graphics-ai-column.png` — the Diagram Editor with the AI Assistant as its

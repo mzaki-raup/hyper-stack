@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.62.1 — 2026-10-21
+
 ### Fixed
 
-- Diagram Editor: render the Title Position/Align controls and the **Add
-  Frame** button; the 0.62.0 branch carried the model and layout fields but
-  not the UI that edits them.
+- Render the missing frame title controls and Add Frame button (49beacd8)
 
 ## 0.62.0 — 2026-10-21
 
@@ -61,6 +63,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.62.1 — 2026-10-21
+
+### Fixed
+
+- Render the missing frame title controls and Add Frame button (49beacd8)
 
 ## 0.62.0 — 2026-10-21
 

@@ -22,6 +22,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Stability AI's Stable Diffusion XL 1.0 (`stable-diffusion-xl-1024-v1-0`),
   sent with one of SDXL's nine fixed sizes, the closest to the picture's
   aspect.
+- Graphics → Generate Picture: **Edit** and **Enhance** jobs beside
+  Generate. Edit changes the current picture as the prompt says
+  (`IMAGE_VARIATOR`, Dzine by default with a Strength slider mapped to
+  `structure_match`/`image_strength`; the model is editable since 1min.AI
+  documents no image-to-image route for Stable Diffusion XL); Enhance
+  upscales and cleans it (`IMAGE_UPSCALER`, Stability AI's Stable Image 4x
+  by default, prompt optional). Each job remembers its own model
+  (`hs_core::ai::ImageJob`).
 
 - API client: **Package Libraries** — reusable scripts kept in
   `<workspace>/api/libraries/`, listed in a section under the collections

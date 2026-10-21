@@ -223,16 +223,50 @@ pub struct GraphicsTool {
 type GenSlot = std::sync::Arc<parking_lot::Mutex<Option<Result<Vec<u8>, String>>>>;
 
 /// The Generate Picture form: what to ask for and the request in flight.
-#[derive(Default)]
 struct GenState {
     prompt: String,
-    /// The image model name the provider takes (1min.AI: a Flux, GPT Image
-    /// or Stable Diffusion model for generation; Clipdrop/Dzine for a
-    /// variation of the current picture).
-    model: String,
+    /// The image model name the provider takes, one per job (1min.AI: SDXL,
+    /// Flux or GPT Image for generation; Dzine, Clipdrop, Ideogram… for an
+    /// edit; Stable Image, Dzine, Recraft… for an enhancement). Empty means
+    /// the job's default.
+    models: [String; 3],
     provider: String,
-    use_source: bool,
+    job: hs_core::ai::ImageJob,
+    /// How far an edit may depart from the picture (0-1).
+    strength: f32,
     running: Option<GenSlot>,
+}
+
+impl Default for GenState {
+    fn default() -> Self {
+        Self {
+            prompt: String::new(),
+            models: Default::default(),
+            provider: String::new(),
+            job: hs_core::ai::ImageJob::Generate,
+            strength: 0.5,
+            running: None,
+        }
+    }
+}
+
+impl GenState {
+    fn job_index(job: hs_core::ai::ImageJob) -> usize {
+        match job {
+            hs_core::ai::ImageJob::Generate => 0,
+            hs_core::ai::ImageJob::Edit => 1,
+            hs_core::ai::ImageJob::Enhance => 2,
+        }
+    }
+    /// The model for the selected job, the job's default when none typed.
+    fn model(&self) -> String {
+        let typed = self.models[Self::job_index(self.job)].trim();
+        if typed.is_empty() {
+            self.job.default_model().to_string()
+        } else {
+            typed.to_string()
+        }
+    }
 }
 
 /// The New Image dialog's fields.
@@ -603,9 +637,37 @@ impl GraphicsTool {
             {
                 self.generate.provider = providers[0].0.clone();
             }
-            if self.generate.model.is_empty() {
-                // Stability AI's SDXL 1.0 on 1min.AI (owner's choice).
-                self.generate.model = hs_core::ai::DEFAULT_IMAGE_MODEL.into();
+            use hs_core::ai::ImageJob;
+            // Without a picture only a new one can be asked for.
+            if self.current.is_none() {
+                self.generate.job = ImageJob::Generate;
+            }
+            ui.add_enabled_ui(self.current.is_some(), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    for (job, key) in [
+                        (ImageJob::Generate, "gfx-ai-job-generate"),
+                        (ImageJob::Edit, "gfx-ai-job-edit"),
+                        (ImageJob::Enhance, "gfx-ai-job-enhance"),
+                    ] {
+                        ui.selectable_value(&mut self.generate.job, job, s.t(key));
+                    }
+                });
+            });
+            let job = self.generate.job;
+            form::hint(
+                ui,
+                theme,
+                &s.t(match job {
+                    ImageJob::Generate => "gfx-ai-job-generate-hint",
+                    ImageJob::Edit => "gfx-ai-job-edit-hint",
+                    ImageJob::Enhance => "gfx-ai-job-enhance-hint",
+                }),
+            );
+            let model_slot = GenState::job_index(job);
+            if self.generate.models[model_slot].is_empty() {
+                // SDXL 1.0 / Dzine / Stable Image (owner's choice, and the
+                // documented 1min.AI models for each job).
+                self.generate.models[model_slot] = job.default_model().into();
             }
             egui::Grid::new("gfx-generate-grid")
                 .num_columns(2)
@@ -628,33 +690,45 @@ impl GraphicsTool {
                     ui.end_row();
                     ui.label(s.t("gfx-ai-generate-model"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.generate.model)
+                        egui::TextEdit::singleline(&mut self.generate.models[model_slot])
                             .desired_width(f32::INFINITY),
                     );
                     ui.end_row();
+                    if job == ImageJob::Edit {
+                        ui.label(s.t("gfx-ai-edit-strength"));
+                        ui.add(
+                            egui::Slider::new(&mut self.generate.strength, 0.0..=1.0)
+                                .show_value(false)
+                                .trailing_fill(true),
+                        )
+                        .on_hover_text(s.t("gfx-ai-edit-strength-hint"));
+                        ui.end_row();
+                    }
                 });
             ui.add(
                 egui::TextEdit::multiline(&mut self.generate.prompt)
-                    .hint_text(s.t("gfx-ai-generate-prompt-hint"))
+                    .hint_text(s.t(match job {
+                        ImageJob::Generate => "gfx-ai-generate-prompt-hint",
+                        ImageJob::Edit => "gfx-ai-edit-prompt-hint",
+                        ImageJob::Enhance => "gfx-ai-enhance-prompt-hint",
+                    }))
                     .desired_rows(3)
                     .desired_width(f32::INFINITY),
             );
-            ui.add_enabled_ui(self.current.is_some(), |ui| {
-                ui.checkbox(
-                    &mut self.generate.use_source,
-                    s.t("gfx-ai-generate-use-source"),
-                );
-            });
             ui.horizontal(|ui| {
                 let busy = self.generate.running.is_some();
                 if busy {
                     ui.spinner();
                 }
-                let can = !busy && !self.generate.prompt.trim().is_empty();
-                if ui
-                    .add_enabled(can, egui::Button::new(s.t("gfx-ai-generate")))
-                    .clicked()
-                {
+                // An enhancement needs no prompt; the other jobs do.
+                let can =
+                    !busy && (job == ImageJob::Enhance || !self.generate.prompt.trim().is_empty());
+                let label = s.t(match job {
+                    ImageJob::Generate => "gfx-ai-generate",
+                    ImageJob::Edit => "gfx-ai-edit",
+                    ImageJob::Enhance => "gfx-ai-enhance",
+                });
+                if ui.add_enabled(can, egui::Button::new(label)).clicked() {
                     self.start_generation(s);
                 }
             });
@@ -683,9 +757,11 @@ impl GraphicsTool {
             }
         };
         let cfg = provider.config("");
-        let model = self.generate.model.trim().to_string();
+        let job = self.generate.job;
+        let model = self.generate.model();
         let prompt = self.generate.prompt.trim().to_string();
-        let source = if self.generate.use_source {
+        let strength = self.generate.strength;
+        let source = if job.needs_source() {
             self.attachment_part()
         } else {
             None
@@ -704,10 +780,12 @@ impl GraphicsTool {
                 &http,
                 &cfg,
                 &key,
+                job,
                 &model,
                 &prompt,
                 size,
                 source.as_ref(),
+                strength,
             )
             .await
             .map_err(|e| e.to_string());

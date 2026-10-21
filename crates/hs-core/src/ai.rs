@@ -856,21 +856,54 @@ async fn onemin_upload(
         .ok_or_else(|| AiError::Format(truncate(&text, 300)))
 }
 
-/// Ask a service for a picture: from `prompt` alone, or from `source` with
-/// the prompt as the variation instruction. Only 1min.AI does this today
+/// What to ask an image service for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageJob {
+    /// A new picture from the prompt (`IMAGE_GENERATOR`).
+    Generate,
+    /// The source picture changed as the prompt says (`IMAGE_VARIATOR`):
+    /// a restyle, an added or removed element, a different mood.
+    Edit,
+    /// The source picture at higher resolution and cleaned up
+    /// (`IMAGE_UPSCALER`); the prompt, if any, guides the detail.
+    Enhance,
+}
+
+impl ImageJob {
+    /// The 1min.AI model each job starts with: Stability AI's SDXL 1.0 for
+    /// generation (owner's choice); Dzine for edits, the documented
+    /// variator that takes a prompt (SDXL has no image-to-image route on
+    /// 1min.AI); Stability's Stable Image upscaler for enhancement.
+    pub fn default_model(self) -> &'static str {
+        match self {
+            ImageJob::Generate => DEFAULT_IMAGE_MODEL,
+            ImageJob::Edit => DEFAULT_EDIT_MODEL,
+            ImageJob::Enhance => DEFAULT_UPSCALE_MODEL,
+        }
+    }
+    pub fn needs_source(self) -> bool {
+        self != ImageJob::Generate
+    }
+}
+
+/// Ask a service for a picture: a new one from `prompt`, or `source`
+/// edited or enhanced. Only 1min.AI does this today
 /// (`Provider::generates_images`); the result is the picture's bytes.
 ///
-/// `model` is the image model (`black-forest-labs/flux-schnell`,
-/// `gpt-image-2`, `clipdrop` for variations…); `size` is advisory, sent as
-/// an aspect ratio where the model takes one.
+/// `model` is the image model; `size` is advisory (an SDXL model gets one
+/// of its fixed sizes, others an aspect ratio); `strength` (0-1) is how far
+/// an edit may depart from the source.
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_image(
     http: &reqwest::Client,
     cfg: &AiConfig,
     creds: &Credentials,
+    job: ImageJob,
     model: &str,
     prompt: &str,
     size: (u32, u32),
     source: Option<&ImagePart>,
+    strength: f32,
 ) -> Result<Vec<u8>, AiError> {
     if cfg.provider != Provider::OneMin {
         return Err(AiError::Format(format!(
@@ -888,8 +921,8 @@ pub async fn generate_image(
     } else {
         format!("{}x{}", size.0, size.1)
     };
-    let body = match source {
-        None => json!({
+    let body = match job {
+        ImageJob::Generate => json!({
             "type": "IMAGE_GENERATOR",
             "model": model,
             "promptObject": {
@@ -901,8 +934,13 @@ pub async fn generate_image(
                 "size": size_text,
             },
         }),
-        Some(img) => {
+        ImageJob::Edit => {
+            let img = source.ok_or_else(|| AiError::Format("no picture to edit".into()))?;
             let key = onemin_upload(http, cfg, api_key, img).await?;
+            // Dzine: structure_match says how much of the source survives;
+            // Stability-style models read image_strength the other way
+            // round. Both are sent; a model ignores the one it lacks.
+            let structure = (1.0 - strength).clamp(0.0, 1.0);
             json!({
                 "type": "IMAGE_VARIATOR",
                 "model": model,
@@ -910,7 +948,31 @@ pub async fn generate_image(
                     "imageUrl": key,
                     "prompt": prompt,
                     "n": 1,
+                    "samples": 1,
+                    "structure_match": structure,
+                    "style_intensity": strength.clamp(0.0, 1.0),
+                    "image_strength": strength.clamp(0.0, 1.0),
+                    "quality": "STANDARD",
+                    "output_format": "png",
                 },
+            })
+        }
+        ImageJob::Enhance => {
+            let img = source.ok_or_else(|| AiError::Format("no picture to enhance".into()))?;
+            let key = onemin_upload(http, cfg, api_key, img).await?;
+            // Stable Image takes only the picture (fixed 4x); the other
+            // upscalers (Dzine, Ideogram, Recraft) read a prompt when given.
+            let mut prompt_object = json!({
+                "imageUrl": key,
+                "output_format": "png",
+            });
+            if !prompt.trim().is_empty() {
+                prompt_object["prompt"] = Value::String(prompt.to_string());
+            }
+            json!({
+                "type": "IMAGE_UPSCALER",
+                "model": model,
+                "promptObject": prompt_object,
             })
         }
     };
@@ -957,6 +1019,10 @@ pub async fn generate_image(
 /// The image model a Generate Picture form starts with: Stability AI's
 /// Stable Diffusion XL 1.0 on 1min.AI.
 pub const DEFAULT_IMAGE_MODEL: &str = "stable-diffusion-xl-1024-v1-0";
+/// The 1min.AI variator that takes a prompt (docs.1min.ai, 2026-10-22).
+pub const DEFAULT_EDIT_MODEL: &str = "dzine";
+/// Stability AI's upscaler on 1min.AI ("Stable Image", 4x).
+pub const DEFAULT_UPSCALE_MODEL: &str = "stable-image";
 
 /// SDXL 1.0's fixed output sizes; the one closest in aspect to `size`.
 pub fn sdxl_size((w, h): (u32, u32)) -> &'static str {
@@ -1429,7 +1495,17 @@ pub fn assistant_system_prompt(tool: &str) -> String {
 
 #[cfg(test)]
 mod image_tests {
-    use super::{DEFAULT_IMAGE_MODEL, sdxl_size};
+    use super::{DEFAULT_IMAGE_MODEL, ImageJob, sdxl_size};
+
+    #[test]
+    fn each_image_job_starts_with_a_documented_model() {
+        assert_eq!(ImageJob::Generate.default_model(), DEFAULT_IMAGE_MODEL);
+        assert_eq!(ImageJob::Edit.default_model(), "dzine");
+        assert_eq!(ImageJob::Enhance.default_model(), "stable-image");
+        assert!(!ImageJob::Generate.needs_source());
+        assert!(ImageJob::Edit.needs_source());
+        assert!(ImageJob::Enhance.needs_source());
+    }
 
     #[test]
     fn sdxl_sizes_follow_the_pictures_aspect() {

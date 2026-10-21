@@ -121,6 +121,22 @@ tab loads that file like any picture, so Undo, Save As and Convert to
 Icon all apply. Chat and pictures may come from different providers: the
 chat uses the assistant's provider, the form its own.
 
+**Edit and Enhance (2026-10-22).** The form has three jobs
+(`hs_core::ai::ImageJob`), each with its own model field: **Generate** as
+above; **Edit** sends the current picture and the prompt as
+`IMAGE_VARIATOR` - Dzine by default, the documented 1min.AI variator that
+takes a prompt, with a Strength slider sent as `structure_match`
+(inverted), `style_intensity` and `image_strength` so Dzine and any
+Stability-style model both read it; **Enhance** sends the picture as
+`IMAGE_UPSCALER` - Stability AI's Stable Image (`stable-image`, fixed 4x,
+takes only the picture) by default, with the prompt added when typed for
+the upscalers that read one (Dzine, Ideogram, Recraft). 1min.AI documents
+no image-to-image route for Stable Diffusion XL, so the owner's request to
+edit with SDXL 1.0 is met as closely as the service allows: SDXL stays the
+generation model and the edit model is a typed field. The result lands as
+a draft like a generated picture, so the edited or enhanced picture is a
+new tab beside the original.
+
 **New Image.** From the Image row's context menu in the sidebar, the
 dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a

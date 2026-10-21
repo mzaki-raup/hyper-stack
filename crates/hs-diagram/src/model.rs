@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -69,6 +69,8 @@ pub enum NodeKind {
     Note,
     Text,
     Container,
+    /// A database table: header plus one column row per label line (ERD).
+    Entity,
     Frontend,
     Backend,
     Store,

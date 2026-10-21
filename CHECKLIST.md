@@ -361,7 +361,7 @@ item below was documented in the affected docs before the code was written.
 | Dashboard card centring | Completed | Custom painted card with a centred icon and label |
 | Tab rows fit | Completed | Layout uses the narrowest row budget; `every_row_fits_inside_the_strip` test |
 | Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG |
-''| Frame title position/alignment | Completed | Outer title and each inner frame: Top/Bottom, Left/Middle/Right |
+| Frame title position/alignment | Completed | Outer title and each inner frame: Top/Bottom, Left/Middle/Right |
 | Add and populate inner frames | Completed | Add Frame wraps selection/all; auto-add to selected frame; dragging a node into a frame adds it |
 | Edge label drag reliability | Completed | Same midpoint as painter and an accent drag indicator |
 | API Add Folder toolbar | Completed | New Collection, New Folder, New Request, Import, History; folder disabled without a collection |
@@ -395,6 +395,6 @@ and ADR-025.
 | R1.1: Draft autosave while typing | Completed | Debounced (1 s) hash-checked autosave into the same stable draft file the close path uses; `dirty` stays set; unit test covers the debounce |
 | R1.1: Resize handles, multi-select align/distribute | Completed | Bottom-right grip; Shift-click selection; six align actions and two distribute actions; unit test for align-left |
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
-| Release 2: ERD and sequence diagrams | In-Progress | Basic `DiagramKind::Erd`/`Sequence`, ERD/sequence templates, editor buttons, generator fallbacks, validation/layout tests and Mermaid `sequenceDiagram` import; full participants/messages/fragments remain |
+| Release 2: ERD and sequence diagrams | In-Progress | 2026-10-21 slice: `NodeKind::Entity` table nodes with Add Entity; sequence lifeline layout with participants and horizontal messages; basic kinds, templates, generator fallbacks and Mermaid `sequenceDiagram` import already in; full fragments remain |
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and the first page. Multiple-page selection is not exposed |
-| Release 2: `.diagram.json` alias and schema migration | In-Progress | Open/affinity accept `.diagram.json` as well as `.hdiag`; schema migration remains |
+| Release 2: `.diagram.json` alias and schema migration | Completed | `.diagram.json` opens/saves as an alias; schema v2 migrates v1 documents in `from_json` and writes the new marker on save, with tests |

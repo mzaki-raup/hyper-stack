@@ -11,15 +11,21 @@ pub fn to_json(doc: &DiagramDoc) -> String {
 }
 
 pub fn from_json(text: &str) -> Result<DiagramDoc, String> {
-    let doc: DiagramDoc =
+    let mut value: serde_json::Value =
         serde_json::from_str(text).map_err(|e| format!("invalid .hdiag JSON: {e}"))?;
-    if doc.schema != SCHEMA_VERSION {
+    let schema = value
+        .get("schema")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1) as u32;
+    if schema > SCHEMA_VERSION {
         return Err(format!(
-            "unsupported .hdiag schema {} (this build reads {SCHEMA_VERSION})",
-            doc.schema
+            "unsupported .hdiag schema {schema} (this build reads {SCHEMA_VERSION})"
         ));
     }
-    Ok(doc)
+    // Older documents only ever lacked fields, which every model struct fills
+    // with a serde default; bump the marker so the next save writes current.
+    value["schema"] = serde_json::json!(SCHEMA_VERSION);
+    serde_json::from_value(value).map_err(|e| format!("invalid .hdiag JSON: {e}"))
 }
 
 /// Load a document and return its issues too; lenient `.hdiag` parsing keeps
@@ -58,4 +64,32 @@ pub fn save(path: &Path, doc: &DiagramDoc) -> Result<(), String> {
         let _ = std::fs::remove_file(&tmp);
         e.to_string()
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::DiagramKind;
+
+    #[test]
+    fn a_version_one_document_migrates_to_current() {
+        let text = r#"{
+            "schema": 1,
+            "kind": "flow",
+            "title": "Old",
+            "nodes": [{"id": "a", "label": "A", "kind": "process"}],
+            "edges": []
+        }"#;
+        let doc = from_json(text).expect("v1 loads");
+        assert_eq!(doc.schema, SCHEMA_VERSION);
+        assert_eq!(doc.kind, DiagramKind::Flow);
+        assert_eq!(doc.nodes.len(), 1);
+        assert!(to_json(&doc).contains("\"schema\": 2"));
+    }
+
+    #[test]
+    fn a_newer_schema_is_rejected() {
+        let text = format!(r#"{{"schema": {}, "kind": "flow"}}"#, SCHEMA_VERSION + 1);
+        assert!(from_json(&text).is_err());
+    }
 }

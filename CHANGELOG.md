@@ -11,6 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- Graphics R2: schema version 2 migrates version-1 diagrams on load, ERD entity
+  nodes with **Add Entity**, and a sequence layout with participants, dashed
+  lifelines, horizontal messages and **Add Participant**.
+
 ### Fixed
 
 - Diagram Editor: frame title settings are two tidy rows (Position, Text

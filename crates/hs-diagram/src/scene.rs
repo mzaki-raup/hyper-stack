@@ -130,6 +130,7 @@ pub fn default_fill(kind: NodeKind) -> &'static str {
         NodeKind::Note => "#fffbe6",
         NodeKind::Text => "none",
         NodeKind::Container => "none",
+        NodeKind::Entity => "#ffffff",
         NodeKind::Frontend => "#e8f0ff",
         NodeKind::Backend => "#e8f7ee",
         NodeKind::Store => "#f3e8ff",

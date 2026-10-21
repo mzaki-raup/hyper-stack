@@ -17,7 +17,7 @@ owner's process rules require.
 | Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
 | Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20 |
 | Review-only AI assistant in all four tools | Implemented 2026-10-20 |
-| ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Partial 2026-10-20 |
+| ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Partial 2026-10-21: imports, Entity tables and sequence lifelines done; fragments/activations remain |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),
 [../03-architecture.md](../03-architecture.md),
@@ -710,3 +710,20 @@ Import mode accepts Archify's extra fields (`meta.output`, `pos`, `size`,
 
 The detailed R2 depth (ERD DB-schema import, sequence fragments, draw.io pages/
 images) is decided at the start of R2.
+
+### 13.1 R2 slice (2026-10-21)
+
+1. **Schema migration** — schema version 2; `hs_diagram::io::from_json` upgrades
+   a version-1 document by applying serde defaults and writes it back on the
+   next save. Newer schemas are still rejected.
+2. **ERD entity node** — `NodeKind::Entity` draws a table header plus one row
+   per label line; the ERD toolbar gains **Add Entity**. Column types and keys
+   stay in the label (`id UUID PK`), cardinality in the edge label.
+3. **Sequence layout** — `DiagramKind::Sequence` gets its own layout:
+   participants across the top, dashed lifelines, and message edges as
+   horizontal arrows at successive heights with their labels.
+4. **Alias** — `.diagram.json` remains a first-class alias and is covered by
+   the load/save tests.
+
+Full sequence fragments (`alt`/`loop`/`opt`), activations and sequence editing
+panels remain for the next slice.

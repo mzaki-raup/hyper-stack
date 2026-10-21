@@ -3,6 +3,7 @@
 
 pub mod flow;
 pub mod grid;
+mod sequence;
 
 use crate::model::{DiagramDoc, DiagramKind, Node, Point};
 use crate::scene::{Prim, Scene};
@@ -31,12 +32,11 @@ pub fn node_size(node: &Node, measure: Measure<'_>) -> Size {
 }
 
 pub fn layout(doc: &DiagramDoc, measure: Measure<'_>) -> Scene {
-    let rects = if doc.auto_layout {
+    let rects = if doc.auto_layout || doc.kind == DiagramKind::Sequence {
         match doc.kind {
             DiagramKind::Flow => flow::place(doc, measure),
-            DiagramKind::Architecture | DiagramKind::Erd | DiagramKind::Sequence => {
-                grid::place(doc, measure)
-            }
+            DiagramKind::Sequence => sequence::place(doc),
+            DiagramKind::Architecture | DiagramKind::Erd => grid::place(doc, measure),
         }
     } else {
         geometry(doc, measure)
@@ -92,36 +92,40 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             style: node.style.clone(),
         });
     }
-    for edge in &doc.edges {
-        let (Some(a), Some(b)) = (index(&edge.from), index(&edge.to)) else {
-            continue;
-        };
-        let points = crate::route::route(rects[a], rects[b], edge.route, &edge.via);
-        let (arrow_start, arrow_end) = match edge.arrow {
-            crate::model::Arrow::None => (false, false),
-            crate::model::Arrow::End => (false, true),
-            crate::model::Arrow::Both => (true, true),
-        };
-        scene.push(Prim::Line {
-            points: points.clone(),
-            dashed: edge.dashed,
-            dotted: edge.dotted,
-            arrow_start,
-            arrow_end,
-            style: edge.style.clone(),
-        });
-        if !edge.label.is_empty()
-            && let Some(at) = edge.label_at.or_else(|| midpoint(&points))
-        {
-            scene.push(Prim::Text {
-                at,
-                label: edge.label.clone(),
-                boxed: true,
-                style: crate::model::Style {
-                    font_size: Some(12.0),
-                    ..Default::default()
-                },
+    if doc.kind == DiagramKind::Sequence {
+        sequence::decorate(&mut scene, doc, rects);
+    } else {
+        for edge in &doc.edges {
+            let (Some(a), Some(b)) = (index(&edge.from), index(&edge.to)) else {
+                continue;
+            };
+            let points = crate::route::route(rects[a], rects[b], edge.route, &edge.via);
+            let (arrow_start, arrow_end) = match edge.arrow {
+                crate::model::Arrow::None => (false, false),
+                crate::model::Arrow::End => (false, true),
+                crate::model::Arrow::Both => (true, true),
+            };
+            scene.push(Prim::Line {
+                points: points.clone(),
+                dashed: edge.dashed,
+                dotted: edge.dotted,
+                arrow_start,
+                arrow_end,
+                style: edge.style.clone(),
             });
+            if !edge.label.is_empty()
+                && let Some(at) = edge.label_at.or_else(|| midpoint(&points))
+            {
+                scene.push(Prim::Text {
+                    at,
+                    label: edge.label.clone(),
+                    boxed: true,
+                    style: crate::model::Style {
+                        font_size: Some(12.0),
+                        ..Default::default()
+                    },
+                });
+            }
         }
     }
     if doc.show_title && !doc.nodes.is_empty() {

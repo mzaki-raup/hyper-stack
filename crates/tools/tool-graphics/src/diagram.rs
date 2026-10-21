@@ -301,11 +301,16 @@ impl DiagramState {
         let size = match kind {
             NodeKind::Decision => (150.0, 90.0),
             NodeKind::Note => (170.0, 90.0),
+            NodeKind::Entity => (220.0, 160.0),
             _ => (160.0, 64.0),
         };
         let node = Node {
             id: format!("node{n}"),
-            label: format!("Node {n}"),
+            label: if kind == NodeKind::Entity {
+                format!("entity{n}\nid UUID PK")
+            } else {
+                format!("Node {n}")
+            },
             kind,
             x: at.x - size.0 / 2.0,
             y: at.y - size.1 / 2.0,
@@ -604,6 +609,28 @@ impl DiagramState {
             .clicked()
         {
             self.add_node_at(NodeKind::Note, self.last_center);
+        }
+        if self.doc.kind == DiagramKind::Erd
+            && ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::TABLE,
+                    s.t("gfx-diagram-add-entity")
+                ))
+                .clicked()
+        {
+            self.add_node_at(NodeKind::Entity, self.last_center);
+        }
+        if self.doc.kind == DiagramKind::Sequence
+            && ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::USER,
+                    s.t("gfx-diagram-add-participant")
+                ))
+                .clicked()
+        {
+            self.add_node_at(NodeKind::Frontend, self.last_center);
         }
         if ui
             .button(format!(
@@ -1610,18 +1637,43 @@ impl DiagramState {
         {
             let edge = &self.doc.edges[pos];
             if !edge.label.is_empty() {
-                let at = edge.label_at.or_else(|| {
-                    let from = self.doc.node(&edge.from)?;
-                    let to = self.doc.node(&edge.to)?;
-                    let ro = |n: &Node| Rect {
-                        x: n.x,
-                        y: n.y,
-                        w: n.w,
-                        h: n.h,
-                    };
-                    let points = hs_diagram::route::route(ro(from), ro(to), edge.route, &edge.via);
-                    edge_label_midpoint(&points)
-                });
+                let painted: Vec<Point> = scene
+                    .prims
+                    .iter()
+                    .filter_map(|p| match p {
+                        Prim::Text {
+                            at, boxed: true, ..
+                        } => Some(*at),
+                        _ => None,
+                    })
+                    .collect();
+                let slot = self
+                    .doc
+                    .edges
+                    .iter()
+                    .take(pos)
+                    .filter(|e| !e.label.is_empty())
+                    .count();
+                let sequence = self.doc.kind == DiagramKind::Sequence;
+                let at = if sequence {
+                    painted.get(slot).copied()
+                } else {
+                    edge.label_at.or_else(|| {
+                        painted.get(slot).copied().or_else(|| {
+                            let from = self.doc.node(&edge.from)?;
+                            let to = self.doc.node(&edge.to)?;
+                            let ro = |n: &Node| Rect {
+                                x: n.x,
+                                y: n.y,
+                                w: n.w,
+                                h: n.h,
+                            };
+                            let points =
+                                hs_diagram::route::route(ro(from), ro(to), edge.route, &edge.via);
+                            edge_label_midpoint(&points)
+                        })
+                    })
+                };
                 if let Some(at) = at {
                     let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(104.0, 24.0));
                     let r = ui.interact(
@@ -1833,18 +1885,46 @@ impl DiagramState {
                     );
                     paint_shape(painter, r, *kind, fill, stroke, z);
                     if !label.is_empty() {
-                        let size = (style.font_size.unwrap_or(14.0) * z).max(8.0);
-                        let lines: Vec<&str> = label.lines().collect();
-                        let lh = size * 1.25;
-                        let top = r.center().y - (lines.len() as f32 - 1.0) * lh / 2.0;
-                        for (i, line) in lines.iter().enumerate() {
-                            painter.text(
-                                egui::pos2(r.center().x, top + i as f32 * lh),
-                                egui::Align2::CENTER_CENTER,
-                                line,
-                                egui::FontId::proportional(size),
-                                color(style.text.as_deref().unwrap_or("#1f2328")),
-                            );
+                        let text_color = color(style.text.as_deref().unwrap_or("#1f2328"));
+                        if *kind == NodeKind::Entity {
+                            let lines: Vec<&str> = label.lines().collect();
+                            let header = (28.0 * z).min(r.height() * 0.45);
+                            if let Some(name) = lines.first() {
+                                painter.text(
+                                    egui::pos2(r.center().x, r.top() + header / 2.0),
+                                    egui::Align2::CENTER_CENTER,
+                                    name,
+                                    egui::FontId::proportional((13.0 * z).max(9.0)),
+                                    text_color,
+                                );
+                            }
+                            for (i, line) in lines.iter().skip(1).enumerate() {
+                                let y = r.top() + header + 10.0 * z + i as f32 * 16.0 * z;
+                                if y + 4.0 > r.bottom() {
+                                    break;
+                                }
+                                painter.text(
+                                    egui::pos2(r.left() + 8.0 * z, y),
+                                    egui::Align2::LEFT_CENTER,
+                                    line,
+                                    egui::FontId::monospace((11.0 * z).max(8.0)),
+                                    text_color,
+                                );
+                            }
+                        } else {
+                            let size = (style.font_size.unwrap_or(14.0) * z).max(8.0);
+                            let lines: Vec<&str> = label.lines().collect();
+                            let lh = size * 1.25;
+                            let top = r.center().y - (lines.len() as f32 - 1.0) * lh / 2.0;
+                            for (i, line) in lines.iter().enumerate() {
+                                painter.text(
+                                    egui::pos2(r.center().x, top + i as f32 * lh),
+                                    egui::Align2::CENTER_CENTER,
+                                    line,
+                                    egui::FontId::proportional(size),
+                                    text_color,
+                                );
+                            }
                         }
                     }
                 }
@@ -2192,6 +2272,7 @@ fn shape_label(kind: NodeKind, s: &hs_core::Services) -> String {
         NodeKind::Note => "gfx-shape-note",
         NodeKind::Text => "gfx-shape-text",
         NodeKind::Container => "gfx-shape-container",
+        NodeKind::Entity => "gfx-shape-entity",
         NodeKind::Frontend => "gfx-shape-frontend",
         NodeKind::Backend => "gfx-shape-backend",
         NodeKind::Store => "gfx-shape-store",
@@ -2325,6 +2406,22 @@ fn paint_shape(
                 egui::StrokeKind::Inside,
             );
         }
+        NodeKind::Entity => {
+            painter.rect(r, 6.0 * z, fill, stroke, egui::StrokeKind::Inside);
+            let header = (28.0 * z).min(r.height() * 0.45);
+            painter.rect_filled(
+                egui::Rect::from_min_max(r.min, egui::pos2(r.max.x, r.min.y + header)),
+                6.0 * z,
+                stroke.color.gamma_multiply(0.14),
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(r.left(), r.top() + header),
+                    egui::pos2(r.right(), r.top() + header),
+                ],
+                stroke,
+            );
+        }
         _ => {
             let radius = if kind == NodeKind::RoundedRectangle {
                 14.0 * z
@@ -2391,6 +2488,7 @@ fn shape_icon(kind: NodeKind) -> &'static str {
         NodeKind::StartEnd | NodeKind::Ellipse => ph::SELECTION,
         NodeKind::Note | NodeKind::Text => ph::NOTE_PENCIL,
         NodeKind::Container => ph::TREE_STRUCTURE,
+        NodeKind::Entity => ph::TABLE,
         NodeKind::Database | NodeKind::Store => ph::RECTANGLE,
         NodeKind::Queue => ph::ARROW_RIGHT,
         NodeKind::Frontend | NodeKind::Backend | NodeKind::External => ph::APP_WINDOW,

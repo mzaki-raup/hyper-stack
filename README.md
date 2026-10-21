@@ -274,12 +274,12 @@ keys typed into a utility are never saved.
 | **Diagram Editor** — the flowchart template on the canvas with the Diagram panel, Outline, shape picker and undo/redo; nodes can be selected, moved and connected, and the same scene exports as SVG, PNG or PDF | **Architecture template** — the grid with a VPC boundary, database cylinder and labelled async links; the properties panel shows the selected component |
 | ![Diagram Generator](docs/screenshots/graphics-diagram-generator.png) | ![Rendered flowchart](docs/screenshots/graphics-diagram-flow.png) |
 | **Diagram Generator** — type picker, prompt, examples, Use Template and Generate; with no AI provider the offline template is a real result and the message says so | **Same scene, exported** — the generator’s preview is the editor’s scene and the SVG/PNG/PDF writer, so the export matches the screen |
-| ![Source and preview](docs/screenshots/graphics-source-preview.png) | ![Node shapes](docs/screenshots/graphics-node-shapes.png) |
-| **Source and Preview** — the Split view puts the live JSON on the right, so every properties edit appears in the source at once | **Proper node shapes** — the database is a cylinder, decisions are diamonds and the Outline carries a shape icon for every node |
-| ![Save to Project](docs/screenshots/graphics-save-project.png) | ![Edge properties](docs/screenshots/graphics-edge-properties.png) |
-| **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file and confirm an overwrite | **Edge editing** — select an edge from the Outline to edit its label, arrow, route, dashed line, waypoints and deletion |
-| ![ERD](docs/screenshots/graphics-erd.png) | ![Sequence](docs/screenshots/graphics-sequence.png) |
-| **ERD template** — entities with columns and keys, and a `1 .. *` relationship | **Sequence template** — Client, API and Database with labelled request and insert messages |
+| ![AI column and title frame](docs/screenshots/graphics-ai-column.png) | ![Source and preview](docs/screenshots/graphics-source-preview.png) |
+| **AI Assistant column** — a fixed right pane, with the title frame around the diagram and a frame resize grip | **Source and Preview** — Split puts the live JSON to the right of the canvas |
+| ![Node shapes](docs/screenshots/graphics-node-shapes.png) | ![Save to Project](docs/screenshots/graphics-save-project.png) |
+| **Proper node shapes** — the database is a cylinder, decisions are diamonds and the Outline carries a shape icon for every node | **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file and confirm an overwrite |
+| ![Edge properties](docs/screenshots/graphics-edge-properties.png) | ![Sequence](docs/screenshots/graphics-sequence.png) |
+| **Edge editing** — select an edge from the Outline to edit its label, arrow, route, dashed or dotted line, waypoints and deletion | **Sequence template** — Client, API and Database with labelled request and insert messages |
 
 **Implemented (2026-10-20):** the activity shell, the dashboard and Recent
 list, the separate Image and Icon tabs, Convert to Icon and icon colour-key

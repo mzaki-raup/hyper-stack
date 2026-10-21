@@ -9,9 +9,15 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-''## Unreleased
+'''## Unreleased
 
-### Security
+### Added
+
+- Diagram Editor: frame resize grip; a selected frame scales its nodes from the
+  corner while keeping positions relative to the frame.
+- Documentation: refreshed dashboard, AI column, editor and GIF screenshots.
+
+### Security'
 
 - Updated `rustls-webpki`, `webpki-roots` and `webpki-root-certs` to clear
   RUSTSEC-2026-0381/0382/0383.

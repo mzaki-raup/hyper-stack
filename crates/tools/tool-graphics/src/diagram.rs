@@ -17,6 +17,13 @@ use hs_ui::theme::Theme;
 
 /// Frame id, press position and the nodes captured for a frame drag.
 type FrameDrag = (String, egui::Pos2, Vec<(String, Point)>);
+/// Frame id, start rect, node geometry (id, x, y, w, h) and press position.
+type FrameResize = (
+    String,
+    egui::Rect,
+    Vec<(String, f32, f32, f32, f32)>,
+    egui::Pos2,
+);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlignMode {
@@ -75,6 +82,7 @@ pub struct DiagramState {
     drag_resize: Option<(String, f32, f32, egui::Pos2)>,
     drag_via: Option<(String, usize, Point, egui::Pos2)>,
     drag_frame: Option<FrameDrag>,
+    drag_frame_resize: Option<FrameResize>,
     drag_pan: Option<(egui::Vec2, egui::Pos2)>,
     last_center: Point,
     saved: Option<PathBuf>,
@@ -126,6 +134,7 @@ impl DiagramState {
             drag_resize: None,
             drag_via: None,
             drag_frame: None,
+            drag_frame_resize: None,
             drag_pan: None,
             last_center: Point { x: 0.0, y: 0.0 },
             saved: None,
@@ -1159,6 +1168,44 @@ impl DiagramState {
                         }
                     }
                 }
+                if !grip
+                    && let Some(label) = self.selected_group.as_ref().and_then(|id| {
+                        self.doc
+                            .groups
+                            .iter()
+                            .find(|g| &g.id == id)
+                            .map(|g| g.label.clone())
+                    })
+                    && let Some(rect) = scene.prims.iter().find_map(|p| match p {
+                        Prim::Frame { rect, label: l, .. } if l == &label => Some(*rect),
+                        _ => None,
+                    })
+                {
+                    let r = srect(rect);
+                    if (pos - r.right_bottom()).abs().max_elem() < 14.0
+                        && let Some((gid, nodes)) = self
+                            .selected_group
+                            .as_ref()
+                            .and_then(|id| self.doc.groups.iter().find(|g| &g.id == id))
+                            .map(|g| {
+                                let nodes = g
+                                    .nodes
+                                    .iter()
+                                    .filter_map(|id| {
+                                        self.doc.node(id).map(|n| {
+                                            (id.clone(), n.x, n.y, n.w.max(40.0), n.h.max(30.0))
+                                        })
+                                    })
+                                    .collect();
+                                (g.id.clone(), nodes)
+                            })
+                    {
+                        self.push_undo();
+                        self.freeze();
+                        self.drag_frame_resize = Some((gid, r, nodes, pos));
+                        grip = true;
+                    }
+                }
                 if !grip {
                     let frame_hit = scene.prims.iter().find_map(|p| {
                         let Prim::Frame { rect, label, .. } = p else {
@@ -1248,6 +1295,24 @@ impl DiagramState {
                     via.y = start.y + dy;
                 }
                 self.dirty = true;
+            } else if let (Some((_, start, nodes, from)), Some(pos)) =
+                (&self.drag_frame_resize, pointer)
+            {
+                let left = (start.left() - origin.x) / z;
+                let top = (start.top() - origin.y) / z;
+                let sx =
+                    ((start.width() + (pos.x - from.x)) / start.width().max(1.0)).clamp(0.2, 5.0);
+                let sy =
+                    ((start.height() + (pos.y - from.y)) / start.height().max(1.0)).clamp(0.2, 5.0);
+                for (id, x, y, w, h) in nodes {
+                    if let Some(node) = self.doc.nodes.iter_mut().find(|n| &n.id == id) {
+                        node.x = left + (x - left) * sx;
+                        node.y = top + (y - top) * sy;
+                        node.w = (w * sx).max(40.0);
+                        node.h = (h * sy).max(30.0);
+                    }
+                }
+                self.dirty = true;
             } else if let (Some((_, from, nodes)), Some(pos)) = (&self.drag_frame, pointer) {
                 let dx = (pos.x - from.x) / z;
                 let dy = (pos.y - from.y) / z;
@@ -1281,6 +1346,7 @@ impl DiagramState {
             self.drag_resize = None;
             self.drag_via = None;
             self.drag_frame = None;
+            self.drag_frame_resize = None;
             self.drag_pan = None;
         }
         let clicked =

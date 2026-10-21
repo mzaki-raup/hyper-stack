@@ -293,3 +293,11 @@ on, after the UI consistency pass:
 
 `hyperstack-demo.gif` was rebuilt from these five frames with
 `magick -delay 150 -loop 0 <frames> -resize 1200x -colors 256 -layers Optimize`.
+## 2026-10-21: frame resize, title frame and assistant column
+
+- `graphics-ai-column.png` — the Diagram Editor with the AI Assistant as its
+  own right-hand column and the title frame around the diagram.
+- `graphics-dashboard.png` — enabled New Diagram / New Generation cards.
+- `graphics-node-shapes.png` — updated to the current editor.
+- `hyperstack-demo.gif` rebuilt from the current dashboard, assistant column,
+  source split, editor and settings screenshots.

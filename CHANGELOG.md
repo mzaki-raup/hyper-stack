@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 '''## Unreleased
 
+- (nothing yet)
+
+## 0.60.0 — 2026-10-21
+
 ### Added
 
-- Diagram Editor: frame resize grip; a selected frame scales its nodes from the
-  corner while keeping positions relative to the frame.
-- Documentation: refreshed dashboard, AI column, editor and GIF screenshots.
+- Resize diagram frames and refresh screenshots (ccb7b3aa)
 
 ## 0.59.0 — 2026-10-20
 

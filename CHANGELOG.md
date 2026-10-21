@@ -17,19 +17,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   corner while keeping positions relative to the frame.
 - Documentation: refreshed dashboard, AI column, editor and GIF screenshots.
 
-### Security'
-
-- Updated `rustls-webpki`, `webpki-roots` and `webpki-root-certs` to clear
-  RUSTSEC-2026-0381/0382/0383.
+## 0.59.0 — 2026-10-20
 
 ### Added
 
-- Dashboard: New Diagram and New Generation are enabled.
-- AI Assistant: requests and answers render Markdown (headings, bullets,
-  inline code); every answer has inline Copy, Replace Diagram and Append JSON
-  actions. Diagram/Generator quick prompts ask for a complete `.hdiag` JSON
-  example.
+- Markdown assistant with inline diagram actions (7edb6857)
 
+### Fixed
+
+- Clear the new webpki security advisories (560aeef6)
 ## 0.58.0 — 2026-10-20
 
 ### Added

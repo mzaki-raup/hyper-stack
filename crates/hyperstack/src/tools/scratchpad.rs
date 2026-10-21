@@ -213,9 +213,12 @@ fn order_notes(mut notes: Vec<NoteMeta>, pins: &[String], order: &[String]) -> V
                     .position(|id| id == &n.id)
                     .unwrap_or(usize::MAX)
             };
-            rank(a)
-                .cmp(&rank(b))
-                .then_with(|| b.modified.cmp(&a.modified))
+            match (rank(a) == usize::MAX, rank(b) == usize::MAX) {
+                (true, true) => b.modified.cmp(&a.modified),
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => rank(a).cmp(&rank(b)),
+            }
         }
     });
     notes

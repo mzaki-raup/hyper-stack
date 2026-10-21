@@ -11,96 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.65.0 — 2026-10-21
+
 ### Added
 
-- Graphics R2 depth: sequence fragment ranges are editable, ERD entity columns
-  move up/down, **Import DDL…** turns `CREATE TABLE` columns, keys and foreign
-  keys into Entity nodes and one-to-many edges, and multi-page draw.io import
-  offers a page picker.
-- Diagram Editor: dragging a node toward a frame highlights it as a drop
-  target before release, and the workspace toolbar's Add Process/Decision/
-  Note/Frame and Align are icon-only buttons with full-name tooltips.
-- Narrow windows: every tool toolbar wraps onto a second row instead of
-  clipping, the AI Assistant control starts a fresh row when the current
-  one is nearly full, the assistant columns shrink before stepping aside,
-  and the sidebar, dock, split view, Graphics panels and the editor's
-  preview are bounded by the window rather than by fixed maximums.
-- API client: deleting a collection, folder or request asks first; a
-  Postman environment's `"type": "secret"` values go into the vault as
-  `secret:` references instead of the environment file.
-
-### Changed
-
-- Performance pass over the last week's code: the diagram layout and the
-  draft autosave's change check run only when the document changed (a
-  streamed fingerprint replaces a per-frame JSON serialisation), the diff,
-  regex and TOML/XML devtools recompute only when their inputs change (and
-  the diff declines inputs over 2 MB), the browser's favourites and logins
-  are written when typing pauses rather than per keystroke, the editor
-  re-detects the project kind every few seconds rather than per toolbar
-  frame, the terminal sidebar resolves CLI commands on PATH every few
-  seconds rather than per profile per frame, and stage/unstage no longer
-  re-list stashes, branches, remotes and tags.
+- Choose a draw.io page on import (cdffdb8f)
+- Finish sequence fragment ranges and ERD DDL import (80b52fc9)
 
 ### Fixed
 
-- Diagram Editor: clicking an activation box in a sequence diagram no
-  longer panics (the hit list counted them as nodes); deleting a framed
-  node removes it from the frame, so the saved file still opens; a new
-  edge never reuses the id of a deleted one; Ctrl+wheel zooms around the
-  pointer, and scrolling pans in fit mode; label drags and Clear Waypoints
-  are undoable; undo, redo and template replacement drop selections that
-  pointed at the old document; the canvas's Delete/Ctrl+Z/Ctrl+S keys
-  stay out of a focused text field; Align with a stale selection no longer
-  shifts every later node's size; closing the Generator tab aborts its
-  request.
-- API client: Enter in the body editor no longer rewrites the collection
-  file (the name field's Enter was checked tab-wide); deleting the folder
-  that held the open request starts a new request instead of leaving a
-  "Saved" that saved nothing; one case-insensitive dedup rule now covers
-  new, rename, duplicate and drag; dropping a row on its own level's header
-  moves it to the end.
-- SQL: `COPY … TO PROGRAM` is an admin statement and `COPY … TO '<file>'` /
-  MySQL `INTO OUTFILE` are writes, so the read-only and protected guards
-  catch them; engine names read "PostgreSQL"/"MySQL"/"SQLite" in titles.
-- Editor: a commit rejected by a hook or a cancelled signing prompt keeps
-  the typed message; a background shell's events are drained too; a web
-  watch stops when its shell exits.
-- Shell: restoring a layout gives every activity its home tab (the last one
-  was skipped); closing a connection form aborts a test still connecting.
-- Devtools: cron check refuses backwards ranges, three-part ranges, steps
-  on a single value and steps wider than the field; the generator ignores
-  the seed for passwords and passphrases.
-- Browser: a favourites or logins file that fails to parse is set aside as
-  `.bad` instead of being overwritten empty on the next edit.
-- AI assistants: `**bold**` renders as emphasis instead of plain text.
-
-- Diagram Editor: Align and Distribute now freeze auto-layout first, so the
-  move actually sticks instead of being silently recomputed away on a
-  diagram nobody has dragged yet; added test coverage for every align mode
-  and for Distribute.
-- Diagram Editor: dragging a selected edge's label is reliable everywhere
-  (including when the edge crosses into or out of a frame) and the drag
-  indicator now sits exactly on the rendered label instead of floating away
-  from it at a fixed, unscaled offset.
-- Diagram Editor: a frame/group is now matched by id instead of by its
-  (possibly duplicated) label text everywhere the canvas hit-tests, drags,
-  resizes or highlights one.
-- Diagram Editor Properties panel: selecting a frame shows only that frame
-  (not every frame in the document) and no longer renders a redundant
-  separator stacked with whatever node/edge section was already showing;
-  clicking a node, edge or outline row now clears any stale frame
-  selection instead of leaving it to render alongside the new selection.
-- Graphics dashboard: "New Diagram…" and "New Generation…" were hardcoded
-  disabled on the quick-action row even though both tools have long since
-  shipped; they now follow `Function::enabled()` like the rest of the
-  dashboard already does.
-- Editor AI assistant: prose now renders as Markdown (headings, bullets,
-  bold/italic, inline code) like every other tool's assistant, instead of
-  showing the raw syntax.
-- API client: renaming a collection, folder or request from the sidebar now
-  checks for a name clash against its siblings and appends " 001", " 002"…
-  the same way New Collection/New Folder/New Request already do.
+- Diagram editor polish, markdown assistant, API rename dedup (37caa302)
 
 ## 0.64.0 — 2026-10-21
 
@@ -167,6 +89,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.65.0 — 2026-10-21
+
+### Added
+
+- Choose a draw.io page on import (cdffdb8f)
+- Finish sequence fragment ranges and ERD DDL import (80b52fc9)
+
+### Fixed
+
+- Diagram editor polish, markdown assistant, API rename dedup (37caa302)
 
 ## 0.64.0 — 2026-10-21
 

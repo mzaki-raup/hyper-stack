@@ -361,7 +361,13 @@ item below was documented in the affected docs before the code was written.
 | Dashboard card centring | Completed | Custom painted card with a centred icon and label |
 | Tab rows fit | Completed | Layout uses the narrowest row budget; `every_row_fits_inside_the_strip` test |
 | Node, edge and frame colours | Completed | Outline/Fill/Text on nodes, Outline/Label on edges, Text/Outline/Fill/Text on frames; frames use their style in the canvas and SVG |
-'| API sidebar Material icons | Completed | `folder-api` for collections and `fileicons::for_folder` for folders |
+''| Frame title position/alignment | Completed | Outer title and each inner frame: Top/Bottom, Left/Middle/Right |
+| Add and populate inner frames | Completed | Add Frame wraps selection/all; auto-add to selected frame; dragging a node into a frame adds it |
+| Edge label drag reliability | Completed | Same midpoint as painter and an accent drag indicator |
+| API Add Folder toolbar | Completed | New Collection, New Folder, New Request, Import, History; folder disabled without a collection |
+| Unique API names | Completed | ` 001`, ` 002` suffix for duplicate collections and folders |
+| Tab text/close margin | Completed | 8 px gap before the cross |
+| API sidebar Material icons | Completed |' `folder-api` for collections and `fileicons::for_folder` for folders |
 | Scratchpad note reordering | Completed | Grip on unpinned rows, persisted in `notes/order.json`, pinned notes fixed on top |
 | Empty separator hidden | Completed |' Separators only render when a node or edge is selected |
 | Refresh every screenshot and the walkthrough GIF, README licence MIT | In-Progress | README licence MIT; five key screenshots and `hyperstack-demo.gif` refreshed, the remaining 100+ shots are still the 0.45–0.54 set |

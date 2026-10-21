@@ -1999,6 +1999,7 @@ gfx-diagram-grid = Grid
 gfx-diagram-select = Select
 gfx-diagram-add-process = Add Process
 gfx-diagram-add-decision = Add Decision
+gfx-diagram-add-frame = Add Frame
 gfx-diagram-add-note = Add Note
 gfx-diagram-add-edge = Connect
 gfx-diagram-opened = Diagram opened

@@ -78,6 +78,8 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                 rect: r.inflate(18.0),
                 label: group.label.clone(),
                 style: group.style.clone(),
+                label_placement: group.label_placement,
+                label_align: group.label_align,
             });
         }
     }
@@ -131,6 +133,8 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                 dashed: true,
                 ..Default::default()
             },
+            label_placement: doc.title_placement,
+            label_align: doc.title_align,
         });
     }
     let margin = doc.page.margin.clamp(8.0, 160.0);

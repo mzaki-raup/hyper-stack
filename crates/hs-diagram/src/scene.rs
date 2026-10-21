@@ -16,6 +16,8 @@ pub enum Prim {
         rect: Rect,
         label: String,
         style: Style,
+        label_placement: crate::model::LabelPlacement,
+        label_align: crate::model::LabelAlign,
     },
     Line {
         points: Vec<Point>,

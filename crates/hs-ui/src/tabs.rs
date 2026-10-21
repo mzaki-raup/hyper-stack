@@ -479,7 +479,7 @@ impl TabStrip<'_> {
             let text_right = if is_pinned {
                 rect.right() - 6.0
             } else {
-                close_rect.left() - 4.0
+                close_rect.left() - 8.0
             };
             // A coloured piece first, when the tool offers one: the API
             // client's HTTP method, so a strip of requests reads by

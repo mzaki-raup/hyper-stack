@@ -98,6 +98,8 @@ pub fn architecture() -> DiagramDoc {
         label: "VPC".into(),
         nodes: vec!["api".into(), "db".into(), "queue".into()],
         style: Style::default(),
+        label_placement: Default::default(),
+        label_align: Default::default(),
     });
     doc.edges.push(Edge {
         id: "c1".into(),

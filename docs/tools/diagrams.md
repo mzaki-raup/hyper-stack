@@ -526,7 +526,10 @@ The Diagram Editor's **Import** menu reads:
   and `→` into steps and chains them locally; no provider is called.
 - **Provider and Model** — pick any configured provider for this run; with
   none configured, **Set AI Provider** opens Settings → AI Assistant.
-'- **Title frame** — Show Title and Frame draws a dashed frame around the
+''- **Frames** — Add Frame wraps the selected nodes (or all of them); each
+  frame title can be Top/Bottom and Left/Middle/Right; new nodes join the
+  selected frame and dragging a node into a frame adds it.
+- **Title frame** — Show Title and Frame draws a dashed frame around the'
   whole diagram with its title; off leaves the bare canvas.
 - **Interaction** — frames are outlined and selectable, dragging their border
   moves their nodes; edge labels drag along the line; edges can be Solid,

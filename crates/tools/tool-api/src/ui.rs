@@ -404,44 +404,49 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
         ui.label(egui::RichText::new(s.t("tool-api")).strong().size(15.0));
     });
     ui.horizontal(|ui| {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .small_button(ph::CLOCK_COUNTER_CLOCKWISE)
-                .on_hover_text(s.t("api-history"))
-                .clicked()
-            {
-                t.show_history = !t.show_history;
+        if ui
+            .small_button(ph::FOLDER_PLUS)
+            .on_hover_text(s.t("api-new-collection"))
+            .clicked()
+        {
+            actions.push(SideAction::NewCollection);
+        }
+        let collection = t.state_collection();
+        if ui
+            .add_enabled(
+                collection.is_some(),
+                egui::Button::new(ph::FOLDER_PLUS).small(),
+            )
+            .on_hover_text(s.t("api-new-folder"))
+            .clicked()
+            && let Some(c) = collection
+        {
+            actions.push(SideAction::NewFolder(c, None));
+        }
+        if ui
+            .small_button(ph::PLUS)
+            .on_hover_text(s.t("api-new-request"))
+            .clicked()
+        {
+            match t.home_for_new_request() {
+                Some((c, folder)) => actions.push(SideAction::NewRequest(c, folder)),
+                None => actions.push(SideAction::NewCollection),
             }
-            if ui
-                .small_button(ph::DOWNLOAD_SIMPLE)
-                .on_hover_text(s.t("api-import-tip"))
-                .clicked()
-            {
-                actions.push(SideAction::Import);
-            }
-            if ui
-                .small_button(ph::FOLDER_PLUS)
-                .on_hover_text(s.t("api-new-collection"))
-                .clicked()
-            {
-                actions.push(SideAction::NewCollection);
-            }
-            if ui
-                .small_button(ph::PLUS)
-                .on_hover_text(s.t("api-new-request"))
-                .clicked()
-            {
-                // This used to clear the editor to an unsaved draft, which
-                // from the list looks like nothing happening at all. The
-                // list is where requests live, so the button puts one
-                // there: beside the open request when there is one, else
-                // in the first collection. Owner's report, 2026-10-17.
-                match t.home_for_new_request() {
-                    Some((c, folder)) => actions.push(SideAction::NewRequest(c, folder)),
-                    None => actions.push(SideAction::NewCollection),
-                }
-            }
-        });
+        }
+        if ui
+            .small_button(ph::DOWNLOAD_SIMPLE)
+            .on_hover_text(s.t("api-import-tip"))
+            .clicked()
+        {
+            actions.push(SideAction::Import);
+        }
+        if ui
+            .small_button(ph::CLOCK_COUNTER_CLOCKWISE)
+            .on_hover_text(s.t("api-history"))
+            .clicked()
+        {
+            t.show_history = !t.show_history;
+        }
     });
     ui.add(
         egui::TextEdit::singleline(&mut t.filter)

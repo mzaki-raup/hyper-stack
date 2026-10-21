@@ -170,6 +170,23 @@ pub struct Point {
     pub y: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LabelPlacement {
+    #[default]
+    Top,
+    Bottom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LabelAlign {
+    #[default]
+    Left,
+    Centre,
+    Right,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Group {
     pub id: String,
@@ -179,6 +196,10 @@ pub struct Group {
     pub nodes: Vec<String>,
     #[serde(default)]
     pub style: Style,
+    #[serde(default)]
+    pub label_placement: LabelPlacement,
+    #[serde(default)]
+    pub label_align: LabelAlign,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -217,6 +238,10 @@ pub struct DiagramDoc {
     #[serde(default = "default_true")]
     pub show_title: bool,
     #[serde(default)]
+    pub title_placement: LabelPlacement,
+    #[serde(default)]
+    pub title_align: LabelAlign,
+    #[serde(default)]
     pub subtitle: String,
     #[serde(default)]
     pub page: Page,
@@ -245,6 +270,8 @@ impl DiagramDoc {
             kind,
             title: title.into(),
             show_title: true,
+            title_placement: LabelPlacement::Top,
+            title_align: LabelAlign::Left,
             subtitle: String::new(),
             page: Page::default(),
             nodes: Vec::new(),

@@ -9,9 +9,26 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+'## Unreleased
 
-### Changed
+### Added
+
+- Diagram Editor: outer and inner frame titles can sit at the top or bottom,
+  aligned left, middle or right. **Add Frame** wraps the selection (or the
+  whole diagram), new nodes join the selected frame, and dragging a node into
+  a frame adds it there.
+- API client: **Add Folder** in the tree toolbar; toolbar order is New
+  Collection, New Folder, New Request, Import, History.
+- Collections and folders auto-rename conflicting names to ` 001`, ` 002`, …
+
+### Fixed
+
+- Diagram Editor: removed the duplicate separator above the Frames section.
+- Diagram Editor: edge labels use the same midpoint as the painter, so they
+  drag reliably, including edges that cross a frame, with an accent indicator.
+- Tab strips reserve a wider gap between the title and the close cross.
+
+### Changed'
 
 - API client tree icons are coloured Material icons: yellow `folder-api` for
   collections and a themed `folder-*` for folders, with the coloured

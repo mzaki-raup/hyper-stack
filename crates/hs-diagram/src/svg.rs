@@ -42,7 +42,13 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
     ));
     for prim in &scene.prims {
         match prim {
-            Prim::Frame { rect, label, style } => {
+            Prim::Frame {
+                rect,
+                label,
+                style,
+                label_placement,
+                label_align,
+            } => {
                 let fill = style.fill.as_deref().unwrap_or("none");
                 let stroke = style.stroke.as_deref().unwrap_or("#8a94a6");
                 out.push_str(&format!(
@@ -55,16 +61,22 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                     escape(stroke)
                 ));
                 if !label.is_empty() {
+                    let (x, anchor) = match label_align {
+                        crate::model::LabelAlign::Left => (rect.x + 10.0, "start"),
+                        crate::model::LabelAlign::Centre => (rect.center().x, "middle"),
+                        crate::model::LabelAlign::Right => (rect.right() - 10.0, "end"),
+                    };
+                    let y = match label_placement {
+                        crate::model::LabelPlacement::Top => rect.y - 6.0,
+                        crate::model::LabelPlacement::Bottom => rect.bottom() + 14.0,
+                    };
                     text(
                         &mut out,
-                        Point {
-                            x: rect.x + 10.0,
-                            y: rect.y - 6.0,
-                        },
+                        Point { x, y },
                         label,
                         12.0,
                         style.text.as_deref().unwrap_or("#5b6472"),
-                        "start",
+                        anchor,
                         true,
                         false,
                         false,

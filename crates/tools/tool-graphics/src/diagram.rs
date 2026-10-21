@@ -816,10 +816,7 @@ impl DiagramState {
                     }
                 });
                 ui.add_space(8.0);
-                if self.selected.is_some()
-                    || self.selected_edge.is_some()
-                    || self.selected_group.is_some()
-                {
+                if self.selected.is_some() || self.selected_edge.is_some() {
                     ui.separator();
                     ui.add_space(6.0);
                 }
@@ -1631,7 +1628,13 @@ impl DiagramState {
     ) {
         for prim in &scene.prims {
             match prim {
-                Prim::Frame { rect, label, style } => {
+                Prim::Frame {
+                    rect,
+                    label,
+                    style,
+                    label_placement,
+                    label_align,
+                } => {
                     let fill = style
                         .fill
                         .as_deref()
@@ -1655,9 +1658,30 @@ impl DiagramState {
                         egui::StrokeKind::Inside,
                     );
                     if !label.is_empty() {
+                        let r = srect(*rect);
+                        let (pos, anchor) = match label_align {
+                            hs_diagram::model::LabelAlign::Left => (
+                                egui::pos2(r.left() + 6.0, r.top() + 4.0),
+                                egui::Align2::LEFT_TOP,
+                            ),
+                            hs_diagram::model::LabelAlign::Centre => (
+                                egui::pos2(r.center().x, r.top() + 4.0),
+                                egui::Align2::CENTER_TOP,
+                            ),
+                            hs_diagram::model::LabelAlign::Right => (
+                                egui::pos2(r.right() - 6.0, r.top() + 4.0),
+                                egui::Align2::RIGHT_TOP,
+                            ),
+                        };
+                        let pos = match label_placement {
+                            hs_diagram::model::LabelPlacement::Top => pos,
+                            hs_diagram::model::LabelPlacement::Bottom => {
+                                egui::pos2(pos.x, r.bottom() - 20.0)
+                            }
+                        };
                         painter.text(
-                            srect(*rect).left_top() + egui::vec2(6.0, 4.0),
-                            egui::Align2::LEFT_TOP,
+                            pos,
+                            anchor,
                             label,
                             egui::FontId::proportional((12.0 * z).max(9.0)),
                             label_color,

@@ -430,7 +430,7 @@ impl ApiTool {
 
     pub(crate) fn add_collection(&mut self, name: &str, cx: &mut ToolContext) -> String {
         let c = Collection {
-            name: name.trim().to_string(),
+            name: unique_name(name, self.collections.iter().map(|c| c.name.clone())),
             ..Default::default()
         };
         let id = c.id.clone();
@@ -1651,3 +1651,19 @@ impl ApiTool {
 
 #[allow(dead_code)]
 fn _assert_types(_: Body) {}
+
+/// `base`, or `base 001`, `base 002`… until it does not collide.
+pub(crate) fn unique_name(base: &str, existing: impl Iterator<Item = String>) -> String {
+    let base = base.trim();
+    let names: Vec<String> = existing.map(|n| n.to_lowercase()).collect();
+    if !names.iter().any(|n| n == &base.to_lowercase()) {
+        return base.to_string();
+    }
+    for i in 1..=999 {
+        let candidate = format!("{base} {i:03}");
+        if !names.iter().any(|n| n == &candidate.to_lowercase()) {
+            return candidate;
+        }
+    }
+    format!("{base} 1000")
+}

@@ -28,6 +28,8 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
                 .map(|n| n.id.clone())
                 .collect(),
             style: Style::default(),
+            label_placement: Default::default(),
+            label_align: Default::default(),
         });
     }
     for node in &w.nodes {
@@ -63,6 +65,8 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
             label: group.label.clone(),
             nodes: group.nodes.clone(),
             style: Style::default(),
+            label_placement: Default::default(),
+            label_align: Default::default(),
         });
     }
     doc
@@ -96,6 +100,8 @@ fn architecture(a: &ArchitectureIr) -> DiagramDoc {
             label: boundary.label.clone(),
             nodes: boundary.wraps.clone(),
             style: Style::default(),
+            label_placement: Default::default(),
+            label_align: Default::default(),
         });
     }
     for (i, connection) in a.connections.iter().enumerate() {

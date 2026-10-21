@@ -31,7 +31,10 @@ use hs_ui::theme::Theme;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
-use model::{Auth, AuthKind, Body, BodyKind, Collection, Globals, HistoryEntry, Item, Kv, Request};
+use model::{
+    Auth, AuthKind, Body, BodyKind, Collection, Globals, HistoryEntry, Item, Kv, PackageLibrary,
+    Request,
+};
 use script::{Change, Scope, Scopes, TestResult};
 use send::{BodyData, Exchange, Prepared};
 
@@ -85,6 +88,21 @@ struct State {
     draft: Option<Request>,
     req_tab: usize,
     resp_tab: usize,
+    /// What this tab shows: a request (the default), a package library
+    /// editor, or a collection's management page.
+    mode: TabMode,
+}
+
+/// Where a background text fetch lands (a library's URL import).
+pub(crate) type FetchSlot = Arc<Mutex<Option<Result<String, String>>>>;
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum TabMode {
+    #[default]
+    Request,
+    Library(String),
+    Manage(String),
 }
 
 /// The outcome of a send: the exchange or the error, plus what the scripts
@@ -117,6 +135,11 @@ pub struct ApiTool {
     pub(crate) collections: Vec<Collection>,
     pub(crate) globals: Globals,
     pub(crate) history: Vec<HistoryEntry>,
+    /// The workspace's package libraries (`api/libraries/*.json`).
+    pub(crate) libraries: Vec<PackageLibrary>,
+    /// A URL import in flight for the library tab: the library id and the
+    /// slot the runtime fills with the fetched text.
+    pub(crate) library_fetch: Option<(String, FetchSlot)>,
     api_dir: PathBuf,
     pub(crate) filter: String,
     pub(crate) pending: Option<(Pending, tokio::task::AbortHandle)>,
@@ -129,6 +152,8 @@ pub struct ApiTool {
     /// A sidebar Delete waiting for its confirmation: the collection id
     /// and, for a folder or request, its id.
     pub(crate) confirm_delete: Option<(String, Option<String>)>,
+    /// A package library delete waiting for its confirmation.
+    pub(crate) confirm_delete_library: Option<String>,
     pub(crate) curl_import: Option<String>,
     pub(crate) new_collection: Option<String>,
     pub(crate) show_history: bool,
@@ -199,6 +224,8 @@ impl ApiTool {
             collections,
             globals,
             history,
+            libraries: PackageLibrary::load_all(&api_dir.join("libraries")),
+            library_fetch: None,
             api_dir,
             filter: String::new(),
             pending: None,
@@ -209,6 +236,7 @@ impl ApiTool {
             save_to: None,
             confirm_send: None,
             confirm_delete: None,
+            confirm_delete_library: None,
             curl_import: None,
             new_collection: None,
             show_history: false,
@@ -245,11 +273,70 @@ impl ApiTool {
         self.api_dir.join("collections")
     }
 
+    pub(crate) fn libraries_dir(&self) -> PathBuf {
+        self.api_dir.join("libraries")
+    }
+
     pub(crate) fn reload(&mut self, s: &Services) {
         self.api_dir = s.workspace.read().root().join("api");
         self.collections = Collection::load_all(&self.collections_dir());
+        self.libraries = PackageLibrary::load_all(&self.libraries_dir());
         self.globals = Globals::load(&self.api_dir.join("globals.json"));
         self.history = model::load_history(&self.api_dir.join("history.jsonl"), 200);
+    }
+
+    pub(crate) fn save_library(&self, id: &str, cx: &mut ToolContext) {
+        if let Some(l) = self.libraries.iter().find(|l| l.id == id)
+            && let Err(e) = l.save(&self.libraries_dir())
+        {
+            cx.toast(ToastLevel::Error, e.to_string());
+            return;
+        }
+        self.announce(cx);
+    }
+
+    pub(crate) fn delete_library(&mut self, id: &str, cx: &mut ToolContext) {
+        let _ = PackageLibrary::delete(&self.libraries_dir(), id);
+        self.libraries.retain(|l| l.id != id);
+        for c in &mut self.collections {
+            c.library_refs.retain(|r| r != id);
+        }
+        self.announce(cx);
+    }
+
+    /// The code of the library called `name` (or with that id), when it is
+    /// enabled.
+    fn library_code(&self, name: &str) -> Option<String> {
+        self.libraries
+            .iter()
+            .find(|l| l.enabled && (l.id == name || l.name.eq_ignore_ascii_case(name)))
+            .map(|l| l.code.clone())
+    }
+
+    /// Package libraries a set of scripts and a collection ask for, each
+    /// once, in first-mention order: the collection's own list first, then
+    /// every `// @library <name>` directive.
+    fn package_libraries(&self, collection: Option<&Collection>, scripts: &[&str]) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        if let Some(c) = collection {
+            names.extend(c.library_refs.iter().cloned());
+        }
+        for s in scripts {
+            names.extend(PackageLibrary::directives(s));
+        }
+        let mut out = Vec::new();
+        let mut seen: Vec<String> = Vec::new();
+        for n in names {
+            let key = n.to_lowercase();
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.push(key);
+            if let Some(code) = self.library_code(&n) {
+                out.push(code);
+            }
+        }
+        out
     }
 
     pub(crate) fn is_dirty(&self) -> bool {
@@ -591,9 +678,12 @@ impl ApiTool {
         let mut pre = Vec::new();
         let mut post = Vec::new();
         let mut libs = Vec::new();
-        if let (Some(cid), Some(rid)) = (&self.state.collection, &self.state.request_id)
-            && let Some(c) = self.collections.iter().find(|c| &c.id == cid)
-        {
+        let collection = self
+            .state
+            .collection
+            .as_ref()
+            .and_then(|cid| self.collections.iter().find(|c| &c.id == cid));
+        if let Some(c) = collection {
             libs.extend(
                 c.libraries
                     .iter()
@@ -602,13 +692,23 @@ impl ApiTool {
             );
             pre.push(c.pre_script.clone());
             post.push(c.post_script.clone());
-            if let Some((_, folders)) = c.find(rid) {
+            if let Some(rid) = &self.state.request_id
+                && let Some((_, folders)) = c.find(rid)
+            {
                 for f in folders {
                     pre.push(f.pre_script.clone());
                     post.push(f.post_script.clone());
                 }
             }
         }
+        // Package libraries named by the collection or by any script in the
+        // chain (collection, folders, the request itself) run first.
+        let mut scripts: Vec<&str> = pre.iter().map(String::as_str).collect();
+        scripts.extend(post.iter().map(String::as_str));
+        scripts.push(&self.request.pre_script);
+        scripts.push(&self.request.post_script);
+        let packages = self.package_libraries(collection, &scripts);
+        libs.splice(0..0, packages);
         (pre, post, libs)
     }
 
@@ -1030,6 +1130,25 @@ impl ApiTool {
     }
 
     fn poll(&mut self, cx: &mut ToolContext) {
+        // A library's URL import landed: keep the text and the source.
+        let fetched = self
+            .library_fetch
+            .as_ref()
+            .and_then(|(id, slot)| slot.lock().take().map(|r| (id.clone(), r)));
+        if let Some((id, result)) = fetched {
+            self.library_fetch = None;
+            match result {
+                Ok(text) => {
+                    if let Some(l) = self.libraries.iter_mut().find(|l| l.id == id) {
+                        l.code = text;
+                        l.kind = model::LibraryKind::Uploaded;
+                    }
+                    self.save_library(&id, cx);
+                    cx.toast(ToastLevel::Success, cx.services.t("api-library-imported"));
+                }
+                Err(e) => cx.toast(ToastLevel::Error, e),
+            }
+        }
         let done = self.pending.as_ref().and_then(|(p, _)| p.lock().take());
         if let Some(outcome) = done {
             self.pending = None;
@@ -1157,6 +1276,25 @@ impl Tool for ApiTool {
                 Cow::Borrowed(&self.home_name)
             };
         }
+        match &self.state.mode {
+            TabMode::Library(id) => {
+                return self
+                    .libraries
+                    .iter()
+                    .find(|l| &l.id == id)
+                    .map(|l| Cow::Owned(l.name.clone()))
+                    .unwrap_or(Cow::Borrowed("Library"));
+            }
+            TabMode::Manage(cid) => {
+                return self
+                    .collections
+                    .iter()
+                    .find(|c| &c.id == cid)
+                    .map(|c| Cow::Owned(format!("Manage: {}", c.name)))
+                    .unwrap_or(Cow::Borrowed("Manage Collection"));
+            }
+            TabMode::Request => {}
+        }
         if self.request.name.is_empty() {
             Cow::Borrowed("Request")
         } else {
@@ -1206,16 +1344,23 @@ impl Tool for ApiTool {
             ui::home(self, ui, cx, &theme);
             return;
         }
-        let full = ui.available_rect_before_wrap();
-        let main_rect = if self.assistant.open {
-            egui::Rect::from_min_max(full.min, egui::pos2(full.right() - 390.0, full.bottom()))
-        } else {
-            full
-        };
-        let mut main_ui = ui.new_child(egui::UiBuilder::new().max_rect(main_rect));
-        main_ui.set_clip_rect(main_rect);
+        match self.state.mode.clone() {
+            TabMode::Library(id) => {
+                ui::library_tab(self, &id, ui, cx, &theme);
+                return;
+            }
+            TabMode::Manage(cid) => {
+                ui::manage_tab(self, &cid, ui, cx, &theme);
+                return;
+            }
+            TabMode::Request => {}
+        }
+        // The shared split, like every other tool: the column shrinks to
+        // keep room for the request and steps aside in a narrow window.
+        let (mut main_ui, panel) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
         ui::main(self, &mut main_ui, cx, &theme);
-        if self.assistant.open {
+        if let Some(panel) = panel {
             let s = cx.services;
             let location = match (&self.state.collection, &self.state.request_id) {
                 (Some(cid), Some(_)) => self
@@ -1298,10 +1443,6 @@ impl Tool for ApiTool {
                     QuickAction::new(s, "ai-qa-docs", "ai-qa-docs-prompt", ""),
                 ];
             }
-            let panel = egui::Rect::from_min_max(
-                egui::pos2(full.right() - 390.0, full.top()),
-                full.right_bottom(),
-            );
             let mut child = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)
@@ -1312,7 +1453,7 @@ impl Tool for ApiTool {
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
-                    ui.set_min_width(370.0);
+                    ui.set_min_width(260.0);
                     self.assistant.can_insert = true;
                     let mut out = self.assistant.ui(ui, s, &theme, "API client");
                     let is_action = out.use_block_lang.eq_ignore_ascii_case(assist::LANG);
@@ -1472,6 +1613,11 @@ impl Tool for ApiTool {
     }
 
     fn current_uri(&self) -> Option<String> {
+        match &self.state.mode {
+            TabMode::Library(id) => return Some(format!("api://library/{id}")),
+            TabMode::Manage(cid) => return Some(format!("api://manage/{cid}")),
+            TabMode::Request => {}
+        }
         match (&self.state.collection, &self.state.request_id) {
             (Some(c), Some(r)) => Some(format!("api://{c}/{r}")),
             _ => None,
@@ -1479,7 +1625,7 @@ impl Tool for ApiTool {
     }
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
-        if !uri.starts_with("api://") {
+        if !uri.starts_with("api://") || self.state.mode != TabMode::Request {
             return None;
         }
         // One tab per request: a tab that already holds one keeps it, and
@@ -1494,6 +1640,17 @@ impl Tool for ApiTool {
         match item {
             OpenRequest::File { uri, .. } if uri.starts_with("api://") => {
                 let rest = &uri[6..];
+                // A library editor or a collection's management page takes
+                // the whole tab; ids are ulids, so these words cannot be
+                // mistaken for a collection id.
+                if let Some(id) = rest.strip_prefix("library/") {
+                    self.state.mode = TabMode::Library(id.to_string());
+                    return true;
+                }
+                if let Some(cid) = rest.strip_prefix("manage/") {
+                    self.state.mode = TabMode::Manage(cid.to_string());
+                    return true;
+                }
                 if let Some((c, r)) = rest.split_once('/') {
                     let (c, r) = (c.to_string(), r.to_string());
                     self.open_request(&c, &r);
@@ -1571,6 +1728,7 @@ impl Tool for ApiTool {
             draft: None,
             req_tab: self.state.req_tab,
             resp_tab: self.state.resp_tab,
+            mode: TabMode::Request,
         };
         serde_json::to_value(st).unwrap_or(serde_json::Value::Null)
     }

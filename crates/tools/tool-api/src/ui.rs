@@ -15,7 +15,9 @@ use hs_ui::kv_editor::{KvEditor, KvRow};
 use hs_ui::theme::Theme;
 
 use crate::ApiTool;
-use crate::model::{AuthKind, BodyKind, Collection, Folder, Item, Kv, METHODS, Request};
+use crate::model::{
+    Auth, AuthKind, BodyKind, Collection, Folder, Item, Kv, LibraryKind, METHODS, Request,
+};
 use crate::send::Exchange;
 
 pub struct SaveTo {
@@ -378,6 +380,12 @@ pub(crate) enum SideAction {
     Import,
     NewCollection,
     LoadHistory(usize),
+    /// Open a collection's management page in its own tab.
+    ManageCollection(String),
+    /// Open a package library in its own tab.
+    OpenLibrary(String),
+    NewLibrary,
+    DeleteLibrary(String),
     /// A dragged row's new home: out of `from_folder` at `from`, into
     /// `to_folder` at the boundary `to`. The two folders are equal for a
     /// reorder within one level and differ when a row moves between
@@ -456,9 +464,15 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
     ui.add_space(4.0);
     let filter = t.filter.trim().to_lowercase();
     let selected = t.state_request_id();
+    // The tree keeps the top; the package libraries get the bottom ~30 %,
+    // scrolling on their own.
+    let avail = ui.available_height();
+    let lib_h = (avail * 0.3).clamp(120.0, 280.0);
+    let tree_h = (avail - lib_h - 10.0).max(80.0);
     egui::ScrollArea::vertical()
         .id_salt("api-sidebar")
         .auto_shrink([false, false])
+        .max_height(tree_h)
         .show(ui, |ui| {
             if t.collections.is_empty() {
                 form::note(ui, theme, hs_ui::icons::INFO, &s.t("api-empty-hint"));
@@ -536,6 +550,11 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         ui.close();
                     }
                     ui.separator();
+                    if ui.button(s.t("api-manage-collection")).clicked() {
+                        actions.push(SideAction::ManageCollection(c.id.clone()));
+                        ui.close();
+                    }
+                    ui.separator();
                     if ui.button(s.t("api-delete-collection")).clicked() {
                         actions.push(SideAction::Delete(c.id.clone(), None));
                         ui.close();
@@ -578,7 +597,77 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 }
             }
         });
+    ui.add_space(4.0);
+    ui.separator();
+    libraries_section(t, ui, s, theme, lib_h, &mut actions);
     apply_side_actions(t, actions, cx);
+}
+
+/// The sidebar's lower section: the workspace's package libraries, one row
+/// each, opening in their own tab.
+fn libraries_section(
+    t: &ApiTool,
+    ui: &mut egui::Ui,
+    s: &Services,
+    theme: &Theme,
+    height: f32,
+    actions: &mut Vec<SideAction>,
+) {
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new(s.t("api-libraries"))
+                .small()
+                .strong()
+                .color(theme.text_muted),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if hs_ui::form::icon_button(ui, theme, ph::PLUS, 16.0, false)
+                .on_hover_text(s.t("api-new-library"))
+                .clicked()
+            {
+                actions.push(SideAction::NewLibrary);
+            }
+        });
+    });
+    let open = match &t.state.mode {
+        crate::TabMode::Library(id) => Some(id.as_str()),
+        _ => None,
+    };
+    egui::ScrollArea::vertical()
+        .id_salt("api-libraries")
+        .auto_shrink([false, false])
+        .max_height((height - 30.0).max(60.0))
+        .show(ui, |ui| {
+            if t.libraries.is_empty() {
+                form::hint(ui, theme, &s.t("api-libraries-empty"));
+                return;
+            }
+            for l in &t.libraries {
+                let kind = s.t(l.kind.label_key());
+                let sub = if l.enabled {
+                    kind
+                } else {
+                    format!("{kind} · {}", s.t("disabled"))
+                };
+                let r = form::list_row(
+                    ui,
+                    theme,
+                    open == Some(l.id.as_str()),
+                    ph::PACKAGE,
+                    &l.name,
+                    Some(&sub),
+                );
+                if r.clicked() {
+                    actions.push(SideAction::OpenLibrary(l.id.clone()));
+                }
+                r.context_menu(|ui| {
+                    if ui.button(s.t("api-library-delete")).clicked() {
+                        actions.push(SideAction::DeleteLibrary(l.id.clone()));
+                        ui.close();
+                    }
+                });
+            }
+        });
 }
 
 /// Carry out what the sidebar (or the home tab) asked for. Its own
@@ -625,6 +714,38 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
                 t.save_collection(&c, cx);
             }
             SideAction::Rename(c, id, name) => t.rename = Some((format!("{c}/{id}"), name)),
+            SideAction::ManageCollection(c) => cx.open(
+                "api",
+                Some(hs_core::tool::OpenRequest::File {
+                    uri: format!("api://manage/{c}"),
+                    line: None,
+                }),
+            ),
+            SideAction::OpenLibrary(id) => cx.open(
+                "api",
+                Some(hs_core::tool::OpenRequest::File {
+                    uri: format!("api://library/{id}"),
+                    line: None,
+                }),
+            ),
+            SideAction::NewLibrary => {
+                let taken: Vec<String> = t.libraries.iter().map(|l| l.name.clone()).collect();
+                let lib = crate::model::PackageLibrary {
+                    name: crate::model::free_name(&s.t("api-new-library-name"), &taken),
+                    ..Default::default()
+                };
+                let id = lib.id.clone();
+                t.libraries.push(lib);
+                t.save_library(&id, cx);
+                cx.open(
+                    "api",
+                    Some(hs_core::tool::OpenRequest::File {
+                        uri: format!("api://library/{id}"),
+                        line: None,
+                    }),
+                );
+            }
+            SideAction::DeleteLibrary(id) => t.confirm_delete_library = Some(id),
             SideAction::MoveItem {
                 from_collection,
                 from_folder,
@@ -1512,10 +1633,14 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 }
 
 fn auth_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    let a = &mut t.request.auth;
+    auth_editor(&mut t.request.auth, ui, s, theme, "api-auth");
+}
+
+/// The authentication form, for a request and for a collection.
+fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id: &str) {
     ui.horizontal(|ui| {
         ui.label(s.t("api-auth-type"));
-        egui::ComboBox::from_id_salt("api-auth")
+        egui::ComboBox::from_id_salt(id)
             .selected_text(a.kind.label())
             .show_ui(ui, |ui| {
                 for k in AuthKind::ALL {
@@ -1524,7 +1649,7 @@ fn auth_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             });
     });
     ui.add_space(6.0);
-    form::field_grid(ui, "api-auth-grid", |ui| match a.kind {
+    form::field_grid(ui, (id, "grid"), |ui| match a.kind {
         AuthKind::Basic => {
             form::label(ui, &s.t("api-auth-user"));
             form::text_field(ui, &mut a.username, "");
@@ -1606,53 +1731,105 @@ fn scripts_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) 
     // 2026-10-17.
     const ROW_CHROME: f32 = 34.0; // the label row and the gap under it
     let each = ((ui.available_height() - ROW_CHROME * 2.0) / 2.0).max(90.0);
+    let libraries: Vec<String> = t
+        .libraries
+        .iter()
+        .filter(|l| l.enabled)
+        .map(|l| l.name.clone())
+        .collect();
     for (label, field, key) in [
         ("api-pre-script", 0usize, "api-pre-script-hint"),
         ("api-post-script", 1usize, "api-post-script-hint"),
     ] {
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(s.t(label)).strong());
-            ui.menu_button(format!("{} {}", ph::CODE, s.t("api-snippets")), |ui| {
-                for (name, code) in SNIPPETS {
-                    if ui.button(name).clicked() {
-                        let target = if field == 0 {
-                            &mut t.request.pre_script
-                        } else {
-                            &mut t.request.post_script
-                        };
-                        if !target.is_empty() && !target.ends_with('\n') {
-                            target.push('\n');
-                        }
-                        target.push_str(code);
-                        target.push('\n');
-                        ui.close();
-                    }
-                }
-            });
-        });
         let target = if field == 0 {
             &mut t.request.pre_script
         } else {
             &mut t.request.post_script
         };
-        // Rows rather than a bare height, so the field itself fills its
-        // half instead of sitting at the top of an empty box.
-        let line = ui.text_style_height(&egui::TextStyle::Monospace);
-        let rows = ((each / line).floor() as usize).max(4);
-        egui::ScrollArea::vertical()
-            .id_salt(("api-script", field))
-            .max_height(each)
-            .show(ui, |ui| {
-                ui.add(
-                    egui::TextEdit::multiline(target)
-                        .hint_text(s.t(key))
-                        .font(egui::TextStyle::Monospace)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(rows),
-                );
-            });
-        ui.add_space(6.0);
+        script_editor(
+            ui,
+            s,
+            label,
+            key,
+            ("api-script", field),
+            each,
+            target,
+            &libraries,
+        );
     }
+}
+
+/// One script field with its Snippets menu (snippets, then the package
+/// libraries, which insert the `// @library <name>` line that pulls them
+/// in). Shared by the request tab and the collection's Manage page.
+#[allow(clippy::too_many_arguments)]
+fn script_editor(
+    ui: &mut egui::Ui,
+    s: &Services,
+    label_key: &str,
+    hint_key: &str,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    height: f32,
+    target: &mut String,
+    libraries: &[String],
+) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(s.t(label_key)).strong());
+        ui.menu_button(format!("{} {}", ph::CODE, s.t("api-snippets")), |ui| {
+            for (name, code) in SNIPPETS {
+                if ui.button(name).clicked() {
+                    if !target.is_empty() && !target.ends_with('\n') {
+                        target.push('\n');
+                    }
+                    target.push_str(code);
+                    target.push('\n');
+                    ui.close();
+                }
+            }
+            if !libraries.is_empty() {
+                ui.separator();
+                ui.menu_button(s.t("api-insert-library"), |ui| {
+                    for name in libraries {
+                        if ui.button(name).clicked() {
+                            insert_library_directive(target, name);
+                            ui.close();
+                        }
+                    }
+                });
+            }
+        });
+    });
+    // Rows rather than a bare height, so the field itself fills its
+    // half instead of sitting at the top of an empty box.
+    let line = ui.text_style_height(&egui::TextStyle::Monospace);
+    let rows = ((height / line).floor() as usize).max(4);
+    egui::ScrollArea::vertical()
+        .id_salt(id)
+        .max_height(height)
+        .show(ui, |ui| {
+            ui.add(
+                egui::TextEdit::multiline(target)
+                    .hint_text(s.t(hint_key))
+                    .font(egui::TextStyle::Monospace)
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(rows),
+            );
+        });
+    ui.add_space(6.0);
+}
+
+/// Put `// @library <name>` at the top of a script, once.
+fn insert_library_directive(target: &mut String, name: &str) {
+    let line = format!("{}{name}", crate::model::LIBRARY_DIRECTIVE);
+    if target.lines().any(|l| l.trim() == line) {
+        return;
+    }
+    let rest = std::mem::take(target);
+    *target = if rest.is_empty() {
+        format!("{line}\n")
+    } else {
+        format!("{line}\n{rest}")
+    };
 }
 
 fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
@@ -1907,6 +2084,30 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                 delete_now(t, &c, item.as_deref(), cx);
             }
             hs_ui::dialog::DialogResult::Cancel => t.confirm_delete = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
+    // Delete a package library.
+    if let Some(id) = t.confirm_delete_library.clone() {
+        match hs_ui::dialog::confirm(
+            &ctx,
+            theme,
+            "api-delete-library",
+            &s.t("api-library-delete"),
+            &s.t("api-library-delete-body"),
+            &s.t("api-delete"),
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                t.confirm_delete_library = None;
+                t.delete_library(&id, cx);
+                for c in 0..t.collections.len() {
+                    let cid = t.collections[c].id.clone();
+                    t.save_collection(&cid, cx);
+                }
+            }
+            hs_ui::dialog::DialogResult::Cancel => t.confirm_delete_library = None,
             hs_ui::dialog::DialogResult::Open => {}
         }
     }
@@ -2314,6 +2515,296 @@ impl ApiTool {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Package library tab
+
+/// A package library in its own tab: name, where it came from, the code,
+/// and the ways to fill it (type it, read a file, fetch a URL).
+pub(crate) fn library_tab(
+    t: &mut ApiTool,
+    id: &str,
+    ui: &mut egui::Ui,
+    cx: &mut ToolContext,
+    theme: &Theme,
+) {
+    let s = cx.services;
+    let Some(index) = t.libraries.iter().position(|l| l.id == id) else {
+        form::page_title(ui, theme, &s.t("api-library"), None);
+        form::hint(ui, theme, &s.t("api-libraries-empty"));
+        return;
+    };
+    let fetching = t.library_fetch.as_ref().is_some_and(|(f, _)| f == id);
+    let mut save = false;
+    let mut import_file = false;
+    let mut fetch_url: Option<String> = None;
+    let mut delete = false;
+    egui::ScrollArea::vertical()
+        .id_salt(("api-library-tab", id))
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            let lib = &mut t.libraries[index];
+            form::page_title(
+                ui,
+                theme,
+                &s.t("api-library"),
+                Some(&s.t("api-libraries-hint")),
+            );
+            form::section(ui, theme, &s.t("api-manage-general"), |ui| {
+                form::field_grid(ui, ("api-library-general", id), |ui| {
+                    form::label(ui, &s.t("api-library-name"));
+                    form::text_field(ui, &mut lib.name, "");
+                    ui.end_row();
+                    form::label(ui, &s.t("api-library-kind"));
+                    ui.label(s.t(lib.kind.label_key()));
+                    ui.end_row();
+                    if !lib.source.is_empty() {
+                        form::label(ui, &s.t("api-library-source"));
+                        ui.add(egui::Label::new(&lib.source).truncate())
+                            .on_hover_text(&lib.source);
+                        ui.end_row();
+                    }
+                    form::label(ui, &s.t("api-library-enabled"));
+                    ui.checkbox(&mut lib.enabled, "");
+                    ui.end_row();
+                });
+                form::hint(
+                    ui,
+                    theme,
+                    &s.i18n.t_args("api-library-usage", &[("name", &lib.name)]),
+                );
+            });
+            form::section(ui, theme, &s.t("api-library-code"), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button(s.t("api-library-import-file")).clicked() {
+                        import_file = true;
+                    }
+                    ui.menu_button(s.t("api-library-import-url"), |ui| {
+                        ui.set_min_width(320.0);
+                        let url_id = ui.id().with("url");
+                        let mut url: String = ui.data(|d| d.get_temp(url_id)).unwrap_or_default();
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut url)
+                                .hint_text(s.t("api-library-url-hint"))
+                                .desired_width(f32::INFINITY),
+                        );
+                        ui.data_mut(|d| d.insert_temp(url_id, url.clone()));
+                        let go = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if (ui
+                            .add_enabled(!fetching, egui::Button::new(s.t("api-library-fetch")))
+                            .clicked()
+                            || go)
+                            && !url.trim().is_empty()
+                        {
+                            fetch_url = Some(url.trim().to_string());
+                            ui.close();
+                        }
+                    });
+                    if fetching {
+                        ui.spinner();
+                    }
+                });
+                form::hint(ui, theme, &s.t("api-library-code-hint"));
+                let rows = ((ui.available_height() - 120.0)
+                    / ui.text_style_height(&egui::TextStyle::Monospace))
+                .floor()
+                .clamp(12.0, 60.0) as usize;
+                ui.add(
+                    egui::TextEdit::multiline(&mut lib.code)
+                        .font(egui::TextStyle::Monospace)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(rows),
+                );
+            });
+            ui.horizontal(|ui| {
+                if form::primary_button(ui, theme, &s.t("api-library-save")).clicked() {
+                    save = true;
+                }
+                if form::danger_button(ui, theme, &s.t("api-library-delete")).clicked() {
+                    delete = true;
+                }
+            });
+        });
+    if import_file
+        && let Some(p) = rfd::FileDialog::new()
+            .add_filter("JavaScript", &["js", "mjs", "txt"])
+            .pick_file()
+    {
+        match std::fs::read_to_string(&p) {
+            Ok(text) => {
+                let lib = &mut t.libraries[index];
+                lib.code = text;
+                lib.kind = LibraryKind::Imported;
+                lib.source = p.display().to_string();
+                save = true;
+                cx.toast(ToastLevel::Success, s.t("api-library-imported"));
+            }
+            Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+        }
+    }
+    if let Some(url) = fetch_url {
+        // The fetch runs on the runtime; `poll` keeps the text when it lands.
+        let slot: std::sync::Arc<parking_lot::Mutex<Option<Result<String, String>>>> =
+            std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        let waker = s.runtime.waker();
+        let target = url.clone();
+        s.runtime.spawn(async move {
+            let result = async {
+                let resp = reqwest::get(&target).await.map_err(|e| e.to_string())?;
+                if !resp.status().is_success() {
+                    return Err(format!("{} {}", resp.status().as_u16(), target));
+                }
+                resp.text().await.map_err(|e| e.to_string())
+            }
+            .await;
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+        t.libraries[index].source = url;
+        t.library_fetch = Some((id.to_string(), slot));
+    }
+    if save {
+        t.save_library(id, cx);
+        cx.toast(ToastLevel::Success, s.t("api-library-saved"));
+    }
+    if delete {
+        t.confirm_delete_library = Some(id.to_string());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Manage collection tab
+
+/// A collection's own page: name, the variables its scripts saved, the
+/// authentication and scripts every request under it inherits, the
+/// package libraries it uses, and its documentation.
+pub(crate) fn manage_tab(
+    t: &mut ApiTool,
+    cid: &str,
+    ui: &mut egui::Ui,
+    cx: &mut ToolContext,
+    theme: &Theme,
+) {
+    let s = cx.services;
+    let Some(index) = t.collections.iter().position(|c| c.id == cid) else {
+        form::page_title(ui, theme, &s.t("api-manage-title"), None);
+        form::hint(ui, theme, &s.t("api-manage-missing"));
+        return;
+    };
+    let libraries: Vec<(String, String, bool)> = t
+        .libraries
+        .iter()
+        .map(|l| (l.id.clone(), l.name.clone(), l.enabled))
+        .collect();
+    let library_names: Vec<String> = libraries
+        .iter()
+        .filter(|(_, _, enabled)| *enabled)
+        .map(|(_, n, _)| n.clone())
+        .collect();
+    let mut save = false;
+    let mut globals_changed = false;
+    egui::ScrollArea::vertical()
+        .id_salt(("api-manage-tab", cid))
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            let title = t.collections[index].name.clone();
+            form::page_title(
+                ui,
+                theme,
+                &format!("{}: {title}", s.t("api-manage-title")),
+                Some(&s.t("api-manage-hint")),
+            );
+            {
+                let c = &mut t.collections[index];
+                form::section(ui, theme, &s.t("api-manage-general"), |ui| {
+                    form::field_grid(ui, ("api-manage-general", cid), |ui| {
+                        form::label(ui, &s.t("api-library-name"));
+                        form::text_field(ui, &mut c.name, "");
+                        ui.end_row();
+                    });
+                });
+                form::section(ui, theme, &s.t("api-manage-variables"), |ui| {
+                    form::hint(ui, theme, &s.t("api-manage-variables-hint"));
+                    kv_table(ui, theme, s, &mut c.variables, "api-manage-vars");
+                });
+            }
+            form::section(ui, theme, &s.t("api-manage-globals"), |ui| {
+                form::hint(ui, theme, &s.t("api-manage-globals-hint"));
+                let before = t.globals.values.clone();
+                kv_table(ui, theme, s, &mut t.globals.values, "api-manage-globals");
+                if t.globals.values != before {
+                    globals_changed = true;
+                }
+            });
+            let c = &mut t.collections[index];
+            form::section(ui, theme, &s.t("api-manage-auth"), |ui| {
+                form::hint(ui, theme, &s.t("api-manage-auth-hint"));
+                auth_editor(&mut c.auth, ui, s, theme, "api-manage-auth");
+            });
+            form::section(ui, theme, &s.t("api-manage-scripts"), |ui| {
+                form::hint(ui, theme, &s.t("api-manage-scripts-hint"));
+                script_editor(
+                    ui,
+                    s,
+                    "api-pre-script",
+                    "api-pre-script-hint",
+                    ("api-manage-pre", cid),
+                    160.0,
+                    &mut c.pre_script,
+                    &library_names,
+                );
+                script_editor(
+                    ui,
+                    s,
+                    "api-post-script",
+                    "api-post-script-hint",
+                    ("api-manage-post", cid),
+                    160.0,
+                    &mut c.post_script,
+                    &library_names,
+                );
+            });
+            form::section(ui, theme, &s.t("api-manage-libraries"), |ui| {
+                form::hint(ui, theme, &s.t("api-manage-libraries-hint"));
+                if libraries.is_empty() {
+                    form::hint(ui, theme, &s.t("api-libraries-empty"));
+                }
+                for (id, name, enabled) in &libraries {
+                    let mut on = c.library_refs.contains(id);
+                    let label = if *enabled {
+                        name.clone()
+                    } else {
+                        format!("{name} ({})", s.t("disabled"))
+                    };
+                    if ui.checkbox(&mut on, label).changed() {
+                        if on {
+                            c.library_refs.push(id.clone());
+                        } else {
+                            c.library_refs.retain(|r| r != id);
+                        }
+                    }
+                }
+            });
+            form::section(ui, theme, &s.t("api-manage-docs"), |ui| {
+                ui.add(
+                    egui::TextEdit::multiline(&mut c.docs)
+                        .desired_width(f32::INFINITY)
+                        .desired_rows(6),
+                );
+            });
+            if form::primary_button(ui, theme, &s.t("api-manage-save")).clicked() {
+                save = true;
+            }
+            ui.add_space(12.0);
+        });
+    if globals_changed && let Err(e) = t.globals.save(&t.globals_path()) {
+        cx.toast(ToastLevel::Error, e.to_string());
+    }
+    if save {
+        t.save_collection(cid, cx);
+        cx.toast(ToastLevel::Success, s.t("api-manage-saved"));
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -90,3 +90,35 @@ Image tab's behaviour.
 **Implemented 2026-10-19:** the activity shell, the dashboard and Recent list,
 the separate Image and Icon tabs with the settings in an in-pane panel, and
 Convert to Icon. Colour-key transparency and the diagram panes are pending.
+
+## Addendum (2026-10-22): the picture goes to the assistant, and pictures from prompts
+
+**Pictures in questions.** `hs_core::ai::Message` carries `images:
+Vec<ImagePart>` (MIME type and bytes). Every provider's request builder
+sends them: an OpenAI-compatible service gets a content array with
+`image_url` data URIs, Anthropic a base64 `image` block, Gemini an
+`inline_data` part, Bedrock an `image` block, and 1min.AI an asset upload
+(`POST /api/assets`, multipart built by hand since the workspace's reqwest
+has no `multipart` feature) whose key goes into
+`promptObject.attachments.images`. The picture tab sets
+`AssistantPanel::attachment` to a PNG of what is shown, downscaled to
+1024 px on a side and encoded once per render (`render_version`), so
+"Explain this Image" describes the picture rather than its dimensions.
+
+**Generate Picture.** The assistant column of a picture tab opens with a
+Generate Picture form: provider (only kinds whose `generates_images()` is
+true - 1min.AI), image model (`black-forest-labs/flux-schnell` by default;
+any 1min.AI image model name), the prompt, and "Use the current picture
+as the source". `hs_core::ai::generate_image` posts `IMAGE_GENERATOR`
+(prompt, aspect ratio from the current size) or, with a source,
+`IMAGE_VARIATOR` (the uploaded asset's key and the prompt) to
+`/api/features`, then downloads `aiRecord.temporaryUrl`. The bytes are
+written as a draft under `HyperStackData/graphics/drafts/images/` and the
+tab loads that file like any picture, so Undo, Save As and Convert to
+Icon all apply. Chat and pictures may come from different providers: the
+chat uses the assistant's provider, the form its own.
+
+**New Image.** From the Image row's context menu in the sidebar, the
+dashboard's New Image tile, the Functions row's second button or the
+palette: width, height and a background colour (or transparent) make a
+blank PNG draft in the same folder, opened in a new tab.

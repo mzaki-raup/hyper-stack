@@ -148,6 +148,10 @@ pub struct AssistantPanel {
     /// Host-specific instructions appended to the system prompt (an action
     /// schema, what is open). Set every frame; sent with the next message.
     pub extra_system: String,
+    /// A picture the host attaches to the next question (the Graphics
+    /// picture tab sends the picture itself, not a description of it).
+    /// Set by the host every frame; sent with the next user turn.
+    pub attachment: Option<hs_core::ai::ImagePart>,
     tool: String,
     context: String,
     context_label: String,
@@ -281,12 +285,17 @@ impl AssistantPanel {
         }
         let mut messages = vec![Message::new(Role::System, system)];
         for (index, (role, content)) in self.turns.iter().enumerate() {
-            let message_content = if index + 1 == self.turns.len() && *role == Role::User {
+            let last = index + 1 == self.turns.len() && *role == Role::User;
+            let message_content = if last {
                 user_content.clone()
             } else {
                 content.clone()
             };
-            messages.push(Message::new(*role, message_content));
+            let mut message = Message::new(*role, message_content);
+            if last && let Some(att) = &self.attachment {
+                message = message.with_images(vec![att.clone()]);
+            }
+            messages.push(message);
         }
         let stream = Arc::new(Mutex::new(Stream::default()));
         let out = stream.clone();
@@ -456,6 +465,20 @@ impl AssistantPanel {
                         });
                     });
                     ui.add_space(4.0);
+                }
+                if let Some(att) = &self.attachment {
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} {}",
+                            crate::icons::ph::PAPERCLIP,
+                            s.i18n.t_args(
+                                "ai-picture-attached",
+                                &[("size", &format!("{} KB", att.data.len() / 1024))]
+                            )
+                        ))
+                        .small()
+                        .color(theme.text_muted),
+                    );
                 }
                 let r = ui.add(
                     egui::TextEdit::multiline(&mut self.input)

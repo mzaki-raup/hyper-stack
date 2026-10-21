@@ -119,7 +119,11 @@ impl TabSpace {
         }
     }
 
-    pub fn views(&self, env_colour: &dyn Fn(Option<String>) -> Option<Color32>) -> Vec<TabView> {
+    pub fn views(
+        &self,
+        env_colour: &dyn Fn(Option<String>) -> Option<Color32>,
+        activity_title: &dyn Fn(&str) -> String,
+    ) -> Vec<TabView> {
         // How many tabs each connection already has. Duplicating one would
         // start a second session against the same server, so it is refused
         // once the tool's budget is used up - one for most, three for SSH.
@@ -145,7 +149,9 @@ impl TabSpace {
                 pinned: t.pinned,
                 dirty: t.tool.dirty(),
                 colour: t.colour.or_else(|| env_colour(t.tool.environment())),
-                tooltip: format!("{}\n{}", t.tool.title(), t.factory_id),
+                // The activity's display name ("API Client"), not its id
+                // ("api"): the id is a key, not something to read.
+                tooltip: format!("{}\n{}", t.tool.title(), activity_title(&t.factory_id)),
                 permanent: t.home,
                 has_menu: !matches!(t.factory_id.as_str(), "home" | "browser"),
                 can_duplicate: t.tool.can_duplicate_tab()

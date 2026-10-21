@@ -361,3 +361,34 @@ uses — the workspace carries no YAML crate, and an API description needs
 no anchors or tags. Whatever a client stores that the model has no place
 for is left behind rather than kept as opaque text. Postman v2.1 still
 comes first, and an unrecognised file says which formats are accepted.
+
+### Package libraries and Manage Collection (2026-10-22)
+
+**Package libraries** are scripts shared by every collection of the
+workspace, one JSON file each under `<workspace>/api/libraries/` (`id`,
+`name`, `kind`, `source`, `code`, `enabled`). The sidebar's lower section
+lists them under the collection tree (about 30 % of the column, scrolling
+on its own); **+** creates one and opens it. A library opens in its own
+tab (`api://library/<id>`): name, kind (Custom - typed in; Imported - read
+from a `.js` file; Uploaded - fetched from a URL on the runtime), the
+source, an Enabled switch and the code.
+
+A script uses a library with a `// @library <name>` line at the top; the
+Snippets menu above every pre-request and post-response script (request
+and collection) inserts it under **Insert Package Library**. A collection
+can also list libraries for every request under it (`library_refs` on
+the collection). `inherited_scripts` gathers the collection's list and
+every directive in the collection's, the folders' and the request's own
+scripts, resolves each name once (case-insensitive, by name or id,
+enabled only) and evaluates the code before the inline collection
+libraries and the scripts, so the libraries' functions are in scope.
+
+**Manage Collection…** on a collection's context menu opens
+`api://manage/<id>`: name; the collection variables scripts save with
+`pm.collectionVariables`; globals; the authentication requests inherit
+when theirs is *Inherit*; the pre-request and post-response scripts that
+run around every request in the collection (before the folder's and the
+request's own - that inheritance already existed; the page is where it is
+edited); the package libraries the collection uses; and documentation.
+Save writes the collection file and announces the change to the other
+tabs.

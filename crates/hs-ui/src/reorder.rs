@@ -113,12 +113,20 @@ impl Reorder {
         let row = ui.horizontal(|ui| {
             // An explicit rectangle, not a Label: the glyph's own size
             // depends on whether the icon font has it, and a grip that is
-            // a few pixels wide is one nobody can grab.
-            // A rect of its own, then an interaction with an id of our
-            // own, so the grip's drag state is remembered per row rather
-            // than per position on screen.
-            let (grip_rect, _) =
+            // a few pixels wide is one nobody can grab. The slot is
+            // reserved first; the dots are painted after the row body so
+            // they sit at the row's vertical centre whatever its height
+            // (a profile row with a subtitle is 44 px, a bare one 34 px).
+            let (slot, _) =
                 ui.allocate_exact_size(egui::vec2(GRIP_WIDTH, GRIP_HEIGHT), egui::Sense::hover());
+            inner = Some(add(ui));
+            let body = ui.min_rect();
+            let grip_rect = egui::Rect::from_min_max(
+                egui::pos2(slot.left(), body.top()),
+                egui::pos2(slot.right(), body.bottom()),
+            );
+            // An interaction with an id of our own, so the grip's drag
+            // state is remembered per row rather than per position.
             let grip = ui.interact(grip_rect, self.id.with(index), egui::Sense::drag());
             paint_grip(
                 ui.painter(),
@@ -140,7 +148,6 @@ impl Reorder {
                 );
             }
             grip.on_hover_cursor(egui::CursorIcon::Grab);
-            inner = Some(add(ui));
         });
         // The drop boundary is judged from the whole row, not the grip.
         let rect = row.response.rect;
@@ -211,8 +218,11 @@ impl Reorder {
     }
 }
 
-/// How big the grab area is, whatever the glyph measures.
-const GRIP_WIDTH: f32 = 14.0;
+/// How wide the grab slot is, whatever the glyph measures; its height
+/// follows the row. A list that draws a non-draggable row beside draggable
+/// ones (a pinned note) uses the same width for its own leading slot so the
+/// rows line up.
+pub const GRIP_WIDTH: f32 = 14.0;
 const GRIP_HEIGHT: f32 = 22.0;
 
 /// Six dots in two columns, the usual "drag me" mark.

@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -338,6 +339,15 @@ impl Provider {
     pub fn whole_answer_only(self) -> bool {
         self == Provider::Bedrock
     }
+    /// The chat request may carry pictures (a vision-capable model is
+    /// still needed on the other end).
+    pub fn accepts_images(self) -> bool {
+        true
+    }
+    /// The service can make a picture from a prompt (`generate_image`).
+    pub fn generates_images(self) -> bool {
+        self == Provider::OneMin
+    }
 }
 
 /// What a provider authenticates with. Bedrock needs a pair; everything
@@ -459,10 +469,45 @@ impl Role {
     }
 }
 
+/// A picture attached to a message: the encoded bytes and their MIME type
+/// (`image/png`, `image/jpeg`, `image/webp`). Sent base64-encoded to the
+/// providers that take image content; uploaded as an asset to 1min.AI.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImagePart {
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+impl ImagePart {
+    pub fn png(data: Vec<u8>) -> Self {
+        Self {
+            mime: "image/png".into(),
+            data,
+        }
+    }
+    fn base64(&self) -> String {
+        base64::engine::general_purpose::STANDARD.encode(&self.data)
+    }
+    fn data_uri(&self) -> String {
+        format!("data:{};base64,{}", self.mime, self.base64())
+    }
+    /// Bedrock names the format rather than the MIME type.
+    fn bedrock_format(&self) -> &str {
+        match self.mime.as_str() {
+            "image/jpeg" | "image/jpg" => "jpeg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => "png",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
     pub role: Role,
     pub content: String,
+    /// Pictures that go with the text (a user turn asking about an image).
+    pub images: Vec<ImagePart>,
 }
 
 impl Message {
@@ -470,7 +515,13 @@ impl Message {
         Self {
             role,
             content: content.into(),
+            images: Vec::new(),
         }
+    }
+
+    pub fn with_images(mut self, images: Vec<ImagePart>) -> Self {
+        self.images = images;
+        self
     }
 }
 
@@ -548,10 +599,18 @@ pub async fn chat(
             let mut body = json!({
                 "contents": turns
                     .iter()
-                    .map(|m| json!({
-                        "role": if m.role == Role::Assistant { "model" } else { "user" },
-                        "parts": [{"text": m.content}],
-                    }))
+                    .map(|m| {
+                        let mut parts = vec![json!({"text": m.content})];
+                        for img in &m.images {
+                            parts.push(json!({
+                                "inline_data": {"mime_type": img.mime, "data": img.base64()}
+                            }));
+                        }
+                        json!({
+                            "role": if m.role == Role::Assistant { "model" } else { "user" },
+                            "parts": parts,
+                        })
+                    })
                     .collect::<Vec<_>>(),
             });
             if !system.is_empty() {
@@ -573,10 +632,21 @@ pub async fn chat(
             let mut body = json!({
                 "messages": turns
                     .iter()
-                    .map(|m| json!({
-                        "role": if m.role == Role::Assistant { "assistant" } else { "user" },
-                        "content": [{"text": m.content}],
-                    }))
+                    .map(|m| {
+                        let mut content = vec![json!({"text": m.content})];
+                        for img in &m.images {
+                            content.push(json!({
+                                "image": {
+                                    "format": img.bedrock_format(),
+                                    "source": {"bytes": img.base64()}
+                                }
+                            }));
+                        }
+                        json!({
+                            "role": if m.role == Role::Assistant { "assistant" } else { "user" },
+                            "content": content,
+                        })
+                    })
                     .collect::<Vec<_>>(),
                 "inferenceConfig": {"maxTokens": MAX_TOKENS},
             });
@@ -586,10 +656,19 @@ pub async fn chat(
             return bedrock_converse(http, cfg, creds, &body, on_text).await;
         }
         Provider::OneMin => {
+            // Pictures go up as assets first; the chat then names them.
+            let mut keys = Vec::new();
+            for img in messages.iter().flat_map(|m| m.images.iter()) {
+                keys.push(onemin_upload(http, cfg, api_key, img).await?);
+            }
+            let mut prompt_object = json!({ "prompt": flatten(messages) });
+            if !keys.is_empty() {
+                prompt_object["attachments"] = json!({ "images": keys });
+            }
             let body = json!({
                 "type": "UNIFY_CHAT_WITH_AI",
                 "model": cfg.model(),
-                "promptObject": { "prompt": flatten(messages) },
+                "promptObject": prompt_object,
             });
             http.post(format!("{}/api/chat-with-ai?isStreaming=true", cfg.base()))
                 .header("API-KEY", api_key)
@@ -644,42 +723,245 @@ pub async fn chat(
     Ok(out)
 }
 
-/// The OpenAI (and Azure) request body.
+/// The OpenAI (and Azure) request body. A message with pictures becomes
+/// a content array of a text part and `image_url` data URIs.
 fn openai_body(cfg: &AiConfig, messages: &[Message], stream: bool) -> Value {
     json!({
         "model": cfg.model(),
         "stream": stream,
         "messages": messages
             .iter()
-            .map(|m| json!({"role": m.role.as_str(), "content": m.content}))
+            .map(|m| {
+                if m.images.is_empty() {
+                    json!({"role": m.role.as_str(), "content": m.content})
+                } else {
+                    let mut parts = vec![json!({"type": "text", "text": m.content})];
+                    for img in &m.images {
+                        parts.push(json!({
+                            "type": "image_url",
+                            "image_url": {"url": img.data_uri()}
+                        }));
+                    }
+                    json!({"role": m.role.as_str(), "content": parts})
+                }
+            })
             .collect::<Vec<_>>(),
     })
 }
 
 /// Anthropic needs turns that alternate and begin with the user, so
-/// consecutive messages of one role are joined.
+/// consecutive messages of one role are joined; their pictures are kept.
 fn anthropic_turns(turns: &[&Message]) -> Vec<Value> {
-    let mut out: Vec<(Role, String)> = Vec::new();
+    let mut out: Vec<(Role, String, Vec<ImagePart>)> = Vec::new();
     for m in turns {
         match out.last_mut() {
-            Some((role, text)) if *role == m.role => {
+            Some((role, text, images)) if *role == m.role => {
                 text.push_str("\n\n");
                 text.push_str(&m.content);
+                images.extend(m.images.iter().cloned());
             }
-            _ => out.push((m.role, m.content.clone())),
+            _ => out.push((m.role, m.content.clone(), m.images.clone())),
         }
     }
-    if out.first().is_some_and(|(r, _)| *r == Role::Assistant) {
-        out.insert(0, (Role::User, "(continue)".to_string()));
+    if out.first().is_some_and(|(r, ..)| *r == Role::Assistant) {
+        out.insert(0, (Role::User, "(continue)".to_string(), Vec::new()));
     }
     out.into_iter()
-        .map(|(role, content)| {
-            json!({
-                "role": if role == Role::Assistant { "assistant" } else { "user" },
-                "content": content,
-            })
+        .map(|(role, content, images)| {
+            let role = if role == Role::Assistant {
+                "assistant"
+            } else {
+                "user"
+            };
+            if images.is_empty() {
+                json!({ "role": role, "content": content })
+            } else {
+                let mut blocks: Vec<Value> = images
+                    .iter()
+                    .map(|img| {
+                        json!({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": img.mime,
+                                "data": img.base64()
+                            }
+                        })
+                    })
+                    .collect();
+                blocks.push(json!({"type": "text", "text": content}));
+                json!({ "role": role, "content": blocks })
+            }
         })
         .collect()
+}
+
+/// A `multipart/form-data` body with one file field, built by hand: the
+/// workspace's reqwest has no `multipart` feature.
+fn multipart_file(field: &str, filename: &str, mime: &str, bytes: &[u8]) -> (String, Vec<u8>) {
+    let boundary = format!("----HyperStack{}", crate::new_id());
+    let mut body = Vec::with_capacity(bytes.len() + 256);
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!(
+            "Content-Disposition: form-data; name=\"{field}\"; filename=\"{filename}\"\r\nContent-Type: {mime}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    (boundary, body)
+}
+
+/// Upload a picture to 1min.AI's asset store and return the key later
+/// requests refer to it by (`promptObject.imageUrl`, `attachments.images`).
+async fn onemin_upload(
+    http: &reqwest::Client,
+    cfg: &AiConfig,
+    api_key: &str,
+    img: &ImagePart,
+) -> Result<String, AiError> {
+    let ext = match img.mime.as_str() {
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "png",
+    };
+    let (boundary, body) =
+        multipart_file("asset", &format!("hyperstack.{ext}"), &img.mime, &img.data);
+    let resp = http
+        .post(format!("{}/api/assets", cfg.base()))
+        .header("API-KEY", api_key)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| AiError::Network(e.to_string()))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(AiError::Http {
+            status: status.as_u16(),
+            message: error_message(&text),
+        });
+    }
+    let v: Value = serde_json::from_str(&text).map_err(|e| AiError::Format(e.to_string()))?;
+    v.pointer("/asset/key")
+        .or_else(|| v.pointer("/fileContent/path"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| AiError::Format(truncate(&text, 300)))
+}
+
+/// Ask a service for a picture: from `prompt` alone, or from `source` with
+/// the prompt as the variation instruction. Only 1min.AI does this today
+/// (`Provider::generates_images`); the result is the picture's bytes.
+///
+/// `model` is the image model (`black-forest-labs/flux-schnell`,
+/// `gpt-image-2`, `clipdrop` for variations…); `size` is advisory, sent as
+/// an aspect ratio where the model takes one.
+pub async fn generate_image(
+    http: &reqwest::Client,
+    cfg: &AiConfig,
+    creds: &Credentials,
+    model: &str,
+    prompt: &str,
+    size: (u32, u32),
+    source: Option<&ImagePart>,
+) -> Result<Vec<u8>, AiError> {
+    if cfg.provider != Provider::OneMin {
+        return Err(AiError::Format(format!(
+            "{} does not generate pictures; add a 1min.AI provider for that",
+            cfg.provider.label()
+        )));
+    }
+    let api_key = creds.key.as_str();
+    let aspect = aspect_ratio(size);
+    let body = match source {
+        None => json!({
+            "type": "IMAGE_GENERATOR",
+            "model": model,
+            "promptObject": {
+                "prompt": prompt,
+                "n": 1,
+                "num_outputs": 1,
+                "aspect_ratio": aspect,
+                "size": format!("{}x{}", size.0, size.1),
+            },
+        }),
+        Some(img) => {
+            let key = onemin_upload(http, cfg, api_key, img).await?;
+            json!({
+                "type": "IMAGE_VARIATOR",
+                "model": model,
+                "promptObject": {
+                    "imageUrl": key,
+                    "prompt": prompt,
+                    "n": 1,
+                },
+            })
+        }
+    };
+    let resp = http
+        .post(format!("{}/api/features", cfg.base()))
+        .header("API-KEY", api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AiError::Network(e.to_string()))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(AiError::Http {
+            status: status.as_u16(),
+            message: error_message(&text),
+        });
+    }
+    let v: Value = serde_json::from_str(&text).map_err(|e| AiError::Format(e.to_string()))?;
+    // The record carries a signed, time-limited download URL; the
+    // resultObject keys are storage paths, not downloadable.
+    let url = v
+        .pointer("/aiRecord/temporaryUrl")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            v.pointer("/aiRecord/aiRecordDetail/resultObject/0")
+                .and_then(Value::as_str)
+                .filter(|s| s.starts_with("http"))
+                .map(str::to_string)
+        })
+        .ok_or_else(|| AiError::Format(truncate(&text, 300)))?;
+    let bytes = http
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| AiError::Network(e.to_string()))?
+        .bytes()
+        .await
+        .map_err(|e| AiError::Network(e.to_string()))?;
+    Ok(bytes.to_vec())
+}
+
+/// The closest of the aspect ratios image models take.
+fn aspect_ratio((w, h): (u32, u32)) -> &'static str {
+    let r = w.max(1) as f32 / h.max(1) as f32;
+    let choices: [(&str, f32); 7] = [
+        ("1:1", 1.0),
+        ("16:9", 16.0 / 9.0),
+        ("9:16", 9.0 / 16.0),
+        ("4:3", 4.0 / 3.0),
+        ("3:4", 3.0 / 4.0),
+        ("3:2", 1.5),
+        ("2:3", 2.0 / 3.0),
+    ];
+    choices
+        .iter()
+        .min_by(|a, b| (a.1 - r).abs().total_cmp(&(b.1 - r).abs()))
+        .map(|c| c.0)
+        .unwrap_or("1:1")
 }
 
 /// Sign and send one Bedrock Converse request, and hand the whole answer

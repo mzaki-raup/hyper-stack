@@ -209,6 +209,49 @@ pub struct GraphicsTool {
     /// An active drag: the grip, the rectangle when it started and the
     /// press position in image pixels.
     crop_drag: Option<(CropGrip, [u32; 4], egui::Pos2)>,
+    /// Bumped whenever the shown picture is re-rendered, so the assistant's
+    /// attachment (a PNG of it) is encoded once per change, not per frame.
+    render_version: u64,
+    attach_cache: Option<(u64, hs_core::ai::ImagePart)>,
+    /// The Generate Picture form in the assistant column.
+    generate: GenState,
+    /// The New Image dialog, while it is open.
+    new_image: Option<NewImage>,
+}
+
+/// Where a picture generation lands: the bytes, or why it failed.
+type GenSlot = std::sync::Arc<parking_lot::Mutex<Option<Result<Vec<u8>, String>>>>;
+
+/// The Generate Picture form: what to ask for and the request in flight.
+#[derive(Default)]
+struct GenState {
+    prompt: String,
+    /// The image model name the provider takes (1min.AI: a Flux, GPT Image
+    /// or Stable Diffusion model for generation; Clipdrop/Dzine for a
+    /// variation of the current picture).
+    model: String,
+    provider: String,
+    use_source: bool,
+    running: Option<GenSlot>,
+}
+
+/// The New Image dialog's fields.
+struct NewImage {
+    width: u32,
+    height: u32,
+    background: [u8; 4],
+    transparent: bool,
+}
+
+impl Default for NewImage {
+    fn default() -> Self {
+        Self {
+            width: 1024,
+            height: 1024,
+            background: [255, 255, 255, 255],
+            transparent: false,
+        }
+    }
 }
 
 impl Default for GraphicsTool {
@@ -255,6 +298,10 @@ impl Default for GraphicsTool {
             draft_at: None,
             draft_hash: 0,
             crop_drag: None,
+            render_version: 0,
+            attach_cache: None,
+            generate: GenState::default(),
+            new_image: None,
         }
     }
 }
@@ -460,6 +507,7 @@ impl GraphicsTool {
             colour,
             egui::TextureOptions::LINEAR,
         ));
+        self.render_version += 1;
         self.controls.width = w;
         self.controls.height = h;
         // The crop placeholder follows the picture: a rectangle left over
@@ -472,6 +520,330 @@ impl GraphicsTool {
             [x, y, cw.min(w - x), ch.min(h - y)]
         };
         self.current = Some(img);
+    }
+
+    /// The shown picture as a PNG for the assistant, at most 1024 px on a
+    /// side (enough to describe, small enough to send), cached per render.
+    fn attachment_part(&mut self) -> Option<hs_core::ai::ImagePart> {
+        if let Some((v, part)) = &self.attach_cache
+            && *v == self.render_version
+        {
+            return Some(part.clone());
+        }
+        let img = self.current.as_ref()?;
+        let small = if img.width() > 1024 || img.height() > 1024 {
+            img.thumbnail(1024, 1024)
+        } else {
+            img.clone()
+        };
+        let png = ops::encode(&small, Format::Png, 100).ok()?;
+        let part = hs_core::ai::ImagePart::png(png);
+        self.attach_cache = Some((self.render_version, part.clone()));
+        Some(part)
+    }
+
+    /// Where a generated or new picture is kept: a draft under the Graphics
+    /// folder, which the tab then opens like any file.
+    fn image_draft_path(&self, stem: &str) -> Option<PathBuf> {
+        let dir = self.drafts.as_ref()?.join("images");
+        std::fs::create_dir_all(&dir).ok()?;
+        let safe: String = stem
+            .chars()
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '-'
+                }
+            })
+            .take(40)
+            .collect();
+        Some(dir.join(format!("{safe}-{}.png", &hs_core::new_id()[..8])))
+    }
+
+    /// The providers that can make a picture (1min.AI today).
+    fn image_providers(s: &Services) -> Vec<(String, String)> {
+        s.settings
+            .read()
+            .ai
+            .providers
+            .iter()
+            .filter(|p| p.kind.generates_images())
+            .map(|p| (p.id.clone(), p.name.clone()))
+            .collect()
+    }
+
+    /// The Generate Picture form at the top of the assistant column.
+    fn generate_section(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        let providers = Self::image_providers(s);
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!(
+                "{} {}",
+                ph::MAGIC_WAND,
+                s.t("gfx-ai-generate-title")
+            ))
+            .strong(),
+        )
+        .id_salt("gfx-generate")
+        .default_open(false)
+        .show(ui, |ui| {
+            form::hint(ui, theme, &s.t("gfx-ai-generate-hint"));
+            if providers.is_empty() {
+                form::note(
+                    ui,
+                    theme,
+                    hs_ui::icons::INFO,
+                    &s.t("gfx-ai-generate-no-provider"),
+                );
+                return;
+            }
+            if !providers
+                .iter()
+                .any(|(id, _)| *id == self.generate.provider)
+            {
+                self.generate.provider = providers[0].0.clone();
+            }
+            if self.generate.model.is_empty() {
+                self.generate.model = "black-forest-labs/flux-schnell".into();
+            }
+            egui::Grid::new("gfx-generate-grid")
+                .num_columns(2)
+                .spacing([10.0, 6.0])
+                .show(ui, |ui| {
+                    ui.label(s.t("gfx-ai-generate-provider"));
+                    let current = providers
+                        .iter()
+                        .find(|(id, _)| *id == self.generate.provider)
+                        .map(|(_, n)| n.clone())
+                        .unwrap_or_default();
+                    egui::ComboBox::from_id_salt("gfx-generate-provider")
+                        .width(ui.available_width())
+                        .selected_text(current)
+                        .show_ui(ui, |ui| {
+                            for (id, name) in &providers {
+                                ui.selectable_value(&mut self.generate.provider, id.clone(), name);
+                            }
+                        });
+                    ui.end_row();
+                    ui.label(s.t("gfx-ai-generate-model"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.generate.model)
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.end_row();
+                });
+            ui.add(
+                egui::TextEdit::multiline(&mut self.generate.prompt)
+                    .hint_text(s.t("gfx-ai-generate-prompt-hint"))
+                    .desired_rows(3)
+                    .desired_width(f32::INFINITY),
+            );
+            ui.add_enabled_ui(self.current.is_some(), |ui| {
+                ui.checkbox(
+                    &mut self.generate.use_source,
+                    s.t("gfx-ai-generate-use-source"),
+                );
+            });
+            ui.horizontal(|ui| {
+                let busy = self.generate.running.is_some();
+                if busy {
+                    ui.spinner();
+                }
+                let can = !busy && !self.generate.prompt.trim().is_empty();
+                if ui
+                    .add_enabled(can, egui::Button::new(s.t("gfx-ai-generate")))
+                    .clicked()
+                {
+                    self.start_generation(s);
+                }
+            });
+        });
+        ui.separator();
+    }
+
+    fn start_generation(&mut self, s: &Services) {
+        let provider = {
+            let settings = s.settings.read();
+            settings
+                .ai
+                .providers
+                .iter()
+                .find(|p| p.id == self.generate.provider)
+                .cloned()
+        };
+        let Some(provider) = provider else {
+            return;
+        };
+        let key = match s.ai_credentials(&provider) {
+            Ok(k) => k,
+            Err(e) => {
+                self.error = Some(e);
+                return;
+            }
+        };
+        let cfg = provider.config("");
+        let model = self.generate.model.trim().to_string();
+        let prompt = self.generate.prompt.trim().to_string();
+        let source = if self.generate.use_source {
+            self.attachment_part()
+        } else {
+            None
+        };
+        let size = self
+            .current
+            .as_ref()
+            .map(|c| (c.width(), c.height()))
+            .unwrap_or((1024, 1024));
+        let slot: GenSlot = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        let waker = s.runtime.waker();
+        s.runtime.spawn(async move {
+            let http = hs_core::ai::http_client();
+            let result = hs_core::ai::generate_image(
+                &http,
+                &cfg,
+                &key,
+                &model,
+                &prompt,
+                size,
+                source.as_ref(),
+            )
+            .await
+            .map_err(|e| e.to_string());
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+        self.generate.running = Some(slot);
+    }
+
+    /// A finished generation becomes a draft file and the tab's picture.
+    fn poll_generation(&mut self, cx: &mut ToolContext) {
+        let done = self.generate.running.as_ref().and_then(|r| r.lock().take());
+        let Some(result) = done else {
+            return;
+        };
+        self.generate.running = None;
+        match result {
+            Ok(bytes) => {
+                let stem = self
+                    .generate
+                    .prompt
+                    .split_whitespace()
+                    .take(4)
+                    .collect::<Vec<_>>()
+                    .join("-");
+                let stem = if stem.is_empty() { "generated" } else { &stem };
+                match self.image_draft_path(stem) {
+                    Some(path) => match std::fs::write(&path, &bytes).map_err(|e| e.to_string()) {
+                        Ok(()) => match self.load(&path) {
+                            Ok(()) => {
+                                cx.toast(ToastLevel::Success, cx.services.t("gfx-ai-generated"))
+                            }
+                            Err(e) => cx.toast(ToastLevel::Error, e),
+                        },
+                        Err(e) => cx.toast(ToastLevel::Error, e),
+                    },
+                    None => cx.toast(ToastLevel::Error, "no draft folder".to_string()),
+                }
+            }
+            Err(e) => cx.toast(ToastLevel::Error, e),
+        }
+    }
+
+    /// The New Image dialog: size and background, then a blank picture
+    /// saved as a draft and opened in a new tab.
+    fn new_image_dialog(&mut self, ctx: &egui::Context, cx: &mut ToolContext, theme: &Theme) {
+        let Some(mut form_state) = self.new_image.take() else {
+            return;
+        };
+        let s = cx.services;
+        let mut done: Option<bool> = None;
+        let modal = egui::Modal::new(egui::Id::new("gfx-new-image")).show(ctx, |ui| {
+            ui.set_width(400.0);
+            ui.painter().rect_filled(ui.max_rect(), 8.0, theme.panel_bg);
+            ui.heading(s.t("gfx-new-image-title"));
+            form::hint(ui, theme, &s.t("gfx-new-image-hint"));
+            ui.add_space(6.0);
+            egui::Grid::new("gfx-new-image-grid")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .show(ui, |ui| {
+                    ui.label(s.t("gfx-new-image-width"));
+                    ui.add(
+                        egui::DragValue::new(&mut form_state.width)
+                            .range(1..=8192)
+                            .suffix(" px"),
+                    );
+                    ui.end_row();
+                    ui.label(s.t("gfx-new-image-height"));
+                    ui.add(
+                        egui::DragValue::new(&mut form_state.height)
+                            .range(1..=8192)
+                            .suffix(" px"),
+                    );
+                    ui.end_row();
+                    ui.label(s.t("gfx-new-image-background"));
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(!form_state.transparent, |ui| {
+                            let mut c = egui::Color32::from_rgb(
+                                form_state.background[0],
+                                form_state.background[1],
+                                form_state.background[2],
+                            );
+                            if ui.color_edit_button_srgba(&mut c).changed() {
+                                form_state.background = [c.r(), c.g(), c.b(), 255];
+                            }
+                        });
+                        ui.checkbox(
+                            &mut form_state.transparent,
+                            s.t("gfx-new-image-transparent"),
+                        );
+                    });
+                    ui.end_row();
+                });
+            ui.add_space(10.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if form::primary_button(ui, theme, &s.t("gfx-new-image-create")).clicked() {
+                    done = Some(true);
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    done = Some(false);
+                }
+            });
+        });
+        if modal.should_close() && done.is_none() {
+            done = Some(false);
+        }
+        match done {
+            Some(true) => {
+                let bg = if form_state.transparent {
+                    [0, 0, 0, 0]
+                } else {
+                    form_state.background
+                };
+                let img = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                    form_state.width.max(1),
+                    form_state.height.max(1),
+                    image::Rgba(bg),
+                ));
+                let written = ops::encode(&img, Format::Png, 100).and_then(|png| {
+                    let path = self
+                        .image_draft_path("new-image")
+                        .ok_or_else(|| "no draft folder".to_string())?;
+                    std::fs::write(&path, png).map_err(|e| e.to_string())?;
+                    Ok(path)
+                });
+                match written {
+                    Ok(path) => {
+                        open_image(cx, &path);
+                        cx.toast(ToastLevel::Success, s.t("gfx-new-image-created"));
+                    }
+                    Err(e) => cx.toast(ToastLevel::Error, e),
+                }
+            }
+            Some(false) => {}
+            None => self.new_image = Some(form_state),
+        }
     }
 
     fn info_line(&self) -> String {
@@ -1887,11 +2259,16 @@ impl GraphicsTool {
         }
         let open = s.t(f.action_key());
         let coming = s.t("gfx-coming-soon");
+        let new_image = s.t("gfx-new-image");
         r.context_menu(|ui| {
             if enabled {
                 if ui.button(&open).clicked() {
                     ui.close();
                     self.pick_and_open(cx, f);
+                }
+                if f == Function::Image && ui.button(&new_image).clicked() {
+                    ui.close();
+                    self.new_image = Some(NewImage::default());
                 }
             } else {
                 let _ = ui.add_enabled(false, egui::Button::new(&coming));
@@ -2002,8 +2379,26 @@ impl GraphicsTool {
                             Function::Generator,
                         ),
                     ];
-                    for (icon, label_key, desc_key, f) in actions {
-                        let enabled = f.enabled();
+                    // "New Image" sits beside Open Image: the same tile, its
+                    // own action (the dialog rather than a file picker).
+                    let mut new_image_clicked = false;
+                    let tiles: Vec<(&str, &str, &str, Option<Function>)> = actions
+                        .iter()
+                        .flat_map(|(icon, label_key, desc_key, f)| {
+                            let mut v = vec![(*icon, *label_key, *desc_key, Some(*f))];
+                            if *f == Function::Image {
+                                v.push((
+                                    ph::FILE_PLUS,
+                                    "gfx-new-image",
+                                    "gfx-new-image-hint",
+                                    None,
+                                ));
+                            }
+                            v
+                        })
+                        .collect();
+                    for (icon, label_key, desc_key, f) in tiles {
+                        let enabled = f.map(|f| f.enabled()).unwrap_or(true);
                         let label = s.t(label_key);
                         let (rect, r) =
                             ui.allocate_exact_size(egui::vec2(180.0, 44.0), egui::Sense::click());
@@ -2049,9 +2444,15 @@ impl GraphicsTool {
                             colour,
                         );
                         if enabled && r.on_hover_text(s.t(desc_key)).clicked() {
-                            self.pick_and_open(cx, f);
+                            match f {
+                                Some(f) => self.pick_and_open(cx, f),
+                                None => new_image_clicked = true,
+                            }
                         }
                         ui.add_space(8.0);
+                    }
+                    if new_image_clicked {
+                        self.new_image = Some(NewImage::default());
                     }
                 });
                 ui.add_space(18.0);
@@ -2089,7 +2490,7 @@ impl GraphicsTool {
                             |ui| {
                                 ui.set_min_width(150.0);
                                 ui.set_max_width(150.0);
-                                ui.add_space(12.0);
+                                ui.add_space(if f == Function::Image { 2.0 } else { 12.0 });
                                 if ui
                                     .add_enabled(
                                         f.enabled(),
@@ -2099,6 +2500,20 @@ impl GraphicsTool {
                                     .clicked()
                                 {
                                     self.pick_and_open(cx, f);
+                                }
+                                if f == Function::Image
+                                    && ui
+                                        .add(
+                                            egui::Button::new(format!(
+                                                "{} {}",
+                                                ph::FILE_PLUS,
+                                                s.t("gfx-new-image")
+                                            ))
+                                            .min_size(egui::vec2(140.0, 24.0)),
+                                        )
+                                        .clicked()
+                                {
+                                    self.new_image = Some(NewImage::default());
                                 }
                             },
                         );
@@ -2459,6 +2874,8 @@ impl Tool for GraphicsTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.undo_limit = s.settings.read().general.undo_limit as usize;
+        self.poll_generation(cx);
+        self.new_image_dialog(ui.ctx(), cx, &theme);
         if matches!(self.kind, Kind::Image | Kind::Icon) && !ui.ctx().egui_wants_keyboard_input() {
             let undo =
                 ui.input(|i| i.modifiers.ctrl && !i.modifiers.shift && i.key_pressed(egui::Key::Z));
@@ -2531,16 +2948,11 @@ impl Tool for GraphicsTool {
             .size_range(220.0..=460.0)
             .resizable(true)
             .show(ui, |ui| self.settings_panel(ui, cx, &theme));
-        let full = ui.available_rect_before_wrap();
-        let canvas_w = if self.assistant.open {
-            full.width() - 390.0
-        } else {
-            full.width()
-        };
-        let canvas =
-            egui::Rect::from_min_size(full.min, egui::vec2(canvas_w.max(100.0), full.height()));
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(canvas));
-        child.set_clip_rect(canvas);
+        // The shared split: the assistant column shrinks to keep room for
+        // the picture and steps aside in a narrow window, like every other
+        // tool, instead of a fixed cut that read as a floating card.
+        let (mut child, panel) = hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let canvas = child.max_rect();
         match self.texture.clone() {
             Some(tex) => {
                 let size = tex.size_vec2();
@@ -2612,7 +3024,7 @@ impl Tool for GraphicsTool {
                 });
             }
         }
-        if self.assistant.open {
+        if let Some(panel) = panel {
             let context = format!(
                 "Picture: {}\nOperations applied:\n{}",
                 self.info_line(),
@@ -2636,24 +3048,26 @@ impl Tool for GraphicsTool {
                     QuickAction::new(&s, "ai-qa-image-a11y", "ai-qa-image-a11y-prompt", ""),
                 ];
             }
-            let panel = egui::Rect::from_min_max(
-                egui::pos2(full.right() - 390.0, full.top()),
-                full.right_bottom(),
-            );
             let mut child = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)
                     .layout(egui::Layout::top_down(egui::Align::Min)),
             );
             child.set_clip_rect(panel.intersect(ui.clip_rect()));
+            // The picture itself goes with the question: a PNG of what is
+            // shown, downscaled, encoded once per change.
+            self.assistant.attachment = self.attachment_part();
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))
                 .show(&mut child, |ui| {
-                    ui.set_min_width(370.0);
+                    ui.set_min_width(260.0);
+                    self.generate_section(ui, &s, &theme);
                     self.assistant.can_insert = false;
                     let _ = self.assistant.ui(ui, &s, &theme, "graphics");
                 });
+        } else {
+            self.assistant.attachment = None;
         }
     }
 
@@ -2690,6 +3104,11 @@ impl Tool for GraphicsTool {
                 shortcut_action: None,
             },
             CommandDescriptor {
+                id: "graphics.new_image".into(),
+                title: "Graphics: New Image…".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
                 id: "graphics.ai".into(),
                 title: "AI: Toggle Assistant".into(),
                 shortcut_action: None,
@@ -2711,8 +3130,16 @@ impl Tool for GraphicsTool {
                 self.convert_to_icon(cx);
                 true
             }
-            "graphics.new_diagram" | "graphics.new_generation" => {
-                cx.toast(ToastLevel::Info, cx.services.t("gfx-coming-soon"));
+            "graphics.new_diagram" => {
+                self.pick_and_open(cx, Function::Diagram);
+                true
+            }
+            "graphics.new_generation" => {
+                self.pick_and_open(cx, Function::Generator);
+                true
+            }
+            "graphics.new_image" => {
+                self.new_image = Some(NewImage::default());
                 true
             }
             "graphics.save_as" | "file.save_as" => {

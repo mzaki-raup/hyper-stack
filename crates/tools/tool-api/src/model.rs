@@ -254,6 +254,10 @@ pub struct Collection {
     /// JavaScript libraries evaluated before every script of this
     /// collection (helpers, a pasted pure-JS library).
     pub libraries: Vec<Library>,
+    /// Ids of the workspace's package libraries every script under this
+    /// collection may use (evaluated before the scripts).
+    #[serde(default)]
+    pub library_refs: Vec<String>,
     pub docs: String,
 }
 
@@ -273,8 +277,106 @@ impl Default for Collection {
             pre_script: String::new(),
             post_script: String::new(),
             libraries: Vec::new(),
+            library_refs: Vec::new(),
             docs: String::new(),
         }
+    }
+}
+
+/// Where a package library's code came from.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LibraryKind {
+    /// Typed in the library tab.
+    #[default]
+    Custom,
+    /// Read from a file on disk.
+    Imported,
+    /// Fetched from a URL.
+    Uploaded,
+}
+
+impl LibraryKind {
+    pub fn label_key(self) -> &'static str {
+        match self {
+            LibraryKind::Custom => "api-library-kind-custom",
+            LibraryKind::Imported => "api-library-kind-imported",
+            LibraryKind::Uploaded => "api-library-kind-uploaded",
+        }
+    }
+}
+
+/// A reusable script shared by every collection of the workspace: one
+/// JSON file each under `<workspace>/api/libraries/`. A script pulls one
+/// in with a `// @library <name>` line, or a collection lists it for all
+/// of its requests.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct PackageLibrary {
+    pub schema: u32,
+    pub id: String,
+    pub name: String,
+    pub kind: LibraryKind,
+    /// The file path or URL an imported/uploaded library came from.
+    pub source: String,
+    pub code: String,
+    pub enabled: bool,
+}
+
+impl Default for PackageLibrary {
+    fn default() -> Self {
+        Self {
+            schema: SCHEMA,
+            id: hs_core::new_id(),
+            name: "New Library".into(),
+            kind: LibraryKind::Custom,
+            source: String::new(),
+            code: String::new(),
+            enabled: true,
+        }
+    }
+}
+
+/// The line a script uses to pull a package library in.
+pub const LIBRARY_DIRECTIVE: &str = "// @library ";
+
+impl PackageLibrary {
+    pub fn path(dir: &Path, id: &str) -> PathBuf {
+        dir.join(format!("{id}.json"))
+    }
+
+    pub fn load_all(dir: &Path) -> Vec<Self> {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Vec::new();
+        };
+        let mut out: Vec<Self> = entries
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .filter_map(|e| hs_core::storage::read_json(&e.path()).ok())
+            .collect();
+        out.sort_by_key(|l| l.name.to_lowercase());
+        out
+    }
+
+    pub fn save(&self, dir: &Path) -> hs_core::storage::Result<()> {
+        let _ = std::fs::create_dir_all(dir);
+        let mut l = self.clone();
+        l.schema = SCHEMA;
+        hs_core::storage::write_json(&Self::path(dir, &self.id), &l)
+    }
+
+    pub fn delete(dir: &Path, id: &str) -> std::io::Result<()> {
+        std::fs::remove_file(Self::path(dir, id))
+    }
+
+    /// The `// @library <name>` directives in a script, in order.
+    pub fn directives(script: &str) -> Vec<String> {
+        script
+            .lines()
+            .filter_map(|l| l.trim().strip_prefix(LIBRARY_DIRECTIVE))
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .collect()
     }
 }
 
@@ -768,6 +870,36 @@ mod tests {
         assert_eq!(back[0].find(&rid).unwrap().0.url, "https://x");
         assert!(c.remove(&fid).is_some());
         assert!(c.find(&rid).is_none());
+    }
+
+    #[test]
+    fn library_directives_are_read_from_comment_lines() {
+        let script =
+            "// @library helpers\nconst x = 1;\n  // @library  Auth Utils \n// not @library\n";
+        assert_eq!(
+            PackageLibrary::directives(script),
+            vec!["helpers".to_string(), "Auth Utils".to_string()]
+        );
+        assert!(PackageLibrary::directives("pm.test('x', () => {});").is_empty());
+    }
+
+    #[test]
+    fn package_libraries_round_trip_through_their_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let lib = PackageLibrary {
+            name: "helpers".into(),
+            code: "function hi() { return 1; }".into(),
+            kind: LibraryKind::Imported,
+            source: "C:/x/helpers.js".into(),
+            ..Default::default()
+        };
+        lib.save(tmp.path()).unwrap();
+        let back = PackageLibrary::load_all(tmp.path());
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].name, "helpers");
+        assert_eq!(back[0].kind, LibraryKind::Imported);
+        PackageLibrary::delete(tmp.path(), &lib.id).unwrap();
+        assert!(PackageLibrary::load_all(tmp.path()).is_empty());
     }
 
     #[test]

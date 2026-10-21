@@ -525,15 +525,37 @@ impl Tool for Scratchpad {
                         n.title.as_str()
                     };
                     let sub = when(n.modified);
-                    let icon = if n.pinned { ph::PUSH_PIN } else { ph::NOTE };
+                    // Every row carries the note glyph; a pinned row shows a
+                    // small pin in the slot the grip occupies on a draggable
+                    // row, so both kinds line up and the pin reads as a
+                    // state rather than replacing the icon.
                     let r = if can_reorder && !n.pinned {
                         let index = movable;
                         movable += 1;
                         reorder.row(ui, index, |ui| {
-                            form::list_row(ui, &theme, selected, icon, title, Some(&sub))
+                            form::list_row(ui, &theme, selected, ph::NOTE, title, Some(&sub))
                         })
                     } else {
-                        form::list_row(ui, &theme, selected, icon, title, Some(&sub))
+                        ui.horizontal(|ui| {
+                            let (slot, _) = ui.allocate_exact_size(
+                                egui::vec2(hs_ui::reorder::GRIP_WIDTH, 22.0),
+                                egui::Sense::hover(),
+                            );
+                            let r =
+                                form::list_row(ui, &theme, selected, ph::NOTE, title, Some(&sub));
+                            if n.pinned {
+                                let body = ui.min_rect();
+                                ui.painter().text(
+                                    egui::pos2(slot.center().x, body.center().y),
+                                    egui::Align2::CENTER_CENTER,
+                                    ph::PUSH_PIN,
+                                    egui::FontId::proportional(11.0),
+                                    theme.text_muted,
+                                );
+                            }
+                            r
+                        })
+                        .inner
                     };
                     if r.secondary_clicked() {
                         tracing::debug!(id = %n.id, "scratchpad: row right-clicked");
@@ -694,14 +716,10 @@ impl Tool for Scratchpad {
         }
         let theme = Theme::from_settings(&cx.services.settings.read().appearance);
         let s = cx.services;
-        let full = ui.available_rect_before_wrap();
-        let main_rect = if self.assistant.open {
-            egui::Rect::from_min_max(full.min, egui::pos2(full.right() - 390.0, full.bottom()))
-        } else {
-            full
-        };
-        let mut main = ui.new_child(egui::UiBuilder::new().max_rect(main_rect));
-        main.set_clip_rect(main_rect);
+        // The same split every other tool uses: the column shrinks to keep
+        // room for the note and steps aside in a narrow window, instead of a
+        // fixed 390 px cut that left the column looking like it floated.
+        let (mut main, panel) = hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
         match self.state.view {
             View::Edit => self.editor(&mut main),
             View::Preview => self.preview(&mut main, &theme),
@@ -717,17 +735,13 @@ impl Tool for Scratchpad {
                     .show(&mut main, |ui| self.preview(ui, &theme));
             }
         }
-        if self.assistant.open {
+        if let Some(panel) = panel {
             // The note is the context; the system prompt asks for Markdown
             // pieces in fences so Insert can place them at the cursor.
             self.assistant
                 .set_context("the open note", self.state.text.clone());
             self.assistant.extra_system = s.t("scratchpad-ai-system");
             self.assistant.can_insert = true;
-            let panel = egui::Rect::from_min_max(
-                egui::pos2(full.right() - 390.0, full.top()),
-                full.right_bottom(),
-            );
             let mut child = ui.new_child(
                 egui::UiBuilder::new()
                     .max_rect(panel)

@@ -1027,39 +1027,43 @@ impl DiagramState {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.add_space(6.0);
-                ui.label(
-                    egui::RichText::new(s.t("gfx-diagram-properties"))
-                        .strong()
-                        .color(theme.text),
-                );
-                ui.add_space(4.0);
-                if ui
-                    .add(
-                        egui::TextEdit::singleline(&mut self.doc.title)
-                            .hint_text(s.t("gfx-diagram-title")),
-                    )
-                    .changed()
-                {
-                    self.dirty = true;
-                }
-                if ui
-                    .checkbox(&mut self.doc.show_title, s.t("gfx-diagram-show-title"))
-                    .changed()
-                {
-                    self.dirty = true;
-                }
-                ui.add_enabled_ui(self.doc.show_title, |ui| {
-                    if frame_title_controls(
-                        ui,
-                        "outer",
-                        &mut self.doc.title_placement,
-                        &mut self.doc.title_align,
-                    ) {
-                        self.dirty = true;
-                    }
+                section_title(ui, theme, &s.t("gfx-diagram-properties"));
+                let mut doc_changed = false;
+                props_grid(ui, "gfx-props-doc", |ui| {
+                    props_label(ui, &s.t("gfx-diagram-title"));
+                    doc_changed |= ui
+                        .add(
+                            egui::TextEdit::singleline(&mut self.doc.title)
+                                .hint_text(s.t("gfx-diagram-title"))
+                                .desired_width(f32::INFINITY),
+                        )
+                        .changed();
+                    ui.end_row();
+                    props_label(ui, &s.t("gfx-diagram-frame"));
+                    doc_changed |= ui
+                        .checkbox(&mut self.doc.show_title, s.t("gfx-diagram-show-title"))
+                        .changed();
+                    ui.end_row();
+                    ui.add_enabled_ui(self.doc.show_title, |ui| {
+                        props_label(ui, "Position");
+                    });
+                    ui.add_enabled_ui(self.doc.show_title, |ui| {
+                        doc_changed |= placement_picker(ui, &mut self.doc.title_placement);
+                    });
+                    ui.end_row();
+                    ui.add_enabled_ui(self.doc.show_title, |ui| {
+                        props_label(ui, "Text Align");
+                    });
+                    ui.add_enabled_ui(self.doc.show_title, |ui| {
+                        doc_changed |= align_picker(ui, &mut self.doc.title_align);
+                    });
+                    ui.end_row();
                 });
-                ui.add_space(8.0);
-
+                if doc_changed {
+                    self.dirty = true;
+                }
+                ui.add_space(6.0);
+                props_label_inline(ui, theme, "Templates");
                 ui.horizontal_wrapped(|ui| {
                     if ui.button(s.t("gfx-diagram-flow-template")).clicked() {
                         self.replace(hs_diagram::template::flow());
@@ -1089,23 +1093,19 @@ impl DiagramState {
                     let mut changed = false;
                     let mut remove = false;
                     if let Some(node) = self.doc.node_mut(&id) {
-                        ui.label(
-                            egui::RichText::new(s.t("gfx-diagram-node"))
-                                .strong()
-                                .color(theme.text),
-                        );
-                        ui.horizontal(|ui| {
-                            ui.label(s.t("gfx-diagram-label"));
+                        section_title(ui, theme, &s.t("gfx-diagram-node"));
+                        props_grid(ui, "gfx-props-node", |ui| {
+                            props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
                                     egui::TextEdit::singleline(&mut node.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label(s.t("gfx-diagram-shape"));
+                            ui.end_row();
+                            props_label(ui, &s.t("gfx-diagram-shape"));
                             egui::ComboBox::from_id_salt("gfx-diagram-shape")
+                                .width(ui.available_width())
                                 .selected_text(shape_label(node.kind, s))
                                 .show_ui(ui, |ui| {
                                     for kind in [
@@ -1134,87 +1134,113 @@ impl DiagramState {
                                         }
                                     }
                                 });
+                            ui.end_row();
+                            props_label(ui, "Outline");
+                            color_cell(ui, &mut node.style.stroke, &mut changed);
+                            ui.end_row();
+                            props_label(ui, "Fill");
+                            color_cell(ui, &mut node.style.fill, &mut changed);
+                            ui.end_row();
+                            props_label(ui, "Text");
+                            color_cell(ui, &mut node.style.text, &mut changed);
+                            ui.end_row();
                         });
-                        color_row(ui, "Outline", &mut node.style.stroke, &mut changed);
-                        color_row(ui, "Fill", &mut node.style.fill, &mut changed);
-                        color_row(ui, "Text", &mut node.style.text, &mut changed);
                         if node.kind == NodeKind::Entity {
                             if node.erd.is_none() {
                                 node.erd = Some(hs_diagram::model::Entity::from_label(&node.label));
                             }
-                            ui.add_space(4.0);
-                            ui.label(egui::RichText::new("Columns").strong());
+                            ui.add_space(6.0);
+                            props_label_inline(ui, theme, "Columns");
                             let mut remove_column = None;
                             let mut move_up = None;
                             let mut move_down = None;
                             if let Some(erd) = node.erd.as_mut() {
-                                for (i, column) in erd.columns.iter_mut().enumerate() {
-                                    ui.horizontal(|ui| {
-                                        changed |= ui
-                                            .add(
-                                                egui::TextEdit::singleline(&mut column.name)
-                                                    .desired_width(78.0)
-                                                    .hint_text("name"),
-                                            )
-                                            .changed();
-                                        changed |= ui
-                                            .add(
-                                                egui::TextEdit::singleline(&mut column.data_type)
-                                                    .desired_width(72.0)
-                                                    .hint_text("type"),
-                                            )
-                                            .changed();
-                                        egui::ComboBox::from_id_salt(("column-key", i))
-                                            .width(62.0)
-                                            .selected_text(match column.key {
-                                                hs_diagram::model::ColumnKey::None => "—",
-                                                hs_diagram::model::ColumnKey::Primary => "PK",
-                                                hs_diagram::model::ColumnKey::Foreign => "FK",
-                                                hs_diagram::model::ColumnKey::Unique => "UQ",
-                                            })
-                                            .show_ui(ui, |ui| {
-                                                for (key, label) in [
-                                                    (hs_diagram::model::ColumnKey::None, "—"),
-                                                    (hs_diagram::model::ColumnKey::Primary, "PK"),
-                                                    (hs_diagram::model::ColumnKey::Foreign, "FK"),
-                                                    (hs_diagram::model::ColumnKey::Unique, "UQ"),
-                                                ] {
-                                                    if ui
-                                                        .selectable_value(
-                                                            &mut column.key,
-                                                            key,
-                                                            label,
-                                                        )
-                                                        .changed()
-                                                    {
-                                                        changed = true;
+                                egui::Grid::new("gfx-entity-columns")
+                                    .num_columns(4)
+                                    .spacing([6.0, 4.0])
+                                    .show(ui, |ui| {
+                                        for (i, column) in erd.columns.iter_mut().enumerate() {
+                                            changed |= ui
+                                                .add(
+                                                    egui::TextEdit::singleline(&mut column.name)
+                                                        .desired_width(78.0)
+                                                        .hint_text("Name"),
+                                                )
+                                                .changed();
+                                            changed |= ui
+                                                .add(
+                                                    egui::TextEdit::singleline(
+                                                        &mut column.data_type,
+                                                    )
+                                                    .desired_width(64.0)
+                                                    .hint_text("Type"),
+                                                )
+                                                .changed();
+                                            egui::ComboBox::from_id_salt(("column-key", i))
+                                                .width(56.0)
+                                                .selected_text(match column.key {
+                                                    hs_diagram::model::ColumnKey::None => "—",
+                                                    hs_diagram::model::ColumnKey::Primary => "PK",
+                                                    hs_diagram::model::ColumnKey::Foreign => "FK",
+                                                    hs_diagram::model::ColumnKey::Unique => "UQ",
+                                                })
+                                                .show_ui(ui, |ui| {
+                                                    for (key, label) in [
+                                                        (hs_diagram::model::ColumnKey::None, "—"),
+                                                        (
+                                                            hs_diagram::model::ColumnKey::Primary,
+                                                            "PK",
+                                                        ),
+                                                        (
+                                                            hs_diagram::model::ColumnKey::Foreign,
+                                                            "FK",
+                                                        ),
+                                                        (
+                                                            hs_diagram::model::ColumnKey::Unique,
+                                                            "UQ",
+                                                        ),
+                                                    ] {
+                                                        if ui
+                                                            .selectable_value(
+                                                                &mut column.key,
+                                                                key,
+                                                                label,
+                                                            )
+                                                            .changed()
+                                                        {
+                                                            changed = true;
+                                                        }
                                                     }
+                                                });
+                                            ui.horizontal(|ui| {
+                                                if ui
+                                                    .add_enabled(
+                                                        i > 0,
+                                                        egui::Button::new("↑").small(),
+                                                    )
+                                                    .on_hover_text("Move Column Up")
+                                                    .clicked()
+                                                {
+                                                    move_up = Some(i);
+                                                }
+                                                if ui
+                                                    .small_button("↓")
+                                                    .on_hover_text("Move Column Down")
+                                                    .clicked()
+                                                {
+                                                    move_down = Some(i);
+                                                }
+                                                if ui
+                                                    .small_button("−")
+                                                    .on_hover_text("Remove Column")
+                                                    .clicked()
+                                                {
+                                                    remove_column = Some(i);
                                                 }
                                             });
-                                        if i > 0
-                                            && ui
-                                                .small_button("↑")
-                                                .on_hover_text("Move Column Up")
-                                                .clicked()
-                                        {
-                                            move_up = Some(i);
-                                        }
-                                        if ui
-                                            .small_button("↓")
-                                            .on_hover_text("Move Column Down")
-                                            .clicked()
-                                        {
-                                            move_down = Some(i);
-                                        }
-                                        if ui
-                                            .small_button("−")
-                                            .on_hover_text("Remove Column")
-                                            .clicked()
-                                        {
-                                            remove_column = Some(i);
+                                            ui.end_row();
                                         }
                                     });
-                                }
                                 if let Some(i) = move_up {
                                     erd.columns.swap(i, i - 1);
                                     changed = true;
@@ -1229,6 +1255,7 @@ impl DiagramState {
                                     erd.columns.remove(i);
                                     changed = true;
                                 }
+                                ui.add_space(2.0);
                                 if ui.button("+ Add Column").clicked() {
                                     erd.columns.push(hs_diagram::model::Column {
                                         name: String::new(),
@@ -1239,6 +1266,7 @@ impl DiagramState {
                                 }
                             }
                         }
+                        ui.add_space(6.0);
                         if ui.button(s.t("gfx-diagram-delete")).clicked() {
                             remove = true;
                         }
@@ -1258,20 +1286,27 @@ impl DiagramState {
                     let mut add = false;
                     let mut clear = false;
                     if let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == eid) {
-                        ui.label(egui::RichText::new("Edge").strong().color(theme.text));
-                        ui.horizontal(|ui| {
-                            ui.label(s.t("gfx-diagram-label"));
+                        section_title(ui, theme, "Edge");
+                        ui.label(
+                            egui::RichText::new(format!("{} → {}", edge.from, edge.to))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                        ui.add_space(2.0);
+                        let is_erd = self.doc.kind == DiagramKind::Erd;
+                        props_grid(ui, "gfx-props-edge", |ui| {
+                            props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
                                     egui::TextEdit::singleline(&mut edge.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
-                        });
-                        if self.doc.kind == DiagramKind::Erd {
-                            ui.horizontal(|ui| {
-                                ui.label("Cardinality");
+                            ui.end_row();
+                            if is_erd {
+                                props_label(ui, "Cardinality");
                                 egui::ComboBox::from_id_salt("gfx-edge-cardinality")
+                                    .width(ui.available_width())
                                     .selected_text(
                                         edge.cardinality.map(|c| c.label()).unwrap_or("Custom"),
                                     )
@@ -1302,74 +1337,79 @@ impl DiagramState {
                                             }
                                         }
                                     });
-                            });
-                        }
-                        ui.label(
-                            egui::RichText::new(format!("{} → {}", edge.from, edge.to))
-                                .small()
-                                .color(theme.text_muted),
-                        );
-                        egui::Grid::new("gfx-edge-grid")
-                            .num_columns(2)
-                            .spacing([8.0, 4.0])
-                            .show(ui, |ui| {
-                                ui.label("Arrow");
-                                ui.horizontal(|ui| {
-                                    for (value, label) in [
-                                        (Arrow::None, "None"),
-                                        (Arrow::End, "End"),
-                                        (Arrow::Both, "Both"),
-                                    ] {
-                                        changed |= ui
-                                            .selectable_value(&mut edge.arrow, value, label)
-                                            .changed();
-                                    }
-                                });
                                 ui.end_row();
-                                ui.label("Route");
-                                ui.horizontal(|ui| {
-                                    for (value, label) in [
-                                        (EdgeRoute::Straight, "Straight"),
-                                        (EdgeRoute::Orthogonal, "Orthogonal"),
-                                        (EdgeRoute::Curved, "Curved"),
-                                    ] {
-                                        changed |= ui
-                                            .selectable_value(&mut edge.route, value, label)
-                                            .changed();
-                                    }
-                                });
-                                ui.end_row();
+                            }
+                            props_label(ui, "Arrow");
+                            ui.horizontal(|ui| {
+                                for (value, label) in [
+                                    (Arrow::None, "None"),
+                                    (Arrow::End, "End"),
+                                    (Arrow::Both, "Both"),
+                                ] {
+                                    changed |= ui
+                                        .selectable_value(&mut edge.arrow, value, label)
+                                        .changed();
+                                }
                             });
-                        ui.horizontal(|ui| {
-                            ui.label("Line");
-                            let solid = !edge.dashed && !edge.dotted;
-                            if ui.selectable_label(solid, "Solid").clicked() {
-                                edge.dashed = false;
-                                edge.dotted = false;
-                                changed = true;
+                            ui.end_row();
+                            props_label(ui, "Route");
+                            ui.horizontal(|ui| {
+                                for (value, label) in [
+                                    (EdgeRoute::Straight, "Straight"),
+                                    (EdgeRoute::Orthogonal, "Orthogonal"),
+                                    (EdgeRoute::Curved, "Curved"),
+                                ] {
+                                    changed |= ui
+                                        .selectable_value(&mut edge.route, value, label)
+                                        .changed();
+                                }
+                            });
+                            ui.end_row();
+                            props_label(ui, "Line");
+                            ui.horizontal(|ui| {
+                                let solid = !edge.dashed && !edge.dotted;
+                                if ui.selectable_label(solid, "Solid").clicked() {
+                                    edge.dashed = false;
+                                    edge.dotted = false;
+                                    changed = true;
+                                }
+                                if ui.selectable_label(edge.dashed, "Dashed").clicked() {
+                                    edge.dashed = true;
+                                    edge.dotted = false;
+                                    changed = true;
+                                }
+                                if ui.selectable_label(edge.dotted, "Dotted").clicked() {
+                                    edge.dotted = true;
+                                    edge.dashed = false;
+                                    changed = true;
+                                }
+                            });
+                            ui.end_row();
+                            props_label(ui, "Outline");
+                            color_cell(ui, &mut edge.style.stroke, &mut changed);
+                            ui.end_row();
+                            props_label(ui, "Label Colour");
+                            color_cell(ui, &mut edge.style.text, &mut changed);
+                            ui.end_row();
+                        });
+                        ui.add_space(6.0);
+                        ui.horizontal_wrapped(|ui| {
+                            if ui.button("Add Waypoint").clicked() {
+                                add = true;
                             }
-                            if ui.selectable_label(edge.dashed, "Dashed").clicked() {
-                                edge.dashed = true;
-                                edge.dotted = false;
-                                changed = true;
+                            if ui
+                                .add_enabled(
+                                    !edge.via.is_empty(),
+                                    egui::Button::new("Clear Waypoints"),
+                                )
+                                .clicked()
+                            {
+                                clear = true;
                             }
-                            if ui.selectable_label(edge.dotted, "Dotted").clicked() {
-                                edge.dotted = true;
-                                edge.dashed = false;
-                                changed = true;
+                            if ui.button(s.t("gfx-diagram-delete-edge")).clicked() {
+                                remove = true;
                             }
                         });
-                        color_row(ui, "Outline", &mut edge.style.stroke, &mut changed);
-                        color_row(ui, "Label", &mut edge.style.text, &mut changed);
-                        if ui.button("Add Waypoint").clicked() {
-                            add = true;
-                        }
-                        if !edge.via.is_empty() && ui.button("Clear Waypoints").clicked() {
-                            clear = true;
-                        }
-                        if ui.button(s.t("gfx-diagram-delete-edge")).clicked() {
-                            remove = true;
-                        }
                     }
                     if add {
                         self.add_edge_waypoint(&eid);
@@ -1401,31 +1441,34 @@ impl DiagramState {
                         ui.separator();
                     }
                     ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new(s.t("gfx-diagram-frame"))
-                            .strong()
-                            .color(theme.text),
-                    );
+                    section_title(ui, theme, &s.t("gfx-diagram-frame"));
                     let mut frame_changed = false;
                     if let Some(group) = self.doc.groups.iter_mut().find(|g| g.id == gid) {
-                        ui.horizontal(|ui| {
-                            ui.label("Text");
+                        props_grid(ui, ("gfx-props-frame", &group.id), |ui| {
+                            props_label(ui, "Text");
                             frame_changed |= ui
                                 .add(
                                     egui::TextEdit::singleline(&mut group.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
+                            ui.end_row();
+                            props_label(ui, "Outline");
+                            color_cell(ui, &mut group.style.stroke, &mut frame_changed);
+                            ui.end_row();
+                            props_label(ui, "Fill");
+                            color_cell(ui, &mut group.style.fill, &mut frame_changed);
+                            ui.end_row();
+                            props_label(ui, "Text Colour");
+                            color_cell(ui, &mut group.style.text, &mut frame_changed);
+                            ui.end_row();
+                            props_label(ui, "Position");
+                            frame_changed |= placement_picker(ui, &mut group.label_placement);
+                            ui.end_row();
+                            props_label(ui, "Text Align");
+                            frame_changed |= align_picker(ui, &mut group.label_align);
+                            ui.end_row();
                         });
-                        color_row(ui, "Outline", &mut group.style.stroke, &mut frame_changed);
-                        color_row(ui, "Fill", &mut group.style.fill, &mut frame_changed);
-                        color_row(ui, "Text", &mut group.style.text, &mut frame_changed);
-                        frame_changed |= frame_title_controls(
-                            ui,
-                            &group.id,
-                            &mut group.label_placement,
-                            &mut group.label_align,
-                        );
                     }
                     if frame_changed {
                         self.dirty = true;
@@ -1435,65 +1478,70 @@ impl DiagramState {
                 if self.doc.kind == DiagramKind::Sequence {
                     ui.separator();
                     ui.add_space(4.0);
-                    ui.label(egui::RichText::new("Fragments").strong().color(theme.text));
+                    section_title(ui, theme, "Fragments");
                     let mut fragment_changed = false;
                     let mut remove = None;
                     let last = self.doc.edges.len().saturating_sub(1);
-                    for (i, fragment) in self.doc.fragments.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            egui::ComboBox::from_id_salt(("fragment-kind", i))
-                                .width(64.0)
-                                .selected_text(match fragment.kind {
-                                    hs_diagram::model::FragmentKind::Alt => "alt",
-                                    hs_diagram::model::FragmentKind::Loop => "loop",
-                                    hs_diagram::model::FragmentKind::Opt => "opt",
-                                    hs_diagram::model::FragmentKind::Note => "note",
-                                })
-                                .show_ui(ui, |ui| {
-                                    for (kind, label) in [
-                                        (hs_diagram::model::FragmentKind::Alt, "alt"),
-                                        (hs_diagram::model::FragmentKind::Loop, "loop"),
-                                        (hs_diagram::model::FragmentKind::Opt, "opt"),
-                                        (hs_diagram::model::FragmentKind::Note, "note"),
-                                    ] {
-                                        if ui
-                                            .selectable_value(&mut fragment.kind, kind, label)
-                                            .changed()
-                                        {
-                                            fragment_changed = true;
+                    egui::Grid::new("gfx-fragments")
+                        .num_columns(5)
+                        .spacing([6.0, 4.0])
+                        .show(ui, |ui| {
+                            for (i, fragment) in self.doc.fragments.iter_mut().enumerate() {
+                                egui::ComboBox::from_id_salt(("fragment-kind", i))
+                                    .width(64.0)
+                                    .selected_text(match fragment.kind {
+                                        hs_diagram::model::FragmentKind::Alt => "alt",
+                                        hs_diagram::model::FragmentKind::Loop => "loop",
+                                        hs_diagram::model::FragmentKind::Opt => "opt",
+                                        hs_diagram::model::FragmentKind::Note => "note",
+                                    })
+                                    .show_ui(ui, |ui| {
+                                        for (kind, label) in [
+                                            (hs_diagram::model::FragmentKind::Alt, "alt"),
+                                            (hs_diagram::model::FragmentKind::Loop, "loop"),
+                                            (hs_diagram::model::FragmentKind::Opt, "opt"),
+                                            (hs_diagram::model::FragmentKind::Note, "note"),
+                                        ] {
+                                            if ui
+                                                .selectable_value(&mut fragment.kind, kind, label)
+                                                .changed()
+                                            {
+                                                fragment_changed = true;
+                                            }
                                         }
-                                    }
-                                });
-                            fragment_changed |= ui
-                                .add(
-                                    egui::TextEdit::singleline(&mut fragment.label)
-                                        .hint_text("condition")
-                                        .desired_width(86.0),
-                                )
-                                .changed();
-                            let from = ui.add(
-                                egui::DragValue::new(&mut fragment.from)
-                                    .range(0..=last)
-                                    .prefix("from "),
-                            );
-                            let to = ui.add(
-                                egui::DragValue::new(&mut fragment.to)
-                                    .range(0..=last)
-                                    .prefix("to "),
-                            );
-                            if from.changed() || to.changed() {
-                                fragment.to = fragment.to.max(fragment.from);
-                                fragment_changed = true;
-                            }
-                            if ui.small_button("−").clicked() {
-                                remove = Some(i);
+                                    });
+                                fragment_changed |= ui
+                                    .add(
+                                        egui::TextEdit::singleline(&mut fragment.label)
+                                            .hint_text("Condition")
+                                            .desired_width(86.0),
+                                    )
+                                    .changed();
+                                let from = ui.add(
+                                    egui::DragValue::new(&mut fragment.from)
+                                        .range(0..=last)
+                                        .prefix("from "),
+                                );
+                                let to = ui.add(
+                                    egui::DragValue::new(&mut fragment.to)
+                                        .range(0..=last)
+                                        .prefix("to "),
+                                );
+                                if from.changed() || to.changed() {
+                                    fragment.to = fragment.to.max(fragment.from);
+                                    fragment_changed = true;
+                                }
+                                if ui.small_button("−").on_hover_text("Remove").clicked() {
+                                    remove = Some(i);
+                                }
+                                ui.end_row();
                             }
                         });
-                    }
                     if let Some(i) = remove {
                         self.doc.fragments.remove(i);
                         fragment_changed = true;
                     }
+                    ui.add_space(2.0);
                     ui.horizontal_wrapped(|ui| {
                         for (kind, label) in [
                             (hs_diagram::model::FragmentKind::Alt, "+ Alt"),
@@ -1523,12 +1571,7 @@ impl DiagramState {
                     ui.separator();
                 }
                 ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(s.t("gfx-diagram-outline"))
-                        .strong()
-                        .color(theme.text),
-                );
-                ui.add_space(2.0);
+                section_title(ui, theme, &s.t("gfx-diagram-outline"));
                 let nodes: Vec<(String, String, &str)> = self
                     .doc
                     .nodes
@@ -1573,6 +1616,7 @@ impl DiagramState {
                 });
                 ui.separator();
                 ui.add_space(4.0);
+                section_title(ui, theme, "Status");
                 let issues = validate::validate(&self.doc);
                 let errors = issues
                     .iter()
@@ -2306,7 +2350,12 @@ impl DiagramState {
                     );
                     paint_shape(painter, r, *kind, fill, stroke, z);
                     if !label.is_empty() {
-                        let text_color = color(style.text.as_deref().unwrap_or("#1f2328"));
+                        // No explicit text colour: pick the one that reads on
+                        // the fill, so a dark fill never hides its label.
+                        let text_color = match style.text.as_deref() {
+                            Some(t) => color(t),
+                            None => contrast_text(fill),
+                        };
                         if *kind == NodeKind::Entity {
                             let lines: Vec<&str> = label.lines().collect();
                             let header = (28.0 * z).min(r.height() * 0.45);
@@ -2635,54 +2684,81 @@ pub(crate) fn fingerprint(doc: &DiagramDoc) -> u64 {
     w.0.finish()
 }
 
-fn frame_title_controls(
+/// Section heading inside the properties pane: one weight and one spacing
+/// for Diagram, Node, Edge, Frame, Fragments, Outline and Status.
+fn section_title(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label(egui::RichText::new(text).strong().color(theme.text));
+    ui.add_space(4.0);
+}
+
+/// A muted sub-heading for a block inside a section (Templates, Columns).
+fn props_label_inline(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label(egui::RichText::new(text).small().color(theme.text_muted));
+    ui.add_space(2.0);
+}
+
+/// The two-column label/control grid every properties section uses, so
+/// labels line up in one column and controls in another whatever the
+/// section. The label column is narrow: the pane is 240-430 px wide.
+fn props_grid<R>(
     ui: &mut egui::Ui,
-    id: &str,
-    placement: &mut hs_diagram::model::LabelPlacement,
-    align: &mut hs_diagram::model::LabelAlign,
-) -> bool {
-    let mut changed = false;
-    egui::Grid::new(("frame-title", id))
+    id: impl std::hash::Hash + std::fmt::Debug,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    egui::Grid::new(id)
         .num_columns(2)
-        .spacing([12.0, 6.0])
-        .show(ui, |ui| {
-            ui.label("Position");
-            ui.horizontal(|ui| {
-                for (value, label) in [
-                    (hs_diagram::model::LabelPlacement::Top, "Top"),
-                    (hs_diagram::model::LabelPlacement::Bottom, "Bottom"),
-                ] {
-                    if ui.selectable_label(*placement == value, label).clicked() {
-                        *placement = value;
-                        changed = true;
-                    }
-                }
-            });
-            ui.end_row();
-            ui.label("Text Align");
-            ui.horizontal(|ui| {
-                for (value, label) in [
-                    (hs_diagram::model::LabelAlign::Left, "Left"),
-                    (hs_diagram::model::LabelAlign::Centre, "Middle"),
-                    (hs_diagram::model::LabelAlign::Right, "Right"),
-                ] {
-                    if ui.selectable_label(*align == value, label).clicked() {
-                        *align = value;
-                        changed = true;
-                    }
-                }
-            });
-            ui.end_row();
-        });
+        .spacing([10.0, 6.0])
+        .min_col_width(72.0)
+        .show(ui, add)
+        .inner
+}
+
+fn props_label(ui: &mut egui::Ui, text: &str) {
+    ui.add(egui::Label::new(text).selectable(false));
+}
+
+/// Top/Bottom placement as a selectable pair (a grid cell).
+fn placement_picker(ui: &mut egui::Ui, placement: &mut hs_diagram::model::LabelPlacement) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        for (value, label) in [
+            (hs_diagram::model::LabelPlacement::Top, "Top"),
+            (hs_diagram::model::LabelPlacement::Bottom, "Bottom"),
+        ] {
+            if ui.selectable_label(*placement == value, label).clicked() {
+                *placement = value;
+                changed = true;
+            }
+        }
+    });
     changed
 }
-fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<String>, changed: &mut bool) {
+
+/// Left/Middle/Right alignment as a selectable trio (a grid cell).
+fn align_picker(ui: &mut egui::Ui, align: &mut hs_diagram::model::LabelAlign) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        for (value, label) in [
+            (hs_diagram::model::LabelAlign::Left, "Left"),
+            (hs_diagram::model::LabelAlign::Centre, "Middle"),
+            (hs_diagram::model::LabelAlign::Right, "Right"),
+        ] {
+            if ui.selectable_label(*align == value, label).clicked() {
+                *align = value;
+                changed = true;
+            }
+        }
+    });
+    changed
+}
+
+/// A colour swatch with a Reset beside it, for one grid cell.
+fn color_cell(ui: &mut egui::Ui, value: &mut Option<String>, changed: &mut bool) {
     let mut color = value
         .as_deref()
         .and_then(parse_hex)
         .unwrap_or(egui::Color32::from_rgb(0x88, 0x94, 0xa6));
     ui.horizontal(|ui| {
-        ui.label(label);
         if ui.color_edit_button_srgba(&mut color).changed() {
             *value = Some(format!(
                 "#{:02x}{:02x}{:02x}",
@@ -2692,11 +2768,25 @@ fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<String>, changed
             ));
             *changed = true;
         }
-        if value.is_some() && ui.small_button("Reset").clicked() {
+        if ui
+            .add_enabled(value.is_some(), egui::Button::new("Reset").small())
+            .clicked()
+        {
             *value = None;
             *changed = true;
         }
     });
+}
+
+/// Dark text on a light fill, light text on a dark one (relative luminance).
+fn contrast_text(fill: egui::Color32) -> egui::Color32 {
+    let lum = 0.2126 * fill.r() as f32 + 0.7152 * fill.g() as f32 + 0.0722 * fill.b() as f32;
+    // A transparent fill shows the canvas, which is dark in the default theme.
+    if fill.a() < 64 || lum < 140.0 {
+        egui::Color32::from_rgb(0xf3, 0xf4, 0xf6)
+    } else {
+        egui::Color32::from_rgb(0x1f, 0x23, 0x28)
+    }
 }
 
 fn parse_hex(text: &str) -> Option<egui::Color32> {
@@ -3065,6 +3155,19 @@ mod tests {
                 Prim::Line { edge_id: Some(id), points, .. } if id == &e.id && points.len() >= 2
             )));
         }
+    }
+
+    #[test]
+    fn label_text_contrasts_with_the_fill() {
+        let dark = egui::Color32::from_rgb(0x1f, 0x23, 0x28);
+        let light = egui::Color32::from_rgb(0xf3, 0xf4, 0xf6);
+        assert_eq!(contrast_text(egui::Color32::WHITE), dark);
+        assert_eq!(
+            contrast_text(egui::Color32::from_rgb(0x1e, 0x29, 0x3b)),
+            light
+        );
+        // Transparent shows the (dark) canvas, so the text goes light.
+        assert_eq!(contrast_text(egui::Color32::TRANSPARENT), light);
     }
 
     #[test]

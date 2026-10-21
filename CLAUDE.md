@@ -805,6 +805,13 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A `Tool` is `Send`, so a per-frame cache on a tool's state must be an
   `Arc`, not an `Rc` (the devtools diff/regex caches, 2026-10-22). And it
   is `ctx.egui_wants_keyboard_input()`, not `wants_keyboard_input()`.
+- `gen` is a reserved keyword in edition 2024: a field or variable called
+  `gen` fails to parse with "expected identifier, found reserved keyword"
+  at every use (18 errors for one field). Name it `generate`.
+- Appending functions to the end of a file puts them *after* its
+  `#[cfg(test)] mod tests`, which clippy refuses ("items after a test
+  module"). Insert new code before the test module; `cat >>` is only safe
+  for files without one.
 - The shell draws tool toolbars with `horizontal_wrapped`; a tool's
   hard-right group must go through `hs_ui::toolbar::hard_right`, never a
   bare `with_layout(right_to_left)`: that scope only gets the width left on

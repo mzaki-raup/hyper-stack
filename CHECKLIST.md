@@ -403,3 +403,26 @@ and ADR-025.
 | Release 2: ERD and sequence diagrams | Completed | ERD: Entity table nodes, typed columns with PK/FK/UQ, cardinality, DDL import. Sequence: participants, messages, dashed returns, activations, alt/loop/opt fragments and (2026-10-22) note strips from Properties and Mermaid `Note` lines. draw.io image cells import as placed, labelled nodes (the bitmap itself is out of scope); layout and import tests cover each |
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and page selection |
 | Release 2: `.diagram.json` alias and schema migration | Completed | `.diagram.json` opens/saves as an alias; schema v2 migrates v1 documents in `from_json` and writes the new marker on save, with tests |
+
+## Owner's requests, 2026-10-22 (UI batch)
+
+| Item | State | Notes |
+|---|---|---|
+| Tab tooltip names the activity, not its id | Completed | `TabSpace::views` takes an `activity_title` lookup; "api" reads "API Client" |
+| Drag grip centred on its row everywhere | Completed | `hs_ui::reorder::row` paints the dots after the row body, at the row's vertical centre (34 px and 44 px rows alike) |
+| Scratchpad pinned notes: small pin in the grip slot, note icon kept | Completed | pinned rows allocate `GRIP_WIDTH` and paint a 11 px pin there |
+| Scratchpad, API client and Graphics picture assistant columns docked like the others | Completed | all three go through `split_for_assistant`; no hand-cut 390 px column remains |
+| Per-activity sidebar widths (Settings included), persisted | Completed | `appearance.sidebar_widths` keyed by activity id; egui panel id per activity |
+| Lower-case UI text audited | Completed | 15 Fluent values recased; the rest start with URLs, option names or `e.g.` on purpose |
+| API client: Package Libraries section, tab, import/upload/custom | Completed | `model::PackageLibrary` under `api/libraries/`; sidebar lower section; `api://library/<id>` tab; file import and URL fetch on the runtime |
+| API client: insert a library from the script toolbar | Completed | Snippets → Insert Package Library writes `// @library <name>`; `inherited_scripts` resolves directives from collection, folders and the request |
+| API client: Manage Collection… tab | Completed | `api://manage/<id>`: name, collection variables, globals, auth, scripts, libraries, docs |
+| API client: requests inherit the collection's scripts | Completed | already true (`inherited_scripts`, outermost first); now editable on the Manage page and covering package libraries |
+| Split panes: close option | Completed | kept (comparing two tabs is their purpose); `tab.unsplit` / Close Split ends a split without closing a tab |
+| Rail icons coloured per activity | Completed | `app::activity_colour` |
+| Home → Graphics opens the Graphics dashboard | Completed | `open_tool_in` focuses an activity's dashboard home tab when no request is given |
+| Closing the app ends every session | Completed | `eframe::App::on_exit` drops every tool; sessions live in the tool structs |
+| ERD entity text visible | Completed | label colour chosen by contrast with the fill (`contrast_text`) |
+| Diagram Editor Properties pane tidy | Completed | one label/control grid per section, one heading style, aligned column and fragment rows |
+| Graphics: send the picture to the assistant ("Explain this Image") | Completed | `ai::ImagePart` on `Message`; all five providers' builders carry it (1min.AI via `/api/assets` + `attachments.images`); `AssistantPanel::attachment`, cached per render in the picture tab |
+| Graphics: AI image generation (1min.AI) and New Image drafts | Completed | `ai::generate_image` (`IMAGE_GENERATOR` / `IMAGE_VARIATOR`, download of `temporaryUrl`); Generate Picture form in the assistant column; New Image dialog from sidebar menu, dashboard tile, Functions row and palette; drafts under `graphics/drafts/images`. Not verified against the live service from this machine - the request shapes follow docs.1min.ai as fetched 2026-10-22 |

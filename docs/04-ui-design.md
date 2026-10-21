@@ -673,3 +673,23 @@ connect mode, undo/redo, templates and save/export. The Diagram Generator pane
 is implemented as well: a prompt column with examples and the offline
 template, an async AI call into the strict IR, and a preview with Open in
 Editor and export.
+
+## Addendum (2026-10-22): per-activity sidebars, coloured rail, Close Split
+
+Each activity's sidebar (Settings included) keeps its own width:
+`appearance.sidebar_widths` is keyed by activity id, the panel's egui id is
+`("hs-sidebar", <activity>)` so egui's remembered size is per activity as
+well, and an activity never dragged starts at the shared `sidebar_width`.
+
+The rail icons carry one colour per activity (`app::activity_colour`),
+muted while inactive and full while active or hovered, so the column reads
+at a glance. Tab tooltips name the activity ("API Client"), not its id.
+
+Splits stay: putting a scratchpad or a second request beside the current tab
+is what they are for. What was missing was a way out that did not close a
+tab, so **Close Split** (palette, `tab.unsplit`) ends the split and keeps
+both tabs open.
+
+Every AI Assistant column goes through `hs_ui::ai_assistant::split_for_assistant`
+now, the Scratchpad, the API client and the Graphics picture tabs included;
+a hand-cut 390 px column read as a floating card and ignored the window.

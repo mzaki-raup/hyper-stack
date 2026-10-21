@@ -155,6 +155,11 @@ pub struct Appearance {
     pub min_file_tab_width: f32,
     pub tab_gap: f32,
     pub sidebar_width: f32,
+    /// Per-activity sidebar widths, keyed by tool id; an activity without
+    /// an entry starts at `sidebar_width`. Each activity's sidebar lists
+    /// different things, so one width rarely suits them all.
+    #[serde(default)]
+    pub sidebar_widths: std::collections::HashMap<String, f32>,
     pub dock_height: f32,
     pub ui_zoom: f32,
     /// Show each tool's name under its icon in the activity rail.
@@ -472,6 +477,7 @@ impl Default for Appearance {
             min_file_tab_width: 160.0,
             tab_gap: 4.0,
             sidebar_width: 260.0,
+            sidebar_widths: std::collections::HashMap::new(),
             dock_height: 220.0,
             ui_zoom: 1.0,
             rail_labels: true,

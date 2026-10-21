@@ -699,6 +699,21 @@ impl HyperStackApp {
             self.tabs.activate(id);
             return;
         }
+        // An activity with a dashboard home (Graphics) opened with no
+        // particular request goes to that dashboard, where the user picks
+        // what to do, rather than straight into a blank working tab.
+        if request.is_none()
+            && let Some(id) = self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| t.factory_id == factory_id && t.home && t.tool.home_is_dashboard())
+                .map(|t| t.id)
+        {
+            self.group = Some(group_of(factory_id).to_string());
+            self.tabs.activate(id);
+            return;
+        }
         // A tool that is one tab per workspace (the browser) focuses the
         // tab it already has and hands it the request, rather than opening
         // a second one.
@@ -932,6 +947,12 @@ impl HyperStackApp {
                     }
                 }
             }
+            // Splits used to end only when one of their tabs closed; the
+            // tabs stay open, the panes just stop sharing the space.
+            "tab.unsplit" => {
+                self.tabs.split = None;
+                self.tabs.dirty = true;
+            }
             "palette.commands" => self.palette.toggle(PaletteMode::Commands),
             "palette.quick_open" => self.palette.toggle(PaletteMode::QuickOpen),
             "view.sidebar" => self.sidebar_open = !self.sidebar_open,
@@ -1068,6 +1089,7 @@ impl HyperStackApp {
                     ("tab.prev", "cmd-prev-tab"),
                     ("tab.split_right", "cmd-split-right"),
                     ("tab.split_down", "cmd-split-down"),
+                    ("tab.unsplit", "cmd-unsplit"),
                     ("view.sidebar", "cmd-toggle-sidebar"),
                     ("view.dock", "cmd-toggle-dock"),
                     ("app.settings", "cmd-settings"),
@@ -2094,7 +2116,14 @@ impl HyperStackApp {
                     .map(|e| theme.env_colour(&e.name, e.colour.as_deref()))
             })
         };
-        let all = self.tabs.views(&env_colour);
+        let activity_title = |id: &str| -> String {
+            self.factories
+                .iter()
+                .find(|f| f.descriptor().id == id)
+                .map(|f| self.services.t(f.descriptor().title_key))
+                .unwrap_or_else(|| id.to_string())
+        };
+        let all = self.tabs.views(&env_colour, &activity_title);
         // Index map from the strip's slice back into the full tab list, so
         // reorder and close-left/right keep working on the filtered strip.
         let group = self.group.clone();
@@ -2317,7 +2346,7 @@ impl HyperStackApp {
             } else {
                 title.clone()
             };
-            if rail_item(ui, &theme, icon, title, active, labels)
+            if rail_item(ui, &theme, id, icon, title, active, labels)
                 .tip(tip)
                 .clicked()
             {
@@ -2356,6 +2385,7 @@ impl HyperStackApp {
                 if rail_item(
                     ui,
                     &theme,
+                    "sidebar",
                     hs_ui::icons::SIDEBAR,
                     &s.t("sidebar"),
                     self.sidebar_open,
@@ -3140,6 +3170,17 @@ impl HyperStackApp {
 }
 
 impl eframe::App for HyperStackApp {
+    /// Closing the window drops every tool, which is what ends their
+    /// sessions: SSH channels, PTYs, database runners, Redis/NoSQL/S3
+    /// clients and in-flight assistant requests all live in the tool
+    /// structs. Without this the process exited with the sockets still
+    /// open and the servers counting a connection each until they timed
+    /// out.
+    fn on_exit(&mut self) {
+        self.tabs.split = None;
+        self.tabs.tabs.clear();
+    }
+
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
@@ -3260,22 +3301,38 @@ impl eframe::App for HyperStackApp {
             .resizable(false)
             .show(root, |ui| self.rail(ui));
         if self.sidebar_open {
-            let w = self.services.settings.read().appearance.sidebar_width;
+            // Each activity keeps its own width (its own egui panel id, so
+            // egui's remembered size is per activity too); one not yet
+            // dragged starts at the shared default.
+            let activity = self.active_factory().unwrap_or_else(|| "home".to_string());
+            let w = {
+                let st = self.services.settings.read();
+                st.appearance
+                    .sidebar_widths
+                    .get(&activity)
+                    .copied()
+                    .unwrap_or(st.appearance.sidebar_width)
+            };
             // The upper bound follows the window: a 640 px sidebar saved on
             // a wide monitor must not keep most of a small window.
             let max_w = (root.available_width() * 0.5).clamp(180.0, 640.0);
-            let r = egui::Panel::left("hs-sidebar")
+            let panel_id = egui::Id::new(("hs-sidebar", activity.as_str()));
+            let r = egui::Panel::left(panel_id)
                 .default_size(w.min(max_w))
                 .size_range(180.0..=max_w)
                 .resizable(true)
                 .show(root, |ui| self.sidebar(ui));
             let _ = &r;
-            let width =
-                egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-sidebar"))
-                    .map(|st| st.outer_rect.width().round())
-                    .unwrap_or(w);
+            let width = egui::containers::panel::PanelState::load(root.ctx(), panel_id)
+                .map(|st| st.outer_rect.width().round())
+                .unwrap_or(w);
             if (width - w).abs() >= 1.0 && width >= 180.0 {
-                self.services.settings.write().appearance.sidebar_width = width;
+                self.services
+                    .settings
+                    .write()
+                    .appearance
+                    .sidebar_widths
+                    .insert(activity, width);
                 self.layout_dirty_since.get_or_insert(Instant::now());
                 self.tabs.dirty = true;
             }
@@ -3735,18 +3792,43 @@ fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
     h.finish()
 }
 
+/// Each activity's own colour in the rail, so the column reads at a
+/// glance rather than as a row of same-coloured glyphs. Muted while
+/// inactive, full while active or hovered.
+fn activity_colour(id: &str) -> egui::Color32 {
+    match id {
+        "home" => egui::Color32::from_rgb(0xa7, 0x8b, 0xfa),
+        "editor" => egui::Color32::from_rgb(0x60, 0xa5, 0xfa),
+        "terminal" => egui::Color32::from_rgb(0x4a, 0xde, 0x80),
+        "ssh" => egui::Color32::from_rgb(0x2d, 0xd4, 0xbf),
+        "s3" => egui::Color32::from_rgb(0xfb, 0x92, 0x3c),
+        "db" => egui::Color32::from_rgb(0x38, 0xbd, 0xf8),
+        "redis" => egui::Color32::from_rgb(0xf8, 0x71, 0x71),
+        "nosql" => egui::Color32::from_rgb(0x34, 0xd3, 0x99),
+        "api" => egui::Color32::from_rgb(0xfb, 0xbf, 0x24),
+        "browser" => egui::Color32::from_rgb(0x22, 0xd3, 0xee),
+        "graphics" => egui::Color32::from_rgb(0xf4, 0x72, 0xb6),
+        "devtools" => egui::Color32::from_rgb(0xc0, 0x84, 0xfc),
+        "scratchpad" => egui::Color32::from_rgb(0xfa, 0xcc, 0x15),
+        "settings" => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
+        _ => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
+    }
+}
+
 fn rail_item(
     ui: &mut egui::Ui,
     theme: &Theme,
+    id: &str,
     icon: &str,
     label: &str,
     active: bool,
     show_label: bool,
 ) -> egui::Response {
-    if !show_label {
-        return hs_ui::form::icon_button(ui, theme, icon, 24.0, active);
-    }
-    let size = egui::vec2(RAIL_WIDTH_LABELS - 8.0, 50.0);
+    let size = if show_label {
+        egui::vec2(RAIL_WIDTH_LABELS - 8.0, 50.0)
+    } else {
+        egui::vec2(RAIL_WIDTH - 12.0, RAIL_WIDTH - 12.0)
+    };
     let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
     let fill = if active {
         theme.accent.linear_multiply(0.30)
@@ -3759,11 +3841,23 @@ fn rail_item(
         ui.painter()
             .rect_filled(rect, egui::CornerRadius::same(6), fill);
     }
+    let own = activity_colour(id);
     let col = if active || r.hovered() {
-        theme.accent
+        own
     } else {
-        theme.text_muted
+        own.gamma_multiply(0.72)
     };
+    if !show_label {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            icon,
+            egui::FontId::proportional(24.0),
+            col,
+        );
+        r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, label));
+        return r.on_hover_cursor(egui::CursorIcon::PointingHand);
+    }
     ui.painter().text(
         egui::pos2(rect.center().x, rect.top() + 17.0),
         egui::Align2::CENTER_CENTER,

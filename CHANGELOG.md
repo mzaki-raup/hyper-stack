@@ -13,6 +13,54 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- API client: **Package Libraries** — reusable scripts kept in
+  `<workspace>/api/libraries/`, listed in a section under the collections
+  (create with +, open in their own tab, type the code or read it from a
+  file or a URL). A script pulls one in with `// @library <name>`, which
+  the Snippets menu inserts; a collection can list libraries for every
+  request under it. **Manage Collection…** (right-click a collection)
+  opens the collection's own tab: name, the variables its scripts saved,
+  globals, the authentication and the pre-request/post-response scripts
+  every request inherits, package libraries and documentation.
+- Shell: each activity's sidebar (Settings included) keeps its own width;
+  **Close Split** (palette) ends a split without closing either tab; the
+  rail icons carry one colour per activity; opening Graphics from Home
+  lands on its dashboard; closing the window drops every tool so SSH,
+  terminal, database, Redis, NoSQL and S3 sessions end with it.
+- Scratchpad: the AI Assistant is a docked column like every other tool's
+  (the API client's and the Graphics picture tabs' were converted too);
+  pinned notes keep the note icon and show a small pin where the drag
+  grip sits.
+- AI: a message can carry pictures (`hs_core::ai::ImagePart`); every
+  provider's request builder sends them (OpenAI-compatible `image_url`
+  data URIs, Anthropic base64 blocks, Gemini `inline_data`, Bedrock image
+  blocks, 1min.AI asset upload + `attachments.images`), so "Explain this
+  Image" in the Graphics picture tab sends the picture itself (a PNG of
+  what is shown, downscaled to 1024 px) rather than its dimensions.
+- Graphics: **Generate Picture** in the picture tab's assistant column
+  asks a 1min.AI provider for a picture from a prompt (`IMAGE_GENERATOR`)
+  or a variation of the current one (`IMAGE_VARIATOR`, with the picture
+  uploaded as an asset); the result is saved as a draft under the Graphics
+  folder and opened in the tab. **New Image…** (sidebar context menu,
+  dashboard tile and Functions row, palette) asks for a size and a
+  background, saves a blank draft and opens it in a new tab. The palette's
+  New Diagram… / New Generation… now open those tools instead of a
+  "coming soon" toast.
+
+### Changed
+
+- Diagram Editor Properties pane: every section (Diagram, Node, Edge,
+  Frame, Fragments, Outline, Status) is a label/control grid with one
+  heading style; entity columns and fragments are aligned rows.
+- Tab tooltips name the activity ("API Client", "NoSQL") instead of its
+  id; drag grips sit at a row's vertical centre; a dozen status words and
+  labels that were all lower-case read in Sentence/Title Case.
+
+### Fixed
+
+- Diagram Editor: an entity's (or any node's) label is drawn in whichever
+  of dark/light reads on its fill, so a dark fill no longer hides it.
+
 - Diagram Editor: frame-to-frame edges. With the Edge tool, click a frame
   border to start or end an edge, so a frame connects to another frame or
   to a node; the layout routes it from the frame's rectangle and the

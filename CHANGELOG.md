@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 '## Unreleased
 
+- (nothing yet)
+
+## 0.61.1 — 2026-10-21
+
 ### Fixed
 
-- New Scratchpad notes stay above the saved order until they are dragged.'
+- Keep new scratchpad notes above the saved order (96d7102f)
 
 ## 0.61.0 — 2026-10-21
 
@@ -42,9 +46,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 =======
 ''''## Unreleased
 
+- (nothing yet)
+
+## 0.61.1 — 2026-10-21
+
 ### Fixed
 
-- New Scratchpad notes stay above the saved order until they are dragged.'
+- Keep new scratchpad notes above the saved order (96d7102f)
 
 ## 0.61.0 — 2026-10-21
 

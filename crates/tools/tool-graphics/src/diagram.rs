@@ -816,7 +816,10 @@ impl DiagramState {
                     }
                 });
                 ui.add_space(8.0);
-                if self.selected.is_some() || self.selected_edge.is_some() {
+                if self.selected.is_some()
+                    || self.selected_edge.is_some()
+                    || self.selected_group.is_some()
+                {
                     ui.separator();
                     ui.add_space(6.0);
                 }
@@ -1009,7 +1012,10 @@ impl DiagramState {
                         self.dirty = true;
                     }
                 }
-                if self.selected.is_some() || self.selected_edge.is_some() {
+                if self.selected.is_some()
+                    || self.selected_edge.is_some()
+                    || self.selected_group.is_some()
+                {
                     ui.separator();
                 }
                 ui.add_space(4.0);

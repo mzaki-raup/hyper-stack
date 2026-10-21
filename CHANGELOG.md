@@ -11,13 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.60.3 — 2026-10-21
+
 ### Fixed
 
-- Diagram Editor: the Outline separator now appears when a frame is selected,
-  not only for a node or edge.
-- Diagram Generator: the floating assistant overlay was still drawn beside the
-  new column, so its Generate action overlapped the quick actions. It now uses
-  the same right-hand column as the Diagram Editor.
+- Show the outline separator for frame selection (abd5334b)
+- Stop the generator assistant overlay overlapping quick actions (9514151d)
 
 ## 0.60.2 — 2026-10-21
 
@@ -33,17 +34,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ## 0.60.0 — 2026-10-21
 =======
 ''''## Unreleased
->>>>>>> fix/generator-assistant-overlap
+
+- (nothing yet)
+
+## 0.60.3 — 2026-10-21
 
 ### Fixed
 
-- Diagram Generator: the floating assistant overlay was still drawn beside the
-  new column, so its Generate action overlapped the quick actions. It now uses
-  the same right-hand column as the Diagram Editor.
-
-### Added'
-
-- Resize diagram frames and refresh screenshots (ccb7b3aa)
+- Show the outline separator for frame selection (abd5334b)
+- Stop the generator assistant overlay overlapping quick actions (9514151d)
 
 ## 0.59.0 — 2026-10-20
 

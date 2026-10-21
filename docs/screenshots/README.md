@@ -291,7 +291,7 @@ on, after the UI consistency pass:
 - `settings-general.png` — the new Behaviour card with the visible Undo
   Limit slider (1–100).
 
-`hyperstack-demo.gif` was rebuilt from these five frames with
+`hyperstack-demo.gif` was rebuilt from the full activity set with
 `magick <frames> -set delay 300 -loop 0 -resize 1200x -colors 256 -layers Optimize`.
 ## 2026-10-21: frame resize, title frame and assistant column
 
@@ -301,3 +301,27 @@ on, after the UI consistency pass:
 - `graphics-node-shapes.png` — updated to the current editor.
 - `hyperstack-demo.gif` rebuilt from the current dashboard, assistant column,
   source split, editor and settings screenshots.
+## 2026-10-21: full walkthrough GIF
+
+`hyperstack-demo.gif` now covers every activity and every Settings page,
+in this order:
+
+Home, launcher, workspace menu/new, command palette, multi-row tabs;
+Editor (file, projects, find, Markdown, Mermaid, LSP, debug, Git tree/diff/
+history/conflict); Terminal (shell, search, links, CLI); SSH (SFTP, tunnels);
+S3 (browser, edit); Database (browse, query, completion, guard); Redis
+(browser, console, info); NoSQL (browser, aggregate); API client (request,
+scripts, assistant); Devtools (hashes, JWT, YAML, regex, diff, units);
+Browser (page, favourites, passwords); Graphics (dashboard, image, icon,
+diagram editor, generator, source, assistant, ERD, sequence); Scratchpad
+(note, assistant); Settings (General, Appearance, Accessibility, Workspace,
+Environments, Security, Connections, Terminal, Editor, Browser, AI Assistant,
+Shortcuts, About).
+
+```powershell
+magick <frames> -resize 1200x -gravity center -background '#14161A' `
+  -extent 1200x771 -colors 256 -layers Optimize -set delay 300 -loop 0 `
+  hyperstack-demo.gif
+```
+
+Every frame is held for 3 seconds. The GIF has 70 frames.

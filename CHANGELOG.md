@@ -13,7 +13,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
-- README walkthrough GIF pauses for 3 seconds per screenshot instead of 1.5.
+- README walkthrough GIF now covers every activity and Settings page, with a
+  3-second pause per frame.
 
 ## 0.60.3 — 2026-10-21
 

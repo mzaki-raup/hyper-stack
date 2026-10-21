@@ -15,6 +15,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Diagram Editor: the Outline separator now appears when a frame is selected,
   not only for a node or edge.
+
+## 0.60.2 — 2026-10-21
+
+### Changed
+
+- Reapply "fix: select frames on click and keep the outline separator" (d6b7ba06)
 ## 0.60.1 — 2026-10-21
 
 ### Fixed

@@ -21,9 +21,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Collection, New Folder, New Request, Import, History.
 - Collections and folders auto-rename conflicting names to ` 001`, ` 002`, …
 
-### Fixed
+'### Fixed
 
-- Diagram Editor: removed the duplicate separator above the Frames section.
+- Diagram Editor: restore the Title Position/Align controls and the Add Frame
+  button; the previous merge carried the model and layout fields but not the
+  UI that edits them.
+- Diagram Editor: removed the duplicate separator above the Frames section.'
 - Diagram Editor: edge labels use the same midpoint as the painter, so they
   drag reliably, including edges that cross a frame, with an accent indicator.
 - Tab strips reserve a wider gap between the title and the close cross.

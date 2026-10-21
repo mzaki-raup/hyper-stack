@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use hs_core::tool::{ToastLevel, ToolContext};
 use hs_diagram::export::{PngOptions, pdf, png, svg};
 use hs_diagram::model::{
-    Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Node, NodeKind, Point, Style,
+    Arrow, DiagramDoc, DiagramKind, Edge, EdgeRoute, Group, Node, NodeKind, Point, Style,
 };
 use hs_diagram::{Prim, Rect, Scene, layout_approx, validate};
 use hs_ui::form;
@@ -314,8 +314,53 @@ impl DiagramState {
             style: Style::default(),
         };
         self.selected = Some(node.id.clone());
+        let id = node.id.clone();
         self.doc.nodes.push(node);
+        if let Some(gid) = &self.selected_group
+            && let Some(group) = self.doc.groups.iter_mut().find(|g| &g.id == gid)
+        {
+            group.nodes.push(id);
+        }
         self.tool = ToolMode::Select;
+    }
+
+    fn add_frame(&mut self) {
+        self.push_undo();
+        self.freeze();
+        let ids: Vec<String> = if self.multi.is_empty() {
+            match &self.selected {
+                Some(id) => vec![id.clone()],
+                None => self.doc.nodes.iter().map(|n| n.id.clone()).collect(),
+            }
+        } else {
+            self.multi.clone()
+        };
+        if ids.is_empty() {
+            return;
+        }
+        let mut n = self.doc.groups.len() + 1;
+        while self
+            .doc
+            .groups
+            .iter()
+            .any(|g| g.label == format!("Frame {n}"))
+        {
+            n += 1;
+        }
+        let id = format!("frame{n}");
+        self.doc.groups.push(Group {
+            id: id.clone(),
+            label: format!("Frame {n}"),
+            nodes: ids,
+            style: Style::default(),
+            label_placement: Default::default(),
+            label_align: Default::default(),
+        });
+        self.selected_group = Some(id);
+        self.selected = None;
+        self.selected_edge = None;
+        self.multi.clear();
+        self.dirty = true;
     }
 
     fn delete_selected(&mut self) {
@@ -561,6 +606,17 @@ impl DiagramState {
             self.add_node_at(NodeKind::Note, self.last_center);
         }
         if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::SELECTION,
+                s.t("gfx-diagram-add-frame")
+            ))
+            .on_hover_text("Add a frame around the selected nodes, or around everything.")
+            .clicked()
+        {
+            self.add_frame();
+        }
+        if ui
             .selectable_label(self.tool == ToolMode::Edge, hs_ui::icons::ph::ARROW_RIGHT)
             .on_hover_text(s.t("gfx-diagram-add-edge"))
             .clicked()
@@ -796,6 +852,47 @@ impl DiagramState {
                 {
                     self.dirty = true;
                 }
+                ui.add_enabled_ui(self.doc.show_title, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("Title Position");
+                        if ui
+                            .selectable_label(
+                                self.doc.title_placement == hs_diagram::model::LabelPlacement::Top,
+                                "Top",
+                            )
+                            .clicked()
+                        {
+                            self.doc.title_placement = hs_diagram::model::LabelPlacement::Top;
+                            self.dirty = true;
+                        }
+                        if ui
+                            .selectable_label(
+                                self.doc.title_placement
+                                    == hs_diagram::model::LabelPlacement::Bottom,
+                                "Bottom",
+                            )
+                            .clicked()
+                        {
+                            self.doc.title_placement = hs_diagram::model::LabelPlacement::Bottom;
+                            self.dirty = true;
+                        }
+                        ui.separator();
+                        ui.label("Align");
+                        for (value, label) in [
+                            (hs_diagram::model::LabelAlign::Left, "Left"),
+                            (hs_diagram::model::LabelAlign::Centre, "Middle"),
+                            (hs_diagram::model::LabelAlign::Right, "Right"),
+                        ] {
+                            if ui
+                                .selectable_label(self.doc.title_align == value, label)
+                                .clicked()
+                            {
+                                self.doc.title_align = value;
+                                self.dirty = true;
+                            }
+                        }
+                    });
+                });
                 ui.add_space(8.0);
 
                 ui.horizontal_wrapped(|ui| {
@@ -1004,6 +1101,44 @@ impl DiagramState {
                         color_row(ui, "Outline", &mut group.style.stroke, &mut frame_changed);
                         color_row(ui, "Fill", &mut group.style.fill, &mut frame_changed);
                         color_row(ui, "Text", &mut group.style.text, &mut frame_changed);
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label("Title");
+                            if ui
+                                .selectable_label(
+                                    group.label_placement == hs_diagram::model::LabelPlacement::Top,
+                                    "Top",
+                                )
+                                .clicked()
+                            {
+                                group.label_placement = hs_diagram::model::LabelPlacement::Top;
+                                frame_changed = true;
+                            }
+                            if ui
+                                .selectable_label(
+                                    group.label_placement
+                                        == hs_diagram::model::LabelPlacement::Bottom,
+                                    "Bottom",
+                                )
+                                .clicked()
+                            {
+                                group.label_placement = hs_diagram::model::LabelPlacement::Bottom;
+                                frame_changed = true;
+                            }
+                            ui.separator();
+                            for (value, label) in [
+                                (hs_diagram::model::LabelAlign::Left, "Left"),
+                                (hs_diagram::model::LabelAlign::Centre, "Middle"),
+                                (hs_diagram::model::LabelAlign::Right, "Right"),
+                            ] {
+                                if ui
+                                    .selectable_label(group.label_align == value, label)
+                                    .clicked()
+                                {
+                                    group.label_align = value;
+                                    frame_changed = true;
+                                }
+                            }
+                        });
                     }
                     if frame_changed {
                         self.dirty = true;
@@ -1345,6 +1480,37 @@ impl DiagramState {
             }
         }
         if response.drag_stopped() {
+            let dragged = self.drag_node.as_ref().map(|(id, _, _)| id.clone());
+            if let Some(id) = dragged
+                && let Some(node) = self.doc.node(&id)
+            {
+                let center = to_screen(Point {
+                    x: node.x + node.w / 2.0,
+                    y: node.y + node.h / 2.0,
+                });
+                let target = scene.prims.iter().find_map(|p| match p {
+                    Prim::Frame { rect, label, .. } if srect(*rect).contains(center) => {
+                        Some(label.clone())
+                    }
+                    _ => None,
+                });
+                if let Some(label) = target
+                    && let Some(gid) = self
+                        .doc
+                        .groups
+                        .iter()
+                        .find(|g| g.label == label)
+                        .map(|g| g.id.clone())
+                {
+                    for group in &mut self.doc.groups {
+                        group.nodes.retain(|n| n != &id);
+                    }
+                    if let Some(group) = self.doc.groups.iter_mut().find(|g| g.id == gid) {
+                        group.nodes.push(id);
+                    }
+                    self.dirty = true;
+                }
+            }
             self.drag_node = None;
             self.drag_resize = None;
             self.drag_via = None;

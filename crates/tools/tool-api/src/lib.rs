@@ -1667,3 +1667,24 @@ pub(crate) fn unique_name(base: &str, existing: impl Iterator<Item = String>) ->
     }
     format!("{base} 1000")
 }
+
+#[cfg(test)]
+mod unique_name_tests {
+    use super::unique_name;
+
+    #[test]
+    fn free_name_is_kept_and_conflicts_get_001() {
+        assert_eq!(unique_name("New Folder", std::iter::empty()), "New Folder");
+        assert_eq!(
+            unique_name("New Folder", ["new folder".to_string()].into_iter()),
+            "New Folder 001"
+        );
+        assert_eq!(
+            unique_name(
+                "New Folder",
+                ["New Folder".to_string(), "New Folder 001".to_string()].into_iter()
+            ),
+            "New Folder 002"
+        );
+    }
+}

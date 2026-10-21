@@ -853,45 +853,14 @@ impl DiagramState {
                     self.dirty = true;
                 }
                 ui.add_enabled_ui(self.doc.show_title, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label("Title Position");
-                        if ui
-                            .selectable_label(
-                                self.doc.title_placement == hs_diagram::model::LabelPlacement::Top,
-                                "Top",
-                            )
-                            .clicked()
-                        {
-                            self.doc.title_placement = hs_diagram::model::LabelPlacement::Top;
-                            self.dirty = true;
-                        }
-                        if ui
-                            .selectable_label(
-                                self.doc.title_placement
-                                    == hs_diagram::model::LabelPlacement::Bottom,
-                                "Bottom",
-                            )
-                            .clicked()
-                        {
-                            self.doc.title_placement = hs_diagram::model::LabelPlacement::Bottom;
-                            self.dirty = true;
-                        }
-                        ui.separator();
-                        ui.label("Align");
-                        for (value, label) in [
-                            (hs_diagram::model::LabelAlign::Left, "Left"),
-                            (hs_diagram::model::LabelAlign::Centre, "Middle"),
-                            (hs_diagram::model::LabelAlign::Right, "Right"),
-                        ] {
-                            if ui
-                                .selectable_label(self.doc.title_align == value, label)
-                                .clicked()
-                            {
-                                self.doc.title_align = value;
-                                self.dirty = true;
-                            }
-                        }
-                    });
+                    if frame_title_controls(
+                        ui,
+                        "outer",
+                        &mut self.doc.title_placement,
+                        &mut self.doc.title_align,
+                    ) {
+                        self.dirty = true;
+                    }
                 });
                 ui.add_space(8.0);
 
@@ -1101,44 +1070,12 @@ impl DiagramState {
                         color_row(ui, "Outline", &mut group.style.stroke, &mut frame_changed);
                         color_row(ui, "Fill", &mut group.style.fill, &mut frame_changed);
                         color_row(ui, "Text", &mut group.style.text, &mut frame_changed);
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label("Title");
-                            if ui
-                                .selectable_label(
-                                    group.label_placement == hs_diagram::model::LabelPlacement::Top,
-                                    "Top",
-                                )
-                                .clicked()
-                            {
-                                group.label_placement = hs_diagram::model::LabelPlacement::Top;
-                                frame_changed = true;
-                            }
-                            if ui
-                                .selectable_label(
-                                    group.label_placement
-                                        == hs_diagram::model::LabelPlacement::Bottom,
-                                    "Bottom",
-                                )
-                                .clicked()
-                            {
-                                group.label_placement = hs_diagram::model::LabelPlacement::Bottom;
-                                frame_changed = true;
-                            }
-                            ui.separator();
-                            for (value, label) in [
-                                (hs_diagram::model::LabelAlign::Left, "Left"),
-                                (hs_diagram::model::LabelAlign::Centre, "Middle"),
-                                (hs_diagram::model::LabelAlign::Right, "Right"),
-                            ] {
-                                if ui
-                                    .selectable_label(group.label_align == value, label)
-                                    .clicked()
-                                {
-                                    group.label_align = value;
-                                    frame_changed = true;
-                                }
-                            }
-                        });
+                        frame_changed |= frame_title_controls(
+                            ui,
+                            &group.id,
+                            &mut group.label_placement,
+                            &mut group.label_align,
+                        );
                     }
                     if frame_changed {
                         self.dirty = true;
@@ -1674,9 +1611,16 @@ impl DiagramState {
             let edge = &self.doc.edges[pos];
             if !edge.label.is_empty() {
                 let at = edge.label_at.or_else(|| {
-                    self.edge_paths
-                        .get(pos)
-                        .and_then(|p| p.get(p.len() / 2).copied())
+                    self.edge_paths.get(pos).and_then(|p| {
+                        if p.len() < 2 {
+                            return p.first().copied();
+                        }
+                        let i = (p.len() - 1) / 2;
+                        Some(Point {
+                            x: (p[i].x + p[i + 1].x) / 2.0,
+                            y: (p[i].y + p[i + 1].y) / 2.0,
+                        })
+                    })
                 });
                 if let Some(at) = at {
                     let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(140.0, 28.0));
@@ -1685,6 +1629,17 @@ impl DiagramState {
                         ui.id().with(("edge-label", &edge.id)),
                         egui::Sense::drag(),
                     );
+                    painter.rect_filled(rect, 4.0, theme.accent.gamma_multiply(0.06));
+                    painter.rect_stroke(
+                        rect,
+                        4.0,
+                        egui::Stroke::new(
+                            if r.hovered() || r.dragged() { 2.0 } else { 1.0 },
+                            theme.accent,
+                        ),
+                        egui::StrokeKind::Outside,
+                    );
+                    painter.circle_filled(rect.right_top(), 4.0, theme.accent);
                     if r.dragged()
                         && let Some(p) = ui.input(|i| i.pointer.interact_pos())
                     {
@@ -2139,6 +2094,47 @@ pub(crate) fn sanitise(title: &str) -> String {
     }
 }
 
+fn frame_title_controls(
+    ui: &mut egui::Ui,
+    id: &str,
+    placement: &mut hs_diagram::model::LabelPlacement,
+    align: &mut hs_diagram::model::LabelAlign,
+) -> bool {
+    let mut changed = false;
+    egui::Grid::new(("frame-title", id))
+        .num_columns(2)
+        .spacing([12.0, 6.0])
+        .show(ui, |ui| {
+            ui.label("Position");
+            ui.horizontal(|ui| {
+                for (value, label) in [
+                    (hs_diagram::model::LabelPlacement::Top, "Top"),
+                    (hs_diagram::model::LabelPlacement::Bottom, "Bottom"),
+                ] {
+                    if ui.selectable_label(*placement == value, label).clicked() {
+                        *placement = value;
+                        changed = true;
+                    }
+                }
+            });
+            ui.end_row();
+            ui.label("Text Align");
+            ui.horizontal(|ui| {
+                for (value, label) in [
+                    (hs_diagram::model::LabelAlign::Left, "Left"),
+                    (hs_diagram::model::LabelAlign::Centre, "Middle"),
+                    (hs_diagram::model::LabelAlign::Right, "Right"),
+                ] {
+                    if ui.selectable_label(*align == value, label).clicked() {
+                        *align = value;
+                        changed = true;
+                    }
+                }
+            });
+            ui.end_row();
+        });
+    changed
+}
 fn color_row(ui: &mut egui::Ui, label: &str, value: &mut Option<String>, changed: &mut bool) {
     let mut color = value
         .as_deref()

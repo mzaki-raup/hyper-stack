@@ -612,8 +612,16 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
                 if let Some(col) = t.collections.iter_mut().find(|x| x.id == c)
                     && let Some(items) = col.items_mut(folder.as_deref())
                 {
+                    let base = s.t("api-new-folder-name");
+                    let name = crate::unique_name(
+                        &base,
+                        items.iter().filter_map(|i| match i {
+                            Item::Folder(f) => Some(f.name.clone()),
+                            _ => None,
+                        }),
+                    );
                     items.push(Item::Folder(Folder {
-                        name: s.t("api-new-folder-name"),
+                        name,
                         ..Default::default()
                     }));
                 }

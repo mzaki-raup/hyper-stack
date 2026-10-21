@@ -16,6 +16,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Diagram Editor: render the Title Position/Align controls and the **Add
   Frame** button; the 0.62.0 branch carried the model and layout fields but
   not the UI that edits them.
+- Diagram Editor: frame title settings are two tidy rows (Position, Text
+  Align) for the outer title and each inner frame, not one wrapped line.
+- Diagram Editor: selecting an edge keeps a visible accent box and grip on its
+  label so the drag target is obvious before hovering.
+- API client: New Folder and the right-click New Folder use the same unique
+  naming rule as New Collection (` 001`, ` 002`, …).
 
 ## 0.62.0 — 2026-10-21
 

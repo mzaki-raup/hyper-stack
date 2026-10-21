@@ -526,13 +526,15 @@ The Diagram Editor's **Import** menu reads:
   and `→` into steps and chains them locally; no provider is called.
 - **Provider and Model** — pick any configured provider for this run; with
   none configured, **Set AI Provider** opens Settings → AI Assistant.
-''- **Frames** — Add Frame wraps the selected nodes (or all of them); each
-  frame title can be Top/Bottom and Left/Middle/Right; new nodes join the
-  selected frame and dragging a node into a frame adds it.
-- **Title frame** — Show Title and Frame draws a dashed frame around the'
+- **Frames** — Add Frame wraps the selected nodes (or all of them); each
+  frame title can be Top/Bottom and Left/Middle/Right in a two-row
+  Position/Text Align control; new nodes join the selected frame and dragging
+  a node into a frame adds it.
+- **Title frame** — Show Title and Frame draws a dashed frame around the
   whole diagram with its title; off leaves the bare canvas.
 - **Interaction** — frames are outlined and selectable, dragging their border
-  moves their nodes; edge labels drag along the line; edges can be Solid,
+  moves their nodes; a selected edge shows an accent box and grip on its label
+  and the label drags along the line; edges can be Solid,
   Dashed or Dotted.
 '- **Assistant** — the shared assistant renders Markdown, asks for a full
   `.hdiag` JSON example in the Graphics quick actions, and offers Copy,

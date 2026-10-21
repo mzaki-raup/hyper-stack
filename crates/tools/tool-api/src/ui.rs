@@ -461,24 +461,30 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
             let mut collections = hs_ui::reorder::Reorder::new("api-collections");
             for (ci, c) in t.collections.iter().enumerate() {
                 let header = collections.row(ui, ci, |ui| {
-                    egui::CollapsingHeader::new(
-                        egui::RichText::new(format!("{} {}", ph::FOLDER, c.name)).strong(),
-                    )
-                    .id_salt(("api-col", &c.id))
-                    .default_open(true)
-                    .show(ui, |ui| {
-                        items_ui(
-                            ui,
-                            theme,
-                            s,
-                            &c.id,
-                            None,
-                            &c.items,
-                            &filter,
-                            selected.as_deref(),
-                            &mut actions,
-                        );
+                    ui.horizontal(|ui| {
+                        if let Some(icon) = hs_ui::fileicons::by_name("folder-api") {
+                            ui.add(
+                                egui::Image::new(icon).fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                            );
+                        }
+                        egui::CollapsingHeader::new(egui::RichText::new(&c.name).strong())
+                            .id_salt(("api-col", &c.id))
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                items_ui(
+                                    ui,
+                                    theme,
+                                    s,
+                                    &c.id,
+                                    None,
+                                    &c.items,
+                                    &filter,
+                                    selected.as_deref(),
+                                    &mut actions,
+                                );
+                            })
                     })
+                    .inner
                 });
                 // The collection itself takes a row, so a request can be
                 // dragged to another collection even when that one is
@@ -748,22 +754,29 @@ fn items_ui(
                     // Still descend: a nested request may match.
                 }
                 let r = reorder.row(ui, index, |ui| {
-                    egui::CollapsingHeader::new(format!("{} {}", ph::FOLDER, f.name))
-                        .id_salt(("api-folder", &f.id))
-                        .default_open(!filter.is_empty())
-                        .show(ui, |ui| {
-                            items_ui(
-                                ui,
-                                theme,
-                                s,
-                                collection,
-                                Some(&f.id),
-                                &f.items,
-                                filter,
-                                selected,
-                                actions,
-                            );
-                        })
+                    ui.horizontal(|ui| {
+                        ui.add(
+                            egui::Image::new(hs_ui::fileicons::for_folder(&f.name))
+                                .fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                        );
+                        egui::CollapsingHeader::new(&f.name)
+                            .id_salt(("api-folder", &f.id))
+                            .default_open(!filter.is_empty())
+                            .show(ui, |ui| {
+                                items_ui(
+                                    ui,
+                                    theme,
+                                    s,
+                                    collection,
+                                    Some(&f.id),
+                                    &f.items,
+                                    filter,
+                                    selected,
+                                    actions,
+                                );
+                            })
+                    })
+                    .inner
                 });
                 // A folder is a drop target in its own right. Between-rows
                 // drops can only reach a folder that is open and not empty,

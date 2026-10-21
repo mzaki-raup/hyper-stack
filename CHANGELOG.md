@@ -9,12 +9,17 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'## Unreleased
+## Unreleased
+
+### Changed
+
+- API client tree icons are coloured Material icons: yellow `folder-api` for
+  collections and a themed `folder-*` for folders, with the coloured
+  `folder-other` as the generic fallback instead of the dull base icon.
 
 ### Fixed
 
-- New Scratchpad notes stay above the saved order until they are dragged.'
-
+- New Scratchpad notes stay above the saved order until they are dragged.
 ## 0.61.0 — 2026-10-21
 
 ### Added
@@ -40,9 +45,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Select frames on click and keep the outline separator (2cbc2e78)
 ## 0.60.0 — 2026-10-21
 =======
-''''## Unreleased
+'''''## Unreleased
 
-### Fixed
+### Changed
+
+- API client tree icons are coloured Material icons: yellow `folder-api` for
+  collections and a themed `folder-*` for folders, with the coloured
+  `folder-other` as the generic fallback instead of the dull base icon.
+
+### Fixed'
 
 - New Scratchpad notes stay above the saved order until they are dragged.'
 

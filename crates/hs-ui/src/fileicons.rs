@@ -625,7 +625,7 @@ pub fn for_folder(name: &str) -> ImageSource<'static> {
         "markdown" => "folder-markdown",
         "json" => "folder-json",
         "css" | "styles" | "style" => "folder-css",
-        _ => "folder-base",
+        _ => "folder-other",
     };
     by_name(key)
         .or_else(|| by_name("folder-base"))

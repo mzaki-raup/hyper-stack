@@ -3,6 +3,7 @@
 //! this crate, and every export goes through the same scene as the screen.
 
 pub mod convert;
+pub mod ddl;
 pub mod export;
 pub mod import;
 pub mod io;

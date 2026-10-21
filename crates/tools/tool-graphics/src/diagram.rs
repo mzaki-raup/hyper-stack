@@ -632,6 +632,23 @@ impl DiagramState {
         {
             self.add_node_at(NodeKind::Entity, self.last_center);
         }
+        if self.doc.kind == DiagramKind::Erd
+            && ui
+                .button(format!("{} Import DDL…", hs_ui::icons::ph::DATABASE))
+                .on_hover_text("Import CREATE TABLE statements as entities.")
+                .clicked()
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("SQL", &["sql", "ddl", "txt"])
+                .pick_file()
+        {
+            match std::fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|text| hs_diagram::ddl::import(&text))
+            {
+                Ok(doc) => self.replace(doc),
+                Err(e) => cx.toast(ToastLevel::Error, e),
+            }
+        }
         if self.doc.kind == DiagramKind::Sequence
             && ui
                 .button(format!(
@@ -984,6 +1001,8 @@ impl DiagramState {
                             ui.add_space(4.0);
                             ui.label(egui::RichText::new("Columns").strong());
                             let mut remove_column = None;
+                            let mut move_up = None;
+                            let mut move_down = None;
                             if let Some(erd) = node.erd.as_mut() {
                                 for (i, column) in erd.columns.iter_mut().enumerate() {
                                     ui.horizontal(|ui| {
@@ -1028,6 +1047,21 @@ impl DiagramState {
                                                     }
                                                 }
                                             });
+                                        if i > 0
+                                            && ui
+                                                .small_button("↑")
+                                                .on_hover_text("Move Column Up")
+                                                .clicked()
+                                        {
+                                            move_up = Some(i);
+                                        }
+                                        if ui
+                                            .small_button("↓")
+                                            .on_hover_text("Move Column Down")
+                                            .clicked()
+                                        {
+                                            move_down = Some(i);
+                                        }
                                         if ui
                                             .small_button("−")
                                             .on_hover_text("Remove Column")
@@ -1036,6 +1070,16 @@ impl DiagramState {
                                             remove_column = Some(i);
                                         }
                                     });
+                                }
+                                if let Some(i) = move_up {
+                                    erd.columns.swap(i, i - 1);
+                                    changed = true;
+                                }
+                                if let Some(i) = move_down
+                                    && i + 1 < erd.columns.len()
+                                {
+                                    erd.columns.swap(i, i + 1);
+                                    changed = true;
                                 }
                                 if let Some(i) = remove_column {
                                     erd.columns.remove(i);
@@ -1263,9 +1307,23 @@ impl DiagramState {
                                 .add(
                                     egui::TextEdit::singleline(&mut fragment.label)
                                         .hint_text("condition")
-                                        .desired_width(f32::INFINITY),
+                                        .desired_width(86.0),
                                 )
                                 .changed();
+                            let from = ui.add(
+                                egui::DragValue::new(&mut fragment.from)
+                                    .range(0..=last)
+                                    .prefix("from "),
+                            );
+                            let to = ui.add(
+                                egui::DragValue::new(&mut fragment.to)
+                                    .range(0..=last)
+                                    .prefix("to "),
+                            );
+                            if from.changed() || to.changed() {
+                                fragment.to = fragment.to.max(fragment.from);
+                                fragment_changed = true;
+                            }
                             if ui.small_button("−").clicked() {
                                 remove = Some(i);
                             }

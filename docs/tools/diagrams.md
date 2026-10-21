@@ -741,3 +741,15 @@ images) is decided at the start of R2.
 
 DB-schema import and draw.io multi-page/image extraction remain separate
 slices.'
+
+### 13.3 R2 depth, second slice (2026-10-22)
+
+1. **Fragment ranges** — each sequence fragment gets editable `from`/`to`
+   message numbers (clamped to the current message count) in Properties.
+2. **Column order** — ERD entity columns move up/down from the Properties
+   pane.
+3. **SQL DDL import** — ERD gains **Import DDL…**; the parser reads
+   `CREATE TABLE`, column types, `PRIMARY KEY`, `UNIQUE`, inline
+   `REFERENCES`, and `ALTER TABLE … FOREIGN KEY`. Imported tables become
+   Entity nodes with one-to-many edges.
+4. draw.io multi-page/image extraction remains the last R2 item.

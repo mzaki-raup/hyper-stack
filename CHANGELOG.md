@@ -14,8 +14,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Graphics R2 depth: ERD entity columns are named, typed and keyed
-  (PK/FK/UQ) with Add/Remove Column, ERD edges get a cardinality picker, and
-  sequence diagrams gain alt/loop/opt fragments and activation bars.
+  (PK/FK/UQ), can be reordered and imported from SQL DDL; ERD edges get a
+  cardinality picker; sequence fragments have editable from/to ranges and
+  alt/loop/opt frames, with activation bars.
 
 ## 0.63.0 — 2026-10-21
 

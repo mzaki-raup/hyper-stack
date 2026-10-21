@@ -11,16 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 '## Unreleased
 
+- (nothing yet)
+
+## 0.61.0 — 2026-10-21
+
 ### Added
 
-- API client: Material collection and folder icons in the sidebar.
-- Scratchpad: drag unpinned notes to reorder them; the order is saved in
-  `notes/order.json` and pinned notes stay on top.
-
-### Changed'
-
-- README walkthrough GIF now covers every activity and Settings page, with a
-  3-second pause per frame.
+- Material API tree icons and scratchpad note order (4d7aff43)
 
 ## 0.60.3 — 2026-10-21
 
@@ -44,6 +41,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ''''## Unreleased
 
 - (nothing yet)
+
+## 0.61.0 — 2026-10-21
+
+### Added
+
+- Material API tree icons and scratchpad note order (4d7aff43)
 
 ## 0.60.3 — 2026-10-21
 

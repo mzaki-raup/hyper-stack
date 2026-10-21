@@ -604,7 +604,8 @@ impl GraphicsTool {
                 self.generate.provider = providers[0].0.clone();
             }
             if self.generate.model.is_empty() {
-                self.generate.model = "black-forest-labs/flux-schnell".into();
+                // Stability AI's SDXL 1.0 on 1min.AI (owner's choice).
+                self.generate.model = hs_core::ai::DEFAULT_IMAGE_MODEL.into();
             }
             egui::Grid::new("gfx-generate-grid")
                 .num_columns(2)

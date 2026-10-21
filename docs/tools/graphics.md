@@ -107,8 +107,11 @@ has no `multipart` feature) whose key goes into
 
 **Generate Picture.** The assistant column of a picture tab opens with a
 Generate Picture form: provider (only kinds whose `generates_images()` is
-true - 1min.AI), image model (`black-forest-labs/flux-schnell` by default;
-any 1min.AI image model name), the prompt, and "Use the current picture
+true - 1min.AI), image model (Stability AI's Stable Diffusion XL 1.0,
+`stable-diffusion-xl-1024-v1-0`, by default - owner's choice; any 1min.AI
+image model name can be typed, and an SDXL model gets one of its nine fixed
+sizes, the closest in aspect to the current picture), the prompt, and
+"Use the current picture
 as the source". `hs_core::ai::generate_image` posts `IMAGE_GENERATOR`
 (prompt, aspect ratio from the current size) or, with a source,
 `IMAGE_VARIATOR` (the uploaded asset's key and the prompt) to

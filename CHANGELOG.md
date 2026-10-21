@@ -13,6 +13,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Settings → AI Assistant: DeepSeek in the gallery, as its OpenAI-compatible
+  API (`https://api.deepseek.com`, `deepseek-flash` / `deepseek-v4-pro`;
+  pictures go as `image_url` data URIs, which is what the Graphics
+  assistant sends) and as its Anthropic-compatible endpoint
+  (`https://api.deepseek.com/anthropic`, base64 image blocks).
+- Graphics → Generate Picture: the default 1min.AI image model is
+  Stability AI's Stable Diffusion XL 1.0 (`stable-diffusion-xl-1024-v1-0`),
+  sent with one of SDXL's nine fixed sizes, the closest to the picture's
+  aspect.
+
 - API client: **Package Libraries** — reusable scripts kept in
   `<workspace>/api/libraries/`, listed in a section under the collections
   (create with +, open in their own tab, type the code or read it from a

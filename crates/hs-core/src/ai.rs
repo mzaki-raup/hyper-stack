@@ -880,6 +880,14 @@ pub async fn generate_image(
     }
     let api_key = creds.key.as_str();
     let aspect = aspect_ratio(size);
+    // Stable Diffusion XL takes one of nine fixed sizes and `samples`;
+    // the other models take a free size, `n`/`num_outputs` and an aspect
+    // ratio. Unknown fields are ignored, so both sets are sent.
+    let size_text = if model.starts_with("stable-diffusion-xl") {
+        sdxl_size(size).to_string()
+    } else {
+        format!("{}x{}", size.0, size.1)
+    };
     let body = match source {
         None => json!({
             "type": "IMAGE_GENERATOR",
@@ -888,8 +896,9 @@ pub async fn generate_image(
                 "prompt": prompt,
                 "n": 1,
                 "num_outputs": 1,
+                "samples": 1,
                 "aspect_ratio": aspect,
-                "size": format!("{}x{}", size.0, size.1),
+                "size": size_text,
             },
         }),
         Some(img) => {
@@ -943,6 +952,35 @@ pub async fn generate_image(
         .await
         .map_err(|e| AiError::Network(e.to_string()))?;
     Ok(bytes.to_vec())
+}
+
+/// The image model a Generate Picture form starts with: Stability AI's
+/// Stable Diffusion XL 1.0 on 1min.AI.
+pub const DEFAULT_IMAGE_MODEL: &str = "stable-diffusion-xl-1024-v1-0";
+
+/// SDXL 1.0's fixed output sizes; the one closest in aspect to `size`.
+pub fn sdxl_size((w, h): (u32, u32)) -> &'static str {
+    const SIZES: [(&str, u32, u32); 9] = [
+        ("1024x1024", 1024, 1024),
+        ("1152x896", 1152, 896),
+        ("1216x832", 1216, 832),
+        ("1344x768", 1344, 768),
+        ("1536x640", 1536, 640),
+        ("640x1536", 640, 1536),
+        ("768x1344", 768, 1344),
+        ("832x1216", 832, 1216),
+        ("896x1152", 896, 1152),
+    ];
+    let r = w.max(1) as f32 / h.max(1) as f32;
+    SIZES
+        .iter()
+        .min_by(|a, b| {
+            let ra = a.1 as f32 / a.2 as f32;
+            let rb = b.1 as f32 / b.2 as f32;
+            (ra - r).abs().total_cmp(&(rb - r).abs())
+        })
+        .map(|s| s.0)
+        .unwrap_or("1024x1024")
 }
 
 /// The closest of the aspect ratios image models take.
@@ -1387,6 +1425,22 @@ pub fn assistant_system_prompt(tool: &str) -> String {
     format!(
         "You are HyperStack's {tool} assistant. Help explain, troubleshoot, and draft scripts, queries, or configuration using only context the user chose to share. Be concise, state assumptions, and point out risky or destructive operations before suggesting them. Never claim to have executed a command, query, request, or storage operation. Return suggestions for the user to review and apply manually."
     )
+}
+
+#[cfg(test)]
+mod image_tests {
+    use super::{DEFAULT_IMAGE_MODEL, sdxl_size};
+
+    #[test]
+    fn sdxl_sizes_follow_the_pictures_aspect() {
+        assert!(DEFAULT_IMAGE_MODEL.starts_with("stable-diffusion-xl"));
+        assert_eq!(sdxl_size((1024, 1024)), "1024x1024");
+        assert_eq!(sdxl_size((1920, 1080)), "1344x768");
+        assert_eq!(sdxl_size((1080, 1920)), "768x1344");
+        assert_eq!(sdxl_size((800, 600)), "1152x896");
+        // A degenerate size still lands on a real one.
+        assert_eq!(sdxl_size((0, 0)), "1024x1024");
+    }
 }
 
 #[cfg(test)]

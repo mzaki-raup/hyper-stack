@@ -119,6 +119,22 @@ const CATALOGUE: &[(&str, &[Service])] = &[
                 icon: ph::WIND,
             },
             Service {
+                name: "DeepSeek",
+                kind: Provider::OpenAi,
+                base: "https://api.deepseek.com",
+                model: "deepseek-flash",
+                blurb: "ai-svc-deepseek",
+                icon: ph::FISH_SIMPLE,
+            },
+            Service {
+                name: "DeepSeek (Anthropic API)",
+                kind: Provider::Anthropic,
+                base: "https://api.deepseek.com/anthropic",
+                model: "deepseek-flash",
+                blurb: "ai-svc-deepseek-anthropic",
+                icon: ph::FISH_SIMPLE,
+            },
+            Service {
                 name: "Moonshot (Kimi)",
                 kind: Provider::OpenAi,
                 base: "https://api.moonshot.ai/v1",

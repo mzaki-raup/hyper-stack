@@ -9,7 +9,7 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'## Unreleased
+## Unreleased
 
 ### Added
 
@@ -28,11 +28,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   drag reliably, including edges that cross a frame, with an accent indicator.
 - Tab strips reserve a wider gap between the title and the close cross.
 
-### Changed'
+## 0.61.2 — 2026-10-21
 
-- API client tree icons are coloured Material icons: yellow `folder-api` for
-  collections and a themed `folder-*` for folders, with the coloured
-  `folder-other` as the generic fallback instead of the dull base icon.
+### Fixed
+
+- Draw coloured material icons in the API tree (11e2861a)
+## 0.61.2 — 2026-10-21
+
+### Fixed
+
+- Draw coloured material icons in the API tree (11e2861a)
 
 ## 0.61.1 — 2026-10-21
 
@@ -66,16 +71,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 =======
 '''''## Unreleased
 
-<<<<<<< HEAD
-### Changed
-
-- API client tree icons are coloured Material icons: yellow `folder-api` for
-  collections and a themed `folder-*` for folders, with the coloured
-  `folder-other` as the generic fallback instead of the dull base icon.
-
-### Fixed'
-=======
 - (nothing yet)
+
+## 0.61.2 — 2026-10-21
+
+### Fixed
+
+- Draw coloured material icons in the API tree (11e2861a)
 
 ## 0.61.1 — 2026-10-21
 

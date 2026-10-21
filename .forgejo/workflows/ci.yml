@@ -88,6 +88,20 @@ jobs:
           rustc --version; cargo --version
           if (-not (Get-Command cargo-deny -ErrorAction SilentlyContinue)) { cargo install cargo-deny --locked }
 
+      - name: Conflict markers
+        # A half-resolved merge of CHANGELOG.md shipped in five releases
+        # (v0.60.3 to v0.65.0) because nothing read the file; refuse the
+        # commit outright. Only the `<<<<<<< ` / `>>>>>>> ` lines are
+        # matched: a bare `=======` is a legitimate Markdown underline.
+        run: |
+          $ErrorActionPreference = "Stop"
+          $files = git ls-files -- '*.md' '*.rs' '*.toml' '*.ftl' '*.yml' '*.yaml' '*.ps1' '*.json'
+          $hits = @($files | ForEach-Object { Select-String -Path $_ -Pattern '^(<{7}|>{7}) ' })
+          if ($hits.Count -gt 0) {
+            $hits | ForEach-Object { Write-Host "$($_.Path):$($_.LineNumber): $($_.Line)" }
+            throw "conflict markers left in $($hits.Count) line(s)"
+          }
+
       - name: Formatting
         if: steps.ws.outputs.has_cargo == 'true'
         run: cargo fmt --all --check

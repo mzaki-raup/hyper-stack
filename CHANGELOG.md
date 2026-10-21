@@ -11,7 +11,67 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Narrow windows: every tool toolbar wraps onto a second row instead of
+  clipping, the AI Assistant control starts a fresh row when the current
+  one is nearly full, the assistant columns shrink before stepping aside,
+  and the sidebar, dock, split view, Graphics panels and the editor's
+  preview are bounded by the window rather than by fixed maximums.
+- API client: deleting a collection, folder or request asks first; a
+  Postman environment's `"type": "secret"` values go into the vault as
+  `secret:` references instead of the environment file.
+
+### Changed
+
+- Performance pass over the last week's code: the diagram layout and the
+  draft autosave's change check run only when the document changed (a
+  streamed fingerprint replaces a per-frame JSON serialisation), the diff,
+  regex and TOML/XML devtools recompute only when their inputs change (and
+  the diff declines inputs over 2 MB), the browser's favourites and logins
+  are written when typing pauses rather than per keystroke, the editor
+  re-detects the project kind every few seconds rather than per toolbar
+  frame, the terminal sidebar resolves CLI commands on PATH every few
+  seconds rather than per profile per frame, and stage/unstage no longer
+  re-list stashes, branches, remotes and tags.
+
+### Fixed
+
+- Diagram Editor: clicking an activation box in a sequence diagram no
+  longer panics (the hit list counted them as nodes); deleting a framed
+  node removes it from the frame, so the saved file still opens; a new
+  edge never reuses the id of a deleted one; Ctrl+wheel zooms around the
+  pointer, and scrolling pans in fit mode; label drags and Clear Waypoints
+  are undoable; undo, redo and template replacement drop selections that
+  pointed at the old document; the canvas's Delete/Ctrl+Z/Ctrl+S keys
+  stay out of a focused text field; Align with a stale selection no longer
+  shifts every later node's size; closing the Generator tab aborts its
+  request.
+- draw.io import: tests now cover page names, choosing a compressed second
+  page, a missing page and an undecodable page.
+- API client: Enter in the body editor no longer rewrites the collection
+  file (the name field's Enter was checked tab-wide); deleting the folder
+  that held the open request starts a new request instead of leaving a
+  "Saved" that saved nothing; one case-insensitive dedup rule now covers
+  new, rename, duplicate and drag; dropping a row on its own level's header
+  moves it to the end.
+- SQL: `COPY … TO PROGRAM` is an admin statement and `COPY … TO '<file>'` /
+  MySQL `INTO OUTFILE` are writes, so the read-only and protected guards
+  catch them; engine names read "PostgreSQL"/"MySQL"/"SQLite" in titles.
+- Editor: a commit rejected by a hook or a cancelled signing prompt keeps
+  the typed message; a background shell's events are drained too; a web
+  watch stops when its shell exits.
+- Shell: restoring a layout gives every activity its home tab (the last one
+  was skipped); closing a connection form aborts a test still connecting.
+- Devtools: cron check refuses backwards ranges, three-part ranges, steps
+  on a single value and steps wider than the field; the generator ignores
+  the seed for passwords and passphrases.
+- Browser: a favourites or logins file that fails to parse is set aside as
+  `.bad` instead of being overwritten empty on the next edit.
+- AI assistants: `**bold**` renders as emphasis instead of plain text.
+- CHANGELOG: the 0.65.0 release bump had written conflict markers and a
+  duplicated, truncated history into this file; restored from the
+  pre-release copy with the 0.65.0 section kept.
 
 ## 0.65.0 — 2026-10-21
 
@@ -29,22 +89,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Add structured ERD columns and sequence fragments (4d07674d)
+
 ## 0.63.0 — 2026-10-21
 
 ### Added
 
 - Continue graphics R2 with schema migration and diagram types (8b544666)
+
 ## 0.62.2 — 2026-10-21
 
 ### Fixed
 
 - Place the edge label indicator on the painted label (e1811f85)
 - Tidy frame title controls and label indicators (5fadaeee)
+
 ## 0.62.1 — 2026-10-21
 
 ### Fixed
 
 - Render the missing frame title controls and Add Frame button (49beacd8)
+
 ## 0.62.0 — 2026-10-21
 
 ### Added
@@ -56,11 +120,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Fixed
 
 - Draw coloured material icons in the API tree (11e2861a)
+
 ## 0.61.1 — 2026-10-21
 
 ### Fixed
 
 - Keep new scratchpad notes above the saved order (96d7102f)
+
 ## 0.61.0 — 2026-10-21
 
 ### Added
@@ -73,6 +139,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Show the outline separator for frame selection (abd5334b)
 - Stop the generator assistant overlay overlapping quick actions (9514151d)
+
+
 ## 0.60.2 — 2026-10-21
 
 ### Changed
@@ -84,79 +152,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Fixed
 
 - Select frames on click and keep the outline separator (2cbc2e78)
+
 ## 0.60.0 — 2026-10-21
-=======
-'''''## Unreleased
-
-- (nothing yet)
-
-## 0.65.0 — 2026-10-21
 
 ### Added
 
-- Choose a draw.io page on import (cdffdb8f)
-- Finish sequence fragment ranges and ERD DDL import (80b52fc9)
-
-### Fixed
-
-- Diagram editor polish, markdown assistant, API rename dedup (37caa302)
-
-## 0.64.0 — 2026-10-21
-
-### Added
-
-- Add structured ERD columns and sequence fragments (4d07674d)
-
-## 0.63.0 — 2026-10-21
-
-### Added
-
-- Continue graphics R2 with schema migration and diagram types (8b544666)
-
-## 0.62.2 — 2026-10-21
-
-### Fixed
-
-- Place the edge label indicator on the painted label (e1811f85)
-- Tidy frame title controls and label indicators (5fadaeee)
-
-## 0.62.1 — 2026-10-21
-
-### Fixed
-
-- Render the missing frame title controls and Add Frame button (49beacd8)
-
-## 0.62.0 — 2026-10-21
-
-### Added
-
-- Frame label placement, inner frames and API folder tools (5c386b7d)
-
-## 0.61.2 — 2026-10-21
-
-### Fixed
-
-- Draw coloured material icons in the API tree (11e2861a)
-
-## 0.61.1 — 2026-10-21
-
-### Fixed
->>>>>>> main
-
-- Keep new scratchpad notes above the saved order (96d7102f)
-
-## 0.61.0 — 2026-10-21
-
-### Added
-
-- Material API tree icons and scratchpad note order (4d7aff43)
-
-## 0.60.3 — 2026-10-21
-
-### Fixed
-
-- Show the outline separator for frame selection (abd5334b)
-- Stop the generator assistant overlay overlapping quick actions (9514151d)
+- Resize diagram frames and refresh screenshots (ccb7b3aa)
 
 ## 0.59.0 — 2026-10-20
 

@@ -515,6 +515,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `default-cache-ttl 14400`, so one unlock covers a long session; the
   agent only re-reads it after `gpgconf --reload gpg-agent`, and
   `gpgconf --kill gpg-agent` drops the cache outright.
+- A `chore: merge vX.Y.Z into the … branch` merge can land with the
+  `CHANGELOG.md` conflict half-resolved: v0.60.3 through v0.65.0 all
+  carried `=======` / `>>>>>>> main` lines and a duplicated, truncated
+  history, and every later release bump prepended on top of it. Nothing
+  in the gate reads the changelog, so it stayed that way for five
+  releases. `grep -n '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md` before
+  committing any merge; `ci.yml` now fails on markers in tracked text.
+  Repair is the last clean tag's copy plus the sections released since.
 - Adding a **new workspace member** on a branch and then merging a release
   bump from `main` leaves that member at its old version in `Cargo.lock`
   (`update-version.ps1` could not see a crate that only existed on the

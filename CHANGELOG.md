@@ -61,13 +61,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Diagram Editor: an entity's (or any node's) label is drawn in whichever
   of dark/light reads on its fill, so a dark fill no longer hides it.
 
-- Diagram Editor: frame-to-frame edges. With the Edge tool, click a frame
-  border to start or end an edge, so a frame connects to another frame or
-  to a node; the layout routes it from the frame's rectangle and the
-  validator accepts it. Edge hit-testing now finds a painted line by edge
-  id rather than by position, which was off by one for every lifeline.
-- Diagram Editor toolbar: Add Entity, Import DDL… and Add Participant are
-  icon-only buttons with full-name tooltips, like the rest of the row.
+## 0.67.0 — 2026-10-21
+
+### Added
+
+- Frame-to-frame edges and icon-only ERD/sequence toolbar buttons (876576f0)
 
 ## 0.66.0 — 2026-10-21
 

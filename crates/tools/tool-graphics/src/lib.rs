@@ -1788,6 +1788,9 @@ impl GraphicsTool {
         true
     }
 
+    // Kept as the reference overlay implementation for tools that cannot
+    // give the assistant a real column; Graphics now uses `assistant_column`.
+    #[allow(dead_code)]
     fn assistant_overlay(
         &mut self,
         ui: &mut egui::Ui,
@@ -2509,10 +2512,12 @@ impl Tool for GraphicsTool {
                 .as_ref()
                 .map(|state| generator_context(state))
                 .unwrap_or_default();
+            if self.assistant.open {
+                self.assistant_column(ui, cx, &theme, context, &GENERATOR_QA);
+            }
             if let Some(state) = &mut self.generator {
                 state.ui(ui, cx, &theme);
             }
-            self.assistant_overlay(ui, cx, &theme, context, &GENERATOR_QA);
             return;
         }
         if let Some(e) = &self.error {

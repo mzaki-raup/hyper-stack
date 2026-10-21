@@ -9,9 +9,15 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'''## Unreleased
+''''## Unreleased
 
-### Added
+### Fixed
+
+- Diagram Generator: the floating assistant overlay was still drawn beside the
+  new column, so its Generate action overlapped the quick actions. It now uses
+  the same right-hand column as the Diagram Editor.
+
+### Added'
 
 - Diagram Editor: frame resize grip; a selected frame scales its nodes from the
   corner while keeping positions relative to the frame.

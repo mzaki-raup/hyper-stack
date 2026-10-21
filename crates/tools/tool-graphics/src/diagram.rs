@@ -1389,20 +1389,50 @@ impl DiagramState {
                     self.selected_edge = None;
                 }
             } else {
-                let mut hit_edge = None;
-                for (i, edge) in self.doc.edges.iter().enumerate() {
-                    if edge_lines.get(i).is_some_and(|points| {
-                        points.windows(2).any(|seg| {
-                            point_to_segment(pos, to_screen(seg[0]), to_screen(seg[1])) < 8.0
-                        })
-                    }) {
-                        hit_edge = Some(edge.id.clone());
-                        break;
+                let frame_hit = scene.prims.iter().find_map(|p| {
+                    let Prim::Frame { rect, label, .. } = p else {
+                        return None;
+                    };
+                    let r = srect(*rect);
+                    let edge_dist = (pos.x - r.left())
+                        .abs()
+                        .min((pos.x - r.right()).abs())
+                        .min((pos.y - r.top()).abs())
+                        .min((pos.y - r.bottom()).abs());
+                    if r.contains(pos) && (edge_dist < 10.0 || (pos.y - r.top()).abs() < 22.0) {
+                        Some(label.clone())
+                    } else {
+                        None
                     }
+                });
+                if let Some(label) = frame_hit
+                    && let Some(gid) = self
+                        .doc
+                        .groups
+                        .iter()
+                        .find(|g| g.label == label)
+                        .map(|g| g.id.clone())
+                {
+                    self.selected_group = Some(gid);
+                    self.selected = None;
+                    self.selected_edge = None;
+                    self.multi.clear();
+                } else {
+                    let mut hit_edge = None;
+                    for (i, edge) in self.doc.edges.iter().enumerate() {
+                        if edge_lines.get(i).is_some_and(|points| {
+                            points.windows(2).any(|seg| {
+                                point_to_segment(pos, to_screen(seg[0]), to_screen(seg[1])) < 8.0
+                            })
+                        }) {
+                            hit_edge = Some(edge.id.clone());
+                            break;
+                        }
+                    }
+                    self.selected_edge = hit_edge;
+                    self.selected = None;
+                    self.multi.clear();
                 }
-                self.selected_edge = hit_edge;
-                self.selected = None;
-                self.multi.clear();
             }
         }
         if response.double_clicked()

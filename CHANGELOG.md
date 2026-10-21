@@ -11,37 +11,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Fixed
+
+- Diagram Editor: render the Title Position/Align controls and the **Add
+  Frame** button; the 0.62.0 branch carried the model and layout fields but
+  not the UI that edits them.
+
+## 0.62.0 — 2026-10-21
+
 ### Added
 
-- Diagram Editor: outer and inner frame titles can sit at the top or bottom,
-  aligned left, middle or right. **Add Frame** wraps the selection (or the
-  whole diagram), new nodes join the selected frame, and dragging a node into
-  a frame adds it there.
-- API client: **Add Folder** in the tree toolbar; toolbar order is New
-  Collection, New Folder, New Request, Import, History.
-- Collections and folders auto-rename conflicting names to ` 001`, ` 002`, …
-
-'### Fixed
-
-- Diagram Editor: restore the Title Position/Align controls and the Add Frame
-  button; the previous merge carried the model and layout fields but not the
-  UI that edits them.
-- Diagram Editor: removed the duplicate separator above the Frames section.'
-- Diagram Editor: edge labels use the same midpoint as the painter, so they
-  drag reliably, including edges that cross a frame, with an accent indicator.
-- Tab strips reserve a wider gap between the title and the close cross.
+- Frame label placement, inner frames and API folder tools (5c386b7d)
 
 ## 0.61.2 — 2026-10-21
 
 ### Fixed
 
 - Draw coloured material icons in the API tree (11e2861a)
-## 0.61.2 — 2026-10-21
-
-### Fixed
-
-- Draw coloured material icons in the API tree (11e2861a)
-
 ## 0.61.1 — 2026-10-21
 
 ### Fixed
@@ -75,6 +61,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.62.0 — 2026-10-21
+
+### Added
+
+- Frame label placement, inner frames and API folder tools (5c386b7d)
 
 ## 0.61.2 — 2026-10-21
 

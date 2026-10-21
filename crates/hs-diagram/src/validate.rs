@@ -187,12 +187,13 @@ pub fn validate(doc: &DiagramDoc) -> Vec<Issue> {
                 format!("duplicate edge id {:?}", edge.id),
             ));
         }
+        // An edge may start or end at a frame (group) as well as a node.
         for (side, id) in [("from", &edge.from), ("to", &edge.to)] {
-            if !node_ids.contains(id.as_str()) {
+            if !node_ids.contains(id.as_str()) && !doc.groups.iter().any(|g| &g.id == id) {
                 issues.push(Issue::error(
                     CODE_UNKNOWN_NODE,
                     format!("{path}.{side}"),
-                    format!("unknown node {id:?}"),
+                    format!("unknown node or frame {id:?}"),
                 ));
             }
         }

@@ -62,6 +62,64 @@ fn validation_reports_unknown_and_duplicate_ids() {
 }
 
 #[test]
+fn an_edge_may_start_or_end_at_a_frame() {
+    let mut doc = DiagramDoc::new(DiagramKind::Flow, "Frames");
+    for id in ["a", "b", "c"] {
+        doc.nodes.push(Node {
+            id: id.into(),
+            label: id.to_uppercase(),
+            kind: NodeKind::Process,
+            ..Default::default()
+        });
+    }
+    doc.groups.push(hs_diagram::Group {
+        id: "left".into(),
+        label: "Left".into(),
+        nodes: vec!["a".into()],
+        style: Default::default(),
+        label_placement: Default::default(),
+        label_align: Default::default(),
+    });
+    doc.groups.push(hs_diagram::Group {
+        id: "right".into(),
+        label: "Right".into(),
+        nodes: vec!["b".into(), "c".into()],
+        style: Default::default(),
+        label_placement: Default::default(),
+        label_align: Default::default(),
+    });
+    doc.edges.push(hs_diagram::Edge {
+        id: "f1".into(),
+        from: "left".into(),
+        to: "right".into(),
+        ..Default::default()
+    });
+    doc.edges.push(hs_diagram::Edge {
+        id: "f2".into(),
+        from: "c".into(),
+        to: "left".into(),
+        ..Default::default()
+    });
+    let issues = validate::validate(&doc);
+    assert!(
+        !issues.iter().any(|i| i.code == validate::CODE_UNKNOWN_NODE),
+        "{issues:?}"
+    );
+    let scene = hs_diagram::layout_approx(&doc);
+    let lines: Vec<&str> = scene
+        .prims
+        .iter()
+        .filter_map(|p| match p {
+            hs_diagram::Prim::Line {
+                edge_id: Some(id), ..
+            } => Some(id.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(lines.contains(&"f1") && lines.contains(&"f2"), "{lines:?}");
+}
+
+#[test]
 fn svg_escapes_user_text() {
     let mut doc = template::flow();
     doc.nodes[0].label = "A & B <C>".into();

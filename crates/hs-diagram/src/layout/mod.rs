@@ -63,6 +63,9 @@ fn geometry(doc: &DiagramDoc, measure: Measure<'_>) -> Vec<Rect> {
 fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
     let index = |id: &str| doc.nodes.iter().position(|n| n.id == id);
     let mut scene = Scene::default();
+    // A frame's rectangle, kept so an edge can start or end at a frame
+    // the same way it does at a node.
+    let mut frame_rects: Vec<(&str, Rect)> = Vec::new();
     for group in &doc.groups {
         let mut frame: Option<Rect> = None;
         for id in &group.nodes {
@@ -74,8 +77,10 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             }
         }
         if let Some(r) = frame {
+            let rect = r.inflate(18.0);
+            frame_rects.push((group.id.as_str(), rect));
             scene.push(Prim::Frame {
-                rect: r.inflate(18.0),
+                rect,
                 label: group.label.clone(),
                 style: group.style.clone(),
                 label_placement: group.label_placement,
@@ -84,6 +89,11 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             });
         }
     }
+    let endpoint = |id: &str| -> Option<Rect> {
+        index(id)
+            .map(|i| rects[i])
+            .or_else(|| frame_rects.iter().find(|(g, _)| *g == id).map(|(_, r)| *r))
+    };
     for (i, node) in doc.nodes.iter().enumerate() {
         let raw = if node.kind == crate::model::NodeKind::Entity {
             entity_label(node)
@@ -102,10 +112,10 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
         sequence::decorate(&mut scene, doc, rects);
     } else {
         for edge in &doc.edges {
-            let (Some(a), Some(b)) = (index(&edge.from), index(&edge.to)) else {
+            let (Some(a), Some(b)) = (endpoint(&edge.from), endpoint(&edge.to)) else {
                 continue;
             };
-            let points = crate::route::route(rects[a], rects[b], edge.route, &edge.via);
+            let points = crate::route::route(a, b, edge.route, &edge.via);
             let (arrow_start, arrow_end) = match edge.arrow {
                 crate::model::Arrow::None => (false, false),
                 crate::model::Arrow::End => (false, true),
@@ -118,6 +128,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                 arrow_start,
                 arrow_end,
                 style: edge.style.clone(),
+                edge_id: Some(edge.id.clone()),
             });
             if !edge.label.is_empty()
                 && let Some(at) = edge.label_at.or_else(|| midpoint(&points))

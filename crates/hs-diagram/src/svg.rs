@@ -97,6 +97,7 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                 arrow_start,
                 arrow_end,
                 style,
+                ..
             } => {
                 if points.len() < 2 {
                     continue;

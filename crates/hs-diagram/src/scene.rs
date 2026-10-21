@@ -31,6 +31,9 @@ pub enum Prim {
         arrow_start: bool,
         arrow_end: bool,
         style: Style,
+        /// The edge this line draws (`None` for a sequence lifeline), so a
+        /// UI hit-tests "edge X" by id instead of by position in the list.
+        edge_id: Option<String>,
     },
     Text {
         at: Point,

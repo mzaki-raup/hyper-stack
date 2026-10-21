@@ -770,3 +770,10 @@ cells inside draw.io files remain unsupported.
    the cell's own text, so nothing in the drawing is silently dropped. The
    picture itself is not kept: the model has no image node, and a bitmap
    inside a `.hdiag` is out of scope for R2.
+3. **Frame-to-frame edges** — an edge's `from`/`to` may name a frame
+   (group id) as well as a node. The layout routes such an edge from the
+   frame's rectangle (the members' union plus the frame margin) exactly as
+   it does from a node; the validator accepts either; the Edge tool treats
+   a click on a frame border as an endpoint, so a frame connects to another
+   frame or to a node. Edges are matched to their painted lines by id
+   (`Prim::Line::edge_id`), not by position.

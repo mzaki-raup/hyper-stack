@@ -450,6 +450,45 @@ impl DiagramState {
         self.multi.clear();
     }
 
+    /// The Edge tool's click on a node or a frame: the first click picks
+    /// the source, the second adds the edge. Frames are endpoints too, so
+    /// a frame can connect to another frame or to a node.
+    fn edge_endpoint_clicked(&mut self, id: String) {
+        let Some(from) = self.edge_from.take() else {
+            self.edge_from = Some(id);
+            return;
+        };
+        if from == id {
+            return;
+        }
+        self.push_undo();
+        self.freeze();
+        let mut n = self.doc.edges.len() + 1;
+        while self.doc.edges.iter().any(|e| e.id == format!("e{n}")) {
+            n += 1;
+        }
+        let edge_id = format!("e{n}");
+        self.doc.edges.push(Edge {
+            id: edge_id.clone(),
+            from,
+            to: id,
+            label: String::new(),
+            route: EdgeRoute::Orthogonal,
+            arrow: Arrow::End,
+            dashed: false,
+            dotted: false,
+            via: Vec::new(),
+            style: Style::default(),
+            label_at: None,
+            cardinality: None,
+        });
+        self.selected_edge = Some(edge_id);
+        self.selected = None;
+        self.selected_group = None;
+        self.multi.clear();
+        self.dirty = true;
+    }
+
     /// All selected node ids, primary first.
     fn selection(&self) -> Vec<String> {
         let mut ids = Vec::new();
@@ -673,19 +712,20 @@ impl DiagramState {
         }
         if self.doc.kind == DiagramKind::Erd
             && ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::TABLE,
-                    s.t("gfx-diagram-add-entity")
-                ))
+                .button(hs_ui::icons::ph::TABLE)
+                .on_hover_text(s.t("gfx-diagram-add-entity"))
                 .clicked()
         {
             self.add_node_at(NodeKind::Entity, self.last_center);
         }
         if self.doc.kind == DiagramKind::Erd
             && ui
-                .button(format!("{} Import DDL…", hs_ui::icons::ph::DATABASE))
-                .on_hover_text("Import CREATE TABLE statements as entities.")
+                .button(hs_ui::icons::ph::DATABASE)
+                .on_hover_text(format!(
+                    "{}\n{}",
+                    s.t("gfx-diagram-import-ddl"),
+                    s.t("gfx-diagram-import-ddl-tip")
+                ))
                 .clicked()
             && let Some(path) = rfd::FileDialog::new()
                 .add_filter("SQL", &["sql", "ddl", "txt"])
@@ -701,11 +741,8 @@ impl DiagramState {
         }
         if self.doc.kind == DiagramKind::Sequence
             && ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::USER,
-                    s.t("gfx-diagram-add-participant")
-                ))
+                .button(hs_ui::icons::ph::USER)
+                .on_hover_text(s.t("gfx-diagram-add-participant"))
                 .clicked()
         {
             self.add_node_at(NodeKind::Frontend, self.last_center);
@@ -1597,12 +1634,26 @@ impl DiagramState {
         Self::paint_scene(&painter, &scene, &to_screen, &srect, z, theme);
 
         let node_rects = self.node_rects(&scene);
-        let edge_lines: Vec<Vec<Point>> = scene
-            .prims
+        // One polyline per document edge, in edge order, found by id: a
+        // positional list drifted as soon as a lifeline or an edge with an
+        // unresolved endpoint sat in between.
+        let edge_lines: Vec<Vec<Point>> = self
+            .doc
+            .edges
             .iter()
-            .filter_map(|p| match p {
-                Prim::Line { points, .. } => Some(points.clone()),
-                _ => None,
+            .map(|edge| {
+                scene
+                    .prims
+                    .iter()
+                    .find_map(|p| match p {
+                        Prim::Line {
+                            points,
+                            edge_id: Some(id),
+                            ..
+                        } if id == &edge.id => Some(points.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default()
             })
             .collect();
         self.edge_paths = edge_lines.clone();
@@ -1877,32 +1928,7 @@ impl DiagramState {
             if let Some(i) = self.hit(pos, &node_rects, origin, z) {
                 let id = self.doc.nodes[i].id.clone();
                 if self.tool == ToolMode::Edge {
-                    if let Some(from) = self.edge_from.take() {
-                        if from != id {
-                            self.push_undo();
-                            self.freeze();
-                            let mut n = self.doc.edges.len() + 1;
-                            while self.doc.edges.iter().any(|e| e.id == format!("e{n}")) {
-                                n += 1;
-                            }
-                            self.doc.edges.push(Edge {
-                                id: format!("e{n}"),
-                                from,
-                                to: id.clone(),
-                                label: String::new(),
-                                route: EdgeRoute::Orthogonal,
-                                arrow: Arrow::End,
-                                dashed: false,
-                                dotted: false,
-                                via: Vec::new(),
-                                style: Style::default(),
-                                label_at: None,
-                                cardinality: None,
-                            });
-                        }
-                    } else {
-                        self.edge_from = Some(id.clone());
-                    }
+                    self.edge_endpoint_clicked(id.clone());
                 }
                 if self.tool == ToolMode::Select && ui.input(|i| i.modifiers.shift) {
                     if !self.multi.contains(&id) && self.selected.as_deref() != Some(id.as_str()) {
@@ -1934,10 +1960,15 @@ impl DiagramState {
                     }
                 });
                 if let Some(gid) = frame_hit {
-                    self.selected_group = Some(gid);
-                    self.selected = None;
-                    self.selected_edge = None;
-                    self.multi.clear();
+                    if self.tool == ToolMode::Edge {
+                        // A frame is an edge endpoint like a node is.
+                        self.edge_endpoint_clicked(gid);
+                    } else {
+                        self.selected_group = Some(gid);
+                        self.selected = None;
+                        self.selected_edge = None;
+                        self.multi.clear();
+                    }
                 } else {
                     let mut hit_edge = None;
                     for (i, edge) in self.doc.edges.iter().enumerate() {
@@ -2141,7 +2172,7 @@ impl DiagramState {
         self.status = Some(format!(
             "{}  ·  {:.0}%",
             if self.edge_from.is_some() {
-                "Click the target node"
+                "Click the target node or frame"
             } else {
                 "Drag to move · Ctrl+wheel to zoom · Space+drag to pan"
             },
@@ -2325,6 +2356,7 @@ impl DiagramState {
                     arrow_start,
                     arrow_end,
                     style,
+                    ..
                 } => {
                     if points.len() < 2 {
                         continue;
@@ -2985,6 +3017,54 @@ mod tests {
         let bx = state.doc.node(&b).unwrap().x;
         assert_eq!(ax, bx);
         assert_eq!(ax, 100.0);
+    }
+
+    #[test]
+    fn the_edge_tool_connects_two_frames_and_a_frame_to_a_node() {
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        assert!(state.freeze());
+        let ids: Vec<String> = state.doc.nodes.iter().map(|n| n.id.clone()).collect();
+        assert!(ids.len() >= 3);
+        for (gid, members) in [("g1", &ids[0..1]), ("g2", &ids[1..2])] {
+            state.doc.groups.push(Group {
+                id: gid.into(),
+                label: gid.into(),
+                nodes: members.to_vec(),
+                style: Style::default(),
+                label_placement: Default::default(),
+                label_align: Default::default(),
+            });
+        }
+        let before = state.doc.edges.len();
+        state.tool = ToolMode::Edge;
+        state.edge_endpoint_clicked("g1".into());
+        assert_eq!(state.edge_from.as_deref(), Some("g1"));
+        state.edge_endpoint_clicked("g2".into());
+        assert_eq!(state.doc.edges.len(), before + 1);
+        let e = state.doc.edges.last().unwrap();
+        assert_eq!((e.from.as_str(), e.to.as_str()), ("g1", "g2"));
+        assert_eq!(state.selected_edge.as_deref(), Some(e.id.as_str()));
+        // Clicking the same frame twice adds nothing.
+        state.edge_endpoint_clicked("g2".into());
+        state.edge_endpoint_clicked("g2".into());
+        assert_eq!(state.doc.edges.len(), before + 1);
+        // Frame to node, and the document still validates.
+        state.edge_endpoint_clicked("g1".into());
+        state.edge_endpoint_clicked(ids[2].clone());
+        assert_eq!(state.doc.edges.len(), before + 2);
+        let errors: Vec<_> = validate::validate(&state.doc)
+            .into_iter()
+            .filter(|i| i.severity == hs_diagram::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
+        // The layout draws a line for each, found by id.
+        let scene = layout_approx(&state.doc);
+        for e in &state.doc.edges[before..] {
+            assert!(scene.prims.iter().any(|p| matches!(
+                p,
+                Prim::Line { edge_id: Some(id), points, .. } if id == &e.id && points.len() >= 2
+            )));
+        }
     }
 
     #[test]

@@ -25,6 +25,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   `Note over/left of/right of` lines), completing the Release 2 sequence
   list; draw.io image cells import as placed, labelled nodes instead of
   being dropped.
+- Diagram Editor: frame-to-frame edges. With the Edge tool, click a frame
+  border to start or end an edge, so a frame connects to another frame or
+  to a node; the layout routes it from the frame's rectangle and the
+  validator accepts it. Edge hit-testing now finds a painted line by edge
+  id rather than by position, which was off by one for every lifeline.
+- Diagram Editor toolbar: Add Entity, Import DDL… and Add Participant are
+  icon-only buttons with full-name tooltips, like the rest of the row.
 
 ### Changed
 

@@ -56,6 +56,7 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             arrow_start: false,
             arrow_end: false,
             style: crate::model::Style::default(),
+            edge_id: None,
         });
     }
     for fragment in &doc.fragments {
@@ -155,6 +156,7 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             arrow_start: false,
             arrow_end: true,
             style: edge.style.clone(),
+            edge_id: Some(edge.id.clone()),
         });
         if !edge.label.is_empty() {
             scene.push(Prim::Text {

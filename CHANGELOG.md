@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Changed
+- (nothing yet)
 
-- API client tree icons are coloured Material icons: yellow `folder-api` for
-  collections and a themed `folder-*` for folders, with the coloured
-  `folder-other` as the generic fallback instead of the dull base icon.
+## 0.61.2 — 2026-10-21
+
+### Fixed
+
+- Draw coloured material icons in the API tree (11e2861a)
 
 ## 0.61.1 — 2026-10-21
 
@@ -49,16 +51,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 =======
 '''''## Unreleased
 
-<<<<<<< HEAD
-### Changed
-
-- API client tree icons are coloured Material icons: yellow `folder-api` for
-  collections and a themed `folder-*` for folders, with the coloured
-  `folder-other` as the generic fallback instead of the dull base icon.
-
-### Fixed'
-=======
 - (nothing yet)
+
+## 0.61.2 — 2026-10-21
+
+### Fixed
+
+- Draw coloured material icons in the API tree (11e2861a)
 
 ## 0.61.1 — 2026-10-21
 

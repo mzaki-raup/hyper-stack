@@ -17,9 +17,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   collections and a themed `folder-*` for folders, with the coloured
   `folder-other` as the generic fallback instead of the dull base icon.
 
+## 0.61.1 — 2026-10-21
+
 ### Fixed
 
-- New Scratchpad notes stay above the saved order until they are dragged.
+- Keep new scratchpad notes above the saved order (96d7102f)
 ## 0.61.0 — 2026-10-21
 
 ### Added
@@ -47,6 +49,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 =======
 '''''## Unreleased
 
+<<<<<<< HEAD
 ### Changed
 
 - API client tree icons are coloured Material icons: yellow `folder-api` for
@@ -54,8 +57,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   `folder-other` as the generic fallback instead of the dull base icon.
 
 ### Fixed'
+=======
+- (nothing yet)
 
-- New Scratchpad notes stay above the saved order until they are dragged.'
+## 0.61.1 — 2026-10-21
+
+### Fixed
+>>>>>>> main
+
+- Keep new scratchpad notes above the saved order (96d7102f)
 
 ## 0.61.0 — 2026-10-21
 

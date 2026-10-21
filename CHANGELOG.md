@@ -11,11 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.64.0 — 2026-10-21
+
 ### Added
 
-- Graphics R2 depth: ERD entity columns are named, typed and keyed
-  (PK/FK/UQ) with Add/Remove Column, ERD edges get a cardinality picker, and
-  sequence diagrams gain alt/loop/opt fragments and activation bars.
+- Add structured ERD columns and sequence fragments (4d07674d)
 
 ## 0.63.0 — 2026-10-21
 
@@ -77,6 +79,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.64.0 — 2026-10-21
+
+### Added
+
+- Add structured ERD columns and sequence fragments (4d07674d)
 
 ## 0.63.0 — 2026-10-21
 

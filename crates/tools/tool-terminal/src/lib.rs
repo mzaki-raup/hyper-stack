@@ -68,7 +68,13 @@ pub struct TerminalTool {
     /// Give the terminal keyboard focus on the next frame.
     pending_focus: Option<egui::Id>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// Whether each CLI profile's command resolves on PATH, re-checked
+    /// every few seconds: resolving stats every PATH entry per PATHEXT,
+    /// which the sidebar used to do per profile per frame.
+    cli_found: std::collections::HashMap<String, (std::time::Instant, bool)>,
 }
+
+const CLI_FOUND_TTL: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The search bar (Ctrl+Shift+F): query, options and the hits in the grid.
 #[derive(Default)]
@@ -99,6 +105,7 @@ impl TerminalTool {
             find: Find::default(),
             pending_focus: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            cli_found: std::collections::HashMap::new(),
         };
         t.apply_settings(services);
         // The shell starts on the first frame that actually draws a
@@ -578,7 +585,7 @@ impl Tool for TerminalTool {
         {
             self.open_find();
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui
@@ -672,8 +679,16 @@ impl Tool for TerminalTool {
                     );
                 }
                 let mut open_cli: Option<(String, Option<String>)> = None;
+                let now = std::time::Instant::now();
                 for c in &cli {
-                    let found = hs_core::env_path::find(&c.command).is_some();
+                    let found = match self.cli_found.get(&c.command) {
+                        Some((at, found)) if now.duration_since(*at) < CLI_FOUND_TTL => *found,
+                        _ => {
+                            let found = hs_core::env_path::find(&c.command).is_some();
+                            self.cli_found.insert(c.command.clone(), (now, found));
+                            found
+                        }
+                    };
                     let line = if found {
                         c.command_line()
                     } else {

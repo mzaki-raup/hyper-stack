@@ -184,14 +184,18 @@ pub const PANEL_WIDTH: f32 = 390.0;
 /// assistant's rectangle when it is open and there is room for it.
 pub fn split_for_assistant(ui: &mut egui::Ui, open: bool) -> (egui::Ui, Option<egui::Rect>) {
     let full = ui.available_rect_before_wrap();
-    // Below twice the panel width there is no sensible split; the tool
-    // keeps the room and the assistant waits for a bigger window.
-    if !open || full.width() < PANEL_WIDTH * 2.0 {
+    // The panel gives way before the tool does: it shrinks to keep
+    // MIN_CONTENT for the tool and only steps aside when even its own
+    // minimum would not fit (a split half in a small window).
+    const MIN_CONTENT: f32 = 320.0;
+    const MIN_PANEL: f32 = 260.0;
+    if !open || full.width() < MIN_CONTENT + MIN_PANEL {
         let child = ui.new_child(egui::UiBuilder::new().max_rect(full).layout(*ui.layout()));
         return (child, None);
     }
+    let panel_w = PANEL_WIDTH.min(full.width() - MIN_CONTENT);
     let panel = egui::Rect::from_min_max(
-        egui::pos2(full.right() - PANEL_WIDTH, full.top()),
+        egui::pos2(full.right() - panel_w, full.top()),
         full.right_bottom(),
     );
     let content = egui::Rect::from_min_max(
@@ -747,7 +751,10 @@ fn inline_markdown(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
             egui::FontId::proportional(13.5)
         };
         if bold && !code {
-            fmt.color = theme.text;
+            // The proportional face has no bold weight; a size step and the
+            // accent read as emphasis instead of "**bold**" rendering plain.
+            fmt.font_id = egui::FontId::proportional(14.0);
+            fmt.color = theme.accent;
         }
         if code {
             fmt.background = theme.surface;

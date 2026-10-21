@@ -27,7 +27,6 @@ pub enum Engine {
 
 impl Engine {
     pub const ALL: [Engine; 3] = [Engine::Postgres, Engine::Mysql, Engine::Sqlite];
-
     /// Profile id: postgres | mysql | mariadb | sqlite.
     pub fn parse(s: &str) -> Option<Engine> {
         match s.to_ascii_lowercase().as_str() {

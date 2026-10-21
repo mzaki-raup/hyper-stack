@@ -16,6 +16,23 @@ pub struct State {
     pub left_name: String,
     pub right_name: String,
     pub ignore_whitespace: bool,
+    /// The last diff, keyed by a hash of its inputs: the Myers pass ran
+    /// on every frame before, O(n·m) while the user typed.
+    #[serde(skip)]
+    cache: Option<(u64, std::sync::Arc<Vec<Line>>)>,
+}
+
+/// Inputs larger than this are not diffed live; the pass would freeze the
+/// window for seconds.
+const MAX_LIVE_BYTES: usize = 2 * 1024 * 1024;
+
+fn input_key(st: &State) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    st.left.hash(&mut h);
+    st.right.hash(&mut h);
+    st.ignore_whitespace.hash(&mut h);
+    h.finish()
 }
 
 /// One line of the result.
@@ -140,7 +157,19 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         form::hint(ui, theme, &s.t("dt-diff-hint"));
         return;
     }
-    let lines = lines(&st.left, &st.right, st.ignore_whitespace);
+    if st.left.len() + st.right.len() > MAX_LIVE_BYTES {
+        form::hint(ui, theme, &s.t("dt-diff-too-large"));
+        return;
+    }
+    let key = input_key(st);
+    let lines = match &st.cache {
+        Some((k, cached)) if *k == key => cached.clone(),
+        _ => {
+            let fresh = std::sync::Arc::new(lines(&st.left, &st.right, st.ignore_whitespace));
+            st.cache = Some((key, fresh.clone()));
+            fresh
+        }
+    };
     let (added, removed) = counts(&lines);
     let title = if added == 0 && removed == 0 {
         s.t("dt-diff-same")

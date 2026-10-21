@@ -213,6 +213,42 @@ pub enum Kind {
 pub struct State {
     pub input: String,
     pub indent: IndentSetting,
+    /// The check and the pretty-printed result for the last (expanded)
+    /// input and indent, so neither runs again on a frame where nothing
+    /// changed: both walk the whole text and allocate a `Vec<char>` of it.
+    #[serde(skip)]
+    cache: Option<(u64, std::sync::Arc<Computed>)>,
+}
+
+struct Computed {
+    check: Result<(), String>,
+    out: Result<String, String>,
+}
+
+fn computed(st: &mut State, kind: Kind, text: &str) -> std::sync::Arc<Computed> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut h);
+    (kind as u8).hash(&mut h);
+    (st.indent as u8).hash(&mut h);
+    let key = h.finish();
+    if let Some((k, c)) = &st.cache
+        && *k == key
+    {
+        return c.clone();
+    }
+    let check = match kind {
+        Kind::Toml => check_toml(text),
+        Kind::Xml => check_xml(text),
+    };
+    let out = match (&check, kind) {
+        (Err(e), _) => Err(e.clone()),
+        (Ok(()), Kind::Toml) => pretty_toml(text),
+        (Ok(()), Kind::Xml) => pretty_xml(text, st.indent.into()),
+    };
+    let c = std::sync::Arc::new(Computed { check, out });
+    st.cache = Some((key, c.clone()));
+    c
 }
 
 /// The stored form of [`Indent`]: an enum that serialises by name, so a
@@ -268,27 +304,18 @@ pub fn ui(
         crate::util::input(ui, s, theme, &mut st.input, &s.t("dt-paste-hint"), 10);
     });
     let text = s.expand(&st.input).unwrap_or_else(|_| st.input.clone());
-    let check = match kind {
-        Kind::Toml => check_toml(&text),
-        Kind::Xml => check_xml(&text),
-    };
+    let computed = computed(st, kind, &text);
     ui.add_space(8.0);
     form::section(ui, theme, &s.t("dt-result"), |ui| {
-        match &check {
+        match &computed.check {
             Ok(()) => crate::util::ok(ui, theme, &s.t("dt-markup-ok")),
             Err(e) => {
                 ui.colored_label(theme.error, e);
                 return;
             }
         }
-        let out = match kind {
-            Kind::Toml => pretty_toml(&text),
-            Kind::Xml => pretty_xml(&text, st.indent.into()),
-        };
-        match out {
-            Ok(formatted) => {
-                crate::util::output(ui, s, theme, &s.t("dt-formatted"), &formatted, 14)
-            }
+        match &computed.out {
+            Ok(formatted) => crate::util::output(ui, s, theme, &s.t("dt-formatted"), formatted, 14),
             Err(e) => {
                 ui.colored_label(theme.error, e);
             }

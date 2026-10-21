@@ -737,7 +737,14 @@ struct Project {
     index_building: Arc<AtomicBool>,
     index_dirty: bool,
     index_built_at: Option<Instant>,
+    /// What the root folder is (Maven, Cargo, npm, …), re-detected every
+    /// few seconds rather than on every toolbar frame: detection stats
+    /// the manifests, reads pom.xml/package.json and, for a folder with no
+    /// manifest, lists the whole root.
+    detected: Option<(Instant, Option<project::Project>)>,
 }
+
+const PROJECT_DETECT_TTL: Duration = Duration::from_secs(3);
 
 impl Project {
     fn new(root: Option<PathBuf>) -> Self {
@@ -749,8 +756,22 @@ impl Project {
             index_building: Arc::new(AtomicBool::new(false)),
             index_dirty: false,
             index_built_at: None,
+            detected: None,
         };
         p.rebuild_index();
+        p
+    }
+
+    /// The detected project kind, from the cache when it is fresh.
+    fn detected(&mut self) -> Option<project::Project> {
+        let now = Instant::now();
+        if let Some((at, p)) = &self.detected
+            && now.duration_since(*at) < PROJECT_DETECT_TTL
+        {
+            return p.clone();
+        }
+        let p = self.root.as_deref().and_then(project::detect);
+        self.detected = Some((now, p.clone()));
         p
     }
 
@@ -2380,11 +2401,17 @@ impl EditorTool {
 impl EditorTool {
     /// What Run would do for the active file: the project's own runner
     /// when the root has one, else the interpreter for the file type.
-    fn run_plan(&self, s: &Services) -> Option<(PathBuf, String)> {
+    fn run_plan(&mut self, s: &Services) -> Option<(PathBuf, String)> {
+        let project = self.projects[self.active].detected();
         let d = self.doc();
-        let path = d.path.as_ref()?;
+        let path = d.path.as_ref()?.clone();
         let st = s.settings.read();
-        run_plan(path, self.projects[self.active].root.as_deref(), &st.editor)
+        run_plan_with(
+            &path,
+            self.projects[self.active].root.as_deref(),
+            project.as_ref(),
+            &st.editor,
+        )
     }
 
     /// Ctrl+F5: continue a stopped session, start the last configuration
@@ -2449,8 +2476,8 @@ impl EditorTool {
     }
 
     /// The project this tab's folder holds (Maven, Gradle, Cargo, npm, …).
-    fn project(&self) -> Option<project::Project> {
-        project::detect(self.projects[self.active].root.as_deref()?)
+    fn project(&mut self) -> Option<project::Project> {
+        self.projects[self.active].detected()
     }
 
     /// Build the project in the editor's terminal.
@@ -2475,6 +2502,17 @@ pub fn run_plan(
     root: Option<&Path>,
     settings: &hs_core::settings::Editor,
 ) -> Option<(PathBuf, String)> {
+    let project = root.and_then(project::detect);
+    run_plan_with(path, root, project.as_ref(), settings)
+}
+
+/// `run_plan` with the project already detected (the editor caches it).
+pub fn run_plan_with(
+    path: &Path,
+    root: Option<&Path>,
+    project: Option<&project::Project>,
+    settings: &hs_core::settings::Editor,
+) -> Option<(PathBuf, String)> {
     let file = path.file_name()?.to_string_lossy().to_string();
     let ext = path
         .extension()
@@ -2495,10 +2533,10 @@ pub fn run_plan(
     // project's wrapper and the configured Maven/Gradle paths come from.
     // Owner's requirement, 2026-10-17.
     if let Some(root) = root
-        && let Some(p) = project::detect(root)
+        && let Some(p) = project
         && (project::owns_file(p.kind, &ext) || project::is_manifest(p.kind, &file))
     {
-        return Some((root.to_path_buf(), project::run_command(&p, settings)));
+        return Some((root.to_path_buf(), project::run_command(p, settings)));
     }
     if let Some(root) = root {
         let has = |n: &str| root.join(n).is_file();
@@ -2705,7 +2743,7 @@ impl Tool for EditorTool {
                 format!("{} {}", ph::EYE, s.t("editor-preview")),
             );
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             let mut ai_open = self.ai.open;
@@ -3030,7 +3068,7 @@ impl Tool for EditorTool {
             let w = ui.available_width() / 2.0;
             egui::Panel::right(d.view.id.with("preview"))
                 .default_size(w)
-                .size_range(160.0..=ui.available_width() - 160.0)
+                .size_range(160.0..=(ui.available_width() - 160.0).max(160.0))
                 .resizable(true)
                 .show(ui, |ui| d.preview_ui(ui, ed_theme.dark, &theme));
         }

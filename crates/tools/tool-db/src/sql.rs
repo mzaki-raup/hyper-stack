@@ -568,9 +568,13 @@ pub fn classify(stmt: &str, engine: Engine) -> Classified {
                     "PG_TERMINATE_BACKEND" | "PG_CANCEL_BACKEND" | "PG_RELOAD_CONF"
                 )
             });
+            // MySQL's `SELECT … INTO @var` is a read, but `INTO OUTFILE` /
+            // `INTO DUMPFILE` write server files.
+            let mysql_file = engine == Engine::Mysql
+                && words.iter().any(|w| matches!(*w, "OUTFILE" | "DUMPFILE"));
             if admin_fn {
                 of(Class::Admin)
-            } else if into && engine != Engine::Mysql {
+            } else if (into && engine != Engine::Mysql) || mysql_file {
                 of(Class::Write)
             } else {
                 of(Class::Read)
@@ -587,7 +591,12 @@ pub fn classify(stmt: &str, engine: Engine) -> Classified {
             }
         }
         "COPY" => {
-            if words.contains(&"FROM") {
+            // `COPY … TO PROGRAM` runs a shell command on the server and
+            // `COPY … TO '/path'` writes a server file; only `TO STDOUT` is
+            // a read. `FROM` loads rows.
+            if words.contains(&"PROGRAM") {
+                of(Class::Admin)
+            } else if words.contains(&"FROM") || !words.contains(&"STDOUT") {
                 of(Class::Write)
             } else {
                 of(Class::Read)
@@ -689,6 +698,24 @@ mod tests {
 
     fn class(sql: &str) -> Class {
         classify(sql, Engine::Postgres).class
+    }
+
+    #[test]
+    fn copy_and_outfile_are_not_reads() {
+        // Only `TO STDOUT` streams rows to the client; everything else
+        // writes server files or runs a server-side command.
+        assert_eq!(class("COPY (SELECT 1) TO STDOUT"), Class::Read);
+        assert_eq!(class("COPY orders TO '/tmp/orders.csv'"), Class::Write);
+        assert_eq!(class("COPY orders FROM '/tmp/orders.csv'"), Class::Write);
+        assert_eq!(class("COPY (SELECT 1) TO PROGRAM 'rm -rf /'"), Class::Admin);
+        assert_eq!(
+            classify("SELECT * FROM t INTO OUTFILE '/tmp/t.csv'", Engine::Mysql).class,
+            Class::Write
+        );
+        assert_eq!(
+            classify("SELECT 1 INTO @x", Engine::Mysql).class,
+            Class::Read
+        );
     }
 
     #[test]

@@ -22,6 +22,45 @@ pub struct State {
     pub ignore_whitespace: bool,
     /// Only the first match, as `find` rather than `find_iter`.
     pub first_only: bool,
+    /// The compiled pattern and its matches, keyed by a hash of every
+    /// input: compiling (a 4 MiB DFA budget) and matching ran every frame.
+    #[serde(skip)]
+    cache: Option<(u64, Cached)>,
+}
+
+type Cached = std::sync::Arc<(Result<Regex, String>, Vec<Found>)>;
+
+fn input_key(st: &State) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    st.pattern.hash(&mut h);
+    st.text.hash(&mut h);
+    (
+        st.case_insensitive,
+        st.multi_line,
+        st.dot_all,
+        st.ignore_whitespace,
+        st.first_only,
+    )
+        .hash(&mut h);
+    h.finish()
+}
+
+fn compiled_and_matched(st: &mut State) -> Cached {
+    let key = input_key(st);
+    if let Some((k, c)) = &st.cache
+        && *k == key
+    {
+        return c.clone();
+    }
+    let compiled = compile(st);
+    let found = match &compiled {
+        Ok(re) => matches(re, &st.text, st.first_only),
+        Err(_) => Vec::new(),
+    };
+    let c = std::sync::Arc::new((compiled, found));
+    st.cache = Some((key, c.clone()));
+    c
 }
 
 impl Default for State {
@@ -35,6 +74,7 @@ impl Default for State {
             dot_all: false,
             ignore_whitespace: false,
             first_only: false,
+            cache: None,
         }
     }
 }
@@ -123,7 +163,6 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         });
         form::hint(ui, theme, &s.t("dt-regex-hint"));
     });
-    let compiled = compile(st);
     form::section(ui, theme, &s.t("dt-regex-text"), |ui| {
         ui.add(
             egui::TextEdit::multiline(&mut st.text)
@@ -133,13 +172,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 .desired_width(f32::INFINITY),
         );
     });
-    match &compiled {
+    let cached = compiled_and_matched(st);
+    let (compiled, found) = (&cached.0, &cached.1);
+    match compiled {
         Err(e) if e.is_empty() => {}
         Err(e) => {
             ui.label(egui::RichText::new(e).color(theme.error).monospace());
         }
         Ok(re) => {
-            let found = matches(re, &st.text, st.first_only);
             let title = s
                 .i18n
                 .t_args("dt-regex-matches", &[("n", &found.len().to_string())]);
@@ -153,7 +193,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                     let mut job = egui::text::LayoutJob::default();
                     let font = egui::FontId::monospace(12.5);
                     let mut at = 0;
-                    for f in &found {
+                    for f in found {
                         if f.start > at {
                             job.append(
                                 &st.text[at..f.start],

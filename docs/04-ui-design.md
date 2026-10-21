@@ -530,6 +530,25 @@ buttons that act on what is selected keep the left; the assistant is a mode
 for the whole tab, not an action on a row, and it reads that way when it is
 not sitting among them. Owner's requirement, 2026-10-17.
 
+## Addendum (2026-10-22): narrow windows
+
+The shell lays every tool toolbar out in a **wrapping** row
+(`horizontal_wrapped`), so a window too narrow for the editor's or the
+diagram canvas's buttons moves the overflow onto a second row instead of
+clipping it off the right edge. A tool ends its hard-right group with
+`hs_ui::toolbar::hard_right`, which starts a fresh row when the current one
+has too little room left for it; a bare `right_to_left` scope would get
+only the width left on the row and the assistant control would vanish
+first.
+
+Panels give way before content does: the shared assistant column and the
+Graphics assistant column shrink to keep 320 px for the tool and step aside
+below 580 px of tool width; the sidebar's and the dock's upper bounds follow
+the window (half the width, 60 % of the height) rather than fixed pixel
+maximums, so a size saved on a wide monitor cannot keep most of a small one;
+the split-view divider refuses to move once both halves are at the 120 px
+minimum.
+
 ## Addendum (2026-10-17): Home's sidebar, and where the buttons go
 
 **Home's sidebar is "where you were".** The page answers *what can I do* —

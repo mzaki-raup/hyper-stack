@@ -70,6 +70,8 @@ pub(crate) enum Confirm {
 pub(crate) struct Ops {
     pub message: String,
     pub amend: bool,
+    /// A commit is in flight; its message is cleared only when it lands.
+    clear_message_on_ok: bool,
     /// The operation running now, as a label, so the box is disabled.
     pub busy: Option<String>,
     result: Option<mpsc::Receiver<(String, OpResult)>>,
@@ -153,6 +155,7 @@ impl Default for Ops {
         Self {
             message: String::new(),
             amend: false,
+            clear_message_on_ok: false,
             busy: None,
             result: None,
             lists: Lists::default(),
@@ -324,6 +327,10 @@ impl Ops {
             Ok(r) => {
                 self.result = None;
                 self.busy = None;
+                if std::mem::take(&mut self.clear_message_on_ok) && r.1.is_ok() {
+                    self.message.clear();
+                    self.amend = false;
+                }
                 Some(r)
             }
             Err(mpsc::TryRecvError::Empty) => None,
@@ -417,6 +424,10 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
     let root: PathBuf = root.to_path_buf();
     let settings = s.settings.read().git.clone();
     let done = |key: &str| s.t(key);
+    let index_only = matches!(
+        req,
+        Request::Stage(_) | Request::StageAll | Request::Unstage(_) | Request::UnstageAll
+    );
     match req {
         Request::Stage(paths) => {
             let msg = done("git-op-staged");
@@ -490,8 +501,10 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
                 }
                 Ok(committed)
             });
-            ops.message.clear();
-            ops.amend = false;
+            // Cleared once the commit succeeds (see `take_result`'s caller):
+            // a hook rejection or a cancelled pinentry must not eat the
+            // typed message.
+            ops.clear_message_on_ok = true;
         }
         Request::Fetch => {
             let msg = done("git-op-fetched");
@@ -781,7 +794,10 @@ pub(crate) fn run(ops: &mut Ops, s: &Services, root: &Path, status: &hs_git::Sta
             });
         }
     }
-    ops.lists_due = true;
+    // Stage/unstage/discard touch the index only; re-listing stashes,
+    // branches, remotes and tags (four git subprocesses) after each click
+    // is wasted. The result handler re-lists after every other op anyway.
+    ops.lists_due = !index_only;
 }
 
 /// `-u <remote> <branch>` for a branch that has no upstream yet, so the

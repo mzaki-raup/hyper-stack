@@ -843,7 +843,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
     ui.add_space(8.0);
     let mut error: Option<String> = None;
     if form::primary_button(ui, theme, &s.t("dt-gen-go")).clicked() {
-        let seed = st.seed_value();
+        // A seed makes the output reproducible, which is the one thing a
+        // password must never be; those two modes always draw from the OS.
+        let seed = if matches!(st.mode, Mode::Password | Mode::Passphrase) {
+            None
+        } else {
+            st.seed_value()
+        };
         let made = match st.mode {
             Mode::Uuid => {
                 let now = std::time::SystemTime::now()

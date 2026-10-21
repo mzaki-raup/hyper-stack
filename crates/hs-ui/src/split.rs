@@ -178,9 +178,12 @@ impl SplitNode {
                     } else {
                         rect.height()
                     };
-                    if size > 0.0 {
+                    // Below two minimum panes the divider stays put: relaxing
+                    // the minimum to a share of a tiny pane let both halves
+                    // shrink under every tool's own side-panel minimum.
+                    if size >= MIN_PANE * 2.0 {
                         let delta = if *horizontal { d.x } else { d.y } / size;
-                        let min = (MIN_PANE / size).min(0.45);
+                        let min = MIN_PANE / size;
                         *ratio = (*ratio + delta).clamp(min, 1.0 - min);
                     }
                 }

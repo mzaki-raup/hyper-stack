@@ -349,6 +349,7 @@ impl ToolFactory for BrowserFactory {
             favicons: Arc::new(Mutex::new(HashMap::new())),
             workspace: String::new(),
             workspace_icon: None,
+            synced_frame: None,
             root: std::path::PathBuf::new(),
             favorites: store::Favorites::default(),
             passwords: store::Passwords::default(),
@@ -384,6 +385,8 @@ pub struct BrowserTool {
     workspace: String,
     /// The workspace logo, registered with egui as an image URI.
     workspace_icon: Option<String>,
+    /// The frame `sync_workspace` last ran in.
+    synced_frame: Option<u64>,
     /// Where this workspace keeps its favourites and logins.
     root: std::path::PathBuf,
     /// This workspace's saved sites and logins. Both are per workspace:
@@ -416,6 +419,13 @@ impl BrowserTool {
     /// size and modification time, so replacing it shows the new image
     /// rather than the cached old one.
     fn sync_workspace(&mut self, ctx: &egui::Context, services: &Services) {
+        // Both the sidebar and the page call this; once a frame is enough
+        // (it stats the logo file every time).
+        let frame = ctx.cumulative_frame_nr();
+        if self.synced_frame == Some(frame) {
+            return;
+        }
+        self.synced_frame = Some(frame);
         let (name, root) = {
             let w = services.workspace.read();
             (w.meta.name.clone(), w.root().to_path_buf())

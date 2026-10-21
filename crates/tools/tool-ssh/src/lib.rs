@@ -1656,7 +1656,7 @@ impl Tool for SshTool {
         }
         ui.toggle_value(&mut self.state.sync_cwd, s.t("ssh-sync-cwd"))
             .tip(s.t("ssh-sync-cwd-hint"));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away
             // from the buttons that act on what is selected.

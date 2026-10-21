@@ -346,6 +346,25 @@ pub fn import_environment(text: &str) -> Result<(String, Vec<Kv>), String> {
 /// `{ "name": ..., "values": { "key": "value" } }` JSON shape.
 /// This returns HyperStack's neutral environment representation; client
 /// syntax in values is intentionally preserved for the user to review.
+/// The keys a Postman environment marks `"type": "secret"`. Their values
+/// belong in the vault, not in the environment file; the other formats
+/// have no such marker.
+pub fn secret_keys(text: &str) -> Vec<String> {
+    let Ok(v) = serde_json::from_str::<Value>(text) else {
+        return Vec::new();
+    };
+    v.get("values")
+        .and_then(|x| x.as_array())
+        .map(|values| {
+            values
+                .iter()
+                .filter(|e| e.get("type").and_then(|t| t.as_str()) == Some("secret"))
+                .map(|e| s(e, "key"))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 pub fn import_environment_document(text: &str) -> Result<(String, Vec<Kv>), String> {
     let v: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
     if let Ok(result) = postman_environment(&v) {

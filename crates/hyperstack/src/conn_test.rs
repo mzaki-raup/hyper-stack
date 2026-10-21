@@ -94,6 +94,19 @@ fn ssh_error(e: hs_ssh::config::ConfigError) -> Outcome {
 pub struct Test {
     pub profile_id: String,
     slot: Arc<Mutex<Outcome>>,
+    /// Aborts the spawned connect (the runtime's task handle, kept behind a
+    /// closure so this crate need not name the runtime's types).
+    abort: Option<Box<dyn FnOnce() + Send>>,
+}
+
+impl Drop for Test {
+    /// Closing the form must not leave a connect running (a slow host with
+    /// no connect timeout would hold a session until it answered).
+    fn drop(&mut self) {
+        if let Some(abort) = self.abort.take() {
+            abort();
+        }
+    }
 }
 
 impl Test {
@@ -118,18 +131,21 @@ type Probe = Pin<Box<dyn Future<Output = Outcome> + Send>>;
 /// is cheap; only the connect goes to the runtime.
 pub fn start(s: &Services, profile: &ConnectionProfile) -> Test {
     let slot = Arc::new(Mutex::new(Outcome::Running));
-    let test = Test {
+    let mut test = Test {
         profile_id: profile.id.clone(),
         slot: slot.clone(),
+        abort: None,
     };
     match probe(s, profile) {
         Ok(fut) => {
             let waker = s.runtime.waker();
-            s.runtime.spawn(async move {
+            let handle = s.runtime.spawn(async move {
                 let outcome = fut.await;
                 *slot.lock() = outcome;
                 waker.request_repaint();
             });
+            let abort = handle.abort_handle();
+            test.abort = Some(Box::new(move || abort.abort()));
         }
         // Nothing to await: a resolution failure is already the answer.
         Err(outcome) => *slot.lock() = outcome,
@@ -305,6 +321,7 @@ mod tests {
         let t = Test {
             profile_id: "x".into(),
             slot: Arc::new(Mutex::new(Outcome::Running)),
+            abort: None,
         };
         assert!(t.running());
         *t.slot.lock() = Outcome::Ok(String::new());

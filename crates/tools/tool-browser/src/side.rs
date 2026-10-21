@@ -59,6 +59,23 @@ pub struct SideState {
     /// revealed from the vault. Empty means "leave what is stored alone".
     pub secrets: [String; 3],
     pub revealed: [bool; 3],
+    /// A detail form changed; the file is written once typing pauses (no
+    /// text field has the keyboard), not on every keystroke.
+    pub favorites_dirty: bool,
+    pub passwords_dirty: bool,
+}
+
+/// Write back what the detail forms changed, once the keyboard is free.
+fn flush_dirty(t: &mut BrowserTool, ui: &egui::Ui, cx: &mut ToolContext) {
+    if ui.ctx().egui_wants_keyboard_input() {
+        return;
+    }
+    if std::mem::take(&mut t.side.favorites_dirty) {
+        save_favorites(t, cx);
+    }
+    if std::mem::take(&mut t.side.passwords_dirty) {
+        save_passwords(t, cx);
+    }
 }
 
 /// Indexes into [`SideState::secrets`], so the three fields and their
@@ -84,6 +101,7 @@ pub fn sidebar(
 ) -> SideOut {
     let mut out = SideOut::default();
     let s = cx.services;
+    flush_dirty(t, ui, cx);
     form::header_bar(ui, theme, |ui| {
         ui.label(egui::RichText::new(s.t("tool-browser")).strong().size(15.0));
     });
@@ -763,7 +781,7 @@ fn favorite_detail(
         icon_field(ui, theme, s, &mut l.icon, &mut changed);
     }
     if changed {
-        save_favorites(t, cx);
+        t.side.favorites_dirty = true;
     }
 }
 
@@ -869,7 +887,7 @@ fn login_detail(
         ui.add_space(6.0);
     }
     if changed {
-        save_passwords(t, cx);
+        t.side.passwords_dirty = true;
     }
 }
 

@@ -432,6 +432,51 @@ mod tests {
         let err = drawio_xml("<mxfile><diagram>N4Ig...</diagram></mxfile>").unwrap_err();
         assert!(err.contains("compressed"), "{err}");
     }
+
+    /// A file with one inline page and one compressed page, as draw.io
+    /// writes when pages were added at different times.
+    fn two_pages() -> String {
+        let inner = r#"<mxGraphModel><root><mxCell id="z" value="Second" vertex="1" parent="0"><mxGeometry x="0" y="0" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel>"#;
+        let mut enc =
+            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(inner.as_bytes()).unwrap();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(enc.finish().unwrap());
+        format!(
+            r#"<mxfile><diagram name="First" id="1"><mxGraphModel><root>
+              <mxCell id="0"/><mxCell id="1" parent="0"/>
+              <mxCell id="a" value="A" vertex="1" parent="1"><mxGeometry x="0" y="0" width="100" height="40" as="geometry"/></mxCell>
+              <mxCell id="b" value="B" vertex="1" parent="1"><mxGeometry x="200" y="0" width="100" height="40" as="geometry"/></mxCell>
+            </root></mxGraphModel></diagram><diagram name="Second" id="2">{encoded}</diagram></mxfile>"#
+        )
+    }
+
+    #[test]
+    fn drawio_pages_lists_every_page_by_name() {
+        let pages = drawio_pages(&two_pages()).unwrap();
+        let names: Vec<&str> = pages.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["First", "Second"]);
+        // The compressed page was decoded on the way.
+        assert!(pages[1].xml.contains("mxCell"));
+        // A file with no <diagram> wrapper is one page.
+        let bare = r#"<mxGraphModel><root><mxCell id="a" vertex="1" parent="0"><mxGeometry width="1" height="1" as="geometry"/></mxCell></root></mxGraphModel>"#;
+        assert_eq!(drawio_pages(bare).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_chosen_page_is_imported_and_a_missing_one_is_refused() {
+        let text = two_pages();
+        let first = drawio_xml_page(&text, 0).unwrap();
+        assert_eq!(first.nodes.len(), 2);
+        let second = drawio_xml_page(&text, 1).unwrap();
+        assert_eq!(second.nodes.len(), 1);
+        assert_eq!(second.nodes[0].label, "Second");
+        // The first page is what the plain import takes.
+        assert_eq!(drawio_xml(&text).unwrap().nodes.len(), 2);
+        let err = drawio_xml_page(&text, 5).unwrap_err();
+        assert!(err.contains("page 6"), "{err}");
+        let junk = "<mxfile><diagram name=\"x\">N4Ig...</diagram></mxfile>";
+        assert!(drawio_pages(junk).unwrap_err().contains("decoded"));
+    }
 }
 
 #[test]

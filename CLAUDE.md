@@ -794,6 +794,25 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - `rust-embed`'s `#[include]`/`#[exclude]` attributes need the
   `include-exclude` feature; without it the derive silently fails and every
   `Locales::get` call reports "no associated function".
+- A `Tool` is `Send`, so a per-frame cache on a tool's state must be an
+  `Arc`, not an `Rc` (the devtools diff/regex caches, 2026-10-22). And it
+  is `ctx.egui_wants_keyboard_input()`, not `wants_keyboard_input()`.
+- The shell draws tool toolbars with `horizontal_wrapped`; a tool's
+  hard-right group must go through `hs_ui::toolbar::hard_right`, never a
+  bare `with_layout(right_to_left)`: that scope only gets the width left on
+  the current row, so the assistant control was the first thing to vanish
+  in a narrow window. The same applies to any `Panel::right` next to tool
+  content - tie `size_range`'s upper bound to `available_width()` and give
+  way below a floor, or three stacked minimums (props + source + assistant
+  = 800 px in the diagram editor) leave the canvas at zero.
+- An immediate-mode `ui()` that recomputes derived data every frame hides
+  until the data grows: layout_approx on a 500-node diagram, a Myers diff
+  of two pasted configs, a regex with a 4 MiB DFA budget. Cache on a hash
+  of the inputs (`diagram::fingerprint`, `input_key`) and let idle frames
+  reuse it; `cargo test` will not tell you, only a big document will.
+- `git diff <base>..HEAD` for "the last N days" needs the right base:
+  `8c739c4` was a docs commit three days in, and the first review pass
+  reported empty diffs for six crates until the reviewer widened it.
 
 - `horizontal_wrapped` wraps on the size a widget reports *before* it is
   drawn, which an `egui::Frame` cannot do: a row of card frames runs past

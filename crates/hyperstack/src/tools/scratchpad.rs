@@ -657,7 +657,7 @@ impl Tool for Scratchpad {
         } else {
             s.t("tool-scratchpad-hint")
         };
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui

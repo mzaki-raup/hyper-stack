@@ -242,6 +242,16 @@ impl TerminalPanel {
             ui.colored_label(theme.error, err);
         }
         let tt = TermTheme::for_theme(&Theme::from_settings(&s.settings.read().appearance));
+        // Every shell is drained, not only the one on screen: a background
+        // shell's event queue otherwise grows until it is selected.
+        for (i, t) in self.shells.iter_mut().enumerate() {
+            if i != self.active {
+                let _ = t.session.drain_events();
+            }
+            if t.watch_web && t.session.exited().is_some() {
+                t.watch_web = false;
+            }
+        }
         if let Some(t) = self.shells.get_mut(self.active) {
             // A command handed to a fresh shell is typed once it is up;
             // ConPTY swallows anything written before that.

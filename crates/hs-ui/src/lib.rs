@@ -19,6 +19,7 @@ pub mod tabs;
 pub mod theme;
 pub mod tip;
 pub mod toast;
+pub mod toolbar;
 pub mod tree;
 pub mod varfield;
 pub mod varpeek;

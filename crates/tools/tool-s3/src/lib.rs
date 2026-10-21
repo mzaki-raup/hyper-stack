@@ -1092,7 +1092,7 @@ impl Tool for S3Tool {
         if btn(ui, in_bucket && selected.is_some(), ph::TRASH, "s3-delete") {
             self.ask_delete(s);
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui

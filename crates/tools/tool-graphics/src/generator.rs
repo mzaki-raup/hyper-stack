@@ -74,6 +74,17 @@ struct Running {
     abort: tokio::task::AbortHandle,
 }
 
+impl Drop for GeneratorState {
+    /// Closing the tab mid-request must stop the streaming task; otherwise
+    /// it runs to completion, filling an orphaned buffer and requesting a
+    /// repaint on every chunk for a tab that no longer exists.
+    fn drop(&mut self) {
+        if let Some(run) = self.running.take() {
+            run.abort.abort();
+        }
+    }
+}
+
 impl Default for GeneratorState {
     fn default() -> Self {
         Self::new()
@@ -907,7 +918,7 @@ mod tests {
     fn apply_accepts_a_valid_workflow() {
         let mut state = GeneratorState::new();
         let _ = state.apply(WORKFLOW);
-        let doc = state.doc.expect("a document");
+        let doc = state.doc.take().expect("a document");
         assert_eq!(doc.title, "Checkout");
         assert_eq!(doc.nodes.len(), 2);
         assert!(state.error.is_none());

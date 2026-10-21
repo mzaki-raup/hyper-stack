@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-20 (Graphics diagrams: R1.1 (project save, autosave, resize/align, edge labels/waypoints) merged; Release 2 (ERD, sequence, Archify/draw.io import) remains)
+Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/draw.io import and the draw.io page picker merged; a review pass over the last week's code (performance caches, selection and id fixes, narrow-window toolbars and panels) merged; frame-to-frame edges and draw.io image cells remain)
 
 ## Planning
 
@@ -397,7 +397,8 @@ and ADR-025.
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
 | Release 2: ERD structured columns and sequence fragments | Completed | Entity columns named/typed with PK/FK/UQ, Add/Remove Column, edge cardinality picker, sequence fragments (`alt`/`loop`/`opt`) added/edited/removed in Properties, activation bars; tested |
 | Release 2: Fragment ranges, column order and DDL import | Completed | Editable fragment from/to, entity column move up/down, SQL `CREATE TABLE`/FK import; parser and layout tests |
-| Release 2: draw.io multi-page import | Completed | Page picker for multi-page `.drawio`/XML; compressed and uncompressed pages; image cells unsupported |
+| Release 2: draw.io multi-page import | Completed | Page picker for multi-page `.drawio`/XML; compressed and uncompressed pages; tests cover page names, choosing the second (compressed) page, a missing page and an undecodable page (added 2026-10-22 - the branch had claimed them); image cells unsupported |
+| Release 2: Diagram Editor review pass (2026-10-22) | Completed | Sequence-click panic, deleted nodes left in frames, edge-id reuse, zoom-to-pointer, undo gaps, stale selections, scene/autosave caches, Align pairing; frame-to-frame edges still Pending |
 | Release 2: ERD and sequence diagrams | In-Progress | 2026-10-21: `NodeKind::Entity` table nodes, structured columns, sequence lifeline layout with participants/messages/fragments; draw.io image cells and other depth remain |
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and page selection |
 | Release 2: `.diagram.json` alias and schema migration | Completed | `.diagram.json` opens/saves as an alias; schema v2 migrates v1 documents in `from_json` and writes the new marker on save, with tests |

@@ -126,6 +126,9 @@ pub struct ApiTool {
     pub(crate) rename: Option<(String, String)>,
     pub(crate) save_to: Option<ui::SaveTo>,
     pub(crate) confirm_send: Option<String>,
+    /// A sidebar Delete waiting for its confirmation: the collection id
+    /// and, for a folder or request, its id.
+    pub(crate) confirm_delete: Option<(String, Option<String>)>,
     pub(crate) curl_import: Option<String>,
     pub(crate) new_collection: Option<String>,
     pub(crate) show_history: bool,
@@ -205,6 +208,7 @@ impl ApiTool {
             rename: None,
             save_to: None,
             confirm_send: None,
+            confirm_delete: None,
             curl_import: None,
             new_collection: None,
             show_history: false,
@@ -466,14 +470,44 @@ impl ApiTool {
                 Ok((name, vars)) => {
                     let mut env = hs_core::environments::Environment {
                         name: if name.is_empty() {
-                            "Imported".into()
+                            s.t("api-imported-environment-name")
                         } else {
                             name
                         },
                         ..Default::default()
                     };
+                    // Postman marks tokens and passwords `"type": "secret"`;
+                    // those go into the vault and the environment keeps
+                    // only the reference, like a secret typed in Settings.
+                    let secret = postman::secret_keys(&text);
+                    let mut skipped = 0;
                     for v in vars.iter().filter(|v| v.enabled) {
-                        env.variables.insert(v.key.clone(), v.value.clone());
+                        if !v.value.is_empty() && secret.contains(&v.key) {
+                            if s.secrets.is_locked() {
+                                skipped += 1;
+                                continue;
+                            }
+                            match s.secrets.create(
+                                &format!("{}: {}", env.name, v.key),
+                                &secrecy::SecretString::from(v.value.clone()),
+                            ) {
+                                Ok(r) => {
+                                    env.variables.insert(v.key.clone(), r.to_string_ref());
+                                }
+                                Err(_) => skipped += 1,
+                            }
+                        } else {
+                            env.variables.insert(v.key.clone(), v.value.clone());
+                        }
+                    }
+                    if skipped > 0 {
+                        cx.toast(
+                            ToastLevel::Warning,
+                            s.i18n.t_args(
+                                "api-imported-secrets-skipped",
+                                &[("count", &skipped.to_string())],
+                            ),
+                        );
                     }
                     let n = env.variables.len();
                     let name = env.name.clone();
@@ -1328,7 +1362,7 @@ impl Tool for ApiTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui
@@ -1652,20 +1686,11 @@ impl ApiTool {
 #[allow(dead_code)]
 fn _assert_types(_: Body) {}
 
-/// `base`, or `base 001`, `base 002`… until it does not collide.
+/// `base`, or the next numbered form, until it does not collide. One rule
+/// for every path (new, rename, duplicate, drag): `model::free_name`.
 pub(crate) fn unique_name(base: &str, existing: impl Iterator<Item = String>) -> String {
-    let base = base.trim();
-    let names: Vec<String> = existing.map(|n| n.to_lowercase()).collect();
-    if !names.iter().any(|n| n == &base.to_lowercase()) {
-        return base.to_string();
-    }
-    for i in 1..=999 {
-        let candidate = format!("{base} {i:03}");
-        if !names.iter().any(|n| n == &candidate.to_lowercase()) {
-            return candidate;
-        }
-    }
-    format!("{base} 1000")
+    let taken: Vec<String> = existing.collect();
+    model::free_name(base.trim(), &taken)
 }
 
 #[cfg(test)]

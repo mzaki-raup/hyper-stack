@@ -2255,7 +2255,12 @@ impl HyperStackApp {
                     bottom: 8,
                 })
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
+                    // Wrapped, so a narrow window moves buttons onto a
+                    // second row instead of clipping them off the right
+                    // edge; tools end their hard-right group with
+                    // `hs_ui::toolbar::hard_right`, which starts a new row
+                    // when the current one is nearly full.
+                    ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 8.0;
                         let mut cx = ToolContext {
                             services: &services,
@@ -3256,9 +3261,12 @@ impl eframe::App for HyperStackApp {
             .show(root, |ui| self.rail(ui));
         if self.sidebar_open {
             let w = self.services.settings.read().appearance.sidebar_width;
+            // The upper bound follows the window: a 640 px sidebar saved on
+            // a wide monitor must not keep most of a small window.
+            let max_w = (root.available_width() * 0.5).clamp(180.0, 640.0);
             let r = egui::Panel::left("hs-sidebar")
-                .default_size(w)
-                .size_range(180.0..=640.0)
+                .default_size(w.min(max_w))
+                .size_range(180.0..=max_w)
                 .resizable(true)
                 .show(root, |ui| self.sidebar(ui));
             let _ = &r;
@@ -3279,9 +3287,10 @@ impl eframe::App for HyperStackApp {
         if self.dock_open {
             let h = self.services.settings.read().appearance.dock_height;
             let logs = self.logging.buffer.clone();
+            let max_h = (root.available_height() * 0.6).clamp(100.0, 600.0);
             let r = egui::Panel::bottom("hs-dock")
-                .default_size(h)
-                .size_range(100.0..=600.0)
+                .default_size(h.min(max_h))
+                .size_range(100.0..=max_h)
                 .resizable(true)
                 .show(root, |ui| {
                     dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock);

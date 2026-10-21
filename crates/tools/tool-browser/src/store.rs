@@ -105,6 +105,25 @@ pub fn link_urls(items: &[FavItem]) -> Vec<String> {
     out
 }
 
+/// A store file, or the default when there is none. A file that exists but
+/// does not parse is set aside as `<name>.bad` first: loading it as empty
+/// and then saving over it on the next edit would silently lose every
+/// favourite or login it held.
+fn load_or_default<T: Default + serde::de::DeserializeOwned>(file: &Path) -> T {
+    let Ok(text) = std::fs::read_to_string(file) else {
+        return T::default();
+    };
+    match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => {
+            let mut bad = file.as_os_str().to_owned();
+            bad.push(".bad");
+            let _ = std::fs::rename(file, bad);
+            T::default()
+        }
+    }
+}
+
 /// A workspace's favourites.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -118,10 +137,7 @@ impl Favorites {
     }
 
     pub fn load(root: &Path) -> Self {
-        std::fs::read_to_string(Self::file(root))
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        load_or_default(&Self::file(root))
     }
 
     pub fn save(&self, root: &Path) -> std::io::Result<()> {
@@ -333,10 +349,7 @@ impl Passwords {
     }
 
     pub fn load(root: &Path) -> Self {
-        std::fs::read_to_string(Self::file(root))
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        load_or_default(&Self::file(root))
     }
 
     pub fn save(&self, root: &Path) -> std::io::Result<()> {

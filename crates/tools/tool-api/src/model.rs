@@ -620,7 +620,7 @@ pub fn next_copy_name(name: &str, taken: &[String]) -> String {
     let stem = stem_of(name);
     for n in 1..=999 {
         let candidate = format!("{stem} {n:03}");
-        if !taken.iter().any(|t| t == &candidate) {
+        if !taken.iter().any(|t| t.eq_ignore_ascii_case(&candidate)) {
             return candidate;
         }
     }
@@ -644,9 +644,11 @@ fn stem_of(name: &str) -> &str {
 }
 
 /// The name to give `name` in a list that already holds `taken`: itself
-/// when it is free, else the next numbered form.
+/// when it is free, else the next numbered form. Names are compared
+/// case-insensitively: "foo" beside "Foo" is a clash on every file system
+/// the collection is saved to.
 pub fn free_name(name: &str, taken: &[String]) -> String {
-    if !taken.iter().any(|t| t == name) {
+    if !taken.iter().any(|t| t.eq_ignore_ascii_case(name)) {
         return name.to_string();
     }
     next_copy_name(name, taken)
@@ -715,6 +717,16 @@ mod tests {
     fn a_name_nothing_else_uses_is_left_alone() {
         assert_eq!(free_name("List", &["Create".to_string()]), "List");
         assert_eq!(free_name("List", &["List".to_string()]), "List 001");
+        // Case does not make a different name (the collection file does not
+        // care either), and a numbered name is renumbered, not nested.
+        assert_eq!(free_name("list", &["List".to_string()]), "list 001");
+        assert_eq!(
+            free_name(
+                "List 001",
+                &["List 001".to_string(), "list 002".to_string()]
+            ),
+            "List 003"
+        );
         assert_eq!(
             free_name("List", &["List".to_string(), "List 001".to_string()]),
             "List 002"

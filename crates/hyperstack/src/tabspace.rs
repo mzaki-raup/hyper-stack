@@ -410,7 +410,13 @@ impl TabSpace {
         services: &Services,
     ) {
         let mut seen: Vec<String> = Vec::new();
-        for i in 0..self.tabs.len() {
+        // Indexed by hand: an insert below shifts every later tab right,
+        // and a `for 0..len` evaluated once never reached the last one.
+        let mut i = 0;
+        while i < self.tabs.len() {
+            let here = i;
+            i += 1;
+            let i = here;
             let id = self.tabs[i].factory_id.clone();
             if seen.contains(&id) {
                 continue;

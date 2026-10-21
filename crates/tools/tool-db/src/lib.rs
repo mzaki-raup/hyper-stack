@@ -2377,7 +2377,7 @@ impl Tool for DbTool {
 
     /// What this tab is: the engine, and the query being edited.
     fn subtitle(&self) -> Option<String> {
-        let engine = format!("{:?}", self.engine);
+        let engine = self.engine.label().to_string();
         match self.query_name.as_deref() {
             Some(q) if !q.is_empty() => Some(format!("{engine} · {q}")),
             _ => Some(engine),
@@ -2573,7 +2573,7 @@ impl Tool for DbTool {
         ) {
             self.run_command("file.save", cx);
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui
@@ -2746,7 +2746,7 @@ impl Tool for DbTool {
         }
         Some(hs_core::tool::Printable {
             title: format!("SQL · {}", self.conn_name),
-            subtitle: format!("{:?}", self.engine),
+            subtitle: self.engine.label().to_string(),
             html,
         })
     }

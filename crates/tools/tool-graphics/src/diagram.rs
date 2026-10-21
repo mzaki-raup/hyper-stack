@@ -85,6 +85,7 @@ pub struct DiagramState {
     drag_frame_resize: Option<FrameResize>,
     drag_pan: Option<(egui::Vec2, egui::Pos2)>,
     last_center: Point,
+    scene_cache: Option<(u64, std::sync::Arc<Scene>)>,
     saved: Option<PathBuf>,
     pub(crate) status: Option<String>,
     save_open: bool,
@@ -138,6 +139,7 @@ impl DiagramState {
             drag_frame_resize: None,
             drag_pan: None,
             last_center: Point { x: 0.0, y: 0.0 },
+            scene_cache: None,
             saved: None,
             status: None,
             save_open: false,
@@ -242,6 +244,10 @@ impl DiagramState {
         self.dirty = true;
     }
 
+    /// One rect per document node, in node order. The layout pushes the
+    /// node shapes first; a sequence diagram then adds one activation
+    /// shape per message, which must not be mistaken for a node (indexing
+    /// `doc.nodes` with such an index panicked on click).
     fn node_rects(&self, scene: &Scene) -> Vec<Rect> {
         scene
             .prims
@@ -250,7 +256,22 @@ impl DiagramState {
                 Prim::Shape { rect, .. } => Some(*rect),
                 _ => None,
             })
+            .take(self.doc.nodes.len())
             .collect()
+    }
+
+    /// The laid-out scene for the current document, recomputed only when
+    /// the document changed: idle repaints (hover, pan) reuse it.
+    fn scene_cached(&mut self) -> std::sync::Arc<Scene> {
+        let key = fingerprint(&self.doc);
+        if let Some((k, scene)) = &self.scene_cache
+            && *k == key
+        {
+            return scene.clone();
+        }
+        let scene = std::sync::Arc::new(layout_approx(&self.doc));
+        self.scene_cache = Some((key, scene.clone()));
+        scene
     }
 
     fn push_undo(&mut self) {
@@ -263,18 +284,44 @@ impl DiagramState {
         self.dirty = true;
     }
 
+    /// Drop every selection, pending edge start and drag that refers to
+    /// ids of a document that just got swapped out (undo, redo, replace).
+    fn clear_selection(&mut self) {
+        if self
+            .selected
+            .as_ref()
+            .is_some_and(|id| self.doc.node(id).is_none())
+        {
+            self.selected = None;
+        }
+        self.multi.retain(|id| self.doc.node(id).is_some());
+        if self
+            .selected_edge
+            .as_ref()
+            .is_some_and(|id| !self.doc.edges.iter().any(|e| &e.id == id))
+        {
+            self.selected_edge = None;
+        }
+        if self
+            .selected_group
+            .as_ref()
+            .is_some_and(|id| !self.doc.groups.iter().any(|g| &g.id == id))
+        {
+            self.selected_group = None;
+        }
+        self.edge_from = None;
+        self.drag_node = None;
+        self.drag_resize = None;
+        self.drag_via = None;
+        self.drag_frame = None;
+        self.drag_frame_resize = None;
+    }
+
     fn undo(&mut self) {
         if let Some(doc) = self.undo.pop() {
             self.redo.push(std::mem::replace(&mut self.doc, doc));
             self.dirty = true;
-            if self
-                .selected
-                .as_ref()
-                .is_some_and(|id| self.doc.node(id).is_none())
-            {
-                self.selected = None;
-            }
-            self.multi.retain(|id| self.doc.node(id).is_some());
+            self.clear_selection();
         }
     }
 
@@ -282,14 +329,7 @@ impl DiagramState {
         if let Some(doc) = self.redo.pop() {
             self.undo.push(std::mem::replace(&mut self.doc, doc));
             self.dirty = true;
-            if self
-                .selected
-                .as_ref()
-                .is_some_and(|id| self.doc.node(id).is_none())
-            {
-                self.selected = None;
-            }
-            self.multi.retain(|id| self.doc.node(id).is_some());
+            self.clear_selection();
         }
     }
 
@@ -401,6 +441,11 @@ impl DiagramState {
         self.doc
             .edges
             .retain(|e| !ids.contains(&e.from) && !ids.contains(&e.to));
+        // A frame that still lists a deleted node fails validation, which
+        // then refuses to reopen the saved file.
+        for group in &mut self.doc.groups {
+            group.nodes.retain(|n| !ids.contains(n));
+        }
         self.selected = None;
         self.multi.clear();
     }
@@ -430,28 +475,36 @@ impl DiagramState {
         // and silently discards them (freeze bakes the current rects in and
         // turns auto_layout off, like drag and Add Frame already do).
         self.freeze();
-        let mut boxes = Vec::new();
-        for id in &ids {
-            if let Some(n) = self.doc.nodes.iter().find(|n| &n.id == id) {
-                boxes.push((n.x, n.y, n.w, n.h));
-            }
-        }
+        // Ids and boxes travel together: zipping two lists went wrong as
+        // soon as a selected id no longer existed, every later node then
+        // took its predecessor's width and height.
+        let boxes: Vec<(String, (f32, f32, f32, f32))> = ids
+            .iter()
+            .filter_map(|id| {
+                self.doc
+                    .nodes
+                    .iter()
+                    .find(|n| &n.id == id)
+                    .map(|n| (id.clone(), (n.x, n.y, n.w, n.h)))
+            })
+            .collect();
         if boxes.len() < 2 {
             return;
         }
-        let min_x = boxes.iter().map(|b| b.0).fold(f32::INFINITY, f32::min);
+        let min_x = boxes.iter().map(|b| b.1.0).fold(f32::INFINITY, f32::min);
         let max_x = boxes
             .iter()
-            .map(|b| b.0 + b.2)
+            .map(|b| b.1.0 + b.1.2)
             .fold(f32::NEG_INFINITY, f32::max);
-        let min_y = boxes.iter().map(|b| b.1).fold(f32::INFINITY, f32::min);
+        let min_y = boxes.iter().map(|b| b.1.1).fold(f32::INFINITY, f32::min);
         let max_y = boxes
             .iter()
-            .map(|b| b.1 + b.3)
+            .map(|b| b.1.1 + b.1.3)
             .fold(f32::NEG_INFINITY, f32::max);
         let cy = (min_y + max_y) / 2.0;
         let cx = (min_x + max_x) / 2.0;
-        for (id, (_, _, w, h)) in ids.iter().zip(boxes) {
+        for (id, (_, _, w, h)) in boxes {
+            let id = &id;
             let Some(n) = self.doc.node_mut(id) else {
                 continue;
             };
@@ -720,7 +773,9 @@ impl DiagramState {
 
     /// Pick a page when a draw.io file has more than one.
     fn drawio_window(&mut self, ctx: &egui::Context, cx: &mut ToolContext) {
-        let Some((text, pages, mut selected)) = self.drawio_import.clone() else {
+        // Taken, not cloned: the XML of a multi-page draw.io file is
+        // routinely megabytes, and this runs every frame the picker is up.
+        let Some((text, pages, mut selected)) = self.drawio_import.take() else {
             return;
         };
         let s = cx.services.clone();
@@ -872,13 +927,13 @@ impl DiagramState {
         self.drawio_window(ui.ctx(), cx);
         egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
-            .size_range(240.0..=430.0)
+            .size_range(240.0..=(ui.available_width() * 0.4).max(240.0))
             .resizable(true)
             .show(ui, |ui| self.properties(ui, cx, theme));
         if self.view == DiagramView::Split {
             egui::Panel::right("gfx-diagram-source")
                 .default_size(420.0)
-                .size_range(260.0..=760.0)
+                .size_range(260.0..=(ui.available_width() * 0.6).max(260.0))
                 .resizable(true)
                 .show(ui, |ui| self.source_view(ui, theme));
         }
@@ -1282,8 +1337,11 @@ impl DiagramState {
                     if add {
                         self.add_edge_waypoint(&eid);
                     }
-                    if clear && let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == eid) {
-                        edge.via.clear();
+                    if clear && self.doc.edges.iter().any(|e| e.id == eid) {
+                        self.push_undo();
+                        if let Some(edge) = self.doc.edges.iter_mut().find(|e| e.id == eid) {
+                            edge.via.clear();
+                        }
                         self.dirty = true;
                     }
                     if changed {
@@ -1502,7 +1560,7 @@ impl DiagramState {
 
     fn canvas(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let rect = ui.max_rect();
-        let scene = layout_approx(&self.doc);
+        let scene = self.scene_cached();
         let z = if self.zoom == 0.0 {
             ((rect.width() - 48.0) / scene.size.w.max(1.0))
                 .min((rect.height() - 48.0) / scene.size.h.max(1.0))
@@ -1820,8 +1878,12 @@ impl DiagramState {
                         if from != id {
                             self.push_undo();
                             self.freeze();
+                            let mut n = self.doc.edges.len() + 1;
+                            while self.doc.edges.iter().any(|e| e.id == format!("e{n}")) {
+                                n += 1;
+                            }
                             self.doc.edges.push(Edge {
-                                id: format!("e{}", self.doc.edges.len() + 1),
+                                id: format!("e{n}"),
                                 from,
                                 to: id.clone(),
                                 label: String::new(),
@@ -1909,29 +1971,40 @@ impl DiagramState {
                     let old = z;
                     let factor = if scroll > 0.0 { 1.1 } else { 0.9 };
                     let new = (old * factor).clamp(0.1, 4.0);
-                    if let Some(p) = pointer {
-                        let world = Point {
-                            x: (p.x - origin.x) / old,
-                            y: (p.y - origin.y) / old,
-                        };
-                        self.pan += (p - to_screen(world)) * (new / old);
-                    }
+                    // Keep the world point under the pointer where it is:
+                    // the new origin must satisfy p - origin' = (p - origin)
+                    // * new / old, and pan is origin minus the centred base.
+                    let pivot = pointer.unwrap_or(rect.center());
+                    let origin_new = pivot - (pivot - origin) * (new / old);
+                    let base = rect.center() - egui::vec2(scene.size.w, scene.size.h) * (new / 2.0);
+                    self.pan = origin_new - base;
                     self.zoom = new;
                 } else {
+                    // Fit mode (zoom 0) forces pan to zero every frame, so
+                    // scrolling did nothing until the first Ctrl+wheel:
+                    // materialise the fit first.
+                    if self.zoom == 0.0 {
+                        self.zoom = z;
+                        self.pan = pan;
+                    }
                     self.pan.y += scroll;
                 }
             }
-            if ui.input(|i| i.key_pressed(egui::Key::Delete)) {
-                self.delete_selected();
-            }
-            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z)) {
-                self.undo();
-            }
-            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y)) {
-                self.redo();
-            }
-            if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
-                self.save(cx);
+            // The properties panel's text fields have their own Delete and
+            // Ctrl+Z; only act when no widget is taking the keyboard.
+            if !ui.ctx().egui_wants_keyboard_input() {
+                if ui.input(|i| i.key_pressed(egui::Key::Delete)) {
+                    self.delete_selected();
+                }
+                if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z)) {
+                    self.undo();
+                }
+                if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y)) {
+                    self.redo();
+                }
+                if ui.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::S)) {
+                    self.save(cx);
+                }
             }
         }
         for id in self.selection() {
@@ -2004,6 +2077,9 @@ impl DiagramState {
                         egui::StrokeKind::Outside,
                     );
                     painter.circle_filled(rect.right_top(), 4.0, theme.accent);
+                    if r.drag_started() {
+                        self.push_undo();
+                    }
                     if r.dragged()
                         && let Some(p) = ui.input(|i| i.pointer.interact_pos())
                     {
@@ -2315,6 +2391,9 @@ impl DiagramState {
         self.push_undo();
         self.doc = doc;
         self.selected = self.doc.nodes.first().map(|n| n.id.clone());
+        self.selected_edge = None;
+        self.selected_group = None;
+        self.clear_selection();
         self.dirty = true;
         self.zoom = 0.0;
         self.pan = egui::Vec2::ZERO;
@@ -2497,6 +2576,28 @@ pub(crate) fn sanitise(title: &str) -> String {
     } else {
         out
     }
+}
+
+/// A cheap, complete change detector for a document: its serialisation
+/// streamed straight into a hasher (no string is built). Used to skip the
+/// layout and the draft autosave on frames where nothing changed.
+pub(crate) fn fingerprint(doc: &DiagramDoc) -> u64 {
+    use std::hash::Hasher;
+    struct HashWriter(std::collections::hash_map::DefaultHasher);
+    impl std::io::Write for HashWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.write(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut w = HashWriter(std::collections::hash_map::DefaultHasher::new());
+    // The document always serialises; a failure here would mean a bug in
+    // the model, and hashing whatever was written is still deterministic.
+    let _ = serde_json::to_writer(&mut w, doc);
+    w.0.finish()
 }
 
 fn frame_title_controls(

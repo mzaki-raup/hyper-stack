@@ -1607,7 +1607,7 @@ impl GraphicsTool {
 
     /// The shared assistant control always ends at the toolbar's hard right.
     fn assistant_right(&mut self, ui: &mut egui::Ui, s: &Services) {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             self.assistant_button(ui, s);
         });
     }
@@ -1687,9 +1687,17 @@ impl GraphicsTool {
                 })
                 .collect();
         }
+        // Same rule as the shared assistant: keep 320 px for the tool,
+        // shrink the column to make room, and step aside entirely when even
+        // its minimum would not fit (a split half in a small window).
+        let avail = ui.available_width();
+        if avail < 320.0 + 260.0 {
+            return;
+        }
+        let max_w = (avail - 320.0).clamp(260.0, 560.0);
         egui::Panel::right("gfx-assistant-column")
-            .default_size(390.0)
-            .size_range(300.0..=560.0)
+            .default_size(390.0_f32.min(max_w))
+            .size_range(260.0..=max_w)
             .resizable(true)
             .show(ui, |ui| {
                 ui.add_space(6.0);
@@ -2113,17 +2121,16 @@ impl GraphicsTool {
     /// file the close path uses. The tab's `dirty` flag stays set: a draft is
     /// not a saved document.
     fn autosave_draft(&mut self) {
-        use std::hash::{Hash, Hasher};
         let (Some(dir), Some(state)) = (self.drafts.clone(), self.diagram.as_ref()) else {
             return;
         };
         if !state.dirty || state.doc.nodes.is_empty() {
             return;
         }
-        let text = hs_diagram::io::to_json(&state.doc);
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        text.hash(&mut hasher);
-        let hash = hasher.finish();
+        // The change check used to serialise the whole document to a JSON
+        // string every frame just to hash it; the fingerprint streams the
+        // same bytes into the hasher without building the string.
+        let hash = diagram::fingerprint(&state.doc);
         if hash == self.draft_hash {
             return;
         }
@@ -2435,7 +2442,7 @@ impl Tool for GraphicsTool {
         if ui.button(ph::MAGNIFYING_GLASS_MINUS).clicked() {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } / 1.25).max(0.05);
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             if ui
@@ -2472,12 +2479,14 @@ impl Tool for GraphicsTool {
             return;
         }
         if self.kind == Kind::Diagram {
-            let context = self
-                .diagram
-                .as_ref()
-                .map(|state| diagram_context(&state.doc))
-                .unwrap_or_default();
             if self.assistant.open {
+                // Formatted only while the column is open; it is one
+                // `format!` per node and edge, every frame.
+                let context = self
+                    .diagram
+                    .as_ref()
+                    .map(|state| diagram_context(&state.doc))
+                    .unwrap_or_default();
                 self.assistant_column(ui, cx, &theme, context, &DIAGRAM_QA);
             }
             if let Some(state) = &mut self.diagram {
@@ -2499,12 +2508,12 @@ impl Tool for GraphicsTool {
             return;
         }
         if self.kind == Kind::Generator {
-            let context = self
-                .generator
-                .as_ref()
-                .map(|state| generator_context(state))
-                .unwrap_or_default();
             if self.assistant.open {
+                let context = self
+                    .generator
+                    .as_ref()
+                    .map(|state| generator_context(state))
+                    .unwrap_or_default();
                 self.assistant_column(ui, cx, &theme, context, &GENERATOR_QA);
             }
             if let Some(state) = &mut self.generator {

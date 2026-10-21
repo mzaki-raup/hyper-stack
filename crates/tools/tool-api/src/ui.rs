@@ -613,13 +613,10 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
                     && let Some(items) = col.items_mut(folder.as_deref())
                 {
                     let base = s.t("api-new-folder-name");
-                    let name = crate::unique_name(
-                        &base,
-                        items.iter().filter_map(|i| match i {
-                            Item::Folder(f) => Some(f.name.clone()),
-                            _ => None,
-                        }),
-                    );
+                    // Requests and folders share one namespace in a level
+                    // (rename and drag already treat them so).
+                    let name =
+                        crate::unique_name(&base, items.iter().map(|i| i.name().to_string()));
                     items.push(Item::Folder(Folder {
                         name,
                         ..Default::default()
@@ -644,27 +641,9 @@ pub(crate) fn apply_side_actions(t: &mut ApiTool, actions: Vec<SideAction>, cx: 
                 to,
                 cx,
             ),
-            SideAction::Delete(c, item) => match item {
-                Some(id) => {
-                    if let Some(col) = t.collections.iter_mut().find(|x| x.id == c) {
-                        col.remove(&id);
-                    }
-                    t.save_collection(&c, cx);
-                    if t.state_request_id().as_deref() == Some(&id) {
-                        t.new_request();
-                    }
-                }
-                None => {
-                    let _ = std::fs::remove_file(Collection::path(&t.collections_dir(), &c));
-                    t.collections.retain(|x| x.id != c);
-                    if t.state_collection().as_deref() == Some(&c) {
-                        t.new_request();
-                    }
-                    // A deleted collection has no file left to save, so the
-                    // other tabs have to be told separately.
-                    t.announce(cx);
-                }
-            },
+            // Deleting a collection removes its file; deleting a folder
+            // takes every request inside it. Both wait for a confirmation.
+            SideAction::Delete(c, item) => t.confirm_delete = Some((c, item)),
             SideAction::Duplicate(c, id) => {
                 // A request or a folder: a folder brings everything inside
                 // it, with new ids throughout so the copies are their own
@@ -983,7 +962,11 @@ fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                 .hint_text(s.t("api-request-name-hint"))
                 .desired_width(f32::INFINITY),
         );
-        let done = r.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter));
+        // Enter counts only while this field has the focus: a tab-wide
+        // Enter check wrote the collection file on every newline typed in
+        // the body editor.
+        let done =
+            r.lost_focus() || (r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
         if !(r.changed() || done) {
             return;
         }
@@ -1022,22 +1005,45 @@ fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
     });
 }
 
-/// Which folder of `col` holds `id` (`None` = the collection's root).
-fn parent_folder(col: &Collection, id: &str) -> Option<String> {
-    fn walk(items: &[Item], id: &str, here: Option<&str>) -> Option<Option<String>> {
-        for it in items {
-            if it.id() == id {
-                return Some(here.map(str::to_string));
+/// The confirmed Delete: a request or folder (`Some(id)`) or the whole
+/// collection (`None`).
+fn delete_now(t: &mut ApiTool, c: &str, item: Option<&str>, cx: &mut ToolContext) {
+    match item {
+        Some(id) => {
+            if let Some(col) = t.collections.iter_mut().find(|x| x.id == c) {
+                col.remove(id);
             }
-            if let Item::Folder(f) = it
-                && let Some(found) = walk(&f.items, id, Some(&f.id))
-            {
-                return Some(found);
+            t.save_collection(c, cx);
+            // The open request may have been the item itself or anything
+            // inside a deleted folder: either way its row is gone, and the
+            // next Ctrl+S must not say "Saved".
+            let open_gone = t.state_request_id().is_some_and(|open| {
+                open == id
+                    || t.collections
+                        .iter()
+                        .find(|x| x.id == c)
+                        .is_some_and(|col| col.find(&open).is_none())
+            });
+            if open_gone {
+                t.new_request();
             }
         }
-        None
+        None => {
+            let _ = std::fs::remove_file(Collection::path(&t.collections_dir(), c));
+            t.collections.retain(|x| x.id != c);
+            if t.state_collection().as_deref() == Some(c) {
+                t.new_request();
+            }
+            // A deleted collection has no file left to save, so the other
+            // tabs have to be told separately.
+            t.announce(cx);
+        }
     }
-    walk(&col.items, id, None).flatten()
+}
+
+/// Which folder of `col` holds `id` (`None` = the collection's root).
+fn parent_folder(col: &Collection, id: &str) -> Option<String> {
+    col.parent_folder_of(id).flatten()
 }
 
 fn scope_of(collection: &str, folder: Option<&str>) -> String {
@@ -1866,6 +1872,44 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             hs_ui::dialog::DialogResult::Open => {}
         }
     }
+    // Delete confirmation (collection, folder or request).
+    if let Some((c, item)) = t.confirm_delete.clone() {
+        let (title, body) = match &item {
+            None => (
+                s.t("api-delete-collection"),
+                s.t("api-delete-body-collection"),
+            ),
+            Some(id) => {
+                let is_folder = t
+                    .collections
+                    .iter()
+                    .find(|x| x.id == c)
+                    .is_some_and(|col| col.find(id).is_none());
+                if is_folder {
+                    (s.t("api-delete-folder"), s.t("api-delete-body-folder"))
+                } else {
+                    (s.t("api-delete-request"), s.t("api-delete-body-request"))
+                }
+            }
+        };
+        match hs_ui::dialog::confirm(
+            &ctx,
+            theme,
+            "api-delete",
+            &title,
+            &body,
+            &s.t("api-delete"),
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                t.confirm_delete = None;
+                delete_now(t, &c, item.as_deref(), cx);
+            }
+            hs_ui::dialog::DialogResult::Cancel => t.confirm_delete = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
     // New collection.
     if let Some(name) = &mut t.new_collection {
         let mut done: Option<bool> = None;
@@ -2000,7 +2044,7 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             let st = t.save_to.take().unwrap();
             if ok {
                 let name = if st.name.trim().is_empty() {
-                    "Request".into()
+                    s.t("api-new-request-name")
                 } else {
                     st.name.trim().to_string()
                 };
@@ -2187,6 +2231,8 @@ impl ApiTool {
                 .find(|x| x.id == from_collection)
                 && let Some(items) = col.items_mut(to_folder)
             {
+                // A drop on the level's own header means "at the end".
+                let to = to.min(items.len());
                 hs_ui::reorder::move_item(items, from, to);
                 self.save_collection(from_collection, cx);
             }

@@ -443,6 +443,16 @@ fn check_field(field: &str, name: &str, lo: u32, hi: u32) -> Result<(), String> 
             ));
         }
         if value == "*" || value == "?" {
+            // `*/N` steps over the whole field; a step wider than the field
+            // never fires twice.
+            if let Some(s) = step
+                && let Ok(n) = s.parse::<u32>()
+                && n > (hi - lo).max(1)
+            {
+                return Err(format!(
+                    "{part}: the step {n} is wider than the {name} range"
+                ));
+            }
             continue;
         }
         // Names and modifiers (MON, JAN, L, W, 2#1) are passed through:
@@ -452,12 +462,39 @@ fn check_field(field: &str, name: &str, lo: u32, hi: u32) -> Result<(), String> 
         if value.chars().any(|c| !c.is_ascii_digit() && c != '-') {
             continue;
         }
+        let mut bounds = Vec::new();
         for n in value.split('-') {
             let Ok(v) = n.parse::<u32>() else {
                 return Err(format!("{part}: the {name} field is not a number"));
             };
             if v < lo || v > hi {
                 return Err(format!("{part}: a {name} is {lo} to {hi}"));
+            }
+            bounds.push(v);
+        }
+        match bounds.as_slice() {
+            [a, b] if a > b => {
+                return Err(format!("{part}: the {name} range runs backwards"));
+            }
+            [_, _, ..] if bounds.len() > 2 => {
+                return Err(format!("{part}: a {name} range is low-high"));
+            }
+            _ => {}
+        }
+        // A step wider than what it steps over never fires twice; a step
+        // on a single value (`5/3`) is not a range at all.
+        if let Some(s) = step
+            && let Ok(n) = s.parse::<u32>()
+        {
+            let span = match bounds.as_slice() {
+                [a, b] => b - a,
+                [_] => return Err(format!("{part}: a step needs a range or *")),
+                _ => hi - lo,
+            };
+            if n > span.max(1) {
+                return Err(format!(
+                    "{part}: the step {n} is wider than the {name} range"
+                ));
             }
         }
     }
@@ -760,6 +797,17 @@ mod tests {
         s.frequency = Frequency::Yearly;
         s.month = 3;
         assert_eq!(expression(&s, Flavour::Unix).unwrap(), "30 9 15 3 *");
+    }
+
+    #[test]
+    fn backwards_ranges_and_oversized_steps_are_refused() {
+        assert!(check("10-5 * * * *", Flavour::Unix).is_err());
+        assert!(check("1-2-3 * * * *", Flavour::Unix).is_err());
+        assert!(check("5/3 * * * *", Flavour::Unix).is_err());
+        assert!(check("*/60 * * * *", Flavour::Unix).is_err());
+        assert!(check("*/0 * * * *", Flavour::Unix).is_err());
+        assert!(check("*/15 * * * *", Flavour::Unix).is_ok());
+        assert!(check("0 9-17/2 * * 1-5", Flavour::Unix).is_ok());
     }
 
     #[test]

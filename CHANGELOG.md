@@ -11,15 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.62.2 — 2026-10-21
+
 ### Fixed
 
-- Diagram Editor: frame title settings are two tidy rows (Position, Text
-  Align) for the outer title and each inner frame, not one wrapped line.
-- Diagram Editor: selecting an edge keeps a visible accent box and grip on its
-  label; the box uses the routed path midpoint, exactly where layout paints
-  the label.
-- API client: New Folder and the right-click New Folder use the same unique
-  naming rule as New Collection (` 001`, ` 002`, …).
+- Place the edge label indicator on the painted label (e1811f85)
+- Tidy frame title controls and label indicators (5fadaeee)
 
 ## 0.62.1 — 2026-10-21
 
@@ -70,6 +69,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 '''''## Unreleased
 
 - (nothing yet)
+
+## 0.62.2 — 2026-10-21
+
+### Fixed
+
+- Place the edge label indicator on the painted label (e1811f85)
+- Tidy frame title controls and label indicators (5fadaeee)
 
 ## 0.62.1 — 2026-10-21
 

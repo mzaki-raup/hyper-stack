@@ -17,6 +17,38 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   move up/down, **Import DDL…** turns `CREATE TABLE` columns, keys and foreign
   keys into Entity nodes and one-to-many edges, and multi-page draw.io import
   offers a page picker.
+- Diagram Editor: dragging a node toward a frame highlights it as a drop
+  target before release, and the workspace toolbar's Add Process/Decision/
+  Note/Frame and Align are icon-only buttons with full-name tooltips.
+
+### Fixed
+
+- Diagram Editor: Align and Distribute now freeze auto-layout first, so the
+  move actually sticks instead of being silently recomputed away on a
+  diagram nobody has dragged yet; added test coverage for every align mode
+  and for Distribute.
+- Diagram Editor: dragging a selected edge's label is reliable everywhere
+  (including when the edge crosses into or out of a frame) and the drag
+  indicator now sits exactly on the rendered label instead of floating away
+  from it at a fixed, unscaled offset.
+- Diagram Editor: a frame/group is now matched by id instead of by its
+  (possibly duplicated) label text everywhere the canvas hit-tests, drags,
+  resizes or highlights one.
+- Diagram Editor Properties panel: selecting a frame shows only that frame
+  (not every frame in the document) and no longer renders a redundant
+  separator stacked with whatever node/edge section was already showing;
+  clicking a node, edge or outline row now clears any stale frame
+  selection instead of leaving it to render alongside the new selection.
+- Graphics dashboard: "New Diagram…" and "New Generation…" were hardcoded
+  disabled on the quick-action row even though both tools have long since
+  shipped; they now follow `Function::enabled()` like the rest of the
+  dashboard already does.
+- Editor AI assistant: prose now renders as Markdown (headings, bullets,
+  bold/italic, inline code) like every other tool's assistant, instead of
+  showing the raw syntax.
+- API client: renaming a collection, folder or request from the sidebar now
+  checks for a name clash against its siblings and appends " 001", " 002"…
+  the same way New Collection/New Folder/New Request already do.
 
 ## 0.64.0 — 2026-10-21
 

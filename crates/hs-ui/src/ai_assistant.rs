@@ -675,8 +675,9 @@ impl Drop for AssistantPanel {
 
 /// A deliberately small Markdown renderer for assistant prose: headings,
 /// bullets, bold, italic and inline code. Fenced code is already split out by
-/// `split_fences`, so this never has to guess at a fence.
-fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
+/// `split_fences` (or, for a tool with its own fence-splitting loop, by the
+/// caller), so this never has to guess at a fence.
+pub fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
     for line in text.lines() {
         let trimmed = line.trim_end();
         if trimmed.trim().is_empty() {

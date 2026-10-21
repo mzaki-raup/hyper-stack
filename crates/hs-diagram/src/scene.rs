@@ -18,6 +18,11 @@ pub enum Prim {
         style: Style,
         label_placement: crate::model::LabelPlacement,
         label_align: crate::model::LabelAlign,
+        /// The group this frame renders, so a UI can find/hit-test "frame X"
+        /// directly instead of matching by label text (ambiguous once two
+        /// frames share a label). `None` for the diagram's own outer frame,
+        /// which has no group of its own.
+        group_id: Option<String>,
     },
     Line {
         points: Vec<Point>,
@@ -32,6 +37,10 @@ pub enum Prim {
         label: String,
         boxed: bool,
         style: Style,
+        /// The edge this label belongs to, so a UI can find "the label for
+        /// edge X" directly instead of re-deriving its position by counting
+        /// labelled edges in order (fragile once any edge is skipped).
+        edge_id: Option<String>,
     },
 }
 

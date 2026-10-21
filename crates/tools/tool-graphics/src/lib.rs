@@ -1974,36 +1974,28 @@ impl GraphicsTool {
                 ui.add_space(6.0);
                 ui.horizontal_top(|ui| {
                     let actions = [
-                        (
-                            ph::IMAGE,
-                            "gfx-open",
-                            "gfx-fn-image-desc",
-                            true,
-                            Function::Image,
-                        ),
+                        (ph::IMAGE, "gfx-open", "gfx-fn-image-desc", Function::Image),
                         (
                             ph::APP_WINDOW,
                             "gfx-open-icon",
                             "gfx-fn-icon-desc",
-                            true,
                             Function::Icon,
                         ),
                         (
                             ph::TREE_STRUCTURE,
                             "gfx-new-diagram",
                             "gfx-fn-diagram-desc",
-                            false,
                             Function::Diagram,
                         ),
                         (
                             ph::SPARKLE,
                             "gfx-new-generation",
                             "gfx-fn-generator-desc",
-                            false,
                             Function::Generator,
                         ),
                     ];
-                    for (icon, label_key, desc_key, enabled, f) in actions {
+                    for (icon, label_key, desc_key, f) in actions {
+                        let enabled = f.enabled();
                         let label = s.t(label_key);
                         let (rect, r) =
                             ui.allocate_exact_size(egui::vec2(180.0, 44.0), egui::Sense::click());

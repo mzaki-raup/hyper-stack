@@ -837,7 +837,7 @@ fn prose(ui: &mut egui::Ui, s: &Services, theme: &Theme, text: &str, actions: &m
     let flush_text = |ui: &mut egui::Ui, t: &str| {
         let t = t.trim_matches('\n');
         if !t.is_empty() {
-            ui.add(egui::Label::new(t).wrap());
+            hs_ui::ai_assistant::markdown_text(ui, t, theme);
         }
     };
     for line in text.split_inclusive('\n') {

@@ -80,6 +80,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                 style: group.style.clone(),
                 label_placement: group.label_placement,
                 label_align: group.label_align,
+                group_id: Some(group.id.clone()),
             });
         }
     }
@@ -129,6 +130,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
                         font_size: Some(12.0),
                         ..Default::default()
                     },
+                    edge_id: Some(edge.id.clone()),
                 });
             }
         }
@@ -144,6 +146,7 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
             },
             label_placement: doc.title_placement,
             label_align: doc.title_align,
+            group_id: None,
         });
     }
     let margin = doc.page.margin.clamp(8.0, 160.0);

@@ -1977,6 +1977,7 @@ gfx-diagram-erd-template = ERD
 gfx-diagram-sequence-template = Sequence
 gfx-diagram-blank = Blank
 gfx-diagram-node = Node
+gfx-diagram-frame = Frame
 gfx-diagram-label = Label
 gfx-diagram-shape = Shape
 gfx-diagram-delete = Delete Node

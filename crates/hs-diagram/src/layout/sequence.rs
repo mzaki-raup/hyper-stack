@@ -87,6 +87,7 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             style: crate::model::Style::default(),
             label_placement: crate::model::LabelPlacement::Top,
             label_align: crate::model::LabelAlign::Left,
+            group_id: None,
         });
     }
     for (i, edge) in doc.edges.iter().enumerate() {
@@ -142,6 +143,7 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
                     font_size: Some(12.0),
                     ..Default::default()
                 },
+                edge_id: Some(edge.id.clone()),
             });
         }
     }

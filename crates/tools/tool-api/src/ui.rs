@@ -2040,11 +2040,44 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                 && let Some((cid, id)) = target.split_once('/')
             {
                 let (cid, id) = (cid.to_string(), id.to_string());
-                if let Some(c) = t.collections.iter_mut().find(|c| c.id == cid) {
-                    if c.id == id {
-                        c.name = name.trim().to_string();
-                    } else if let Some(r) = c.find_mut(&id) {
-                        r.name = name.trim().to_string();
+                let typed = name.trim().to_string();
+                // Every rename (collection, folder or request) is checked
+                // against its own siblings and renumbered " 001", " 002"...
+                // on a clash, the same rule New Collection/New Folder/New
+                // Request already apply when creating one.
+                let mut applied = typed.clone();
+                if cid == id {
+                    // Renaming the collection itself: dedupe against every
+                    // other collection's name.
+                    let siblings = t
+                        .collections
+                        .iter()
+                        .filter(|c| c.id != id)
+                        .map(|c| c.name.clone());
+                    applied = crate::unique_name(&typed, siblings);
+                    if let Some(c) = t.collections.iter_mut().find(|c| c.id == cid) {
+                        c.name = applied.clone();
+                    }
+                } else if let Some(c) = t.collections.iter_mut().find(|c| c.id == cid) {
+                    // A request or folder anywhere in the tree: dedupe
+                    // against its own siblings, not the whole collection, so
+                    // renaming "Foo" back to "Foo" is never flagged as a
+                    // clash with itself and a name used in a different
+                    // folder never gets suffixed needlessly.
+                    let parent = c.parent_folder_of(&id).flatten();
+                    let siblings = c
+                        .items(parent.as_deref())
+                        .map(|items| {
+                            items
+                                .iter()
+                                .filter(|i| i.id() != id)
+                                .map(|i| i.name().to_string())
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    applied = crate::unique_name(&typed, siblings.into_iter());
+                    if let Some(r) = c.find_mut(&id) {
+                        r.name = applied.clone();
                     } else {
                         fn rename_folder(items: &mut [Item], id: &str, name: &str) {
                             for it in items {
@@ -2056,14 +2089,14 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                                 }
                             }
                         }
-                        rename_folder(&mut c.items, &id, name.trim());
+                        rename_folder(&mut c.items, &id, &applied);
                     }
                 }
                 t.save_collection(&cid, cx);
                 if t.state_request_id().as_deref() == Some(&id) {
-                    t.request.name = name.trim().to_string();
+                    t.request.name = applied.clone();
                     if let Some(saved) = &mut t.saved {
-                        saved.name = name.trim().to_string();
+                        saved.name = applied.clone();
                     }
                 }
             }

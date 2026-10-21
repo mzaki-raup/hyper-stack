@@ -48,6 +48,7 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                 style,
                 label_placement,
                 label_align,
+                ..
             } => {
                 let fill = style.fill.as_deref().unwrap_or("none");
                 let stroke = style.stroke.as_deref().unwrap_or("#8a94a6");
@@ -133,6 +134,7 @@ pub fn to_svg(scene: &Scene, options: &SvgOptions) -> String {
                 label,
                 boxed,
                 style,
+                ..
             } => {
                 let size = style.font_size.unwrap_or(12.0);
                 if *boxed {

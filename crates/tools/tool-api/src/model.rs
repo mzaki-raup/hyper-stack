@@ -415,6 +415,28 @@ impl Collection {
         }
     }
 
+    /// The folder holding the item (request or folder) `id`, anywhere in the
+    /// tree: `None` means it was not found, `Some(None)` means it sits at the
+    /// collection root, `Some(Some(folder_id))` names its parent folder. Used
+    /// to find what a rename should be checked for name clashes against,
+    /// since `find`/`find_mut` only walk to requests.
+    pub fn parent_folder_of(&self, id: &str) -> Option<Option<String>> {
+        fn walk(items: &[Item], id: &str, parent: Option<&str>) -> Option<Option<String>> {
+            for it in items {
+                if it.id() == id {
+                    return Some(parent.map(str::to_string));
+                }
+                if let Item::Folder(f) = it
+                    && let Some(found) = walk(&f.items, id, Some(&f.id))
+                {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        walk(&self.items, id, None)
+    }
+
     /// Remove an item (request or folder) anywhere in the tree.
     pub fn remove(&mut self, id: &str) -> Option<Item> {
         fn walk(items: &mut Vec<Item>, id: &str) -> Option<Item> {
@@ -734,6 +756,48 @@ mod tests {
         assert_eq!(back[0].find(&rid).unwrap().0.url, "https://x");
         assert!(c.remove(&fid).is_some());
         assert!(c.find(&rid).is_none());
+    }
+
+    #[test]
+    fn parent_folder_of_locates_requests_folders_and_nested_folders() {
+        let mut c = Collection {
+            name: "shop".into(),
+            ..Default::default()
+        };
+        let mut inner = Folder {
+            name: "nested".into(),
+            ..Default::default()
+        };
+        let inner_id = inner.id.clone();
+        let r = Request {
+            name: "create".into(),
+            ..Default::default()
+        };
+        let rid = r.id.clone();
+        inner.items.push(Item::Request(r));
+        let mut outer = Folder {
+            name: "orders".into(),
+            ..Default::default()
+        };
+        let outer_id = outer.id.clone();
+        outer.items.push(Item::Folder(inner));
+        c.items.push(Item::Folder(outer));
+        let root_req = Request::default();
+        let root_req_id = root_req.id.clone();
+        c.items.push(Item::Request(root_req));
+
+        // A request at the collection root has no parent folder.
+        assert_eq!(c.parent_folder_of(&root_req_id), Some(None));
+        // The outer folder also sits at the root.
+        assert_eq!(c.parent_folder_of(&outer_id), Some(None));
+        // The inner folder's parent is the outer folder.
+        assert_eq!(c.parent_folder_of(&inner_id), Some(Some(outer_id)));
+        // A request two levels deep resolves to its immediate folder, not
+        // the root - this is what a Rename's name-clash check must dedupe
+        // against, and `find`/`find_mut` (requests only) cannot answer it
+        // for a folder id at all.
+        assert_eq!(c.parent_folder_of(&rid), Some(Some(inner_id)));
+        assert_eq!(c.parent_folder_of("missing"), None);
     }
 
     #[test]

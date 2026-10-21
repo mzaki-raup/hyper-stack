@@ -425,6 +425,10 @@ impl DiagramState {
             return;
         }
         self.push_undo();
+        // Align/Distribute write real node.x/y; while auto_layout is still on,
+        // the layout engine recomputes positions from the graph every frame
+        // and silently discards them (freeze bakes the current rects in and
+        // turns auto_layout off, like drag and Add Frame already do).
         self.freeze();
         let mut boxes = Vec::new();
         for id in &ids {
@@ -594,31 +598,22 @@ impl DiagramState {
             self.edge_from = None;
         }
         if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::RECTANGLE,
-                s.t("gfx-diagram-add-process")
-            ))
+            .button(hs_ui::icons::ph::RECTANGLE)
+            .on_hover_text(s.t("gfx-diagram-add-process"))
             .clicked()
         {
             self.add_node_at(NodeKind::Process, self.last_center);
         }
         if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::DIAMOND,
-                s.t("gfx-diagram-add-decision")
-            ))
+            .button(hs_ui::icons::ph::DIAMOND)
+            .on_hover_text(s.t("gfx-diagram-add-decision"))
             .clicked()
         {
             self.add_node_at(NodeKind::Decision, self.last_center);
         }
         if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::NOTE_PENCIL,
-                s.t("gfx-diagram-add-note")
-            ))
+            .button(hs_ui::icons::ph::NOTE_PENCIL)
+            .on_hover_text(s.t("gfx-diagram-add-note"))
             .clicked()
         {
             self.add_node_at(NodeKind::Note, self.last_center);
@@ -663,12 +658,12 @@ impl DiagramState {
             self.add_node_at(NodeKind::Frontend, self.last_center);
         }
         if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::SELECTION,
-                s.t("gfx-diagram-add-frame")
+            .button(hs_ui::icons::ph::SELECTION)
+            .on_hover_text(format!(
+                "{}\n{}",
+                s.t("gfx-diagram-add-frame"),
+                "Add a frame around the selected nodes, or around everything."
             ))
-            .on_hover_text("Add a frame around the selected nodes, or around everything.")
             .clicked()
         {
             self.add_frame();
@@ -681,7 +676,7 @@ impl DiagramState {
             self.tool = ToolMode::Edge;
             self.edge_from = None;
         }
-        ui.menu_button("Align", |ui| {
+        ui.menu_button(hs_ui::icons::ph::ALIGN_LEFT, |ui| {
             let enough = self.selection().len() >= 2;
             for (label, mode) in [
                 ("Align Left", AlignMode::Left),
@@ -706,7 +701,9 @@ impl DiagramState {
                     ui.close();
                 }
             }
-        });
+        })
+        .response
+        .on_hover_text("Align and Distribute");
     }
 
     /// Where a project save lands: `<root>/<subfolder>/<sanitised title>.hdiag`.
@@ -989,7 +986,10 @@ impl DiagramState {
                     }
                 });
                 ui.add_space(8.0);
-                if self.selected.is_some() || self.selected_edge.is_some() {
+                if self.selected.is_some()
+                    || self.selected_edge.is_some()
+                    || self.selected_group.is_some()
+                {
                     ui.separator();
                     ui.add_space(6.0);
                 }
@@ -1296,12 +1296,23 @@ impl DiagramState {
                     ui.add_space(6.0);
                 }
 
-                if !self.doc.groups.is_empty() {
-                    ui.separator();
+                if let Some(gid) = self.selected_group.clone() {
+                    // Only the selected frame's own fields show here - the block
+                    // used to render unconditionally for every frame in the
+                    // document whenever one existed, stacking a stray separator
+                    // and an unrelated frame list on top of whatever node/edge
+                    // section was already showing above it.
+                    if self.selected.is_some() || self.selected_edge.is_some() {
+                        ui.separator();
+                    }
                     ui.add_space(4.0);
-                    ui.label(egui::RichText::new("Frames").strong().color(theme.text));
+                    ui.label(
+                        egui::RichText::new(s.t("gfx-diagram-frame"))
+                            .strong()
+                            .color(theme.text),
+                    );
                     let mut frame_changed = false;
-                    for group in &mut self.doc.groups {
+                    if let Some(group) = self.doc.groups.iter_mut().find(|g| g.id == gid) {
                         ui.horizontal(|ui| {
                             ui.label("Text");
                             frame_changed |= ui
@@ -1324,6 +1335,7 @@ impl DiagramState {
                     if frame_changed {
                         self.dirty = true;
                     }
+                    ui.add_space(6.0);
                 }
                 if self.doc.kind == DiagramKind::Sequence {
                     ui.separator();
@@ -1433,6 +1445,8 @@ impl DiagramState {
                             .clicked()
                         {
                             self.selected = Some(id);
+                            self.selected_edge = None;
+                            self.selected_group = None;
                             self.multi.clear();
                         }
                     }
@@ -1454,6 +1468,7 @@ impl DiagramState {
                         {
                             self.selected_edge = Some(edge.id.clone());
                             self.selected = None;
+                            self.selected_group = None;
                             self.multi.clear();
                         }
                     }
@@ -1569,15 +1584,13 @@ impl DiagramState {
                     }
                 }
                 if !grip
-                    && let Some(label) = self.selected_group.as_ref().and_then(|id| {
-                        self.doc
-                            .groups
-                            .iter()
-                            .find(|g| &g.id == id)
-                            .map(|g| g.label.clone())
-                    })
+                    && let Some(gid) = self.selected_group.clone()
                     && let Some(rect) = scene.prims.iter().find_map(|p| match p {
-                        Prim::Frame { rect, label: l, .. } if l == &label => Some(*rect),
+                        Prim::Frame { rect, group_id, .. }
+                            if group_id.as_deref() == Some(&*gid) =>
+                        {
+                            Some(*rect)
+                        }
                         _ => None,
                     })
                 {
@@ -1608,7 +1621,7 @@ impl DiagramState {
                 }
                 if !grip {
                     let frame_hit = scene.prims.iter().find_map(|p| {
-                        let Prim::Frame { rect, label, .. } = p else {
+                        let Prim::Frame { rect, group_id, .. } = p else {
                             return None;
                         };
                         let r = srect(*rect);
@@ -1618,17 +1631,17 @@ impl DiagramState {
                             .min((pos.y - r.top()).abs())
                             .min((pos.y - r.bottom()).abs());
                         if r.contains(pos) && (edge_dist < 10.0 || (pos.y - r.top()).abs() < 22.0) {
-                            Some(label.clone())
+                            group_id.clone()
                         } else {
                             None
                         }
                     });
-                    if let Some(label) = frame_hit
+                    if let Some(gid) = frame_hit
                         && let Some((gid, ids)) = self
                             .doc
                             .groups
                             .iter()
-                            .find(|g| g.label == label)
+                            .find(|g| g.id == gid)
                             .map(|g| (g.id.clone(), g.nodes.clone()))
                     {
                         self.push_undo();
@@ -1739,6 +1752,29 @@ impl DiagramState {
                     node.y = start.y + dy;
                 }
                 self.dirty = true;
+                // Highlight whichever frame the node would drop into if the
+                // user let go right now, so dragging a shape toward a frame
+                // shows where it is about to land before the drop happens.
+                if let Some(node) = self.doc.node(id) {
+                    let center = to_screen(Point {
+                        x: node.x + node.w / 2.0,
+                        y: node.y + node.h / 2.0,
+                    });
+                    if let Some(target) = scene.prims.iter().find_map(|p| match p {
+                        Prim::Frame { rect, .. } if srect(*rect).contains(center) => {
+                            Some(srect(*rect))
+                        }
+                        _ => None,
+                    }) {
+                        painter.rect_filled(target, 6.0, theme.accent.gamma_multiply(0.12));
+                        painter.rect_stroke(
+                            target,
+                            6.0,
+                            egui::Stroke::new(2.0, theme.accent),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                }
             }
         }
         if response.drag_stopped() {
@@ -1751,19 +1787,12 @@ impl DiagramState {
                     y: node.y + node.h / 2.0,
                 });
                 let target = scene.prims.iter().find_map(|p| match p {
-                    Prim::Frame { rect, label, .. } if srect(*rect).contains(center) => {
-                        Some(label.clone())
+                    Prim::Frame { rect, group_id, .. } if srect(*rect).contains(center) => {
+                        group_id.clone()
                     }
                     _ => None,
                 });
-                if let Some(label) = target
-                    && let Some(gid) = self
-                        .doc
-                        .groups
-                        .iter()
-                        .find(|g| g.label == label)
-                        .map(|g| g.id.clone())
-                {
+                if let Some(gid) = target {
                     for group in &mut self.doc.groups {
                         group.nodes.retain(|n| n != &id);
                     }
@@ -1815,14 +1844,16 @@ impl DiagramState {
                         self.multi.push(id);
                     }
                     self.selected_edge = None;
+                    self.selected_group = None;
                 } else {
                     self.selected = Some(id);
                     self.multi.clear();
                     self.selected_edge = None;
+                    self.selected_group = None;
                 }
             } else {
                 let frame_hit = scene.prims.iter().find_map(|p| {
-                    let Prim::Frame { rect, label, .. } = p else {
+                    let Prim::Frame { rect, group_id, .. } = p else {
                         return None;
                     };
                     let r = srect(*rect);
@@ -1832,19 +1863,12 @@ impl DiagramState {
                         .min((pos.y - r.top()).abs())
                         .min((pos.y - r.bottom()).abs());
                     if r.contains(pos) && (edge_dist < 10.0 || (pos.y - r.top()).abs() < 22.0) {
-                        Some(label.clone())
+                        group_id.clone()
                     } else {
                         None
                     }
                 });
-                if let Some(label) = frame_hit
-                    && let Some(gid) = self
-                        .doc
-                        .groups
-                        .iter()
-                        .find(|g| g.label == label)
-                        .map(|g| g.id.clone())
-                {
+                if let Some(gid) = frame_hit {
                     self.selected_group = Some(gid);
                     self.selected = None;
                     self.selected_edge = None;
@@ -1863,6 +1887,7 @@ impl DiagramState {
                     }
                     self.selected_edge = hit_edge;
                     self.selected = None;
+                    self.selected_group = None;
                     self.multi.clear();
                 }
             }
@@ -1936,45 +1961,33 @@ impl DiagramState {
         {
             let edge = &self.doc.edges[pos];
             if !edge.label.is_empty() {
-                let painted: Vec<Point> = scene
-                    .prims
-                    .iter()
-                    .filter_map(|p| match p {
-                        Prim::Text {
-                            at, boxed: true, ..
-                        } => Some(*at),
-                        _ => None,
-                    })
-                    .collect();
-                let slot = self
-                    .doc
-                    .edges
-                    .iter()
-                    .take(pos)
-                    .filter(|e| !e.label.is_empty())
-                    .count();
-                let sequence = self.doc.kind == DiagramKind::Sequence;
-                let at = if sequence {
-                    painted.get(slot).copied()
-                } else {
-                    edge.label_at.or_else(|| {
-                        painted.get(slot).copied().or_else(|| {
-                            let from = self.doc.node(&edge.from)?;
-                            let to = self.doc.node(&edge.to)?;
-                            let ro = |n: &Node| Rect {
-                                x: n.x,
-                                y: n.y,
-                                w: n.w,
-                                h: n.h,
-                            };
-                            let points =
-                                hs_diagram::route::route(ro(from), ro(to), edge.route, &edge.via);
-                            edge_label_midpoint(&points)
-                        })
-                    })
-                };
+                // The layout already resolved this edge's label position
+                // (label_at override, or the midpoint of its real routed
+                // path) when it built the scene - find that exact Prim by
+                // edge id instead of re-deriving a position from raw
+                // node.x/y (stale once a diagram is auto-laid-out) or from a
+                // positional "nth labelled edge" count (desynced as soon as
+                // any earlier edge's endpoints fail to resolve).
+                let at = scene.prims.iter().find_map(|p| match p {
+                    Prim::Text {
+                        at,
+                        boxed: true,
+                        edge_id: Some(id),
+                        ..
+                    } if id == &edge.id => Some(*at),
+                    _ => None,
+                });
                 if let Some(at) = at {
-                    let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(104.0, 24.0));
+                    // Match the real label box exactly (same font size and
+                    // padding as paint_scene's Prim::Text rendering), so the
+                    // drag handle never drifts from what the user sees.
+                    let galley = ui.painter().layout_no_wrap(
+                        edge.label.clone(),
+                        egui::FontId::proportional(12.0 * z),
+                        theme.text,
+                    );
+                    let size = galley.size() + egui::vec2(10.0 * z, 4.0 * z);
+                    let rect = egui::Rect::from_center_size(to_screen(at), size);
                     let r = ui.interact(
                         rect,
                         ui.id().with(("edge-label", &edge.id)),
@@ -2027,12 +2040,10 @@ impl DiagramState {
                 painter.circle_stroke(p, 5.0, egui::Stroke::new(2.0, theme.accent));
             }
         }
-        if let Some(gid) = &self.selected_group
-            && let Some(group) = self.doc.groups.iter().find(|g| &g.id == gid)
-        {
+        if let Some(gid) = &self.selected_group {
             for prim in &scene.prims {
-                if let Prim::Frame { rect, label, .. } = prim
-                    && label == &group.label
+                if let Prim::Frame { rect, group_id, .. } = prim
+                    && group_id.as_deref() == Some(gid.as_str())
                 {
                     painter.rect_stroke(
                         srect(*rect).expand(2.0),
@@ -2106,6 +2117,7 @@ impl DiagramState {
                     style,
                     label_placement,
                     label_align,
+                    ..
                 } => {
                     let fill = style
                         .fill
@@ -2262,6 +2274,7 @@ impl DiagramState {
                     label,
                     boxed,
                     style,
+                    ..
                 } => {
                     let pos = _to_screen(*at);
                     let size = (style.font_size.unwrap_or(12.0) * z).max(8.0);
@@ -2486,18 +2499,6 @@ pub(crate) fn sanitise(title: &str) -> String {
     }
 }
 
-/// The midpoint layout uses for an edge label: the middle of the routed
-/// polyline, not of the straight line between its ends.
-fn edge_label_midpoint(points: &[Point]) -> Option<Point> {
-    if points.len() < 2 {
-        return points.first().copied();
-    }
-    let i = (points.len() - 1) / 2;
-    Some(Point {
-        x: (points[i].x + points[i + 1].x) / 2.0,
-        y: (points[i].y + points[i + 1].y) / 2.0,
-    })
-}
 fn frame_title_controls(
     ui: &mut egui::Ui,
     id: &str,
@@ -2880,6 +2881,106 @@ mod tests {
         let bx = state.doc.node(&b).unwrap().x;
         assert_eq!(ax, bx);
         assert_eq!(ax, 100.0);
+    }
+
+    #[test]
+    fn align_freezes_auto_layout_so_the_move_sticks() {
+        // Without freezing first, the layout engine recomputes positions from
+        // the graph every frame while auto_layout is on and silently discards
+        // whatever align just wrote - this is what made Align/Distribute look
+        // like it "sometimes does nothing" on a diagram nobody has dragged yet.
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        assert!(state.doc.auto_layout);
+        let a = state.doc.nodes[0].id.clone();
+        let b = state.doc.nodes[1].id.clone();
+        state.selected = Some(a.clone());
+        state.multi = vec![b.clone()];
+        state.align_selection(AlignMode::Left);
+        assert!(!state.doc.auto_layout);
+    }
+
+    #[test]
+    fn align_right_top_bottom_and_centre_use_the_far_bound() {
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        state.doc.auto_layout = false;
+        assert!(state.doc.nodes.len() >= 2);
+        state.doc.nodes[0].x = 100.0;
+        state.doc.nodes[0].w = 40.0;
+        state.doc.nodes[0].y = 50.0;
+        state.doc.nodes[0].h = 20.0;
+        state.doc.nodes[1].x = 300.0;
+        state.doc.nodes[1].w = 60.0;
+        state.doc.nodes[1].y = 150.0;
+        state.doc.nodes[1].h = 30.0;
+        let a = state.doc.nodes[0].id.clone();
+        let b = state.doc.nodes[1].id.clone();
+        state.selected = Some(a.clone());
+        state.multi = vec![b.clone()];
+
+        state.align_selection(AlignMode::Right);
+        let right_of = |s: &DiagramState, id: &str| {
+            let n = s.doc.node(id).unwrap();
+            n.x + n.w
+        };
+        assert_eq!(right_of(&state, &a), right_of(&state, &b));
+        assert_eq!(right_of(&state, &a), 360.0);
+
+        state.align_selection(AlignMode::Top);
+        assert_eq!(state.doc.node(&a).unwrap().y, state.doc.node(&b).unwrap().y);
+        assert_eq!(state.doc.node(&a).unwrap().y, 50.0);
+
+        state.align_selection(AlignMode::Bottom);
+        let bottom_of = |s: &DiagramState, id: &str| {
+            let n = s.doc.node(id).unwrap();
+            n.y + n.h
+        };
+        assert_eq!(bottom_of(&state, &a), bottom_of(&state, &b));
+
+        state.align_selection(AlignMode::CentreX);
+        let centre_x = |s: &DiagramState, id: &str| {
+            let n = s.doc.node(id).unwrap();
+            n.x + n.w / 2.0
+        };
+        assert!((centre_x(&state, &a) - centre_x(&state, &b)).abs() < 0.01);
+
+        state.align_selection(AlignMode::MiddleY);
+        let centre_y = |s: &DiagramState, id: &str| {
+            let n = s.doc.node(id).unwrap();
+            n.y + n.h / 2.0
+        };
+        assert!((centre_y(&state, &a) - centre_y(&state, &b)).abs() < 0.01);
+    }
+
+    #[test]
+    fn distribute_x_spaces_nodes_evenly_between_the_extremes() {
+        let mut state = DiagramState::from_doc(hs_diagram::template::flow());
+        state.doc.auto_layout = false;
+        assert!(state.doc.nodes.len() >= 3);
+        state.doc.nodes[0].x = 0.0;
+        state.doc.nodes[0].w = 20.0;
+        state.doc.nodes[1].x = 500.0;
+        state.doc.nodes[1].w = 20.0;
+        state.doc.nodes[2].x = 90.0;
+        state.doc.nodes[2].w = 20.0;
+        let a = state.doc.nodes[0].id.clone();
+        let b = state.doc.nodes[1].id.clone();
+        let c = state.doc.nodes[2].id.clone();
+        state.selected = Some(a.clone());
+        state.multi = vec![b.clone(), c.clone()];
+        state.align_selection(AlignMode::DistributeX);
+        let centre_x = |s: &DiagramState, id: &str| {
+            let n = s.doc.node(id).unwrap();
+            n.x + n.w / 2.0
+        };
+        let (ca, cb, cc) = (
+            centre_x(&state, &a),
+            centre_x(&state, &b),
+            centre_x(&state, &c),
+        );
+        assert_eq!(ca, 10.0);
+        assert_eq!(cb, 510.0);
+        assert_eq!(cc, 260.0);
+        assert!((cc - ca - (cb - cc)).abs() < 0.01);
     }
 
     #[test]

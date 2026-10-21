@@ -1611,19 +1611,19 @@ impl DiagramState {
             let edge = &self.doc.edges[pos];
             if !edge.label.is_empty() {
                 let at = edge.label_at.or_else(|| {
-                    self.edge_paths.get(pos).and_then(|p| {
-                        if p.len() < 2 {
-                            return p.first().copied();
-                        }
-                        let i = (p.len() - 1) / 2;
-                        Some(Point {
-                            x: (p[i].x + p[i + 1].x) / 2.0,
-                            y: (p[i].y + p[i + 1].y) / 2.0,
-                        })
-                    })
+                    let from = self.doc.node(&edge.from)?;
+                    let to = self.doc.node(&edge.to)?;
+                    let ro = |n: &Node| Rect {
+                        x: n.x,
+                        y: n.y,
+                        w: n.w,
+                        h: n.h,
+                    };
+                    let points = hs_diagram::route::route(ro(from), ro(to), edge.route, &edge.via);
+                    edge_label_midpoint(&points)
                 });
                 if let Some(at) = at {
-                    let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(140.0, 28.0));
+                    let rect = egui::Rect::from_center_size(to_screen(at), egui::vec2(104.0, 24.0));
                     let r = ui.interact(
                         rect,
                         ui.id().with(("edge-label", &edge.id)),
@@ -2094,6 +2094,18 @@ pub(crate) fn sanitise(title: &str) -> String {
     }
 }
 
+/// The midpoint layout uses for an edge label: the middle of the routed
+/// polyline, not of the straight line between its ends.
+fn edge_label_midpoint(points: &[Point]) -> Option<Point> {
+    if points.len() < 2 {
+        return points.first().copied();
+    }
+    let i = (points.len() - 1) / 2;
+    Some(Point {
+        x: (points[i].x + points[i + 1].x) / 2.0,
+        y: (points[i].y + points[i + 1].y) / 2.0,
+    })
+}
 fn frame_title_controls(
     ui: &mut egui::Ui,
     id: &str,

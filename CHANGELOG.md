@@ -9,10 +9,12 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-'''## Unreleased
+## Unreleased
 
-- (nothing yet)
+### Fixed
 
+- Diagram Editor: the Outline separator now appears when a frame is selected,
+  not only for a node or edge.
 ## 0.60.1 — 2026-10-21
 
 ### Fixed

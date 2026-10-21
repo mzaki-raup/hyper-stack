@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.60.1 — 2026-10-21
+
+### Fixed
+
+- Select frames on click and keep the outline separator (2cbc2e78)
+
 ## 0.60.0 — 2026-10-21
 
 ### Added

@@ -725,5 +725,19 @@ images) is decided at the start of R2.
 4. **Alias** — `.diagram.json` remains a first-class alias and is covered by
    the load/save tests.
 
-Full sequence fragments (`alt`/`loop`/`opt`), activations and sequence editing
-panels remain for the next slice.
+'### 13.2 R2 depth (2026-10-21)
+
+1. **ERD structured columns** — `Node.erd` carries typed columns
+   (`name`, `type`, `Primary`/`Foreign`/`Unique` key). The properties pane
+   edits them; the table painter uses them, falling back to the label lines
+   for older documents.
+2. **Edge cardinality** — ERD edges gain a cardinality picker
+   (`1`, `*`, `1..*`, `0..1`, `0..*`) that becomes the edge label.
+3. **Sequence fragments** — `Fragment { kind: Alt|Loop|Opt, label, from, to }`
+   draws a labelled frame around the messages it spans; the properties pane
+   adds, edits and removes fragments.
+4. **Activations** — every message draws a small activation bar on its target
+   lifeline.
+
+DB-schema import and draw.io multi-page/image extraction remain separate
+slices.'

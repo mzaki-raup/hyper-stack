@@ -98,6 +98,7 @@ pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
             via: Vec::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
     if messages == 0 {
@@ -113,6 +114,7 @@ pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     Ok(doc)
@@ -180,6 +182,7 @@ pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
             w,
             h,
             style: Style::default(),
+            erd: None,
         });
         node_count += 1;
     }
@@ -216,6 +219,7 @@ pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
             via: Vec::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
     Ok(out)

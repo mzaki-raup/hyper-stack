@@ -181,7 +181,7 @@ fn erd_and_sequence_templates_validate_and_lay_out() {
             scene
                 .prims
                 .iter()
-                .filter(|p| matches!(p, hs_diagram::Prim::Shape { .. }))
+                .filter(|p| matches!(p, hs_diagram::Prim::Shape { label, .. } if !label.is_empty()))
                 .count(),
             doc.nodes.len()
         );

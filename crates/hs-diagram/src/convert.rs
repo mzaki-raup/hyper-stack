@@ -42,6 +42,7 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     for (i, edge) in w.edges.iter().enumerate() {
@@ -57,6 +58,7 @@ fn workflow(w: &WorkflowIr) -> DiagramDoc {
             via: Vec::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
     for group in &w.groups {
@@ -92,6 +94,7 @@ fn architecture(a: &ArchitectureIr) -> DiagramDoc {
             w,
             h,
             style: Style::default(),
+            erd: None,
         });
     }
     for boundary in &a.boundaries {
@@ -117,6 +120,7 @@ fn architecture(a: &ArchitectureIr) -> DiagramDoc {
             via: Vec::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
     doc
@@ -174,6 +178,7 @@ pub fn chain(doc: &mut DiagramDoc, pairs: &[(&str, &str)]) {
             via: Vec::<Point>::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
 }

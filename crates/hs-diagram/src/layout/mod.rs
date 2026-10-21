@@ -84,7 +84,12 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
         }
     }
     for (i, node) in doc.nodes.iter().enumerate() {
-        let (label, _) = label_lines(&node.label, (rects[i].w - 24.0).max(40.0), measure);
+        let raw = if node.kind == crate::model::NodeKind::Entity {
+            entity_label(node)
+        } else {
+            node.label.clone()
+        };
+        let (label, _) = label_lines(&raw, (rects[i].w - 24.0).max(40.0), measure);
         scene.push(Prim::Shape {
             rect: rects[i],
             kind: node.kind,
@@ -153,6 +158,27 @@ fn build(doc: &DiagramDoc, rects: &[Rect], measure: Measure<'_>) -> Scene {
         (bounds.h + margin * 2.0).max(90.0),
     );
     scene
+}
+
+fn entity_label(node: &Node) -> String {
+    let Some(erd) = &node.erd else {
+        return node.label.clone();
+    };
+    if erd.columns.is_empty() {
+        return node.label.clone();
+    }
+    let mut out = node.label.lines().next().unwrap_or("entity").to_string();
+    for column in &erd.columns {
+        let key = match column.key {
+            crate::model::ColumnKey::None => "",
+            crate::model::ColumnKey::Primary => " PK",
+            crate::model::ColumnKey::Foreign => " FK",
+            crate::model::ColumnKey::Unique => " UQ",
+        };
+        out.push('\n');
+        out.push_str(&format!("{} {}{key}", column.name, column.data_type));
+    }
+    out
 }
 
 fn midpoint(points: &[Point]) -> Option<Point> {

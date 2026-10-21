@@ -26,6 +26,7 @@ pub fn flow() -> DiagramDoc {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     chain(&mut doc, &[("start", "cart"), ("cart", "stock")]);
@@ -41,6 +42,7 @@ pub fn flow() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc.edges.push(Edge {
         id: "e4".into(),
@@ -54,6 +56,7 @@ pub fn flow() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc.edges.push(Edge {
         id: "e5".into(),
@@ -67,6 +70,7 @@ pub fn flow() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc
 }
@@ -91,6 +95,7 @@ pub fn architecture() -> DiagramDoc {
             w: 160.0,
             h: 64.0,
             style: Style::default(),
+            erd: None,
         });
     }
     doc.groups.push(Group {
@@ -113,6 +118,7 @@ pub fn architecture() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc.edges.push(Edge {
         id: "c2".into(),
@@ -126,6 +132,7 @@ pub fn architecture() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc.edges.push(Edge {
         id: "c3".into(),
@@ -139,6 +146,7 @@ pub fn architecture() -> DiagramDoc {
         via: Vec::new(),
         style: Style::default(),
         label_at: None,
+        cardinality: None,
     });
     doc
 }
@@ -168,12 +176,18 @@ pub fn erd() -> DiagramDoc {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     chain(&mut doc, &[("customers", "orders")]);
     if let Some(edge) = doc.edges.first_mut() {
         edge.label = "1 .. *".into();
         edge.route = EdgeRoute::Straight;
+        edge.cardinality = Some(crate::model::Cardinality::OneToMany);
+    }
+    for node in &mut doc.nodes {
+        node.erd = Some(crate::model::Entity::from_label(&node.label));
+        node.label = node.label.lines().next().unwrap_or("entity").to_string();
     }
     doc
 }
@@ -196,6 +210,7 @@ pub fn sequence() -> DiagramDoc {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     chain(&mut doc, &[("client", "api"), ("api", "db")]);
@@ -226,6 +241,7 @@ fn linear(title: &str, subtitle: &str, steps: &[(&str, NodeKind)]) -> DiagramDoc
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     let pairs: Vec<(String, String)> = (1..steps.len())
@@ -289,6 +305,7 @@ pub fn event_architecture() -> DiagramDoc {
             w: 160.0,
             h: 64.0,
             style: Style::default(),
+            erd: None,
         });
     }
     chain(

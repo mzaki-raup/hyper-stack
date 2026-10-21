@@ -317,6 +317,17 @@ impl DiagramState {
             w: size.0,
             h: size.1,
             style: Style::default(),
+            erd: if kind == NodeKind::Entity {
+                Some(hs_diagram::model::Entity {
+                    columns: vec![hs_diagram::model::Column {
+                        name: "id".into(),
+                        data_type: "UUID".into(),
+                        key: hs_diagram::model::ColumnKey::Primary,
+                    }],
+                })
+            } else {
+                None
+            },
         };
         self.selected = Some(node.id.clone());
         let id = node.id.clone();
@@ -966,6 +977,80 @@ impl DiagramState {
                         color_row(ui, "Outline", &mut node.style.stroke, &mut changed);
                         color_row(ui, "Fill", &mut node.style.fill, &mut changed);
                         color_row(ui, "Text", &mut node.style.text, &mut changed);
+                        if node.kind == NodeKind::Entity {
+                            if node.erd.is_none() {
+                                node.erd = Some(hs_diagram::model::Entity::from_label(&node.label));
+                            }
+                            ui.add_space(4.0);
+                            ui.label(egui::RichText::new("Columns").strong());
+                            let mut remove_column = None;
+                            if let Some(erd) = node.erd.as_mut() {
+                                for (i, column) in erd.columns.iter_mut().enumerate() {
+                                    ui.horizontal(|ui| {
+                                        changed |= ui
+                                            .add(
+                                                egui::TextEdit::singleline(&mut column.name)
+                                                    .desired_width(78.0)
+                                                    .hint_text("name"),
+                                            )
+                                            .changed();
+                                        changed |= ui
+                                            .add(
+                                                egui::TextEdit::singleline(&mut column.data_type)
+                                                    .desired_width(72.0)
+                                                    .hint_text("type"),
+                                            )
+                                            .changed();
+                                        egui::ComboBox::from_id_salt(("column-key", i))
+                                            .width(62.0)
+                                            .selected_text(match column.key {
+                                                hs_diagram::model::ColumnKey::None => "—",
+                                                hs_diagram::model::ColumnKey::Primary => "PK",
+                                                hs_diagram::model::ColumnKey::Foreign => "FK",
+                                                hs_diagram::model::ColumnKey::Unique => "UQ",
+                                            })
+                                            .show_ui(ui, |ui| {
+                                                for (key, label) in [
+                                                    (hs_diagram::model::ColumnKey::None, "—"),
+                                                    (hs_diagram::model::ColumnKey::Primary, "PK"),
+                                                    (hs_diagram::model::ColumnKey::Foreign, "FK"),
+                                                    (hs_diagram::model::ColumnKey::Unique, "UQ"),
+                                                ] {
+                                                    if ui
+                                                        .selectable_value(
+                                                            &mut column.key,
+                                                            key,
+                                                            label,
+                                                        )
+                                                        .changed()
+                                                    {
+                                                        changed = true;
+                                                    }
+                                                }
+                                            });
+                                        if ui
+                                            .small_button("−")
+                                            .on_hover_text("Remove Column")
+                                            .clicked()
+                                        {
+                                            remove_column = Some(i);
+                                        }
+                                    });
+                                }
+                                if let Some(i) = remove_column {
+                                    erd.columns.remove(i);
+                                    changed = true;
+                                }
+                                if ui.button("+ Add Column").clicked() {
+                                    erd.columns.push(hs_diagram::model::Column {
+                                        name: String::new(),
+                                        data_type: "TEXT".into(),
+                                        key: hs_diagram::model::ColumnKey::None,
+                                    });
+                                    changed = true;
+                                }
+                            }
+                        }
                         if ui.button(s.t("gfx-diagram-delete")).clicked() {
                             remove = true;
                         }
@@ -995,6 +1080,42 @@ impl DiagramState {
                                 )
                                 .changed();
                         });
+                        if self.doc.kind == DiagramKind::Erd {
+                            ui.horizontal(|ui| {
+                                ui.label("Cardinality");
+                                egui::ComboBox::from_id_salt("gfx-edge-cardinality")
+                                    .selected_text(
+                                        edge.cardinality.map(|c| c.label()).unwrap_or("Custom"),
+                                    )
+                                    .show_ui(ui, |ui| {
+                                        if ui
+                                            .selectable_value(&mut edge.cardinality, None, "Custom")
+                                            .changed()
+                                        {
+                                            changed = true;
+                                        }
+                                        for (value, label) in [
+                                            (hs_diagram::model::Cardinality::One, "1"),
+                                            (hs_diagram::model::Cardinality::Many, "*"),
+                                            (hs_diagram::model::Cardinality::OneToMany, "1 .. *"),
+                                            (hs_diagram::model::Cardinality::ZeroOrOne, "0 .. 1"),
+                                            (hs_diagram::model::Cardinality::ZeroOrMany, "0 .. *"),
+                                        ] {
+                                            if ui
+                                                .selectable_value(
+                                                    &mut edge.cardinality,
+                                                    Some(value),
+                                                    label,
+                                                )
+                                                .changed()
+                                            {
+                                                edge.label = value.label().into();
+                                                changed = true;
+                                            }
+                                        }
+                                    });
+                            });
+                        }
                         ui.label(
                             egui::RichText::new(format!("{} → {}", edge.from, edge.to))
                                 .small()
@@ -1105,6 +1226,73 @@ impl DiagramState {
                         );
                     }
                     if frame_changed {
+                        self.dirty = true;
+                    }
+                }
+                if self.doc.kind == DiagramKind::Sequence {
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new("Fragments").strong().color(theme.text));
+                    let mut fragment_changed = false;
+                    let mut remove = None;
+                    let last = self.doc.edges.len().saturating_sub(1);
+                    for (i, fragment) in self.doc.fragments.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            egui::ComboBox::from_id_salt(("fragment-kind", i))
+                                .width(64.0)
+                                .selected_text(match fragment.kind {
+                                    hs_diagram::model::FragmentKind::Alt => "alt",
+                                    hs_diagram::model::FragmentKind::Loop => "loop",
+                                    hs_diagram::model::FragmentKind::Opt => "opt",
+                                })
+                                .show_ui(ui, |ui| {
+                                    for (kind, label) in [
+                                        (hs_diagram::model::FragmentKind::Alt, "alt"),
+                                        (hs_diagram::model::FragmentKind::Loop, "loop"),
+                                        (hs_diagram::model::FragmentKind::Opt, "opt"),
+                                    ] {
+                                        if ui
+                                            .selectable_value(&mut fragment.kind, kind, label)
+                                            .changed()
+                                        {
+                                            fragment_changed = true;
+                                        }
+                                    }
+                                });
+                            fragment_changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut fragment.label)
+                                        .hint_text("condition")
+                                        .desired_width(f32::INFINITY),
+                                )
+                                .changed();
+                            if ui.small_button("−").clicked() {
+                                remove = Some(i);
+                            }
+                        });
+                    }
+                    if let Some(i) = remove {
+                        self.doc.fragments.remove(i);
+                        fragment_changed = true;
+                    }
+                    ui.horizontal_wrapped(|ui| {
+                        for (kind, label) in [
+                            (hs_diagram::model::FragmentKind::Alt, "+ Alt"),
+                            (hs_diagram::model::FragmentKind::Loop, "+ Loop"),
+                            (hs_diagram::model::FragmentKind::Opt, "+ Opt"),
+                        ] {
+                            if ui.button(label).clicked() {
+                                self.doc.fragments.push(hs_diagram::model::Fragment {
+                                    kind,
+                                    label: String::new(),
+                                    from: 0,
+                                    to: last,
+                                });
+                                fragment_changed = true;
+                            }
+                        }
+                    });
+                    if fragment_changed {
                         self.dirty = true;
                     }
                 }
@@ -1505,6 +1693,7 @@ impl DiagramState {
                                 via: Vec::new(),
                                 style: Style::default(),
                                 label_at: None,
+                                cardinality: None,
                             });
                         }
                     } else {

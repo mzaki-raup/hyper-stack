@@ -122,6 +122,101 @@ impl Style {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ColumnKey {
+    #[default]
+    None,
+    Primary,
+    Foreign,
+    Unique,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Column {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub data_type: String,
+    #[serde(default)]
+    pub key: ColumnKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Entity {
+    #[serde(default)]
+    pub columns: Vec<Column>,
+}
+
+impl Entity {
+    /// Recover columns from the `name TYPE [PK|FK|UQ]` label syntax used by
+    /// documents created before structured columns.
+    pub fn from_label(label: &str) -> Self {
+        let mut columns = Vec::new();
+        for line in label.lines().skip(1) {
+            let mut parts = line.split_whitespace();
+            let Some(name) = parts.next() else { continue };
+            let data_type = parts.next().unwrap_or_default();
+            let key = match parts.next().unwrap_or_default() {
+                "PK" => ColumnKey::Primary,
+                "FK" => ColumnKey::Foreign,
+                "UQ" => ColumnKey::Unique,
+                _ => ColumnKey::None,
+            };
+            columns.push(Column {
+                name: name.to_string(),
+                data_type: data_type.to_string(),
+                key,
+            });
+        }
+        Self { columns }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Cardinality {
+    #[default]
+    One,
+    Many,
+    OneToMany,
+    ZeroOrOne,
+    ZeroOrMany,
+}
+
+impl Cardinality {
+    pub fn label(self) -> &'static str {
+        match self {
+            Cardinality::One => "1",
+            Cardinality::Many => "*",
+            Cardinality::OneToMany => "1 .. *",
+            Cardinality::ZeroOrOne => "0 .. 1",
+            Cardinality::ZeroOrMany => "0 .. *",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FragmentKind {
+    #[default]
+    Alt,
+    Loop,
+    Opt,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Fragment {
+    #[serde(default)]
+    pub kind: FragmentKind,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub from: usize,
+    #[serde(default)]
+    pub to: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Node {
     pub id: String,
@@ -139,6 +234,8 @@ pub struct Node {
     pub h: f32,
     #[serde(default)]
     pub style: Style,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub erd: Option<Entity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -162,6 +259,8 @@ pub struct Edge {
     pub style: Style,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label_at: Option<Point>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cardinality: Option<Cardinality>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
@@ -254,6 +353,8 @@ pub struct DiagramDoc {
     #[serde(default)]
     pub groups: Vec<Group>,
     #[serde(default)]
+    pub fragments: Vec<Fragment>,
+    #[serde(default)]
     pub meta: Meta,
     /// `true` when the nodes have no meaningful geometry and the generator
     /// should place them; the editor saves `false`.
@@ -279,6 +380,7 @@ impl DiagramDoc {
             nodes: Vec::new(),
             edges: Vec::new(),
             groups: Vec::new(),
+            fragments: Vec::new(),
             meta: Meta::default(),
             auto_layout: true,
         }

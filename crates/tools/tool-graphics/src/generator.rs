@@ -840,6 +840,7 @@ fn offline_doc(kind: DiagramKind, prompt: &str) -> DiagramDoc {
             w: 0.0,
             h: 0.0,
             style: Style::default(),
+            erd: None,
         });
     }
     for i in 1..parts.len() {
@@ -859,6 +860,7 @@ fn offline_doc(kind: DiagramKind, prompt: &str) -> DiagramDoc {
             via: Vec::new(),
             style: Style::default(),
             label_at: None,
+            cardinality: None,
         });
     }
     doc

@@ -58,6 +58,37 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             style: crate::model::Style::default(),
         });
     }
+    for fragment in &doc.fragments {
+        if doc.edges.is_empty() || rects.is_empty() {
+            continue;
+        }
+        let from = fragment.from.min(doc.edges.len() - 1);
+        let to = fragment.to.max(from).min(doc.edges.len() - 1);
+        let y = FIRST_MESSAGE + from as f32 * STEP - 30.0;
+        let bottom = FIRST_MESSAGE + to as f32 * STEP + 20.0;
+        let first = &rects[0];
+        let last = &rects[rects.len() - 1];
+        scene.push(Prim::Frame {
+            rect: Rect {
+                x: first.x - 12.0,
+                y,
+                w: last.x + last.w - first.x + 24.0,
+                h: bottom - y,
+            },
+            label: format!(
+                "{} {}",
+                match fragment.kind {
+                    crate::model::FragmentKind::Alt => "alt",
+                    crate::model::FragmentKind::Loop => "loop",
+                    crate::model::FragmentKind::Opt => "opt",
+                },
+                fragment.label
+            ),
+            style: crate::model::Style::default(),
+            label_placement: crate::model::LabelPlacement::Top,
+            label_align: crate::model::LabelAlign::Left,
+        });
+    }
     for (i, edge) in doc.edges.iter().enumerate() {
         let (Some(a), Some(b)) = (
             doc.nodes.iter().position(|n| n.id == edge.from),
@@ -77,6 +108,20 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             x: b.x + b.w / 2.0,
             y,
         };
+        scene.push(Prim::Shape {
+            rect: Rect {
+                x: to.x - 4.0,
+                y: y - 10.0,
+                w: 8.0,
+                h: 26.0,
+            },
+            kind: crate::model::NodeKind::Process,
+            label: String::new(),
+            style: crate::model::Style {
+                fill: Some("#e8f0ff".into()),
+                ..Default::default()
+            },
+        });
         scene.push(Prim::Line {
             points: vec![from, to],
             dashed: edge.dashed,
@@ -109,6 +154,28 @@ mod tests {
     use crate::text::approx_measure;
 
     #[test]
+    fn a_fragment_draws_a_frame_and_messages_draw_activations() {
+        let mut doc = crate::template::sequence();
+        doc.fragments.push(crate::model::Fragment {
+            kind: crate::model::FragmentKind::Opt,
+            label: "when signed in".into(),
+            from: 0,
+            to: 1,
+        });
+        let scene = layout::layout(&doc, &approx_measure);
+        assert!(scene.prims.iter().any(|p| match p {
+            Prim::Frame { label, .. } => label.contains("opt when signed in"),
+            _ => false,
+        }));
+        let activations = scene
+            .prims
+            .iter()
+            .filter(|p| matches!(p, Prim::Shape { label, .. } if label.is_empty()))
+            .count();
+        assert!(activations >= 2);
+    }
+
+    #[test]
     fn participants_sit_on_one_row_and_messages_are_horizontal() {
         let doc = crate::template::sequence();
         let scene = layout::layout(&doc, &approx_measure);
@@ -116,7 +183,7 @@ mod tests {
             .prims
             .iter()
             .filter_map(|p| match p {
-                Prim::Shape { rect, .. } => Some(*rect),
+                Prim::Shape { rect, label, .. } if !label.is_empty() => Some(*rect),
                 _ => None,
             })
             .collect();

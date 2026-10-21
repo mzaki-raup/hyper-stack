@@ -267,7 +267,7 @@ const DIAGRAM_JSON_HINT: &str = r##"
 
 When the answer changes the diagram, include the complete .hdiag document as a
 ```json fenced block so I can Replace or Append it. Example:
-{"schema":1,"kind":"flow","title":"Checkout","subtitle":"","page":{"size":"fit","margin":24,"background":"#ffffff"},"nodes":[{"id":"start","label":"Start","kind":"start_end","x":0,"y":0,"w":0,"h":0}],"edges":[],"groups":[],"auto_layout":true}
+{"schema":2,"kind":"flow","title":"Checkout","subtitle":"","page":{"size":"fit","margin":24,"background":"#ffffff"},"nodes":[{"id":"start","label":"Start","kind":"start_end","x":0,"y":0,"w":0,"h":0}],"edges":[],"groups":[],"auto_layout":true}
 Keep ids unique and endpoint ids valid.
 "##;
 const DIAGRAM_QA: [(&str, &str); 4] = [

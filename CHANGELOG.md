@@ -21,6 +21,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - API client: deleting a collection, folder or request asks first; a
   Postman environment's `"type": "secret"` values go into the vault as
   `secret:` references instead of the environment file.
+- Sequence diagrams: note strips (Properties → `+ Note`, and Mermaid
+  `Note over/left of/right of` lines), completing the Release 2 sequence
+  list; draw.io image cells import as placed, labelled nodes instead of
+  being dropped.
 
 ### Changed
 

@@ -203,6 +203,9 @@ pub enum FragmentKind {
     Alt,
     Loop,
     Opt,
+    /// A note strip between messages (Mermaid `Note over/left of/right
+    /// of`); `from` says which message it follows, `to` is ignored.
+    Note,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

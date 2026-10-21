@@ -1410,12 +1410,14 @@ impl DiagramState {
                                     hs_diagram::model::FragmentKind::Alt => "alt",
                                     hs_diagram::model::FragmentKind::Loop => "loop",
                                     hs_diagram::model::FragmentKind::Opt => "opt",
+                                    hs_diagram::model::FragmentKind::Note => "note",
                                 })
                                 .show_ui(ui, |ui| {
                                     for (kind, label) in [
                                         (hs_diagram::model::FragmentKind::Alt, "alt"),
                                         (hs_diagram::model::FragmentKind::Loop, "loop"),
                                         (hs_diagram::model::FragmentKind::Opt, "opt"),
+                                        (hs_diagram::model::FragmentKind::Note, "note"),
                                     ] {
                                         if ui
                                             .selectable_value(&mut fragment.kind, kind, label)
@@ -1460,6 +1462,7 @@ impl DiagramState {
                             (hs_diagram::model::FragmentKind::Alt, "+ Alt"),
                             (hs_diagram::model::FragmentKind::Loop, "+ Loop"),
                             (hs_diagram::model::FragmentKind::Opt, "+ Opt"),
+                            (hs_diagram::model::FragmentKind::Note, "+ Note"),
                         ] {
                             if ui.button(label).clicked() {
                                 self.doc.fragments.push(hs_diagram::model::Fragment {

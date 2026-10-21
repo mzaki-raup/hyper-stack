@@ -45,10 +45,27 @@ pub fn mermaid_sequence(text: &str) -> Result<DiagramDoc, String> {
             || line.starts_with("sequenceDiagram")
             || line.starts_with("autonumber")
             || line.starts_with("title ")
-            || line.starts_with("Note ")
-            || line.starts_with("note ")
             || line.starts_with("%%")
         {
+            continue;
+        }
+        // `Note over A,B: text` / `Note left of A: text` / `Note right of
+        // A: text` becomes a note strip after the message before it.
+        if let Some(rest) = line
+            .strip_prefix("Note ")
+            .or_else(|| line.strip_prefix("note "))
+            && let Some((_, text)) = rest.split_once(':')
+        {
+            let text = text.trim();
+            if !text.is_empty() {
+                let after = messages.saturating_sub(1);
+                doc.fragments.push(crate::model::Fragment {
+                    kind: crate::model::FragmentKind::Note,
+                    label: text.to_string(),
+                    from: after,
+                    to: after,
+                });
+            }
             continue;
         }
         if let Some(rest) = line
@@ -218,7 +235,36 @@ fn drawio_doc(text: &str) -> Result<DiagramDoc, String> {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "Node".to_string());
         let style = cell.attribute("style").unwrap_or("").to_ascii_lowercase();
-        let kind = if style.contains("rhombus") {
+        // An image cell keeps its place and size; the picture itself has
+        // no node kind to live in, so the node says what it showed.
+        let image = style.contains("shape=image") || style.contains("image=");
+        let label = if image {
+            let name = style
+                .split(';')
+                .find_map(|kv| kv.strip_prefix("image="))
+                .map(|src| {
+                    if src.starts_with("data:") {
+                        "embedded image".to_string()
+                    } else {
+                        src.rsplit('/').next().unwrap_or(src).to_string()
+                    }
+                })
+                .unwrap_or_else(|| "image".into());
+            if cell
+                .attribute("value")
+                .map(strip_html)
+                .is_some_and(|v| !v.is_empty())
+            {
+                format!("{label}\n[{name}]")
+            } else {
+                format!("[{name}]")
+            }
+        } else {
+            label
+        };
+        let kind = if image {
+            NodeKind::RoundedRectangle
+        } else if style.contains("rhombus") {
             NodeKind::Decision
         } else if style.contains("ellipse")
             && (label.eq_ignore_ascii_case("start") || label.eq_ignore_ascii_case("end"))
@@ -248,9 +294,7 @@ fn drawio_doc(text: &str) -> Result<DiagramDoc, String> {
         node_count += 1;
     }
     if node_count == 0 {
-        return Err(
-            "no draw.io vertices found (compressed .drawio pages are not supported yet)".into(),
-        );
+        return Err("no draw.io vertices found on this page".into());
     }
     let ids: Vec<String> = out.nodes.iter().map(|n| n.id.clone()).collect();
     let mut edge_count = 0usize;
@@ -448,6 +492,38 @@ mod tests {
               <mxCell id="b" value="B" vertex="1" parent="1"><mxGeometry x="200" y="0" width="100" height="40" as="geometry"/></mxCell>
             </root></mxGraphModel></diagram><diagram name="Second" id="2">{encoded}</diagram></mxfile>"#
         )
+    }
+
+    #[test]
+    fn drawio_image_cells_keep_their_place_and_say_what_they_showed() {
+        let xml = r#"<mxfile><diagram name="p"><mxGraphModel><root>
+          <mxCell id="0"/><mxCell id="1" parent="0"/>
+          <mxCell id="logo" value="" vertex="1" style="shape=image;image=img/logo.png;" parent="1">
+            <mxGeometry x="10" y="20" width="80" height="80" as="geometry"/>
+          </mxCell>
+          <mxCell id="pic" value="Photo" vertex="1" style="shape=image;image=data:image/png,AAAA" parent="1">
+            <mxGeometry x="200" y="20" width="80" height="80" as="geometry"/>
+          </mxCell>
+        </root></mxGraphModel></diagram></mxfile>"#;
+        let doc = drawio_xml(xml).unwrap();
+        assert_eq!(doc.nodes.len(), 2);
+        assert_eq!(doc.nodes[0].label, "[logo.png]");
+        assert_eq!((doc.nodes[0].x, doc.nodes[0].w), (10.0, 80.0));
+        assert_eq!(doc.nodes[1].label, "Photo\n[embedded image]");
+    }
+
+    #[test]
+    fn mermaid_notes_become_note_fragments_after_their_message() {
+        let doc = mermaid_sequence(
+            "sequenceDiagram\n  A->>B: hello\n  Note over A,B: handshake done\n  B-->>A: hi\n  Note right of A: idle\n",
+        )
+        .unwrap();
+        assert_eq!(doc.edges.len(), 2);
+        assert_eq!(doc.fragments.len(), 2);
+        assert_eq!(doc.fragments[0].kind, crate::model::FragmentKind::Note);
+        assert_eq!(doc.fragments[0].label, "handshake done");
+        assert_eq!(doc.fragments[0].from, 0);
+        assert_eq!(doc.fragments[1].from, 1);
     }
 
     #[test]

@@ -753,4 +753,20 @@ cells inside draw.io files remain unsupported.
    `REFERENCES`, and `ALTER TABLE … FOREIGN KEY`. Imported tables become
    Entity nodes with one-to-many edges.
 4. **draw.io pages** — a multi-page file opens a page picker; compressed and
-   uncompressed pages use the same importer. Image cells remain unsupported.
+   uncompressed pages use the same importer.
+
+### 13.4 R2 depth, third slice (2026-10-22)
+
+1. **Sequence notes** — `FragmentKind::Note` is a note strip drawn across
+   the lifelines in the gap after message `from` (a Note shape, not a
+   frame). The Properties pane adds it beside alt/loop/opt, and the Mermaid
+   importer turns `Note over A,B: …` / `Note left of A: …` /
+   `Note right of A: …` into one, anchored to the message before it. This
+   completes the §2.2 sequence list (participants, messages, returns,
+   notes, activations, `alt`/`loop`/`opt`).
+2. **draw.io image cells** — a vertex whose style carries `shape=image` or
+   `image=…` is imported as a rounded node at the cell's place and size,
+   labelled `[<file name>]` (or `[embedded image]` for a data URI) under
+   the cell's own text, so nothing in the drawing is silently dropped. The
+   picture itself is not kept: the model has no image node, and a bitmap
+   inside a `.hdiag` is out of scope for R2.

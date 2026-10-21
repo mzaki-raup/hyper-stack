@@ -63,6 +63,30 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
             continue;
         }
         let from = fragment.from.min(doc.edges.len() - 1);
+        if fragment.kind == crate::model::FragmentKind::Note {
+            // A note sits in the gap after message `from`, across the
+            // lifelines it is about; the whole width keeps it readable
+            // without anchoring it to one participant.
+            let first = &rects[0];
+            let last = &rects[rects.len() - 1];
+            let y = FIRST_MESSAGE + from as f32 * STEP + STEP / 2.0 - 14.0;
+            scene.push(Prim::Shape {
+                rect: Rect {
+                    x: first.x + first.w / 2.0,
+                    y,
+                    w: (last.x + last.w / 2.0) - (first.x + first.w / 2.0),
+                    h: 28.0,
+                },
+                kind: crate::model::NodeKind::Note,
+                label: fragment.label.clone(),
+                style: crate::model::Style {
+                    fill: Some("#fff8c5".into()),
+                    stroke: Some("#d4a72c".into()),
+                    ..Default::default()
+                },
+            });
+            continue;
+        }
         let to = fragment.to.max(from).min(doc.edges.len() - 1);
         let y = FIRST_MESSAGE + from as f32 * STEP - 30.0;
         let bottom = FIRST_MESSAGE + to as f32 * STEP + 20.0;
@@ -81,6 +105,7 @@ pub fn decorate(scene: &mut Scene, doc: &DiagramDoc, rects: &[Rect]) {
                     crate::model::FragmentKind::Alt => "alt",
                     crate::model::FragmentKind::Loop => "loop",
                     crate::model::FragmentKind::Opt => "opt",
+                    crate::model::FragmentKind::Note => "note",
                 },
                 fragment.label
             ),
@@ -175,6 +200,38 @@ mod tests {
             .filter(|p| matches!(p, Prim::Shape { label, .. } if label.is_empty()))
             .count();
         assert!(activations >= 2);
+    }
+
+    #[test]
+    fn a_note_fragment_draws_a_note_strip_between_messages() {
+        let mut doc = crate::template::sequence();
+        doc.fragments.push(crate::model::Fragment {
+            kind: crate::model::FragmentKind::Note,
+            label: "retries once".into(),
+            from: 0,
+            to: 0,
+        });
+        let scene = layout::layout(&doc, &approx_measure);
+        let note = scene.prims.iter().find_map(|p| match p {
+            Prim::Shape {
+                rect,
+                kind: crate::model::NodeKind::Note,
+                label,
+                ..
+            } if label == "retries once" => Some(*rect),
+            _ => None,
+        });
+        let note = note.expect("the note is drawn as a Note shape");
+        // Between the first and the second message, not on either.
+        let first = super::FIRST_MESSAGE;
+        assert!(note.y > first && note.y + note.h < first + super::STEP);
+        // No frame is drawn for a note.
+        assert!(
+            !scene
+                .prims
+                .iter()
+                .any(|p| matches!(p, Prim::Frame { label, .. } if label.contains("note")))
+        );
     }
 
     #[test]

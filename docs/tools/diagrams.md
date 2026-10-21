@@ -739,8 +739,8 @@ images) is decided at the start of R2.
 4. **Activations** — every message draws a small activation bar on its target
    lifeline.
 
-DB-schema import and draw.io multi-page/image extraction remain separate
-slices.'
+DB-schema import and draw.io multi-page extraction landed in §13.3; image
+cells inside draw.io files remain unsupported.
 
 ### 13.3 R2 depth, second slice (2026-10-22)
 
@@ -752,4 +752,5 @@ slices.'
    `CREATE TABLE`, column types, `PRIMARY KEY`, `UNIQUE`, inline
    `REFERENCES`, and `ALTER TABLE … FOREIGN KEY`. Imported tables become
    Entity nodes with one-to-many edges.
-4. draw.io multi-page/image extraction remains the last R2 item.
+4. **draw.io pages** — a multi-page file opens a page picker; compressed and
+   uncompressed pages use the same importer. Image cells remain unsupported.

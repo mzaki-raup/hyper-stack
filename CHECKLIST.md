@@ -396,7 +396,8 @@ and ADR-025.
 | R1.1: Resize handles, multi-select align/distribute | Completed | Bottom-right grip; Shift-click selection; six align actions and two distribute actions; unit test for align-left |
 | R1.1: Edge labels and waypoints | Completed | Click an edge to select, label field, Add/Clear Waypoints and draggable handles; Delete removes the edge; unit test |
 | Release 2: ERD structured columns and sequence fragments | Completed | Entity columns named/typed with PK/FK/UQ, Add/Remove Column, edge cardinality picker, sequence fragments (`alt`/`loop`/`opt`) added/edited/removed in Properties, activation bars; tested |
-'| Release 2: Fragment ranges, column order and DDL import | Completed | Editable fragment from/to, entity column move up/down, SQL `CREATE TABLE`/FK import; parser and layout tests |
-| Release 2: ERD and sequence diagrams | In-Progress |' 2026-10-21: `NodeKind::Entity` table nodes, structured columns, sequence lifeline layout with participants/messages/fragments; DB-schema import remains |
-| Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and the first page. Multiple-page selection is not exposed |
+| Release 2: Fragment ranges, column order and DDL import | Completed | Editable fragment from/to, entity column move up/down, SQL `CREATE TABLE`/FK import; parser and layout tests |
+| Release 2: draw.io multi-page import | Completed | Page picker for multi-page `.drawio`/XML; compressed and uncompressed pages; image cells unsupported |
+| Release 2: ERD and sequence diagrams | In-Progress | 2026-10-21: `NodeKind::Entity` table nodes, structured columns, sequence lifeline layout with participants/messages/fragments; draw.io image cells and other depth remain |
+| Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and page selection |
 | Release 2: `.diagram.json` alias and schema migration | Completed | `.diagram.json` opens/saves as an alias; schema v2 migrates v1 documents in `from_json` and writes the new marker on save, with tests |

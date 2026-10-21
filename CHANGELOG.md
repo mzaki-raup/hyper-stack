@@ -14,8 +14,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Graphics R2 depth: sequence fragment ranges are editable, ERD entity columns
-  move up/down, and **Import DDL…** turns `CREATE TABLE` columns, keys and
-  foreign keys into Entity nodes and one-to-many edges.
+  move up/down, **Import DDL…** turns `CREATE TABLE` columns, keys and foreign
+  keys into Entity nodes and one-to-many edges, and multi-page draw.io import
+  offers a page picker.
 
 ## 0.64.0 — 2026-10-21
 

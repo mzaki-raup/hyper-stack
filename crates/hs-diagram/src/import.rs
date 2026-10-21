@@ -128,14 +128,75 @@ fn split_arrow(head: &str) -> Option<(&str, &str, &str)> {
     }
     None
 }
-/// Import the first page of an uncompressed draw.io document.
+/// One page of a draw.io document, already decoded.
+#[derive(Debug, Clone)]
+pub struct DrawioPage {
+    pub name: String,
+    pub xml: String,
+}
+
+/// The pages in a draw.io document, decoded where they are compressed.
+pub fn drawio_pages(text: &str) -> Result<Vec<DrawioPage>, String> {
+    let doc = roxmltree::Document::parse(text)
+        .map_err(|e| format!("draw.io XML is not well formed: {e}"))?;
+    let diagrams: Vec<_> = doc
+        .descendants()
+        .filter(|n| n.has_tag_name("diagram"))
+        .collect();
+    if diagrams.is_empty() {
+        return Ok(vec![DrawioPage {
+            name: "Page 1".into(),
+            xml: text.to_string(),
+        }]);
+    }
+    let mut pages = Vec::new();
+    for (i, diagram) in diagrams.into_iter().enumerate() {
+        let name = diagram
+            .attribute("name")
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("Page {}", i + 1));
+        let xml = if diagram.descendants().any(|n| n.has_tag_name("mxCell")) {
+            text[diagram.range()].to_string()
+        } else if let Some(raw) = diagram.text().map(str::trim)
+            && !raw.is_empty()
+            && !raw.contains('<')
+        {
+            match decode_text(raw) {
+                Some(xml) => xml,
+                None => return Err("compressed .drawio page could not be decoded".into()),
+            }
+        } else {
+            continue;
+        };
+        pages.push(DrawioPage { name, xml });
+    }
+    if pages.is_empty() {
+        return Err("no draw.io pages found".into());
+    }
+    Ok(pages)
+}
+
+/// Import page `page` (zero-based) of a draw.io document.
+pub fn drawio_xml_page(text: &str, page: usize) -> Result<DiagramDoc, String> {
+    let pages = drawio_pages(text)?;
+    let page = pages
+        .get(page)
+        .ok_or_else(|| format!("draw.io page {} does not exist", page + 1))?;
+    drawio_doc(&page.xml)
+}
+
+/// Import the first page of a draw.io document.
 pub fn drawio_xml(text: &str) -> Result<DiagramDoc, String> {
+    drawio_xml_page(text, 0)
+}
+
+fn drawio_doc(text: &str) -> Result<DiagramDoc, String> {
     let doc = roxmltree::Document::parse(text)
         .map_err(|e| format!("draw.io XML is not well formed: {e}"))?;
     if !doc.descendants().any(|n| n.has_tag_name("mxCell"))
         && let Some(decoded) = decode_page(&doc)
     {
-        return drawio_xml(&decoded);
+        return drawio_doc(&decoded);
     }
     let mut out = DiagramDoc::new(crate::model::DiagramKind::Flow, "Imported draw.io diagram");
     out.auto_layout = false;
@@ -231,6 +292,10 @@ fn decode_page(doc: &roxmltree::Document<'_>) -> Option<String> {
         .find(|n| n.has_tag_name("diagram"))
         .and_then(|n| n.text())?
         .trim();
+    decode_text(raw)
+}
+
+fn decode_text(raw: &str) -> Option<String> {
     if raw.is_empty() || raw.contains('<') {
         return None;
     }

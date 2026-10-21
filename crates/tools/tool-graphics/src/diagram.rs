@@ -93,6 +93,7 @@ pub struct DiagramState {
     save_name: String,
     save_overwrite: bool,
     save_error: Option<String>,
+    drawio_import: Option<(String, Vec<hs_diagram::import::DrawioPage>, usize)>,
 }
 
 impl DiagramState {
@@ -145,6 +146,7 @@ impl DiagramState {
             save_name: String::new(),
             save_overwrite: false,
             save_error: None,
+            drawio_import: None,
         };
         state.dirty = false;
         state
@@ -719,6 +721,55 @@ impl DiagramState {
         root.join(subfolder.trim()).join(format!("{stem}.hdiag"))
     }
 
+    /// Pick a page when a draw.io file has more than one.
+    fn drawio_window(&mut self, ctx: &egui::Context, cx: &mut ToolContext) {
+        let Some((text, pages, mut selected)) = self.drawio_import.clone() else {
+            return;
+        };
+        let s = cx.services.clone();
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let mut done: Option<bool> = None;
+        let modal = egui::Modal::new(egui::Id::new("gfx-drawio-pages")).show(ctx, |ui| {
+            ui.set_width(400.0);
+            ui.painter().rect_filled(ui.max_rect(), 8.0, theme.panel_bg);
+            ui.heading(s.t("gfx-diagram-import"));
+            ui.label("Choose a draw.io page.");
+            egui::ComboBox::from_id_salt("gfx-drawio-page")
+                .selected_text(&pages[selected].name)
+                .show_ui(ui, |ui| {
+                    for (i, page) in pages.iter().enumerate() {
+                        ui.selectable_value(&mut selected, i, &page.name);
+                    }
+                });
+            ui.add_space(10.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if form::primary_button(ui, &theme, "Import").clicked() {
+                    done = Some(true);
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    done = Some(false);
+                }
+            });
+        });
+        if modal.should_close() && done.is_none() {
+            done = Some(false);
+        }
+        match done {
+            Some(true) => {
+                self.drawio_import = None;
+                match hs_diagram::import::drawio_xml_page(&text, selected) {
+                    Ok(doc) => {
+                        self.replace(doc);
+                        self.path = None;
+                    }
+                    Err(e) => cx.toast(ToastLevel::Error, e),
+                }
+            }
+            Some(false) => self.drawio_import = None,
+            None => self.drawio_import = Some((text, pages, selected)),
+        }
+    }
+
     /// The Save to Project dialog: project roots come from the Editor through
     /// `OpenTabs`, so Graphics never guesses or depends on the editor crate.
     fn save_window(&mut self, ctx: &egui::Context, cx: &mut ToolContext) {
@@ -821,6 +872,7 @@ impl DiagramState {
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         self.undo_limit = cx.services.settings.read().general.undo_limit as usize;
         self.save_window(ui.ctx(), cx);
+        self.drawio_window(ui.ctx(), cx);
         egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
             .size_range(240.0..=430.0)
@@ -2291,6 +2343,19 @@ impl DiagramState {
                 return;
             }
         };
+        if kind == ImportKind::DrawIo {
+            match hs_diagram::import::drawio_pages(&text) {
+                Ok(pages) if pages.len() > 1 => {
+                    self.drawio_import = Some((text, pages, 0));
+                    return;
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    cx.toast(ToastLevel::Error, e);
+                    return;
+                }
+            }
+        }
         let imported = match kind {
             ImportKind::Archify => hs_diagram::import::archify_json(&text),
             ImportKind::DrawIo => hs_diagram::import::drawio_xml(&text),

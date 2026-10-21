@@ -13,18 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Narrow windows: every tool toolbar wraps onto a second row instead of
-  clipping, the AI Assistant control starts a fresh row when the current
-  one is nearly full, the assistant columns shrink before stepping aside,
-  and the sidebar, dock, split view, Graphics panels and the editor's
-  preview are bounded by the window rather than by fixed maximums.
-- API client: deleting a collection, folder or request asks first; a
-  Postman environment's `"type": "secret"` values go into the vault as
-  `secret:` references instead of the environment file.
-- Sequence diagrams: note strips (Properties → `+ Note`, and Mermaid
-  `Note over/left of/right of` lines), completing the Release 2 sequence
-  list; draw.io image cells import as placed, labelled nodes instead of
-  being dropped.
 - Diagram Editor: frame-to-frame edges. With the Edge tool, click a frame
   border to start or end an edge, so a frame connects to another frame or
   to a node; the layout routes it from the frame's rectangle and the
@@ -33,56 +21,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Diagram Editor toolbar: Add Entity, Import DDL… and Add Participant are
   icon-only buttons with full-name tooltips, like the rest of the row.
 
-### Changed
+## 0.66.0 — 2026-10-21
 
-- Performance pass over the last week's code: the diagram layout and the
-  draft autosave's change check run only when the document changed (a
-  streamed fingerprint replaces a per-frame JSON serialisation), the diff,
-  regex and TOML/XML devtools recompute only when their inputs change (and
-  the diff declines inputs over 2 MB), the browser's favourites and logins
-  are written when typing pauses rather than per keystroke, the editor
-  re-detects the project kind every few seconds rather than per toolbar
-  frame, the terminal sidebar resolves CLI commands on PATH every few
-  seconds rather than per profile per frame, and stage/unstage no longer
-  re-list stashes, branches, remotes and tags.
+### Added
+
+- Sequence note strips and draw.io image cells (7aebfff7)
 
 ### Fixed
 
-- Diagram Editor: clicking an activation box in a sequence diagram no
-  longer panics (the hit list counted them as nodes); deleting a framed
-  node removes it from the frame, so the saved file still opens; a new
-  edge never reuses the id of a deleted one; Ctrl+wheel zooms around the
-  pointer, and scrolling pans in fit mode; label drags and Clear Waypoints
-  are undoable; undo, redo and template replacement drop selections that
-  pointed at the old document; the canvas's Delete/Ctrl+Z/Ctrl+S keys
-  stay out of a focused text field; Align with a stale selection no longer
-  shifts every later node's size; closing the Generator tab aborts its
-  request.
-- draw.io import: tests now cover page names, choosing a compressed second
-  page, a missing page and an undecodable page.
-- API client: Enter in the body editor no longer rewrites the collection
-  file (the name field's Enter was checked tab-wide); deleting the folder
-  that held the open request starts a new request instead of leaving a
-  "Saved" that saved nothing; one case-insensitive dedup rule now covers
-  new, rename, duplicate and drag; dropping a row on its own level's header
-  moves it to the end.
-- SQL: `COPY … TO PROGRAM` is an admin statement and `COPY … TO '<file>'` /
-  MySQL `INTO OUTFILE` are writes, so the read-only and protected guards
-  catch them; engine names read "PostgreSQL"/"MySQL"/"SQLite" in titles.
-- Editor: a commit rejected by a hook or a cancelled signing prompt keeps
-  the typed message; a background shell's events are drained too; a web
-  watch stops when its shell exits.
-- Shell: restoring a layout gives every activity its home tab (the last one
-  was skipped); closing a connection form aborts a test still connecting.
-- Devtools: cron check refuses backwards ranges, three-part ranges, steps
-  on a single value and steps wider than the field; the generator ignores
-  the seed for passwords and passphrases.
-- Browser: a favourites or logins file that fails to parse is set aside as
-  `.bad` instead of being overwritten empty on the next edit.
-- AI assistants: `**bold**` renders as emphasis instead of plain text.
-- CHANGELOG: the 0.65.0 release bump had written conflict markers and a
-  duplicated, truncated history into this file; restored from the
-  pre-release copy with the 0.65.0 section kept.
+- Review pass over the week's code, narrow-window toolbars and panels (4ae67227)
 
 ## 0.65.0 — 2026-10-21
 

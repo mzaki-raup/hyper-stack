@@ -15,7 +15,8 @@ read with anything.
 <workspace>/notes/
 ├── 01M4…D03.md        # one note = one file, named by id; title = first heading or line
 ├── 01M4…K5Q.md
-└── pins.json          # ids pinned to the top of the list, in pin order
+'├── pins.json          # ids pinned to the top of the list, in pin order
+└── order.json         # saved order of the unpinned notes'
 ```
 
 A note is written **1.5 s after typing stops** and on Save (Ctrl+S, the
@@ -28,7 +29,8 @@ saved travels in the layout as a draft.
 ## 3. Layout
 
 - **Sidebar** (between the activity rail and the tab): the note list,
-  newest first with pinned notes above (pin icon), a search box, **New
+  newest first with pinned notes above (pin icon), drag unpinned notes by the
+  grip to change their order (`notes/order.json`), a search box, **New
   Note**. A right-click offers **Pin to Top** / **Unpin** and **Delete**
   (confirmed inline). Clicking a note focuses its tab or opens one: **one
   tab per note**, and an empty new tab takes the first note opened into

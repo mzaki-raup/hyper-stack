@@ -55,6 +55,7 @@ impl ToolFactory for ScratchpadFactory {
             home_title: None,
             notes: Vec::new(),
             pins: Vec::new(),
+            order: Vec::new(),
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             insert_pending: None,
             scanned: None,
@@ -100,6 +101,8 @@ pub struct Scratchpad {
     saved: String,
     notes: Vec<NoteMeta>,
     pins: Vec<String>,
+    /// Saved order of unpinned notes; ids missing here sort newest first.
+    order: Vec<String>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
     /// Text to put into the note at the cursor on the next frame.
     insert_pending: Option<String>,
@@ -161,6 +164,22 @@ fn list_notes(dir: &Path) -> Vec<NoteMeta> {
     out
 }
 
+/// Saved order of the unpinned notes, in `notes/order.json`.
+fn load_order(dir: &Path) -> Vec<String> {
+    std::fs::read_to_string(dir.join("order.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_order(dir: &Path, order: &[String]) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(
+        dir.join("order.json"),
+        serde_json::to_string_pretty(order).unwrap_or_default(),
+    )
+}
+
 /// Ids of the notes pinned to the top, in `notes/pins.json`.
 fn load_pins(dir: &Path) -> Vec<String> {
     std::fs::read_to_string(dir.join("pins.json"))
@@ -178,7 +197,7 @@ fn save_pins(dir: &Path, pins: &[String]) -> std::io::Result<()> {
 }
 
 /// Pinned notes first (in pin order), then the rest newest first.
-fn order_notes(mut notes: Vec<NoteMeta>, pins: &[String]) -> Vec<NoteMeta> {
+fn order_notes(mut notes: Vec<NoteMeta>, pins: &[String], order: &[String]) -> Vec<NoteMeta> {
     for n in &mut notes {
         n.pinned = pins.contains(&n.id);
     }
@@ -187,7 +206,17 @@ fn order_notes(mut notes: Vec<NoteMeta>, pins: &[String]) -> Vec<NoteMeta> {
         (true, true) => rank(a).cmp(&rank(b)),
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
-        (false, false) => b.modified.cmp(&a.modified),
+        (false, false) => {
+            let rank = |n: &NoteMeta| {
+                order
+                    .iter()
+                    .position(|id| id == &n.id)
+                    .unwrap_or(usize::MAX)
+            };
+            rank(a)
+                .cmp(&rank(b))
+                .then_with(|| b.modified.cmp(&a.modified))
+        }
     });
     notes
 }
@@ -239,7 +268,8 @@ impl Scratchpad {
     fn rescan(&mut self, s: &Services) {
         let dir = notes_dir(s);
         self.pins = load_pins(&dir);
-        self.notes = order_notes(list_notes(&dir), &self.pins);
+        self.order = load_order(&dir);
+        self.notes = order_notes(list_notes(&dir), &self.pins, &self.order);
         self.scanned = Some(Instant::now());
     }
 
@@ -475,6 +505,10 @@ impl Tool for Scratchpad {
                 }),
             );
         }
+        let can_reorder = filter.is_empty();
+        let mut reorder = hs_ui::reorder::Reorder::new("scratchpad-note-order");
+        let mut moved = None;
+        let mut movable = 0usize;
         egui::ScrollArea::vertical()
             .id_salt("scratchpad-notes")
             .auto_shrink([false, false])
@@ -489,7 +523,15 @@ impl Tool for Scratchpad {
                     };
                     let sub = when(n.modified);
                     let icon = if n.pinned { ph::PUSH_PIN } else { ph::NOTE };
-                    let r = form::list_row(ui, &theme, selected, icon, title, Some(&sub));
+                    let r = if can_reorder && !n.pinned {
+                        let index = movable;
+                        movable += 1;
+                        reorder.row(ui, index, |ui| {
+                            form::list_row(ui, &theme, selected, icon, title, Some(&sub))
+                        })
+                    } else {
+                        form::list_row(ui, &theme, selected, icon, title, Some(&sub))
+                    };
                     if r.secondary_clicked() {
                         tracing::debug!(id = %n.id, "scratchpad: row right-clicked");
                     }
@@ -522,7 +564,27 @@ impl Tool for Scratchpad {
                         }
                     });
                 }
+                moved = reorder.finish(ui, theme.accent);
             });
+        if let Some((from, to)) = moved {
+            let mut ids: Vec<String> = self
+                .notes
+                .iter()
+                .filter(|n| !n.pinned)
+                .map(|n| n.id.clone())
+                .collect();
+            if from < ids.len() {
+                let id = ids.remove(from);
+                let insert = if from < to { to - 1 } else { to }.min(ids.len());
+                ids.insert(insert, id);
+                self.order = ids;
+                let dir = notes_dir(s);
+                if let Err(e) = save_order(&dir, &self.order) {
+                    cx.toast(ToastLevel::Warning, e.to_string());
+                }
+                self.rescan(s);
+            }
+        }
         true
     }
 
@@ -840,6 +902,20 @@ mod tests {
     }
 
     #[test]
+    fn saved_order_positions_unpinned_notes() {
+        let mk = |id: &str, secs: u64| NoteMeta {
+            id: id.into(),
+            title: id.into(),
+            modified: SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
+            pinned: false,
+        };
+        let notes = vec![mk("a", 1), mk("b", 2), mk("c", 3)];
+        let out = order_notes(notes, &["b".into()], &["c".into(), "a".into()]);
+        let ids: Vec<&str> = out.iter().map(|n| n.id.as_str()).collect();
+        assert_eq!(ids, ["b", "c", "a"]);
+    }
+
+    #[test]
     fn pinned_notes_come_first_in_pin_order() {
         let mk = |id: &str, secs: u64| NoteMeta {
             id: id.into(),
@@ -853,7 +929,7 @@ mod tests {
             mk("mid", 2),
             mk("pinned-late", 0),
         ];
-        let out = order_notes(notes, &["mid".into(), "pinned-late".into()]);
+        let out = order_notes(notes, &["mid".into(), "pinned-late".into()], &[]);
         let ids: Vec<&str> = out.iter().map(|n| n.id.as_str()).collect();
         assert_eq!(ids, ["mid", "pinned-late", "new", "old"]);
         assert!(out[0].pinned && out[1].pinned && !out[2].pinned);

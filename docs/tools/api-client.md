@@ -9,7 +9,9 @@
   auth (inherit, none, basic, bearer, API key in header or query), docs,
   pre-request and post-response scripts. Send (Enter in the URL field or
   F5), cancel, Copy as curl, Import curl.
-- **Collections and folders** as one JSON file per collection under
+- **Collections and folders** use Material icons in the sidebar (`folder-api`
+  for a collection, a themed `folder-*` for a folder). They are one JSON file
+  per collection under
   `<workspace>/api/collections/<id>.json` (not `.req.toml` per request as
   §7 planned: one file imports and exports Postman cleanly and keeps a
   tree in order). Collection variables, collection and folder auth and

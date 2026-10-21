@@ -9,9 +9,15 @@ released sections by hand.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+'## Unreleased
 
-### Changed
+### Added
+
+- API client: Material collection and folder icons in the sidebar.
+- Scratchpad: drag unpinned notes to reorder them; the order is saved in
+  `notes/order.json` and pinned notes stay on top.
+
+### Changed'
 
 - README walkthrough GIF now covers every activity and Settings page, with a
   3-second pause per frame.

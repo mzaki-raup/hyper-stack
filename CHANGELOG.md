@@ -11,29 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.74.0 — 2026-10-22
+
 ### Added
 
-- Updater: a release is downloaded as its zip (`windows-x64-zip` in the
-  signed manifest) and the executable is taken out of it, so the download
-  stays under the 100 MB a Cloudflare-fronted forge serves in one
-  response; the archive is checked against the manifest, the extracted
-  file against the manifest's executable entry, then the self-test runs
-  as before. Releases without a zip entry still install from the bare
-  file.
-- Settings → Appearance → Activity Rail: a Workspace picker (logo and
-  name); the rail's order and Show column are per workspace, stored in
-  that workspace's `workspace.toml`, and edits apply to the picked
-  workspace at once.
-- Settings → Appearance → Sidebar: **Coloured Activity Icons**, off by
-  default (plain icons in the theme's text colour).
-
-### Changed
-
-- Every activity's sidebar width is kept per workspace instead of
-  globally; a workspace without its own values starts from the global
-  ones.
-- Settings → Workspace: the Workspaces list shows a larger logo and name
-  per row.
+- Update from the release zip, per-workspace rail and sidebar, plain activity icons (b190e9ef)
 
 ## 0.73.0 — 2026-10-22
 

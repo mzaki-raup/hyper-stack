@@ -388,9 +388,8 @@ pub fn page(
         let mut st = s.settings.write();
         form::field_grid(ui, "ai-general", |ui| {
             form::label(ui, &s.t("ai-max-rounds"));
-            changed |= ui
-                .add(egui::Slider::new(&mut st.ai.max_rounds, 1..=12))
-                .changed();
+            changed |=
+                form::slider(ui, theme, egui::Slider::new(&mut st.ai.max_rounds, 1..=12)).changed();
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("ai-max-rounds-hint"));

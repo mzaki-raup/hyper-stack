@@ -2353,6 +2353,33 @@ impl HyperStackApp {
             .into_iter()
             .filter(|id| !hidden.iter().any(|h| h == id))
             .collect();
+        // Home stays at the top and the sidebar toggle and Settings at the
+        // bottom; only the tools between them scroll, so a window too short
+        // for every tool hides none of the three fixed entries. Labelled
+        // entries are 50 px; when the tools would not fit at that size they
+        // compact to 44 and then 40 px with no gap, and only scroll below
+        // that. The decision is taken against the *window* height with the
+        // tallest chrome (two tab rows, a toolbar) rather than the height
+        // on offer right now, so the rail does not re-flow every time the
+        // active activity has a different strip (owner's shots, 2026-10-22).
+        let (entry_h, gap, pad) = if labels {
+            let worst = ui.ctx().content_rect().height() - RAIL_CHROME_WORST;
+            let n = ordered.len() as f32;
+            let fits = |entry: f32, gap: f32, pad: f32| {
+                n * (entry + gap) <= worst - 2.0 * pad - 3.0 * entry - 3.0 * pad
+            };
+            if fits(50.0, 2.0, 6.0) {
+                (50.0, 2.0, 6.0)
+            } else if fits(44.0, 0.0, 4.0) {
+                (44.0, 0.0, 4.0)
+            } else {
+                (40.0, 0.0, 4.0)
+            }
+        } else {
+            (24.0 + 10.0, 4.0, 6.0)
+        };
+        let label_h = labels.then_some(entry_h);
+        let bottom_h = pad + entry_h + pad + entry_h + pad;
         let item = |this: &mut Self, ui: &mut egui::Ui, id: &str| {
             let Some((_, icon, title)) = descs.iter().find(|d| d.0 == id) else {
                 return;
@@ -2364,7 +2391,7 @@ impl HyperStackApp {
             } else {
                 title.clone()
             };
-            if rail_item(ui, &theme, id, icon, title, active, labels)
+            if rail_item(ui, &theme, id, icon, title, active, label_h)
                 .tip(tip)
                 .clicked()
             {
@@ -2373,16 +2400,10 @@ impl HyperStackApp {
                 ui.ctx().request_repaint();
             }
         };
-        // Home stays at the top and the sidebar toggle and Settings at the
-        // bottom; only the tools between them scroll, so a window too short
-        // for every tool hides none of the three fixed entries.
-        let entry_h = if labels { 50.0 } else { 24.0 + 10.0 };
-        let gap = if labels { 2.0 } else { 4.0 };
-        let bottom_h = 8.0 + entry_h + 4.0 + entry_h + 6.0;
         ui.vertical_centered(|ui| {
-            ui.add_space(6.0);
+            ui.add_space(pad);
             item(self, ui, "home");
-            ui.add_space(6.0);
+            ui.add_space(pad);
             let tools_h = (ui.available_height() - bottom_h).max(entry_h);
             egui::ScrollArea::vertical()
                 .id_salt("hs-rail-scroll")
@@ -2397,9 +2418,9 @@ impl HyperStackApp {
                     });
                 });
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.add_space(8.0);
+                ui.add_space(pad);
                 item(self, ui, "settings");
-                ui.add_space(4.0);
+                ui.add_space(pad);
                 if rail_item(
                     ui,
                     &theme,
@@ -2407,7 +2428,7 @@ impl HyperStackApp {
                     hs_ui::icons::SIDEBAR,
                     &s.t("sidebar"),
                     self.sidebar_open,
-                    labels,
+                    label_h,
                 )
                 .tip(s.t("sidebar-toggle"))
                 .clicked()
@@ -3774,6 +3795,10 @@ fn shrink(img: &egui::ColorImage, width: usize) -> Option<egui::ColorImage> {
 
 const RAIL_WIDTH: f32 = 56.0;
 const RAIL_WIDTH_LABELS: f32 = 78.0;
+/// Window height taken by everything above and below the rail when the tab
+/// strip has two rows: title bar, two strip rows, environment bar, a tool
+/// toolbar and the status bar. The rail sizes its entries for this case.
+const RAIL_CHROME_WORST: f32 = 227.0;
 
 /// Tool ids in rail order: the saved order first (ids it names that still
 /// exist), then every other tool in its default order. Home and Settings
@@ -3850,12 +3875,11 @@ fn rail_item(
     icon: &str,
     label: &str,
     active: bool,
-    show_label: bool,
+    label_h: Option<f32>,
 ) -> egui::Response {
-    let size = if show_label {
-        egui::vec2(RAIL_WIDTH_LABELS - 8.0, 50.0)
-    } else {
-        egui::vec2(RAIL_WIDTH - 12.0, RAIL_WIDTH - 12.0)
+    let size = match label_h {
+        Some(h) => egui::vec2(RAIL_WIDTH_LABELS - 8.0, h),
+        None => egui::vec2(RAIL_WIDTH - 12.0, RAIL_WIDTH - 12.0),
     };
     let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
     let fill = if active {
@@ -3875,7 +3899,7 @@ fn rail_item(
     } else {
         own.gamma_multiply(0.72)
     };
-    if !show_label {
+    let Some(h) = label_h else {
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -3885,12 +3909,21 @@ fn rail_item(
         );
         r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, label));
         return r.on_hover_cursor(egui::CursorIcon::PointingHand);
-    }
+    };
+    // Icon size and position follow the entry height (50 / 44 / 40 px);
+    // the label sits just under the icon's glyph box.
+    let (icon_size, icon_y) = if h < 44.0 {
+        (18.0, 14.0)
+    } else if h < 50.0 {
+        (20.0, 15.0)
+    } else {
+        (22.0, 17.0)
+    };
     ui.painter().text(
-        egui::pos2(rect.center().x, rect.top() + 17.0),
+        egui::pos2(rect.center().x, rect.top() + icon_y),
         egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::proportional(22.0),
+        egui::FontId::proportional(icon_size),
         col,
     );
     let galley = ui.painter().layout(
@@ -3900,7 +3933,7 @@ fn rail_item(
         size.x - 4.0,
     );
     let text_rect = egui::Align2::CENTER_TOP.anchor_size(
-        egui::pos2(rect.center().x, rect.top() + 31.0),
+        egui::pos2(rect.center().x, rect.top() + icon_y + icon_size * 0.5 + 2.0),
         galley.size(),
     );
     ui.painter().galley(text_rect.min, galley, theme.text);

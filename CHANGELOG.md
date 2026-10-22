@@ -38,7 +38,38 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   (Z-Image, Flux, split SD3 files), which the built-in workflow cannot
   drive — paste the workflow ComfyUI/SwarmUI uses for it instead.
 - AI assistants: the quick-action buttons no longer paint over the
-  conversation; the input block is laid out bottom-up in the column.
+  conversation or the input field, and Send is never clipped; the
+  composer is measured in a sizing pass and the conversation takes
+  exactly the rest of the column.
+- Settings → AI Assistant: the Maximum Rounds slider has a visible rail
+  (shared `form::slider`, also used by Undo Limit).
+- Locale: the Terminal page's "Remove {name}?" prompt had lost its
+  placeholder, which made the whole message a parse error; a test now
+  fails on any junk in the bundled locale.
+- Graphics: opening a saved diagram from Recent no longer takes over an
+  untitled diagram tab that already holds nodes; only a blank Diagram tab
+  is reused.
+
+### Changed
+
+- Every README screenshot and the walkthrough GIF were retaken at
+  1400x960 for the current UI (the coloured, labelled rail with the Logs
+  entry, the tabbed Manage Collection page, the AI settings gallery by
+  capability, the Markdown-rendered assistant answers, the Logs activity
+  and dock tab); the README gained Logs and Manage Collection rows.
+- Activity rail: labelled entries compact to 44 px when the window is too
+  short for all of them at 50 px, so every activity stays visible on a
+  960 px window instead of the last ones scrolling out of view.
+- Logs dock: egui, eframe, wgpu, naga and winit log only their errors
+  whatever the chosen level, so a debug build's per-frame layout warnings
+  no longer drown the app's own lines.
+- Logs activity: a rotated file is recognised by its first bytes rather
+  than its creation time, which Windows reuses for a renamed file.
+- Logs activity: a followed source opens at its tail and turning Follow
+  on jumps there (the jump used the row height without egui's spacing and
+  landed short); the detail pane's field values are one readable line
+  each with the whole value on hover, instead of wrapping every few
+  characters.
 
 ## 0.72.0 — 2026-10-22
 

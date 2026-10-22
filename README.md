@@ -226,11 +226,10 @@ directly after the permanent one.
 
 | | |
 |---|---|
-| **Sources** — a local file followed like `tail -F` (rotation noticed, multi-gigabyte files opened at their tail), a file on an SSH host through `tail -F` on an exec channel, any command's output (local or remote) and pasted text; saved sources grouped by environment in the sidebar, filter presets beside them | |
-| **Parsers** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL, detected from the first lines; levels normalised; stack traces glued to the line that started them | |
-| **View** — filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, a detail pane with fields (filter by, exclude, pin as column), Open in Editor for `path:line`, Save Filtered… | |
-
-The bottom dock's **Logs** tab shows the app's own log with a level set in Settings → General → Behaviour; every error a tool reports lands there too.
+| ![Logs activity following a file](docs/screenshots/logs.png) | ![Record detail](docs/screenshots/logs-detail.png) |
+| **Sources** — a local file followed like `tail -F` (rotation noticed, multi-gigabyte files opened at their tail), a file on an SSH host through `tail -F` on an exec channel, any command's output (local or remote) and pasted text; saved sources grouped by environment in the sidebar, filter presets beside them | **Detail pane** — the record's fields with filter-by, exclude and pin-as-column actions, the raw line, Copy as JSON, bookmark and Open in Editor for `path:line` |
+| ![Filter chips](docs/screenshots/logs-filter.png) | ![Logs tab in the dock](docs/screenshots/dock.png) |
+| **Parsers and filters** — plain, JSON lines, logfmt, syslog, Nginx/Apache and PostgreSQL detected from the first lines, levels normalised, stack traces glued to their line; filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, Save Filtered… | **App log in the dock** — the bottom dock's Logs tab shows HyperStack's own log at the level set in Settings → General → Behaviour, with a level picker, search, Copy and Clear; every error a tool reports lands there too |
 
 ### NoSQL (MongoDB and CouchDB)
 
@@ -247,8 +246,10 @@ The bottom dock's **Logs** tab shows the app's own log with a level set in Setti
 |---|---|
 | ![API client](docs/screenshots/api-client.png) | ![API client scripts](docs/screenshots/api-client-scripts.png) |
 | **Requests** — method, URL with `{{variables}}`, params, headers, body (JSON, text, XML, form, multipart, binary), auth (inherit, basic, bearer, API key); response as pretty, raw or preview with headers, cookies, tests and console; Copy as curl, Import curl; history | **Scripts** — pre-request and post-response JavaScript with the `pm` API (`pm.environment`, `pm.globals`, `pm.collectionVariables`, `pm.request`, `pm.response`, `pm.test`, `pm.expect`, `console`), snippets, collection libraries; Postman v2.1 collections and environments import and export |
-| ![API client AI assistant](docs/screenshots/api-client-ai.png) | |
-| **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send | |
+| ![API client AI assistant](docs/screenshots/api-client-ai.png) | ![Manage Collection: Variables](docs/screenshots/api-manage-variables.png) |
+| **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send | **Manage Collection** — one tab per concern: General, Variables (edit key and value in place), Globals, Authentication, Script, Package Library and Documentation; changes save as you type |
+| ![Manage Collection: Authentication](docs/screenshots/api-manage-auth.png) | ![Manage Collection: Documentation](docs/screenshots/api-manage-docs.png) |
+| **Authentication** — inherit, none, Basic, Bearer, API key, **OAuth 2.0** (client credentials, password and refresh-token grants, token cached until it expires) or **AWS Signature V4** at the collection, folder or request level | **Documentation** — Markdown for the collection, rendered beside the editor |
 
 Collections are JSON files in the workspace; variables resolve through the
 collection, the active environment (vault secrets only when sending) and

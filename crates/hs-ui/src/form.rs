@@ -37,6 +37,20 @@ pub fn field_row<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> 
     .inner
 }
 
+/// A slider in a settings grid: a visible rail (the dark theme paints
+/// egui's inactive fill in the panel colour, so a bare slider at its
+/// minimum is a lone box), a trailing fill and a fixed comfortable width.
+pub fn slider(ui: &mut egui::Ui, theme: &Theme, slider: egui::Slider<'_>) -> egui::Response {
+    ui.scope(|ui| {
+        ui.spacing_mut().slider_width = 260.0;
+        let widgets = &mut ui.visuals_mut().widgets;
+        widgets.inactive.bg_fill = theme.border;
+        widgets.hovered.bg_fill = theme.surface_hover;
+        ui.add(slider.trailing_fill(true))
+    })
+    .inner
+}
+
 /// A page title with a short description under it.
 pub fn page_title(ui: &mut egui::Ui, theme: &Theme, title: &str, subtitle: Option<&str>) {
     ui.add_space(4.0);

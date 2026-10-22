@@ -150,6 +150,25 @@ impl I18n {
 mod tests {
     use super::*;
 
+    /// A message with a syntax error is dropped by the parser and its
+    /// key then shows raw in the UI; `locale en has 1 syntax errors` in
+    /// the log was the only sign (a `{ $name }` eaten by a shell heredoc).
+    #[test]
+    fn the_bundled_locale_parses_without_junk() {
+        let file = Locales::get("en.ftl").expect("en.ftl is embedded");
+        let text = String::from_utf8_lossy(&file.data).to_string();
+        if let Err((_, errors)) = FluentResource::try_new(text.clone()) {
+            let described: Vec<String> = errors
+                .iter()
+                .map(|e| {
+                    let line = text[..e.pos.start.min(text.len())].matches('\n').count() + 1;
+                    format!("line {line}: {:?}", e.kind)
+                })
+                .collect();
+            panic!("en.ftl has syntax errors: {described:?}");
+        }
+    }
+
     #[test]
     fn english_loads_and_unknown_keys_echo() {
         let i = I18n::load("en");

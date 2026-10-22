@@ -1,7 +1,8 @@
 # Screenshots
 
 Images used by the top-level [README](../../README.md). They show the build from this
-repository, not mock-ups; the set was last refreshed on Windows 11 for 0.45.x.
+repository, not mock-ups; the whole set was last refreshed on Windows 11 on
+2026-10-22 (v0.72.0 plus the `tool-logs` branch), at 1400x960.
 
 ## How they were made
 
@@ -325,3 +326,79 @@ magick <frames> -resize 1200x -gravity center -background '#14161A' `
 ```
 
 Every frame is held for 3 seconds. The GIF has 70 frames.
+## 2026-10-22 set: every screenshot retaken for the current UI
+
+Every PNG the README references was recaptured on this date from the
+debug build of the `tool-logs` branch (v0.72.0 plus that branch): the rail
+with one colour per activity and the new **Logs** entry, the Graphics
+dashboard with its icon buttons, the tabbed Manage Collection page, the
+AI settings grouped by Chat and Image providers, the Logs dock tab, and
+the Markdown-rendered assistant answers. The harness is
+`shots.ps1` in the session scratchpad (the `gui-smoke.ps1` pattern with
+client-coordinate clicks checked against the dev pid and an
+`AttachThreadInput` foreground push); the window is now **1400x960** so
+the whole rail - thirteen activities, the sidebar toggle and Settings -
+is in frame, which 900 px no longer fit. HyperStack Dark, rail labels on,
+scratch data folder `D:\Temp\hs-gui-data` with the vault `TestMaster1`.
+
+Fixtures, as before: `devsshd` on 2222 (`dev`/`dev`), moto on 5055
+(`mock-s3`), the mock OpenAI server on 11434, Redis in WSL on 6379, the
+`hs-mongo`, `hs-couch` and `hs-postgres` containers, the SQLite `shop.db`,
+the `ir-conflict`, `lsp-demo` and `debug-demo` projects, and for the Logs
+activity a generated `D:\Temp\hs-logs\app.log` (JSON lines with a stack
+trace) followed live.
+
+Logs activity shots: `logs.png` (the file followed to its tail, the
+source list and preset hints on the left), `logs-detail.png` (an ERROR
+record selected, its fields with filter/exclude/pin actions and the raw
+line) and `logs-filter.png` (a `"timeout"` text chip, 130 of 490 shown,
+with Clear and Save Preset…).
+
+New in this set: `api-manage-variables.png`, `api-manage-auth.png` and
+`api-manage-docs.png` (the tabbed Manage Collection page of a seeded
+**Shop API** collection: Orders and Products folders, three variables,
+collection-level OAuth 2.0 client credentials, a SigV4 request and a
+Markdown description; `api-client.png` sends its `List orders` request to
+httpbin with two passing `pm.test`s). `settings-ai.png` shows two seeded
+providers (Mock OpenAI and a ComfyUI workstation) with the gallery open.
+
+Retaken on the same date, all at 1400x960: every Settings page, Home,
+launcher, palette, workspace and environment dialogs, the dock, every
+Devtools utility (sample inputs typed through the harness), the Scratchpad
+(notes, assistant answer, split), Browser, Redis (the console shows the
+FLUSHALL guard), NoSQL (find with `$in`, an `$unwind`/`$group` pipeline),
+SQL (Postgres browse, JOIN, completion, script error, DELETE guard, Manual
+Commit badge, Production refusal, SQLite cell viewer), the connection
+forms, S3 (moto re-seeded with `D:\Temp\opencode\seed_s3.py`), SSH (host
+key prompt after forgetting the key in `known_hosts`, SFTP, follow folder,
+remote edit, a live tunnel to 5432), Terminal (shell, search hits,
+Ctrl-hovered link, Test Shell CLI, Terminal List), the Editor (projects,
+find/replace, Markdown, both Mermaid diagrams, Git tree/diff/history/
+conflict/rebase/tags/prefix on a rebuilt `ir-conflict`, rust-analyzer
+completion and Problems on `lsp-demo`, debugpy paused on `debug-demo`, the
+assistant's Review, model picker, Cascade and dictation) and Graphics
+(every diagram tab, image, icon, operations, crop, dashboard last so its
+thumbnails are filled). `vault-create.png` comes from a second instance on
+an empty data folder.
+
+Harness notes for next time (`shots.ps1`): `rail <k>` clicks the k-th
+activity by finding the Home icon's colour in a fresh capture, because
+the rail's vertical position depends on how many tab rows the active
+activity has; `type` takes `<sp>` for a leading space, `<dl>` for `$` and
+`<sc>` for `;` (commands are trimmed and split on semicolons, and the
+shells expand `$`); `ctrlhover x y` holds Ctrl over a point and `rawshot`
+captures without moving the pointer, for the terminal link shot; `shot`
+nudges the pointer inside the client area first so the frame after a
+click is painted; a `type` straight after a `click` needs a 500 ms `wait`
+or the text lands before the field has focus; `HS_DATA`/`HS_PIDFILE`
+drive a second instance. The fixture projects are rebuilt by
+`make_fixtures.py` (a merge left in conflict, a Cargo crate with one type
+error, a Python script with a `.hyperstack/debug.json`) and the layout's
+editor tabs by `seed_editor.py`; `seed_api.py` writes the Shop API
+collection and `seed_cli.py` the two CLI profiles.
+
+`hyperstack-demo.gif` is rebuilt from the new set with
+`magick <frames> -resize 1200x -gravity center -background '#14161A' -extent 1200x823 -colors 256 -layers Optimize -set delay 300 -loop 0 hyperstack-demo.gif`:
+112 frames in activity order (shell, vault, Editor, Terminal, SSH, S3,
+Database, Redis, Logs, NoSQL, API client, Devtools, Browser, Graphics,
+Scratchpad, Settings), 3 s each, 9.6 MB.

@@ -3296,7 +3296,14 @@ impl Tool for GraphicsTool {
         }
         let p = Path::new(uri.strip_prefix("file://").unwrap_or(uri));
         if is_diagram_path(p) {
-            return (self.kind == Kind::Diagram).then_some(60);
+            // Only a *blank* diagram tab may be taken over: an untitled
+            // diagram with nodes is someone's unsaved work (a Recent click
+            // replaced one, 2026-10-22).
+            let blank = self
+                .diagram
+                .as_ref()
+                .is_some_and(|d| d.doc.nodes.is_empty() && !d.dirty());
+            return (self.kind == Kind::Diagram && blank).then_some(60);
         }
         if !is_image_path(p) {
             return None;

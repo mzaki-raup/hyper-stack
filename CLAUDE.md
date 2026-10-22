@@ -652,6 +652,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   drag sense: `ui.interact(img_rect, …)` never sees it. Read
   `i.pointer.primary_clicked()` and `interact_pos()` and test the position
   against the rectangle (the Graphics eyedropper does this).
+- An `egui::Grid` keeps the **tallest height each row ever had** under
+  its id (and the widest column), and eframe persists that memory across
+  runs. A wrapped label in a grid cell is laid out at an unknown width on
+  its first frame, wraps into five lines, and the row stays five lines
+  tall for ever, even after the label is fixed (the Logs detail pane).
+  Use `.truncate()` for grid cells, or key the grid by the record it
+  shows so a new selection starts fresh.
+- `ScrollArea::show_rows` places rows at `row_height + item_spacing.y`;
+  a `vertical_scroll_offset` or an at-bottom test computed from the bare
+  row height lands rows short of the target (the Logs tail jump).
 - A non-wrapping `ui.horizontal` row inside a resizable side panel (seven
   checkboxes, four drag values) is the runaway-width case again: give the
   controls cell `set_max_width` and `horizontal_wrapped`.
@@ -771,9 +781,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A nested `egui::Panel::bottom` inside a tool's column sizes itself from
   the *previous* frame, so when its content changes height (a wrapped
   row of quick-action buttons) the central area is painted underneath it
-  for a frame that can persist. For an input block at the foot of a
-  column, lay it out bottom-up in a child `Ui` over the column's rect and
-  give the rest of the rect to the content (`hs_ui::ai_assistant`).
+  for a frame that can persist. A bottom-up child `Ui` is no better: a
+  `horizontal_wrapped` row allocates one line and then wraps *into* the
+  widget below it, and Send ended up clipped (second screenshot, same
+  day). What works is to **measure the block first** in a child built
+  with `UiBuilder::new().sizing_pass().invisible()` at the column's
+  width, give the conversation `full.height - measured`, then draw the
+  block for real below it (`hs_ui::ai_assistant::input_block`). Skip
+  focus requests and state changes when `ui.is_sizing_pass()`.
 - A `"` inside a plain `r"…"` raw string ends it; a regex that needs one
   wants `r#"…"#` (the Logs tool's `path:line` pattern).
 - `tracing_subscriber::reload` is not a Cargo feature (it comes with
@@ -1248,6 +1263,36 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A shell heredoc is the wrong carrier for a script containing quotes and
   backslashes: write the script to a file with the Write tool and run it.
   Two lost patches this session were quoting accidents, not logic errors.
+- An **unquoted** heredoc also expands `$name` inside Fluent text:
+  `settings-terminal-remove-cli = Remove { $name }?` reached `en.ftl` as
+  `Remove {  }?`, which is a parse error that drops the whole message,
+  and the only sign was `locale en has 1 syntax errors` in the log, for
+  days. `hs_core::i18n::tests::the_bundled_locale_parses_without_junk`
+  now fails the gate on any junk entry; write locale edits with the Edit
+  tool, never through a heredoc.
+
+### GUI screenshot harness (2026-10-22)
+- The rail's vertical position depends on the active activity (one or two
+  tab rows, a toolbar or none), so a fixed rail y lands on the wrong entry
+  after switching tabs; the harness's `rail <k>` finds the Home icon by
+  colour in a fresh capture and counts from it. The Settings and Sidebar
+  entries sit at the bottom and are clicked directly (`click 38 889`).
+- `SendKeys` right after a click arrives before egui has moved focus into
+  the field: `click; wait 300; type …` typed into nothing (or into the
+  previous field) three times. Use a 500 ms wait after the click.
+- The harness splits its command string on `;` and trims each command, so
+  a typed SQL script lost its semicolons and typed YAML lost its indent;
+  `<sc>`, `<sp>` and `<dl>` (for `$`, which both shells expand) are the
+  escapes. A `^{SPACE}` SendKeys token does not exist: Ctrl+Space is `^ `.
+- `mouse_event` takes an unsigned delta: a negative wheel must be wrapped
+  (`(4294967296 + d) % 4294967296`).
+- A WebView2 page holding native focus swallows the first click on the
+  rail; click a different rail entry first, or use `rail <k>` twice.
+- moto keeps its buckets in memory, so a restarted `moto_server` has no
+  buckets and the S3 tool shows "NoSuchBucket"; re-run
+  `D:\Temp\opencode\seed_s3.py`. The fixture projects under `D:\Temp`
+  (`ir-conflict`, `lsp-demo`, `debug-demo`) had been cleaned away too;
+  `make_fixtures.py` in the session scratchpad rebuilds them.
 
 ### Rust / build
 - Merging a release bump (`chore(release): vX.Y.Z`) into a branch that

@@ -762,19 +762,11 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
         form::field_grid(ui, "behaviour-grid", |ui| {
             form::label(ui, &s.t("settings-undo-limit"));
             let mut limit = settings.general.undo_limit.clamp(1, 100);
-            let response = ui
-                .scope(|ui| {
-                    ui.spacing_mut().slider_width = 260.0;
-                    let widgets = &mut ui.visuals_mut().widgets;
-                    widgets.inactive.bg_fill = theme.border;
-                    widgets.hovered.bg_fill = theme.surface_hover;
-                    ui.add(
-                        egui::Slider::new(&mut limit, 1..=100)
-                            .suffix(" steps")
-                            .trailing_fill(true),
-                    )
-                })
-                .inner;
+            let response = form::slider(
+                ui,
+                theme,
+                egui::Slider::new(&mut limit, 1..=100).suffix(" steps"),
+            );
             if response
                 .on_hover_text(s.t("settings-undo-limit-hint"))
                 .changed()

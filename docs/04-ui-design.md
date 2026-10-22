@@ -446,13 +446,10 @@ other. Home is now pinned at the top and the sidebar toggle and Settings at
 the bottom; only the tools between them scroll. The three fixed entries are
 always reachable, which is what makes the rail usable on a short window.
 
-## Addendum (2026-10-16): the activity rail scrolls
-
-The rail holds Home, every tool and then the sidebar toggle and Settings. A
-window too short for that list used to draw the last entries on top of each
-other. Home is now pinned at the top and the sidebar toggle and Settings at
-the bottom; only the tools between them scroll. The three fixed entries are
-always reachable, which is what makes the rail usable on a short window.
+Labelled entries are 50 px tall. Since 2026-10-22 (thirteen activities)
+the rail compacts them to 44 px with no gap *before* it scrolls, when the
+full size would not fit: every activity stays visible on a 960 px window,
+and only a shorter window scrolls the middle section.
 
 ## Addendum (2026-10-17): hiding a rail entry
 

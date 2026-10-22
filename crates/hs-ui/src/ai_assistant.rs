@@ -438,107 +438,33 @@ impl AssistantPanel {
                 );
             });
         }
-        let mut send = false;
-        // The input block is laid out bottom-up in the column's own rect
-        // and the conversation gets what is left above it. A nested bottom
-        // panel sized itself from the previous frame, so when its wrapped
-        // quick-action row changed height the conversation was painted
-        // underneath the buttons (owner's screenshot, 2026-10-22).
+        // The input block is measured first, in an invisible sizing pass at
+        // the column's width, so the conversation gets exactly what is left
+        // above it. A nested bottom panel sized itself from the previous
+        // frame and a bottom-up layout cannot size a wrapping row, so the
+        // quick actions painted over the field (owner's screenshots,
+        // 2026-10-22, twice).
         let full = ui.available_rect_before_wrap();
-        let mut bottom = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(full)
-                .layout(egui::Layout::bottom_up(egui::Align::Min)),
-        );
-        {
-            let ui = &mut bottom;
-            // Bottom-up: what is added first sits lowest.
-            if let Some((text, at)) = &self.notice {
-                if at.elapsed() > std::time::Duration::from_secs(8) {
-                    self.notice = None;
-                } else {
-                    ui.add(
-                        egui::Label::new(egui::RichText::new(text).color(theme.error).small())
-                            .wrap(),
-                    );
-                }
-            }
-            ui.horizontal(|ui| {
-                if self.running.is_some() {
-                    ui.spinner();
-                    if ui.button(s.t("ai-stop")).clicked()
-                        && let Some(r) = self.running.take()
-                    {
-                        r.abort.abort();
-                    }
-                } else if crate::form::primary_button(ui, theme, &s.t("ai-send")).clicked() {
-                    send = true;
-                }
-                if let Some(e) = crate::mic::mic_button(ui, theme, s, &self.stt, &mut self.input) {
-                    self.notice = Some((e, std::time::Instant::now()));
-                }
-            });
-            let r = ui.add(
-                egui::TextEdit::multiline(&mut self.input)
-                    .hint_text(s.t("ai-shared-input-hint"))
-                    .desired_rows(3)
-                    .desired_width(f32::INFINITY),
+        let block_h = {
+            let mut measure = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(full)
+                    .id_salt("ai-input-measure")
+                    .sizing_pass()
+                    .invisible(),
             );
-            if self.focus_input {
-                r.request_focus();
-                self.focus_input = false;
-            }
-            if r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command)
-            {
-                send = true;
-            }
-            if let Some(att) = &self.attachment {
-                ui.label(
-                    egui::RichText::new(format!(
-                        "{} {}",
-                        crate::icons::ph::PAPERCLIP,
-                        s.i18n.t_args(
-                            "ai-picture-attached",
-                            &[("size", &format!("{} KB", att.data.len() / 1024))]
-                        )
-                    ))
-                    .small()
-                    .color(theme.text_muted),
-                );
-            }
-            if !self.quick_actions.is_empty() && self.running.is_none() {
-                ui.add_space(4.0);
-                let now = ui.input(|i| i.time);
-                let fresh = self.last_quick_at != Some(now);
-                // The row wraps: a narrow panel must not grow to fit it.
-                ui.scope(|ui| {
-                    ui.set_max_width(ui.available_width());
-                    ui.horizontal_wrapped(|ui| {
-                        for a in &self.quick_actions {
-                            let b = ui.small_button(&a.label);
-                            let b = if a.tip.is_empty() {
-                                b
-                            } else {
-                                b.on_hover_text(&a.tip)
-                            };
-                            if b.clicked() && fresh {
-                                self.last_quick_at = Some(now);
-                                self.input = a.prompt.clone();
-                                send = true;
-                            }
-                        }
-                    });
-                });
-            }
-            ui.add_space(6.0);
-        }
+            self.input_block(&mut measure, s, theme);
+            measure.min_rect().height()
+        };
+        let split = (full.max.y - block_h - 6.0).max(full.min.y);
+        let top = egui::Rect::from_min_max(full.min, egui::pos2(full.max.x, split));
+        let bottom_rect = egui::Rect::from_min_max(egui::pos2(full.min.x, split + 6.0), full.max);
+        let mut bottom = ui.new_child(egui::UiBuilder::new().max_rect(bottom_rect));
+        let send = self.input_block(&mut bottom, s, theme);
         if send && self.running.is_none() {
             self.send(s);
         }
-        let top = egui::Rect::from_min_max(
-            full.min,
-            egui::pos2(full.max.x, bottom.min_rect().min.y.max(full.min.y)),
-        );
+        ui.allocate_rect(full, egui::Sense::hover());
         let mut top_ui = ui.new_child(egui::UiBuilder::new().max_rect(top));
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
@@ -626,6 +552,107 @@ impl AssistantPanel {
                 }
             });
         output
+    }
+
+    /// The composer under the conversation: quick actions, the attachment
+    /// note, the text field, Send/Stop with the microphone, and a notice.
+    /// Returns true when a message should be sent. Also run in a sizing
+    /// pass (no interaction, no focus) to measure its height.
+    fn input_block(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        theme: &crate::theme::Theme,
+    ) -> bool {
+        let mut send = false;
+        let measuring = ui.is_sizing_pass();
+        if !self.quick_actions.is_empty() && self.running.is_none() {
+            let now = ui.input(|i| i.time);
+            let fresh = self.last_quick_at != Some(now);
+            // The row wraps: a narrow panel must not grow to fit it.
+            ui.scope(|ui| {
+                ui.set_max_width(ui.available_width());
+                ui.horizontal_wrapped(|ui| {
+                    for a in &self.quick_actions {
+                        let b = ui.small_button(&a.label);
+                        let b = if a.tip.is_empty() {
+                            b
+                        } else {
+                            b.on_hover_text(&a.tip)
+                        };
+                        if b.clicked() && fresh && !measuring {
+                            self.last_quick_at = Some(now);
+                            self.input = a.prompt.clone();
+                            send = true;
+                        }
+                    }
+                });
+            });
+            ui.add_space(4.0);
+        }
+        if let Some(att) = &self.attachment {
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    crate::icons::ph::PAPERCLIP,
+                    s.i18n.t_args(
+                        "ai-picture-attached",
+                        &[("size", &format!("{} KB", att.data.len() / 1024))]
+                    )
+                ))
+                .small()
+                .color(theme.text_muted),
+            );
+        }
+        let r = ui.add(
+            egui::TextEdit::multiline(&mut self.input)
+                .hint_text(s.t("ai-shared-input-hint"))
+                .desired_rows(3)
+                .desired_width(f32::INFINITY),
+        );
+        if self.focus_input && !measuring {
+            r.request_focus();
+            self.focus_input = false;
+        }
+        if !measuring
+            && r.has_focus()
+            && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command)
+        {
+            send = true;
+        }
+        ui.horizontal(|ui| {
+            if self.running.is_some() {
+                ui.spinner();
+                if ui.button(s.t("ai-stop")).clicked()
+                    && !measuring
+                    && let Some(r) = self.running.take()
+                {
+                    r.abort.abort();
+                }
+            } else if crate::form::primary_button(ui, theme, &s.t("ai-send")).clicked()
+                && !measuring
+            {
+                send = true;
+            }
+            if let Some(e) = crate::mic::mic_button(ui, theme, s, &self.stt, &mut self.input)
+                && !measuring
+            {
+                self.notice = Some((e, std::time::Instant::now()));
+            }
+        });
+        if let Some((text, at)) = &self.notice {
+            if at.elapsed() > std::time::Duration::from_secs(8) {
+                if !measuring {
+                    self.notice = None;
+                }
+            } else {
+                ui.add(
+                    egui::Label::new(egui::RichText::new(text).color(theme.error).small()).wrap(),
+                );
+            }
+        }
+        ui.add_space(4.0);
+        send
     }
 }
 

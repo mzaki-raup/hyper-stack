@@ -124,24 +124,23 @@ fn line_text(bytes: &[u8]) -> String {
 pub struct FileFollower {
     path: PathBuf,
     pos: u64,
-    identity: Option<u64>,
+    /// The file's first bytes when it was last opened: a rename+create
+    /// leaves a file that starts differently. NTFS tunnels creation times
+    /// (a file re-created under the same name within 15 s inherits the old
+    /// one) and the inode is not portable, so the content is the identity.
+    head: Vec<u8>,
     splitter: LineSplitter,
     pub rotations: u32,
 }
 
-#[cfg(unix)]
-fn identity_of(meta: &std::fs::Metadata) -> u64 {
-    use std::os::unix::fs::MetadataExt;
-    meta.ino()
-}
+/// How many leading bytes identify a file.
+const HEAD: usize = 512;
 
-#[cfg(windows)]
-fn identity_of(meta: &std::fs::Metadata) -> u64 {
-    use std::os::windows::fs::MetadataExt;
-    // The creation time changes when a file is replaced; the index is not
-    // exposed without opening a handle, and this is enough to tell a
-    // rename+create from an append.
-    meta.creation_time()
+fn head_of(path: &Path, len: u64) -> std::io::Result<Vec<u8>> {
+    let mut f = File::open(path)?;
+    let mut buf = vec![0u8; (len.min(HEAD as u64)) as usize];
+    f.read_exact(&mut buf)?;
+    Ok(buf)
 }
 
 impl FileFollower {
@@ -149,7 +148,7 @@ impl FileFollower {
         Self {
             path: path.to_path_buf(),
             pos: 0,
-            identity: None,
+            head: Vec::new(),
             splitter: LineSplitter::default(),
             rotations: 0,
         }
@@ -158,12 +157,18 @@ impl FileFollower {
     /// Read from `from` (a byte offset) to the end now; `pos` follows.
     pub fn read_from(&mut self, from: u64) -> std::io::Result<Vec<String>> {
         let mut f = File::open(&self.path)?;
-        let meta = f.metadata()?;
-        self.identity = Some(identity_of(&meta));
+        let len = f.metadata()?.len();
         f.seek(SeekFrom::Start(from))?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
         self.pos = from + buf.len() as u64;
+        // The head is what identifies the file next time; a file read
+        // from its start supplies it directly.
+        self.head = if from == 0 {
+            buf.iter().take(HEAD).copied().collect()
+        } else {
+            head_of(&self.path, len).unwrap_or_default()
+        };
         // A file read to its end: the last line counts even without a
         // newline, and a later append continues it.
         let mut lines = self.splitter.push(&buf);
@@ -197,8 +202,13 @@ impl FileFollower {
             Err(e) => return Err(e),
         };
         let len = meta.len();
-        let id = identity_of(&meta);
-        let rotated = len < self.pos || self.identity.is_some_and(|i| i != id);
+        // Shrunk (copytruncate), or the same path now starts differently
+        // (rename + create). An untouched head of the same length is the
+        // same file growing.
+        let rotated = len < self.pos || {
+            let want = self.head.len().min(len as usize);
+            want > 0 && head_of(&self.path, want as u64).is_ok_and(|h| h != self.head[..want])
+        };
         if rotated {
             self.rotations += 1;
             self.pos = 0;

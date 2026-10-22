@@ -115,11 +115,27 @@ impl Logging {
         let Some(handle) = &self.filter else {
             return false;
         };
-        let Ok(new) = tracing_subscriber::EnvFilter::try_new(filter) else {
+        let Ok(new) = tracing_subscriber::EnvFilter::try_new(directives(filter)) else {
             return false;
         };
         handle.reload(new).is_ok()
     }
+}
+
+/// A bare level becomes the app's directive set: that level for HyperStack's
+/// own crates, and only errors from the UI and GPU libraries, whose debug
+/// builds warn on every frame ("widget rect changed id between passes")
+/// and would drown the Logs dock. A directive string with `=` is used as
+/// written.
+pub fn directives(filter: &str) -> String {
+    let f = filter.trim();
+    if f.is_empty() {
+        return "info,egui=error,eframe=error,wgpu=error,naga=error,winit=error".into();
+    }
+    if f.contains('=') || f.contains(',') {
+        return f.to_string();
+    }
+    format!("{f},egui=error,eframe=error,wgpu=error,naga=error,winit=error")
 }
 
 /// Initialise once. `logs_dir = None` keeps logs in memory only (tests, self-test).
@@ -139,8 +155,8 @@ pub fn init(logs_dir: Option<&std::path::Path>, filter: &str) -> Logging {
         buffer: buffer.clone(),
         redactor: redactor.clone(),
     };
-    let env_filter = tracing_subscriber::EnvFilter::try_new(filter)
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let env_filter = tracing_subscriber::EnvFilter::try_new(directives(filter))
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(directives("info")));
     let (reloadable, handle) = tracing_subscriber::reload::Layer::new(env_filter);
     let installed = tracing_subscriber::registry()
         .with(reloadable)

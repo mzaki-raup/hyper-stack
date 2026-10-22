@@ -277,6 +277,16 @@ impl LogsTool {
         self.start(services);
     }
 
+    /// Follow on jumps to the tail (as the new-lines badge does); off
+    /// leaves the list where it is.
+    fn toggle_follow(&mut self) {
+        self.state.follow = !self.state.follow;
+        if self.state.follow && !self.filtered.is_empty() {
+            self.scroll_to = Some(self.filtered.len() - 1);
+            self.unseen = 0;
+        }
+    }
+
     fn chips_changed(&mut self) {
         self.filter = Filter::compile(&self.state.chips);
         self.chips_version += 1;
@@ -306,6 +316,12 @@ impl LogsTool {
             }
         }
         self.filtered_upto = sh.records.len();
+        // The first lines of a followed source land at the tail, as
+        // `tail -F` does; `stick_to_bottom` alone only holds a list that is
+        // already there.
+        if self.seen_len == 0 && !self.filtered.is_empty() && self.state.follow && !self.paused {
+            self.scroll_to = Some(self.filtered.len() - 1);
+        }
         if self.filtered.len() > self.seen_len {
             if !self.at_bottom || self.paused {
                 self.unseen += self.filtered.len() - self.seen_len;
@@ -613,7 +629,7 @@ impl Tool for LogsTool {
                 true
             }
             "logs.follow" => {
-                self.state.follow = !self.state.follow;
+                self.toggle_follow();
                 true
             }
             "logs.pause" => {
@@ -886,7 +902,7 @@ impl Tool for LogsTool {
                 .tip(s.t("logs-follow-tip"))
                 .clicked()
             {
-                self.state.follow = !self.state.follow;
+                self.toggle_follow();
             }
             if ui
                 .selectable_label(
@@ -1013,7 +1029,7 @@ impl LogsTool {
             )
         });
         if f {
-            self.state.follow = !self.state.follow;
+            self.toggle_follow();
         }
         if space {
             self.paused = !self.paused;
@@ -1317,9 +1333,12 @@ impl LogsTool {
             .id_salt("logs-list")
             .auto_shrink([false, false])
             .stick_to_bottom(stick);
+        // `show_rows` lays rows out at `row_h` plus the item spacing; the
+        // offsets below must use that pitch or a jump lands rows short.
+        let pitch = row_h + ui.spacing().item_spacing.y;
         if let Some(pos) = self.scroll_to.take() {
-            let y = pos as f32 * row_h;
-            area = area.vertical_scroll_offset(y.max(0.0) - 60.0);
+            let y = pos as f32 * pitch;
+            area = area.vertical_scroll_offset((y - 60.0).max(0.0));
         }
         let n = self.filtered.len();
         let mut clicked: Option<usize> = None;
@@ -1438,8 +1457,8 @@ impl LogsTool {
             }
         });
         // At the bottom when the last row is within the viewport.
-        let content_h = n as f32 * row_h;
-        self.at_bottom = out.state.offset.y + out.inner_rect.height() >= content_h - row_h * 2.0;
+        let content_h = n as f32 * pitch;
+        self.at_bottom = out.state.offset.y + out.inner_rect.height() >= content_h - pitch * 2.0;
         if self.at_bottom && !self.paused {
             self.unseen = 0;
         }
@@ -1537,7 +1556,9 @@ impl LogsTool {
                 if !rec.fields.is_empty() {
                     let mut add_chip: Option<Chip> = None;
                     let mut pin: Option<String> = None;
-                    egui::Grid::new("logs-fields")
+                    // Keyed by record: a Grid keeps the tallest row it has
+                    // seen under an id, and egui memory outlives the selection.
+                    egui::Grid::new(("logs-fields", rec.line))
                         .num_columns(3)
                         .striped(true)
                         .spacing([12.0, 2.0])
@@ -1546,7 +1567,10 @@ impl LogsTool {
                                 ui.label(
                                     egui::RichText::new(k).monospace().color(theme.text_muted),
                                 );
-                                ui.add(egui::Label::new(egui::RichText::new(v).monospace()).wrap());
+                                // Actions sit in a fixed column before the
+                                // value; the value takes what is left (a
+                                // wrapped label in a grid otherwise shrinks
+                                // to last frame's width).
                                 ui.horizontal(|ui| {
                                     if ui
                                         .small_button(ph::FUNNEL)
@@ -1574,6 +1598,20 @@ impl LogsTool {
                                     {
                                         pin = Some(k.clone());
                                     }
+                                });
+                                ui.scope(|ui| {
+                                    // logs-detail-value
+                                    let w = ui.available_width();
+                                    ui.set_min_width(w);
+                                    ui.set_max_width(w);
+                                    // One line per field: a wrapped label's first-frame
+                                    // height sticks in the grid. The raw record below
+                                    // carries the whole value.
+                                    ui.add(
+                                        egui::Label::new(egui::RichText::new(v).monospace())
+                                            .truncate(),
+                                    )
+                                    .on_hover_text(v);
                                 });
                                 ui.end_row();
                             }

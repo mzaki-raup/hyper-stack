@@ -11,16 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Changed
+- (nothing yet)
 
-- The window's minimum size is a strict **1720 × 860**, enforced by the
-  viewport, by the Width and Height fields, on load (a `window.toml` saved
-  smaller than that opens at the minimum instead) and by the app itself,
-  which checks the live size every frame and pushes back against a resize
-  that came from outside. A first start opens at the minimum too.
-- Settings → General → Startup's **Size** picker is down to **Full Screen**
-  and **Custom**. The shares of the screen (three quarters, two thirds,
-  half, default size) are gone.
+## 0.77.0 — 2026-10-22
+
+### Added
+
+- A strict 1720 x 860 minimum window, Full Screen or Custom only (4b43ca79)
 
 ## 0.76.0 — 2026-10-22
 

@@ -11,65 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.73.0 — 2026-10-22
+
 ### Added
 
-- **Logs** activity (`tool-logs`): follow a local file like `tail -F`
-  (rotation noticed, large files opened at their tail), a file on an SSH
-  host (`tail -F` on an exec channel), any command's output or pasted text;
-  parsers for plain, JSON lines, logfmt, syslog, Nginx/Apache and
-  PostgreSQL with level normalisation and stack-trace grouping; filter
-  chips (text, regex, level, field, time; negatable), highlight rules,
-  Follow/Pause with a new-lines badge, Find, Jump to Time, bookmarks, a
-  detail pane with field actions and Open in Editor, Save Filtered…,
-  saved sources grouped by environment and filter presets.
-- Bottom dock: the Output tab is now **Logs** — the app's own log with a
-  level picker, search, Copy and Clear, coloured by level, an error count
-  on the tab; the level recorded is Settings → General → Behaviour → Log
-  Level and applies at run time; every error or warning a tool reports
-  (a failed image generation, for one) is written to the log as well.
-- hs-ssh: `SshClient::exec` runs a command on an exec channel and streams
-  its stdout/stderr (`ExecStream`).
+- Logs activity, Logs dock tab, readable ComfyUI errors, assistant layout (626e8eff)
 
 ### Fixed
 
-- Graphics → Generate Picture on ComfyUI: a failed workflow now reports
-  the failing node and its exception rather than the whole event list,
-  and says when the checkpoint carries no text encoder or VAE of its own
-  (Z-Image, Flux, split SD3 files), which the built-in workflow cannot
-  drive — paste the workflow ComfyUI/SwarmUI uses for it instead.
-- AI assistants: the quick-action buttons no longer paint over the
-  conversation or the input field, and Send is never clipped; the
-  composer is measured in a sizing pass and the conversation takes
-  exactly the rest of the column.
-- Settings → AI Assistant: the Maximum Rounds slider has a visible rail
-  (shared `form::slider`, also used by Undo Limit).
-- Locale: the Terminal page's "Remove {name}?" prompt had lost its
-  placeholder, which made the whole message a parse error; a test now
-  fails on any junk in the bundled locale.
-- Graphics: opening a saved diagram from Recent no longer takes over an
-  untitled diagram tab that already holds nodes; only a blank Diagram tab
-  is reused.
-
-### Changed
-
-- Every README screenshot and the walkthrough GIF were retaken at
-  1400x960 for the current UI (the coloured, labelled rail with the Logs
-  entry, the tabbed Manage Collection page, the AI settings gallery by
-  capability, the Markdown-rendered assistant answers, the Logs activity
-  and dock tab); the README gained Logs and Manage Collection rows.
-- Activity rail: labelled entries compact to 44 px when the window is too
-  short for all of them at 50 px, so every activity stays visible on a
-  960 px window instead of the last ones scrolling out of view.
-- Logs dock: egui, eframe, wgpu, naga and winit log only their errors
-  whatever the chosen level, so a debug build's per-frame layout warnings
-  no longer drown the app's own lines.
-- Logs activity: a rotated file is recognised by its first bytes rather
-  than its creation time, which Windows reuses for a renamed file.
-- Logs activity: a followed source opens at its tail and turning Follow
-  on jumps there (the jump used the row height without egui's spacing and
-  landed short); the detail pane's field values are one readable line
-  each with the whole value on hover, instead of wrapping every few
-  characters.
+- Compact the rail, measure the assistant composer, open logs at the tail; retake every screenshot (3f6ca719)
+- Update the tool-logs lock entry to 0.72.0 (95086d14)
 
 ## 0.72.0 — 2026-10-22
 

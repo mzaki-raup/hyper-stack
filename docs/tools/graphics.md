@@ -163,9 +163,21 @@ scheduler, seed, upscaler, factor, ComfyUI workflows, extra JSON merged
 into every body), edited on the provider's page; the Graphics form shows
 a Checkpoint field (empty = the provider's) instead of a 1min.AI model id
 and no model row for a self-hosted Enhance. The request shapes follow the
-projects' own API documentation as read on 2026-10-22 and have not been
-run against a live server from this machine. A self-hosted job may take
-minutes on a CPU: its client waits twenty.
+projects' own API documentation as read on 2026-10-22. None of the servers
+is installed on the build machine, so they are exercised against **mock
+servers** (`crates/hs-core/tests/ai_local_mock.rs`: a std-thread HTTP/1.1
+server per test answering the documented shapes) that check every field
+this client sends - txt2img/img2img/upscale bodies and Basic auth for the
+WebUI; the multipart upload, `/prompt` workflow with the server's first
+checkpoint, `/history` polling and `/view` download for ComfyUI; the
+session, `swarm_token` cookie and init-image creativity for SwarmUI; the
+SD-1 and SDXL graphs, `i2l`, `esrgan` and the queue poll for InvokeAI; the
+preset sizes and Vary/Upscale methods for Fooocus; plus the extra JSON
+merge and server-error reporting. `f32` settings are rounded to four
+decimals at the JSON boundary (`ai_local::tidy`), so a Strength of 0.7 is
+sent as `0.7`. A live run against a real server remains the owner's
+check. A self-hosted job may take minutes on a CPU: its client waits
+twenty.
 
 **Dashboard and sidebar (2026-10-22).** The Functions row's buttons carry
 the same glyph as the What To Do tiles (`Function::action_icon`: Open

@@ -309,6 +309,12 @@ impl DbSession for PgSession {
         if let Some(t) = super::tx_effect(sql, Engine::Postgres) {
             self.in_tx = t;
         }
+        // The statement text is only a guess (a function may BEGIN, a
+        // savepoint may ROLLBACK TO, a failed statement aborts the block);
+        // the server knows, so ask it.
+        if let Some(t) = self.probe_in_tx().await {
+            self.in_tx = t;
+        }
         let notices = std::mem::take(&mut *self.notices.lock());
         if !notices.is_empty() {
             summary.message = Some(notices.join("\n"));
@@ -476,4 +482,28 @@ pub(crate) fn group_catalog(rows: impl Iterator<Item = (String, String, String)>
         }
     }
     cat
+}
+
+impl PgSession {
+    /// Ask the server whether a transaction block is open. `now()` is the
+    /// block's start time and `statement_timestamp()` this statement's, so
+    /// they differ only inside a block; an aborted block answers with
+    /// error 25P02, which is a block too. `None` when the probe itself
+    /// failed for another reason (keep the guess).
+    async fn probe_in_tx(&self) -> Option<bool> {
+        match self
+            .client
+            .simple_query("SELECT now() <> statement_timestamp()")
+            .await
+        {
+            Ok(msgs) => msgs.iter().find_map(|m| match m {
+                SimpleQueryMessage::Row(r) => r.get(0).map(|v| v == "t"),
+                _ => None,
+            }),
+            Err(e) => match e.as_db_error().map(|d| d.code().code()) {
+                Some("25P02") => Some(true),
+                _ => None,
+            },
+        }
+    }
 }

@@ -96,6 +96,21 @@ struct State {
 /// Where a background text fetch lands (a library's URL import).
 pub(crate) type FetchSlot = Arc<Mutex<Option<Result<String, String>>>>;
 
+/// What an import read off the UI thread: a collection in any format the
+/// client reads, a Postman environment (its secret keys named so the vault
+/// takes them), or neither.
+pub(crate) enum ImportDone {
+    Collection(Box<Collection>),
+    Environment {
+        name: String,
+        vars: Vec<model::Kv>,
+        secret: Vec<String>,
+    },
+    Failed(String),
+}
+pub(crate) type ImportSlot = Arc<Mutex<Option<ImportDone>>>;
+pub(crate) type ExportSlot = Arc<Mutex<Option<Result<PathBuf, String>>>>;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum TabMode {
@@ -140,6 +155,11 @@ pub struct ApiTool {
     /// A URL import in flight for the library tab: the library id and the
     /// slot the runtime fills with the fetched text.
     pub(crate) library_fetch: Option<(String, FetchSlot)>,
+    /// A collection or environment import being read and parsed off the UI
+    /// thread; `poll` applies it.
+    pub(crate) import_pending: Option<ImportSlot>,
+    /// A Postman export being written off the UI thread.
+    pub(crate) export_pending: Option<ExportSlot>,
     api_dir: PathBuf,
     pub(crate) filter: String,
     pub(crate) pending: Option<(Pending, tokio::task::AbortHandle)>,
@@ -228,6 +248,8 @@ impl ApiTool {
             history,
             libraries: PackageLibrary::load_all(&api_dir.join("libraries")),
             library_fetch: None,
+            import_pending: None,
+            export_pending: None,
             api_dir,
             filter: String::new(),
             pending: None,
@@ -533,22 +555,55 @@ impl ApiTool {
         id
     }
 
+    /// Read and parse an import off the UI thread (a large collection or a
+    /// Bruno folder takes a while); `poll` applies the result.
     pub(crate) fn import_postman_file(&mut self, path: &std::path::Path, cx: &mut ToolContext) {
+        if self.import_pending.is_some() {
+            cx.toast(ToastLevel::Info, cx.services.t("api-import-busy"));
+            return;
+        }
+        let slot: ImportSlot = Arc::new(Mutex::new(None));
+        let out = slot.clone();
+        let path = path.to_path_buf();
+        let waker = cx.services.runtime.waker();
+        cx.services.runtime.spawn(async move {
+            let done = tokio::task::spawn_blocking(move || {
+                // A collection in any format the client reads, or a Postman
+                // environment.
+                match importers::import_file(&path) {
+                    Ok(c) => ImportDone::Collection(Box::new(c)),
+                    Err(collection_err) => {
+                        let text = match std::fs::read_to_string(&path) {
+                            Ok(t) => t,
+                            Err(e) => return ImportDone::Failed(e.to_string()),
+                        };
+                        match postman::import_environment_document(&text) {
+                            Ok((name, vars)) => ImportDone::Environment {
+                                name,
+                                vars,
+                                secret: postman::secret_keys(&text),
+                            },
+                            Err(_) => ImportDone::Failed(collection_err),
+                        }
+                    }
+                }
+            })
+            .await
+            .unwrap_or_else(|e| ImportDone::Failed(e.to_string()));
+            *out.lock() = Some(done);
+            waker.request_repaint();
+        });
+        self.import_pending = Some(slot);
+    }
+
+    /// Apply what the import task produced.
+    fn finish_import(&mut self, done: ImportDone, cx: &mut ToolContext) {
         let s = cx.services;
-        let text = match std::fs::read_to_string(path) {
-            Ok(t) => t,
-            Err(e) => {
-                cx.toast(ToastLevel::Error, e.to_string());
-                return;
-            }
-        };
-        // A collection in any format the client reads, or a Postman
-        // environment.
-        match importers::import_file(path) {
-            Ok(c) => {
+        match done {
+            ImportDone::Collection(c) => {
                 let n = c.requests().len();
                 let id = c.id.clone();
-                self.collections.push(c);
+                self.collections.push(*c);
                 self.save_collection(&id, cx);
                 cx.toast(
                     ToastLevel::Success,
@@ -556,8 +611,8 @@ impl ApiTool {
                         .t_args("api-imported-collection", &[("count", &n.to_string())]),
                 );
             }
-            Err(collection_err) => match postman::import_environment_document(&text) {
-                Ok((name, vars)) => {
+            ImportDone::Environment { name, vars, secret } => {
+                {
                     let mut env = hs_core::environments::Environment {
                         name: if name.is_empty() {
                             s.t("api-imported-environment-name")
@@ -569,7 +624,6 @@ impl ApiTool {
                     // Postman marks tokens and passwords `"type": "secret"`;
                     // those go into the vault and the environment keeps
                     // only the reference, like a secret typed in Settings.
-                    let secret = postman::secret_keys(&text);
                     let mut skipped = 0;
                     for v in vars.iter().filter(|v| v.enabled) {
                         if !v.value.is_empty() && secret.contains(&v.key) {
@@ -615,40 +669,50 @@ impl ApiTool {
                         Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
                     }
                 }
-                Err(_) => cx.toast(
-                    ToastLevel::Error,
-                    if collection_err == "unknown" {
-                        s.t("api-import-unknown")
-                    } else {
-                        collection_err
-                    },
-                ),
-            },
+            }
+            ImportDone::Failed(collection_err) => cx.toast(
+                ToastLevel::Error,
+                if collection_err == "unknown" {
+                    s.t("api-import-unknown")
+                } else {
+                    collection_err
+                },
+            ),
         }
     }
 
-    pub(crate) fn export_postman(&self, collection: &str, cx: &mut ToolContext) {
+    /// Ask where to put the export, then serialise and write it off the UI
+    /// thread; `poll` reports the outcome.
+    pub(crate) fn export_postman(&mut self, collection: &str, cx: &mut ToolContext) {
         let Some(c) = self.collections.iter().find(|c| c.id == collection) else {
             return;
         };
-        if let Some(path) = rfd::FileDialog::new()
+        let Some(path) = rfd::FileDialog::new()
             .set_file_name(format!(
                 "{}.postman_collection.json",
                 hs_core::storage::slug(&c.name)
             ))
             .add_filter("Postman collection", &["json"])
             .save_file()
-        {
-            match std::fs::write(&path, postman::export_collection(c)) {
-                Ok(()) => cx.toast(
-                    ToastLevel::Success,
-                    cx.services
-                        .i18n
-                        .t_args("api-exported", &[("path", &path.display().to_string())]),
-                ),
-                Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
-            }
-        }
+        else {
+            return;
+        };
+        let c = c.clone();
+        let slot: ExportSlot = Arc::new(Mutex::new(None));
+        let out = slot.clone();
+        let waker = cx.services.runtime.waker();
+        cx.services.runtime.spawn(async move {
+            let r = tokio::task::spawn_blocking(move || {
+                std::fs::write(&path, postman::export_collection(&c))
+                    .map(|()| path)
+                    .map_err(|e| e.to_string())
+            })
+            .await
+            .unwrap_or_else(|e| Err(e.to_string()));
+            *out.lock() = Some(r);
+            waker.request_repaint();
+        });
+        self.export_pending = Some(slot);
     }
 
     /// Auth after inheritance: request → folders (innermost first) → collection.
@@ -1133,6 +1197,26 @@ impl ApiTool {
     }
 
     fn poll(&mut self, cx: &mut ToolContext) {
+        // An import finished reading and parsing: apply it here, where the
+        // vault and the environments are.
+        let imported = self.import_pending.as_ref().and_then(|s| s.lock().take());
+        if let Some(done) = imported {
+            self.import_pending = None;
+            self.finish_import(done, cx);
+        }
+        let exported = self.export_pending.as_ref().and_then(|s| s.lock().take());
+        if let Some(r) = exported {
+            self.export_pending = None;
+            match r {
+                Ok(path) => cx.toast(
+                    ToastLevel::Success,
+                    cx.services
+                        .i18n
+                        .t_args("api-exported", &[("path", &path.display().to_string())]),
+                ),
+                Err(e) => cx.toast(ToastLevel::Error, e),
+            }
+        }
         // A library's URL import landed: keep the text and the source.
         let fetched = self
             .library_fetch

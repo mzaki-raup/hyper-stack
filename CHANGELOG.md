@@ -13,15 +13,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- SSH: a host in a protected environment shows the environment banner and
-  red frame, and an upload that would replace a file already in the
-  listing asks first, naming the host.
+- hs-core: mock-server tests for the five self-hosted image backends
+  (`tests/ai_local_mock.rs`) checking every documented field the client
+  sends and how it reads the answers; f32 settings are rounded to four
+  decimals on the wire.
 
 ### Fixed
 
-- Graphics: every diagram-editor and generator label (toolbar, Import and
-  Align menus, properties pane, pickers, canvas hints, template names, file
-  filters) now goes through Fluent instead of hard-coded English.
+- Database: the transaction badge follows the server rather than the
+  statement text - Postgres is asked with `now() <> statement_timestamp()`
+  (an aborted block counts), MySQL/MariaDB with `@@in_transaction` or the
+  performance schema; the BEGIN/COMMIT classifier is only the fallback.
+- API client: collection and environment imports are read and parsed off
+  the UI thread, and Postman exports are written off it; a second import
+  while one is running is refused with a notice.
 
 ## 0.71.0 — 2026-10-22
 

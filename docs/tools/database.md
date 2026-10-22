@@ -226,10 +226,19 @@ What exists, and where it differs from the sections above:
     Messages. Reaching the row limit outside a transaction block sends a
     cancel request (awaited before the next statement) instead of reading
     the rest; inside a block the rest is read and dropped, since a cancel
-    would abort the transaction. Portals are not used.
+    would abort the transaction. Portals are not used. **Transaction state
+    is asked of the server** after every statement (2026-10-22): `SELECT
+    now() <> statement_timestamp()` is true only inside a block (`now()` is
+    the block's start), and error 25P02 ("current transaction is aborted")
+    is a block too; the BEGIN/COMMIT text classifier is only the fallback
+    when the probe cannot run.
   - *MySQL / MariaDB* (`mysql_async`, text protocol, rustls/ring): cancel is
     `KILL QUERY` from a second short-lived connection, awaited before the
-    result is drained; warnings are read with `SHOW WARNINGS`.
+    result is drained; warnings are read with `SHOW WARNINGS`. Transaction
+    state is asked of the server too: `@@in_transaction` where it exists
+    (MariaDB), else the session's ACTIVE row in
+    `performance_schema.events_transactions_current` (MySQL 8); the text
+    classifier remains the fallback.
   - *SQLite* (`rusqlite`, bundled): the connection lives on its own thread;
     cancel is `sqlite3_interrupt`; read-only profiles open the file
     read-only with `query_only`.

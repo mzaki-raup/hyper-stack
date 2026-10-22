@@ -50,7 +50,11 @@
   the selected draft and require Save to persist; export a collection as
   Postman v2.1. An environment exports as Postman v2.1, Insomnia v4, Bruno
   or flat JSON; `secret:` values are written empty because the vault is
-  never decrypted for an export.
+  never decrypted for an export. A collection import is read and parsed on
+  a blocking runtime task and an export is serialised and written on one
+  (`ImportDone` / `ExportSlot`, applied in `poll`), so a large collection or
+  a Bruno folder never stalls the frame; only the native file dialog runs
+  on the UI thread (2026-10-22).
 - **History** (`<workspace>/api/history.jsonl`, last 200), one click
   re-opens an entry as a draft.
 - **Guards**: a non-GET request against a protected environment asks

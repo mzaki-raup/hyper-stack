@@ -1096,7 +1096,7 @@ pub async fn generate_image(
             // Dzine: structure_match says how much of the source survives;
             // Stability-style models read image_strength the other way
             // round. Both are sent; a model ignores the one it lacks.
-            let structure = (1.0 - strength).clamp(0.0, 1.0);
+            let structure = crate::ai_local::tidy((1.0 - strength).clamp(0.0, 1.0));
             json!({
                 "type": "IMAGE_VARIATOR",
                 "model": model,
@@ -1106,8 +1106,8 @@ pub async fn generate_image(
                     "n": 1,
                     "samples": 1,
                     "structure_match": structure,
-                    "style_intensity": strength.clamp(0.0, 1.0),
-                    "image_strength": strength.clamp(0.0, 1.0),
+                    "style_intensity": crate::ai_local::tidy(strength.clamp(0.0, 1.0)),
+                    "image_strength": crate::ai_local::tidy(strength.clamp(0.0, 1.0)),
                     "quality": "STANDARD",
                     "output_format": "png",
                 },

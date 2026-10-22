@@ -317,6 +317,10 @@ impl DbSession for MySession {
         if let Some(t) = super::tx_effect(sql, Engine::Mysql) {
             self.in_tx = t;
         }
+        // The statement text is only a guess; the server knows.
+        if let Some(t) = self.probe_in_tx().await {
+            self.in_tx = t;
+        }
         summary.elapsed = started.elapsed();
         Ok(summary)
     }
@@ -449,5 +453,26 @@ impl DbSession for MySession {
 
     fn in_transaction(&self) -> bool {
         self.in_tx
+    }
+}
+
+impl MySession {
+    /// Ask the server whether a transaction is open: MariaDB (and MySQL
+    /// builds that have it) answer `@@in_transaction`; MySQL 8 shows the
+    /// session's transaction event in the performance schema. `None` when
+    /// neither route exists (keep the guess).
+    async fn probe_in_tx(&mut self) -> Option<bool> {
+        if let Ok(rows) = self.rows_of("SELECT @@in_transaction").await {
+            return rows.first().and_then(|r| r.first()).map(|v| v == "1");
+        }
+        if let Ok(rows) = self
+            .rows_of(
+                "SELECT COUNT(*) FROM performance_schema.events_transactions_current                  WHERE THREAD_ID = PS_CURRENT_THREAD_ID() AND STATE = 'ACTIVE'",
+            )
+            .await
+        {
+            return rows.first().and_then(|r| r.first()).map(|v| v != "0");
+        }
+        None
     }
 }

@@ -157,6 +157,12 @@ fn upscaler<'a>(cfg: &'a AiConfig, default: &'a str) -> &'a str {
     if u.is_empty() { default } else { u }
 }
 
+/// An `f32` setting as the number a server reads: four decimals, so 0.7
+/// arrives as `0.7` and not `0.699999988079071`.
+pub(crate) fn tidy(x: f32) -> f64 {
+    (x as f64 * 10_000.0).round() / 10_000.0
+}
+
 fn factor(cfg: &AiConfig) -> u32 {
     cfg.image.upscale_factor.clamp(1, 8)
 }
@@ -407,7 +413,7 @@ async fn webui(
         "prompt": prompt,
         "negative_prompt": w.negative_prompt,
         "steps": w.steps.max(1),
-        "cfg_scale": w.cfg_scale,
+        "cfg_scale": tidy(w.cfg_scale),
         "width": size.0,
         "height": size.1,
         "seed": w.seed,
@@ -430,7 +436,7 @@ async fn webui(
         _ => {
             let img = source.expect("checked");
             body["init_images"] = json!([b64(&img.data)]);
-            body["denoising_strength"] = json!(strength);
+            body["denoising_strength"] = json!(tidy(strength));
             "img2img"
         }
     };
@@ -643,10 +649,10 @@ async fn comfy(
         &[
             ("seed", seed),
             ("steps", w.steps.max(1) as f64),
-            ("cfg", w.cfg_scale as f64),
+            ("cfg", tidy(w.cfg_scale)),
             ("width", size.0 as f64),
             ("height", size.1 as f64),
-            ("denoise", strength as f64),
+            ("denoise", tidy(strength)),
             ("target_width", size.0 as f64 * f),
             ("target_height", size.1 as f64 * f),
         ],
@@ -799,7 +805,7 @@ async fn swarm(
         "width": width,
         "height": height,
         "steps": w.steps.max(1),
-        "cfgscale": w.cfg_scale,
+        "cfgscale": tidy(w.cfg_scale),
         "seed": w.seed,
     });
     let ckpt = checkpoint(cfg, model);
@@ -814,7 +820,7 @@ async fn swarm(
     }
     if let Some(img) = source {
         body["initimage"] = Value::String(img.data_uri());
-        body["initimagecreativity"] = json!(creativity);
+        body["initimagecreativity"] = json!(tidy(creativity));
     }
     apply_extra(&mut body, cfg)?;
     let v = send_json(auth(
@@ -996,7 +1002,7 @@ async fn invoke(
             w.scheduler.trim()
         };
         let denoising_start = if job == ImageJob::Edit {
-            1.0 - strength
+            tidy(1.0 - strength)
         } else {
             0.0
         };
@@ -1006,7 +1012,7 @@ async fn invoke(
                 "id": "denoise",
                 "type": "denoise_latents",
                 "steps": w.steps.max(1),
-                "cfg_scale": w.cfg_scale,
+                "cfg_scale": tidy(w.cfg_scale),
                 "scheduler": scheduler,
                 "denoising_start": denoising_start,
                 "denoising_end": 1.0,
@@ -1129,7 +1135,7 @@ async fn fooocus(
         "negative_prompt": w.negative_prompt,
         "image_number": 1,
         "image_seed": w.seed,
-        "guidance_scale": w.cfg_scale,
+        "guidance_scale": tidy(w.cfg_scale),
         "require_base64": true,
         "async_process": false,
     });

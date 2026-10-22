@@ -2008,6 +2008,7 @@ api-manage-libraries-hint = Ticked libraries are evaluated before every script u
 api-manage-docs = Documentation
 api-manage-save = Save Collection
 api-manage-saved = Collection saved.
+api-import-busy = An import is still being read; wait for it to finish.
 api-manage-autosave-hint = Changes here are saved as you type.
 api-manage-missing = This collection no longer exists.
 api-sending = Sending…

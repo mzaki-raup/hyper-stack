@@ -956,6 +956,12 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `preserve_order`, which would change every other tool's JSON too.
 
 ### Databases (tool-db)
+- The BEGIN/COMMIT text classifier (`driver::tx_effect`) cannot see a
+  block opened by a function, closed by a failed statement or left by
+  `ROLLBACK TO`; Postgres and MySQL now ask the server after each
+  statement (`probe_in_tx`: `now() <> statement_timestamp()` / 25P02 on
+  Postgres, `@@in_transaction` or the performance-schema row on MySQL)
+  and keep the classifier only as the fallback.
 - `mysql_async` builds its rustls config with `ClientConfig::builder()`,
   which panics when more than one crypto provider is compiled in (reqwest
   brings aws-lc-rs, we use ring): install ring as the process default
@@ -1005,6 +1011,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A running `HyperStack.exe` keeps `target/debug/HyperStack.exe` locked;
   `Stop-Process -Name HyperStack` before `cargo build`.
 
+- An `f32` dropped into `serde_json::json!` becomes the nearest `f64`
+  (`0.7` → `0.699999988079071`), which a strict server may reject and a
+  test comparing against `0.7` certainly does. Round at the boundary
+  (`ai_local::tidy`, four decimals) for every f32 setting that goes on
+  the wire.
 - The workspace `reqwest` has no `query` feature either: `.query(&[..])`
   does not exist on its `RequestBuilder`. Build the query string by hand
   with a small percent-encoder (`hs_core::ai_local::urlencode`).

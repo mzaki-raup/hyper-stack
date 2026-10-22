@@ -13,15 +13,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Settings → AI Assistant: DeepSeek in the gallery, as its OpenAI-compatible
-  API (`https://api.deepseek.com`, `deepseek-flash` / `deepseek-v4-pro`;
-  pictures go as `image_url` data URIs, which is what the Graphics
-  assistant sends) and as its Anthropic-compatible endpoint
-  (`https://api.deepseek.com/anthropic`, base64 image blocks).
-- Graphics → Generate Picture: the default 1min.AI image model is
-  Stability AI's Stable Diffusion XL 1.0 (`stable-diffusion-xl-1024-v1-0`),
-  sent with one of SDXL's nine fixed sizes, the closest to the picture's
-  aspect.
 - Graphics → Generate Picture: **Edit** and **Enhance** jobs beside
   Generate. Edit changes the current picture as the prompt says
   (`IMAGE_VARIATOR`, Dzine by default with a Strength slider mapped to
@@ -31,53 +22,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   by default, prompt optional). Each job remembers its own model
   (`hs_core::ai::ImageJob`).
 
-- API client: **Package Libraries** — reusable scripts kept in
-  `<workspace>/api/libraries/`, listed in a section under the collections
-  (create with +, open in their own tab, type the code or read it from a
-  file or a URL). A script pulls one in with `// @library <name>`, which
-  the Snippets menu inserts; a collection can list libraries for every
-  request under it. **Manage Collection…** (right-click a collection)
-  opens the collection's own tab: name, the variables its scripts saved,
-  globals, the authentication and the pre-request/post-response scripts
-  every request inherits, package libraries and documentation.
-- Shell: each activity's sidebar (Settings included) keeps its own width;
-  **Close Split** (palette) ends a split without closing either tab; the
-  rail icons carry one colour per activity; opening Graphics from Home
-  lands on its dashboard; closing the window drops every tool so SSH,
-  terminal, database, Redis, NoSQL and S3 sessions end with it.
-- Scratchpad: the AI Assistant is a docked column like every other tool's
-  (the API client's and the Graphics picture tabs' were converted too);
-  pinned notes keep the note icon and show a small pin where the drag
-  grip sits.
-- AI: a message can carry pictures (`hs_core::ai::ImagePart`); every
-  provider's request builder sends them (OpenAI-compatible `image_url`
-  data URIs, Anthropic base64 blocks, Gemini `inline_data`, Bedrock image
-  blocks, 1min.AI asset upload + `attachments.images`), so "Explain this
-  Image" in the Graphics picture tab sends the picture itself (a PNG of
-  what is shown, downscaled to 1024 px) rather than its dimensions.
-- Graphics: **Generate Picture** in the picture tab's assistant column
-  asks a 1min.AI provider for a picture from a prompt (`IMAGE_GENERATOR`)
-  or a variation of the current one (`IMAGE_VARIATOR`, with the picture
-  uploaded as an asset); the result is saved as a draft under the Graphics
-  folder and opened in the tab. **New Image…** (sidebar context menu,
-  dashboard tile and Functions row, palette) asks for a size and a
-  background, saves a blank draft and opens it in a new tab. The palette's
-  New Diagram… / New Generation… now open those tools instead of a
-  "coming soon" toast.
+## 0.68.0 — 2026-10-21
 
-### Changed
+### Added
 
-- Diagram Editor Properties pane: every section (Diagram, Node, Edge,
-  Frame, Fragments, Outline, Status) is a label/control grid with one
-  heading style; entity columns and fragments are aligned rows.
-- Tab tooltips name the activity ("API Client", "NoSQL") instead of its
-  id; drag grips sit at a row's vertical centre; a dozen status words and
-  labels that were all lower-case read in Sentence/Title Case.
-
-### Fixed
-
-- Diagram Editor: an entity's (or any node's) label is drawn in whichever
-  of dark/light reads on its fill, so a dark fill no longer hides it.
+- DeepSeek in the AI gallery, SDXL 1.0 as the default image model (427a0a9a)
+- Package libraries, Manage Collection, AI pictures, per-activity sidebars (9f4cbe71)
 
 ## 0.67.0 — 2026-10-21
 

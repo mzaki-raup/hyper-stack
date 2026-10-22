@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Settings → General → Startup ends with **Window Size**: the window's live
+  width and height, which follow it as an edge is dragged, and a picker that
+  resizes it to a share of the screen (Full Screen, Three Quarters, Two
+  Thirds, Half, Default Size) or reads Custom for a size of the user's own.
+  Typing or dragging either number resizes the window. A user-set minimum is
+  still to come; the floor is 800 × 500.
 
 ## 0.75.0 — 2026-10-22
 

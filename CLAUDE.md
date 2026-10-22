@@ -41,6 +41,9 @@ over the forge edge's 100 MB), and the **activity rail's order,
 visibility and every sidebar width are per workspace** (`[rail]` in
 `workspace.toml`, edited for any workspace from Settings → Appearance,
 with a global Coloured Activity Icons switch that is off by default);
+Settings → General → Startup ends with **Window Size** - the window's live
+width and height plus a picker that resizes it to a share of the screen
+(`window_state::SizePreset`), with a user-set minimum still to come;
 Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
@@ -1295,6 +1298,17 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   tool, never through a heredoc.
 
 ### GUI screenshot harness (2026-10-22)
+- **`click x y` takes client coordinates; a screenshot is the whole window.**
+  `origin` is `ClientToScreen(0,0)` while `shot`/`rawshot` capture
+  `GetWindowRect`, so a control seen at (sx, sy) in a screenshot is clicked
+  with `click (sx-8) (sy-31)`. Passing the screenshot's own numbers lands a
+  row or two lower, which reads as "the dropdown will not open" (it opened a
+  drag value instead), and anything below client height (960-39 = 921) throws
+  "is not over the dev window".
+- **`focus-hs` forces the window back to 1400x960**, and every command but
+  `rawshot` calls it. Testing a resize therefore needs the open-and-click in
+  **one** harness invocation, and the result read with `GetWindowRect` from a
+  separate process - a following `shot` would have undone it before capturing.
 - The rail's vertical position depends on the active activity (one or two
   tab rows, a toolbar or none), so a fixed rail y lands on the wrong entry
   after switching tabs; the harness's `rail <k>` finds the Home icon by

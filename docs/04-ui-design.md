@@ -429,6 +429,24 @@ sidebar width and dock height are restored on the next start
 (`HyperStackData/window.toml`, Appearance settings). Owner's requests,
 2026-10-11.
 
+**Window Size (owner's request, 2026-10-23).** The Startup card ends with a
+**Window Size** block: a **Size** picker and a live **Width and Height**.
+The two numbers are the window's own inner size read from
+`ViewportInfo::inner_rect`, so they follow the window as an edge is dragged
+rather than being a setting of their own; typing or dragging either one
+sends `ViewportCommand::InnerSize` and resizes the window there and then.
+The picker offers shares of the screen the window is on -
+`window_state::SizePreset`: Full Screen (which maximises, so the taskbar is
+left alone), Three Quarters, Two Thirds, Half and Default Size - and reads
+back whichever the window already matches, or **Custom** when the user has
+dragged it to a size of their own. A preset is never asked for less than
+`WindowState::MIN_SIZE`, which the viewport enforces as its minimum too, so
+neither route can make the window smaller than 800 × 500. A **user-set**
+minimum is a later step: it would be a settings field feeding both
+`SizePreset::size`'s floor and `ViewportBuilder::with_min_inner_size`.
+Nothing here is persisted separately; the geometry still lands in
+`window.toml` the way a dragged resize does.
+
 ## 10. Accessibility and ergonomics
 
 - Full keyboard traversal of lists and trees (a known gap in Eden Explorer's

@@ -688,6 +688,107 @@ fn workspace(
     });
 }
 
+/// Window Size, at the foot of the Startup card (owner's request,
+/// 2026-10-23). The width and height are the live inner size, so they follow
+/// the window as it is dragged; typing in them, or picking a share of the
+/// screen, resizes it. The floor is `WindowState::MIN_SIZE`, which the
+/// viewport also enforces, so the window cannot be made smaller than that
+/// from either side.
+fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+    use crate::window_state::{SizePreset, WindowState};
+
+    let (inner, monitor, maximized) = ui.ctx().input(|i| {
+        let vp = i.viewport();
+        (
+            vp.inner_rect.map(|r| r.size()),
+            vp.monitor_size,
+            vp.maximized.unwrap_or(false),
+        )
+    });
+    let Some(inner) = inner else { return };
+    let monitor = monitor.unwrap_or(egui::vec2(1920.0, 1080.0));
+    // A preset is never asked for more than the screen holds.
+    let ceiling = egui::vec2(monitor.x.max(inner.x), monitor.y.max(inner.y));
+
+    ui.label(egui::RichText::new(s.t("settings-window-size")).strong());
+    ui.add_space(6.0);
+
+    let mut apply: Option<(egui::Vec2, bool)> = None;
+    form::field_grid(ui, "window-size-grid", |ui| {
+        form::label(ui, &s.t("settings-window-preset"));
+        let current = SizePreset::matching(inner, monitor, maximized);
+        let selected = current
+            .map(|p| s.t(p.key()))
+            .unwrap_or_else(|| s.t("settings-window-custom"));
+        egui::ComboBox::from_id_salt("window-preset")
+            .width(form::FIELD_MIN_WIDTH)
+            .selected_text(selected)
+            .show_ui(ui, |ui| {
+                // Custom is not a size to pick, it is what a window the user
+                // has dragged already is, so it names the closed picker and
+                // stays out of the list.
+                for p in SizePreset::ALL {
+                    if ui
+                        .add(egui::Button::selectable(current == Some(p), s.t(p.key())))
+                        .clicked()
+                    {
+                        apply = Some((p.size(ceiling), p == SizePreset::Full));
+                        ui.close();
+                    }
+                }
+            });
+        ui.end_row();
+
+        form::label(ui, &s.t("settings-window-dimensions"));
+        let mut w = inner.x.round();
+        let mut h = inner.y.round();
+        ui.horizontal(|ui| {
+            let a = ui.add(
+                egui::DragValue::new(&mut w)
+                    .speed(1.0)
+                    .range(WindowState::MIN_SIZE[0]..=ceiling.x)
+                    .suffix(" px"),
+            );
+            ui.label("\u{d7}");
+            let b = ui.add(
+                egui::DragValue::new(&mut h)
+                    .speed(1.0)
+                    .range(WindowState::MIN_SIZE[1]..=ceiling.y)
+                    .suffix(" px"),
+            );
+            if a.changed() || b.changed() {
+                apply = Some((egui::vec2(w, h), false));
+            }
+        });
+        ui.end_row();
+    });
+
+    if let Some((size, full)) = apply {
+        let ctx = ui.ctx();
+        if full {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+        } else {
+            // Leaving a maximised window maximised would swallow the size.
+            if maximized {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+    }
+
+    form::hint(
+        ui,
+        theme,
+        &s.i18n.t_args(
+            "settings-window-size-hint",
+            &[
+                ("w", &WindowState::MIN_SIZE[0].to_string()),
+                ("h", &WindowState::MIN_SIZE[1].to_string()),
+            ],
+        ),
+    );
+}
+
 fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
     form::page_title(
         ui,
@@ -763,6 +864,8 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 s.t("settings-restore-tabs"),
             )
             .changed();
+        ui.add_space(8.0);
+        window_size(ui, theme, s);
     });
     form::section(ui, theme, &s.t("settings-section-behaviour"), |ui| {
         form::field_grid(ui, "behaviour-grid", |ui| {

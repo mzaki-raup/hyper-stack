@@ -28,6 +28,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   the UI thread, and Postman exports are written off it; a second import
   while one is running is refused with a notice.
 
+## 0.71.1 — 2026-10-22
+
+### Fixed
+
+- Fluent for every diagram label, protected-host guards in SSH (364c3272)
+
 ## 0.71.0 — 2026-10-22
 
 ### Added

@@ -61,6 +61,59 @@ pub struct WorkspaceMeta {
     pub created: String,
     /// Environment id selected when the workspace opens.
     pub default_environment: Option<String>,
+    /// The activity rail and sidebar as this workspace wants them. `None`
+    /// until the workspace is first shown, when it is seeded from the
+    /// global Appearance settings (which keep the pre-2026-10-23 values).
+    /// Owner's requirement: rail order, visibility and sidebar widths are
+    /// per workspace, not global.
+    #[serde(default)]
+    pub rail: Option<RailPrefs>,
+}
+
+/// Per-workspace rail and sidebar preferences (`workspace.toml`, `[rail]`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct RailPrefs {
+    /// Tool ids in the order the rail shows them; ids missing here follow
+    /// in their default order. Home is always first and Settings last.
+    pub order: Vec<String>,
+    /// Tool ids kept out of the rail. A tool is never unreachable because
+    /// of this: anything that opens one of its tabs puts its entry back.
+    pub hidden: Vec<String>,
+    /// Sidebar width per activity (tool id); an activity without an entry
+    /// starts at the global `sidebar_width`.
+    pub sidebar_widths: std::collections::HashMap<String, f32>,
+}
+
+impl WorkspaceMeta {
+    /// The rail preferences in force: the workspace's own, or the global
+    /// Appearance values as a seed for a workspace that has none yet.
+    pub fn rail_prefs(&self, seed: &crate::settings::Appearance) -> RailPrefs {
+        self.rail.clone().unwrap_or_else(|| RailPrefs {
+            order: seed.rail_order.clone(),
+            hidden: seed.rail_hidden.clone(),
+            sidebar_widths: seed.sidebar_widths.clone(),
+        })
+    }
+
+    /// Change the rail preferences (seeding them first when absent).
+    pub fn rail_prefs_mut(&mut self, seed: &crate::settings::Appearance) -> &mut RailPrefs {
+        if self.rail.is_none() {
+            self.rail = Some(self.rail_prefs(seed));
+        }
+        self.rail.as_mut().expect("just seeded")
+    }
+}
+
+/// Read a workspace's `workspace.toml` without opening the workspace (the
+/// Settings page edits the rail of workspaces that are not open).
+pub fn read_meta(root: &Path) -> storage::Result<WorkspaceMeta> {
+    storage::read_toml_versioned::<WorkspaceMeta>(&root.join("workspace.toml"), SCHEMA)
+}
+
+/// Write a workspace's `workspace.toml` in place.
+pub fn write_meta(root: &Path, meta: &WorkspaceMeta) -> storage::Result<()> {
+    storage::write_toml(&root.join("workspace.toml"), meta)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -179,6 +232,7 @@ impl Workspace {
                 name: name.to_string(),
                 created: chrono::Utc::now().to_rfc3339(),
                 default_environment: None,
+                rail: None,
             };
             storage::write_toml(&meta_path, &meta)?;
             let gitignore = root.join(".gitignore");
@@ -484,6 +538,50 @@ fn copy_dir_contents(from: &Path, to: &Path) -> storage::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rail_prefs_are_seeded_from_appearance_then_kept_per_workspace() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("ws");
+        let mut ws = Workspace::open_or_create(&root, "ws").unwrap();
+        assert!(ws.meta.rail.is_none());
+        let mut seed = crate::settings::Appearance {
+            rail_order: vec!["logs".into(), "editor".into()],
+            rail_hidden: vec!["browser".into()],
+            sidebar_widths: [("db".to_string(), 333.0)].into_iter().collect(),
+            ..Default::default()
+        };
+        // Reading seeds nothing on disk; it only answers with the seed.
+        let read = ws.meta.rail_prefs(&seed);
+        assert_eq!(read.order, seed.rail_order);
+        assert!(ws.meta.rail.is_none());
+        // Writing seeds first, then changes, and the file carries it.
+        ws.meta.rail_prefs_mut(&seed).hidden.clear();
+        ws.meta
+            .rail_prefs_mut(&seed)
+            .sidebar_widths
+            .insert("db".into(), 240.0);
+        ws.save_meta().unwrap();
+        let back = read_meta(&root).unwrap();
+        let prefs = back.rail.clone().unwrap();
+        assert_eq!(prefs.order, vec!["logs".to_string(), "editor".to_string()]);
+        assert!(prefs.hidden.is_empty());
+        assert_eq!(prefs.sidebar_widths["db"], 240.0);
+        // A later change to the global seed no longer reaches it.
+        seed.rail_order = vec!["ssh".into()];
+        assert_eq!(
+            back.rail_prefs(&seed).order,
+            vec!["logs".to_string(), "editor".to_string()]
+        );
+        // write_meta on a workspace that is not open.
+        let mut other = back.clone();
+        other.rail_prefs_mut(&seed).order = vec!["s3".into()];
+        write_meta(&root, &other).unwrap();
+        assert_eq!(
+            read_meta(&root).unwrap().rail.unwrap().order,
+            vec!["s3".to_string()]
+        );
+    }
 
     #[test]
     fn any_workspace_but_the_last_can_be_deleted() {

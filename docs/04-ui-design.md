@@ -451,6 +451,30 @@ the rail compacts them to 44 px with no gap *before* it scrolls, when the
 full size would not fit: every activity stays visible on a 960 px window,
 and only a shorter window scrolls the middle section.
 
+## Addendum (2026-10-23): the rail and the sidebar widths belong to the workspace
+
+The rail's **order and visibility** and every activity's **sidebar width**
+are stored per workspace, in `workspace.toml` under `[rail]`
+(`hs_core::workspace::RailPrefs`: `order`, `hidden`, `sidebar_widths`), not
+in the global settings. A workspace without a `[rail]` table is seeded
+from the global Appearance values the first time it is shown, so nothing
+moves for an existing data folder; the global fields stay only as that
+seed. Switching workspaces switches the rail and the sidebar widths with
+it (the sidebar panel's egui id carries the workspace name, so egui's own
+remembered size cannot leak across). Whether the rail shows labels, and
+whether its icons are coloured, stay global.
+
+Settings → Appearance → **Activity Rail** starts with a **Workspace**
+picker (logo and name of every registered workspace, the open one
+preselected); the Order and Show list under it edits the picked
+workspace and writes its `workspace.toml` at once, whether or not that
+workspace is open. Settings → Appearance gained a **Sidebar** card between
+Interface Font and Tabs with one switch, **Coloured Activity Icons**: off
+by default, the rail icons take the theme's text colour (muted when
+inactive); on, each activity keeps its own hue (`app::activity_colour`).
+The Workspaces list on Settings → Workspace draws a 26 px logo and a
+15 px name per row.
+
 ## Addendum (2026-10-17): hiding a rail entry
 
 Settings → Appearance → Activity Rail lists every movable tool with its

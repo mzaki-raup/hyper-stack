@@ -167,8 +167,14 @@ pub struct Appearance {
     pub ui_zoom: f32,
     /// Show each tool's name under its icon in the activity rail.
     pub rail_labels: bool,
+    /// Each activity's icon in its own colour; off, the icons take the
+    /// theme's text colour (the default). Owner's rule, 2026-10-23.
+    #[serde(default)]
+    pub rail_coloured: bool,
     /// Tool ids in the order the rail shows them; ids missing here follow
     /// in their default order. Home is always first and Settings last.
+    /// Since 2026-10-23 only the seed for a workspace that has no `[rail]`
+    /// of its own (`workspace::RailPrefs`); the rail reads the workspace.
     pub rail_order: Vec<String>,
     /// Tool ids kept out of the rail. A tool is never unreachable because
     /// of this: anything that opens one of its tabs (saving a connection
@@ -506,6 +512,7 @@ impl Default for Appearance {
             dock_height: 220.0,
             ui_zoom: 1.0,
             rail_labels: true,
+            rail_coloured: false,
             rail_order: Vec::new(),
             rail_hidden: Vec::new(),
         }

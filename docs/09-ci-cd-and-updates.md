@@ -147,8 +147,8 @@ installed copy anyway.
 
 | Asset | Purpose |
 |---|---|
-| `HyperStack.exe` | bare Windows x64 executable, downloaded by the in-app updater |
-| `HyperStack-<version>-windows-x64.zip` | for manual updates: exe + `README.txt` + `LICENSE` |
+| `HyperStack.exe` | bare Windows x64 executable; still published, and the fallback the updater takes from a release whose manifest has no zip entry |
+| `HyperStack-<version>-windows-x64.zip` | exe + `README.txt` + `LICENSE`; **what the in-app updater downloads since 2026-10-23** (manifest key `windows-x64-zip`), because the bare executable has outgrown the 100 MB a Cloudflare-fronted forge serves in one response while the archive stays well under it |
 | `manifest.json` | machine-readable release description (schema below) |
 | `manifest.json.minisig` | Ed25519 signature of the manifest (minisign format) |
 | `SHA256SUMS.txt` | `sha256sum`-style lines for every asset, for humans and scripts |
@@ -277,13 +277,20 @@ available; it is quiet (no toast) unless the release is marked `security`.
 
 ### 5.3 Download and verify
 
-- Download runs as a **Job** (progress, cancel, resume with `Range`) into
-  `HyperStackData/update/<version>/HyperStack.exe.part`, written with
+- The asset is the manifest's `<platform>-zip` entry when there is one
+  (`HyperStack-<version>-windows-x64.zip`), else the bare `<platform>`
+  entry. Download runs as a **Job** (progress, cancel, resume with `Range`)
+  into `HyperStackData/update/<version>/HyperStack.exe.part`, written with
   `FILE_ATTRIBUTE_TEMPORARY` hints off and fsync at the end.
-- Verify **size**, **sha256** from the signed manifest, and (when present)
-  the Authenticode signature chain via `WinVerifyTrust`. Then run the file with
-  `--self-test` in a child process (it must print its version, which must equal
-  the manifest version, and exit 0 within 10 s). Only then is it renamed to
+- Verify **size** and **sha256** of what was downloaded against the signed
+  manifest. For a zip, `HyperStack.exe` is then taken out of the archive
+  (at its root or under one folder; README, LICENSE and notes are ignored)
+  and, when the manifest also lists the bare executable, the extracted file
+  is checked against that entry's size and sha256 as well
+  (`updater::extract_exe`). Then (when present) the Authenticode signature
+  chain via `WinVerifyTrust`, and the file runs with `--self-test` in a
+  child process (it must print its version, which must equal the manifest
+  version, and exit 0 within 10 s). Only then is it renamed to
   `HyperStack.exe.ready`.
 - Anything that fails deletes the partial file and reports which check failed.
   No downloaded file is ever executed before the sha256 and signature checks.

@@ -1,6 +1,7 @@
 //! The in-app updater (docs/09 §5): check the forge, download and verify a
-//! release, install it by rename-and-relaunch, keep the previous executable
-//! for a one-click revert. Pure parsing/verification lives in [`crate::update`].
+//! release (the zip when the manifest lists one, with the executable taken
+//! out of it), install it by rename-and-relaunch, keep the previous
+//! executable for a one-click revert. Pure parsing/verification lives in [`crate::update`].
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -28,7 +29,12 @@ pub enum UpdateStatus {
     Available {
         candidate: Candidate,
         manifest: Manifest,
+        /// What is downloaded: the release zip when the manifest lists one
+        /// (`<platform>-zip`), else the bare executable.
         asset: ManifestAsset,
+        /// The manifest's entry for the bare executable when `asset` is a
+        /// zip: the extracted file is checked against it as well.
+        exe: Option<ManifestAsset>,
     },
     Downloading {
         version: String,
@@ -216,14 +222,25 @@ impl Updater {
                 html_url: candidate.html_url,
             });
         }
+        // The zip first: the bare executable has outgrown what the forge's
+        // edge serves in one response (100 MB behind Cloudflare), while the
+        // compressed archive stays well under it. A release without a zip
+        // entry still installs from the bare file.
         let key = self.current.platform_key();
-        let Some(asset) = manifest.assets.get(&key).cloned() else {
+        let exe = manifest.assets.get(&key).cloned();
+        let Some(asset) = manifest
+            .assets
+            .get(&format!("{key}-zip"))
+            .cloned()
+            .or_else(|| exe.clone())
+        else {
             return Ok(UpdateStatus::ManualOnly {
                 version: candidate.version.to_string(),
                 reason: format!("the release has no in-place asset for {key}"),
                 html_url: candidate.html_url,
             });
         };
+        let exe = exe.filter(|_| asset.name.ends_with(".zip"));
         if self.exe_dir_writable().is_err() {
             return Ok(UpdateStatus::ManualOnly {
                 version: candidate.version.to_string(),
@@ -235,12 +252,19 @@ impl Updater {
             candidate,
             manifest,
             asset,
+            exe,
         })
     }
 
     /// Download the asset as a Job, verify size + sha256 + `--self-test`, and
     /// leave it as `update/<version>/HyperStack.exe.ready`.
-    pub fn download(&self, jobs: &Jobs, candidate: Candidate, asset: ManifestAsset) -> JobHandle {
+    pub fn download(
+        &self,
+        jobs: &Jobs,
+        candidate: Candidate,
+        asset: ManifestAsset,
+        exe: Option<ManifestAsset>,
+    ) -> JobHandle {
         let version = candidate.version.to_string();
         self.set_status(UpdateStatus::Downloading {
             version: version.clone(),
@@ -250,7 +274,10 @@ impl Updater {
             format!("Download HyperStack {version}"),
             "updater",
             move |h| async move {
-                match this.download_inner(&h, &version, &asset).await {
+                match this
+                    .download_inner(&h, &version, &asset, exe.as_ref())
+                    .await
+                {
                     Ok(path) => {
                         this.set_status(UpdateStatus::Ready { version, path });
                         Ok(())
@@ -269,6 +296,7 @@ impl Updater {
         h: &JobHandle,
         version: &str,
         asset: &ManifestAsset,
+        exe: Option<&ManifestAsset>,
     ) -> Result<PathBuf, String> {
         use futures_util::StreamExt;
         let dir = self.paths.update_dir().join(version);
@@ -299,6 +327,25 @@ impl Updater {
         }
         h.set_message("verifying");
         update::verify_asset(asset, &bytes).map_err(|e| e.to_string())?;
+        // A zip is verified whole against the signed manifest, then the
+        // executable is taken out of it and, when the manifest also lists
+        // the bare file, checked against that entry too.
+        let bytes = if asset.name.ends_with(".zip") {
+            h.set_message("extracting");
+            let exe_entry = exe.cloned();
+            self.runtime
+                .spawn_blocking(move || {
+                    let out = extract_exe(&bytes)?;
+                    if let Some(entry) = exe_entry {
+                        update::verify_asset(&entry, &out).map_err(|e| e.to_string())?;
+                    }
+                    Ok::<Vec<u8>, String>(out)
+                })
+                .await
+                .map_err(|e| e.to_string())??
+        } else {
+            bytes
+        };
         std::fs::write(&part, &bytes).map_err(|e| e.to_string())?;
         h.set_message("running self-test");
         let part2 = part.clone();
@@ -410,6 +457,30 @@ fn exe_name() -> &'static str {
     }
 }
 
+/// The executable inside a release zip (`HyperStack.exe` at the archive
+/// root or under one folder). Anything else in the archive (README,
+/// LICENSE, notes) is ignored.
+fn extract_exe(zip_bytes: &[u8]) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let cursor = std::io::Cursor::new(zip_bytes);
+    let mut archive = zip::ZipArchive::new(cursor).map_err(|e| format!("not a zip: {e}"))?;
+    let want = exe_name();
+    let index = (0..archive.len()).find(|&i| {
+        archive
+            .by_index(i)
+            .ok()
+            .and_then(|f| f.name().ok().map(|n| n.to_string()))
+            .is_some_and(|n| n.rsplit(['/', '\\']).next() == Some(want))
+    });
+    let Some(i) = index else {
+        return Err(format!("the archive holds no {want}"));
+    };
+    let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+    let mut out = Vec::with_capacity(file.size() as usize);
+    file.read_to_end(&mut out).map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
 /// Rename when on the same volume, copy + delete otherwise.
 fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if to.exists() {
@@ -503,6 +574,32 @@ mod tests {
         .unwrap();
         assert!(u.failed_install().is_some());
         assert_eq!(u.previous_exe().unwrap().1, "0.0.1");
+    }
+
+    #[test]
+    fn the_executable_is_taken_out_of_the_release_zip() {
+        use std::io::Write;
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            w.start_file("README.txt", opts).unwrap();
+            w.write_all(b"portable").unwrap();
+            w.start_file(format!("HyperStack-1.2.3/{}", exe_name()), opts)
+                .unwrap();
+            w.write_all(b"MZ-not-really").unwrap();
+            w.finish().unwrap();
+        }
+        assert_eq!(extract_exe(buf.get_ref()).unwrap(), b"MZ-not-really");
+        assert!(extract_exe(b"nope").is_err());
+        let mut empty = std::io::Cursor::new(Vec::new());
+        zip::ZipWriter::new(&mut empty).finish().unwrap();
+        assert!(
+            extract_exe(empty.get_ref())
+                .unwrap_err()
+                .contains("holds no")
+        );
     }
 
     #[test]

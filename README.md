@@ -344,7 +344,7 @@ each removable; the AI assistant is review-only.
 | | |
 |---|---|
 | ![General](docs/screenshots/settings-general.png) | ![Appearance](docs/screenshots/settings-appearance.png) |
-| **General** — startup workspace, restore tabs, language; export and import settings and shortcuts behind the master password | **Appearance** — System / Dark / Light mode with a scheme for each (clickable swatches), interface font and size, UI zoom, tab widths, activity rail labels and order |
+| **General** — startup workspace, restore tabs, language; export and import settings and shortcuts behind the master password | **Appearance** — System / Dark / Light mode with a scheme for each (clickable swatches), interface font and size, UI zoom, plain or coloured activity icons, tab widths, rail labels, and the rail's order and visibility per workspace (pick the workspace, the change applies to it at once) |
 | ![Accessibility](docs/screenshots/settings-accessibility.png) | ![Workspace](docs/screenshots/settings-workspace.png) |
 | **Accessibility** — Read Aloud through the OS voice, speech rate, reduce motion | **Workspace** — rename, logo, folder, compare environments with another workspace and copy the missing ones |
 | ![Environments](docs/screenshots/settings-environments.png) | ![Security](docs/screenshots/settings-security.png) |

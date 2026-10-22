@@ -35,7 +35,13 @@ through `hs_ssh::SshClient::exec`, command output, pasted text; parsers
 for plain, JSON lines, logfmt, syslog, Nginx and PostgreSQL; filter chips,
 highlights, find, jump to time, bookmarks, saved sources and presets);
 the bottom dock's Logs tab shows the app's own log at the level set in
-Settings → General → Behaviour; Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
+Settings → General → Behaviour; since 2026-10-23 the **updater downloads
+the release zip** and takes the executable out of it (the bare exe is
+over the forge edge's 100 MB), and the **activity rail's order,
+visibility and every sidebar width are per workspace** (`[rail]` in
+`workspace.toml`, edited for any workspace from Settings → Appearance,
+with a global Coloured Activity Icons switch that is off by default);
+Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a

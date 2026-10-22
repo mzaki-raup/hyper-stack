@@ -74,7 +74,8 @@ user points a workspace at a repo's `.hyperstack/` folder:
 
 ```
 <workspace>/
-├── workspace.toml               # id, name, created, default environment, protected envs
+├── workspace.toml               # id, name, created, default environment, protected envs,
+│                                #   [rail] order / hidden / sidebar_widths (docs/04, 2026-10-23)
 ├── icon.png                     # optional workspace logo (icon.<ext>); travels with the folder
 ├── environments/
 │   ├── dev.toml

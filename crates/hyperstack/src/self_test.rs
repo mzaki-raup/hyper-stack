@@ -281,16 +281,19 @@ pub fn update_headless(paths: DataDir, download: bool, install: bool) -> i32 {
             1
         }
         UpdateStatus::Available {
-            candidate, asset, ..
+            candidate,
+            asset,
+            exe,
+            ..
         } => {
             println!(
-                "available {} ({} bytes) signed manifest verified",
-                candidate.version, asset.size
+                "available {} ({}, {} bytes) signed manifest verified",
+                candidate.version, asset.name, asset.size
             );
             if !download {
                 return 0;
             }
-            s.updater.download(&s.jobs, candidate, asset);
+            s.updater.download(&s.jobs, candidate, asset, exe);
             let status = wait_status(s, |st| !matches!(st, UpdateStatus::Downloading { .. }), 600);
             match status {
                 UpdateStatus::Ready { version, path } => {

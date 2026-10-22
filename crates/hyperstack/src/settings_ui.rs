@@ -136,6 +136,9 @@ pub struct SettingsState {
     pub ws_compare: String,
     /// Appearance page: (tool id, title) of every tool, for the rail order.
     pub rail_tools: Vec<(String, String)>,
+    /// Appearance page: the workspace whose rail is being edited (`None`
+    /// = the open one).
+    pub rail_ws: Option<String>,
     /// The Test Connection in flight (or its answer), and the connection it
     /// belongs to, so a slow server cannot report onto another profile.
     pub conn_test: Option<crate::conn_test::Test>,
@@ -352,18 +355,21 @@ fn workspace(
     form::section(ui, theme, &s.t("settings-workspace-section-list"), |ui| {
         for w in &registry.workspaces {
             let open = w.name == current;
+            // A list to pick from, not a table: a larger logo and name
+            // (owner's request, 2026-10-23).
             let row = ui.scope(|ui| {
+                ui.add_space(3.0);
                 ui.horizontal(|ui| {
-                    ws_icon(ui, s, &registry, &w.name, 18.0);
+                    ws_icon(ui, s, &registry, &w.name, 26.0);
+                    ui.add_space(4.0);
                     ui.add(
-                        egui::Label::new(egui::RichText::new(&w.name).strong()).selectable(false),
+                        egui::Label::new(egui::RichText::new(&w.name).strong().size(15.0))
+                            .selectable(false),
                     );
                     ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(&w.path).small().color(theme.text_muted),
-                        )
-                        .selectable(false)
-                        .truncate(),
+                        egui::Label::new(egui::RichText::new(&w.path).color(theme.text_muted))
+                            .selectable(false)
+                            .truncate(),
                     );
                     if open {
                         ui.label(
@@ -1135,6 +1141,9 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                         effects.push(SettingsEffect::SkipUpdate(candidate.tag.clone()));
                     }
                 });
+                if asset.name.ends_with(".zip") {
+                    form::hint(ui, theme, &s.t("settings-updates-zip-hint"));
+                }
             }
             UpdateStatus::Downloading { version } => {
                 ui.horizontal(|ui| {
@@ -1421,6 +1430,16 @@ fn appearance(
         form::hint(ui, theme, &s.t("settings-ui-zoom-hint"));
     });
 
+    form::section(ui, theme, &s.t("settings-section-sidebar"), |ui| {
+        changed |= ui
+            .checkbox(
+                &mut settings.appearance.rail_coloured,
+                s.t("settings-rail-coloured"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-rail-coloured-hint"));
+    });
+
     form::section(ui, theme, &s.t("settings-section-tabs"), |ui| {
         form::field_grid(ui, "appearance-tabs", |ui| {
             form::label(ui, &s.t("settings-min-tab-width"));
@@ -1457,6 +1476,53 @@ fn appearance(
             .changed();
         form::hint(ui, theme, &s.t("settings-rail-labels-hint"));
         ui.add_space(8.0);
+        // Which workspace's rail is being edited: the open one unless the
+        // picker says otherwise. Order and visibility are per workspace
+        // (owner's requirement, 2026-10-23); labels above stay global.
+        let registry = hs_core::workspace::Registry::load(&s.paths);
+        let open_name = s.workspace.read().meta.name.clone();
+        let selected = state
+            .rail_ws
+            .clone()
+            .filter(|n| registry.workspaces.iter().any(|w| &w.name == n))
+            .unwrap_or_else(|| open_name.clone());
+        form::field_grid(ui, "rail-ws-pick", |ui| {
+            form::label(ui, &s.t("settings-rail-workspace"));
+            ui.horizontal(|ui| {
+                ws_icon(ui, s, &registry, &selected, 18.0);
+                egui::ComboBox::from_id_salt("rail-ws")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(selected.clone())
+                    .show_ui(ui, |ui| {
+                        for w in &registry.workspaces {
+                            ui.horizontal(|ui| {
+                                ws_icon(ui, s, &registry, &w.name, 16.0);
+                                if ui.selectable_label(selected == w.name, &w.name).clicked() {
+                                    state.rail_ws = Some(w.name.clone());
+                                }
+                            });
+                        }
+                    });
+            });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-rail-workspace-hint"));
+        ui.add_space(8.0);
+        let is_open = selected == open_name;
+        // A workspace that is not open is edited through its folder.
+        let mut other = if is_open {
+            None
+        } else {
+            registry.peek(&s.paths, &selected).ok()
+        };
+        let mut prefs = if is_open {
+            s.workspace.read().meta.rail_prefs(&settings.appearance)
+        } else {
+            other
+                .as_ref()
+                .map(|w| w.meta.rail_prefs(&settings.appearance))
+                .unwrap_or_default()
+        };
         ui.label(
             egui::RichText::new(s.t("settings-rail-order"))
                 .size(13.0)
@@ -1466,7 +1532,7 @@ fn appearance(
         // The movable tools in their current rail order; Home and Settings
         // are fixed at the ends and not listed.
         let ids: Vec<&str> = state.rail_tools.iter().map(|(id, _)| id.as_str()).collect();
-        let mut order: Vec<String> = crate::app::rail_order(&ids, &settings.appearance.rail_order)
+        let mut order: Vec<String> = crate::app::rail_order(&ids, &prefs.order)
             .into_iter()
             .map(str::to_string)
             .collect();
@@ -1494,7 +1560,7 @@ fn appearance(
                 .find(|(t, _)| t == id)
                 .map(|(_, n)| n.clone())
                 .unwrap_or_else(|| id.clone());
-            let mut shown = !settings.appearance.rail_hidden.iter().any(|h| h == id);
+            let mut shown = !prefs.hidden.iter().any(|h| h == id);
             ui.horizontal(|ui| {
                 ui.set_min_width(300.0);
                 ui.add_enabled_ui(i > 0, |ui| {
@@ -1525,19 +1591,38 @@ fn appearance(
                 ui.label(title);
             });
         }
+        let mut dirty = false;
         if let Some((from, to)) = moved {
             let t = order.remove(from);
             order.insert(to, t);
-            settings.appearance.rail_order = order;
-            changed = true;
+            prefs.order = order;
+            dirty = true;
         }
         if let Some((id, shown)) = toggled {
             if shown {
-                settings.appearance.rail_hidden.retain(|h| *h != id);
-            } else if !settings.appearance.rail_hidden.contains(&id) {
-                settings.appearance.rail_hidden.push(id);
+                prefs.hidden.retain(|h| *h != id);
+            } else if !prefs.hidden.contains(&id) {
+                prefs.hidden.push(id);
             }
-            changed = true;
+            dirty = true;
+        }
+        if dirty {
+            let saved = if is_open {
+                let mut ws = s.workspace.write();
+                *ws.meta.rail_prefs_mut(&settings.appearance) = prefs;
+                ws.save_meta()
+            } else if let Some(w) = other.as_mut() {
+                *w.meta.rail_prefs_mut(&settings.appearance) = prefs;
+                w.save_meta()
+            } else {
+                Ok(())
+            };
+            if let Err(e) = saved {
+                effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                ));
+            }
         }
         form::hint(ui, theme, &s.t("settings-rail-order-hint"));
     });
@@ -2399,13 +2484,13 @@ fn connections(
                             match s.connections.write().upsert(c) {
                                 Ok(()) => {
                                     if let Some(tool) = tool {
-                                        let mut st = s.settings.write();
-                                        let before = st.appearance.rail_hidden.len();
-                                        st.appearance.rail_hidden.retain(|h| h != tool);
-                                        let revealed = st.appearance.rail_hidden.len() != before;
-                                        drop(st);
-                                        if revealed {
-                                            let _ = s.save_settings();
+                                        let appearance = s.settings.read().appearance.clone();
+                                        let mut ws = s.workspace.write();
+                                        let prefs = ws.meta.rail_prefs_mut(&appearance);
+                                        let before = prefs.hidden.len();
+                                        prefs.hidden.retain(|h| h != tool);
+                                        if prefs.hidden.len() != before {
+                                            let _ = ws.save_meta();
                                         }
                                     }
                                     effects.push(SettingsEffect::ConnectionsChanged)

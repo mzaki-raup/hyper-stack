@@ -248,7 +248,15 @@ fn pinned_by_kind<'a>(
     tools: &[&ToolDescriptor],
     services: &Services,
 ) -> Vec<(String, Vec<&'a hs_core::connections::ConnectionProfile>)> {
-    let saved = services.settings.read().appearance.rail_order.clone();
+    let saved = {
+        let st = services.settings.read();
+        services
+            .workspace
+            .read()
+            .meta
+            .rail_prefs(&st.appearance)
+            .order
+    };
     let ids: Vec<&str> = tools.iter().map(|t| t.id).collect();
     let rail = crate::app::rail_order(&ids, &saved);
     let rank = |kind: &str| -> usize {

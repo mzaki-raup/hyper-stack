@@ -134,6 +134,9 @@ pub struct HyperStackApp {
     /// persisted too (polled every few seconds).
     layout_fingerprint: u64,
     layout_dirty_since: Option<Instant>,
+    /// The open workspace's `workspace.toml` has a changed rail/sidebar
+    /// preference (a sidebar drag, mostly) waiting for the layout save.
+    meta_dirty: bool,
     pending_actions: Vec<Action>,
     fallback_notice_open: bool,
     first_frame_done: bool,
@@ -253,6 +256,7 @@ impl HyperStackApp {
             last_layout_save: Instant::now(),
             layout_fingerprint: 0,
             layout_dirty_since: None,
+            meta_dirty: false,
             pending_actions: Vec::new(),
             first_frame_done: false,
             confirm_revert: false,
@@ -616,6 +620,12 @@ impl HyperStackApp {
         if let Err(e) = self.services.workspace.read().save_layout(&layout) {
             tracing::warn!("layout not saved: {e}");
         }
+        if self.meta_dirty {
+            if let Err(e) = self.services.workspace.read().save_meta() {
+                tracing::warn!("workspace.toml not saved: {e}");
+            }
+            self.meta_dirty = false;
+        }
         self.tabs.dirty = false;
         self.layout_dirty_since = None;
         self.last_layout_save = Instant::now();
@@ -647,14 +657,17 @@ impl HyperStackApp {
     /// Settings to wonder where the tab went.
     pub(crate) fn reveal_rail(&mut self, factory_id: &str) {
         let id = group_of(factory_id);
-        let mut settings = self.services.settings.write();
-        let before = settings.appearance.rail_hidden.len();
-        settings.appearance.rail_hidden.retain(|h| h != id);
-        if settings.appearance.rail_hidden.len() == before {
+        let appearance = self.services.settings.read().appearance.clone();
+        let mut ws = self.services.workspace.write();
+        let prefs = ws.meta.rail_prefs_mut(&appearance);
+        let before = prefs.hidden.len();
+        prefs.hidden.retain(|h| h != id);
+        if prefs.hidden.len() == before {
             return;
         }
-        drop(settings);
-        let _ = self.services.save_settings();
+        if let Err(e) = ws.save_meta() {
+            tracing::warn!("workspace.toml not saved: {e}");
+        }
     }
 
     /// A tab of this tool that is not bound to any connection, the active
@@ -1301,12 +1314,15 @@ impl HyperStackApp {
                 SettingsEffect::CheckUpdates => self.start_update_check(),
                 SettingsEffect::DownloadUpdate => {
                     if let hs_core::updater::UpdateStatus::Available {
-                        candidate, asset, ..
+                        candidate,
+                        asset,
+                        exe,
+                        ..
                     } = self.services.updater.status()
                     {
                         self.services
                             .updater
-                            .download(&self.services.jobs, candidate, asset);
+                            .download(&self.services.jobs, candidate, asset, exe);
                     }
                 }
                 SettingsEffect::InstallUpdate => self.install_update(ctx),
@@ -2328,12 +2344,16 @@ impl HyperStackApp {
     /// Settings at the bottom. Labels under the icons are optional.
     fn rail(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        let (labels, order, hidden) = {
+        // Order and visibility belong to the open workspace (seeded from
+        // the global settings the first time); labels and colour are global.
+        let (labels, coloured, order, hidden) = {
             let st = s.settings.read();
+            let prefs = s.workspace.read().meta.rail_prefs(&st.appearance);
             (
                 st.appearance.rail_labels,
-                st.appearance.rail_order.clone(),
-                st.appearance.rail_hidden.clone(),
+                st.appearance.rail_coloured,
+                prefs.order,
+                prefs.hidden,
             )
         };
         let theme = self.theme.clone();
@@ -2391,7 +2411,7 @@ impl HyperStackApp {
             } else {
                 title.clone()
             };
-            if rail_item(ui, &theme, id, icon, title, active, label_h)
+            if rail_item(ui, &theme, id, icon, title, active, coloured, label_h)
                 .tip(tip)
                 .clicked()
             {
@@ -2428,6 +2448,7 @@ impl HyperStackApp {
                     hs_ui::icons::SIDEBAR,
                     &s.t("sidebar"),
                     self.sidebar_open,
+                    coloured,
                     label_h,
                 )
                 .tip(s.t("sidebar-toggle"))
@@ -3344,18 +3365,26 @@ impl eframe::App for HyperStackApp {
             // egui's remembered size is per activity too); one not yet
             // dragged starts at the shared default.
             let activity = self.active_factory().unwrap_or_else(|| "home".to_string());
-            let w = {
+            // The width is the open workspace's (`workspace.toml`, seeded
+            // from the global settings), so each workspace keeps its own.
+            let (ws_name, w) = {
                 let st = self.services.settings.read();
-                st.appearance
+                let ws = self.services.workspace.read();
+                let w = ws
+                    .meta
+                    .rail_prefs(&st.appearance)
                     .sidebar_widths
                     .get(&activity)
                     .copied()
-                    .unwrap_or(st.appearance.sidebar_width)
+                    .unwrap_or(st.appearance.sidebar_width);
+                (ws.meta.name.clone(), w)
             };
             // The upper bound follows the window: a 640 px sidebar saved on
             // a wide monitor must not keep most of a small window.
             let max_w = (root.available_width() * 0.5).clamp(180.0, 640.0);
-            let panel_id = egui::Id::new(("hs-sidebar", activity.as_str()));
+            // egui remembers a panel's size by id; the workspace is part of
+            // it so a switch does not carry the last one's width over.
+            let panel_id = egui::Id::new(("hs-sidebar", ws_name.as_str(), activity.as_str()));
             let r = egui::Panel::left(panel_id)
                 .default_size(w.min(max_w))
                 .size_range(180.0..=max_w)
@@ -3366,12 +3395,15 @@ impl eframe::App for HyperStackApp {
                 .map(|st| st.outer_rect.width().round())
                 .unwrap_or(w);
             if (width - w).abs() >= 1.0 && width >= 180.0 {
+                let appearance = self.services.settings.read().appearance.clone();
                 self.services
-                    .settings
+                    .workspace
                     .write()
-                    .appearance
+                    .meta
+                    .rail_prefs_mut(&appearance)
                     .sidebar_widths
                     .insert(activity, width);
+                self.meta_dirty = true;
                 self.layout_dirty_since.get_or_insert(Instant::now());
                 self.tabs.dirty = true;
             }
@@ -3868,6 +3900,7 @@ fn activity_colour(id: &str) -> egui::Color32 {
     }
 }
 
+#[allow(clippy::too_many_arguments)] // one call site per rail entry
 fn rail_item(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -3875,6 +3908,7 @@ fn rail_item(
     icon: &str,
     label: &str,
     active: bool,
+    coloured: bool,
     label_h: Option<f32>,
 ) -> egui::Response {
     let size = match label_h {
@@ -3893,11 +3927,14 @@ fn rail_item(
         ui.painter()
             .rect_filled(rect, egui::CornerRadius::same(6), fill);
     }
-    let own = activity_colour(id);
-    let col = if active || r.hovered() {
-        own
-    } else {
-        own.gamma_multiply(0.72)
+    // Plain by default: the icon takes the theme's text colour and only the
+    // active or hovered entry is at full strength. Coloured is the per-
+    // activity hue (Settings → Appearance → Sidebar).
+    let col = match (coloured, active || r.hovered()) {
+        (true, true) => activity_colour(id),
+        (true, false) => activity_colour(id).gamma_multiply(0.72),
+        (false, true) => theme.text,
+        (false, false) => theme.text_muted,
     };
     let Some(h) = label_h else {
         ui.painter().text(

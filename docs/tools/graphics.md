@@ -167,6 +167,12 @@ projects' own API documentation as read on 2026-10-22 and have not been
 run against a live server from this machine. A self-hosted job may take
 minutes on a CPU: its client waits twenty.
 
+**Dashboard and sidebar (2026-10-22).** The Functions row's buttons carry
+the same glyph as the What To Do tiles (`Function::action_icon`: Open
+Image…, Open Icon…, New Diagram…, New Generation…), and a left click on
+the sidebar's Image row opens a menu with Open Image… and New Image…, the
+same two the right click offers, rather than guessing which was meant.
+
 **New Image.** From the Image row's context menu in the sidebar, the
 dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a

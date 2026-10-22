@@ -166,6 +166,8 @@ pub struct ApiTool {
     /// What the assistant's context was last built from, so the (long)
     /// context and schema strings are rebuilt only when something changed.
     assistant_key: Option<AssistantKey>,
+    /// The category open on a Manage Collection tab.
+    pub(crate) manage_page: ui::ManagePage,
 }
 
 /// Cheap fingerprint of everything the assistant context is built from.
@@ -245,6 +247,7 @@ impl ApiTool {
             copy_pending_toast: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             assistant_key: None,
+            manage_page: ui::ManagePage::General,
             state,
         };
         // Reopen the saved request, else the draft.
@@ -1290,7 +1293,7 @@ impl Tool for ApiTool {
                     .collections
                     .iter()
                     .find(|c| &c.id == cid)
-                    .map(|c| Cow::Owned(format!("Manage: {}", c.name)))
+                    .map(|c| Cow::Owned(format!("Manage Collection - {}", c.name)))
                     .unwrap_or(Cow::Borrowed("Manage Collection"));
             }
             TabMode::Request => {}
@@ -1306,8 +1309,9 @@ impl Tool for ApiTool {
     /// strip of request tabs can be read by colour. A method with no
     /// colour of its own is left to the tab's own text colour.
     fn tab_title_prefix(&self) -> Option<(String, egui::Color32)> {
-        // No method on the home tab: it holds no request.
-        if self.is_home {
+        // No method on the home tab, a library or a management page: none
+        // of them holds a request (owner's report, 2026-10-22).
+        if self.is_home || self.state.mode != TabMode::Request {
             return None;
         }
         let colour = ui::method_rgb(&self.request.method)?;
@@ -1321,7 +1325,14 @@ impl Tool for ApiTool {
     }
 
     fn tab_icon(&self) -> Option<&'static str> {
-        self.is_home.then_some(hs_ui::icons::WORKSPACE)
+        if self.is_home {
+            return Some(hs_ui::icons::WORKSPACE);
+        }
+        match self.state.mode {
+            TabMode::Manage(_) => Some(hs_ui::icons::ph::GEAR_SIX),
+            TabMode::Library(_) => Some(hs_ui::icons::ph::PACKAGE),
+            TabMode::Request => None,
+        }
     }
 
     fn dirty(&self) -> bool {

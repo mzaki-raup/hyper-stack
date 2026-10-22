@@ -2375,16 +2375,33 @@ impl GraphicsTool {
             } else {
                 s.t("gfx-coming-soon")
             });
-        if r.clicked() {
+        let open = s.t(f.action_key());
+        let coming = s.t("gfx-coming-soon");
+        let new_image = s.t("gfx-new-image");
+        if f == Function::Image {
+            // Image has two ways in, so a left click offers both rather
+            // than guessing (owner's request, 2026-10-22); the menu needs
+            // its own id or it would share the context menu's popup.
+            egui::Popup::menu(&r).id(r.id.with("left")).show(|ui| {
+                if ui.button(format!("{} {}", ph::IMAGE, open)).clicked() {
+                    ui.close();
+                    self.pick_and_open(cx, f);
+                }
+                if ui
+                    .button(format!("{} {}", ph::FILE_PLUS, new_image))
+                    .clicked()
+                {
+                    ui.close();
+                    self.new_image = Some(NewImage::default());
+                }
+            });
+        } else if r.clicked() {
             if enabled {
                 self.pick_and_open(cx, f);
             } else {
                 cx.toast(ToastLevel::Info, s.t("gfx-coming-soon"));
             }
         }
-        let open = s.t(f.action_key());
-        let coming = s.t("gfx-coming-soon");
-        let new_image = s.t("gfx-new-image");
         r.context_menu(|ui| {
             if enabled {
                 if ui.button(&open).clicked() {
@@ -2483,27 +2500,8 @@ impl GraphicsTool {
                 );
                 ui.add_space(6.0);
                 ui.horizontal_top(|ui| {
-                    let actions = [
-                        (ph::IMAGE, "gfx-open", "gfx-fn-image-desc", Function::Image),
-                        (
-                            ph::APP_WINDOW,
-                            "gfx-open-icon",
-                            "gfx-fn-icon-desc",
-                            Function::Icon,
-                        ),
-                        (
-                            ph::TREE_STRUCTURE,
-                            "gfx-new-diagram",
-                            "gfx-fn-diagram-desc",
-                            Function::Diagram,
-                        ),
-                        (
-                            ph::SPARKLE,
-                            "gfx-new-generation",
-                            "gfx-fn-generator-desc",
-                            Function::Generator,
-                        ),
-                    ];
+                    let actions = Function::ALL
+                        .map(|f| (f.action_icon(), f.action_key(), f.description_key(), f));
                     // "New Image" sits beside Open Image: the same tile, its
                     // own action (the dialog rather than a file picker).
                     let mut new_image_clicked = false;
@@ -2616,11 +2614,17 @@ impl GraphicsTool {
                                 ui.set_min_width(150.0);
                                 ui.set_max_width(150.0);
                                 ui.add_space(if f == Function::Image { 2.0 } else { 12.0 });
+                                // The same icon as the What To Do tile above
+                                // (owner's request, 2026-10-22).
                                 if ui
                                     .add_enabled(
                                         f.enabled(),
-                                        egui::Button::new(s.t(f.action_key()))
-                                            .min_size(egui::vec2(140.0, 28.0)),
+                                        egui::Button::new(format!(
+                                            "{} {}",
+                                            f.action_icon(),
+                                            s.t(f.action_key())
+                                        ))
+                                        .min_size(egui::vec2(140.0, 28.0)),
                                     )
                                     .clicked()
                                 {

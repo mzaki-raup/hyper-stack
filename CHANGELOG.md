@@ -13,6 +13,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- API client → Manage Collection: the page is tabbed by category (General,
+  Variables, Globals, Authentication, Scripts, Package Libraries,
+  Documentation); Variables and Globals save as they are typed; the tab
+  reads "Manage Collection - <name>" with a gear glyph and no method badge.
+- Graphics: the dashboard's Functions buttons carry the same icons as the
+  What To Do tiles; a left click on the sidebar's Image row offers Open
+  Image… and New Image… like the right click.
+
 - Settings → AI Assistant: **self-hosted image providers** — the Stable
   Diffusion WebUI API (AUTOMATIC1111, SD.Next, Forge, Stability Matrix
   packages), ComfyUI (and SwarmUI's ComfyUI backend), SwarmUI, InvokeAI

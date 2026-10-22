@@ -431,3 +431,5 @@ and ADR-025.
 | Graphics: Generate / Edit / Enhance on self-hosted providers | Completed | `generate_image` dispatches on `Provider::self_hosted()`; Checkpoint field replaces the 1min.AI model id; per-provider model fields |
 | Settings → AI Assistant arranged by capability (chat / image) | Completed | `ai::Capability`; gallery, list and kind picker grouped; `Ai::chosen()`/`chat_providers()` skip image kinds, `image_providers()` for Graphics |
 | AI answers rendered as Markdown (tables, lists, quotes, rules) | Completed | `hs_ui::ai_assistant::parse_blocks` + `markdown_text`; pipe tables as a striped `egui::Grid` in a horizontal scroll; tests for tables, lists, quotes, rules and paragraph joins |
+| API client: Manage Collection tabbed by category, variables saved as typed, proper tab title/icon | Completed | `ui::ManagePage`; `tab_title_prefix` None off Request mode; `tab_icon` gear / package glyphs |
+| Graphics: Functions-row icons and Image left-click menu | Completed | `Function::action_icon`; `Popup::menu` with its own id beside the context menu |

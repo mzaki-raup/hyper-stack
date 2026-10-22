@@ -2678,6 +2678,56 @@ pub(crate) fn library_tab(
 /// A collection's own page: name, the variables its scripts saved, the
 /// authentication and scripts every request under it inherits, the
 /// package libraries it uses, and its documentation.
+/// The categories of a Manage Collection tab (owner's request,
+/// 2026-10-22: one page per category rather than one long page).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum ManagePage {
+    #[default]
+    General,
+    Variables,
+    Globals,
+    Auth,
+    Scripts,
+    Libraries,
+    Docs,
+}
+
+impl ManagePage {
+    const ALL: [ManagePage; 7] = [
+        ManagePage::General,
+        ManagePage::Variables,
+        ManagePage::Globals,
+        ManagePage::Auth,
+        ManagePage::Scripts,
+        ManagePage::Libraries,
+        ManagePage::Docs,
+    ];
+
+    fn label_key(self) -> &'static str {
+        match self {
+            ManagePage::General => "api-manage-general",
+            ManagePage::Variables => "api-manage-variables",
+            ManagePage::Globals => "api-manage-globals",
+            ManagePage::Auth => "api-manage-auth",
+            ManagePage::Scripts => "api-manage-scripts",
+            ManagePage::Libraries => "api-manage-libraries",
+            ManagePage::Docs => "api-manage-docs",
+        }
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            ManagePage::General => ph::SLIDERS,
+            ManagePage::Variables => ph::TAG,
+            ManagePage::Globals => ph::GLOBE,
+            ManagePage::Auth => ph::KEY,
+            ManagePage::Scripts => ph::CODE,
+            ManagePage::Libraries => ph::PACKAGE,
+            ManagePage::Docs => ph::BOOK_OPEN,
+        }
+    }
+}
+
 pub(crate) fn manage_tab(
     t: &mut ApiTool,
     cid: &str,
@@ -2703,102 +2753,146 @@ pub(crate) fn manage_tab(
         .collect();
     let mut save = false;
     let mut globals_changed = false;
+    let mut variables_changed = false;
+    let title = t.collections[index].name.clone();
+    form::page_title(
+        ui,
+        theme,
+        &format!("{} - {title}", s.t("api-manage-title")),
+        Some(&s.t("api-manage-hint")),
+    );
+    // One row of category tabs, like a request's Params / Headers / Body.
+    ui.horizontal_wrapped(|ui| {
+        for page in ManagePage::ALL {
+            let text = format!("{} {}", page.icon(), s.t(page.label_key()));
+            if ui.selectable_label(t.manage_page == page, text).clicked() {
+                t.manage_page = page;
+            }
+        }
+    });
+    ui.separator();
+    let page = t.manage_page;
     egui::ScrollArea::vertical()
         .id_salt(("api-manage-tab", cid))
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let title = t.collections[index].name.clone();
-            form::page_title(
-                ui,
-                theme,
-                &format!("{}: {title}", s.t("api-manage-title")),
-                Some(&s.t("api-manage-hint")),
-            );
-            {
-                let c = &mut t.collections[index];
-                form::section(ui, theme, &s.t("api-manage-general"), |ui| {
-                    form::field_grid(ui, ("api-manage-general", cid), |ui| {
-                        form::label(ui, &s.t("api-library-name"));
-                        form::text_field(ui, &mut c.name, "");
-                        ui.end_row();
+            ui.add_space(6.0);
+            match page {
+                ManagePage::General => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-general"), |ui| {
+                        form::field_grid(ui, ("api-manage-general", cid), |ui| {
+                            form::label(ui, &s.t("api-library-name"));
+                            form::text_field(ui, &mut c.name, "");
+                            ui.end_row();
+                        });
                     });
-                });
-                form::section(ui, theme, &s.t("api-manage-variables"), |ui| {
-                    form::hint(ui, theme, &s.t("api-manage-variables-hint"));
-                    kv_table(ui, theme, s, &mut c.variables, "api-manage-vars");
-                });
-            }
-            form::section(ui, theme, &s.t("api-manage-globals"), |ui| {
-                form::hint(ui, theme, &s.t("api-manage-globals-hint"));
-                let before = t.globals.values.clone();
-                kv_table(ui, theme, s, &mut t.globals.values, "api-manage-globals");
-                if t.globals.values != before {
-                    globals_changed = true;
                 }
-            });
-            let c = &mut t.collections[index];
-            form::section(ui, theme, &s.t("api-manage-auth"), |ui| {
-                form::hint(ui, theme, &s.t("api-manage-auth-hint"));
-                auth_editor(&mut c.auth, ui, s, theme, "api-manage-auth");
-            });
-            form::section(ui, theme, &s.t("api-manage-scripts"), |ui| {
-                form::hint(ui, theme, &s.t("api-manage-scripts-hint"));
-                script_editor(
-                    ui,
-                    s,
-                    "api-pre-script",
-                    "api-pre-script-hint",
-                    ("api-manage-pre", cid),
-                    160.0,
-                    &mut c.pre_script,
-                    &library_names,
-                );
-                script_editor(
-                    ui,
-                    s,
-                    "api-post-script",
-                    "api-post-script-hint",
-                    ("api-manage-post", cid),
-                    160.0,
-                    &mut c.post_script,
-                    &library_names,
-                );
-            });
-            form::section(ui, theme, &s.t("api-manage-libraries"), |ui| {
-                form::hint(ui, theme, &s.t("api-manage-libraries-hint"));
-                if libraries.is_empty() {
-                    form::hint(ui, theme, &s.t("api-libraries-empty"));
-                }
-                for (id, name, enabled) in &libraries {
-                    let mut on = c.library_refs.contains(id);
-                    let label = if *enabled {
-                        name.clone()
-                    } else {
-                        format!("{name} ({})", s.t("disabled"))
-                    };
-                    if ui.checkbox(&mut on, label).changed() {
-                        if on {
-                            c.library_refs.push(id.clone());
-                        } else {
-                            c.library_refs.retain(|r| r != id);
+                ManagePage::Variables => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-variables"), |ui| {
+                        form::hint(ui, theme, &s.t("api-manage-variables-hint"));
+                        let before = c.variables.clone();
+                        kv_table(ui, theme, s, &mut c.variables, "api-manage-vars");
+                        if c.variables != before {
+                            variables_changed = true;
                         }
-                    }
+                    });
                 }
-            });
-            form::section(ui, theme, &s.t("api-manage-docs"), |ui| {
-                ui.add(
-                    egui::TextEdit::multiline(&mut c.docs)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(6),
-                );
-            });
-            if form::primary_button(ui, theme, &s.t("api-manage-save")).clicked() {
-                save = true;
+                ManagePage::Globals => {
+                    form::section(ui, theme, &s.t("api-manage-globals"), |ui| {
+                        form::hint(ui, theme, &s.t("api-manage-globals-hint"));
+                        let before = t.globals.values.clone();
+                        kv_table(ui, theme, s, &mut t.globals.values, "api-manage-globals");
+                        if t.globals.values != before {
+                            globals_changed = true;
+                        }
+                    });
+                }
+                ManagePage::Auth => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-auth"), |ui| {
+                        form::hint(ui, theme, &s.t("api-manage-auth-hint"));
+                        auth_editor(&mut c.auth, ui, s, theme, "api-manage-auth");
+                    });
+                }
+                ManagePage::Scripts => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-scripts"), |ui| {
+                        form::hint(ui, theme, &s.t("api-manage-scripts-hint"));
+                        script_editor(
+                            ui,
+                            s,
+                            "api-pre-script",
+                            "api-pre-script-hint",
+                            ("api-manage-pre", cid),
+                            200.0,
+                            &mut c.pre_script,
+                            &library_names,
+                        );
+                        script_editor(
+                            ui,
+                            s,
+                            "api-post-script",
+                            "api-post-script-hint",
+                            ("api-manage-post", cid),
+                            200.0,
+                            &mut c.post_script,
+                            &library_names,
+                        );
+                    });
+                }
+                ManagePage::Libraries => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-libraries"), |ui| {
+                        form::hint(ui, theme, &s.t("api-manage-libraries-hint"));
+                        if libraries.is_empty() {
+                            form::hint(ui, theme, &s.t("api-libraries-empty"));
+                        }
+                        for (id, name, enabled) in &libraries {
+                            let mut on = c.library_refs.contains(id);
+                            let label = if *enabled {
+                                name.clone()
+                            } else {
+                                format!("{name} ({})", s.t("disabled"))
+                            };
+                            if ui.checkbox(&mut on, label).changed() {
+                                if on {
+                                    c.library_refs.push(id.clone());
+                                } else {
+                                    c.library_refs.retain(|r| r != id);
+                                }
+                            }
+                        }
+                    });
+                }
+                ManagePage::Docs => {
+                    let c = &mut t.collections[index];
+                    form::section(ui, theme, &s.t("api-manage-docs"), |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(&mut c.docs)
+                                .desired_width(f32::INFINITY)
+                                .desired_rows(12),
+                        );
+                    });
+                }
+            }
+            if page != ManagePage::Globals && page != ManagePage::Variables {
+                if form::primary_button(ui, theme, &s.t("api-manage-save")).clicked() {
+                    save = true;
+                }
+            } else {
+                form::hint(ui, theme, &s.t("api-manage-autosave-hint"));
             }
             ui.add_space(12.0);
         });
     if globals_changed && let Err(e) = t.globals.save(&t.globals_path()) {
         cx.toast(ToastLevel::Error, e.to_string());
+    }
+    // Variables are written as they are typed (owner's request): the
+    // collection file is small and the other tabs learn of it at once.
+    if variables_changed {
+        t.save_collection(cid, cx);
     }
     if save {
         t.save_collection(cid, cx);

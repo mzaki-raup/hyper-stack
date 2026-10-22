@@ -123,6 +123,17 @@ impl Function {
         }
     }
 
+    /// The glyph of the action that opens this tool, shared by the
+    /// dashboard's What To Do tiles and its Functions row.
+    pub fn action_icon(self) -> &'static str {
+        match self {
+            Self::Image => ph::IMAGE,
+            Self::Icon => ph::APP_WINDOW,
+            Self::Diagram => ph::TREE_STRUCTURE,
+            Self::Generator => ph::SPARKLE,
+        }
+    }
+
     /// The label of the action that opens this tool.
     pub fn action_key(self) -> &'static str {
         match self {

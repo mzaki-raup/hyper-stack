@@ -384,11 +384,15 @@ enabled only) and evaluates the code before the inline collection
 libraries and the scripts, so the libraries' functions are in scope.
 
 **Manage Collection…** on a collection's context menu opens
-`api://manage/<id>`: name; the collection variables scripts save with
-`pm.collectionVariables`; globals; the authentication requests inherit
-when theirs is *Inherit*; the pre-request and post-response scripts that
-run around every request in the collection (before the folder's and the
-request's own - that inheritance already existed; the page is where it is
-edited); the package libraries the collection uses; and documentation.
-Save writes the collection file and announces the change to the other
-tabs.
+`api://manage/<id>`, a tab titled *Manage Collection - <name>* with a
+gear glyph and no method badge (it holds no request). Its content is
+**one category per tab** (owner's request, 2026-10-22; `ui::ManagePage`):
+General (name); Variables (the collection variables scripts save with
+`pm.collectionVariables`); Globals; Authentication (what requests inherit
+when theirs is *Inherit*); Scripts (the pre-request and post-response
+scripts that run around every request in the collection, before the
+folder's and the request's own); Package Libraries; Documentation.
+**Variables and Globals are written as they are typed** - the key and the
+value are plain fields and every change saves the collection (or
+`globals.json`) and announces it to the other tabs; the other categories
+keep the Save Collection button.

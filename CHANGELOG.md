@@ -11,17 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Added
+- (nothing yet)
 
-- SSH: a host in a protected environment shows the environment banner and
-  red frame, and an upload that would replace a file already in the
-  listing asks first, naming the host.
+## 0.71.1 — 2026-10-22
 
 ### Fixed
 
-- Graphics: every diagram-editor and generator label (toolbar, Import and
-  Align menus, properties pane, pickers, canvas hints, template names, file
-  filters) now goes through Fluent instead of hard-coded English.
+- Fluent for every diagram label, protected-host guards in SSH (364c3272)
 
 ## 0.71.0 — 2026-10-22
 

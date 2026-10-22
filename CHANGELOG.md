@@ -23,6 +23,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Align menus, properties pane, pickers, canvas hints, template names, file
   filters) now goes through Fluent instead of hard-coded English.
 
+## 0.71.0 — 2026-10-22
+
+### Added
+
+- Tabbed Manage Collection, live variable edits, Graphics function icons and Image menu (f38e8e63)
+
 ## 0.70.0 — 2026-10-22
 
 ### Added

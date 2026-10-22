@@ -137,6 +137,36 @@ generation model and the edit model is a typed field. The result lands as
 a draft like a generated picture, so the edited or enhanced picture is a
 new tab beside the original.
 
+**Self-hosted image servers (2026-10-22).** The same three jobs run on a
+server of the user's own, added in Settings → AI Assistant under Image
+Providers (`hs_core::ai_local`, owner's request): the **Stable Diffusion
+WebUI API** kind (AUTOMATIC1111, SD.Next, Forge, or a Stability Matrix
+package of one of them; `/sdapi/v1/txt2img`, `img2img` with
+`denoising_strength` = Strength, `extra-single-image` with the provider's
+upscaler and factor; `--api-auth` as Basic), **ComfyUI** (also SwarmUI's
+`/ComfyBackendDirect` and Stability Matrix's package; `/upload/image`,
+`/prompt`, polling `/history`, `/view`; driven by a workflow in the API
+JSON form with `{{prompt}}`-style placeholders - built-in ones for the
+three jobs, `ai_local::COMFY_*`, or the user's own pasted per job),
+**SwarmUI** (`/API/GetNewSession`, `GenerateText2Image` with `initimage`
++ `initimagecreativity`; Enhance is an init-image pass at low creativity
+at factor× size), **InvokeAI** (`/api/v2/models/` to resolve the model
+record, a small graph - `main_model_loader`/`compel` or
+`sdxl_model_loader`/`sdxl_compel_prompt` by the model's base, `noise`,
+`denoise_latents`, `i2l` for edits, `l2i`; `esrgan` for Enhance - queued
+through `/api/v1/queue/default/enqueue_batch` and polled) and **Fooocus**
+behind Fooocus-API (`/v1/generation/text-to-image` with an SDXL preset
+size, `/v2/generation/image-upscale-vary` as Vary Subtle/Strong or
+Upscale 1.5x/2x). Every provider of these kinds carries an
+`ImageWorkflow` (checkpoint, negative prompt, steps, CFG, sampler,
+scheduler, seed, upscaler, factor, ComfyUI workflows, extra JSON merged
+into every body), edited on the provider's page; the Graphics form shows
+a Checkpoint field (empty = the provider's) instead of a 1min.AI model id
+and no model row for a self-hosted Enhance. The request shapes follow the
+projects' own API documentation as read on 2026-10-22 and have not been
+run against a live server from this machine. A self-hosted job may take
+minutes on a CPU: its client waits twenty.
+
 **New Image.** From the Image row's context menu in the sidebar, the
 dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a

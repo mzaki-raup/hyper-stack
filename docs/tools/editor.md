@@ -287,19 +287,43 @@ format on save, file exclusions for search, large-file threshold.
   preset points at its `/openai/v1` adapter, whose `/models` is read
   live), plus an **Other model id** field at the bottom for an id the list
   lacks.
-- **Providers** (Settings → AI Assistant, ADR-019 amended 2026-10-16):
-  **Add Provider** opens a gallery of fifteen services in three groups —
-  Hosted Services (OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS
-  Bedrock, Mistral, Moonshot/Kimi, Tencent Hunyuan, 1min.AI), Gateways
-  (OpenRouter, 1min.AI's OpenAI-compatible adapter) and On This Machine
-  (LM Studio, Ollama, vLLM, any other OpenAI-compatible server). Picking a
-  card fills the kind, base URL and default model, and the form shows only
-  the fields that kind needs: a Resource URL, API Version and Deployment
-  for Azure; a Region, Access Key ID and Secret Access Key for Bedrock; an
-  API Key for the rest. **Fetch Models** asks the service for its list
-  (Bedrock cannot, so it offers **Known Models** instead) and **Test
-  Connection** sends a one-line question. Bedrock answers in one piece
-  rather than word by word, which the page says.
+- **Providers** (Settings → AI Assistant, ADR-019 amended 2026-10-16 and
+  2026-10-22): the page is arranged by **capability** - Chat Providers
+  and Image Providers (`hs_core::ai::Capability`) - in the gallery, the
+  provider list and the kind picker, so a chat service and an image
+  server never read as interchangeable. **Add Provider** opens the
+  gallery: under Chat, Hosted Services (OpenAI, Anthropic, Google Gemini,
+  Azure OpenAI, AWS Bedrock, Mistral, DeepSeek in both API shapes,
+  Moonshot/Kimi, Tencent Hunyuan, 1min.AI), Gateways (OpenRouter,
+  1min.AI's OpenAI-compatible adapter) and On This Machine (LM Studio,
+  Ollama, vLLM, any other OpenAI-compatible server); under Image, Hosted
+  (1min.AI) and Self-Hosted Servers (AUTOMATIC1111, SD.Next, Forge,
+  ComfyUI, SwarmUI and its ComfyUI backend, InvokeAI, Fooocus-API, the
+  Stability Matrix packages, any other WebUI API). Picking a card fills
+  the kind, base URL and default model, and the form shows only the fields
+  that kind needs: a Resource URL, API Version and Deployment for Azure; a
+  Region, Access Key ID and Secret Access Key for Bedrock; an API Key for
+  the other chat kinds; a Server URL and an optional Credential
+  (`user:password` for a WebUI's `--api-auth`, SwarmUI's account token, a
+  proxy's bearer token) for an image server, followed by its **Image
+  Workflow** section (checkpoint with Fetch Checkpoints, negative prompt,
+  steps, CFG, sampler, scheduler, seed, upscaler and factor, the three
+  ComfyUI workflows with Customise / Reset to Built-in, and an extra JSON
+  object merged into every request). **Fetch Models** asks the service
+  for its list (Bedrock cannot, so it offers **Known Models** instead) and
+  **Test Connection** sends a one-line question to a chat provider or
+  pings an image server for its version. Bedrock answers in one piece
+  rather than word by word, which the page says. Make Default applies to
+  chat providers; `Ai::chosen()` and `chat_providers()` skip image kinds,
+  which only the Graphics activity lists (`image_providers()`).
+- **Answers are rendered, not shown raw** (owner's request, 2026-10-22):
+  `hs_ui::ai_assistant::markdown_text` reads the prose into blocks -
+  headings, paragraphs with their lines joined, nested bullet and numbered
+  lists, task items, block quotes, rules and **pipe tables drawn as a
+  striped grid** (header row bold, horizontal scroll when wide) - with
+  bold, italic, code, strikethrough and links inline. Every assistant
+  (shared panel, editor panel, user turns) goes through it; fenced code
+  stays a code block with its own actions.
 - **Context**: Auto (the selection when there is one, else the whole file),
   Whole File, Selection Only or No Code. Only the newest request carries the
   code; earlier ones are reduced to their text. Files over 120 000

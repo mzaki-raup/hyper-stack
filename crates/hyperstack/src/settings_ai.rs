@@ -1,14 +1,18 @@
 //! Settings → AI Assistant (ADR-019, docs/tools/editor.md §10): the services
-//! the editor's assistant may call. A provider is one of six kinds —
-//! OpenAI-compatible, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock
-//! or 1min.AI — and adding one starts from a gallery of known services
-//! rather than from an empty form. Keys go into the vault, never into
-//! `settings.toml`.
+//! the assistants may call and the image servers the Graphics activity may
+//! draw on. A provider is one of eleven kinds in two capabilities - chat
+//! (OpenAI-compatible, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock,
+//! 1min.AI) and image (the Stable Diffusion WebUI API, ComfyUI, SwarmUI,
+//! InvokeAI, Fooocus-API; 1min.AI does both) - and adding one starts from
+//! a gallery of known services rather than from an empty form. Keys go
+//! into the vault, never into `settings.toml`; an image server's workflow
+//! settings (checkpoint, sampling, upscaler, ComfyUI workflows) live on
+//! the provider.
 
 use std::sync::Arc;
 
 use hs_core::Services;
-use hs_core::ai::{self, Provider};
+use hs_core::ai::{self, Capability, Provider};
 use hs_core::secrets::SecretRef;
 use hs_core::settings::AiProvider;
 use hs_ui::form;
@@ -64,158 +68,274 @@ struct Service {
     icon: &'static str,
 }
 
-/// The gallery, by group. Everything OpenAI-shaped shares one kind and
-/// differs only in its endpoint.
-const CATALOGUE: &[(&str, &[Service])] = &[
+/// The gallery: a capability, then its groups. Everything OpenAI-shaped
+/// shares one kind and differs only in its endpoint; likewise every
+/// AUTOMATIC1111-shaped image server.
+type Group = (&'static str, &'static [Service]);
+const CATALOGUE: &[(Capability, &[Group])] = &[
     (
-        "ai-group-hosted",
+        Capability::Chat,
         &[
-            Service {
-                name: "OpenAI",
-                kind: Provider::OpenAi,
-                base: ai::OPENAI_BASE,
-                model: "gpt-4o-mini",
-                blurb: "ai-svc-openai",
-                icon: ph::CIRCLES_THREE,
-            },
-            Service {
-                name: "Anthropic",
-                kind: Provider::Anthropic,
-                base: "",
-                model: "claude-sonnet-4-5",
-                blurb: "ai-svc-anthropic",
-                icon: ph::ASTERISK,
-            },
-            Service {
-                name: "Google Gemini",
-                kind: Provider::Gemini,
-                base: "",
-                model: "gemini-2.5-flash",
-                blurb: "ai-svc-gemini",
-                icon: ph::DIAMOND,
-            },
-            Service {
-                name: "Azure OpenAI",
-                kind: Provider::Azure,
-                base: "",
-                model: "",
-                blurb: "ai-svc-azure",
-                icon: ph::CLOUD,
-            },
-            Service {
-                name: "AWS Bedrock",
-                kind: Provider::Bedrock,
-                base: "",
-                model: "",
-                blurb: "ai-svc-bedrock",
-                icon: ph::CLOUD_ARROW_UP,
-            },
-            Service {
-                name: "Mistral",
-                kind: Provider::OpenAi,
-                base: "https://api.mistral.ai/v1",
-                model: "mistral-large-latest",
-                blurb: "ai-svc-mistral",
-                icon: ph::WIND,
-            },
-            Service {
-                name: "DeepSeek",
-                kind: Provider::OpenAi,
-                base: "https://api.deepseek.com",
-                model: "deepseek-flash",
-                blurb: "ai-svc-deepseek",
-                icon: ph::FISH_SIMPLE,
-            },
-            Service {
-                name: "DeepSeek (Anthropic API)",
-                kind: Provider::Anthropic,
-                base: "https://api.deepseek.com/anthropic",
-                model: "deepseek-flash",
-                blurb: "ai-svc-deepseek-anthropic",
-                icon: ph::FISH_SIMPLE,
-            },
-            Service {
-                name: "Moonshot (Kimi)",
-                kind: Provider::OpenAi,
-                base: "https://api.moonshot.ai/v1",
-                model: "kimi-k2-0905-preview",
-                blurb: "ai-svc-moonshot",
-                icon: ph::MOON,
-            },
-            Service {
-                name: "Tencent Hunyuan",
-                kind: Provider::OpenAi,
-                base: "https://api.hunyuan.cloud.tencent.com/v1",
-                model: "hunyuan-turbos-latest",
-                blurb: "ai-svc-hunyuan",
-                icon: ph::TRANSLATE,
-            },
-            Service {
-                name: "1min.AI",
-                kind: Provider::OneMin,
-                base: "",
-                model: "gpt-4o-mini",
-                blurb: "ai-svc-1min",
-                icon: ph::TIMER,
-            },
+            (
+                "ai-group-hosted",
+                &[
+                    Service {
+                        name: "OpenAI",
+                        kind: Provider::OpenAi,
+                        base: ai::OPENAI_BASE,
+                        model: "gpt-4o-mini",
+                        blurb: "ai-svc-openai",
+                        icon: ph::CIRCLES_THREE,
+                    },
+                    Service {
+                        name: "Anthropic",
+                        kind: Provider::Anthropic,
+                        base: "",
+                        model: "claude-sonnet-4-5",
+                        blurb: "ai-svc-anthropic",
+                        icon: ph::ASTERISK,
+                    },
+                    Service {
+                        name: "Google Gemini",
+                        kind: Provider::Gemini,
+                        base: "",
+                        model: "gemini-2.5-flash",
+                        blurb: "ai-svc-gemini",
+                        icon: ph::DIAMOND,
+                    },
+                    Service {
+                        name: "Azure OpenAI",
+                        kind: Provider::Azure,
+                        base: "",
+                        model: "",
+                        blurb: "ai-svc-azure",
+                        icon: ph::CLOUD,
+                    },
+                    Service {
+                        name: "AWS Bedrock",
+                        kind: Provider::Bedrock,
+                        base: "",
+                        model: "",
+                        blurb: "ai-svc-bedrock",
+                        icon: ph::CLOUD_ARROW_UP,
+                    },
+                    Service {
+                        name: "Mistral",
+                        kind: Provider::OpenAi,
+                        base: "https://api.mistral.ai/v1",
+                        model: "mistral-large-latest",
+                        blurb: "ai-svc-mistral",
+                        icon: ph::WIND,
+                    },
+                    Service {
+                        name: "DeepSeek",
+                        kind: Provider::OpenAi,
+                        base: "https://api.deepseek.com",
+                        model: "deepseek-flash",
+                        blurb: "ai-svc-deepseek",
+                        icon: ph::FISH_SIMPLE,
+                    },
+                    Service {
+                        name: "DeepSeek (Anthropic API)",
+                        kind: Provider::Anthropic,
+                        base: "https://api.deepseek.com/anthropic",
+                        model: "deepseek-flash",
+                        blurb: "ai-svc-deepseek-anthropic",
+                        icon: ph::FISH_SIMPLE,
+                    },
+                    Service {
+                        name: "Moonshot (Kimi)",
+                        kind: Provider::OpenAi,
+                        base: "https://api.moonshot.ai/v1",
+                        model: "kimi-k2-0905-preview",
+                        blurb: "ai-svc-moonshot",
+                        icon: ph::MOON,
+                    },
+                    Service {
+                        name: "Tencent Hunyuan",
+                        kind: Provider::OpenAi,
+                        base: "https://api.hunyuan.cloud.tencent.com/v1",
+                        model: "hunyuan-turbos-latest",
+                        blurb: "ai-svc-hunyuan",
+                        icon: ph::TRANSLATE,
+                    },
+                    Service {
+                        name: "1min.AI",
+                        kind: Provider::OneMin,
+                        base: "",
+                        model: "gpt-4o-mini",
+                        blurb: "ai-svc-1min",
+                        icon: ph::TIMER,
+                    },
+                ],
+            ),
+            (
+                "ai-group-gateway",
+                &[
+                    Service {
+                        name: "OpenRouter",
+                        kind: Provider::OpenAi,
+                        base: "https://openrouter.ai/api/v1",
+                        model: "",
+                        blurb: "ai-svc-openrouter",
+                        icon: ph::ARROWS_SPLIT,
+                    },
+                    Service {
+                        name: "1min.AI (OpenAI-Compatible)",
+                        kind: Provider::OpenAi,
+                        base: "https://api.1min.ai/openai/v1",
+                        model: "gpt-4o-mini",
+                        blurb: "ai-svc-1min-openai",
+                        icon: ph::TIMER,
+                    },
+                ],
+            ),
+            (
+                "ai-group-local",
+                &[
+                    Service {
+                        name: "LM Studio",
+                        kind: Provider::OpenAi,
+                        base: "http://localhost:1234/v1",
+                        model: "",
+                        blurb: "ai-svc-lmstudio",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "Ollama",
+                        kind: Provider::OpenAi,
+                        base: "http://localhost:11434/v1",
+                        model: "",
+                        blurb: "ai-svc-ollama",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "vLLM",
+                        kind: Provider::OpenAi,
+                        base: "http://localhost:8000/v1",
+                        model: "",
+                        blurb: "ai-svc-vllm",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "Other OpenAI-Compatible",
+                        kind: Provider::OpenAi,
+                        base: "",
+                        model: "",
+                        blurb: "ai-svc-other",
+                        icon: ph::PLUGS_CONNECTED,
+                    },
+                ],
+            ),
         ],
     ),
     (
-        "ai-group-gateway",
+        Capability::Image,
         &[
-            Service {
-                name: "OpenRouter",
-                kind: Provider::OpenAi,
-                base: "https://openrouter.ai/api/v1",
-                model: "",
-                blurb: "ai-svc-openrouter",
-                icon: ph::ARROWS_SPLIT,
-            },
-            Service {
-                name: "1min.AI (OpenAI-Compatible)",
-                kind: Provider::OpenAi,
-                base: "https://api.1min.ai/openai/v1",
-                model: "gpt-4o-mini",
-                blurb: "ai-svc-1min-openai",
-                icon: ph::TIMER,
-            },
-        ],
-    ),
-    (
-        "ai-group-local",
-        &[
-            Service {
-                name: "LM Studio",
-                kind: Provider::OpenAi,
-                base: "http://localhost:1234/v1",
-                model: "",
-                blurb: "ai-svc-lmstudio",
-                icon: ph::DESKTOP,
-            },
-            Service {
-                name: "Ollama",
-                kind: Provider::OpenAi,
-                base: "http://localhost:11434/v1",
-                model: "",
-                blurb: "ai-svc-ollama",
-                icon: ph::DESKTOP,
-            },
-            Service {
-                name: "vLLM",
-                kind: Provider::OpenAi,
-                base: "http://localhost:8000/v1",
-                model: "",
-                blurb: "ai-svc-vllm",
-                icon: ph::DESKTOP,
-            },
-            Service {
-                name: "Other OpenAI-Compatible",
-                kind: Provider::OpenAi,
-                base: "",
-                model: "",
-                blurb: "ai-svc-other",
-                icon: ph::PLUGS_CONNECTED,
-            },
+            (
+                "ai-group-image-hosted",
+                &[Service {
+                    name: "1min.AI (Images)",
+                    kind: Provider::OneMin,
+                    base: "",
+                    model: "gpt-4o-mini",
+                    blurb: "ai-svc-1min-images",
+                    icon: ph::IMAGE,
+                }],
+            ),
+            (
+                "ai-group-image-local",
+                &[
+                    Service {
+                        name: "AUTOMATIC1111",
+                        kind: Provider::SdWebUi,
+                        base: "http://127.0.0.1:7860",
+                        model: "",
+                        blurb: "ai-svc-a1111",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "SD.Next",
+                        kind: Provider::SdWebUi,
+                        base: "http://127.0.0.1:7860",
+                        model: "",
+                        blurb: "ai-svc-sdnext",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "Forge",
+                        kind: Provider::SdWebUi,
+                        base: "http://127.0.0.1:7860",
+                        model: "",
+                        blurb: "ai-svc-forge",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "ComfyUI",
+                        kind: Provider::ComfyUi,
+                        base: "http://127.0.0.1:8188",
+                        model: "",
+                        blurb: "ai-svc-comfyui",
+                        icon: ph::GRAPH,
+                    },
+                    Service {
+                        name: "SwarmUI",
+                        kind: Provider::SwarmUi,
+                        base: "http://127.0.0.1:7801",
+                        model: "",
+                        blurb: "ai-svc-swarmui",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "SwarmUI (ComfyUI Backend)",
+                        kind: Provider::ComfyUi,
+                        base: "http://127.0.0.1:7801/ComfyBackendDirect",
+                        model: "",
+                        blurb: "ai-svc-swarmui-comfy",
+                        icon: ph::GRAPH,
+                    },
+                    Service {
+                        name: "InvokeAI",
+                        kind: Provider::InvokeAi,
+                        base: "http://127.0.0.1:9090",
+                        model: "",
+                        blurb: "ai-svc-invokeai",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "Fooocus (Fooocus-API)",
+                        kind: Provider::Fooocus,
+                        base: "http://127.0.0.1:8888",
+                        model: "",
+                        blurb: "ai-svc-fooocus",
+                        icon: ph::DESKTOP,
+                    },
+                    Service {
+                        name: "Stability Matrix (WebUI Package)",
+                        kind: Provider::SdWebUi,
+                        base: "http://127.0.0.1:7860",
+                        model: "",
+                        blurb: "ai-svc-stability-matrix-webui",
+                        icon: ph::SQUARES_FOUR,
+                    },
+                    Service {
+                        name: "Stability Matrix (ComfyUI Package)",
+                        kind: Provider::ComfyUi,
+                        base: "http://127.0.0.1:8188",
+                        model: "",
+                        blurb: "ai-svc-stability-matrix-comfy",
+                        icon: ph::SQUARES_FOUR,
+                    },
+                    Service {
+                        name: "Other WebUI API",
+                        kind: Provider::SdWebUi,
+                        base: "",
+                        model: "",
+                        blurb: "ai-svc-other-webui",
+                        icon: ph::PLUGS_CONNECTED,
+                    },
+                ],
+            ),
         ],
     ),
 ];
@@ -228,6 +348,25 @@ fn kind_label(s: &Services, k: Provider) -> String {
         Provider::Gemini => s.t("ai-kind-gemini"),
         Provider::Azure => s.t("ai-kind-azure"),
         Provider::Bedrock => s.t("ai-kind-bedrock"),
+        Provider::SdWebUi => s.t("ai-kind-sdwebui"),
+        Provider::ComfyUi => s.t("ai-kind-comfyui"),
+        Provider::SwarmUi => s.t("ai-kind-swarmui"),
+        Provider::InvokeAi => s.t("ai-kind-invokeai"),
+        Provider::Fooocus => s.t("ai-kind-fooocus"),
+    }
+}
+
+fn capability_label(s: &Services, c: Capability) -> String {
+    match c {
+        Capability::Chat => s.t("ai-cap-chat"),
+        Capability::Image => s.t("ai-cap-image"),
+    }
+}
+
+fn capability_icon(c: Capability) -> &'static str {
+    match c {
+        Capability::Chat => ph::CHAT_CIRCLE_TEXT,
+        Capability::Image => ph::IMAGE,
     }
 }
 
@@ -260,7 +399,7 @@ pub fn page(
     ui.add_space(8.0);
     // The right column needs a real width: inside a horizontal layout
     // `available_width` is unbounded, and a wrapped row would never wrap.
-    let list_width = 210.0;
+    let list_width = 230.0;
     let right_width = (ui.available_width() - list_width - 16.0).max(320.0);
     ui.horizontal_top(|ui| {
         ui.vertical(|ui| {
@@ -282,36 +421,63 @@ pub fn page(
             if list.is_empty() {
                 form::hint(ui, theme, &s.t("ai-none"));
             }
-            for p in list {
-                let star = if default_id.as_deref() == Some(&p.id) {
-                    "★ "
-                } else {
-                    ""
-                };
-                let what = if p.model.is_empty() {
-                    kind_label(s, p.kind)
-                } else {
-                    p.model.clone()
-                };
-                let mut sub = format!("{star}{what}");
-                if sub.chars().count() > 30 {
-                    sub = format!("{}…", sub.chars().take(29).collect::<String>());
+            // One list per capability, so a chat service and an image
+            // server never read as interchangeable.
+            for cap in [Capability::Chat, Capability::Image] {
+                let rows: Vec<&AiProvider> =
+                    list.iter().filter(|p| p.kind.capability() == cap).collect();
+                if rows.is_empty() {
+                    continue;
                 }
-                if form::list_row(
-                    ui,
-                    theme,
-                    state.selected.as_deref() == Some(&p.id),
-                    ph::SPARKLE,
-                    &p.name,
-                    Some(&sub),
-                )
-                .clicked()
-                {
-                    state.picking = false;
-                    state.selected = Some(p.id.clone());
-                    state.draft = Some(Draft::new(p));
-                }
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        capability_icon(cap),
+                        capability_label(s, cap)
+                    ))
+                    .small()
+                    .strong()
+                    .color(theme.text_muted),
+                );
                 ui.add_space(2.0);
+                for p in rows {
+                    let star = if default_id.as_deref() == Some(&p.id) {
+                        "★ "
+                    } else {
+                        ""
+                    };
+                    let what = match cap {
+                        Capability::Chat if !p.model.is_empty() => p.model.clone(),
+                        Capability::Image if !p.image.checkpoint.is_empty() => {
+                            p.image.checkpoint.clone()
+                        }
+                        _ => kind_label(s, p.kind),
+                    };
+                    let mut sub = format!("{star}{what}");
+                    if sub.chars().count() > 30 {
+                        sub = format!("{}…", sub.chars().take(29).collect::<String>());
+                    }
+                    if form::list_row(
+                        ui,
+                        theme,
+                        state.selected.as_deref() == Some(&p.id),
+                        if cap == Capability::Chat {
+                            ph::SPARKLE
+                        } else {
+                            ph::IMAGE
+                        },
+                        &p.name,
+                        Some(&sub),
+                    )
+                    .clicked()
+                    {
+                        state.picking = false;
+                        state.selected = Some(p.id.clone());
+                        state.draft = Some(Draft::new(p.clone()));
+                    }
+                    ui.add_space(2.0);
+                }
             }
         });
         ui.add_space(12.0);
@@ -348,42 +514,67 @@ fn gallery(ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<AiProvider>
     let mut chosen = None;
     form::section(ui, theme, &s.t("ai-add-title"), |ui| {
         form::hint(ui, theme, &s.t("ai-add-hint"));
-        for (group, services) in CATALOGUE {
-            ui.add_space(8.0);
-            ui.label(
-                egui::RichText::new(s.t(group))
-                    .small()
-                    .strong()
-                    .color(theme.text_muted),
+        for (cap, groups) in CATALOGUE {
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(capability_icon(*cap))
+                        .size(16.0)
+                        .color(theme.accent),
+                );
+                ui.label(
+                    egui::RichText::new(capability_label(s, *cap))
+                        .size(14.0)
+                        .strong(),
+                );
+            });
+            form::hint(
+                ui,
+                theme,
+                &s.t(match cap {
+                    Capability::Chat => "ai-cap-chat-hint",
+                    Capability::Image => "ai-cap-image-hint",
+                }),
             );
-            ui.add_space(4.0);
-            // A computed grid, not `horizontal_wrapped`: that wraps on the
-            // size a widget reports *before* it is drawn, which a frame
-            // cannot do, so a row of cards would run past the panel.
-            let spacing = 8.0;
-            let columns = (((ui.available_width() + spacing) / (CARD_WIDTH + spacing)).floor()
-                as usize)
-                .max(1);
-            for row in services.chunks(columns) {
-                // Top-aligned: `horizontal` centres its items vertically, which
-                // would stagger cards whose text wraps differently.
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = spacing;
-                    for svc in row {
-                        if service_card(ui, theme, s, svc).clicked() {
-                            chosen = Some(AiProvider {
-                                id: hs_core::new_id(),
-                                name: svc.name.to_string(),
-                                kind: svc.kind,
-                                base_url: svc.base.to_string(),
-                                model: svc.model.to_string(),
-                                ..Default::default()
-                            });
+            for (group, services) in *groups {
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(s.t(group))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                );
+                ui.add_space(4.0);
+                // A computed grid, not `horizontal_wrapped`: that wraps on the
+                // size a widget reports *before* it is drawn, which a frame
+                // cannot do, so a row of cards would run past the panel.
+                let spacing = 8.0;
+                let columns = (((ui.available_width() + spacing) / (CARD_WIDTH + spacing)).floor()
+                    as usize)
+                    .max(1);
+                for row in services.chunks(columns) {
+                    // Top-aligned: `horizontal` centres its items vertically,
+                    // which would stagger cards whose text wraps differently.
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = spacing;
+                        for svc in row {
+                            if service_card(ui, theme, s, svc).clicked() {
+                                chosen = Some(AiProvider {
+                                    id: hs_core::new_id(),
+                                    name: svc.name.to_string(),
+                                    kind: svc.kind,
+                                    base_url: svc.base.to_string(),
+                                    model: svc.model.to_string(),
+                                    ..Default::default()
+                                });
+                            }
                         }
-                    }
-                });
-                ui.add_space(spacing);
+                    });
+                    ui.add_space(spacing);
+                }
             }
+            ui.add_space(4.0);
+            ui.separator();
         }
     });
     chosen
@@ -447,6 +638,7 @@ fn form_body(
     close: &mut bool,
 ) {
     let kind = d.provider.kind;
+    let cap = kind.capability();
     form::section(ui, theme, &s.t("ai-section-provider"), |ui| {
         form::field_grid(ui, "ai-form", |ui| {
             form::label(ui, &s.t("ai-name"));
@@ -457,8 +649,15 @@ fn form_body(
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(kind_label(s, d.provider.kind))
                 .show_ui(ui, |ui| {
-                    for k in Provider::all() {
-                        ui.selectable_value(&mut d.provider.kind, k, kind_label(s, k));
+                    for c in [Capability::Chat, Capability::Image] {
+                        ui.label(
+                            egui::RichText::new(capability_label(s, c))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                        for k in Provider::all().into_iter().filter(|k| k.capability() == c) {
+                            ui.selectable_value(&mut d.provider.kind, k, kind_label(s, k));
+                        }
                     }
                 });
             ui.end_row();
@@ -466,6 +665,8 @@ fn form_body(
                 ui,
                 &s.t(if kind.needs_base() {
                     "ai-resource-url"
+                } else if kind.self_hosted() {
+                    "ai-server-url"
                 } else {
                     "ai-base-url"
                 }),
@@ -486,6 +687,8 @@ fn form_body(
                 ui,
                 &s.t(if kind.needs_secret() {
                     "ai-access-key"
+                } else if kind.self_hosted() {
+                    "ai-credential"
                 } else {
                     "ai-api-key"
                 }),
@@ -494,7 +697,12 @@ fn form_body(
             let hint = if stored {
                 s.t("ai-api-key-stored")
             } else {
-                s.t("ai-api-key-hint")
+                s.t(match kind {
+                    Provider::SdWebUi => "ai-credential-hint-webui",
+                    Provider::SwarmUi => "ai-credential-hint-swarm",
+                    k if k.self_hosted() => "ai-credential-hint-local",
+                    _ => "ai-api-key-hint",
+                })
             };
             form::secret_field(ui, &mut d.key, &hint, form::FIELD_MIN_WIDTH);
             ui.end_row();
@@ -509,61 +717,59 @@ fn form_body(
                 form::secret_field(ui, &mut d.secret, &hint, form::FIELD_MIN_WIDTH);
                 ui.end_row();
             }
-            form::label(
+            if cap == Capability::Chat {
+                form::label(
+                    ui,
+                    &s.t(if kind == Provider::Azure {
+                        "ai-deployment"
+                    } else {
+                        "ai-model"
+                    }),
+                );
+                model_field(ui, d, "ai-models", |p| &mut p.model, kind.default_model());
+                ui.end_row();
+            }
+        });
+        if cap == Capability::Chat {
+            form::hint(
                 ui,
-                &s.t(if kind == Provider::Azure {
-                    "ai-deployment"
-                } else {
-                    "ai-model"
+                theme,
+                &s.t(match kind {
+                    Provider::OneMin => "ai-model-hint-1min",
+                    Provider::Anthropic => "ai-model-hint-anthropic",
+                    Provider::Gemini => "ai-model-hint-gemini",
+                    Provider::Azure => "ai-model-hint-azure",
+                    Provider::Bedrock => "ai-model-hint-bedrock",
+                    _ => "ai-model-hint-openai",
                 }),
             );
-            ui.horizontal(|ui| {
-                let models = d
-                    .models
-                    .as_ref()
-                    .and_then(|m| m.lock().clone())
-                    .and_then(Result::ok)
-                    .unwrap_or_default();
-                form::text_field_width(
-                    ui,
-                    &mut d.provider.model,
-                    d.provider.kind.default_model(),
-                    form::FIELD_MIN_WIDTH - 34.0,
-                );
-                if !models.is_empty() {
-                    egui::ComboBox::from_id_salt("ai-models")
-                        .width(24.0)
-                        .selected_text("")
-                        .show_ui(ui, |ui| {
-                            for m in models {
-                                ui.selectable_value(&mut d.provider.model, m.clone(), m);
-                            }
-                        });
-                }
-            });
-            ui.end_row();
-        });
-        form::hint(
-            ui,
-            theme,
-            &s.t(match kind {
-                Provider::OneMin => "ai-model-hint-1min",
-                Provider::Anthropic => "ai-model-hint-anthropic",
-                Provider::Gemini => "ai-model-hint-gemini",
-                Provider::Azure => "ai-model-hint-azure",
-                Provider::Bedrock => "ai-model-hint-bedrock",
-                Provider::OpenAi => "ai-model-hint-openai",
-            }),
-        );
+        } else {
+            form::hint(
+                ui,
+                theme,
+                &s.t(match kind {
+                    Provider::SdWebUi => "ai-server-hint-webui",
+                    Provider::ComfyUi => "ai-server-hint-comfyui",
+                    Provider::SwarmUi => "ai-server-hint-swarmui",
+                    Provider::InvokeAi => "ai-server-hint-invokeai",
+                    _ => "ai-server-hint-fooocus",
+                }),
+            );
+        }
         if kind.whole_answer_only() {
             form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-no-stream-note"));
         }
         ui.add_space(6.0);
         ui.horizontal(|ui| {
+            let fetch_label = if cap == Capability::Image {
+                s.t("ai-fetch-checkpoints")
+            } else {
+                s.t("ai-fetch-models")
+            };
             if ui
                 .add_enabled(
                     kind.lists_models(),
-                    egui::Button::new(format!("{} {}", ph::LIST, s.t("ai-fetch-models"))),
+                    egui::Button::new(format!("{} {}", ph::LIST, fetch_label)),
                 )
                 .tip(s.t("ai-fetch-models-tip"))
                 .clicked()
@@ -571,6 +777,7 @@ fn form_body(
                 d.models = Some(probe(s, d, false));
             }
             if !kind.lists_models()
+                && cap == Capability::Chat
                 && ui
                     .button(format!("{} {}", ph::LIST, s.t("ai-known-models")))
                     .tip(s.t("ai-known-models-tip"))
@@ -580,7 +787,11 @@ fn form_body(
             }
             if ui
                 .button(format!("{} {}", ph::PLUGS_CONNECTED, s.t("ai-test")))
-                .tip(s.t("ai-test-tip"))
+                .tip(s.t(if cap == Capability::Image {
+                    "ai-test-tip-image"
+                } else {
+                    "ai-test-tip"
+                }))
                 .clicked()
             {
                 d.test = Some(probe(s, d, true));
@@ -610,6 +821,9 @@ fn form_body(
             }
         }
     });
+    if cap == Capability::Image {
+        workflow_section(ui, theme, s, d);
+    }
     ui.horizontal(|ui| {
         if form::primary_button(ui, theme, &s.t("save")).clicked() {
             save(s, d, effects, changed);
@@ -621,7 +835,10 @@ fn form_body(
             .providers
             .iter()
             .any(|p| p.id == d.provider.id);
-        if exists && ui.button(format!("★ {}", s.t("ai-make-default"))).clicked() {
+        if exists
+            && cap == Capability::Chat
+            && ui.button(format!("★ {}", s.t("ai-make-default"))).clicked()
+        {
             s.settings.write().ai.default_provider = d.provider.id.clone();
             *changed = true;
         }
@@ -639,6 +856,174 @@ fn form_body(
             }
             *changed = true;
             *close = true;
+        }
+    });
+}
+
+/// A text field with the fetched list beside it as a picker.
+fn model_field(
+    ui: &mut egui::Ui,
+    d: &mut Draft,
+    id: &str,
+    field: impl Fn(&mut AiProvider) -> &mut String,
+    placeholder: &str,
+) {
+    ui.horizontal(|ui| {
+        let models = d
+            .models
+            .as_ref()
+            .and_then(|m| m.lock().clone())
+            .and_then(Result::ok)
+            .unwrap_or_default();
+        form::text_field_width(
+            ui,
+            field(&mut d.provider),
+            placeholder,
+            form::FIELD_MIN_WIDTH - 34.0,
+        );
+        if !models.is_empty() {
+            egui::ComboBox::from_id_salt(id)
+                .width(24.0)
+                .selected_text("")
+                .show_ui(ui, |ui| {
+                    for m in models {
+                        ui.selectable_value(field(&mut d.provider), m.clone(), m);
+                    }
+                });
+        }
+    });
+}
+
+/// The image server's workflow: what every request carries, and for
+/// ComfyUI the workflows themselves.
+fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft) {
+    let kind = d.provider.kind;
+    form::section(ui, theme, &s.t("ai-section-workflow"), |ui| {
+        form::hint(ui, theme, &s.t("ai-workflow-hint"));
+        ui.add_space(4.0);
+        form::field_grid(ui, "ai-workflow", |ui| {
+            form::label(ui, &s.t("ai-checkpoint"));
+            model_field(
+                ui,
+                d,
+                "ai-checkpoints",
+                |p| &mut p.image.checkpoint,
+                &s.t("ai-checkpoint-hint"),
+            );
+            ui.end_row();
+            let w = &mut d.provider.image;
+            form::label(ui, &s.t("ai-negative-prompt"));
+            ui.add(
+                egui::TextEdit::multiline(&mut w.negative_prompt)
+                    .desired_rows(2)
+                    .desired_width(form::FIELD_MIN_WIDTH)
+                    .hint_text(s.t("ai-negative-prompt-hint")),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-steps"));
+            ui.add(egui::DragValue::new(&mut w.steps).range(1..=150));
+            ui.end_row();
+            form::label(ui, &s.t("ai-cfg-scale"));
+            ui.add(
+                egui::DragValue::new(&mut w.cfg_scale)
+                    .range(0.0..=30.0)
+                    .speed(0.1)
+                    .fixed_decimals(1),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-sampler"));
+            form::text_field(
+                ui,
+                &mut w.sampler,
+                &s.t(match kind {
+                    Provider::ComfyUi => "ai-sampler-hint-comfy",
+                    _ => "ai-sampler-hint",
+                }),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-scheduler"));
+            form::text_field(ui, &mut w.scheduler, &s.t("ai-scheduler-hint"));
+            ui.end_row();
+            form::label(ui, &s.t("ai-seed"));
+            ui.add(egui::DragValue::new(&mut w.seed).range(-1..=i64::MAX));
+            ui.end_row();
+            form::label(ui, &s.t("ai-upscaler"));
+            form::text_field(
+                ui,
+                &mut w.upscaler,
+                &s.t(match kind {
+                    Provider::SdWebUi => "ai-upscaler-hint-webui",
+                    Provider::ComfyUi | Provider::InvokeAi => "ai-upscaler-hint-model",
+                    _ => "ai-upscaler-hint-none",
+                }),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-upscale-factor"));
+            ui.add(egui::DragValue::new(&mut w.upscale_factor).range(1..=8));
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("ai-seed-hint"));
+        let w = &mut d.provider.image;
+        if kind == Provider::ComfyUi {
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(s.t("ai-comfy-workflows")).strong());
+            form::hint(ui, theme, &s.t("ai-comfy-workflows-hint"));
+            for (key, text, builtin) in [
+                (
+                    "ai-comfy-generate",
+                    &mut w.comfy_generate,
+                    hs_core::ai_local::COMFY_GENERATE,
+                ),
+                (
+                    "ai-comfy-edit",
+                    &mut w.comfy_edit,
+                    hs_core::ai_local::COMFY_EDIT,
+                ),
+                (
+                    "ai-comfy-enhance",
+                    &mut w.comfy_enhance,
+                    hs_core::ai_local::COMFY_ENHANCE,
+                ),
+            ] {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(s.t(key));
+                    if text.trim().is_empty() {
+                        ui.label(
+                            egui::RichText::new(s.t("ai-comfy-builtin"))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                        if ui.small_button(s.t("ai-comfy-customise")).clicked() {
+                            *text = builtin.to_string();
+                        }
+                    } else if ui.small_button(s.t("ai-comfy-reset")).clicked() {
+                        text.clear();
+                    }
+                });
+                if !text.trim().is_empty() {
+                    form::code_field(ui, text, 8);
+                }
+            }
+        }
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new(s.t("ai-extra-json")).strong());
+        form::hint(
+            ui,
+            theme,
+            &s.t(match kind {
+                Provider::SdWebUi => "ai-extra-json-hint-webui",
+                Provider::ComfyUi => "ai-extra-json-hint-comfy",
+                Provider::SwarmUi => "ai-extra-json-hint-swarm",
+                Provider::InvokeAi => "ai-extra-json-hint-invoke",
+                _ => "ai-extra-json-hint-fooocus",
+            }),
+        );
+        form::code_field(ui, &mut w.extra, 3);
+        if !w.extra.trim().is_empty()
+            && serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&w.extra).is_err()
+        {
+            ui.colored_label(theme.error, s.t("ai-extra-json-invalid"));
         }
     });
 }
@@ -682,8 +1067,9 @@ fn save(s: &Services, d: &mut Draft, effects: &mut Vec<SettingsEffect>, changed:
     ));
 }
 
-/// Fetch the model list (`test == false`) or send a one-line chat, on the
-/// runtime; typed credentials are used when there are any, else the vault's.
+/// Fetch the model list (`test == false`) or send a one-line chat (an
+/// image server is pinged instead), on the runtime; typed credentials are
+/// used when there are any, else the vault's.
 fn probe(s: &Services, d: &Draft, test: bool) -> Probe {
     let out: Probe = Arc::new(Mutex::new(None));
     let typed = d.key.clone();
@@ -720,7 +1106,12 @@ fn probe(s: &Services, d: &Draft, test: bool) -> Probe {
             Err(e) => Err(e),
             Ok(creds) => {
                 let http = ai::http_client();
-                if test {
+                if test && cfg.provider.self_hosted() {
+                    hs_core::ai_local::ping(&http, &cfg, &creds)
+                        .await
+                        .map(|a| vec![a])
+                        .map_err(|e| e.to_string())
+                } else if test {
                     let msgs = [ai::Message::new(
                         ai::Role::User,
                         "Reply with the single word OK.",

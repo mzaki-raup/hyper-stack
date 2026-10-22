@@ -354,7 +354,7 @@ impl AssistantPanel {
                 }
             }
         }
-        let providers = s.settings.read().ai.providers.clone();
+        let providers = s.settings.read().ai.chat_providers();
         if !providers.iter().any(|p| p.id == self.provider)
             && let Some(p) = s.settings.read().ai.chosen().cloned()
         {
@@ -700,72 +700,339 @@ impl Drop for AssistantPanel {
     }
 }
 
-/// A deliberately small Markdown renderer for assistant prose: headings,
-/// bullets, bold, italic and inline code. Fenced code is already split out by
-/// `split_fences` (or, for a tool with its own fence-splitting loop, by the
-/// caller), so this never has to guess at a fence.
-pub fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
-    for line in text.lines() {
-        let trimmed = line.trim_end();
-        if trimmed.trim().is_empty() {
-            ui.add_space(3.0);
+/// One block of assistant prose, as `parse_blocks` reads it. Fenced code
+/// never reaches here (`split_fences` takes it out first).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Block {
+    Heading(u8, String),
+    /// Consecutive plain lines joined with spaces, as Markdown reads them.
+    Paragraph(String),
+    /// `depth` is the nesting level (two spaces or a tab per level);
+    /// `check` is a task item's box.
+    Bullet {
+        depth: usize,
+        text: String,
+        check: Option<bool>,
+    },
+    Numbered {
+        depth: usize,
+        label: String,
+        text: String,
+    },
+    Quote(String),
+    Rule,
+    Table {
+        header: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
+}
+
+/// Split a pipe row into its cells; a `\|` stays in the cell.
+fn table_cells(line: &str) -> Vec<String> {
+    let t = line.trim();
+    let t = t.strip_prefix('|').unwrap_or(t);
+    let t = t.strip_suffix('|').unwrap_or(t);
+    let mut cells = Vec::new();
+    let mut cur = String::new();
+    let mut chars = t.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' && chars.peek() == Some(&'|') {
+            cur.push('|');
+            chars.next();
+        } else if c == '|' {
+            cells.push(cur.trim().to_string());
+            cur.clear();
+        } else {
+            cur.push(c);
+        }
+    }
+    cells.push(cur.trim().to_string());
+    cells
+}
+
+/// `| --- | :---: |` under a header row.
+fn is_table_separator(line: &str) -> bool {
+    let t = line.trim();
+    if !t.contains('-') || !t.contains('|') && !t.starts_with(':') {
+        return false;
+    }
+    table_cells(t).iter().all(|c| {
+        let c = c.trim_start_matches(':').trim_end_matches(':');
+        !c.is_empty() && c.chars().all(|ch| ch == '-')
+    })
+}
+
+fn list_depth(line: &str) -> usize {
+    let mut spaces = 0;
+    for c in line.chars() {
+        match c {
+            ' ' => spaces += 1,
+            '\t' => spaces += 4,
+            _ => break,
+        }
+    }
+    spaces / 2
+}
+
+/// A numbered item: `1. text`, `12) text`.
+fn numbered(line: &str) -> Option<(String, &str)> {
+    let t = line.trim_start();
+    let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() || digits.len() > 4 {
+        return None;
+    }
+    let rest = &t[digits.len()..];
+    let rest = rest
+        .strip_prefix(". ")
+        .or_else(|| rest.strip_prefix(") "))?;
+    Some((format!("{digits}."), rest))
+}
+
+/// Read assistant prose into blocks: headings, paragraphs (lines joined),
+/// nested bullet and numbered lists, task items, quotes, rules and pipe
+/// tables.
+pub fn parse_blocks(text: &str) -> Vec<Block> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut blocks = Vec::new();
+    let mut para: Vec<&str> = Vec::new();
+    let mut i = 0;
+    let flush = |para: &mut Vec<&str>, blocks: &mut Vec<Block>| {
+        if !para.is_empty() {
+            let joined = para.iter().map(|l| l.trim()).collect::<Vec<_>>().join(" ");
+            blocks.push(Block::Paragraph(joined));
+            para.clear();
+        }
+    };
+    while i < lines.len() {
+        let line = lines[i].trim_end();
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            flush(&mut para, &mut blocks);
+            i += 1;
             continue;
         }
-        if let Some(heading) = trimmed.strip_prefix("### ") {
-            ui.label(egui::RichText::new(heading).strong().size(14.0));
+        // A table: a pipe row followed by its separator row.
+        if trimmed.contains('|') && i + 1 < lines.len() && is_table_separator(lines[i + 1]) {
+            flush(&mut para, &mut blocks);
+            let header = table_cells(trimmed);
+            let mut rows = Vec::new();
+            i += 2;
+            while i < lines.len() {
+                let r = lines[i].trim();
+                if r.is_empty() || !r.contains('|') {
+                    break;
+                }
+                let mut cells = table_cells(r);
+                cells.resize(header.len(), String::new());
+                rows.push(cells);
+                i += 1;
+            }
+            blocks.push(Block::Table { header, rows });
             continue;
         }
-        if let Some(heading) = trimmed.strip_prefix("## ") {
-            ui.label(egui::RichText::new(heading).strong().size(15.0));
+        if trimmed.len() >= 3
+            && (trimmed.chars().all(|c| c == '-')
+                || trimmed.chars().all(|c| c == '*')
+                || trimmed.chars().all(|c| c == '_'))
+        {
+            flush(&mut para, &mut blocks);
+            blocks.push(Block::Rule);
+            i += 1;
             continue;
         }
-        if let Some(heading) = trimmed.strip_prefix("# ") {
-            ui.label(egui::RichText::new(heading).strong().size(16.0));
+        let hashes = trimmed.chars().take_while(|c| *c == '#').count();
+        if (1..=6).contains(&hashes) && trimmed[hashes..].starts_with(' ') {
+            flush(&mut para, &mut blocks);
+            blocks.push(Block::Heading(
+                hashes as u8,
+                trimmed[hashes..]
+                    .trim()
+                    .trim_end_matches('#')
+                    .trim()
+                    .to_string(),
+            ));
+            i += 1;
             continue;
         }
+        if let Some(q) = trimmed.strip_prefix('>') {
+            flush(&mut para, &mut blocks);
+            // Quote lines run together like a paragraph.
+            let mut parts = vec![q.trim().to_string()];
+            while i + 1 < lines.len() && lines[i + 1].trim().starts_with('>') {
+                i += 1;
+                parts.push(lines[i].trim()[1..].trim().to_string());
+            }
+            blocks.push(Block::Quote(parts.join(" ")));
+            i += 1;
+            continue;
+        }
+        let depth = list_depth(line);
         if let Some(item) = trimmed
             .strip_prefix("- ")
             .or_else(|| trimmed.strip_prefix("* "))
+            .or_else(|| trimmed.strip_prefix("+ "))
         {
-            ui.horizontal_wrapped(|ui| {
-                ui.label("•");
-                inline_markdown(ui, item, theme);
+            flush(&mut para, &mut blocks);
+            let (check, text) = if let Some(t) = item.strip_prefix("[ ] ") {
+                (Some(false), t)
+            } else if let Some(t) = item
+                .strip_prefix("[x] ")
+                .or_else(|| item.strip_prefix("[X] "))
+            {
+                (Some(true), t)
+            } else {
+                (None, item)
+            };
+            blocks.push(Block::Bullet {
+                depth,
+                text: text.to_string(),
+                check,
             });
+            i += 1;
             continue;
         }
-        inline_markdown(ui, trimmed, theme);
+        if let Some((label, rest)) = numbered(line) {
+            flush(&mut para, &mut blocks);
+            blocks.push(Block::Numbered {
+                depth,
+                label,
+                text: rest.to_string(),
+            });
+            i += 1;
+            continue;
+        }
+        para.push(line);
+        i += 1;
+    }
+    flush(&mut para, &mut blocks);
+    blocks
+}
+
+/// A deliberately small Markdown renderer for assistant prose: headings,
+/// paragraphs, nested bullet and numbered lists, task items, quotes,
+/// rules, pipe tables, and bold / italic / code / links / strikethrough
+/// inline. Fenced code is already split out by `split_fences` (or, for a
+/// tool with its own fence-splitting loop, by the caller), so this never
+/// has to guess at a fence.
+pub fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
+    let indent = 16.0;
+    for block in parse_blocks(text) {
+        match block {
+            Block::Heading(level, text) => {
+                let size = match level {
+                    1 => 16.0,
+                    2 => 15.0,
+                    3 => 14.0,
+                    _ => 13.5,
+                };
+                ui.add_space(2.0);
+                ui.label(egui::RichText::new(text).strong().size(size));
+            }
+            Block::Paragraph(text) => {
+                inline_markdown(ui, &text, theme);
+                ui.add_space(3.0);
+            }
+            Block::Bullet { depth, text, check } => {
+                ui.horizontal_top(|ui| {
+                    ui.add_space(depth as f32 * indent);
+                    let marker = match check {
+                        Some(true) => "☑",
+                        Some(false) => "☐",
+                        None if depth % 2 == 1 => "◦",
+                        None => "•",
+                    };
+                    ui.label(marker);
+                    inline_markdown(ui, &text, theme);
+                });
+            }
+            Block::Numbered { depth, label, text } => {
+                ui.horizontal_top(|ui| {
+                    ui.add_space(depth as f32 * indent);
+                    ui.label(egui::RichText::new(label).color(theme.text_muted));
+                    inline_markdown(ui, &text, theme);
+                });
+            }
+            Block::Quote(text) => {
+                ui.horizontal_top(|ui| {
+                    let (bar, _) =
+                        ui.allocate_exact_size(egui::vec2(3.0, 18.0), egui::Sense::hover());
+                    ui.painter().rect_filled(bar, 1.0, theme.accent);
+                    ui.add_space(6.0);
+                    ui.scope(|ui| {
+                        ui.visuals_mut().override_text_color = Some(theme.text_muted);
+                        inline_markdown(ui, &text, theme);
+                    });
+                });
+                ui.add_space(3.0);
+            }
+            Block::Rule => {
+                ui.separator();
+            }
+            Block::Table { header, rows } => {
+                table(ui, theme, &header, &rows);
+                ui.add_space(4.0);
+            }
+        }
     }
 }
 
+/// A pipe table as a real grid: bold header, a rule under it, striped
+/// rows, and a horizontal scroll when the columns outgrow the panel.
+fn table(ui: &mut egui::Ui, theme: &crate::theme::Theme, header: &[String], rows: &[Vec<String>]) {
+    let id = ui.next_auto_id();
+    ui.skip_ahead_auto_ids(1);
+    egui::ScrollArea::horizontal().id_salt(id).show(ui, |ui| {
+        egui::Frame::new()
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .corner_radius(egui::CornerRadius::same(4))
+            .show(ui, |ui| {
+                egui::Grid::new(id.with("grid"))
+                    .striped(true)
+                    .spacing([14.0, 4.0])
+                    .min_col_width(40.0)
+                    .show(ui, |ui| {
+                        for cell in header {
+                            ui.add(egui::Label::new(inline_job(cell, theme, true)).wrap());
+                        }
+                        ui.end_row();
+                        for row in rows {
+                            for cell in row {
+                                ui.add(egui::Label::new(inline_job(cell, theme, false)).wrap());
+                            }
+                            ui.end_row();
+                        }
+                    });
+            });
+    });
+}
+
 fn inline_markdown(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
+    ui.add(egui::Label::new(inline_job(text, theme, false)).wrap());
+}
+
+/// Inline Markdown as a layout job: `**bold**`, `*italic*`, `` `code` ``,
+/// `~~struck~~`, `[text](url)` (shown as the text, underlined, with the
+/// address after it in muted type).
+fn inline_job(text: &str, theme: &crate::theme::Theme, strong: bool) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
     let base = egui::TextFormat {
         font_id: egui::FontId::proportional(13.5),
         color: theme.text,
         ..Default::default()
     };
-    let mut bold = false;
+    let mut bold = strong;
     let mut italic = false;
     let mut code = false;
+    let mut strike = false;
     let mut rest = text;
-    while !rest.is_empty() {
-        let next = if rest.starts_with("**") {
-            bold = !bold;
-            Some(2)
-        } else if rest.starts_with('`') {
-            code = !code;
-            Some(1)
-        } else if rest.starts_with('*') {
-            italic = !italic;
-            Some(1)
-        } else {
-            None
-        };
-        if let Some(len) = next {
-            rest = &rest[len..];
-            continue;
-        }
-        let end = rest.find(['*', '`']).unwrap_or(rest.len());
+    let push = |job: &mut egui::text::LayoutJob,
+                s: &str,
+                bold: bool,
+                italic: bool,
+                code: bool,
+                strike: bool,
+                underline: bool,
+                muted: bool| {
         let mut fmt = base.clone();
         fmt.italics = italic;
         fmt.font_id = if code {
@@ -782,10 +1049,101 @@ fn inline_markdown(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme) {
         if code {
             fmt.background = theme.surface;
         }
-        job.append(&rest[..end], 0.0, fmt);
+        if strike {
+            fmt.strikethrough = egui::Stroke::new(1.0, theme.text_muted);
+        }
+        if underline {
+            fmt.underline = egui::Stroke::new(1.0, theme.accent);
+            fmt.color = theme.accent;
+        }
+        if muted {
+            fmt.color = theme.text_muted;
+            fmt.font_id = egui::FontId::proportional(12.0);
+        }
+        job.append(s, 0.0, fmt);
+    };
+    while !rest.is_empty() {
+        if code {
+            // Inside code only the closing tick means anything.
+            let end = rest.find('`').unwrap_or(rest.len());
+            push(
+                &mut job,
+                &rest[..end],
+                bold,
+                italic,
+                true,
+                strike,
+                false,
+                false,
+            );
+            rest = &rest[end..];
+            if rest.starts_with('`') {
+                code = false;
+                rest = &rest[1..];
+            }
+            continue;
+        }
+        if let Some(after) = rest.strip_prefix('[')
+            && let Some(close) = after.find("](")
+            && let Some(end) = after[close + 2..].find(')')
+        {
+            let label = &after[..close];
+            let url = &after[close + 2..close + 2 + end];
+            push(&mut job, label, bold, italic, false, strike, true, false);
+            if !url.is_empty() && url != label {
+                push(
+                    &mut job,
+                    &format!(" ({url})"),
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    true,
+                );
+            }
+            rest = &after[close + 2 + end + 1..];
+            continue;
+        }
+        let next = if rest.starts_with("**") || rest.starts_with("__") {
+            bold = !bold;
+            Some(2)
+        } else if rest.starts_with("~~") {
+            strike = !strike;
+            Some(2)
+        } else if rest.starts_with('`') {
+            code = true;
+            Some(1)
+        } else if rest.starts_with('*')
+            || (rest.starts_with('_')
+                && !rest[1..].starts_with(|c: char| c.is_alphanumeric()) == italic)
+        {
+            italic = !italic;
+            Some(1)
+        } else {
+            None
+        };
+        if let Some(len) = next {
+            rest = &rest[len..];
+            continue;
+        }
+        let end = rest[1..]
+            .find(['*', '`', '[', '~', '_'])
+            .map(|n| n + 1)
+            .unwrap_or(rest.len());
+        push(
+            &mut job,
+            &rest[..end],
+            bold,
+            italic,
+            false,
+            strike,
+            false,
+            false,
+        );
         rest = &rest[end..];
     }
-    ui.add(egui::Label::new(job).wrap());
+    job
 }
 
 #[cfg(test)]
@@ -820,5 +1178,80 @@ mod tests {
             }]
         );
         assert_eq!(split_fences("plain"), vec![Segment::Text("plain".into())]);
+    }
+
+    #[test]
+    fn pipe_tables_become_table_blocks() {
+        let text =
+            "Summary:\n\n| Name | Size |\n|------|-----:|\n| a \\| b | 1 |\n| c | 2 |\n\nDone.";
+        let blocks = parse_blocks(text);
+        assert_eq!(blocks[0], Block::Paragraph("Summary:".into()));
+        assert_eq!(
+            blocks[1],
+            Block::Table {
+                header: vec!["Name".into(), "Size".into()],
+                rows: vec![
+                    vec!["a | b".into(), "1".into()],
+                    vec!["c".into(), "2".into()]
+                ],
+            }
+        );
+        assert_eq!(blocks[2], Block::Paragraph("Done.".into()));
+    }
+
+    #[test]
+    fn lists_quotes_rules_and_paragraph_joins() {
+        let text = "Line one\nline two\n\n- top\n  - nested\n- [x] done\n1. first\n2) second\n> a quote\n> continues\n---\n#### Small";
+        let blocks = parse_blocks(text);
+        assert_eq!(blocks[0], Block::Paragraph("Line one line two".into()));
+        assert_eq!(
+            blocks[1],
+            Block::Bullet {
+                depth: 0,
+                text: "top".into(),
+                check: None
+            }
+        );
+        assert_eq!(
+            blocks[2],
+            Block::Bullet {
+                depth: 1,
+                text: "nested".into(),
+                check: None
+            }
+        );
+        assert_eq!(
+            blocks[3],
+            Block::Bullet {
+                depth: 0,
+                text: "done".into(),
+                check: Some(true)
+            }
+        );
+        assert_eq!(
+            blocks[4],
+            Block::Numbered {
+                depth: 0,
+                label: "1.".into(),
+                text: "first".into()
+            }
+        );
+        assert_eq!(
+            blocks[5],
+            Block::Numbered {
+                depth: 0,
+                label: "2.".into(),
+                text: "second".into()
+            }
+        );
+        assert_eq!(blocks[6], Block::Quote("a quote continues".into()));
+        assert_eq!(blocks[7], Block::Rule);
+        assert_eq!(blocks[8], Block::Heading(4, "Small".into()));
+    }
+
+    #[test]
+    fn a_lone_pipe_line_is_prose_not_a_table() {
+        let blocks = parse_blocks("use a | b here\nnext");
+        assert_eq!(blocks, vec![Block::Paragraph("use a | b here next".into())]);
     }
 }

@@ -212,7 +212,7 @@ impl GeneratorState {
                                 });
                         });
                         ui.add_space(4.0);
-                        let providers = s.settings.read().ai.providers.clone();
+                        let providers = s.settings.read().ai.chat_providers();
                         ui.horizontal(|ui| {
                             ui.label(s.t("gfx-gen-provider"));
                             let selected_name = providers

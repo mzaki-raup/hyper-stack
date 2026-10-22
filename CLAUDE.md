@@ -26,7 +26,10 @@ path under them, runs files and projects (F5), shows Git status, diffs and
 history (`hs-git`, read-only over the git CLI), and carries an optional AI
 assistant (ADR-019: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock,
 1min.AI or any OpenAI-compatible service such as LM Studio, added from a
-gallery in Settings, `hs-core::ai`); Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
+gallery in Settings grouped by capability, `hs-core::ai`; image providers -
+1min.AI or a self-hosted AUTOMATIC1111/SD.Next/Forge, ComfyUI, SwarmUI,
+InvokeAI or Fooocus server with per-provider workflow settings,
+`hs-core::ai_local` - feed the Graphics activity); Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
@@ -1001,6 +1004,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   fails on that crate's missing module, so re-run after registering.
 - A running `HyperStack.exe` keeps `target/debug/HyperStack.exe` locked;
   `Stop-Process -Name HyperStack` before `cargo build`.
+
+- The workspace `reqwest` has no `query` feature either: `.query(&[..])`
+  does not exist on its `RequestBuilder`. Build the query string by hand
+  with a small percent-encoder (`hs_core::ai_local::urlencode`).
+- A Fluent message that must show literal braces (`{{prompt}}`, a JSON
+  example) wraps them in a string literal placeable: `{"{{prompt}}"}`,
+  `{"{\"a\": 1}"}`; a bare `{` starts a placeable and the message fails to
+  parse, which only shows at runtime as the raw key.
 
 ### API client (tool-api)
 - Boa's native closures must be `Copy`; host state goes through a

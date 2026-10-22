@@ -387,15 +387,35 @@ pub struct AiProvider {
     pub api_version: String,
     /// `secret:<ulid>` of the AWS secret access key (Bedrock only).
     pub secret_key: String,
+    /// How a self-hosted image server is driven (image kinds only).
+    pub image: crate::ai::ImageWorkflow,
 }
 
 impl Ai {
-    /// The provider a new chat uses.
+    /// The provider a new chat uses: the default when it chats, else the
+    /// first chat provider.
     pub fn chosen(&self) -> Option<&AiProvider> {
         self.providers
             .iter()
-            .find(|p| p.id == self.default_provider)
-            .or(self.providers.first())
+            .find(|p| p.id == self.default_provider && p.kind.chats())
+            .or_else(|| self.providers.iter().find(|p| p.kind.chats()))
+    }
+    /// The providers an assistant may talk to.
+    pub fn chat_providers(&self) -> Vec<AiProvider> {
+        self.providers
+            .iter()
+            .filter(|p| p.kind.chats())
+            .cloned()
+            .collect()
+    }
+    /// The providers that make pictures (1min.AI and the self-hosted
+    /// image servers).
+    pub fn image_providers(&self) -> Vec<AiProvider> {
+        self.providers
+            .iter()
+            .filter(|p| p.kind.generates_images())
+            .cloned()
+            .collect()
     }
 }
 
@@ -411,6 +431,7 @@ impl AiProvider {
             },
             region: self.region.clone(),
             api_version: self.api_version.clone(),
+            image: self.image.clone(),
         }
     }
 }

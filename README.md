@@ -46,7 +46,8 @@ and theme.
 > adjust, icons), an embedded **Browser** (WebView2, ad and script> blocking, forced dark, inspect, print), **Snip** and **Print…** for every
 > tab, an optional AI assistant in the editor (Anthropic, Gemini, Azure
 > OpenAI, AWS Bedrock, 1min.AI, LM Studio, Ollama or any OpenAI-compatible
-> service) and a review-only assistant in
+> service; pictures from 1min.AI or a self-hosted AUTOMATIC1111, ComfyUI,
+> SwarmUI, InvokeAI or Fooocus server) and a review-only assistant in
 > Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics whose code blocks can be
 > inserted but never run, and the in-app updater with signed releases.
 > The Git write side and logs follow in the next milestones
@@ -345,7 +346,7 @@ each removable; the AI assistant is review-only.
 | ![Browser settings](docs/screenshots/settings-browser.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
 | **Browser** — home page, blocking and script defaults, extra blocked hosts | **Shortcuts** — every action rebindable; conflicts listed |
 | ![AI settings](docs/screenshots/settings-ai.png) | ![About](docs/screenshots/settings-about.png) |
-| **AI providers** — Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI or any OpenAI-compatible server; add one from a gallery of fifteen services, keys in the vault | **About** — installed version, update channel, Check Now, release notes, data folder |
+| **AI providers** — chat: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI or any OpenAI-compatible server; images: 1min.AI or a self-hosted AUTOMATIC1111 / SD.Next / Forge, ComfyUI, SwarmUI, InvokeAI or Fooocus server with its workflow settings; add one from a gallery grouped by capability, keys in the vault | **About** — installed version, update channel, Check Now, release notes, data folder |
 
 Every tab can be **snipped** to a PNG (Ctrl+Alt+S, camera menu) or
 **printed** (Ctrl+Alt+P) as an HTML page with a Light/Dark switch that

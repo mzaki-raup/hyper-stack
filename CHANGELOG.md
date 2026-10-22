@@ -13,6 +13,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Settings → AI Assistant: **self-hosted image providers** — the Stable
+  Diffusion WebUI API (AUTOMATIC1111, SD.Next, Forge, Stability Matrix
+  packages), ComfyUI (and SwarmUI's ComfyUI backend), SwarmUI, InvokeAI
+  and Fooocus-API (`hs_core::ai_local`), each with an **Image Workflow**
+  on the provider: checkpoint (Fetch Checkpoints), negative prompt, steps,
+  CFG, sampler, scheduler, seed, upscaler and factor, the three ComfyUI
+  workflows (built-in or pasted, `{{prompt}}`-style placeholders) and an
+  extra JSON object merged into every request. Test Connection pings the
+  server.
+- Graphics → Generate Picture: Generate, Edit and Enhance run on any
+  image provider, 1min.AI or self-hosted (txt2img / img2img / upscale on a
+  WebUI, workflows on ComfyUI, init images on SwarmUI, a graph on InvokeAI,
+  text-to-image and upscale-vary on Fooocus); the model field is a
+  Checkpoint for a self-hosted server (empty = the provider's).
+- AI assistants: answers are rendered as Markdown blocks rather than
+  line by line — pipe tables become a striped grid, numbered and nested
+  lists, task items, block quotes, rules and headings are drawn, paragraph
+  lines are joined, and links and strikethrough render inline (shared
+  panel, editor panel and user turns alike).
+
+### Changed
+
+- Settings → AI Assistant is arranged by capability: Chat Providers and
+  Image Providers in the gallery, the provider list and the kind picker;
+  Make Default applies to chat providers, and the assistants list only
+  chat kinds while the Graphics activity lists only image kinds.
+
 - Graphics → Generate Picture: **Edit** and **Enhance** jobs beside
   Generate. Edit changes the current picture as the prompt says
   (`IMAGE_VARIATOR`, Dzine by default with a Strength slider mapped to

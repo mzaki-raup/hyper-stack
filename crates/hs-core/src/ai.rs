@@ -272,10 +272,38 @@ pub enum Provider {
     /// in one piece: the streaming form is a binary event stream, which
     /// this client does not speak.
     Bedrock,
+    /// A self-hosted Stable Diffusion WebUI API (`/sdapi/v1/txt2img`,
+    /// `img2img`, `extra-single-image`): AUTOMATIC1111, SD.Next, Forge,
+    /// or a Stability Matrix package of one of them. Pictures only.
+    #[serde(rename = "sdwebui")]
+    SdWebUi,
+    /// A self-hosted ComfyUI server (`/prompt`, `/history`, `/view`,
+    /// `/upload/image`), driven by a workflow in its API JSON form: ComfyUI
+    /// itself, SwarmUI's ComfyUI backend, or a Stability Matrix package.
+    #[serde(rename = "comfyui")]
+    ComfyUi,
+    /// A self-hosted SwarmUI (`/API/GetNewSession`, `GenerateText2Image`).
+    #[serde(rename = "swarmui")]
+    SwarmUi,
+    /// A self-hosted InvokeAI (`/api/v1/queue/default/enqueue_batch` with a
+    /// small graph, `/api/v1/images/i/{name}/full`).
+    #[serde(rename = "invokeai")]
+    InvokeAi,
+    /// A self-hosted Fooocus behind Fooocus-API
+    /// (`/v1/generation/text-to-image`, `/v2/generation/image-upscale-vary`).
+    Fooocus,
+}
+
+/// What a provider kind can do. Chat kinds answer the assistants; image
+/// kinds make, edit and enhance pictures for the Graphics activity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Capability {
+    Chat,
+    Image,
 }
 
 impl Provider {
-    pub fn all() -> [Provider; 6] {
+    pub fn all() -> [Provider; 11] {
         [
             Provider::OpenAi,
             Provider::Anthropic,
@@ -283,6 +311,11 @@ impl Provider {
             Provider::Azure,
             Provider::Bedrock,
             Provider::OneMin,
+            Provider::SdWebUi,
+            Provider::ComfyUi,
+            Provider::SwarmUi,
+            Provider::InvokeAi,
+            Provider::Fooocus,
         ]
     }
     pub fn default_base(self) -> &'static str {
@@ -293,14 +326,26 @@ impl Provider {
             Provider::Gemini => GEMINI_BASE,
             Provider::Azure => AZURE_BASE,
             Provider::Bedrock => BEDROCK_BASE,
+            Provider::SdWebUi => "http://127.0.0.1:7860",
+            Provider::ComfyUi => "http://127.0.0.1:8188",
+            Provider::SwarmUi => "http://127.0.0.1:7801",
+            Provider::InvokeAi => "http://127.0.0.1:9090",
+            Provider::Fooocus => "http://127.0.0.1:8888",
         }
     }
+    /// The chat model a chat kind starts with; for an image kind, the
+    /// checkpoint field is the model and this is only a placeholder.
     pub fn default_model(self) -> &'static str {
         match self {
             Provider::OneMin | Provider::OpenAi | Provider::Azure => "gpt-4o-mini",
             Provider::Anthropic => "claude-sonnet-4-5",
             Provider::Gemini => "gemini-2.5-flash",
             Provider::Bedrock => "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            Provider::SdWebUi
+            | Provider::ComfyUi
+            | Provider::SwarmUi
+            | Provider::InvokeAi
+            | Provider::Fooocus => "(server default)",
         }
     }
     /// The name shown in the settings page.
@@ -312,7 +357,36 @@ impl Provider {
             Provider::Gemini => "Google Gemini",
             Provider::Azure => "Azure OpenAI",
             Provider::Bedrock => "AWS Bedrock",
+            Provider::SdWebUi => "Stable Diffusion WebUI API",
+            Provider::ComfyUi => "ComfyUI",
+            Provider::SwarmUi => "SwarmUI",
+            Provider::InvokeAi => "InvokeAI",
+            Provider::Fooocus => "Fooocus API",
         }
+    }
+    /// The main thing a kind is for: the self-hosted image servers are
+    /// image providers, everything else chats (1min.AI does both).
+    pub fn capability(self) -> Capability {
+        if self.chats() {
+            Capability::Chat
+        } else {
+            Capability::Image
+        }
+    }
+    /// The kind answers chat requests (`chat`).
+    pub fn chats(self) -> bool {
+        !matches!(
+            self,
+            Provider::SdWebUi
+                | Provider::ComfyUi
+                | Provider::SwarmUi
+                | Provider::InvokeAi
+                | Provider::Fooocus
+        )
+    }
+    /// The kind runs on the user's own machine or network, with no account.
+    pub fn self_hosted(self) -> bool {
+        !self.chats()
     }
     /// Bedrock signs with an access key *and* a secret.
     pub fn needs_secret(self) -> bool {
@@ -331,9 +405,10 @@ impl Provider {
     pub fn needs_base(self) -> bool {
         matches!(self, Provider::Azure)
     }
-    /// Whether the service can list its models.
+    /// Whether the service can list its models (checkpoints for an image
+    /// server).
     pub fn lists_models(self) -> bool {
-        !matches!(self, Provider::Bedrock)
+        !matches!(self, Provider::Bedrock | Provider::Fooocus)
     }
     /// The answer arrives in one piece rather than token by token.
     pub fn whole_answer_only(self) -> bool {
@@ -342,11 +417,67 @@ impl Provider {
     /// The chat request may carry pictures (a vision-capable model is
     /// still needed on the other end).
     pub fn accepts_images(self) -> bool {
-        true
+        self.chats()
     }
     /// The service can make a picture from a prompt (`generate_image`).
     pub fn generates_images(self) -> bool {
-        self == Provider::OneMin
+        self == Provider::OneMin || self.self_hosted()
+    }
+}
+
+/// How a self-hosted image server is driven: the checkpoint and sampling
+/// settings every request carries, the upscaler, and for ComfyUI the
+/// workflows themselves. Kept on the provider in `settings.toml`; nothing
+/// here is a secret.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ImageWorkflow {
+    /// Checkpoint / model name as the server lists it; empty = whatever the
+    /// server has loaded.
+    pub checkpoint: String,
+    pub negative_prompt: String,
+    pub steps: u32,
+    pub cfg_scale: f32,
+    /// Sampler name (`Euler a`, `DPM++ 2M`, `euler`…); empty = server default.
+    pub sampler: String,
+    /// Scheduler name (`karras`, `normal`…); empty = server default.
+    pub scheduler: String,
+    /// `-1` = random.
+    pub seed: i64,
+    /// Upscaler name for Enhance (`R-ESRGAN 4x+`, `RealESRGAN_x4plus.pth`…).
+    pub upscaler: String,
+    /// Enhance scale factor (2 = twice the size).
+    pub upscale_factor: u32,
+    /// ComfyUI workflow for a new picture, in the API JSON form, with
+    /// `{{prompt}}`-style placeholders; empty = the built-in one.
+    pub comfy_generate: String,
+    /// ComfyUI workflow for an edit (image-to-image); empty = built-in.
+    pub comfy_edit: String,
+    /// ComfyUI workflow for an enhancement (upscale model); empty = built-in.
+    pub comfy_enhance: String,
+    /// A JSON object merged into every request body (WebUI
+    /// `override_settings`, Fooocus `style_selections`, SwarmUI extras…);
+    /// empty = nothing extra.
+    pub extra: String,
+}
+
+impl Default for ImageWorkflow {
+    fn default() -> Self {
+        Self {
+            checkpoint: String::new(),
+            negative_prompt: String::new(),
+            steps: 20,
+            cfg_scale: 7.0,
+            sampler: String::new(),
+            scheduler: String::new(),
+            seed: -1,
+            upscaler: String::new(),
+            upscale_factor: 2,
+            comfy_generate: String::new(),
+            comfy_edit: String::new(),
+            comfy_enhance: String::new(),
+            extra: String::new(),
+        }
     }
 }
 
@@ -393,10 +524,12 @@ pub struct AiConfig {
     pub region: String,
     /// Azure OpenAI API version; empty uses [`AZURE_API_VERSION`].
     pub api_version: String,
+    /// How a self-hosted image server is driven (image kinds only).
+    pub image: ImageWorkflow,
 }
 
 impl AiConfig {
-    fn base(&self) -> String {
+    pub(crate) fn base(&self) -> String {
         let b = self.base_url.trim();
         let b = if b.is_empty() {
             self.provider.default_base()
@@ -485,10 +618,10 @@ impl ImagePart {
             data,
         }
     }
-    fn base64(&self) -> String {
+    pub(crate) fn base64(&self) -> String {
         base64::engine::general_purpose::STANDARD.encode(&self.data)
     }
-    fn data_uri(&self) -> String {
+    pub(crate) fn data_uri(&self) -> String {
         format!("data:{};base64,{}", self.mime, self.base64())
     }
     /// Bedrock names the format rather than the MIME type.
@@ -555,6 +688,12 @@ pub async fn chat(
     on_text: &mut (dyn FnMut(&str) + Send),
 ) -> Result<String, AiError> {
     let api_key = creds.key.as_str();
+    if !cfg.provider.chats() {
+        return Err(AiError::Format(format!(
+            "{} makes pictures, not conversation; pick a chat provider",
+            cfg.provider.label()
+        )));
+    }
     let req = match cfg.provider {
         Provider::OpenAi => {
             let body = openai_body(cfg, messages, true);
@@ -674,6 +813,12 @@ pub async fn chat(
                 .header("API-KEY", api_key)
                 .json(&body)
         }
+        // Refused above: image servers do not chat.
+        Provider::SdWebUi
+        | Provider::ComfyUi
+        | Provider::SwarmUi
+        | Provider::InvokeAi
+        | Provider::Fooocus => unreachable!("image kinds are refused before the match"),
     };
     let resp = req
         .send()
@@ -798,7 +943,12 @@ fn anthropic_turns(turns: &[&Message]) -> Vec<Value> {
 
 /// A `multipart/form-data` body with one file field, built by hand: the
 /// workspace's reqwest has no `multipart` feature.
-fn multipart_file(field: &str, filename: &str, mime: &str, bytes: &[u8]) -> (String, Vec<u8>) {
+pub(crate) fn multipart_file(
+    field: &str,
+    filename: &str,
+    mime: &str,
+    bytes: &[u8],
+) -> (String, Vec<u8>) {
     let boundary = format!("----HyperStack{}", crate::new_id());
     let mut body = Vec::with_capacity(bytes.len() + 256);
     body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
@@ -905,9 +1055,15 @@ pub async fn generate_image(
     source: Option<&ImagePart>,
     strength: f32,
 ) -> Result<Vec<u8>, AiError> {
+    if cfg.provider.self_hosted() {
+        return crate::ai_local::generate_image(
+            http, cfg, creds, job, model, prompt, size, source, strength,
+        )
+        .await;
+    }
     if cfg.provider != Provider::OneMin {
         return Err(AiError::Format(format!(
-            "{} does not generate pictures; add a 1min.AI provider for that",
+            "{} does not generate pictures; add an image provider for that",
             cfg.provider.label()
         )));
     }
@@ -1144,6 +1300,9 @@ pub async fn list_models(
     if cfg.provider == Provider::OneMin {
         return Ok(onemin_models());
     }
+    if cfg.provider.self_hosted() {
+        return crate::ai_local::list_checkpoints(http, cfg, creds).await;
+    }
     if cfg.provider == Provider::Bedrock {
         // Listing them is a different service (bedrock, not
         // bedrock-runtime) with its own permissions; the well-known ids
@@ -1245,7 +1404,7 @@ pub fn flatten(messages: &[Message]) -> String {
     out
 }
 
-fn truncate(s: &str, n: usize) -> String {
+pub(crate) fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         s.to_string()
     } else {
@@ -1255,7 +1414,7 @@ fn truncate(s: &str, n: usize) -> String {
 
 /// The readable part of an error body (`{"error":{"message":…}}`,
 /// `{"message":…}`), else the body itself, shortened.
-fn error_message(body: &str) -> String {
+pub(crate) fn error_message(body: &str) -> String {
     if let Ok(v) = serde_json::from_str::<Value>(body) {
         for p in ["/error/message", "/message", "/error"] {
             if let Some(s) = v.pointer(p).and_then(Value::as_str) {
@@ -1318,6 +1477,12 @@ fn whole_answer(provider: Provider, v: &Value) -> Option<String> {
                 other => other.to_string(),
             })
         }
+        // Image servers never answer a chat.
+        Provider::SdWebUi
+        | Provider::ComfyUi
+        | Provider::SwarmUi
+        | Provider::InvokeAi
+        | Provider::Fooocus => None,
     }
 }
 
@@ -1458,6 +1623,11 @@ fn interpret(provider: Provider, ev: &SseEvent, nothing_yet: bool) -> Result<Ste
                 .unwrap_or(Step::Skip)),
             _ => Ok(Step::Skip),
         },
+        Provider::SdWebUi
+        | Provider::ComfyUi
+        | Provider::SwarmUi
+        | Provider::InvokeAi
+        | Provider::Fooocus => Ok(Step::Skip),
     }
 }
 
@@ -1806,10 +1976,7 @@ mod tests {
     fn cfg_for(provider: Provider) -> AiConfig {
         AiConfig {
             provider,
-            base_url: String::new(),
-            model: String::new(),
-            region: String::new(),
-            api_version: String::new(),
+            ..Default::default()
         }
     }
 
@@ -1825,13 +1992,24 @@ mod tests {
                     matches!(p, Provider::Azure | Provider::Bedrock),
                     "{p:?} needs a default base URL"
                 );
+            } else if p.self_hosted() {
+                // A server on this machine is plain http on a local port.
+                assert!(
+                    p.default_base().starts_with("http://127.0.0.1:"),
+                    "{p:?} default base is not a local port"
+                );
+                assert!(!p.chats() && p.generates_images() && !p.accepts_images());
+                assert_eq!(p.capability(), Capability::Image);
             } else {
                 assert!(
                     p.default_base().starts_with("https://"),
                     "{p:?} default base is not https"
                 );
+                assert!(p.chats());
+                assert_eq!(p.capability(), Capability::Chat);
             }
         }
+        assert!(Provider::OneMin.generates_images() && Provider::OneMin.chats());
         assert!(Provider::Bedrock.needs_secret() && Provider::Bedrock.needs_region());
         assert!(Provider::Azure.needs_api_version() && Provider::Azure.needs_base());
         assert!(!Provider::OpenAi.needs_secret());

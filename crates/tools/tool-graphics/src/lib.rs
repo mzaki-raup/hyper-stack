@@ -230,6 +230,8 @@ struct GenState {
     /// edit; Stable Image, Dzine, Recraft… for an enhancement). Empty means
     /// the job's default.
     models: [String; 3],
+    /// The provider `models` were typed for.
+    models_for: String,
     provider: String,
     job: hs_core::ai::ImageJob,
     /// How far an edit may depart from the picture (0-1).
@@ -242,6 +244,7 @@ impl Default for GenState {
         Self {
             prompt: String::new(),
             models: Default::default(),
+            models_for: String::new(),
             provider: String::new(),
             job: hs_core::ai::ImageJob::Generate,
             strength: 0.5,
@@ -258,15 +261,26 @@ impl GenState {
             hs_core::ai::ImageJob::Enhance => 2,
         }
     }
-    /// The model for the selected job, the job's default when none typed.
-    fn model(&self) -> String {
+    /// The model for the selected job: what was typed, else (for 1min.AI)
+    /// the job's default; a self-hosted server's empty model means the
+    /// provider's own checkpoint.
+    fn model(&self, hosted: bool) -> String {
         let typed = self.models[Self::job_index(self.job)].trim();
-        if typed.is_empty() {
+        if typed.is_empty() && hosted {
             self.job.default_model().to_string()
         } else {
             typed.to_string()
         }
     }
+}
+
+/// An image-capable provider as the Generate Picture form lists it.
+#[derive(Clone)]
+struct ImageProvider {
+    id: String,
+    name: String,
+    kind: hs_core::ai::Provider,
+    checkpoint: String,
 }
 
 /// The New Image dialog's fields.
@@ -595,15 +609,20 @@ impl GraphicsTool {
         Some(dir.join(format!("{safe}-{}.png", &hs_core::new_id()[..8])))
     }
 
-    /// The providers that can make a picture (1min.AI today).
-    fn image_providers(s: &Services) -> Vec<(String, String)> {
+    /// The providers that can make a picture: 1min.AI and the self-hosted
+    /// image servers (`Provider::generates_images`).
+    fn image_providers(s: &Services) -> Vec<ImageProvider> {
         s.settings
             .read()
             .ai
-            .providers
-            .iter()
-            .filter(|p| p.kind.generates_images())
-            .map(|p| (p.id.clone(), p.name.clone()))
+            .image_providers()
+            .into_iter()
+            .map(|p| ImageProvider {
+                id: p.id,
+                name: p.name,
+                kind: p.kind,
+                checkpoint: p.image.checkpoint,
+            })
             .collect()
     }
 
@@ -631,11 +650,19 @@ impl GraphicsTool {
                 );
                 return;
             }
-            if !providers
+            if !providers.iter().any(|p| p.id == self.generate.provider) {
+                self.generate.provider = providers[0].id.clone();
+            }
+            let provider = providers
                 .iter()
-                .any(|(id, _)| *id == self.generate.provider)
-            {
-                self.generate.provider = providers[0].0.clone();
+                .find(|p| p.id == self.generate.provider)
+                .cloned()
+                .unwrap_or_else(|| providers[0].clone());
+            // The model fields belong to one provider: a 1min.AI model id
+            // means nothing to a WebUI, whose "model" is a checkpoint.
+            if self.generate.models_for != provider.id {
+                self.generate.models_for = provider.id.clone();
+                self.generate.models = Default::default();
             }
             use hs_core::ai::ImageJob;
             // Without a picture only a new one can be asked for.
@@ -664,9 +691,11 @@ impl GraphicsTool {
                 }),
             );
             let model_slot = GenState::job_index(job);
-            if self.generate.models[model_slot].is_empty() {
+            let hosted = provider.kind == hs_core::ai::Provider::OneMin;
+            if hosted && self.generate.models[model_slot].is_empty() {
                 // SDXL 1.0 / Dzine / Stable Image (owner's choice, and the
-                // documented 1min.AI models for each job).
+                // documented 1min.AI models for each job). A self-hosted
+                // server's empty field means its provider's checkpoint.
                 self.generate.models[model_slot] = job.default_model().into();
             }
             egui::Grid::new("gfx-generate-grid")
@@ -674,26 +703,41 @@ impl GraphicsTool {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(s.t("gfx-ai-generate-provider"));
-                    let current = providers
-                        .iter()
-                        .find(|(id, _)| *id == self.generate.provider)
-                        .map(|(_, n)| n.clone())
-                        .unwrap_or_default();
                     egui::ComboBox::from_id_salt("gfx-generate-provider")
                         .width(ui.available_width())
-                        .selected_text(current)
+                        .selected_text(provider.name.clone())
                         .show_ui(ui, |ui| {
-                            for (id, name) in &providers {
-                                ui.selectable_value(&mut self.generate.provider, id.clone(), name);
+                            for p in &providers {
+                                ui.selectable_value(
+                                    &mut self.generate.provider,
+                                    p.id.clone(),
+                                    &p.name,
+                                );
                             }
                         });
                     ui.end_row();
-                    ui.label(s.t("gfx-ai-generate-model"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.generate.models[model_slot])
-                            .desired_width(f32::INFINITY),
-                    );
-                    ui.end_row();
+                    // A self-hosted Enhance takes the provider's upscaler,
+                    // not a model, so the row would only mislead.
+                    if hosted || job != ImageJob::Enhance {
+                        ui.label(s.t(if hosted {
+                            "gfx-ai-generate-model"
+                        } else {
+                            "gfx-ai-checkpoint"
+                        }));
+                        let hint = if hosted {
+                            String::new()
+                        } else if provider.checkpoint.is_empty() {
+                            s.t("gfx-ai-checkpoint-server")
+                        } else {
+                            provider.checkpoint.clone()
+                        };
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.generate.models[model_slot])
+                                .hint_text(hint)
+                                .desired_width(f32::INFINITY),
+                        );
+                        ui.end_row();
+                    }
                     if job == ImageJob::Edit {
                         ui.label(s.t("gfx-ai-edit-strength"));
                         ui.add(
@@ -758,7 +802,9 @@ impl GraphicsTool {
         };
         let cfg = provider.config("");
         let job = self.generate.job;
-        let model = self.generate.model();
+        let model = self
+            .generate
+            .model(provider.kind == hs_core::ai::Provider::OneMin);
         let prompt = self.generate.prompt.trim().to_string();
         let strength = self.generate.strength;
         let source = if job.needs_source() {

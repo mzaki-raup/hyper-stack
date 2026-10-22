@@ -418,7 +418,7 @@ impl AiPanel {
 
     pub fn ui(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme, ed: &mut EditorCtx) {
         self.poll(s, ed);
-        let all: Vec<AiProvider> = s.settings.read().ai.providers.clone();
+        let all: Vec<AiProvider> = s.settings.read().ai.chat_providers();
         let providers: Vec<(String, String, String)> = all
             .iter()
             .map(|p| (p.id.clone(), p.name.clone(), p.model.clone()))

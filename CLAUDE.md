@@ -1048,6 +1048,23 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - A running `HyperStack.exe` keeps `target/debug/HyperStack.exe` locked;
   `Stop-Process -Name HyperStack` before `cargo build`.
 
+- **Upscaling and enhancing are different jobs.** Upscale adds pixels
+  through a super-resolution model and leaves the content alone; Enhance
+  improves the picture at its own size (face restoration, denoise, a
+  low-denoise refiner pass). Every backend here ran an upscaler under the
+  name Enhance until 2026-10-23, which is why `ImageJob` now has both and
+  each carries its own settings and ComfyUI workflow. Servers also differ
+  on how much bigger is asked for: a ratio (Fooocus, the Extras route) or
+  a target size (ComfyUI's `ImageScale`), so `UpscaleMode` carries both
+  and `ImageWorkflow::upscale_target`/`upscale_ratio` answer either.
+- A container-level `#[serde(default)]` fills a missing field from the
+  **struct's** `Default`, which is what a settings struct wants. Adding
+  `#[serde(default)]` to an individual field silently overrides that with
+  the **field type's** default, so a new `f32` read back as `0.0` and a
+  new `bool` as `false`: every provider saved before the Enhance settings
+  existed came back with a refiner strength of 0, which is a no-op. Put
+  the attribute on the container only, and cover a migration with a test
+  that parses an old TOML (`an_older_provider_gains_the_new_image_settings`).
 - An `f32` dropped into `serde_json::json!` becomes the nearest `f64`
   (`0.7` → `0.699999988079071`), which a strict server may reject and a
   test comparing against `0.7` certainly does. Round at the boundary

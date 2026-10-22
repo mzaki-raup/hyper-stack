@@ -194,7 +194,8 @@ fn ws_logo(
 }
 
 /// Draw a workspace's logo (the folder glyph when it has none) at `size`.
-/// Every place that names a workspace shows the same mark.
+/// Every place that names a workspace shows the same mark, at one of the
+/// `crate::app::WS_MARK_*` sizes, centred on the name beside it.
 fn ws_icon(
     ui: &mut egui::Ui,
     s: &Services,
@@ -202,14 +203,7 @@ fn ws_icon(
     name: &str,
     size: f32,
 ) {
-    match ws_logo(s, registry, name) {
-        Some(img) => {
-            ui.add(img.fit_to_exact_size(egui::vec2(size, size)));
-        }
-        None => {
-            ui.label(hs_ui::icons::WORKSPACE);
-        }
-    }
+    crate::app::ws_mark(ui, ws_logo(s, registry, name), size);
 }
 
 /// The "Copy Variables From…" dialog on the Environments page: which source
@@ -360,7 +354,7 @@ fn workspace(
             let row = ui.scope(|ui| {
                 ui.add_space(3.0);
                 ui.horizontal(|ui| {
-                    ws_icon(ui, s, &registry, &w.name, 26.0);
+                    ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_LIST);
                     ui.add_space(4.0);
                     ui.add(
                         egui::Label::new(egui::RichText::new(&w.name).strong().size(15.0))
@@ -545,14 +539,14 @@ fn workspace(
             form::field_grid(ui, "ws-compare", |ui| {
                 form::label(ui, &s.t("settings-workspace-compare-with"));
                 ui.horizontal(|ui| {
-                    ws_icon(ui, s, &registry, &state.ws_compare, 18.0);
+                    ws_icon(ui, s, &registry, &state.ws_compare, crate::app::WS_MARK_ROW);
                     egui::ComboBox::from_id_salt("ws-compare-with")
                         .width(form::FIELD_MIN_WIDTH)
                         .selected_text(state.ws_compare.clone())
                         .show_ui(ui, |ui| {
                             for n in &others {
                                 ui.horizontal(|ui| {
-                                    ws_icon(ui, s, &registry, n, 16.0);
+                                    ws_icon(ui, s, &registry, n, crate::app::WS_MARK_ROW);
                                     ui.selectable_value(&mut state.ws_compare, n.clone(), n);
                                 });
                             }
@@ -594,7 +588,7 @@ fn workspace(
                     // same mark the switcher and Home show.
                     for name in [&current, &state.ws_compare] {
                         ui.horizontal(|ui| {
-                            ws_icon(ui, s, &registry, name, 16.0);
+                            ws_icon(ui, s, &registry, name, crate::app::WS_MARK_ROW);
                             ui.label(egui::RichText::new(name).strong());
                         });
                     }
@@ -709,14 +703,20 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             let registry = hs_core::workspace::Registry::load(&s.paths);
             let names: Vec<String> = registry.workspaces.iter().map(|w| w.name.clone()).collect();
             ui.horizontal(|ui| {
-                ws_icon(ui, s, &registry, &settings.general.startup_workspace, 18.0);
+                ws_icon(
+                    ui,
+                    s,
+                    &registry,
+                    &settings.general.startup_workspace,
+                    crate::app::WS_MARK_ROW,
+                );
                 egui::ComboBox::from_id_salt("startup-ws")
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(settings.general.startup_workspace.clone())
                     .show_ui(ui, |ui| {
                         for n in names {
                             ui.horizontal(|ui| {
-                                ws_icon(ui, s, &registry, &n, 16.0);
+                                ws_icon(ui, s, &registry, &n, crate::app::WS_MARK_ROW);
                                 if ui
                                     .selectable_label(settings.general.startup_workspace == n, &n)
                                     .clicked()
@@ -1489,14 +1489,14 @@ fn appearance(
         form::field_grid(ui, "rail-ws-pick", |ui| {
             form::label(ui, &s.t("settings-rail-workspace"));
             ui.horizontal(|ui| {
-                ws_icon(ui, s, &registry, &selected, 18.0);
+                ws_icon(ui, s, &registry, &selected, crate::app::WS_MARK_ROW);
                 egui::ComboBox::from_id_salt("rail-ws")
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(selected.clone())
                     .show_ui(ui, |ui| {
                         for w in &registry.workspaces {
                             ui.horizontal(|ui| {
-                                ws_icon(ui, s, &registry, &w.name, 16.0);
+                                ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_ROW);
                                 if ui.selectable_label(selected == w.name, &w.name).clicked() {
                                     state.rail_ws = Some(w.name.clone());
                                 }

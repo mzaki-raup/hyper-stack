@@ -259,7 +259,9 @@ fn sidebar_header_inner(
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 if let Some((icon, fallback)) = leading {
-                    const SIZE: f32 = 18.0;
+                    // Home's header names the open workspace, and its
+                    // logo is the mark that says which project this is.
+                    const SIZE: f32 = 22.0;
                     match icon {
                         Some(img) => {
                             ui.add(img.fit_to_exact_size(egui::Vec2::splat(SIZE)));

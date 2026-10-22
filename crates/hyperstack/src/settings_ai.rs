@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use hs_core::Services;
-use hs_core::ai::{self, Capability, Provider};
+use hs_core::ai::{self, Capability, Provider, UpscaleMode};
 use hs_core::secrets::SecretRef;
 use hs_core::settings::AiProvider;
 use hs_ui::form;
@@ -893,8 +893,10 @@ fn model_field(
     });
 }
 
-/// The image server's workflow: what every request carries, and for
-/// ComfyUI the workflows themselves.
+/// The image server's workflow: what every request carries, then the two
+/// jobs that are easy to confuse. Upscaling makes more pixels; enhancing
+/// makes a better picture at the same size. They take different settings
+/// and, on ComfyUI, different workflows. Owner's rule, 2026-10-23.
 fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft) {
     let kind = d.provider.kind;
     form::section(ui, theme, &s.t("ai-section-workflow"), |ui| {
@@ -946,66 +948,28 @@ fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draf
             form::label(ui, &s.t("ai-seed"));
             ui.add(egui::DragValue::new(&mut w.seed).range(-1..=i64::MAX));
             ui.end_row();
-            form::label(ui, &s.t("ai-upscaler"));
-            form::text_field(
-                ui,
-                &mut w.upscaler,
-                &s.t(match kind {
-                    Provider::SdWebUi => "ai-upscaler-hint-webui",
-                    Provider::ComfyUi | Provider::InvokeAi => "ai-upscaler-hint-model",
-                    _ => "ai-upscaler-hint-none",
-                }),
-            );
-            ui.end_row();
-            form::label(ui, &s.t("ai-upscale-factor"));
-            ui.add(egui::DragValue::new(&mut w.upscale_factor).range(1..=8));
-            ui.end_row();
         });
         form::hint(ui, theme, &s.t("ai-seed-hint"));
-        let w = &mut d.provider.image;
         if kind == Provider::ComfyUi {
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new(s.t("ai-comfy-workflows")).strong());
-            form::hint(ui, theme, &s.t("ai-comfy-workflows-hint"));
-            for (key, text, builtin) in [
-                (
-                    "ai-comfy-generate",
-                    &mut w.comfy_generate,
-                    hs_core::ai_local::COMFY_GENERATE,
-                ),
-                (
-                    "ai-comfy-edit",
-                    &mut w.comfy_edit,
-                    hs_core::ai_local::COMFY_EDIT,
-                ),
-                (
-                    "ai-comfy-enhance",
-                    &mut w.comfy_enhance,
-                    hs_core::ai_local::COMFY_ENHANCE,
-                ),
-            ] {
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label(s.t(key));
-                    if text.trim().is_empty() {
-                        ui.label(
-                            egui::RichText::new(s.t("ai-comfy-builtin"))
-                                .small()
-                                .color(theme.text_muted),
-                        );
-                        if ui.small_button(s.t("ai-comfy-customise")).clicked() {
-                            *text = builtin.to_string();
-                        }
-                    } else if ui.small_button(s.t("ai-comfy-reset")).clicked() {
-                        text.clear();
-                    }
-                });
-                if !text.trim().is_empty() {
-                    form::code_field(ui, text, 8);
-                }
-            }
+            comfy_workflow(
+                ui,
+                theme,
+                s,
+                "ai-comfy-generate",
+                &mut d.provider.image.comfy_generate,
+                hs_core::ai_local::COMFY_GENERATE,
+            );
+            comfy_workflow(
+                ui,
+                theme,
+                s,
+                "ai-comfy-edit",
+                &mut d.provider.image.comfy_edit,
+                hs_core::ai_local::COMFY_EDIT,
+            );
         }
         ui.add_space(8.0);
+        let w = &mut d.provider.image;
         ui.label(egui::RichText::new(s.t("ai-extra-json")).strong());
         form::hint(
             ui,
@@ -1025,6 +989,163 @@ fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draf
             ui.colored_label(theme.error, s.t("ai-extra-json-invalid"));
         }
     });
+
+    upscale_section(ui, theme, s, d);
+    enhance_section(ui, theme, s, d);
+}
+
+/// Upscale: a super-resolution model and how much bigger, as a ratio or a
+/// target size, because servers take one shape or the other.
+fn upscale_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft) {
+    let kind = d.provider.kind;
+    form::section(ui, theme, &s.t("ai-section-upscale"), |ui| {
+        form::hint(ui, theme, &s.t("ai-upscale-hint"));
+        ui.add_space(4.0);
+        form::field_grid(ui, "ai-upscale", |ui| {
+            let w = &mut d.provider.image;
+            // A plain field, not `model_field`: the probe lists
+            // checkpoints, and an upscale model is a different catalogue.
+            form::label(ui, &s.t("ai-upscaler"));
+            form::text_field(
+                ui,
+                &mut w.upscaler,
+                &s.t(match kind {
+                    Provider::SdWebUi => "ai-upscaler-hint-webui",
+                    Provider::ComfyUi | Provider::InvokeAi => "ai-upscaler-hint-model",
+                    _ => "ai-upscaler-hint-none",
+                }),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-upscale-mode"));
+            form::field_row(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (mode, key) in [
+                        (UpscaleMode::Ratio, "ai-upscale-mode-ratio"),
+                        (UpscaleMode::Dimensions, "ai-upscale-mode-dimensions"),
+                    ] {
+                        ui.selectable_value(&mut w.upscale_mode, mode, s.t(key));
+                    }
+                });
+            });
+            ui.end_row();
+            if w.upscale_mode == UpscaleMode::Ratio {
+                form::label(ui, &s.t("ai-upscale-factor"));
+                ui.add(
+                    egui::DragValue::new(&mut w.upscale_factor)
+                        .range(1..=8)
+                        .suffix("x"),
+                );
+                ui.end_row();
+            } else {
+                form::label(ui, &s.t("ai-upscale-width"));
+                ui.add(egui::DragValue::new(&mut w.upscale_width).range(0..=16384));
+                ui.end_row();
+                form::label(ui, &s.t("ai-upscale-height"));
+                ui.add(egui::DragValue::new(&mut w.upscale_height).range(0..=16384));
+                ui.end_row();
+            }
+        });
+        form::hint(ui, theme, &s.t("ai-upscale-mode-hint"));
+        if d.provider.image.upscale_mode == UpscaleMode::Dimensions {
+            form::hint(ui, theme, &s.t("ai-upscale-size-hint"));
+        }
+        if kind == Provider::ComfyUi {
+            comfy_workflow(
+                ui,
+                theme,
+                s,
+                "ai-comfy-upscale",
+                &mut d.provider.image.comfy_upscale,
+                hs_core::ai_local::COMFY_UPSCALE,
+            );
+        }
+    });
+}
+
+/// Enhance: the same picture, better. No size field here on purpose.
+fn enhance_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft) {
+    let kind = d.provider.kind;
+    form::section(ui, theme, &s.t("ai-section-enhance"), |ui| {
+        form::hint(ui, theme, &s.t("ai-enhance-hint"));
+        ui.add_space(4.0);
+        let w = &mut d.provider.image;
+        form::field_grid(ui, "ai-enhance", |ui| {
+            form::label(ui, &s.t("ai-enhance-denoise"));
+            form::slider(
+                ui,
+                theme,
+                egui::Slider::new(&mut w.enhance_denoise, 0.0..=1.0).fixed_decimals(2),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("ai-enhance-steps"));
+            ui.add(egui::DragValue::new(&mut w.enhance_steps).range(0..=150));
+            ui.end_row();
+            form::label(ui, &s.t("ai-enhance-face"));
+            form::field_row(ui, |ui| {
+                ui.checkbox(&mut w.enhance_face_restore, "");
+            });
+            ui.end_row();
+            if w.enhance_face_restore {
+                form::label(ui, &s.t("ai-enhance-face-strength"));
+                form::slider(
+                    ui,
+                    theme,
+                    egui::Slider::new(&mut w.enhance_face_strength, 0.0..=1.0).fixed_decimals(2),
+                );
+                ui.end_row();
+            }
+        });
+        form::hint(ui, theme, &s.t("ai-enhance-denoise-hint"));
+        form::hint(ui, theme, &s.t("ai-enhance-steps-hint"));
+        form::hint(ui, theme, &s.t("ai-enhance-face-hint"));
+        if kind == Provider::ComfyUi {
+            comfy_workflow(
+                ui,
+                theme,
+                s,
+                "ai-comfy-enhance",
+                &mut d.provider.image.comfy_enhance,
+                hs_core::ai_local::COMFY_ENHANCE,
+            );
+        }
+    });
+}
+
+/// One ComfyUI workflow slot: the built-in one until it is customised,
+/// and a reset back to it.
+fn comfy_workflow(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    label: &str,
+    text: &mut String,
+    builtin: &str,
+) {
+    ui.add_space(8.0);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(s.t("ai-comfy-workflows")).strong());
+        ui.label(
+            egui::RichText::new(s.t(label))
+                .small()
+                .color(theme.text_muted),
+        );
+        if text.trim().is_empty() {
+            ui.label(
+                egui::RichText::new(s.t("ai-comfy-builtin"))
+                    .small()
+                    .color(theme.text_muted),
+            );
+            if ui.small_button(s.t("ai-comfy-customise")).clicked() {
+                *text = builtin.to_string();
+            }
+        } else if ui.small_button(s.t("ai-comfy-reset")).clicked() {
+            text.clear();
+        }
+    });
+    form::hint(ui, theme, &s.t("ai-comfy-workflows-hint"));
+    if !text.trim().is_empty() {
+        form::code_field(ui, text, 8);
+    }
 }
 
 /// Store the typed secrets in the vault, then the provider itself. A

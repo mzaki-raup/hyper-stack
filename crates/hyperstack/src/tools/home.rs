@@ -403,7 +403,8 @@ fn workspace_card(
     fill: egui::Color32,
     selected: bool,
 ) -> egui::Response {
-    let icon_px = 26.0;
+    // The logo is what tells one workspace card from another.
+    let icon_px = crate::app::WS_MARK_LIST;
     let resp = egui::Frame::new()
         .fill(fill)
         .stroke(egui::Stroke::new(

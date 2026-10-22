@@ -456,9 +456,17 @@ impl AssistantPanel {
             self.input_block(&mut measure, s, theme);
             measure.min_rect().height()
         };
+        // A column too short for both (something above it expanded) must
+        // still produce two rectangles that are the right way up: an
+        // inverted one is drawn at its origin, which puts the composer on
+        // top of whatever is there (owner's screenshot, 2026-10-23).
+        let block_h = block_h.min(full.height().max(0.0));
         let split = (full.max.y - block_h - 6.0).max(full.min.y);
         let top = egui::Rect::from_min_max(full.min, egui::pos2(full.max.x, split));
-        let bottom_rect = egui::Rect::from_min_max(egui::pos2(full.min.x, split + 6.0), full.max);
+        let bottom_rect = egui::Rect::from_min_max(
+            egui::pos2(full.min.x, (split + 6.0).min(full.max.y)),
+            full.max,
+        );
         let mut bottom = ui.new_child(egui::UiBuilder::new().max_rect(bottom_rect));
         let send = self.input_block(&mut bottom, s, theme);
         if send && self.running.is_none() {

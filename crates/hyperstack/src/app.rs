@@ -79,6 +79,63 @@ pub(crate) fn ws_logo_image(root: &std::path::Path) -> Option<egui::Image<'stati
     logo_image(&hs_core::workspace::workspace_icon_file(root)?)
 }
 
+// How big a workspace mark is drawn beside its name. The logo is what
+// says which project you are in, so it is large enough to recognise at a
+// glance and centred on the text. Owner's rule, 2026-10-23.
+/// The title bar's workspace button.
+pub(crate) const WS_MARK_TITLE: f32 = 22.0;
+/// A menu or combo row that names a workspace.
+pub(crate) const WS_MARK_ROW: f32 = 20.0;
+/// The Workspaces list, where the logo is the point of the row.
+pub(crate) const WS_MARK_LIST: f32 = 34.0;
+
+/// A workspace's logo at `size`, or the folder glyph scaled to match.
+/// Inside a horizontal row egui centres both on the text beside them.
+pub(crate) fn ws_mark(ui: &mut egui::Ui, logo: Option<egui::Image<'static>>, size: f32) {
+    match logo {
+        Some(img) => {
+            ui.add(
+                img.fit_to_exact_size(egui::vec2(size, size))
+                    .corner_radius(4.0),
+            );
+        }
+        None => {
+            ui.add(
+                egui::Label::new(egui::RichText::new(hs_ui::icons::WORKSPACE).size(size * 0.82))
+                    .selectable(false),
+            );
+        }
+    }
+}
+
+/// The same mark as one run of a button's text, so a workspace button
+/// with no logo still shows a larger glyph centred on its name.
+pub(crate) fn ws_glyph_text(ui: &egui::Ui, name: &str, size: f32) -> egui::text::LayoutJob {
+    let colour = ui.visuals().widgets.inactive.fg_stroke.color;
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        hs_ui::icons::WORKSPACE,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(size * 0.82),
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job.append(
+        &format!("  {name}"),
+        0.0,
+        egui::TextFormat {
+            font_id: egui::TextStyle::Button.resolve(ui.style()),
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job
+}
+
 /// The application icon, shown beside the name in the top bar.
 fn app_logo() -> egui::Image<'static> {
     egui::Image::from_bytes(
@@ -1931,12 +1988,12 @@ impl HyperStackApp {
                     let ws_logo = ws_logo_image(&ws_root);
                     let workspace_button = match ws_logo {
                         Some(image) => egui::Button::image_and_text(
-                            image.fit_to_exact_size(egui::vec2(18.0, 18.0)),
+                            image
+                                .fit_to_exact_size(egui::vec2(WS_MARK_TITLE, WS_MARK_TITLE))
+                                .corner_radius(4.0),
                             ws_name.clone(),
                         ),
-                        None => {
-                            egui::Button::new(format!("{}  {ws_name}", hs_ui::icons::WORKSPACE))
-                        }
+                        None => egui::Button::new(ws_glyph_text(ui, &ws_name, WS_MARK_TITLE)),
                     }
                     .right_text(hs_ui::icons::CARET_DOWN);
                     egui::containers::menu::MenuButton::from_button(workspace_button).ui(
@@ -1952,14 +2009,7 @@ impl HyperStackApp {
                             let can_delete = rows.len() > 1;
                             for (n, root) in rows {
                                 ui.horizontal(|ui| {
-                                    match ws_logo_image(&root) {
-                                        Some(img) => {
-                                            ui.add(img.fit_to_exact_size(egui::vec2(16.0, 16.0)));
-                                        }
-                                        None => {
-                                            ui.label(hs_ui::icons::WORKSPACE);
-                                        }
-                                    }
+                                    ws_mark(ui, ws_logo_image(&root), WS_MARK_ROW);
                                     if ui.selectable_label(n == ws_name, &n).clicked()
                                         && n != ws_name
                                     {

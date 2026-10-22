@@ -429,6 +429,20 @@ impl Provider {
 /// settings every request carries, the upscaler, and for ComfyUI the
 /// workflows themselves. Kept on the provider in `settings.toml`; nothing
 /// here is a secret.
+/// How an upscale says how much bigger: a multiple of the source, or a
+/// target size. Servers differ, and so do their routes: AUTOMATIC1111's
+/// Extras takes either, Fooocus only a ratio, ComfyUI's `ImageScaleBy` a
+/// ratio and `ImageScale` a size. Owner's report, 2026-10-23.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UpscaleMode {
+    /// `upscale_factor` times the source's own size.
+    #[default]
+    Ratio,
+    /// Exactly `upscale_width` by `upscale_height`.
+    Dimensions,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ImageWorkflow {
@@ -446,19 +460,81 @@ pub struct ImageWorkflow {
     pub seed: i64,
     /// Upscaler name for Enhance (`R-ESRGAN 4x+`, `RealESRGAN_x4plus.pth`…).
     pub upscaler: String,
-    /// Enhance scale factor (2 = twice the size).
+    /// Upscale ratio (2 = twice the size), used in `UpscaleMode::Ratio`.
     pub upscale_factor: u32,
+    /// Whether an upscale is asked for as a ratio or a target size.
+    pub upscale_mode: UpscaleMode,
+    /// Target size for `UpscaleMode::Dimensions`; 0 keeps the source's
+    /// own value on that axis (so one of the two may be left empty).
+    pub upscale_width: u32,
+    pub upscale_height: u32,
+    /// Enhance: restore faces (GFPGAN / CodeFormer on a WebUI, the
+    /// server's own restorer elsewhere).
+    pub enhance_face_restore: bool,
+    /// How strongly the restorer is applied (0-1).
+    pub enhance_face_strength: f32,
+    /// Enhance: how far the refiner pass may move the picture (0-1). The
+    /// size never changes; this is detail, not content.
+    pub enhance_denoise: f32,
+    /// Steps for the refiner pass; 0 = the provider's `steps`.
+    pub enhance_steps: u32,
     /// ComfyUI workflow for a new picture, in the API JSON form, with
     /// `{{prompt}}`-style placeholders; empty = the built-in one.
     pub comfy_generate: String,
     /// ComfyUI workflow for an edit (image-to-image); empty = built-in.
     pub comfy_edit: String,
-    /// ComfyUI workflow for an enhancement (upscale model); empty = built-in.
+    /// ComfyUI workflow for an enhancement (a low-denoise refiner pass at
+    /// the same size); empty = built-in.
     pub comfy_enhance: String,
+    /// ComfyUI workflow for an upscale (a super-resolution model);
+    /// empty = built-in.
+    pub comfy_upscale: String,
     /// A JSON object merged into every request body (WebUI
     /// `override_settings`, Fooocus `style_selections`, SwarmUI extras…);
     /// empty = nothing extra.
     pub extra: String,
+}
+
+impl ImageWorkflow {
+    /// The size an upscale should produce from a source of `size`: the
+    /// ratio applied, or the target with a 0 axis taken from the source.
+    pub fn upscale_target(&self, size: (u32, u32)) -> (u32, u32) {
+        match self.upscale_mode {
+            UpscaleMode::Ratio => {
+                let f = self.upscale_factor.clamp(1, 8);
+                (
+                    size.0.saturating_mul(f).max(1),
+                    size.1.saturating_mul(f).max(1),
+                )
+            }
+            UpscaleMode::Dimensions => {
+                let w = if self.upscale_width == 0 {
+                    size.0
+                } else {
+                    self.upscale_width
+                };
+                let h = if self.upscale_height == 0 {
+                    size.1
+                } else {
+                    self.upscale_height
+                };
+                (w.max(1), h.max(1))
+            }
+        }
+    }
+    /// The same thing as a multiple of the source, for a server that only
+    /// takes a ratio (Fooocus, the Extras route in ratio mode).
+    pub fn upscale_ratio(&self, size: (u32, u32)) -> f32 {
+        match self.upscale_mode {
+            UpscaleMode::Ratio => self.upscale_factor.clamp(1, 8) as f32,
+            UpscaleMode::Dimensions => {
+                let (w, h) = self.upscale_target(size);
+                let rw = w as f32 / size.0.max(1) as f32;
+                let rh = h as f32 / size.1.max(1) as f32;
+                rw.max(rh).clamp(1.0, 8.0)
+            }
+        }
+    }
 }
 
 impl Default for ImageWorkflow {
@@ -473,9 +549,17 @@ impl Default for ImageWorkflow {
             seed: -1,
             upscaler: String::new(),
             upscale_factor: 2,
+            upscale_mode: UpscaleMode::Ratio,
+            upscale_width: 0,
+            upscale_height: 0,
+            enhance_face_restore: true,
+            enhance_face_strength: 0.8,
+            enhance_denoise: 0.3,
+            enhance_steps: 0,
             comfy_generate: String::new(),
             comfy_edit: String::new(),
             comfy_enhance: String::new(),
+            comfy_upscale: String::new(),
             extra: String::new(),
         }
     }
@@ -1014,25 +1098,43 @@ pub enum ImageJob {
     /// The source picture changed as the prompt says (`IMAGE_VARIATOR`):
     /// a restyle, an added or removed element, a different mood.
     Edit,
-    /// The source picture at higher resolution and cleaned up
-    /// (`IMAGE_UPSCALER`); the prompt, if any, guides the detail.
+    /// The source picture at the **same size**, looking better: faces
+    /// restored, noise and artefacts gone, detail recovered by a
+    /// low-denoise refiner pass. Not a resize. Owner's rule, 2026-10-23:
+    /// enhancement and upscaling are two jobs, and every backend here
+    /// used to do the second under the first one's name.
     Enhance,
+    /// The source picture at a **higher resolution**, by a ratio or to a
+    /// target size, through a super-resolution model (`IMAGE_UPSCALER`).
+    /// The content is unchanged.
+    Upscale,
 }
 
 impl ImageJob {
     /// The 1min.AI model each job starts with: Stability AI's SDXL 1.0 for
     /// generation (owner's choice); Dzine for edits, the documented
     /// variator that takes a prompt (SDXL has no image-to-image route on
-    /// 1min.AI); Stability's Stable Image upscaler for enhancement.
+    /// 1min.AI); Dzine again for enhancement, which is a variator pass at
+    /// low strength; Stability's Stable Image for upscaling.
     pub fn default_model(self) -> &'static str {
         match self {
             ImageJob::Generate => DEFAULT_IMAGE_MODEL,
             ImageJob::Edit => DEFAULT_EDIT_MODEL,
-            ImageJob::Enhance => DEFAULT_UPSCALE_MODEL,
+            ImageJob::Enhance => DEFAULT_ENHANCE_MODEL,
+            ImageJob::Upscale => DEFAULT_UPSCALE_MODEL,
         }
     }
     pub fn needs_source(self) -> bool {
         self != ImageJob::Generate
+    }
+    /// A Fluent-free name for logs and errors.
+    pub fn name(self) -> &'static str {
+        match self {
+            ImageJob::Generate => "generate",
+            ImageJob::Edit => "edit",
+            ImageJob::Enhance => "enhance",
+            ImageJob::Upscale => "upscale",
+        }
     }
 }
 
@@ -1114,7 +1216,31 @@ pub async fn generate_image(
             })
         }
         ImageJob::Enhance => {
+            // 1min.AI has no restoration feature of its own, so an
+            // enhancement is the variator held close to the source: the
+            // picture keeps its size and its subject and only gains
+            // detail. `enhance_denoise` is how far it may move.
             let img = source.ok_or_else(|| AiError::Format("no picture to enhance".into()))?;
+            let key = onemin_upload(http, cfg, api_key, img).await?;
+            let d = cfg.image.enhance_denoise.clamp(0.0, 1.0);
+            json!({
+                "type": "IMAGE_VARIATOR",
+                "model": model,
+                "promptObject": {
+                    "imageUrl": key,
+                    "prompt": prompt,
+                    "n": 1,
+                    "samples": 1,
+                    "structure_match": crate::ai_local::tidy(1.0 - d),
+                    "style_intensity": crate::ai_local::tidy(d),
+                    "image_strength": crate::ai_local::tidy(d),
+                    "quality": "STANDARD",
+                    "output_format": "png",
+                },
+            })
+        }
+        ImageJob::Upscale => {
+            let img = source.ok_or_else(|| AiError::Format("no picture to upscale".into()))?;
             let key = onemin_upload(http, cfg, api_key, img).await?;
             // Stable Image takes only the picture (fixed 4x); the other
             // upscalers (Dzine, Ideogram, Recraft) read a prompt when given.
@@ -1124,6 +1250,14 @@ pub async fn generate_image(
             });
             if !prompt.trim().is_empty() {
                 prompt_object["prompt"] = Value::String(prompt.to_string());
+            }
+            // A ratio the service understands; Stable Image ignores it.
+            if cfg.image.upscale_mode == UpscaleMode::Ratio {
+                prompt_object["scale"] = json!(cfg.image.upscale_factor.clamp(1, 8));
+            } else {
+                let (w, h) = cfg.image.upscale_target(size);
+                prompt_object["width"] = json!(w);
+                prompt_object["height"] = json!(h);
             }
             json!({
                 "type": "IMAGE_UPSCALER",
@@ -1179,6 +1313,9 @@ pub const DEFAULT_IMAGE_MODEL: &str = "stable-diffusion-xl-1024-v1-0";
 pub const DEFAULT_EDIT_MODEL: &str = "dzine";
 /// Stability AI's upscaler on 1min.AI ("Stable Image", 4x).
 pub const DEFAULT_UPSCALE_MODEL: &str = "stable-image";
+/// 1min.AI has no restoration feature, so an enhancement is a variator
+/// pass held close to the source; Dzine is the one that takes a prompt.
+pub const DEFAULT_ENHANCE_MODEL: &str = "dzine";
 
 /// SDXL 1.0's fixed output sizes; the one closest in aspect to `size`.
 pub fn sdxl_size((w, h): (u32, u32)) -> &'static str {
@@ -1665,16 +1802,74 @@ pub fn assistant_system_prompt(tool: &str) -> String {
 
 #[cfg(test)]
 mod image_tests {
-    use super::{DEFAULT_IMAGE_MODEL, ImageJob, sdxl_size};
+    use super::{DEFAULT_IMAGE_MODEL, ImageJob, ImageWorkflow, UpscaleMode, sdxl_size};
 
     #[test]
     fn each_image_job_starts_with_a_documented_model() {
         assert_eq!(ImageJob::Generate.default_model(), DEFAULT_IMAGE_MODEL);
         assert_eq!(ImageJob::Edit.default_model(), "dzine");
-        assert_eq!(ImageJob::Enhance.default_model(), "stable-image");
+        // Enhancing and upscaling are different jobs and take different
+        // models: a variator held close to the source, and an upscaler.
+        assert_eq!(ImageJob::Enhance.default_model(), "dzine");
+        assert_eq!(ImageJob::Upscale.default_model(), "stable-image");
         assert!(!ImageJob::Generate.needs_source());
-        assert!(ImageJob::Edit.needs_source());
-        assert!(ImageJob::Enhance.needs_source());
+        for job in [ImageJob::Edit, ImageJob::Enhance, ImageJob::Upscale] {
+            assert!(job.needs_source(), "{}", job.name());
+        }
+    }
+
+    /// A provider saved before the Upscale and Enhance settings existed
+    /// must read back with the working defaults, not with the field
+    /// types' zeroes: `enhance_denoise: 0.0` would make an enhancement a
+    /// no-op on every server. The container's `serde(default)` does that,
+    /// and a field-level one would quietly undo it.
+    #[test]
+    fn an_older_provider_gains_the_new_image_settings() {
+        let old = r#"
+            checkpoint = "sd_xl_base_1.0.safetensors"
+            steps = 30
+            upscaler = "R-ESRGAN 4x+"
+            upscale_factor = 4
+        "#;
+        let w: ImageWorkflow = toml::from_str(old).unwrap();
+        assert_eq!(w.checkpoint, "sd_xl_base_1.0.safetensors");
+        assert_eq!(w.steps, 30);
+        assert_eq!(w.upscale_factor, 4);
+        let fresh = ImageWorkflow::default();
+        assert_eq!(w.upscale_mode, fresh.upscale_mode);
+        assert_eq!(w.enhance_denoise, fresh.enhance_denoise);
+        assert_eq!(w.enhance_face_restore, fresh.enhance_face_restore);
+        assert_eq!(w.enhance_face_strength, fresh.enhance_face_strength);
+        assert!(w.enhance_denoise > 0.0, "an enhancement would do nothing");
+        assert!(w.comfy_upscale.is_empty());
+    }
+
+    #[test]
+    fn an_upscale_says_how_much_bigger_as_a_ratio_or_a_size() {
+        let mut w = ImageWorkflow {
+            upscale_factor: 3,
+            ..Default::default()
+        };
+        assert_eq!(w.upscale_mode, UpscaleMode::Ratio);
+        assert_eq!(w.upscale_target((400, 300)), (1200, 900));
+        assert_eq!(w.upscale_ratio((400, 300)), 3.0);
+
+        // A target size, with a 0 axis left at the source's own value.
+        w.upscale_mode = UpscaleMode::Dimensions;
+        w.upscale_width = 1920;
+        w.upscale_height = 0;
+        assert_eq!(w.upscale_target((400, 300)), (1920, 300));
+        // A server that only takes a ratio is given the larger of the two.
+        w.upscale_height = 600;
+        assert_eq!(w.upscale_target((400, 300)), (1920, 600));
+        assert_eq!(w.upscale_ratio((400, 300)), 4.8);
+
+        // Neither mode ever asks for something smaller than the source,
+        // nor for a zero-sized picture.
+        w.upscale_width = 1;
+        w.upscale_height = 1;
+        assert_eq!(w.upscale_target((400, 300)), (1, 1));
+        assert_eq!(w.upscale_ratio((400, 300)), 1.0);
     }
 
     #[test]

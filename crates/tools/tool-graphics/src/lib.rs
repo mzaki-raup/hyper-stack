@@ -227,9 +227,9 @@ struct GenState {
     prompt: String,
     /// The image model name the provider takes, one per job (1min.AI: SDXL,
     /// Flux or GPT Image for generation; Dzine, Clipdrop, Ideogram… for an
-    /// edit; Stable Image, Dzine, Recraft… for an enhancement). Empty means
-    /// the job's default.
-    models: [String; 3],
+    /// edit; Dzine for an enhancement; Stable Image, Recraft… for an
+    /// upscale). Empty means the job's default.
+    models: [String; 4],
     /// The provider `models` were typed for.
     models_for: String,
     provider: String,
@@ -259,6 +259,7 @@ impl GenState {
             hs_core::ai::ImageJob::Generate => 0,
             hs_core::ai::ImageJob::Edit => 1,
             hs_core::ai::ImageJob::Enhance => 2,
+            hs_core::ai::ImageJob::Upscale => 3,
         }
     }
     /// The model for the selected job: what was typed, else (for 1min.AI)
@@ -640,6 +641,29 @@ impl GraphicsTool {
         .id_salt("gfx-generate")
         .default_open(false)
         .show(ui, |ui| {
+            // The form never takes more than its share of the column: the
+            // assistant below needs room for its conversation and its
+            // input. Expanded, it used to push them off the bottom and
+            // paint over them (owner's screenshot, 2026-10-23).
+            let max_h = (ui.available_height() * 0.55).max(150.0);
+            egui::ScrollArea::vertical()
+                .id_salt("gfx-generate-scroll")
+                .max_height(max_h)
+                .auto_shrink([false, true])
+                .show(ui, |ui| self.generate_form(ui, s, theme, &providers));
+        });
+        ui.separator();
+    }
+
+    /// The fields of the Generate Picture form, inside its scroll area.
+    fn generate_form(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        theme: &Theme,
+        providers: &[ImageProvider],
+    ) {
+        {
             form::hint(ui, theme, &s.t("gfx-ai-generate-hint"));
             if providers.is_empty() {
                 form::note(
@@ -675,6 +699,7 @@ impl GraphicsTool {
                         (ImageJob::Generate, "gfx-ai-job-generate"),
                         (ImageJob::Edit, "gfx-ai-job-edit"),
                         (ImageJob::Enhance, "gfx-ai-job-enhance"),
+                        (ImageJob::Upscale, "gfx-ai-job-upscale"),
                     ] {
                         ui.selectable_value(&mut self.generate.job, job, s.t(key));
                     }
@@ -688,6 +713,7 @@ impl GraphicsTool {
                     ImageJob::Generate => "gfx-ai-job-generate-hint",
                     ImageJob::Edit => "gfx-ai-job-edit-hint",
                     ImageJob::Enhance => "gfx-ai-job-enhance-hint",
+                    ImageJob::Upscale => "gfx-ai-job-upscale-hint",
                 }),
             );
             let model_slot = GenState::job_index(job);
@@ -707,7 +733,7 @@ impl GraphicsTool {
                         .width(ui.available_width())
                         .selected_text(provider.name.clone())
                         .show_ui(ui, |ui| {
-                            for p in &providers {
+                            for p in providers {
                                 ui.selectable_value(
                                     &mut self.generate.provider,
                                     p.id.clone(),
@@ -716,9 +742,10 @@ impl GraphicsTool {
                             }
                         });
                     ui.end_row();
-                    // A self-hosted Enhance takes the provider's upscaler,
-                    // not a model, so the row would only mislead.
-                    if hosted || job != ImageJob::Enhance {
+                    // A self-hosted Upscale runs the provider's upscale
+                    // model, not a checkpoint, so the row would mislead.
+                    // An Enhance does re-sample through the checkpoint.
+                    if hosted || job != ImageJob::Upscale {
                         ui.label(s.t(if hosted {
                             "gfx-ai-generate-model"
                         } else {
@@ -755,6 +782,7 @@ impl GraphicsTool {
                         ImageJob::Generate => "gfx-ai-generate-prompt-hint",
                         ImageJob::Edit => "gfx-ai-edit-prompt-hint",
                         ImageJob::Enhance => "gfx-ai-enhance-prompt-hint",
+                        ImageJob::Upscale => "gfx-ai-upscale-prompt-hint",
                     }))
                     .desired_rows(3)
                     .desired_width(f32::INFINITY),
@@ -764,20 +792,21 @@ impl GraphicsTool {
                 if busy {
                     ui.spinner();
                 }
-                // An enhancement needs no prompt; the other jobs do.
-                let can =
-                    !busy && (job == ImageJob::Enhance || !self.generate.prompt.trim().is_empty());
+                // Enhancing and upscaling need no prompt; the others do.
+                let can = !busy
+                    && (matches!(job, ImageJob::Enhance | ImageJob::Upscale)
+                        || !self.generate.prompt.trim().is_empty());
                 let label = s.t(match job {
                     ImageJob::Generate => "gfx-ai-generate",
                     ImageJob::Edit => "gfx-ai-edit",
                     ImageJob::Enhance => "gfx-ai-enhance",
+                    ImageJob::Upscale => "gfx-ai-upscale",
                 });
                 if ui.add_enabled(can, egui::Button::new(label)).clicked() {
                     self.start_generation(s);
                 }
             });
-        });
-        ui.separator();
+        }
     }
 
     fn start_generation(&mut self, s: &Services) {

@@ -11,7 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use hs_core::ai::{
-    AiConfig, Credentials, ImageJob, ImagePart, Provider, generate_image, http_client, list_models,
+    AiConfig, Credentials, ImageJob, ImagePart, Provider, UpscaleMode, generate_image, http_client,
+    list_models,
 };
 use serde_json::{Value, json};
 
@@ -131,6 +132,10 @@ fn cfg(provider: Provider, base: &str) -> AiConfig {
     c.image.cfg_scale = 6.5;
     c.image.negative_prompt = "blurry".into();
     c.image.upscale_factor = 2;
+    // Enhancing and upscaling are separate jobs with separate settings:
+    // a refiner pass at this strength, and a 2x super-resolution model.
+    c.image.enhance_denoise = 0.3;
+    c.image.enhance_face_restore = true;
     c
 }
 
@@ -190,11 +195,45 @@ fn webui_txt2img_img2img_and_upscale_carry_the_documented_fields() {
         )
         .await
         .unwrap();
+        // Enhance: img2img at the refiner's strength, the source's own
+        // size, with the face restorer on. It must not resize.
         generate_image(
             &http,
             &cfg,
             &creds,
             ImageJob::Enhance,
+            "",
+            "",
+            (640, 480),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
+        // Upscale: the Extras route, by a ratio.
+        generate_image(
+            &http,
+            &cfg,
+            &creds,
+            ImageJob::Upscale,
+            "",
+            "",
+            (640, 480),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
+        // The same job asked for as a target size instead.
+        let mut sized = cfg.clone();
+        sized.image.upscale_mode = UpscaleMode::Dimensions;
+        sized.image.upscale_width = 1920;
+        sized.image.upscale_height = 1440;
+        generate_image(
+            &http,
+            &sized,
+            &creds,
+            ImageJob::Upscale,
             "",
             "",
             (640, 480),
@@ -221,21 +260,33 @@ fn webui_txt2img_img2img_and_upscale_carry_the_documented_fields() {
     );
     // --api-auth user:password is HTTP Basic.
     assert!(t2i.headers["authorization"].starts_with("Basic "));
-    let i2i = seen
+    let i2i: Vec<Value> = seen
         .iter()
-        .find(|s| s.path == "/sdapi/v1/img2img")
-        .unwrap()
-        .json();
-    assert_eq!(i2i["init_images"][0], b64(PNG));
-    assert_eq!(i2i["denoising_strength"], 0.7);
-    let up = seen
+        .filter(|s| s.path == "/sdapi/v1/img2img")
+        .map(Seen::json)
+        .collect();
+    assert_eq!(i2i[0]["init_images"][0], b64(PNG));
+    assert_eq!(i2i[0]["denoising_strength"], 0.7);
+    assert_eq!(i2i[0]["restore_faces"], false);
+    // The enhancement: the refiner's own strength, the restorer on, and
+    // the source's size untouched.
+    assert_eq!(i2i[1]["denoising_strength"], 0.3);
+    assert_eq!(i2i[1]["restore_faces"], true);
+    assert_eq!(i2i[1]["width"], 640);
+    assert_eq!(i2i[1]["height"], 480);
+    let up: Vec<Value> = seen
         .iter()
-        .find(|s| s.path == "/sdapi/v1/extra-single-image")
-        .unwrap()
-        .json();
-    assert_eq!(up["image"], b64(PNG));
-    assert_eq!(up["upscaling_resize"], 2);
-    assert_eq!(up["upscaler_1"], "R-ESRGAN 4x+");
+        .filter(|s| s.path == "/sdapi/v1/extra-single-image")
+        .map(Seen::json)
+        .collect();
+    assert_eq!(up[0]["image"], b64(PNG));
+    assert_eq!(up[0]["resize_mode"], 0);
+    assert_eq!(up[0]["upscaling_resize"], 2.0);
+    assert_eq!(up[0]["upscaler_1"], "R-ESRGAN 4x+");
+    // Asked for as a size, the Extras route takes mode 1 and the pair.
+    assert_eq!(up[1]["resize_mode"], 1);
+    assert_eq!(up[1]["upscaling_resize_w"], 1920);
+    assert_eq!(up[1]["upscaling_resize_h"], 1440);
 }
 
 #[test]
@@ -295,6 +346,19 @@ fn comfyui_uploads_queues_polls_and_downloads() {
             &cfg,
             &creds,
             ImageJob::Enhance,
+            "sdxl.safetensors",
+            "",
+            (512, 512),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
+        generate_image(
+            &http,
+            &cfg,
+            &creds,
+            ImageJob::Upscale,
             "",
             "",
             (512, 512),
@@ -312,7 +376,7 @@ fn comfyui_uploads_queues_polls_and_downloads() {
         .filter(|s| s.path == "/prompt")
         .map(Seen::json)
         .collect();
-    assert_eq!(prompts.len(), 3);
+    assert_eq!(prompts.len(), 4);
     let made = &prompts[0]["prompt"];
     assert_eq!(made["4"]["inputs"]["ckpt_name"], "v1-5-pruned.safetensors");
     assert_eq!(made["6"]["inputs"]["text"], "a dog");
@@ -330,9 +394,19 @@ fn comfyui_uploads_queues_polls_and_downloads() {
     assert_eq!(edit["4"]["inputs"]["ckpt_name"], "sdxl.safetensors");
     assert_eq!(edit["10"]["inputs"]["image"], "hyperstack.png");
     assert_eq!(edit["3"]["inputs"]["denoise"], 0.4);
-    let up = &prompts[2]["prompt"];
+    // Enhancement re-samples through the checkpoint at the refiner's
+    // strength: a VAEEncode of the source, no upscale model anywhere.
+    let enh = &prompts[2]["prompt"];
+    assert_eq!(enh["4"]["inputs"]["ckpt_name"], "sdxl.safetensors");
+    assert_eq!(enh["11"]["class_type"], "VAEEncode");
+    assert_eq!(enh["10"]["inputs"]["image"], "hyperstack.png");
+    assert_eq!(enh["3"]["inputs"]["denoise"], 0.3);
+    assert!(enh.get("12").is_none(), "an enhancement loads no upscaler");
+    // Upscaling runs the super-resolution model and scales to the target.
+    let up = &prompts[3]["prompt"];
     assert_eq!(up["12"]["inputs"]["model_name"], "RealESRGAN_x4plus.pth");
     assert_eq!(up["14"]["inputs"]["width"], 1024);
+    assert_eq!(up["14"]["inputs"]["height"], 1024);
     // The upload is a multipart with an `image` part.
     let upload = seen.iter().find(|s| s.path == "/upload/image").unwrap();
     assert!(upload.headers["content-type"].starts_with("multipart/form-data; boundary="));
@@ -403,6 +477,19 @@ fn swarmui_opens_a_session_and_reads_the_image_path() {
         )
         .await
         .unwrap();
+        generate_image(
+            &http,
+            &cfg,
+            &creds,
+            ImageJob::Upscale,
+            "",
+            "",
+            (300, 200),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
         let models = list_models(&http, &cfg, &creds).await.unwrap();
         assert_eq!(models, vec!["OfficialStableDiffusion/sd_xl_base_1.0"]);
     });
@@ -411,7 +498,7 @@ fn swarmui_opens_a_session_and_reads_the_image_path() {
         .iter()
         .filter(|s| s.path == "/API/GenerateText2Image")
         .collect();
-    assert_eq!(gens.len(), 3);
+    assert_eq!(gens.len(), 4);
     let g = gens[0].json();
     assert_eq!(g["session_id"], "sess-9");
     assert_eq!(g["images"], 1);
@@ -430,7 +517,13 @@ fn swarmui_opens_a_session_and_reads_the_image_path() {
             .starts_with("data:image/png;base64,")
     );
     assert_eq!(e["initimagecreativity"], 0.6);
-    let u = gens[2].json();
+    // An enhancement keeps the source's size and moves it a little.
+    let enh = gens[2].json();
+    assert_eq!(enh["width"], 300);
+    assert_eq!(enh["height"], 200);
+    assert_eq!(enh["initimagecreativity"], 0.3);
+    // An upscale is the one that grows the picture.
+    let u = gens[3].json();
     assert_eq!(u["width"], 600);
     assert_eq!(u["height"], 400);
     assert_eq!(u["initimagecreativity"], 0.25);
@@ -494,6 +587,19 @@ fn invokeai_builds_a_graph_for_the_models_base_and_polls_the_queue() {
             &cfg,
             &creds,
             ImageJob::Enhance,
+            "sd-1.5",
+            "",
+            (512, 768),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
+        generate_image(
+            &http,
+            &cfg,
+            &creds,
+            ImageJob::Upscale,
             "",
             "",
             (512, 768),
@@ -511,7 +617,7 @@ fn invokeai_builds_a_graph_for_the_models_base_and_polls_the_queue() {
         .filter(|s| s.path.ends_with("/enqueue_batch"))
         .map(Seen::json)
         .collect();
-    assert_eq!(batches.len(), 3);
+    assert_eq!(batches.len(), 4);
     let g = &batches[0]["batch"]["graph"];
     assert_eq!(g["nodes"]["loader"]["type"], "main_model_loader");
     assert_eq!(g["nodes"]["loader"]["model"]["key"], "k-sd15");
@@ -540,7 +646,13 @@ fn invokeai_builds_a_graph_for_the_models_base_and_polls_the_queue() {
             .iter()
             .any(|x| x["source"]["field"] == "clip2")
     );
-    let u = &batches[2]["batch"]["graph"];
+    // An enhancement is the img2img graph at the refiner's strength, not
+    // the upscale node.
+    let enh = &batches[2]["batch"]["graph"];
+    assert_eq!(enh["nodes"]["i2l"]["image"]["image_name"], "up-1.png");
+    assert!((enh["nodes"]["denoise"]["denoising_start"].as_f64().unwrap() - 0.7).abs() < 1e-6);
+    assert!(enh["nodes"].get("esrgan").is_none());
+    let u = &batches[3]["batch"]["graph"];
     assert_eq!(u["nodes"]["esrgan"]["type"], "esrgan");
     assert_eq!(u["nodes"]["esrgan"]["model_name"], "RealESRGAN_x4plus.pth");
     let upload = seen
@@ -620,6 +732,19 @@ fn fooocus_uses_preset_sizes_and_upscale_vary_methods() {
         )
         .await
         .unwrap();
+        generate_image(
+            &http,
+            &cfg,
+            &creds,
+            ImageJob::Upscale,
+            "",
+            "",
+            (1024, 1024),
+            Some(&src),
+            0.0,
+        )
+        .await
+        .unwrap();
         let models = list_models(&http, &cfg, &creds).await.unwrap();
         assert_eq!(models, vec!["juggernautXL_v8.safetensors"]);
     });
@@ -641,7 +766,10 @@ fn fooocus_uses_preset_sizes_and_upscale_vary_methods() {
         .collect();
     assert_eq!(uov[0]["uov_method"], "Vary (Strong)");
     assert_eq!(uov[1]["uov_method"], "Vary (Subtle)");
-    assert_eq!(uov[2]["uov_method"], "Upscale (2x)");
+    // Fooocus has no restorer, so an enhancement is its subtle vary and
+    // an upscale is the one that asks for more pixels.
+    assert_eq!(uov[2]["uov_method"], "Vary (Subtle)");
+    assert_eq!(uov[3]["uov_method"], "Upscale (2x)");
     assert_eq!(uov[0]["input_image"], b64(PNG));
 }
 

@@ -1,8 +1,9 @@
 //! Self-hosted image servers behind `ai::generate_image`: the Stable
 //! Diffusion WebUI API (AUTOMATIC1111, SD.Next, Forge, Stability Matrix's
 //! packages of them), ComfyUI (and SwarmUI's ComfyUI backend), SwarmUI's
-//! own API, InvokeAI and Fooocus-API. Each takes the three jobs - a new
-//! picture, an edit of the current one, an enhancement - and the
+//! own API, InvokeAI and Fooocus-API. Each takes the four jobs - a new
+//! picture, an edit of the current one, an enhancement (same size,
+//! better picture) and an upscale (more pixels, same picture) - and the
 //! `ImageWorkflow` the provider carries (checkpoint, sampling, upscaler,
 //! ComfyUI workflows, extra fields).
 //!
@@ -163,8 +164,20 @@ pub(crate) fn tidy(x: f32) -> f64 {
     (x as f64 * 10_000.0).round() / 10_000.0
 }
 
-fn factor(cfg: &AiConfig) -> u32 {
-    cfg.image.upscale_factor.clamp(1, 8)
+/// How far an Enhance may move the picture. Enhancement is a refiner
+/// pass, so this is small by nature; 0 would be a no-op, which no server
+/// enjoys being asked for.
+fn enhance_denoise(cfg: &AiConfig) -> f32 {
+    cfg.image.enhance_denoise.clamp(0.02, 1.0)
+}
+
+/// Steps for the refiner pass: its own setting, else the provider's.
+fn enhance_steps(cfg: &AiConfig) -> u32 {
+    if cfg.image.enhance_steps > 0 {
+        cfg.image.enhance_steps
+    } else {
+        cfg.image.steps.max(1)
+    }
 }
 
 /// The checkpoints a server offers, by its own listing route.
@@ -387,14 +400,25 @@ async fn webui(
 ) -> Result<Vec<u8>, AiError> {
     let base = cfg.base();
     let w = &cfg.image;
-    if job == ImageJob::Enhance {
+    if job == ImageJob::Upscale {
+        // The Extras route takes either shape: mode 0 scales by a ratio,
+        // mode 1 to a width and a height (owner's report: some servers
+        // only do one of the two).
         let img = source.expect("checked");
         let mut body = json!({
             "image": b64(&img.data),
-            "resize_mode": 0,
-            "upscaling_resize": factor(cfg),
             "upscaler_1": upscaler(cfg, "R-ESRGAN 4x+"),
         });
+        if w.upscale_mode == crate::ai::UpscaleMode::Ratio {
+            body["resize_mode"] = json!(0);
+            body["upscaling_resize"] = json!(tidy(w.upscale_ratio(size)));
+        } else {
+            let (tw, th) = w.upscale_target(size);
+            body["resize_mode"] = json!(1);
+            body["upscaling_resize_w"] = json!(tw);
+            body["upscaling_resize_h"] = json!(th);
+            body["upscaling_crop"] = json!(false);
+        }
         apply_extra(&mut body, cfg)?;
         let v = send_json(auth(
             http.post(format!("{base}/sdapi/v1/extra-single-image"))
@@ -409,14 +433,46 @@ async fn webui(
             .ok_or_else(|| AiError::Format("the server returned no picture".into()))?;
         return unb64(text);
     }
+    if job == ImageJob::Enhance && w.enhance_denoise <= 0.0 {
+        // Restoration only, at the source's own size: Extras with a
+        // resize of 1 runs GFPGAN/CodeFormer and nothing else.
+        let img = source.expect("checked");
+        let v = w.enhance_face_strength.clamp(0.0, 1.0);
+        let mut body = json!({
+            "image": b64(&img.data),
+            "resize_mode": 0,
+            "upscaling_resize": 1,
+            "gfpgan_visibility": tidy(if w.enhance_face_restore { v } else { 0.0 }),
+            "codeformer_visibility": tidy(if w.enhance_face_restore { v } else { 0.0 }),
+            "codeformer_weight": tidy(1.0 - v),
+        });
+        apply_extra(&mut body, cfg)?;
+        let r = send_json(auth(
+            http.post(format!("{base}/sdapi/v1/extra-single-image"))
+                .json(&body),
+            cfg,
+            creds,
+        ))
+        .await?;
+        let text = r
+            .get("image")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AiError::Format("the server returned no picture".into()))?;
+        return unb64(text);
+    }
+    // An Enhance is img2img at a low denoise and the *same* size, with the
+    // restorer on when asked for; an Edit is the same route at the user's
+    // strength. Neither resizes: that is Upscale's job.
+    let enhancing = job == ImageJob::Enhance;
     let mut body = json!({
         "prompt": prompt,
         "negative_prompt": w.negative_prompt,
-        "steps": w.steps.max(1),
+        "steps": if enhancing { enhance_steps(cfg) } else { w.steps.max(1) },
         "cfg_scale": tidy(w.cfg_scale),
         "width": size.0,
         "height": size.1,
         "seed": w.seed,
+        "restore_faces": enhancing && w.enhance_face_restore,
         "batch_size": 1,
         "n_iter": 1,
         "override_settings_restore_afterwards": false,
@@ -434,9 +490,16 @@ async fn webui(
     let route = match job {
         ImageJob::Generate => "txt2img",
         _ => {
+            // An edit moves as far as the user asked; an enhancement only
+            // as far as the refiner setting allows.
             let img = source.expect("checked");
+            let d = if enhancing {
+                enhance_denoise(cfg)
+            } else {
+                strength
+            };
             body["init_images"] = json!([b64(&img.data)]);
-            body["denoising_strength"] = json!(tidy(strength));
+            body["denoising_strength"] = json!(tidy(d));
             "img2img"
         }
     };
@@ -480,7 +543,23 @@ pub const COMFY_EDIT: &str = r#"{
   "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "HyperStack", "images": ["8", 0]}}
 }"#;
 
+/// Enhancement: the picture re-sampled at a low denoise, at its own
+/// size. More detail, same subject, same pixels wide. Not a resize.
 pub const COMFY_ENHANCE: &str = r#"{
+  "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "{{checkpoint}}"}},
+  "10": {"class_type": "LoadImage", "inputs": {"image": "{{image}}"}},
+  "11": {"class_type": "VAEEncode", "inputs": {"pixels": ["10", 0], "vae": ["4", 2]}},
+  "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{prompt}}", "clip": ["4", 1]}},
+  "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{negative}}", "clip": ["4", 1]}},
+  "3": {"class_type": "KSampler", "inputs": {"seed": "{{seed}}", "steps": "{{steps}}", "cfg": "{{cfg}}", "sampler_name": "{{sampler}}", "scheduler": "{{scheduler}}", "denoise": "{{denoise}}", "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["11", 0]}},
+  "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+  "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "HyperStack", "images": ["8", 0]}}
+}"#;
+
+/// Upscaling: a super-resolution model, then a scale to the asked-for
+/// size. `{{scale_by}}` is there for a workflow that would rather use
+/// `ImageScaleBy` (a ratio) than `ImageScale` (a width and a height).
+pub const COMFY_UPSCALE: &str = r#"{
   "10": {"class_type": "LoadImage", "inputs": {"image": "{{image}}"}},
   "12": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": "{{upscaler}}"}},
   "13": {"class_type": "ImageUpscaleWithModel", "inputs": {"upscale_model": ["12", 0], "image": ["10", 0]}},
@@ -505,6 +584,7 @@ pub const COMFY_PLACEHOLDERS: &[&str] = &[
     "denoise",
     "target_width",
     "target_height",
+    "scale_by",
 ];
 
 /// Fill a workflow's placeholders. Numbers replace the *quoted* token so
@@ -569,8 +649,10 @@ async fn comfy(
     let w = &cfg.image;
     // Empty settings take the server's first choice rather than a name it
     // may not have.
+    // Upscaling runs a super-resolution model and needs no checkpoint;
+    // every other job, enhancement included, re-samples through one.
     let mut ckpt = checkpoint(cfg, model).to_string();
-    if ckpt.is_empty() && job != ImageJob::Enhance {
+    if ckpt.is_empty() && job != ImageJob::Upscale {
         ckpt = comfy_choices(http, cfg, creds, "CheckpointLoaderSimple", "ckpt_name")
             .await?
             .into_iter()
@@ -578,7 +660,7 @@ async fn comfy(
             .ok_or_else(|| AiError::Format("ComfyUI has no checkpoints".into()))?;
     }
     let mut upscale = w.upscaler.trim().to_string();
-    if upscale.is_empty() && job == ImageJob::Enhance {
+    if upscale.is_empty() && job == ImageJob::Upscale {
         upscale = comfy_choices(http, cfg, creds, "UpscaleModelLoader", "model_name")
             .await?
             .into_iter()
@@ -613,6 +695,7 @@ async fn comfy(
         ImageJob::Generate => (COMFY_GENERATE, &w.comfy_generate),
         ImageJob::Edit => (COMFY_EDIT, &w.comfy_edit),
         ImageJob::Enhance => (COMFY_ENHANCE, &w.comfy_enhance),
+        ImageJob::Upscale => (COMFY_UPSCALE, &w.comfy_upscale),
     };
     let template = if custom.trim().is_empty() {
         template
@@ -634,7 +717,15 @@ async fn comfy(
     } else {
         w.seed as f64
     };
-    let f = factor(cfg) as f64;
+    let (target_w, target_h) = w.upscale_target(size);
+    let denoise = match job {
+        ImageJob::Enhance => enhance_denoise(cfg),
+        _ => strength,
+    };
+    let steps = match job {
+        ImageJob::Enhance => enhance_steps(cfg),
+        _ => w.steps.max(1),
+    };
     let filled = fill_workflow(
         template,
         &[
@@ -648,13 +739,14 @@ async fn comfy(
         ],
         &[
             ("seed", seed),
-            ("steps", w.steps.max(1) as f64),
+            ("steps", steps as f64),
             ("cfg", tidy(w.cfg_scale)),
             ("width", size.0 as f64),
             ("height", size.1 as f64),
-            ("denoise", tidy(strength)),
-            ("target_width", size.0 as f64 * f),
-            ("target_height", size.1 as f64 * f),
+            ("denoise", tidy(denoise)),
+            ("target_width", target_w as f64),
+            ("target_height", target_h as f64),
+            ("scale_by", tidy(w.upscale_ratio(size))),
         ],
     );
     let workflow: Value = serde_json::from_str(&filled)
@@ -834,14 +926,16 @@ async fn swarm(
     let base = cfg.base();
     let w = &cfg.image;
     let session = swarm_session(http, cfg, creds).await?;
-    // Enhance is an init-image pass at low creativity and the larger size:
     // SwarmUI's own upscale lives in its refiner stage, which needs a
-    // second model, so this is the route that works on any install.
+    // second model, so both jobs go through the init-image route: an
+    // Upscale asks for the larger size, an Enhance for the same size at
+    // a low creativity (detail, not content).
     let (width, height, creativity) = match job {
-        ImageJob::Enhance => {
-            let f = factor(cfg);
-            (size.0 * f, size.1 * f, 0.25)
+        ImageJob::Upscale => {
+            let (tw, th) = w.upscale_target(size);
+            (tw, th, 0.25)
         }
+        ImageJob::Enhance => (size.0, size.1, enhance_denoise(cfg)),
         _ => (size.0, size.1, strength),
     };
     let mut body = json!({
@@ -851,7 +945,7 @@ async fn swarm(
         "negativeprompt": w.negative_prompt,
         "width": width,
         "height": height,
-        "steps": w.steps.max(1),
+        "steps": if job == ImageJob::Enhance { enhance_steps(cfg) } else { w.steps.max(1) },
         "cfgscale": tidy(w.cfg_scale),
         "seed": w.seed,
     });
@@ -963,7 +1057,7 @@ async fn invoke(
         }));
     };
     let output_node;
-    if job == ImageJob::Enhance {
+    if job == ImageJob::Upscale {
         output_node = "esrgan";
         nodes.insert(
             "esrgan".into(),
@@ -1048,17 +1142,20 @@ async fn invoke(
         } else {
             w.scheduler.trim()
         };
-        let denoising_start = if job == ImageJob::Edit {
-            tidy(1.0 - strength)
-        } else {
-            0.0
+        // Where the sampler starts: a new picture from pure noise (0), an
+        // edit from the source at the user's strength, an enhancement
+        // from the source at its own small denoise.
+        let denoising_start = match job {
+            ImageJob::Edit => tidy(1.0 - strength),
+            ImageJob::Enhance => tidy(1.0 - enhance_denoise(cfg)),
+            _ => 0.0,
         };
         nodes.insert(
             "denoise".into(),
             json!({
                 "id": "denoise",
                 "type": "denoise_latents",
-                "steps": w.steps.max(1),
+                "steps": if job == ImageJob::Enhance { enhance_steps(cfg) } else { w.steps.max(1) },
                 "cfg_scale": tidy(w.cfg_scale),
                 "scheduler": scheduler,
                 "denoising_start": denoising_start,
@@ -1070,7 +1167,7 @@ async fn invoke(
         edge("pos", "conditioning", "denoise", "positive_conditioning");
         edge("neg", "conditioning", "denoise", "negative_conditioning");
         edge("noise", "noise", "denoise", "noise");
-        if job == ImageJob::Edit {
+        if job == ImageJob::Edit || job == ImageJob::Enhance {
             nodes.insert(
                 "i2l".into(),
                 json!({
@@ -1210,10 +1307,20 @@ async fn fooocus(
             "v2/generation/image-upscale-vary"
         }
         ImageJob::Enhance => {
+            // Fooocus has no restorer route; Vary (Subtle) is its
+            // same-size detail pass, which is what an enhancement is.
             let img = source.expect("checked");
             body["input_image"] = Value::String(b64(&img.data));
+            body["uov_method"] = Value::String("Vary (Subtle)".into());
+            "v2/generation/image-upscale-vary"
+        }
+        ImageJob::Upscale => {
+            let img = source.expect("checked");
+            body["input_image"] = Value::String(b64(&img.data));
+            // Fooocus only takes its own three ratios, so a target size
+            // is answered with the nearest one it has.
             body["uov_method"] = Value::String(
-                if factor(cfg) >= 2 {
+                if cfg.image.upscale_ratio(size) >= 2.0 {
                     "Upscale (2x)"
                 } else {
                     "Upscale (1.5x)"

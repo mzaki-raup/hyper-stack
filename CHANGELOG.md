@@ -11,28 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.72.0 — 2026-10-22
+
 ### Added
 
-- API client: **OAuth 2.0** (client credentials, password and refresh-token
-  grants; the token is fetched at send time and cached until it expires,
-  Refresh Token Now forgets it) and **AWS Signature V4** (key pair, session
-  token, region, service; signs the final body) as auth kinds, inherited
-  like the others and carried through Postman and Insomnia import/export
-  and the assistant's `set_auth`.
-- hs-core: mock-server tests for the five self-hosted image backends
-  (`tests/ai_local_mock.rs`) checking every documented field the client
-  sends and how it reads the answers; f32 settings are rounded to four
-  decimals on the wire.
+- OAuth 2.0 and AWS SigV4 authentication in the API client (095366f9)
 
 ### Fixed
 
-- Database: the transaction badge follows the server rather than the
-  statement text - Postgres is asked with `now() <> statement_timestamp()`
-  (an aborted block counts), MySQL/MariaDB with `@@in_transaction` or the
-  performance schema; the BEGIN/COMMIT classifier is only the fallback.
-- API client: collection and environment imports are read and parsed off
-  the UI thread, and Postman exports are written off it; a second import
-  while one is running is refused with a notice.
+- Ask the server for transaction state, import and export off the UI thread, mock the image servers (e6bc9430)
 
 ## 0.71.1 — 2026-10-22
 

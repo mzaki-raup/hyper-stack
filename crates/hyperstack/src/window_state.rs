@@ -18,8 +18,12 @@ pub struct WindowState {
 }
 
 impl WindowState {
-    pub const DEFAULT_SIZE: [f32; 2] = [1360.0, 860.0];
-    pub const MIN_SIZE: [f32; 2] = [800.0, 500.0];
+    /// The window opens at its minimum, which is also the smallest layout
+    /// every tool is designed for (owner's rule, 2026-10-23).
+    pub const DEFAULT_SIZE: [f32; 2] = [1720.0, 860.0];
+    /// Strict: the viewport enforces it, Settings cannot ask for less, and a
+    /// saved geometry below it is replaced rather than clamped.
+    pub const MIN_SIZE: [f32; 2] = [1720.0, 860.0];
 
     pub fn load(path: &Path) -> Self {
         let st: Self = hs_core::storage::read_toml(path).unwrap_or_default();
@@ -79,72 +83,32 @@ impl WindowState {
     }
 }
 
-/// A window size the user can pick in Settings → General → Startup, as a
-/// share of the screen the window is on (owner's request, 2026-10-23).
-/// **Full** maximises rather than sizing, so the taskbar is left alone.
+/// What the Size picker in Settings → General → Startup offers (owner's
+/// request, 2026-10-23, narrowed to these two the same day). **Full**
+/// maximises rather than sizing to the monitor, so the taskbar is left
+/// alone; **Custom** is the window at the width and height beside it, and
+/// picking it restores a maximised window to that size. Shares of the
+/// screen were offered briefly and taken out again.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizePreset {
     Full,
-    ThreeQuarters,
-    TwoThirds,
-    Half,
-    Default,
+    Custom,
 }
 
 impl SizePreset {
-    pub const ALL: [Self; 5] = [
-        Self::Full,
-        Self::ThreeQuarters,
-        Self::TwoThirds,
-        Self::Half,
-        Self::Default,
-    ];
+    pub const ALL: [Self; 2] = [Self::Full, Self::Custom];
 
-    /// The Fluent key for this preset's name.
+    /// The Fluent key for this entry's name.
     pub fn key(self) -> &'static str {
         match self {
             Self::Full => "settings-window-full",
-            Self::ThreeQuarters => "settings-window-three-quarters",
-            Self::TwoThirds => "settings-window-two-thirds",
-            Self::Half => "settings-window-half",
-            Self::Default => "settings-window-default",
+            Self::Custom => "settings-window-custom",
         }
     }
 
-    /// The share of each screen axis this preset asks for, if any.
-    fn share(self) -> Option<f32> {
-        match self {
-            Self::Full => Some(1.0),
-            Self::ThreeQuarters => Some(0.75),
-            Self::TwoThirds => Some(2.0 / 3.0),
-            Self::Half => Some(0.5),
-            Self::Default => None,
-        }
-    }
-
-    /// The inner size this preset means on a screen of `monitor`, never
-    /// below the minimum the window enforces.
-    pub fn size(self, monitor: egui::Vec2) -> egui::Vec2 {
-        let want = match self.share() {
-            Some(f) => egui::vec2(monitor.x * f, monitor.y * f),
-            None => egui::Vec2::from(WindowState::DEFAULT_SIZE),
-        };
-        egui::vec2(
-            want.x.max(WindowState::MIN_SIZE[0]),
-            want.y.max(WindowState::MIN_SIZE[1]),
-        )
-    }
-
-    /// Which preset `size` is, so the picker can show it rather than
-    /// Custom. A maximised window is always Full.
-    pub fn matching(size: egui::Vec2, monitor: egui::Vec2, maximized: bool) -> Option<Self> {
-        if maximized {
-            return Some(Self::Full);
-        }
-        Self::ALL.into_iter().skip(1).find(|p| {
-            let want = p.size(monitor);
-            (want.x - size.x).abs() <= 2.0 && (want.y - size.y).abs() <= 2.0
-        })
+    /// Which entry names the window as it is now.
+    pub fn of(maximized: bool) -> Self {
+        if maximized { Self::Full } else { Self::Custom }
     }
 }
 
@@ -168,37 +132,28 @@ mod tests {
     }
 
     #[test]
-    fn a_preset_is_a_share_of_the_screen_and_never_below_the_minimum() {
-        let monitor = egui::vec2(1920.0, 1080.0);
-        assert_eq!(SizePreset::Half.size(monitor), egui::vec2(960.0, 540.0));
-        assert_eq!(
-            SizePreset::ThreeQuarters.size(monitor),
-            egui::vec2(1440.0, 810.0)
-        );
-        // Half of a small screen would be under the window's minimum.
-        let small = egui::vec2(1280.0, 720.0);
-        assert_eq!(
-            SizePreset::Half.size(small),
-            egui::Vec2::from(WindowState::MIN_SIZE)
-        );
+    fn a_window_saved_under_the_minimum_opens_at_the_minimum() {
+        // A geometry written before the minimum rose, or by hand.
+        let st = WindowState {
+            x: Some(20.0),
+            y: Some(20.0),
+            width: 1360.0,
+            height: 700.0,
+            maximized: false,
+        }
+        .sanitised();
+        assert_eq!(st.width, 1720.0);
+        assert_eq!(st.height, 860.0);
+        // The viewport is told the same floor, so the user cannot drag under it.
+        let v = st.viewport();
+        assert_eq!(v.min_inner_size, Some(egui::vec2(1720.0, 860.0)));
     }
 
     #[test]
-    fn the_picker_names_the_size_the_window_already_has() {
-        let monitor = egui::vec2(1920.0, 1080.0);
-        assert_eq!(
-            SizePreset::matching(egui::vec2(960.0, 540.0), monitor, false),
-            Some(SizePreset::Half)
-        );
-        // Maximised is Full however large the inner rectangle reads.
-        assert_eq!(
-            SizePreset::matching(egui::vec2(1234.0, 567.0), monitor, true),
-            Some(SizePreset::Full)
-        );
-        // Anything else is the user's own size.
-        assert_eq!(
-            SizePreset::matching(egui::vec2(1111.0, 777.0), monitor, false),
-            None
-        );
+    fn the_picker_names_the_window_as_it_is() {
+        assert_eq!(SizePreset::of(true), SizePreset::Full);
+        assert_eq!(SizePreset::of(false), SizePreset::Custom);
+        // Only those two are offered.
+        assert_eq!(SizePreset::ALL.len(), 2);
     }
 }

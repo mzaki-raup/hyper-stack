@@ -42,8 +42,9 @@ visibility and every sidebar width are per workspace** (`[rail]` in
 `workspace.toml`, edited for any workspace from Settings → Appearance,
 with a global Coloured Activity Icons switch that is off by default);
 Settings → General → Startup ends with **Window Size** - the window's live
-width and height plus a picker that resizes it to a share of the screen
-(`window_state::SizePreset`), with a user-set minimum still to come;
+width and height plus a Full Screen or Custom picker
+(`window_state::SizePreset`), over a **strict 1720 × 860 minimum** the
+viewport, the fields and `WindowState::sanitised` all enforce;
 Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
@@ -1305,7 +1306,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   row or two lower, which reads as "the dropdown will not open" (it opened a
   drag value instead), and anything below client height (960-39 = 921) throws
   "is not over the dev window".
-- **`focus-hs` forces the window back to 1400x960**, and every command but
+- The window's minimum is a strict **1720 x 860** since 2026-10-23. Windows
+  holds a *user's* drag to it but lets a `SetWindowPos` from another process
+  through, so `HyperStackApp::enforce_min_size` reads the size every frame
+  and pushes back. A harness that asks for 1400x960 therefore gets the small
+  window for a frame and 1720x860 after: every coordinate taken from an older
+  screenshot is wrong, and a capture taken in that first frame lies. Shoot
+  fresh, after a pause, before clicking anything.
+- **`focus-hs` forces the window back to its own size**, and every command but
   `rawshot` calls it. Testing a resize therefore needs the open-and-click in
   **one** harness invocation, and the result read with `GetWindowRect` from a
   separate process - a following `shot` would have undone it before capturing.

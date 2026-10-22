@@ -626,6 +626,36 @@ impl HyperStackApp {
         self.tabs.activate(ids[idx as usize]);
     }
 
+    /// The 1720 × 860 minimum is strict (owner's rule, 2026-10-23). The
+    /// viewport carries it, which stops a user dragging an edge under it, but
+    /// Windows applies that only to user-driven sizing: a `SetWindowPos` from
+    /// another process (a screenshot harness, a window manager) sails straight
+    /// through. So the size is checked every frame and pushed back. A
+    /// maximised, fullscreen or minimised window is left alone, and a pixel of
+    /// tolerance keeps rounding from fighting the window manager every frame.
+    fn enforce_min_size(&self, ctx: &egui::Context) {
+        let (inner, odd) = ctx.input(|i| {
+            let vp = i.viewport();
+            (
+                vp.inner_rect.map(|r| r.size()),
+                vp.maximized.unwrap_or(false)
+                    || vp.minimized.unwrap_or(false)
+                    || vp.fullscreen.unwrap_or(false),
+            )
+        });
+        let Some(inner) = inner else { return };
+        if odd {
+            return;
+        }
+        let min = egui::Vec2::from(crate::window_state::WindowState::MIN_SIZE);
+        if inner.x < min.x - 1.0 || inner.y < min.y - 1.0 {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                inner.x.max(min.x),
+                inner.y.max(min.y),
+            )));
+        }
+    }
+
     /// Window geometry and panel sizes, saved with the layout (debounced, and on close).
     fn save_window_state(&mut self, ctx: &egui::Context) {
         if let Some(st) =
@@ -3691,6 +3721,7 @@ impl eframe::App for HyperStackApp {
         self.notification_popup(ctx);
         self.toasts.show(ctx, &self.theme);
 
+        self.enforce_min_size(ctx);
         // Layout persistence: debounced, and on close.
         if self.tabs.dirty && self.layout_dirty_since.is_none() {
             self.layout_dirty_since = Some(Instant::now());

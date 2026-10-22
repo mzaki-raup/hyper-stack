@@ -4,6 +4,17 @@ Images used by the top-level [README](../../README.md). They show the build from
 repository, not mock-ups; the whole set was last refreshed on Windows 11 on
 2026-10-22 (v0.72.0 plus the `tool-logs` branch), at 1400x960.
 
+**The window no longer goes that small.** From 2026-10-23 the minimum is a
+strict 1720 × 860 (`WindowState::MIN_SIZE`, owner's rule). Windows holds a
+user's drag to it, and `HyperStackApp::enforce_min_size` pushes back against
+anything else, a harness's `SetWindowPos`/`MoveWindow` included: the
+undersized frame is accepted and then corrected, so a capture taken
+immediately after the resize can still show the small window. A harness
+asking for 1400x960 settles at 1720x860 within a frame or two, which means
+the next refresh of these images will be at that size and the coordinates in
+the recipes below no longer line up. Wait a beat after sizing the window,
+and retake a whole page rather than patching one shot into the old set.
+
 ## How they were made
 
 Captured from the debug build with `scripts/gui-smoke.ps1` (`start`, `click`, `dclick`, `rclick`, `mclick`,

@@ -690,10 +690,10 @@ fn workspace(
 
 /// Window Size, at the foot of the Startup card (owner's request,
 /// 2026-10-23). The width and height are the live inner size, so they follow
-/// the window as it is dragged; typing in them, or picking a share of the
-/// screen, resizes it. The floor is `WindowState::MIN_SIZE`, which the
-/// viewport also enforces, so the window cannot be made smaller than that
-/// from either side.
+/// the window as it is dragged; typing in them resizes it. The picker is
+/// Full Screen (maximise) or Custom (the size beside it). The floor is
+/// `WindowState::MIN_SIZE`, strict: the viewport enforces it, this form
+/// cannot ask for less, and a saved geometry below it is replaced on load.
 fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     use crate::window_state::{SizePreset, WindowState};
 
@@ -707,32 +707,31 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     });
     let Some(inner) = inner else { return };
     let monitor = monitor.unwrap_or(egui::vec2(1920.0, 1080.0));
-    // A preset is never asked for more than the screen holds.
-    let ceiling = egui::vec2(monitor.x.max(inner.x), monitor.y.max(inner.y));
+    // Never offer more than the screen holds, nor less than the window's own
+    // size when the screen reports smaller than it.
+    let ceiling = egui::vec2(
+        monitor.x.max(inner.x).max(WindowState::MIN_SIZE[0]),
+        monitor.y.max(inner.y).max(WindowState::MIN_SIZE[1]),
+    );
 
     ui.label(egui::RichText::new(s.t("settings-window-size")).strong());
     ui.add_space(6.0);
 
-    let mut apply: Option<(egui::Vec2, bool)> = None;
+    let mut apply: Option<SizePreset> = None;
+    let mut resize: Option<egui::Vec2> = None;
     form::field_grid(ui, "window-size-grid", |ui| {
         form::label(ui, &s.t("settings-window-preset"));
-        let current = SizePreset::matching(inner, monitor, maximized);
-        let selected = current
-            .map(|p| s.t(p.key()))
-            .unwrap_or_else(|| s.t("settings-window-custom"));
+        let current = SizePreset::of(maximized);
         egui::ComboBox::from_id_salt("window-preset")
             .width(form::FIELD_MIN_WIDTH)
-            .selected_text(selected)
+            .selected_text(s.t(current.key()))
             .show_ui(ui, |ui| {
-                // Custom is not a size to pick, it is what a window the user
-                // has dragged already is, so it names the closed picker and
-                // stays out of the list.
                 for p in SizePreset::ALL {
                     if ui
-                        .add(egui::Button::selectable(current == Some(p), s.t(p.key())))
+                        .add(egui::Button::selectable(current == p, s.t(p.key())))
                         .clicked()
                     {
-                        apply = Some((p.size(ceiling), p == SizePreset::Full));
+                        apply = Some(p);
                         ui.close();
                     }
                 }
@@ -757,23 +756,25 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
                     .suffix(" px"),
             );
             if a.changed() || b.changed() {
-                apply = Some((egui::vec2(w, h), false));
+                resize = Some(egui::vec2(w, h));
             }
         });
         ui.end_row();
     });
 
-    if let Some((size, full)) = apply {
-        let ctx = ui.ctx();
-        if full {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-        } else {
-            // Leaving a maximised window maximised would swallow the size.
-            if maximized {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-            }
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+    let ctx = ui.ctx().clone();
+    match apply {
+        Some(SizePreset::Full) => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true)),
+        // Custom restores the window to the size the fields show.
+        Some(SizePreset::Custom) => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false)),
+        None => {}
+    }
+    if let Some(size) = resize {
+        // Leaving a maximised window maximised would swallow the size.
+        if maximized {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
         }
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
     }
 
     form::hint(

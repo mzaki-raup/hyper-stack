@@ -435,17 +435,29 @@ The two numbers are the window's own inner size read from
 `ViewportInfo::inner_rect`, so they follow the window as an edge is dragged
 rather than being a setting of their own; typing or dragging either one
 sends `ViewportCommand::InnerSize` and resizes the window there and then.
-The picker offers shares of the screen the window is on -
-`window_state::SizePreset`: Full Screen (which maximises, so the taskbar is
-left alone), Three Quarters, Two Thirds, Half and Default Size - and reads
-back whichever the window already matches, or **Custom** when the user has
-dragged it to a size of their own. A preset is never asked for less than
-`WindowState::MIN_SIZE`, which the viewport enforces as its minimum too, so
-neither route can make the window smaller than 800 × 500. A **user-set**
-minimum is a later step: it would be a settings field feeding both
-`SizePreset::size`'s floor and `ViewportBuilder::with_min_inner_size`.
-Nothing here is persisted separately; the geometry still lands in
-`window.toml` the way a dragged resize does.
+The picker (`window_state::SizePreset`) offers exactly two entries: **Full
+Screen**, which maximises rather than sizing to the monitor so the taskbar
+is left alone, and **Custom**, the window at the width and height beside it,
+which also restores a maximised window to that size. Shares of the screen
+(three quarters, two thirds, half, a default size) were offered on the day
+this landed and taken out again at the owner's request the same day; do not
+reintroduce them.
+
+**The minimum is strict: 1720 × 860** (`WindowState::MIN_SIZE`, owner's
+rule, 2026-10-23). It is the smallest layout every tool is designed for, so
+it is enforced in four places and never merely clamped at one of them: the
+viewport carries it as `with_min_inner_size`, so Windows refuses a smaller
+drag; the Width and Height fields take it as their lower bound; a
+`window.toml` written before the rule, or by hand, is replaced with the
+default rather than kept (`sanitised`); and `HyperStackApp::enforce_min_size`
+reads the live size every frame and pushes back, because Windows applies
+`with_min_inner_size` only to user-driven sizing and lets a `SetWindowPos`
+from another process straight through. A maximised, fullscreen or minimised
+window is left alone there, and a pixel of tolerance stops it arguing with
+the window manager. `DEFAULT_SIZE` is the same pair, so a first start opens
+at the minimum. Nothing in this block is persisted
+separately; the geometry still lands in `window.toml` the way a dragged
+resize does.
 
 ## 10. Accessibility and ergonomics
 

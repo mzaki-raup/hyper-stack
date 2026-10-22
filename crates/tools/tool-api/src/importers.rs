@@ -219,6 +219,31 @@ pub mod insomnia {
                 kind: AuthKind::None,
                 ..Default::default()
             },
+            "oauth2" => Auth {
+                kind: AuthKind::OAuth2,
+                token_url: s(v, "accessTokenUrl"),
+                grant: match s(v, "grantType").as_str() {
+                    "password" => "password".into(),
+                    "refresh_token" => "refresh_token".into(),
+                    _ => "client_credentials".into(),
+                },
+                client_id: s(v, "clientId"),
+                client_secret: s(v, "clientSecret"),
+                scope: s(v, "scope"),
+                audience: s(v, "audience"),
+                username: s(v, "username"),
+                password: s(v, "password"),
+                ..Default::default()
+            },
+            "iam" => Auth {
+                kind: AuthKind::AwsSigV4,
+                access_key: s(v, "accessKeyId"),
+                secret_key: s(v, "secretAccessKey"),
+                session_token: s(v, "sessionToken"),
+                region: s(v, "region"),
+                service: s(v, "service"),
+                ..Default::default()
+            },
             _ => Auth::default(),
         }
     }

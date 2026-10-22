@@ -957,6 +957,27 @@ impl ApiTool {
             }
             _ => {}
         }
+        let dynamic = match auth.kind {
+            AuthKind::OAuth2 => send::DynamicAuth::OAuth2 {
+                token_url: self.resolve(s, scopes, &auth.token_url, &mut missing),
+                grant: auth.grant.clone(),
+                client_id: self.resolve(s, scopes, &auth.client_id, &mut missing),
+                client_secret: self.resolve(s, scopes, &auth.client_secret, &mut missing),
+                scope: self.resolve(s, scopes, &auth.scope, &mut missing),
+                audience: self.resolve(s, scopes, &auth.audience, &mut missing),
+                username: self.resolve(s, scopes, &auth.username, &mut missing),
+                password: self.resolve(s, scopes, &auth.password, &mut missing),
+                refresh_token: self.resolve(s, scopes, &auth.token, &mut missing),
+            },
+            AuthKind::AwsSigV4 => send::DynamicAuth::SigV4 {
+                access_key: self.resolve(s, scopes, &auth.access_key, &mut missing),
+                secret_key: self.resolve(s, scopes, &auth.secret_key, &mut missing),
+                session_token: self.resolve(s, scopes, &auth.session_token, &mut missing),
+                region: self.resolve(s, scopes, &auth.region, &mut missing),
+                service: self.resolve(s, scopes, &auth.service, &mut missing),
+            },
+            _ => send::DynamicAuth::None,
+        };
         let body = match req.body.kind {
             BodyKind::None => BodyData::None,
             BodyKind::Json | BodyKind::Text | BodyKind::Xml => BodyData::Text {
@@ -1022,6 +1043,7 @@ impl ApiTool {
                 headers,
                 body,
                 timeout_secs: 60,
+                auth: dynamic,
             },
             changes,
         ))

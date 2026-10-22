@@ -99,6 +99,32 @@ fn auth_of(v: Option<&Value>) -> Auth {
             },
             ..Default::default()
         },
+        "oauth2" => Auth {
+            kind: AuthKind::OAuth2,
+            token_url: param("oauth2", "accessTokenUrl"),
+            grant: match param("oauth2", "grant_type").as_str() {
+                "password_credentials" => "password".into(),
+                "refresh_token" => "refresh_token".into(),
+                _ => "client_credentials".into(),
+            },
+            client_id: param("oauth2", "clientId"),
+            client_secret: param("oauth2", "clientSecret"),
+            scope: param("oauth2", "scope"),
+            audience: param("oauth2", "audience"),
+            username: param("oauth2", "username"),
+            password: param("oauth2", "password"),
+            token: param("oauth2", "refreshToken"),
+            ..Default::default()
+        },
+        "awsv4" => Auth {
+            kind: AuthKind::AwsSigV4,
+            access_key: param("awsv4", "accessKey"),
+            secret_key: param("awsv4", "secretKey"),
+            session_token: param("awsv4", "sessionToken"),
+            region: param("awsv4", "region"),
+            service: param("awsv4", "service"),
+            ..Default::default()
+        },
         _ => Auth::default(),
     }
 }
@@ -519,6 +545,35 @@ fn auth_json(a: &Auth) -> Option<Value> {
         AuthKind::ApiKey => json!({
             "type": "apikey",
             "apikey": [param("key", &a.key), param("value", &a.value), param("in", if a.add_to == "query" { "query" } else { "header" })]
+        }),
+        AuthKind::OAuth2 => json!({
+            "type": "oauth2",
+            "oauth2": [
+                param("accessTokenUrl", &a.token_url),
+                param("grant_type", match a.grant.as_str() {
+                    "password" => "password_credentials",
+                    "refresh_token" => "refresh_token",
+                    _ => "client_credentials",
+                }),
+                param("clientId", &a.client_id),
+                param("clientSecret", &a.client_secret),
+                param("scope", &a.scope),
+                param("audience", &a.audience),
+                param("username", &a.username),
+                param("password", &a.password),
+                param("refreshToken", &a.token),
+                param("addTokenTo", "header"),
+            ]
+        }),
+        AuthKind::AwsSigV4 => json!({
+            "type": "awsv4",
+            "awsv4": [
+                param("accessKey", &a.access_key),
+                param("secretKey", &a.secret_key),
+                param("sessionToken", &a.session_token),
+                param("region", &a.region),
+                param("service", &a.service),
+            ]
         }),
     })
 }

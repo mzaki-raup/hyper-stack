@@ -3,6 +3,7 @@
 //! here (the workspace's reqwest has no `multipart` feature), and a curl
 //! command can be produced for the same request.
 
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +29,335 @@ pub struct Prepared {
     pub headers: Vec<(String, String)>,
     pub body: BodyData,
     pub timeout_secs: u64,
+    /// Authentication resolved at send time (OAuth 2.0 token, SigV4).
+    pub auth: DynamicAuth,
+}
+
+/// Authentication that is computed at send time rather than written into
+/// the headers beforehand: an OAuth 2.0 token fetched (and cached) from the
+/// token endpoint, or an AWS SigV4 signature over the final request.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum DynamicAuth {
+    #[default]
+    None,
+    OAuth2 {
+        token_url: String,
+        /// `client_credentials`, `password` or `refresh_token`.
+        grant: String,
+        client_id: String,
+        client_secret: String,
+        scope: String,
+        audience: String,
+        username: String,
+        password: String,
+        refresh_token: String,
+    },
+    SigV4 {
+        access_key: String,
+        secret_key: String,
+        session_token: String,
+        region: String,
+        service: String,
+    },
+}
+
+/// Tokens by (token URL, client id, grant, scope, username): fetched once
+/// and reused until a minute before they expire. One cache for the
+/// process, which is what "per environment" means with one send path.
+static TOKENS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, (String, Instant)>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+
+/// Forget every cached OAuth 2.0 token ("refresh now").
+pub fn forget_tokens() {
+    TOKENS.lock().unwrap().clear();
+}
+
+/// `(scheme, host, path, query pairs)` of a URL, without a URL crate: enough
+/// for a signature's canonical request.
+pub fn split_url(url: &str) -> (String, String, String, Vec<(String, String)>) {
+    let (scheme, rest) = url.split_once("://").unwrap_or(("https", url));
+    let (authority, path_query) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
+    };
+    let (path, query) = path_query.split_once('?').unwrap_or((path_query, ""));
+    let pairs = query
+        .split('&')
+        .filter(|p| !p.is_empty())
+        .map(|p| {
+            let (k, v) = p.split_once('=').unwrap_or((p, ""));
+            (urldecode(k), urldecode(v))
+        })
+        .collect();
+    (
+        scheme.to_string(),
+        authority.to_string(),
+        if path.is_empty() {
+            "/".into()
+        } else {
+            path.to_string()
+        },
+        pairs,
+    )
+}
+
+fn urldecode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => out.push(b' '),
+            b'%' if i + 2 < bytes.len() + 1 && i + 2 <= bytes.len() - 1 + 1 => {
+                match u8::from_str_radix(&s[i + 1..(i + 3).min(s.len())], 16) {
+                    Ok(b) if i + 2 < bytes.len() => {
+                        out.push(b);
+                        i += 2;
+                    }
+                    _ => out.push(b'%'),
+                }
+            }
+            b => out.push(b),
+        }
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The bytes a body puts on the wire and their content type (what a
+/// signature must cover).
+fn body_bytes(p: &Prepared) -> (Option<String>, Vec<u8>) {
+    match &p.body {
+        BodyData::None => (None, Vec::new()),
+        BodyData::Text { content_type, text } => {
+            (Some(content_type.clone()), text.clone().into_bytes())
+        }
+        BodyData::Form(fields) => (
+            Some("application/x-www-form-urlencoded".into()),
+            form_body(fields).into_bytes(),
+        ),
+        BodyData::Multipart(parts) => {
+            let (boundary, body) = multipart(parts);
+            (
+                Some(format!("multipart/form-data; boundary={boundary}")),
+                body,
+            )
+        }
+        BodyData::Binary {
+            content_type,
+            bytes,
+        } => (Some(content_type.clone()), bytes.clone()),
+    }
+}
+
+/// The SigV4 headers for `p` with the given body: `host`, `x-amz-date`,
+/// `x-amz-content-sha256`, the session token when there is one, and
+/// `Authorization`. `now` is the signing time (`%Y%m%dT%H%M%SZ`).
+// The signing inputs are what they are; a struct would only rename them.
+#[allow(clippy::too_many_arguments)]
+pub fn sigv4_headers(
+    p: &Prepared,
+    body: &[u8],
+    content_type: Option<&str>,
+    access_key: &str,
+    secret_key: &str,
+    session_token: &str,
+    region: &str,
+    service: &str,
+    now: &str,
+) -> Vec<(String, String)> {
+    use hs_core::objstore::sigv4;
+    let (_, host, path, query) = split_url(&p.url);
+    let payload_hash = sigv4::sha256_hex(body);
+    let mut signed: Vec<(String, String)> = vec![
+        ("host".into(), host),
+        ("x-amz-date".into(), now.to_string()),
+        ("x-amz-content-sha256".into(), payload_hash.clone()),
+    ];
+    if let Some(ct) = content_type {
+        signed.push(("content-type".into(), ct.to_string()));
+    }
+    if !session_token.is_empty() {
+        signed.push(("x-amz-security-token".into(), session_token.to_string()));
+    }
+    let canonical_path: String = path
+        .split('/')
+        .map(|seg| sigv4::uri_encode(seg, true))
+        .collect::<Vec<_>>()
+        .join("/");
+    let creds = sigv4::Credentials {
+        access_key: access_key.to_string(),
+        secret_key: secret_key.to_string(),
+        session_token: (!session_token.is_empty()).then(|| session_token.to_string()),
+    };
+    let req = sigv4::Request {
+        method: &p.method,
+        path: &canonical_path,
+        query: &query,
+        headers: &signed,
+        payload_hash: &payload_hash,
+    };
+    let authorization = sigv4::authorization(&creds, region, service, now, &req);
+    let mut out: Vec<(String, String)> = signed
+        .into_iter()
+        .filter(|(k, _)| k != "host" && k != "content-type")
+        .collect();
+    out.push(("Authorization".into(), authorization));
+    out
+}
+
+/// Fetch an OAuth 2.0 token with the client-credentials, password or
+/// refresh-token grant (RFC 6749 §4.3, §4.4, §6), cached until a minute
+/// before `expires_in`.
+#[allow(clippy::too_many_arguments)]
+async fn oauth2_token(
+    client: &reqwest::Client,
+    token_url: &str,
+    grant: &str,
+    client_id: &str,
+    client_secret: &str,
+    scope: &str,
+    audience: &str,
+    username: &str,
+    password: &str,
+    refresh_token: &str,
+) -> Result<String, String> {
+    let key = format!("{token_url}|{client_id}|{grant}|{scope}|{username}");
+    if let Some((tok, until)) = TOKENS.lock().unwrap().get(&key)
+        && Instant::now() < *until
+    {
+        return Ok(tok.clone());
+    }
+    let grant_type = match grant {
+        "password" => "password",
+        "refresh_token" => "refresh_token",
+        _ => "client_credentials",
+    };
+    let mut fields: Vec<(String, String)> = vec![("grant_type".into(), grant_type.into())];
+    if grant_type == "password" {
+        fields.push(("username".into(), username.into()));
+        fields.push(("password".into(), password.into()));
+    }
+    if grant_type == "refresh_token" {
+        fields.push(("refresh_token".into(), refresh_token.into()));
+    }
+    if !scope.trim().is_empty() {
+        fields.push(("scope".into(), scope.trim().into()));
+    }
+    if !audience.trim().is_empty() {
+        fields.push(("audience".into(), audience.trim().into()));
+    }
+    // The client authenticates with HTTP Basic (RFC 6749 §2.3.1), and the
+    // id goes in the body too for the servers that read it there.
+    fields.push(("client_id".into(), client_id.into()));
+    let mut req = client
+        .post(token_url)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Accept", "application/json")
+        .body(form_body(&fields));
+    if !client_secret.is_empty() {
+        req = req.basic_auth(client_id, Some(client_secret));
+    }
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("token request: {e}"))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap_or(serde_json::Value::Null);
+    if !status.is_success() {
+        let why = v
+            .get("error_description")
+            .or(v.get("error"))
+            .and_then(|e| e.as_str())
+            .unwrap_or(text.trim());
+        return Err(format!(
+            "token endpoint answered {}: {}",
+            status.as_u16(),
+            why
+        ));
+    }
+    let token = v
+        .get("access_token")
+        .and_then(|t| t.as_str())
+        .ok_or_else(|| "token endpoint returned no access_token".to_string())?
+        .to_string();
+    let expires = v
+        .get("expires_in")
+        .and_then(|e| e.as_u64())
+        .unwrap_or(3600)
+        .saturating_sub(60)
+        .max(5);
+    TOKENS.lock().unwrap().insert(
+        key,
+        (token.clone(), Instant::now() + Duration::from_secs(expires)),
+    );
+    Ok(token)
+}
+
+/// Resolve the dynamic authentication into concrete headers: the OAuth 2.0
+/// bearer token, or the SigV4 signature over this exact body.
+pub async fn dynamic_headers(
+    client: &reqwest::Client,
+    p: &Prepared,
+) -> Result<Vec<(String, String)>, String> {
+    match &p.auth {
+        DynamicAuth::None => Ok(Vec::new()),
+        DynamicAuth::OAuth2 {
+            token_url,
+            grant,
+            client_id,
+            client_secret,
+            scope,
+            audience,
+            username,
+            password,
+            refresh_token,
+        } => {
+            let token = oauth2_token(
+                client,
+                token_url,
+                grant,
+                client_id,
+                client_secret,
+                scope,
+                audience,
+                username,
+                password,
+                refresh_token,
+            )
+            .await?;
+            Ok(vec![("Authorization".into(), format!("Bearer {token}"))])
+        }
+        DynamicAuth::SigV4 {
+            access_key,
+            secret_key,
+            session_token,
+            region,
+            service,
+        } => {
+            let (content_type, body) = body_bytes(p);
+            // A Content-Type the user typed wins over the body's own.
+            let ct = p
+                .headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+                .map(|(_, v)| v.clone())
+                .or(content_type);
+            let now = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+            Ok(sigv4_headers(
+                p,
+                &body,
+                ct.as_deref(),
+                access_key,
+                secret_key,
+                session_token,
+                region,
+                service,
+                &now,
+            ))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +422,9 @@ pub async fn send(client: &reqwest::Client, p: &Prepared) -> Result<Exchange, St
         .request(method, &p.url)
         .timeout(Duration::from_secs(p.timeout_secs.max(1)));
     for (k, v) in &p.headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+    for (k, v) in dynamic_headers(client, p).await? {
         req = req.header(k.as_str(), v.as_str());
     }
     req = match &p.body {
@@ -337,6 +670,7 @@ mod tests {
                 text: "{\"a\":\"it's\"}".into(),
             },
             timeout_secs: 30,
+            auth: DynamicAuth::None,
         };
         let c = as_curl(&p);
         assert!(c.starts_with("curl"));
@@ -370,5 +704,187 @@ mod tests {
         )));
         assert!(text.contains("filename=\"x.bin\""));
         assert!(text.ends_with(&format!("--{boundary}--\r\n")));
+    }
+
+    #[test]
+    fn urls_split_into_host_path_and_query() {
+        let (scheme, host, path, q) = split_url("https://api.example.com/v1/a%20b?x=1&y=two+words");
+        assert_eq!(scheme, "https");
+        assert_eq!(host, "api.example.com");
+        assert_eq!(path, "/v1/a%20b");
+        assert_eq!(
+            q,
+            vec![
+                ("x".to_string(), "1".to_string()),
+                ("y".to_string(), "two words".to_string())
+            ]
+        );
+        let (_, host, path, q) = split_url("http://localhost:8080");
+        assert_eq!((host.as_str(), path.as_str()), ("localhost:8080", "/"));
+        assert!(q.is_empty());
+    }
+
+    #[test]
+    fn sigv4_signs_the_exact_body_and_lists_the_headers() {
+        let p = Prepared {
+            method: "POST".into(),
+            url: "https://abc123.execute-api.eu-west-1.amazonaws.com/prod/orders?limit=5".into(),
+            headers: Vec::new(),
+            body: BodyData::Text {
+                content_type: "application/json".into(),
+                text: "{\"a\":1}".into(),
+            },
+            timeout_secs: 30,
+            auth: DynamicAuth::None,
+        };
+        let h = sigv4_headers(
+            &p,
+            b"{\"a\":1}",
+            Some("application/json"),
+            "AKIAEXAMPLE",
+            "secret",
+            "",
+            "eu-west-1",
+            "execute-api",
+            "20261022T120000Z",
+        );
+        let get = |k: &str| {
+            h.iter()
+                .find(|(n, _)| n == k)
+                .map(|(_, v)| v.clone())
+                .unwrap()
+        };
+        assert_eq!(get("x-amz-date"), "20261022T120000Z");
+        assert_eq!(
+            get("x-amz-content-sha256"),
+            hs_core::objstore::sigv4::sha256_hex(b"{\"a\":1}")
+        );
+        let auth = get("Authorization");
+        assert!(auth.starts_with(
+            "AWS4-HMAC-SHA256 Credential=AKIAEXAMPLE/20261022/eu-west-1/execute-api/aws4_request, "
+        ));
+        assert!(auth.contains("SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date,"));
+        assert!(h.iter().all(|(k, _)| k != "x-amz-security-token"));
+        // A different body changes the signature; a session token is signed in.
+        let other = sigv4_headers(
+            &p,
+            b"{\"a\":2}",
+            Some("application/json"),
+            "AKIAEXAMPLE",
+            "secret",
+            "tok",
+            "eu-west-1",
+            "execute-api",
+            "20261022T120000Z",
+        );
+        assert_ne!(other.last().unwrap().1, auth);
+        assert!(
+            other
+                .iter()
+                .any(|(k, v)| k == "x-amz-security-token" && v == "tok")
+        );
+        assert!(other.last().unwrap().1.contains("x-amz-security-token"));
+    }
+
+    #[test]
+    fn oauth2_tokens_are_fetched_with_the_grant_and_cached() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let (h2, s2) = (hits.clone(), seen.clone());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let mut stream = stream.unwrap();
+                let mut r = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                r.read_line(&mut line).unwrap();
+                let mut len = 0usize;
+                let mut auth = String::new();
+                loop {
+                    let mut h = String::new();
+                    r.read_line(&mut h).unwrap();
+                    let h = h.trim_end().to_string();
+                    if h.is_empty() {
+                        break;
+                    }
+                    if let Some(v) = h
+                        .strip_prefix("content-length: ")
+                        .or(h.strip_prefix("Content-Length: "))
+                    {
+                        len = v.parse().unwrap();
+                    }
+                    if let Some(v) = h
+                        .strip_prefix("authorization: ")
+                        .or(h.strip_prefix("Authorization: "))
+                    {
+                        auth = v.to_string();
+                    }
+                }
+                let mut body = vec![0u8; len];
+                r.read_exact(&mut body).unwrap();
+                h2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                s2.lock()
+                    .unwrap()
+                    .push((auth, String::from_utf8_lossy(&body).into_owned()));
+                let out = br#"{"access_token":"tok-1","token_type":"Bearer","expires_in":3600}"#;
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    out.len()
+                );
+                stream.write_all(head.as_bytes()).unwrap();
+                stream.write_all(out).unwrap();
+            }
+        });
+        let p = Prepared {
+            method: "GET".into(),
+            url: "http://example.invalid/".into(),
+            headers: Vec::new(),
+            body: BodyData::None,
+            timeout_secs: 30,
+            auth: DynamicAuth::OAuth2 {
+                token_url: format!("{base}/oauth/token"),
+                grant: "client_credentials".into(),
+                client_id: "cid".into(),
+                client_secret: "sec".into(),
+                scope: "read write".into(),
+                audience: "https://api".into(),
+                username: String::new(),
+                password: String::new(),
+                refresh_token: String::new(),
+            },
+        };
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let client = reqwest::Client::new();
+        forget_tokens();
+        let h = rt.block_on(dynamic_headers(&client, &p)).unwrap();
+        assert_eq!(
+            h,
+            vec![("Authorization".to_string(), "Bearer tok-1".to_string())]
+        );
+        let again = rt.block_on(dynamic_headers(&client, &p)).unwrap();
+        assert_eq!(again, h);
+        assert_eq!(
+            hits.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "the second send reuses the token"
+        );
+        let (auth, body) = seen.lock().unwrap()[0].clone();
+        assert!(auth.starts_with("Basic "));
+        assert!(body.contains("grant_type=client_credentials"));
+        assert!(body.contains("scope=read+write"));
+        assert!(body.contains("audience=https%3A%2F%2Fapi"));
+        assert!(body.contains("client_id=cid"));
+        forget_tokens();
+        rt.block_on(dynamic_headers(&client, &p)).unwrap();
+        assert_eq!(
+            hits.load(std::sync::atomic::Ordering::SeqCst),
+            2,
+            "forgetting the cache fetches again"
+        );
     }
 }

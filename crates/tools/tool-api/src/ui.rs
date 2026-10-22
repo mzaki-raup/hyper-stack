@@ -1687,9 +1687,89 @@ fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id:
             });
             ui.end_row();
         }
+        AuthKind::OAuth2 => {
+            form::label(ui, &s.t("api-auth-token-url"));
+            form::text_field(ui, &mut a.token_url, "https://auth.example.com/oauth/token");
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-grant"));
+            if a.grant.is_empty() {
+                a.grant = "client_credentials".into();
+            }
+            egui::ComboBox::from_id_salt((id, "grant"))
+                .selected_text(s.t(match a.grant.as_str() {
+                    "password" => "api-auth-grant-password",
+                    "refresh_token" => "api-auth-grant-refresh",
+                    _ => "api-auth-grant-client",
+                }))
+                .show_ui(ui, |ui| {
+                    for (value, key) in [
+                        ("client_credentials", "api-auth-grant-client"),
+                        ("password", "api-auth-grant-password"),
+                        ("refresh_token", "api-auth-grant-refresh"),
+                    ] {
+                        ui.selectable_value(&mut a.grant, value.to_string(), s.t(key));
+                    }
+                });
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-client-id"));
+            form::text_field(ui, &mut a.client_id, "{{client_id}}");
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-client-secret"));
+            form::secret_field(ui, &mut a.client_secret, "{{client_secret}}", 360.0);
+            ui.end_row();
+            if a.grant == "password" {
+                form::label(ui, &s.t("api-auth-user"));
+                form::text_field(ui, &mut a.username, "");
+                ui.end_row();
+                form::label(ui, &s.t("api-auth-pass"));
+                form::secret_field(ui, &mut a.password, "{{password}}", 360.0);
+                ui.end_row();
+            }
+            if a.grant == "refresh_token" {
+                form::label(ui, &s.t("api-auth-refresh-token"));
+                form::secret_field(ui, &mut a.token, "{{refresh_token}}", 360.0);
+                ui.end_row();
+            }
+            form::label(ui, &s.t("api-auth-scope"));
+            form::text_field(ui, &mut a.scope, "read write");
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-audience"));
+            form::text_field(ui, &mut a.audience, "");
+            ui.end_row();
+            form::label(ui, "");
+            if ui.button(s.t("api-auth-refresh-now")).clicked() {
+                crate::send::forget_tokens();
+            }
+            ui.end_row();
+        }
+        AuthKind::AwsSigV4 => {
+            form::label(ui, &s.t("api-auth-access-key"));
+            form::text_field(ui, &mut a.access_key, "{{aws_access_key_id}}");
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-secret-key"));
+            form::secret_field(ui, &mut a.secret_key, "{{aws_secret_access_key}}", 360.0);
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-session-token"));
+            form::secret_field(ui, &mut a.session_token, "", 360.0);
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-region"));
+            form::text_field(ui, &mut a.region, "us-east-1");
+            ui.end_row();
+            form::label(ui, &s.t("api-auth-service"));
+            form::text_field(ui, &mut a.service, "execute-api");
+            ui.end_row();
+        }
         _ => {}
     });
-    form::hint(ui, theme, &s.t("api-auth-hint"));
+    form::hint(
+        ui,
+        theme,
+        &s.t(match a.kind {
+            AuthKind::OAuth2 => "api-auth-hint-oauth2",
+            AuthKind::AwsSigV4 => "api-auth-hint-sigv4",
+            _ => "api-auth-hint",
+        }),
+    );
 }
 
 const SNIPPETS: [(&str, &str); 7] = [

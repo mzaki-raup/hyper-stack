@@ -6,9 +6,10 @@
 
 - **Requests**: method, URL with `{{variables}}`, params, headers, body
   (none, JSON, text, XML, form, multipart with file parts, binary file),
-  auth (inherit, none, basic, bearer, API key in header or query), docs,
-  pre-request and post-response scripts. Send (Enter in the URL field or
-  F5), cancel, Copy as curl, Import curl.
+  auth (inherit, none, basic, bearer, API key in header or query, and
+  since 2026-10-22 **OAuth 2.0** and **AWS Signature V4** - §3 below),
+  docs, pre-request and post-response scripts. Send (Enter in the URL
+  field or F5), cancel, Copy as curl, Import curl.
 - **Collections and folders** use Material icons in the sidebar (`folder-api`
   for a collection, a themed `folder-*` for a folder). They are one JSON file
   per collection under
@@ -77,9 +78,33 @@
   the collection and request it made. Sending stays a user action. Plain
   code blocks still Insert into the body or the post-response script.
 
-Not yet: OAuth 2 flows, AWS SigV4 and digest auth, `api` connections
-(§14), the collection runner, WebSocket/SSE/GraphQL/gRPC, cookie jar,
-proxies and client certificates, response diff, `pm.sendRequest`.
+**OAuth 2.0 and AWS SigV4 (2026-10-22).** `AuthKind::OAuth2` holds the
+token URL, the grant (`client_credentials`, `password`, `refresh_token`),
+client id and secret, scope, audience and the grant's own fields; the
+token is fetched when the request is sent (`send::DynamicAuth`,
+`send::dynamic_headers`: a form POST with HTTP Basic client
+authentication per RFC 6749 §2.3.1, the id in the body too for servers
+that read it there) and cached per token URL / client / grant / scope
+until a minute before `expires_in`; **Refresh Token Now** forgets the
+cache. The authorization-code flow (a loopback listener and a browser
+round-trip) is not built; the three non-interactive grants cover
+service-to-service and test accounts. `AuthKind::AwsSigV4` holds the key
+pair, an optional session token, the region and the service, and signs
+the final request with the S3 signer (`hs_core::objstore::sigv4`):
+`host`, `x-amz-date`, `x-amz-content-sha256` (the exact body bytes) and
+`content-type` / `x-amz-security-token` when present are the signed
+headers. Both kinds inherit like the others, travel through Postman
+(`oauth2` / `awsv4`) and Insomnia (`oauth2` / `iam`) import and export,
+and are reachable from the assistant's `set_auth` (`oauth2`, `awsv4`).
+Copy as curl omits the dynamic headers, since the token and signature
+exist only at send time. Tests: a SigV4 known-answer over a fixed date
+and body, and an OAuth 2.0 token fetch against a mock endpoint that
+checks the grant, the Basic client credentials and the cache.
+
+Not yet: the OAuth 2 authorization-code flow and digest auth, `api`
+connections (§14), the collection runner, WebSocket/SSE/GraphQL/gRPC,
+cookie jar, proxies and client certificates, response diff,
+`pm.sendRequest`.
 
 ## 1. Purpose
 
@@ -136,11 +161,11 @@ See the file format in [05-data-model-and-storage.md](../05-data-model-and-stora
   form-urlencoded, multipart (fields and files with content types), binary
   (file), GraphQL (query + variables, P1). Body editor is `hs-editor`.
 - **Auth**: inherit from folder/collection, none, basic, bearer, API key
-  (header/query), digest, OAuth 1.0a (P2), OAuth 2.0 (client credentials,
-  authorization code with PKCE using a local redirect listener on
-  `127.0.0.1:<random>`, password, refresh; token cache per environment with
-  expiry and "refresh now"), AWS SigV4 (reusing the S3 signer), NTLM (P2),
-  mTLS client cert per connection.
+  (header/query), digest (P1, not yet), OAuth 1.0a (P2), OAuth 2.0 (client
+  credentials, password and refresh grants with a token cache and Refresh
+  Token Now - done; authorization code with PKCE using a local redirect
+  listener on `127.0.0.1:<random>` - P1, not yet), AWS SigV4 (reusing the
+  S3 signer - done), NTLM (P2), mTLS client cert per connection.
 - **Settings** per request: follow redirects, timeout, retries, SSL verify
   (flagged), HTTP version, proxy override, send cookies.
 - **Docs**: Markdown description rendered in a tab; used by export.

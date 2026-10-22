@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- API client: **OAuth 2.0** (client credentials, password and refresh-token
+  grants; the token is fetched at send time and cached until it expires,
+  Refresh Token Now forgets it) and **AWS Signature V4** (key pair, session
+  token, region, service; signs the final body) as auth kinds, inherited
+  like the others and carried through Postman and Insomnia import/export
+  and the assistant's `set_auth`.
 - hs-core: mock-server tests for the five self-hosted image backends
   (`tests/ai_local_mock.rs`) checking every documented field the client
   sends and how it reads the answers; f32 settings are rounded to four

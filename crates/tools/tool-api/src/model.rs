@@ -108,15 +108,24 @@ pub enum AuthKind {
     Basic,
     Bearer,
     ApiKey,
+    /// OAuth 2.0: a token fetched from the token endpoint at send time
+    /// (client credentials, password or refresh-token grant) and cached.
+    #[serde(rename = "oauth2")]
+    OAuth2,
+    /// AWS Signature Version 4 over the final request.
+    #[serde(rename = "awsv4")]
+    AwsSigV4,
 }
 
 impl AuthKind {
-    pub const ALL: [AuthKind; 5] = [
+    pub const ALL: [AuthKind; 7] = [
         AuthKind::Inherit,
         AuthKind::None,
         AuthKind::Basic,
         AuthKind::Bearer,
         AuthKind::ApiKey,
+        AuthKind::OAuth2,
+        AuthKind::AwsSigV4,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -125,6 +134,8 @@ impl AuthKind {
             AuthKind::Basic => "Basic",
             AuthKind::Bearer => "Bearer Token",
             AuthKind::ApiKey => "API Key",
+            AuthKind::OAuth2 => "OAuth 2.0",
+            AuthKind::AwsSigV4 => "AWS Signature V4",
         }
     }
 }
@@ -140,6 +151,22 @@ pub struct Auth {
     pub value: String,
     /// `header` or `query` for API keys.
     pub add_to: String,
+    /// OAuth 2.0: the token endpoint and the grant
+    /// (`client_credentials`, `password`, `refresh_token`); the password
+    /// grant uses `username`/`password`, the refresh grant `token`.
+    pub token_url: String,
+    pub grant: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub scope: String,
+    pub audience: String,
+    /// AWS SigV4: the key pair, an optional session token, the region and
+    /// the service name (`execute-api`, `s3`, `lambda`…).
+    pub access_key: String,
+    pub secret_key: String,
+    pub session_token: String,
+    pub region: String,
+    pub service: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

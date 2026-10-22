@@ -259,6 +259,8 @@ fn auth_kind(s: &str) -> Option<AuthKind> {
         "basic" => AuthKind::Basic,
         "bearer" | "bearer_token" | "token" => AuthKind::Bearer,
         "api_key" | "apikey" | "api-key" => AuthKind::ApiKey,
+        "oauth2" | "oauth_2" | "oauth" => AuthKind::OAuth2,
+        "awsv4" | "aws" | "sigv4" | "aws_sigv4" => AuthKind::AwsSigV4,
         _ => return None,
     })
 }

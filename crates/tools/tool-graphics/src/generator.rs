@@ -319,33 +319,36 @@ impl GeneratorState {
                                 self.template(&s);
                             }
                             ui.menu_button(s.t("gfx-gen-templates"), |ui| {
-                                for (label, doc) in [
-                                    ("CI Pipeline", hs_diagram::template::ci_pipeline()),
-                                    ("Support Triage", hs_diagram::template::support_triage()),
+                                for (key, doc) in [
+                                    ("gfx-tpl-ci", hs_diagram::template::ci_pipeline()),
+                                    ("gfx-tpl-triage", hs_diagram::template::support_triage()),
                                     (
-                                        "Event Architecture",
+                                        "gfx-tpl-events",
                                         hs_diagram::template::event_architecture(),
                                     ),
-                                    ("Checkout Flow", hs_diagram::template::flow()),
+                                    ("gfx-tpl-checkout", hs_diagram::template::flow()),
                                     (
-                                        "Service Architecture",
+                                        "gfx-tpl-services",
                                         hs_diagram::template::architecture(),
                                     ),
-                                    ("Order Data Model", hs_diagram::template::erd()),
-                                    ("Checkout Sequence", hs_diagram::template::sequence()),
+                                    ("gfx-tpl-orders", hs_diagram::template::erd()),
+                                    ("gfx-tpl-sequence", hs_diagram::template::sequence()),
                                 ] {
-                                    if ui.button(label).clicked() {
+                                    let label = s.t(key);
+                                    if ui.button(&label).clicked() {
                                         self.doc = Some(doc);
                                         self.error = None;
                                         self.view = GeneratorView::Preview;
-                                        self.status = Some(format!("{label} loaded."));
+                                        self.status = Some(
+                                            s.i18n.t_args("gfx-gen-loaded", &[("name", &label)]),
+                                        );
                                         ui.close();
                                     }
                                 }
                             });
                             if self.running.is_some() {
                                 if ui.button(s.t("gfx-gen-stop")).clicked() {
-                                    self.stop();
+                                    self.stop(&s);
                                 }
                             } else if ui
                                 .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, s.t("gfx-gen-generate")))
@@ -394,10 +397,10 @@ impl GeneratorState {
                 .default_size(420.0)
                 .size_range(260.0..=760.0)
                 .resizable(true)
-                .show(ui, |ui| self.source_view(ui, theme));
+                .show(ui, |ui| self.source_view(ui, &s, theme));
         }
         if self.view == GeneratorView::Source {
-            self.source_view(ui, theme);
+            self.source_view(ui, &s, theme);
             return;
         }
         let rect = ui.available_rect_before_wrap();
@@ -406,11 +409,11 @@ impl GeneratorState {
         self.preview(&mut child, theme, &s);
     }
 
-    fn source_view(&mut self, ui: &mut egui::Ui, theme: &Theme) {
+    fn source_view(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Source (JSON)").strong());
+            ui.label(egui::RichText::new(s.t("gfx-source-json")).strong());
             if let Some(doc) = &self.doc
-                && ui.button("Copy").clicked()
+                && ui.button(s.t("gfx-source-copy")).clicked()
             {
                 ui.ctx().copy_text(hs_diagram::io::to_json(doc));
             }
@@ -418,7 +421,7 @@ impl GeneratorState {
         ui.separator();
         let Some(doc) = &self.doc else {
             ui.label(
-                egui::RichText::new("Generate a diagram to see its source.")
+                egui::RichText::new(s.t("gfx-gen-source-empty"))
                     .small()
                     .color(theme.text_muted),
             );
@@ -689,12 +692,12 @@ impl GeneratorState {
         self.status = Some(format!("Asking {}…", provider.name));
     }
 
-    fn stop(&mut self) {
+    fn stop(&mut self, s: &Services) {
         if let Some(run) = &self.running {
             run.abort.abort();
         }
         self.running = None;
-        self.status = Some("Stopped.".into());
+        self.status = Some(s.t("gfx-gen-stopped"));
     }
 
     /// The prompt is a list of steps, so an offline draft needs no provider:

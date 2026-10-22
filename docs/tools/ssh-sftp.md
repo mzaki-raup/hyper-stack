@@ -74,7 +74,11 @@ with backoff when follow-type consumers exist (logs, tunnels); shells show a
   so a portable folder carries its keys; the folder is created with
   owner-only permissions where the filesystem supports it.
 - Protected environments: SFTP delete/overwrite confirmation names the host;
-  shell is not filtered but the frame and banner stay red.
+  shell is not filtered but the frame and banner stay red. (Implemented
+  2026-10-22: the tab reports the profile's environment through
+  `Tool::environment()`; an upload that would replace a file already in the
+  listing asks first on a protected host - the profile's environment, else
+  the active one; delete always asks and names the host.)
 
 ## 6. Shell
 

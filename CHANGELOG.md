@@ -13,13 +13,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- API client → Manage Collection: the page is tabbed by category (General,
-  Variables, Globals, Authentication, Scripts, Package Libraries,
-  Documentation); Variables and Globals save as they are typed; the tab
-  reads "Manage Collection - <name>" with a gear glyph and no method badge.
-- Graphics: the dashboard's Functions buttons carry the same icons as the
-  What To Do tiles; a left click on the sidebar's Image row offers Open
-  Image… and New Image… like the right click.
+- SSH: a host in a protected environment shows the environment banner and
+  red frame, and an upload that would replace a file already in the
+  listing asks first, naming the host.
+
+### Fixed
+
+- Graphics: every diagram-editor and generator label (toolbar, Import and
+  Align menus, properties pane, pickers, canvas hints, template names, file
+  filters) now goes through Fluent instead of hard-coded English.
 
 ## 0.70.0 — 2026-10-22
 

@@ -146,8 +146,14 @@ pub struct SshTool {
     /// menu opens where the click was.
     entry_menu: Option<(usize, egui::Pos2)>,
     confirm_delete: Option<String>,
+    /// Uploads held back because they would replace files already on a
+    /// protected host: the local files and the folder they go into.
+    confirm_overwrite: Option<(Vec<PathBuf>, String)>,
     startup_sent: bool,
     conn_name: String,
+    /// The profile's environment, for the banner, the frame and the
+    /// protected-host guards (docs/tools/ssh-sftp.md §5).
+    env_id: Option<String>,
     /// The "New Tunnel" form in the sidebar, while open.
     tunnel_form: Option<TunnelForm>,
     /// The last connect failed only because the vault was locked: retry as
@@ -228,8 +234,10 @@ impl SshTool {
             perms: None,
             entry_menu: None,
             confirm_delete: None,
+            confirm_overwrite: None,
             startup_sent: false,
             conn_name: String::new(),
+            env_id: None,
             tunnel_form: None,
             waiting_for_vault: false,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
@@ -240,19 +248,73 @@ impl SshTool {
         t
     }
 
-    fn fields(&self, services: &Services) -> Option<(String, SshFields)> {
+    fn fields(&self, services: &Services) -> Option<(String, Option<String>, SshFields)> {
         let id = self.state.conn_id.as_ref()?;
         let conns = services.connections.read();
         let c = conns.by_id(id)?;
-        Some((c.name.clone(), SshFields::from_table(&c.fields)))
+        Some((
+            c.name.clone(),
+            c.environment.clone(),
+            SshFields::from_table(&c.fields),
+        ))
+    }
+
+    /// The host belongs to a protected environment (its own, else the
+    /// active one), so destructive SFTP actions ask first.
+    fn is_protected(&self, services: &Services) -> bool {
+        let env_id = self
+            .env_id
+            .clone()
+            .or_else(|| services.environments.read().active.clone());
+        env_id
+            .and_then(|id| services.environments.read().by_id(&id).map(|e| e.protected))
+            .unwrap_or(false)
+    }
+
+    /// Upload local files into `dir`, asking first when the host is
+    /// protected and a name is already there (an upload overwrites).
+    fn upload_files(&mut self, s: &Services, dir: String, files: Vec<PathBuf>) {
+        if self.is_protected(s) {
+            let listed: Vec<String> = self
+                .shared
+                .lock()
+                .remote
+                .entries
+                .iter()
+                .map(|e| e.name.clone())
+                .collect();
+            let clash = files.iter().any(|f| {
+                f.file_name()
+                    .map(|n| listed.iter().any(|e| *e == n.to_string_lossy()))
+                    .unwrap_or(false)
+            });
+            if clash {
+                self.confirm_overwrite = Some((files, dir));
+                return;
+            }
+        }
+        for local in files {
+            let name = local
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let remote = Self::join(&dir, &name);
+            let done = self.after_job(s, s.i18n.t_args("ssh-uploaded", &[("name", &name)]));
+            self.with_sftp(s, format!("Upload {name}"), move |sftp, h| async move {
+                let r = upload_file(&sftp, &local, &remote, &h).await;
+                done(r.clone());
+                r
+            });
+        }
     }
 
     fn connect(&mut self, services: &Services) {
-        let Some((name, f)) = self.fields(services) else {
+        let Some((name, env_id, f)) = self.fields(services) else {
             self.status = Status::Failed(services.t("ssh-no-profile"));
             return;
         };
         self.conn_name = name;
+        self.env_id = env_id;
         self.session = None;
         self.startup_sent = false;
         let cfg = match config_from_fields(&f, services.secrets.as_ref()) {
@@ -718,6 +780,49 @@ impl SshTool {
                 self.new_file = Some(name);
             }
         }
+        // Overwrite confirmation on a protected host.
+        if let Some((files, dir)) = self.confirm_overwrite.clone() {
+            let host = self.conn_name.clone();
+            let names = files
+                .iter()
+                .filter_map(|f| f.file_name().map(|n| n.to_string_lossy().to_string()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                theme,
+                "ssh-overwrite",
+                &s.t("ssh-overwrite"),
+                &s.i18n.t_args(
+                    "ssh-overwrite-confirm",
+                    &[("names", &names), ("host", &host)],
+                ),
+                &s.t("ssh-overwrite"),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.confirm_overwrite = None;
+                    // Past the guard now: upload without asking again.
+                    for local in files {
+                        let name = local
+                            .file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        let remote = Self::join(&dir, &name);
+                        let done =
+                            self.after_job(s, s.i18n.t_args("ssh-uploaded", &[("name", &name)]));
+                        self.with_sftp(s, format!("Upload {name}"), move |sftp, h| async move {
+                            let r = upload_file(&sftp, &local, &remote, &h).await;
+                            done(r.clone());
+                            r
+                        });
+                    }
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_overwrite = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        }
         // Delete confirmation.
         if let Some(path) = self.confirm_delete.clone() {
             let name = path.rsplit('/').next().unwrap_or(&path).to_string();
@@ -831,19 +936,7 @@ impl SshTool {
                 .clicked()
                 && let Some(files) = rfd::FileDialog::new().pick_files()
             {
-                for local in files {
-                    let name = local
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_default();
-                    let remote = Self::join(&path, &name);
-                    let done = self.after_job(s, s.i18n.t_args("ssh-uploaded", &[("name", &name)]));
-                    self.with_sftp(s, format!("Upload {name}"), move |sftp, h| async move {
-                        let r = upload_file(&sftp, &local, &remote, &h).await;
-                        done(r.clone());
-                        r
-                    });
-                }
+                self.upload_files(s, path.clone(), files);
             }
             // Paste whatever the file manager put on the clipboard into the
             // folder on screen.
@@ -1609,6 +1702,12 @@ impl Tool for SshTool {
         Some(self.conn_name.clone()).filter(|s| !s.is_empty())
     }
 
+    /// The profile's environment: the shell paints the banner and, for a
+    /// protected one, the red frame around the tab.
+    fn environment(&self) -> Option<String> {
+        self.env_id.clone()
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -1832,7 +1931,7 @@ impl Tool for SshTool {
         // Startup command once the shell is up.
         if !self.startup_sent
             && let Some(sess) = &self.session
-            && let Some((_, f)) = self.fields(s)
+            && let Some((_, _, f)) = self.fields(s)
         {
             self.startup_sent = true;
             if !f.startup_command.trim().is_empty() {

@@ -1202,12 +1202,12 @@ impl GraphicsTool {
                         ui.add(
                             egui::DragValue::new(&mut self.controls.width)
                                 .range(1..=20000)
-                                .prefix("W "),
+                                .prefix(s.t("gfx-prefix-w")),
                         );
                         ui.add(
                             egui::DragValue::new(&mut self.controls.height)
                                 .range(1..=20000)
-                                .prefix("H "),
+                                .prefix(s.t("gfx-prefix-h")),
                         );
                         ui.checkbox(&mut self.controls.keep_aspect, s.t("gfx-keep-aspect"));
                     }) {

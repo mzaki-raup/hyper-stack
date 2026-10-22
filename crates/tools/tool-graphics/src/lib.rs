@@ -2390,14 +2390,25 @@ impl GraphicsTool {
             });
     }
 
-    fn function_row(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, f: Function) {
+    fn function_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &mut ToolContext,
+        theme: &Theme,
+        f: Function,
+    ) {
         let s = cx.services.clone();
         let title = s.t(f.title_key());
         let desc = s.t(f.description_key());
-        let label = format!("{}  {}", f.icon(), title);
         let enabled = f.enabled();
+        // The row the Devtools and Settings lists use: a 20 px icon, a
+        // comfortable height and room to breathe, rather than a line of
+        // body text with a glyph in front (owner's request, 2026-10-23).
+        // It also marks the tool this tab belongs to, as those lists do.
         let r = ui
-            .add_enabled_ui(enabled, |ui| ui.selectable_label(false, label))
+            .add_enabled_ui(enabled, |ui| {
+                form::list_row(ui, theme, self.kind == f.kind(), f.icon(), &title, None)
+            })
             .inner
             .on_hover_text(if enabled {
                 desc.clone()
@@ -2886,9 +2897,10 @@ impl Tool for GraphicsTool {
                     .size(15.0),
             );
         });
-        ui.add_space(2.0);
+        ui.add_space(4.0);
         for f in Function::ALL {
-            self.function_row(ui, cx, f);
+            self.function_row(ui, cx, &theme, f);
+            ui.add_space(2.0);
         }
         ui.add_space(6.0);
         ui.separator();

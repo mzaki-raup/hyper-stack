@@ -22,6 +22,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Settings → Appearance → Activity Rail and the Graphics form carry the
   new job through: a fourth button, its own model field and prompt hint.
 
+### Changed
+
+- The Graphics sidebar's tool list (Image, Icon, Diagram Editor, Diagram
+  Generator) uses the shared list row the Devtools and Settings sidebars
+  use: a larger icon and label, room above and below each row, and the
+  row for the open tab's tool marked as selected.
+
 ### Fixed
 
 - **Enhancing is no longer upscaling.** Every backend ran an upscaler

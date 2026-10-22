@@ -224,6 +224,12 @@ Image…, Open Icon…, New Diagram…, New Generation…), and a left click on
 the sidebar's Image row opens a menu with Open Image… and New Image…, the
 same two the right click offers, rather than guessing which was meant.
 
+The four rows are drawn with `hs_ui::form::list_row`, the row the Devtools
+and Settings sidebars use (owner's request, 2026-10-23): a 20 px icon, a
+comfortable row height, space above and below each row, and the row whose
+tool the open tab belongs to marked as selected. A disabled row keeps the
+"coming soon" hover text.
+
 **New Image.** From the Image row's context menu in the sidebar, the
 dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a

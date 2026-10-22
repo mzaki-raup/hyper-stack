@@ -79,7 +79,7 @@ the fixtures behind them.
 
 | Category | What the shots cover |
 |---|---|
-| [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, split, dock, workspaces, environments |
+| [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
 | [Git](#git) | Tree, Source Control, history, tags, prefixes, conflict editor, interactive rebase |
@@ -397,7 +397,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 01 | [Vision and scope](docs/01-vision-and-scope.md) | Problem, personas, principles, non-goals, success criteria |
 | 02 | [Feature catalogue](docs/02-features.md) | Every feature, requested or suggested, with priority and effort |
 | 03 | [Architecture](docs/03-architecture.md) | Crate layout, runtime model, the `Tool` trait, services, events, persistence |
-| 04 | [UI design](docs/04-ui-design.md) | Window layout, multi-row tab space, splits, launcher, command palette, keyboard, theming |
+| 04 | [UI design](docs/04-ui-design.md) | Window layout, multi-row tab space, launcher, command palette, keyboard, theming |
 | 05 | [Data model and storage](docs/05-data-model-and-storage.md) | Workspaces, connection profiles, environments and variables, file formats, history DB |
 | 06 | [Security](docs/06-security.md) | Threat model, secrets, host keys, TLS, destructive-action guards |
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
@@ -452,7 +452,7 @@ hyper-stack/
 ├── crates/
 │   ├── hyperstack/            # the binary: eframe shell, tab space, launcher, settings
 │   ├── hs-core/               # services: workspace model, jobs, events, settings, secrets, env vars
-│   ├── hs-ui/                 # shared widgets: tab strip, data table, tree, split panes, palette, theme
+│   ├── hs-ui/                 # shared widgets: tab strip, data table, tree, palette, theme
 │   ├── hs-editor/             # text buffer + highlighting + editor widget (used by several tools)
 │   ├── hs-term/               # terminal grid, PTY, SSH shell transport
 │   └── tools/

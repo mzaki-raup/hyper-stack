@@ -15,14 +15,14 @@ tool through a `Services` handle.
 ```mermaid
 flowchart TB
     subgraph bin["hyperstack (binary)"]
-        Shell["App shell<br/>window · tab space · splits · launcher<br/>command palette · settings · dock"]
+        Shell["App shell<br/>window · tab space · launcher<br/>command palette · settings · dock"]
     end
     subgraph tools["tools/* (one crate each)"]
         Ed[tool-editor] ; Db[tool-db] ; Nq[tool-nosql] ; Rd[tool-redis] ; Lg[tool-logs] ; Api[tool-api] ; Ssh[tool-ssh]
         S3[tool-s3] ; Git[tool-git] ; Term[tool-terminal] ; Dev[tool-devtools] ; Ctr[tool-containers]
     end
     subgraph shared["shared crates"]
-        UI["hs-ui<br/>tab strip · data table · tree · split · palette · theme widgets"]
+        UI["hs-ui<br/>tab strip · data table · tree · palette · theme widgets"]
         Editor["hs-editor<br/>rope buffer · highlighting · editor widget · diff"]
         GitCore["hs-git<br/>status · diffs · log · branches (git CLI)"]
         Lsp["hs-lsp<br/>LSP client · server registry · text edits"]
@@ -71,7 +71,6 @@ hyper-stack/
 │   │   ├── tabs.rs                 # multi-row tab strip (ported compute_tab_layout)
 │   │   ├── table.rs                # virtualised data grid (sort, filter, resize, copy)
 │   │   ├── tree.rs                 # lazy tree (project, schema, hosts, buckets)
-│   │   ├── split.rs                # split layout tree with drag handles
 │   │   ├── palette.rs              # command palette / quick-open
 │   │   ├── theme.rs                # palette, prebuilt themes, live preview
 │   │   ├── toast.rs, dialog.rs, badge.rs, env_banner.rs, icons.rs

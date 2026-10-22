@@ -11,7 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Removed
+
+- **Split panes are gone.** Split Right, Split Down and Close Split have
+  left the command palette, the actions and the layout file, and
+  `hs-ui::split` is deleted. The main area shows exactly one tab.
+  Splitting had been palette-only since 2026-10-17; every split after the
+  first silently swapped a pane's tab instead of dividing it, a split tree
+  spanned activities in a shell whose strip, sidebar and toolbar do not,
+  and the new pane always got a fresh Scratchpad note rather than a tab you
+  chose. A `layout.json` written before this still loads; its `split` key
+  is ignored.
 
 ## 0.77.0 — 2026-10-22
 

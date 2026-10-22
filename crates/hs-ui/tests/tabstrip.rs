@@ -68,7 +68,6 @@ fn clicking_the_plus_button_requests_a_new_tab_and_strip_wraps() {
                 min_width: 140.0,
                 gap: 4.0,
                 active: state.active,
-                visible: &[],
                 labels: &labels,
                 compact: false,
                 show_new_tab: true,

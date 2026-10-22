@@ -14,10 +14,10 @@
 │ ▤  │ ▌ staging ▐  toolbar of the active tool (Run ▶  Explain  Commit  Format …)        │ env banner + toolbar
 │ 📝 │─────────────────────────────┬───────────────────────────────────────────────────│
 │ 🗄 │                             │                                                   │
-│ 🌐 │   sidebar of active tool    │   main area of active tab (may be split)          │
+│ 🌐 │   sidebar of active tool    │   main area of the active tab                     │
 │ 🖥 │   (schema tree, project     │                                                   │
-│ ☁  │    tree, collections,       ├───────────────────────────────────────────────────┤
-│ ⌥  │    hosts, buckets)          │   second pane of the split                        │
+│ ☁  │    tree, collections,       │                                                   │
+│ ⌥  │    hosts, buckets)          │                                                   │
 │ 💻 │                             │                                                   │
 │ 🧰 ├─────────────────────────────┴───────────────────────────────────────────────────│
 │    │ ▸ Output  Jobs (2)  Problems                                                ⌃  │ bottom dock (collapsible)
@@ -63,7 +63,7 @@ Regions, top to bottom:
    sidebar, Scratchpad and Graphics lists already worked this way;
    Devtools, SSH, S3, Terminal and the Settings page list follow now.
    Owner's request, 2026-10-19.
-6. **Main area** - the active tab's `Tool::ui`, or a split tree of several tabs.
+6. **Main area** - the active tab's `Tool::ui`. One tab, one pane.
 7. **Bottom dock** — **Logs** (the app's own log: a level picker, search,
    Copy and Clear, lines coloured by level; the tab label counts errors
    that arrived while another tab was showing; the recorded level is
@@ -113,7 +113,6 @@ toolbar, properties pane and dialog:
 struct TabSpace {
     tabs: Vec<TabModel>,        // display order
     active: TabId,
-    layout: LayoutNode,         // Leaf(TabId) | Split { dir, ratio, a, b }
     rows_cache: Vec<Row>,       // recomputed when width/count/settings change
 }
 struct TabModel {
@@ -171,8 +170,6 @@ the file path or URL.
 | Reopen closed | — | Ctrl+Shift+T |
 | Reorder | drag within the strip (cross-row allowed) | Ctrl+Shift+PgUp/PgDn |
 | Pin | context menu | Ctrl+Shift+P → "Pin tab" |
-| Split | drag tab onto the main area's edge (drop zones: left/right/top/bottom) or context menu "Split right/down" | Ctrl+\ (split right), Ctrl+Shift+\ (split down) |
-| Move to split | drag onto an existing pane | Ctrl+Alt+→ / ← |
 | Duplicate | context menu | — |
 | Close others / left / right | context menu | — |
 | Add to tab group / save all as group | context menu | — |
@@ -181,19 +178,37 @@ the file path or URL.
 Context menu also offers tool-specific entries (Reconnect, Copy path, Copy URL,
 Open in terminal).
 
-### 2.4 Splits
+### 2.4 No splits (removed 2026-10-23)
 
-The main area is a binary tree of splits. A split contains tabs that are also
-in the strip; the strip highlights every visible tab (one with full accent, the
-others with a thin underline). Closing a tab in a split collapses the split.
-Ratios persist. Maximum nesting depth 3 to keep the UI sane.
+**The main area shows exactly one tab.** Split panes were specified here and
+built as a binary tree (`hs_ui::split`, `Layout::split`), reached from the tab
+context menu, then from the palette alone after 2026-10-17. They are gone, at
+the owner's decision, with the evidence that argued for it:
+
+- Every split after the first silently swapped a pane's tab instead of
+  dividing it, and the bug went unnoticed for as long as the feature existed.
+  Palette-only reach meant nobody was using it.
+- A split tree spans activities, which the rest of the shell does not. The
+  strip lists one activity's tabs, the sidebar and toolbar follow the active
+  tab, and switching activity left the panes alone, so a pane could show a tab
+  its own strip did not list.
+- The new pane always got a fresh Scratchpad note. There was no way to put a
+  chosen tab in it, so the thing splits exist for, comparing two documents,
+  was never possible.
+
+If side-by-side is wanted later it is a design task, not a restoration:
+choosing which tab fills a pane, dragging a tab into one, a toolbar per pane,
+and a rule for panes belonging to different activities. A `layout.json` saved
+before the removal still loads, because `Layout` carries a container-level
+`serde(default)` and does not reject unknown fields, so the old `split` key is
+ignored.
 
 ### 2.5 Tab groups and workspaces
 
 - **Tab group**: a named, ordered list of `(factory_id, saved_state)`. Open as
   "add" or "replace". Saved in the workspace folder as `tab-groups/<name>.toml`.
 - **Workspace**: folder + environments + connections + collections + the last
-  layout (`layout.json`: tabs, splits, sidebar/dock sizes, active env). The app
+  layout (`layout.json`: tabs, sidebar/dock sizes, active env). The app
   opens the last workspace; `File → Open Workspace…` switches. Multiple
   windows are not required for v1 (one workspace per process; second instance
   opens a second process).
@@ -270,7 +285,6 @@ MongoDB, …) are drawn muted, are not clickable, and say so in their tooltip.
 | `TabStrip` | shell | multi-row, drag, pin, context menu |
 | `DataTable` | DB results, S3 listing, SFTP listing, API headers/cookies, container lists, process viewer | virtualised rows, column resize/reorder/hide, multi-sort (Shift+click adds, Ctrl+click removes), inline filter, cell copy, cell viewer popup, selection (row/range/cell), export menu |
 | `Tree` | project tree, schema, collections, hosts, buckets, k8s | lazy children, inline rename, drag source/target, badges, context menu |
-| `SplitLayout` | shell main area, SFTP dual pane, editor diff | drag handles, min sizes, ratio persistence |
 | `Palette` | shell | commands + quick-open |
 | `EnvBanner`, `Badge`, `Toast`, `Dialog`, `ProgressBar`, `KeyValueEditor` (headers, params, variables with enable checkboxes), `CodeView` (read-only highlighted text with copy), `Breadcrumb` (paths, prefixes, URLs) | everywhere | |
 
@@ -282,7 +296,6 @@ Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):
 |---|---|
 | Ctrl+T / Ctrl+W / Ctrl+Shift+T | new tab / close / reopen |
 | Ctrl+Tab, Ctrl+1…9 | switch tabs |
-| Ctrl+\ , Ctrl+Shift+\ | split right / down |
 | Ctrl+Shift+P, Ctrl+P | palette, quick-open |
 | Ctrl+B | toggle sidebar |
 | Ctrl+J | toggle bottom dock |
@@ -646,12 +659,11 @@ field. Owner's report, 2026-10-17.
 
 ### The tab menu: no splitting, and Duplicate knows when to refuse (2026-10-17)
 
-**Split Right / Split Down are no longer in a tab's context menu**, and
-their default bindings (Ctrl+\ and Ctrl+Shift+\) are gone too. Splitting
-rearranges the whole tab space, which is not what someone right-clicking
-one tab is reaching for, and reaching it by accident costs the user their
-layout. The palette commands stay, so the capability is still there for
-anyone who wants it deliberately. Owner's requirement, 2026-10-17.
+**Split Right / Split Down left a tab's context menu** on 2026-10-17, with
+their default bindings (Ctrl+\ and Ctrl+Shift+\), because splitting
+rearranges the whole tab space and that is not what someone right-clicking one
+tab is reaching for. The palette commands stayed then; splitting left the app
+altogether on 2026-10-23 (§2.4).
 
 **Duplicate is offered but disabled** where a second tab would be a lie.
 Two rules decide it, both on the `Tool` trait so a new activity type
@@ -732,7 +744,7 @@ is implemented as well: a prompt column with examples and the offline
 template, an async AI call into the strict IR, and a preview with Open in
 Editor and export.
 
-## Addendum (2026-10-22): per-activity sidebars, coloured rail, Close Split
+## Addendum (2026-10-22): per-activity sidebars and a coloured rail
 
 Each activity's sidebar (Settings included) keeps its own width:
 `appearance.sidebar_widths` is keyed by activity id, the panel's egui id is
@@ -743,10 +755,9 @@ The rail icons carry one colour per activity (`app::activity_colour`),
 muted while inactive and full while active or hovered, so the column reads
 at a glance. Tab tooltips name the activity ("API Client"), not its id.
 
-Splits stay: putting a scratchpad or a second request beside the current tab
-is what they are for. What was missing was a way out that did not close a
-tab, so **Close Split** (palette, `tab.unsplit`) ends the split and keeps
-both tabs open.
+Splits were kept at this point, with a **Close Split** command so a split
+could be ended without closing a tab. They were removed outright on
+2026-10-23; §2.4 says why.
 
 Every AI Assistant column goes through `hs_ui::ai_assistant::split_for_assistant`
 now, the Scratchpad, the API client and the Graphics picture tabs included;

@@ -1871,7 +1871,6 @@ impl EditorTool {
                     min_width,
                     gap: 2.0,
                     active,
-                    visible: &[],
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,

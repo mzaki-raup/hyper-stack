@@ -32,7 +32,7 @@ Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/dr
 | `hs-core`: portable paths (`HyperStackData/`, writability probe, fallback), atomic TOML/JSON io, schema versioning | Completed | SQLite history db deferred to M3 (first consumer) |
 | `hs-core`: `Connections`, `Environments`, variable substitution, `Secrets` (vault; keyring opt-in) | Completed | DPAPI remember-me deferred to M1 with the Updates/Security pages |
 | `hs-core`: settings, shortcuts, i18n (Fluent), `tracing` with redaction | Completed | |
-| `hs-ui`: theme, multi-row `TabStrip`, `SplitLayout`, `Palette`, `Tree`, `DataTable` v1, toasts, dialogs, `EnvBanner`, `KeyValueEditor` | Completed | |
+| `hs-ui`: theme, multi-row `TabStrip`, `Palette`, `Tree`, `DataTable` v1, toasts, dialogs, `EnvBanner`, `KeyValueEditor` | Completed | `SplitLayout` was built and removed with split panes on 2026-10-23 |
 | `hyperstack` bin: window, title bar, activity rail, sidebar, dock, status bar, launcher, settings, workspaces, layout persistence | Completed | native window decorations in Phase 0; custom title bar later; workspaces as projects (create/clone/switch/delete, copy-from picker, per-workspace logo) 2026-10-11; launcher pinned-connection chips open or focus their SSH/S3/DB tab 2026-10-12 |
 | Two dummy tools; `egui_kittest` interaction test for the tab strip | Completed | image snapshots skipped: the runner has no GPU |
 | `portable-pty` verified on Windows (ConPTY DSR handshake) | Completed | PowerShell 7 profile loading is checked in M1 with the real terminal |
@@ -222,6 +222,7 @@ Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/dr
 | Dialog buttons right-aligned everywhere | Completed | audited all 28 modals; the SQL guard, Save Query and S3 New Folder were left-aligned and now match |
 | API client: the two script boxes are the same height | Completed | each gets half the pane in its own scroll area |
 | Shell: Split Right/Down removed from the tab menu and default keys | Completed | menu entries and `tab.split_*` bindings dropped, palette commands kept; verified live — a Database tab's menu ends at Duplicate |
+| Shell: split panes removed entirely | Completed | Owner's decision, 2026-10-23: `hs-ui::split` deleted, `TabSpace::split` and `Layout::split` gone, the three palette commands and actions dropped. Every split after the first swapped a pane's tab instead of dividing it, the tree spanned activities, and the new pane could never hold a chosen tab (docs/04 §2.4) |
 | Shell: Duplicate refused where a second tab is meaningless | Completed | `Tool::current_connection` + `tabs_per_connection` (SSH 3) and `can_duplicate_tab` (Graphics); verified live — Duplicate greyed on a Database tab |
 | Connections: Pin to Home in every connection sidebar | Completed | `form::connection_row` carries the menu for SSH, Database, Redis, NoSQL and S3; verified live — pinned a SQLite profile from the Database sidebar |
 | Home: pinned connections grouped by type, in rail order | Completed | `pinned_by_kind` ranks groups by `app::rail_order`; verified live — a DB heading with its colour dot above the pill |
@@ -425,7 +426,7 @@ and ADR-025.
 | API client: insert a library from the script toolbar | Completed | Snippets → Insert Package Library writes `// @library <name>`; `inherited_scripts` resolves directives from collection, folders and the request |
 | API client: Manage Collection… tab | Completed | `api://manage/<id>`: name, collection variables, globals, auth, scripts, libraries, docs |
 | API client: requests inherit the collection's scripts | Completed | already true (`inherited_scripts`, outermost first); now editable on the Manage page and covering package libraries |
-| Split panes: close option | Completed | kept (comparing two tabs is their purpose); `tab.unsplit` / Close Split ends a split without closing a tab |
+| Split panes: close option | Superseded | `tab.unsplit` / Close Split shipped 2026-10-22 and went with split panes on 2026-10-23 |
 | Rail icons coloured per activity | Completed | `app::activity_colour` |
 | Home → Graphics opens the Graphics dashboard | Completed | `open_tool_in` focuses an activity's dashboard home tab when no request is given |
 | Closing the app ends every session | Completed | `eframe::App::on_exit` drops every tool; sessions live in the tool structs |

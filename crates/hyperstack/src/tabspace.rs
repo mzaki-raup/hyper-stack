@@ -1,13 +1,12 @@
-//! The tab space model (docs/04 §2): tabs holding tool instances, the active
-//! tab, the split tree, and conversion to/from the persisted `Layout`.
+//! The tab space model (docs/04 §2): tabs holding tool instances, the
+//! active tab, and conversion to/from the persisted `Layout`.
 
 use std::collections::HashMap;
 
 use egui::Color32;
 use hs_core::Services;
 use hs_core::tool::{Tool, ToolFactory};
-use hs_core::workspace::{Layout, LayoutNode, LayoutTab};
-use hs_ui::split::SplitNode;
+use hs_core::workspace::{Layout, LayoutTab};
 use hs_ui::tabs::TabItem;
 
 pub struct TabEntry {
@@ -33,7 +32,6 @@ pub struct ClosedTab {
 pub struct TabSpace {
     pub tabs: Vec<TabEntry>,
     pub active: Option<u64>,
-    pub split: Option<SplitNode>,
     pub closed: Vec<ClosedTab>,
     next_id: u64,
     pub dirty: bool,
@@ -112,7 +110,6 @@ impl TabSpace {
         Self {
             tabs: Vec::new(),
             active: None,
-            split: None,
             closed: Vec::new(),
             next_id: 1,
             dirty: false,
@@ -203,26 +200,8 @@ impl TabSpace {
             home,
         });
         self.active = Some(id);
-        // Opening a tab shows it in the active pane.
-        let prev = self.visible_in_pane_of_active_before(id);
-        if let (Some(split), Some(prev)) = (&mut self.split, prev) {
-            split.replace_leaf(prev, id);
-        }
         self.dirty = true;
         id
-    }
-
-    fn visible_in_pane_of_active_before(&self, new_id: u64) -> Option<u64> {
-        let split = self.split.as_ref()?;
-        let leaves = split.leaves();
-        // The pane that showed the previously active tab, if any; else the first pane.
-        let prev_active = self
-            .tabs
-            .iter()
-            .rev()
-            .find(|t| t.id != new_id && leaves.contains(&t.id))
-            .map(|t| t.id);
-        prev_active.or_else(|| leaves.first().copied())
     }
 
     pub fn activate(&mut self, id: u64) {
@@ -247,11 +226,6 @@ impl TabSpace {
         });
         if self.closed.len() > 20 {
             self.closed.remove(0);
-        }
-        if let Some(split) = &mut self.split
-            && (!split.remove_leaf(id) || split.leaves().len() <= 1)
-        {
-            self.split = None;
         }
         if self.active == Some(id) {
             self.active = self
@@ -348,36 +322,6 @@ impl TabSpace {
         self.tabs = out;
     }
 
-    /// Split: the active tab stays on one side, `new_id` shows on the other.
-    pub fn split_with(&mut self, target: u64, new_id: u64, horizontal: bool) {
-        match &mut self.split {
-            None => {
-                self.split = Some(SplitNode::Split {
-                    horizontal,
-                    ratio: 0.5,
-                    a: Box::new(SplitNode::Leaf(target)),
-                    b: Box::new(SplitNode::Leaf(new_id)),
-                });
-            }
-            Some(split) => {
-                if split.depth() >= hs_ui::split::MAX_DEPTH
-                    || !split.split_leaf(target, new_id, horizontal)
-                {
-                    return;
-                }
-            }
-        }
-        self.dirty = true;
-    }
-
-    /// Tabs currently visible: all split leaves, or just the active one.
-    pub fn visible(&self) -> Vec<u64> {
-        match &self.split {
-            Some(s) => s.leaves(),
-            None => self.active.into_iter().collect(),
-        }
-    }
-
     pub fn to_layout(&self, active_environment: Option<String>) -> Layout {
         Layout {
             schema: hs_core::workspace::SCHEMA,
@@ -394,7 +338,6 @@ impl TabSpace {
                 })
                 .collect(),
             active: self.active,
-            split: self.split.as_ref().map(to_layout_node),
             active_environment,
             ..Default::default()
         }
@@ -523,45 +466,6 @@ impl TabSpace {
             .active
             .filter(|a| self.tabs.iter().any(|t| t.id == *a))
             .or_else(|| self.tabs.first().map(|t| t.id));
-        self.split = layout.split.as_ref().map(from_layout_node).filter(|s| {
-            s.leaves()
-                .iter()
-                .all(|l| self.tabs.iter().any(|t| t.id == *l))
-        });
         self.dirty = false;
-    }
-}
-
-fn to_layout_node(n: &SplitNode) -> LayoutNode {
-    match n {
-        SplitNode::Leaf(id) => LayoutNode::Leaf { tab: *id },
-        SplitNode::Split {
-            horizontal,
-            ratio,
-            a,
-            b,
-        } => LayoutNode::Split {
-            horizontal: *horizontal,
-            ratio: *ratio,
-            a: Box::new(to_layout_node(a)),
-            b: Box::new(to_layout_node(b)),
-        },
-    }
-}
-
-fn from_layout_node(n: &LayoutNode) -> SplitNode {
-    match n {
-        LayoutNode::Leaf { tab } => SplitNode::Leaf(*tab),
-        LayoutNode::Split {
-            horizontal,
-            ratio,
-            a,
-            b,
-        } => SplitNode::Split {
-            horizontal: *horizontal,
-            ratio: *ratio,
-            a: Box::new(from_layout_node(a)),
-            b: Box::new(from_layout_node(b)),
-        },
     }
 }

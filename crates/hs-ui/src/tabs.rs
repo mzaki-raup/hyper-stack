@@ -256,11 +256,9 @@ pub struct TabStrip<'a> {
     pub min_width: f32,
     pub gap: f32,
     pub active: Option<u64>,
-    /// Tabs visible in a split (drawn with a thin underline).
-    pub visible: &'a [u64],
     pub labels: &'a TabStripLabels,
     /// Lower rows and a menu of Close / Close Others / Close Left / Close
-    /// Right / Copy Path (no pin, duplicate or split).
+    /// Right / Copy Path (no pin and no duplicate).
     pub compact: bool,
     /// Draw the add-tab button at the end of the last row. The window
     /// strip does not: a tab is opened from the activity's own sidebar or
@@ -393,7 +391,6 @@ impl TabStrip<'_> {
             )
         });
         let is_active = self.active == Some(tab.id());
-        let is_visible = self.visible.contains(&tab.id());
         let fill = if is_active {
             self.theme.tab_active
         } else if r.hovered() {
@@ -417,15 +414,6 @@ impl TabStrip<'_> {
                 Rect::from_min_size(rect.left_top(), Vec2::new(rect.width(), 2.0)),
                 CornerRadius::ZERO,
                 colour,
-            );
-        } else if is_visible {
-            painter.rect_filled(
-                Rect::from_min_size(
-                    Pos2::new(rect.left(), rect.bottom() - 2.0),
-                    Vec2::new(rect.width(), 2.0),
-                ),
-                CornerRadius::ZERO,
-                colour.linear_multiply(0.6),
             );
         }
 
@@ -632,10 +620,10 @@ impl TabStrip<'_> {
             } else {
                 pick(ui, &labels.pin, TabMenuAction::Pin);
             }
-            // Split Right / Split Down used to sit here. They rearranged
-            // the whole tab space from a menu meant for one tab, which is
-            // not what someone right-clicking a tab is reaching for.
-            // Removed at the owner's request, 2026-10-17.
+            // Split Right / Split Down used to sit here. They left this
+            // menu in 2026-10-17 because they rearranged the whole tab
+            // space from a menu meant for one tab, and splitting left the
+            // app entirely on 2026-10-23 (docs/04 §2.4).
             if tab.can_duplicate() {
                 pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
             } else {

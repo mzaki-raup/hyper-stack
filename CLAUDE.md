@@ -781,6 +781,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   source, so it must refuse a payload that cannot belong to it *before*
   taking it: a collections row (no scope) released over a collection
   header was swallowed and that list's own reorder was lost.
+- **Split panes are gone (2026-10-23) and are not to be reintroduced
+  casually.** The owner removed them after they were found broken in a way
+  that proved nobody used them: `TabSpace::open` shows a new tab in the
+  active pane, replacing the leaf `split_with` was about to divide, so every
+  split after the first swapped a pane's tab instead of splitting it. The
+  deeper problem is that a split tree spans activities while the strip,
+  sidebar and toolbar are per activity. Bringing side-by-side back is a
+  design task (which tab fills a pane, dragging a tab into one, a toolbar
+  per pane), not a revert. Reasons are recorded in `docs/04-ui-design.md`
+  §2.4.
 - A tool's `current_uri` is what the shell matches an `OpenRequest::File`
   against, so a **dashboard home tab that reports a uri steals every
   request for it**: the Devtools home tab reported `devtools://base64`

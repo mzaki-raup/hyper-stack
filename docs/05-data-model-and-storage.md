@@ -315,7 +315,7 @@ workspace switches to another first.
 
 `layout.json` is the serialised `TabSpace`: tab list (factory id +
 `save_state` JSON, whether the tab is pinned and whether it is its
-activity's permanent **home** tab), active id, split tree, sidebar/dock
+activity's permanent **home** tab), active id, sidebar/dock
 sizes, active environment. The home flag is stored rather than derived
 from the order: a layout written before an activity had a home tab has
 none, and restoring then adds a fresh one instead of turning whichever

@@ -1,5 +1,5 @@
 //! The application shell (docs/04 §1): top bar, tab strip, environment banner,
-//! activity rail + sidebar, main area (tab space with splits), bottom dock,
+//! activity rail + sidebar, main area, bottom dock,
 //! status bar, palette, settings, toasts and the vault dialogs.
 
 use hs_ui::tip::TipExt;
@@ -473,25 +473,6 @@ impl HyperStackApp {
         {
             layout.active = layout.tabs.first().map(|t| t.id);
         }
-        if let Some(node) = layout.split.take() {
-            fn collect(node: &hs_core::workspace::LayoutNode, out: &mut Vec<u64>) {
-                match node {
-                    hs_core::workspace::LayoutNode::Leaf { tab } => out.push(*tab),
-                    hs_core::workspace::LayoutNode::Split { a, b, .. } => {
-                        collect(a, out);
-                        collect(b, out);
-                    }
-                }
-            }
-            let mut leaves = Vec::new();
-            collect(&node, &mut leaves);
-            if leaves
-                .iter()
-                .all(|id| layout.tabs.iter().any(|t| t.id == *id))
-            {
-                layout.split = Some(node);
-            }
-        }
         let restore_tabs = self.services.settings.read().general.restore_tabs;
         if restore_tabs {
             let map: HashMap<String, &dyn ToolFactory> = self
@@ -682,24 +663,6 @@ impl HyperStackApp {
                 .any(|t| t.id == active && is_mandatory(&t.factory_id))
         }) {
             layout.active = layout.tabs.first().map(|t| t.id);
-        }
-        if layout.split.as_ref().is_some_and(|node| {
-            fn has_only_saved_leaves(
-                node: &hs_core::workspace::LayoutNode,
-                tabs: &[hs_core::workspace::LayoutTab],
-            ) -> bool {
-                match node {
-                    hs_core::workspace::LayoutNode::Leaf { tab } => {
-                        tabs.iter().any(|t| t.id == *tab)
-                    }
-                    hs_core::workspace::LayoutNode::Split { a, b, .. } => {
-                        has_only_saved_leaves(a, tabs) && has_only_saved_leaves(b, tabs)
-                    }
-                }
-            }
-            !has_only_saved_leaves(node, &layout.tabs)
-        }) {
-            layout.split = None;
         }
         layout.sidebar_open = self.sidebar_open;
         layout.dock_open = self.dock_open;
@@ -1042,23 +1005,6 @@ impl HyperStackApp {
             "tab.reopen" => self.reopen_closed(None),
             "tab.next" => self.cycle_tab(1),
             "tab.prev" => self.cycle_tab(-1),
-            "tab.split_right" | "tab.split_down" => {
-                if let Some(a) = self.tabs.active {
-                    let horizontal = action == "tab.split_right";
-                    if let Some(i) = self.factory_index("scratchpad") {
-                        let new_id =
-                            self.tabs
-                                .open(self.factories[i].as_ref(), &self.services, None);
-                        self.tabs.split_with(a, new_id, horizontal);
-                    }
-                }
-            }
-            // Splits used to end only when one of their tabs closed; the
-            // tabs stay open, the panes just stop sharing the space.
-            "tab.unsplit" => {
-                self.tabs.split = None;
-                self.tabs.dirty = true;
-            }
             "palette.commands" => self.palette.toggle(PaletteMode::Commands),
             "palette.quick_open" => self.palette.toggle(PaletteMode::QuickOpen),
             "view.sidebar" => self.sidebar_open = !self.sidebar_open,
@@ -1193,9 +1139,6 @@ impl HyperStackApp {
                     ("tab.reopen", "cmd-reopen-tab"),
                     ("tab.next", "cmd-next-tab"),
                     ("tab.prev", "cmd-prev-tab"),
-                    ("tab.split_right", "cmd-split-right"),
-                    ("tab.split_down", "cmd-split-down"),
-                    ("tab.unsplit", "cmd-unsplit"),
                     ("view.sidebar", "cmd-toggle-sidebar"),
                     ("view.dock", "cmd-toggle-dock"),
                     ("app.settings", "cmd-settings"),
@@ -2253,13 +2196,11 @@ impl HyperStackApp {
             .collect();
         let views: Vec<_> = index_map.iter().map(|&i| all[i].clone()).collect();
         let group_ids: Vec<u64> = views.iter().map(|v| v.id).collect();
-        let visible = self.tabs.visible();
         let strip = TabStrip {
             theme: &self.theme,
             min_width: min_w,
             gap,
             active: self.tabs.active,
-            visible: &visible,
             labels: &labels,
             compact: false,
             show_new_tab: shows_new_tab(self.group.as_deref()),
@@ -2614,45 +2555,7 @@ impl HyperStackApp {
         };
         let rect = ui.available_rect_before_wrap();
         self.main_rect = rect;
-        let theme = self.theme.clone();
-        let mut activate = None;
-        if let Some(mut split) = self.tabs.split.take() {
-            let tabs = &mut self.tabs;
-            split.show(ui, &theme, &mut |ui, id| {
-                let frame = egui::Frame::new()
-                    .stroke(egui::Stroke::new(
-                        1.0,
-                        if tabs.active == Some(id) {
-                            theme.accent
-                        } else {
-                            theme.border
-                        },
-                    ))
-                    .inner_margin(egui::Margin::same(4));
-                frame.show(ui, |ui| {
-                    let r = ui.interact(
-                        ui.max_rect(),
-                        ui.id().with(("pane-focus", id)),
-                        egui::Sense::click(),
-                    );
-                    if r.clicked() {
-                        activate = Some(id);
-                    }
-                    if let Some(t) = tabs.tabs.iter_mut().find(|t| t.id == id) {
-                        let is_home = t.home;
-                        let mut cx = ToolContext {
-                            services: &services,
-                            tab_id: id,
-                            env_id: env.as_deref(),
-                            actions: &mut actions,
-                            is_home,
-                        };
-                        t.tool.ui(ui, &mut cx);
-                    }
-                });
-            });
-            self.tabs.split = Some(split);
-        } else if let Some(a) = self.tabs.active
+        if let Some(a) = self.tabs.active
             && let Some(t) = self.tabs.get_mut(a)
         {
             let is_home = t.home;
@@ -2664,9 +2567,6 @@ impl HyperStackApp {
                 is_home,
             };
             t.tool.ui(ui, &mut cx);
-        }
-        if let Some(id) = activate {
-            self.tabs.activate(id);
         }
         if let Some(col) = protected {
             hs_ui::env_banner::protected_frame(ui, rect, col);
@@ -3317,7 +3217,6 @@ impl eframe::App for HyperStackApp {
     /// open and the servers counting a connection each until they timed
     /// out.
     fn on_exit(&mut self) {
-        self.tabs.split = None;
         self.tabs.tabs.clear();
     }
 

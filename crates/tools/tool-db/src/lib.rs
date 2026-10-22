@@ -3105,7 +3105,6 @@ impl DbTool {
                     min_width,
                     gap: 2.0,
                     active: Some(active),
-                    visible: &[],
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,

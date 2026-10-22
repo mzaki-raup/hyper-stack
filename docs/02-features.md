@@ -15,7 +15,7 @@ suggestion.
 | Multi-tab, **multi-row** tab space that wraps instead of scrolling (requested) | P0 | M | Same behaviour as Eden Explorer's strip (reference: its `compute_tab_layout` / `tab_row_count`), written fresh; min tab width and tab gap configurable |
 | Tab = one tool instance; mixed tools in one strip | P0 | M | See `Tool` trait in architecture |
 | **Launcher** page on new tab: tool grid, recent items, pinned connections | P0 | S | Where the user picks what to do |
-| Split panes (vertical/horizontal), drag tab into a split | P0 | M | Tab rows above, split layout below |
+| ~~Split panes (vertical/horizontal), drag tab into a split~~ | Dropped | — | Built, then removed on 2026-10-23: it spanned activities, could not take a chosen tab, and went unused (docs/04 §2.4) |
 | Pin tabs, close others / left / right, duplicate, reorder by drag | P0 | S | Same semantics as Eden Explorer |
 | **Tab groups** (saved named sets) and **workspaces** (whole layout + environment) | P0 | M | Workspace restores on launch |
 | Colour-coded **environment banner** per tab and per workspace | P0 | S | Red border for production, read-only badge |
@@ -205,7 +205,7 @@ suggestion.
 |---|---|---|
 | Local shells: PowerShell, cmd, Git Bash, WSL, bash/zsh/fish; profiles | P0 | M |
 | Terminal grid shared with SSH (alacritty_terminal), true colour, scrollback, search, selection, clickable links | P0 | M |
-| Tabs and splits, "open terminal here" from project tree / SFTP / Git | P0 | S |
+| Tabs, "open terminal here" from project tree / SFTP / Git | P0 | S |
 | Task runner: detect `package.json` scripts, `Cargo.toml`, `Makefile`, `justfile`, `docker-compose.yml` and run with one click | P1 | M |
 | Command history search across sessions | P2 | S |
 

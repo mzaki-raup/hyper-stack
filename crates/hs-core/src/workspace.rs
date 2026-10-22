@@ -138,7 +138,6 @@ pub struct Layout {
     pub schema: u32,
     pub tabs: Vec<LayoutTab>,
     pub active: Option<u64>,
-    pub split: Option<LayoutNode>,
     pub sidebar_width: Option<f32>,
     pub dock_height: Option<f32>,
     pub dock_open: bool,
@@ -159,20 +158,6 @@ pub struct LayoutTab {
     /// Owner's report, 2026-10-17.
     pub home: bool,
     pub state: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum LayoutNode {
-    Leaf {
-        tab: u64,
-    },
-    Split {
-        horizontal: bool,
-        ratio: f32,
-        a: Box<LayoutNode>,
-        b: Box<LayoutNode>,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -624,15 +609,43 @@ mod tests {
                 state: serde_json::json!({"text": "hi"}),
             }],
             active: Some(1),
-            split: Some(LayoutNode::Leaf { tab: 1 }),
             sidebar_open: true,
             ..Default::default()
         };
         ws.save_layout(&layout).unwrap();
         let back = ws.load_layout();
         assert_eq!(back.tabs, layout.tabs);
-        assert_eq!(back.split, layout.split);
+        assert_eq!(back.active, layout.active);
         assert!(ws.root().join(".gitignore").exists());
+    }
+
+    /// Split panes were removed on 2026-10-23 and `Layout::split` with them.
+    /// Every installed copy has a `layout.json` carrying a `split` tree, and
+    /// a parse error there would silently throw the user's tabs away, so the
+    /// old key has to be ignored rather than rejected.
+    #[test]
+    fn a_layout_saved_with_split_panes_still_loads() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = DataDir::resolve(Some(tmp.path())).unwrap();
+        let mut reg = Registry::load(&paths);
+        let ws = reg.open(&paths, "default").unwrap();
+        let json = r#"{
+          "schema": 1,
+          "tabs": [{"id": 7, "tool": "scratchpad", "pinned": false,
+                    "colour": null, "home": true, "state": {"text": "kept"}}],
+          "active": 7,
+          "split": {"kind": "split", "horizontal": true, "ratio": 0.5,
+                    "a": {"kind": "leaf", "tab": 7},
+                    "b": {"kind": "leaf", "tab": 8}},
+          "sidebar_open": true
+        }"#;
+        std::fs::write(ws.layout_file(), json).unwrap();
+
+        let back = ws.load_layout();
+        assert_eq!(back.tabs.len(), 1, "the tabs survive the dropped field");
+        assert_eq!(back.tabs[0].id, 7);
+        assert_eq!(back.active, Some(7));
+        assert!(back.sidebar_open);
     }
 
     #[test]

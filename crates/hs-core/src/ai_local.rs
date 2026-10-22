@@ -693,11 +693,7 @@ async fn comfy(
         .await?;
         if let Some(entry) = h.get(&prompt_id) {
             if entry.pointer("/status/status_str").and_then(Value::as_str) == Some("error") {
-                let msg = entry
-                    .pointer("/status/messages")
-                    .map(|m| truncate(&m.to_string(), 300))
-                    .unwrap_or_else(|| "the workflow failed".into());
-                return Err(AiError::Format(format!("ComfyUI: {msg}")));
+                return Err(AiError::Format(comfy_error(entry)));
             }
             let image = entry
                 .get("outputs")
@@ -738,6 +734,57 @@ async fn comfy(
             return Err(AiError::Network("ComfyUI did not finish in time".into()));
         }
     }
+}
+
+/// A readable line from ComfyUI's status messages: the failing node and
+/// its exception rather than the whole event list, plus the one hint that
+/// explains the common case - a checkpoint with no text encoder or VAE of
+/// its own (Z-Image, Flux, SD3 split files), which the built-in workflow's
+/// CheckpointLoaderSimple cannot drive.
+fn comfy_error(entry: &Value) -> String {
+    let messages = entry
+        .pointer("/status/messages")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let error = messages.iter().find_map(|m| {
+        let kind = m.get(0).and_then(Value::as_str)?;
+        (kind == "execution_error")
+            .then(|| m.get(1).cloned())
+            .flatten()
+    });
+    let Some(e) = error else {
+        return format!(
+            "ComfyUI: the workflow failed ({})",
+            truncate(&Value::Array(messages).to_string(), 200)
+        );
+    };
+    let node_type = e.get("node_type").and_then(Value::as_str).unwrap_or("node");
+    let node_id = e.get("node_id").and_then(Value::as_str).unwrap_or("?");
+    let message = e
+        .get("exception_message")
+        .and_then(Value::as_str)
+        .unwrap_or("failed");
+    let mut out = format!(
+        "ComfyUI: {node_type} (node {node_id}): {}",
+        truncate(message, 300)
+    );
+    let inputs = e
+        .get("current_inputs")
+        .map(|v| v.to_string())
+        .unwrap_or_default();
+    if inputs.contains("\"clip\":[null]")
+        || inputs.contains("\"vae\":[null]")
+        || message.contains("NoneType")
+    {
+        out.push_str(
+            " - this checkpoint carries no text encoder or VAE of its own, so the \
+             built-in workflow cannot drive it: in ComfyUI or SwarmUI, export the \
+             workflow that loads it (Save (API Format)) and paste it under the \
+             provider's ComfyUI Workflows in Settings",
+        );
+    }
+    out
 }
 
 fn random_seed() -> f64 {
@@ -1243,6 +1290,26 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn comfy_errors_name_the_node_and_hint_at_a_missing_clip() {
+        let entry: Value = serde_json::from_str(
+            r#"{"status":{"status_str":"error","messages":[
+                ["execution_start",{"prompt_id":"p"}],
+                ["execution_error",{"node_id":"6","node_type":"CLIPTextEncode","exception_message":"'NoneType' object has no attribute 'tokenize'","current_inputs":{"clip":[null],"text":["A city"]}}]
+            ]}}"#,
+        )
+        .unwrap();
+        let msg = comfy_error(&entry);
+        assert!(
+            msg.starts_with("ComfyUI: CLIPTextEncode (node 6): 'NoneType'"),
+            "{msg}"
+        );
+        assert!(msg.contains("no text encoder"), "{msg}");
+        let plain: Value =
+            serde_json::from_str(r#"{"status":{"status_str":"error","messages":[]}}"#).unwrap();
+        assert!(comfy_error(&plain).contains("the workflow failed"));
     }
 
     #[test]

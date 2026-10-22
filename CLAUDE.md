@@ -29,7 +29,13 @@ assistant (ADR-019: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock,
 gallery in Settings grouped by capability, `hs-core::ai`; image providers -
 1min.AI or a self-hosted AUTOMATIC1111/SD.Next/Forge, ComfyUI, SwarmUI,
 InvokeAI or Fooocus server with per-provider workflow settings,
-`hs-core::ai_local` - feed the Graphics activity); Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
+`hs-core::ai_local` - feed the Graphics activity); the **Logs** activity
+(`tool-logs`, 2026-10-22: local files followed like `tail -F`, SSH files
+through `hs_ssh::SshClient::exec`, command output, pasted text; parsers
+for plain, JSON lines, logfmt, syslog, Nginx and PostgreSQL; filter chips,
+highlights, find, jump to time, bookmarks, saved sources and presets);
+the bottom dock's Logs tab shows the app's own log at the level set in
+Settings → General → Behaviour; Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics
 have a review-only assistant whose code blocks can be inserted but never
 run; the API client's assistant can also **fill the client** through
 `hs-api` action blocks the user applies, and the **Scratchpad** is a
@@ -72,7 +78,7 @@ The Cargo workspace (`crates/hs-core`, `hs-ui`, `hs-term`,
 `hs-editor`, `hs-ssh`, `hs-git`, `hs-lsp`, `hs-dap`, `hs-diagram`, `tools/tool-terminal`, `tools/tool-editor`,
 `tools/tool-ssh`, `tools/tool-s3`, `tools/tool-db`, `tools/tool-api`,
 `tools/tool-devtools`, `tools/tool-graphics`, `tools/tool-browser`,
-`tools/tool-redis`, `tools/tool-nosql`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
+`tools/tool-redis`, `tools/tool-nosql`, `tools/tool-logs`, `hyperstack`) builds to a portable `HyperStack.exe` and passes the full gate
 (fmt, clippy `-D warnings`, tests, `--self-test`). `CHECKLIST.md` tracks what
 is done; releases are published automatically from `main`.
 
@@ -762,6 +768,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   dashboard and read as a dead click. A dashboard must report no uri and
   no `uri_affinity`, and `app::open_tool_in` skips dashboards when it
   matches one.
+- A nested `egui::Panel::bottom` inside a tool's column sizes itself from
+  the *previous* frame, so when its content changes height (a wrapped
+  row of quick-action buttons) the central area is painted underneath it
+  for a frame that can persist. For an input block at the foot of a
+  column, lay it out bottom-up in a child `Ui` over the column's rect and
+  give the rest of the rect to the content (`hs_ui::ai_assistant`).
+- A `"` inside a plain `r"…"` raw string ends it; a regex that needs one
+  wants `r#"…"#` (the Logs tool's `path:line` pattern).
+- `tracing_subscriber::reload` is not a Cargo feature (it comes with
+  `std`); adding `features = ["reload"]` fails the resolve.
 - A widget that draws on `available_rect_before_wrap()` without
   **allocating** it reports no size to its container. Inside a central
   panel nothing shows, but a resizable `egui::Panel` stores the size its

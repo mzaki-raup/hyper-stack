@@ -89,6 +89,7 @@ the fixtures behind them.
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, info |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents |
+| [Logs](#logs) | Local, SSH, command and pasted sources; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -220,6 +221,16 @@ directly after the permanent one.
 | **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | |
 | ![Console](docs/screenshots/redis-console.png) | ![Info](docs/screenshots/redis-info.png) |
 | **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - server version, build, process, listeners and keyspace |
+
+### Logs
+
+| | |
+|---|---|
+| **Sources** — a local file followed like `tail -F` (rotation noticed, multi-gigabyte files opened at their tail), a file on an SSH host through `tail -F` on an exec channel, any command's output (local or remote) and pasted text; saved sources grouped by environment in the sidebar, filter presets beside them | |
+| **Parsers** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL, detected from the first lines; levels normalised; stack traces glued to the line that started them | |
+| **View** — filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, a detail pane with fields (filter by, exclude, pin as column), Open in Editor for `path:line`, Save Filtered… | |
+
+The bottom dock's **Logs** tab shows the app's own log with a level set in Settings → General → Behaviour; every error a tool reports lands there too.
 
 ### NoSQL (MongoDB and CouchDB)
 

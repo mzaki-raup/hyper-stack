@@ -26,6 +26,7 @@ pub fn factories(
         Box::new(tool_db::DbFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),
+        Box::new(tool_logs::LogsFactory),
         Box::new(tool_api::ApiFactory),
         Box::new(tool_browser::BrowserFactory { hub: browser }),
         Box::new(tool_graphics::GraphicsFactory { hub: graphics }),

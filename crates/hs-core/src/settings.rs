@@ -134,6 +134,9 @@ pub struct General {
     /// Maximum number of undo steps kept by tools that implement their own
     /// history (image/icon edits today). Clamped to 1..=100.
     pub undo_limit: u32,
+    /// The lowest level the app's log records and the Logs dock shows:
+    /// `error`, `warn`, `info`, `debug` or `trace`.
+    pub log_level: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -482,6 +485,7 @@ impl Default for General {
             language: String::new(),
             show_fallback_notice: true,
             undo_limit: 20,
+            log_level: "info".into(),
         }
     }
 }

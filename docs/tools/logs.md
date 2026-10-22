@@ -1,6 +1,53 @@
 # Tool spec — Log tail viewer
 
-**Crate:** `tool-logs` · **Priority:** P0 (local + SSH sources, filters, parsers) · P1 (containers, k8s, journald, Event Log, merge, alerts) · **Status:** draft
+**Crate:** `tool-logs` · **Priority:** P0 (local + SSH sources, filters, parsers) · P1 (containers, k8s, journald, Event Log, merge, alerts) · **Status:** P0 implemented 2026-10-22, see §0
+
+## 0. What is implemented (2026-10-22)
+
+- **Sources** (`source::SourceSpec`): a local file followed like
+  `tail -F` (the last 64 MB of a large file is read on open, appends are
+  polled every 400 ms, a shrink or a changed file identity is a rotation
+  and reading starts over - `engine::FileFollower`, tested for append,
+  partial lines, truncation, rename+create and a vanishing file); a file
+  on an SSH host (`tail -n <history> -F <path>` on an exec channel,
+  `hs_ssh::SshClient::exec`, through a saved `ssh` connection whose host
+  key is already trusted - the Logs tab does not prompt); any command's
+  stdout, local (`cmd /C` / `sh -c`, stderr kept for the status line) or
+  on an SSH host; and pasted text. Saved sources live in
+  `<workspace>/logs/<slug>.toml` and the sidebar groups them by the
+  connection's environment; filter presets in `logs/presets.toml`.
+- **Engine**: one task per tab feeds parsed records into a bounded window
+  (200 000 records, older ones dropped and counted); continuation lines
+  (stack frames, `Caused by:`, indented lines, pretty JSON) are glued to
+  the record before them; the format is detected from the first 64 lines
+  unless the source pins one.
+- **Parsers** (`parse`): plain (leading timestamp, level token), JSON
+  lines (`ts`/`time`/`@timestamp`, `level`/`severity`, `msg`/`message`),
+  logfmt, syslog (RFC 3164 and 5424, priority → level), Nginx/Apache
+  combined (status → level, request time), PostgreSQL (`duration:` pulled
+  out), with a container runtime's timestamp prefix stripped. Level
+  normalisation covers `WARNING`, `ERR`, `CRIT`, numeric syslog
+  severities and the rest; eight fixture tests.
+- **Filters and highlights** (`filter`): chips for text, regex, level ≥,
+  field = value, after/before a time, each negatable, combined with AND;
+  highlight rules (regex → colour, bold) with a default for slow Postgres
+  statements; the detail pane's field rows offer *filter by*, *exclude*
+  and *pin as column*.
+- **View**: a virtualised list (line, time in local or UTC, level,
+  pinned columns for structured formats, message), Follow (sticks to the
+  newest line, released by scrolling up or clicking a row), Pause, a
+  "▲ N new lines" badge, Find (Ctrl+F, F3 / Shift+F3), Jump to Time
+  (Ctrl+G, `HH:MM[:SS]` today or a full timestamp, binary search over the
+  parsed timestamps), bookmarks (Ctrl+B, shown as a gutter mark and
+  counted in the status line), a detail pane with the raw record, its
+  fields, Copy / Copy as JSON and **Open in Editor** for a `path:line`
+  found in the text, Save Filtered… to a file, Save Source, Reopen.
+- Keyboard as §14: F, Space/P, Ctrl+F, F3, Ctrl+L, Ctrl+B, Ctrl+G, Home,
+  End.
+
+Not yet (P1/P2): globs, Docker/Kubernetes/journald/Event Log sources,
+multi-source merge, statistics and alerts, SFTP range reads for history
+beyond the tail, "look up in Redis" / "open request" actions.
 
 ## 1. Purpose
 

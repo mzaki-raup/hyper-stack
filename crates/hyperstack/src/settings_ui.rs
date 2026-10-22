@@ -783,8 +783,32 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 changed = true;
             }
             ui.end_row();
+            form::label(ui, &s.t("settings-log-level"));
+            let current = crate::dock::level_from_name(&settings.general.log_level);
+            let mut chosen = current;
+            egui::ComboBox::from_id_salt("settings-log-level")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(&format!(
+                    "log-level-{}",
+                    settings.general.log_level.trim().to_lowercase()
+                )))
+                .show_ui(ui, |ui| {
+                    for (level, name) in crate::dock::LEVELS {
+                        ui.selectable_value(&mut chosen, level, s.t(&format!("log-level-{name}")));
+                    }
+                });
+            if chosen != current {
+                settings.general.log_level = crate::dock::LEVELS
+                    .iter()
+                    .find(|(l, _)| *l == chosen)
+                    .map(|(_, n)| n.to_string())
+                    .unwrap_or_else(|| "info".into());
+                changed = true;
+            }
+            ui.end_row();
         });
         form::hint(ui, theme, &s.t("settings-undo-limit-hint"));
+        form::hint(ui, theme, &s.t("settings-log-level-hint"));
     });
     drop(settings);
     form::section(ui, theme, &s.t("settings-section-portable"), |ui| {

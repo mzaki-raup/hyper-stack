@@ -13,6 +13,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Logs** activity (`tool-logs`): follow a local file like `tail -F`
+  (rotation noticed, large files opened at their tail), a file on an SSH
+  host (`tail -F` on an exec channel), any command's output or pasted text;
+  parsers for plain, JSON lines, logfmt, syslog, Nginx/Apache and
+  PostgreSQL with level normalisation and stack-trace grouping; filter
+  chips (text, regex, level, field, time; negatable), highlight rules,
+  Follow/Pause with a new-lines badge, Find, Jump to Time, bookmarks, a
+  detail pane with field actions and Open in Editor, Save Filtered…,
+  saved sources grouped by environment and filter presets.
+- Bottom dock: the Output tab is now **Logs** — the app's own log with a
+  level picker, search, Copy and Clear, coloured by level, an error count
+  on the tab; the level recorded is Settings → General → Behaviour → Log
+  Level and applies at run time; every error or warning a tool reports
+  (a failed image generation, for one) is written to the log as well.
+- hs-ssh: `SshClient::exec` runs a command on an exec channel and streams
+  its stdout/stderr (`ExecStream`).
 - API client: **OAuth 2.0** (client credentials, password and refresh-token
   grants; the token is fetched at send time and cached until it expires,
   Refresh Token Now forgets it) and **AWS Signature V4** (key pair, session
@@ -26,6 +42,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Graphics → Generate Picture on ComfyUI: a failed workflow now reports
+  the failing node and its exception rather than the whole event list,
+  and says when the checkpoint carries no text encoder or VAE of its own
+  (Z-Image, Flux, split SD3 files), which the built-in workflow cannot
+  drive — paste the workflow ComfyUI/SwarmUI uses for it instead.
+- AI assistants: the quick-action buttons no longer paint over the
+  conversation; the input block is laid out bottom-up in the column.
 - Database: the transaction badge follows the server rather than the
   statement text - Postgres is asked with `now() <> statement_timestamp()`
   (an aborted block counts), MySQL/MariaDB with `@@in_transaction` or the

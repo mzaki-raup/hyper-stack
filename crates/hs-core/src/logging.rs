@@ -95,10 +95,31 @@ impl<'a> MakeWriter<'a> for TeeMaker {
     }
 }
 
+type FilterHandle =
+    tracing_subscriber::reload::Handle<tracing_subscriber::EnvFilter, tracing_subscriber::Registry>;
+
 pub struct Logging {
     pub buffer: LogBuffer,
     pub redactor: Redactor,
+    /// The level filter, swappable at run time (Settings → General →
+    /// Behaviour → Log Level). `None` when another subscriber was
+    /// installed first (tests).
+    filter: Option<FilterHandle>,
     _guard: Option<tracing_appender::non_blocking::WorkerGuard>,
+}
+
+impl Logging {
+    /// Replace the level filter: `error`, `warn`, `info`, `debug`, `trace`,
+    /// or a full `EnvFilter` directive.
+    pub fn set_filter(&self, filter: &str) -> bool {
+        let Some(handle) = &self.filter else {
+            return false;
+        };
+        let Ok(new) = tracing_subscriber::EnvFilter::try_new(filter) else {
+            return false;
+        };
+        handle.reload(new).is_ok()
+    }
 }
 
 /// Initialise once. `logs_dir = None` keeps logs in memory only (tests, self-test).
@@ -120,25 +141,64 @@ pub fn init(logs_dir: Option<&std::path::Path>, filter: &str) -> Logging {
     };
     let env_filter = tracing_subscriber::EnvFilter::try_new(filter)
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let _ = tracing_subscriber::registry()
-        .with(env_filter)
+    let (reloadable, handle) = tracing_subscriber::reload::Layer::new(env_filter);
+    let installed = tracing_subscriber::registry()
+        .with(reloadable)
         .with(
             tracing_subscriber::fmt::layer()
                 .with_ansi(false)
                 .with_target(true)
                 .with_writer(maker),
         )
-        .try_init();
+        .try_init()
+        .is_ok();
     Logging {
         buffer,
         redactor,
+        filter: installed.then_some(handle),
         _guard: guard,
     }
+}
+
+/// The level a log line carries, from the `fmt` layer's layout
+/// (`<time>  LEVEL target: message`).
+pub fn line_level(line: &str) -> Option<tracing::Level> {
+    let head: String = line.chars().take(48).collect();
+    for (token, level) in [
+        (" ERROR ", tracing::Level::ERROR),
+        (" WARN ", tracing::Level::WARN),
+        (" INFO ", tracing::Level::INFO),
+        (" DEBUG ", tracing::Level::DEBUG),
+        (" TRACE ", tracing::Level::TRACE),
+    ] {
+        if head.contains(token) {
+            return Some(level);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn levels_are_read_from_formatted_lines() {
+        assert_eq!(
+            line_level("2026-10-22T13:00:00.123456Z ERROR hyperstack::ui: boom"),
+            Some(tracing::Level::ERROR)
+        );
+        assert_eq!(
+            line_level("2026-10-22T13:00:00.123456Z  INFO hs_core::ai: ok"),
+            Some(tracing::Level::INFO)
+        );
+        assert_eq!(
+            line_level(
+                "    at com.shop.OrderSvc.charge(OrderSvc.java:212) - a frame, no level; WARN far down"
+            ),
+            None
+        );
+    }
 
     #[test]
     fn redactor_masks_known_values() {

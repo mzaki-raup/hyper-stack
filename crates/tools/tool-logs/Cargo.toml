@@ -1,0 +1,28 @@
+[package]
+name = "tool-logs"
+description = "HyperStack log tail viewer: local files, SSH tails, command output and pasted text with parsers, filters, highlights, find and bookmarks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+hs-ssh = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+rfd = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -196,6 +196,12 @@ impl HyperStackApp {
         cc.egui_ctx
             .set_zoom_factor(services.settings.read().appearance.ui_zoom);
 
+        {
+            let level = services.settings.read().general.log_level.clone();
+            if !logging.set_filter(&level) {
+                tracing::warn!("log level {level:?} could not be applied");
+            }
+        }
         let settings_hub = SharedSettings::default();
         let home_hub = SharedHome::default();
         let browser_hub = crate::browser_host::new_hub();
@@ -1245,7 +1251,16 @@ impl HyperStackApp {
                         self.close_tab(a, true);
                     }
                 }
-                Action::Toast { level, text } => self.toasts.push(level, text),
+                Action::Toast { level, text } => {
+                    match level {
+                        ToastLevel::Error => tracing::error!(target: "hyperstack::tool", "{text}"),
+                        ToastLevel::Warning => tracing::warn!(target: "hyperstack::tool", "{text}"),
+                        ToastLevel::Info | ToastLevel::Success => {
+                            tracing::info!(target: "hyperstack::tool", "{text}")
+                        }
+                    }
+                    self.toasts.push(level, text)
+                }
                 Action::SetStatus { text } => self.status = text,
                 Action::SetTitle { .. } => {}
                 Action::RunCommand { id } => self.run_action(&id),
@@ -1260,6 +1275,9 @@ impl HyperStackApp {
                     if let Err(err) = self.services.save_settings() {
                         self.toasts.push(ToastLevel::Error, err.to_string());
                     }
+                    let level = self.services.settings.read().general.log_level.clone();
+                    self.logging.set_filter(&level);
+                    self.dock.min_level = crate::dock::level_from_name(&level);
                 }
                 SettingsEffect::ThemeChanged => {
                     let (appearance, zoom) = {
@@ -3670,7 +3688,16 @@ fn shows_new_tab(group: Option<&str>) -> bool {
     !matches!(
         group,
         Some(
-            "terminal" | "ssh" | "db" | "nosql" | "redis" | "s3" | "browser" | "home" | "devtools"
+            "terminal"
+                | "ssh"
+                | "db"
+                | "nosql"
+                | "redis"
+                | "s3"
+                | "browser"
+                | "home"
+                | "devtools"
+                | "logs"
         )
     )
 }
@@ -3805,6 +3832,7 @@ fn activity_colour(id: &str) -> egui::Color32 {
         "db" => egui::Color32::from_rgb(0x38, 0xbd, 0xf8),
         "redis" => egui::Color32::from_rgb(0xf8, 0x71, 0x71),
         "nosql" => egui::Color32::from_rgb(0x34, 0xd3, 0x99),
+        "logs" => egui::Color32::from_rgb(0xa3, 0xe6, 0x35),
         "api" => egui::Color32::from_rgb(0xfb, 0xbf, 0x24),
         "browser" => egui::Color32::from_rgb(0x22, 0xd3, 0xee),
         "graphics" => egui::Color32::from_rgb(0xf4, 0x72, 0xb6),
@@ -3890,7 +3918,7 @@ mod tests {
         // A tab here is a connection, a shell or the workspace's browser,
         // opened from the sidebar.
         for g in [
-            "terminal", "ssh", "db", "nosql", "redis", "s3", "browser", "home", "devtools",
+            "terminal", "ssh", "db", "nosql", "redis", "s3", "browser", "home", "devtools", "logs",
         ] {
             assert!(
                 !shows_new_tab(Some(g)),

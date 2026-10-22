@@ -3714,6 +3714,7 @@ dependencies = [
  "tool-devtools",
  "tool-editor",
  "tool-graphics",
+ "tool-logs",
  "tool-nosql",
  "tool-redis",
  "tool-s3",
@@ -8426,6 +8427,26 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "tool-logs"
+version = "0.71.1"
+dependencies = [
+ "chrono",
+ "egui",
+ "hs-core",
+ "hs-ssh",
+ "hs-ui",
+ "parking_lot",
+ "regex",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 0.8.23",
  "tracing",
 ]
 

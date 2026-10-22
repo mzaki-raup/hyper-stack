@@ -64,8 +64,15 @@ Regions, top to bottom:
    Devtools, SSH, S3, Terminal and the Settings page list follow now.
    Owner's request, 2026-10-19.
 6. **Main area** - the active tab's `Tool::ui`, or a split tree of several tabs.
-7. **Bottom dock** — Output (logs), Jobs, Problems (editor diagnostics, failed
-   assertions, SQL errors), Terminal (quick local shell). Height persisted.
+7. **Bottom dock** — **Logs** (the app's own log: a level picker, search,
+   Copy and Clear, lines coloured by level; the tab label counts errors
+   that arrived while another tab was showing; the recorded level is
+   Settings → General → Behaviour → Log Level and is applied to the
+   `tracing` filter at run time; every error or warning toast a tool
+   raises is also written to the log, so the reason outlives the toast -
+   owner's request, 2026-10-22), Jobs, Problems (editor diagnostics,
+   failed assertions, SQL errors). The quick shell was removed on
+   2026-10-18. Height persisted.
 8. **Status bar** — tool-supplied left segments, global right segments.
 
 ### 1.6 UI/UX consistency rules

@@ -6,6 +6,7 @@
 //! through channels and shared state, never by blocking.
 
 pub mod config;
+pub mod exec;
 pub mod known_hosts;
 pub mod profile;
 pub mod shell;
@@ -21,6 +22,7 @@ use russh::keys::HashAlg;
 use secrecy::{ExposeSecret, SecretString};
 use tokio::sync::oneshot;
 
+pub use exec::{ExecChunk, ExecStream};
 pub use known_hosts::{KnownHosts, Verdict};
 pub use profile::SshFields;
 pub use russh_sftp::client::SftpSession;
@@ -280,6 +282,14 @@ impl SshClient {
             .await?;
         channel.request_shell(false).await?;
         Ok(shell::spawn(channel))
+    }
+
+    /// Run a command on an exec channel and stream its output (no PTY:
+    /// the bytes are the program's own, line endings included).
+    pub async fn exec(&self, command: &str) -> Result<ExecStream> {
+        let channel = self.handle.channel_open_session().await?;
+        channel.exec(true, command).await?;
+        Ok(exec::spawn(channel))
     }
 
     /// Open the SFTP subsystem.

@@ -83,7 +83,7 @@ Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/dr
 ### M5 · Logs + Devtools core
 | Item | State | Notes |
 |---|---|---|
-| `tool-logs`: local file engine, SSH source, parsers, filters, highlights, structured view, find, bookmarks, saved sources | Pending | |
+| `tool-logs`: local file engine, SSH source, parsers, filters, highlights, structured view, find, bookmarks, saved sources | Completed | 2026-10-22: `engine::FileFollower` (append, truncation, rotation, 64 MB tail open; 3 tests), SSH `tail -F` over `hs_ssh::SshClient::exec`, local/remote command sources, pasted text; `parse` (plain, JSON, logfmt, syslog, nginx, postgres; 8 tests), `filter` chips + highlights (2 tests), saved sources and presets (1 test), virtualised list with structured columns, find, jump to time, bookmarks, detail pane, Open in Editor. P1 sources (Docker/k8s/journald/Event Log), merge and alerts remain |
 | `tool-devtools`: JSON/YAML/TOML/XML, JWT, Base64/URL/hex, regex, cron, UUID/ULID/hash, timestamp, diff | Completed | JSON/YAML/TOML/XML, JWT, Base64/URL, hashes, generators (UUID/ULID), cron and the timestamp converter landed 2026-10-15..17; Regex Tester and Text Diff 2026-10-18 (`regex_tool`, `diff_tool`, 5 tests) |
 
 ### M6 · Hardening and 1.0
@@ -438,3 +438,5 @@ and ADR-025.
 | Database: transaction state asked of the server (Postgres, MySQL) | Completed | `PgSession::probe_in_tx` / `MySession::probe_in_tx` after every statement; `tx_effect` text classifier kept as fallback |
 | API client: import/export off the UI thread | Completed | `ImportDone`/`ImportSlot`, `ExportSlot`, applied in `poll`; `api-import-busy` guard |
 | Self-hosted image backends exercised against mock servers | Completed | `crates/hs-core/tests/ai_local_mock.rs` (6 tests: WebUI, ComfyUI, SwarmUI, InvokeAI, Fooocus, extra JSON + error); a live run on a real server stays the owner's check - none is installed here |
+| Bottom dock Logs tab with a level setting; tool errors mirrored into the log | Completed | `dock::DockTab::Logs`, `logging::Logging::set_filter` (reload layer), `general.log_level`, Behaviour card combo, `Action::Toast` → `tracing` |
+| ComfyUI readable workflow errors; assistant input block never overlaps the conversation | Completed | `ai_local::comfy_error` (+ test); bottom-up input layout in `hs_ui::ai_assistant` |

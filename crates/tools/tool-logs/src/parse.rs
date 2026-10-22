@@ -1,0 +1,677 @@
+//! Log formats as pure functions (docs/tools/logs.md §6): detection from a
+//! sample, one record per line with the timestamp, level, message and
+//! fields pulled out, and the continuation rule that glues a stack trace
+//! to the line that started it.
+
+use std::sync::LazyLock;
+
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+
+/// Normalised severity, ordered so `level >= WARN` is a comparison.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum Level {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+    Fatal,
+}
+
+impl Level {
+    pub const ALL: [Level; 6] = [
+        Level::Trace,
+        Level::Debug,
+        Level::Info,
+        Level::Warn,
+        Level::Error,
+        Level::Fatal,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Level::Trace => "TRACE",
+            Level::Debug => "DEBUG",
+            Level::Info => "INFO",
+            Level::Warn => "WARN",
+            Level::Error => "ERROR",
+            Level::Fatal => "FATAL",
+        }
+    }
+
+    /// Many spellings into one: `WARNING`, `ERR`, `CRIT`, Go's `warn`,
+    /// Python's `CRITICAL`, syslog's numeric severities (0-7).
+    pub fn parse(token: &str) -> Option<Level> {
+        let t = token.trim().trim_matches(|c: char| !c.is_alphanumeric());
+        Some(match t.to_ascii_uppercase().as_str() {
+            "TRACE" | "TRC" | "VERBOSE" | "FINEST" | "7" => Level::Trace,
+            "DEBUG" | "DBG" | "FINE" | "FINER" | "6" => Level::Debug,
+            "INFO" | "INF" | "INFORMATION" | "NOTICE" | "5" => Level::Info,
+            "WARN" | "WARNING" | "WRN" | "4" => Level::Warn,
+            "ERROR" | "ERR" | "SEVERE" | "3" => Level::Error,
+            "FATAL" | "CRIT" | "CRITICAL" | "PANIC" | "EMERG" | "EMERGENCY" | "ALERT" | "2"
+            | "1" | "0" => Level::Fatal,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Format {
+    #[default]
+    Auto,
+    Plain,
+    Json,
+    Logfmt,
+    Syslog,
+    Nginx,
+    Postgres,
+}
+
+impl Format {
+    pub const ALL: [Format; 7] = [
+        Format::Auto,
+        Format::Plain,
+        Format::Json,
+        Format::Logfmt,
+        Format::Syslog,
+        Format::Nginx,
+        Format::Postgres,
+    ];
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Format::Auto => "logs-format-auto",
+            Format::Plain => "logs-format-plain",
+            Format::Json => "logs-format-json",
+            Format::Logfmt => "logs-format-logfmt",
+            Format::Syslog => "logs-format-syslog",
+            Format::Nginx => "logs-format-nginx",
+            Format::Postgres => "logs-format-postgres",
+        }
+    }
+    /// JSON and logfmt carry named fields, so the list can show columns.
+    pub fn structured(self) -> bool {
+        matches!(self, Format::Json | Format::Logfmt)
+    }
+}
+
+/// One parsed record: a line and the continuation lines glued to it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Record {
+    /// 1-based number of the first line in the source.
+    pub line: u64,
+    pub raw: String,
+    pub ts: Option<DateTime<Utc>>,
+    pub level: Option<Level>,
+    pub message: String,
+    /// Named fields in source order (JSON, logfmt, syslog, nginx).
+    pub fields: Vec<(String, String)>,
+}
+
+impl Record {
+    pub fn field(&self, name: &str) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    }
+}
+
+static ISO: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)^\s*\[?
+        (\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,9})?(?:\s?(?:Z|[+-]\d{2}:?\d{2}))?)
+        \]?",
+    )
+    .unwrap()
+});
+static LEVEL_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)(?:^|[\s\[\(\|:])(TRACE|DEBUG|INFO|INFORMATION|NOTICE|WARNING|WARN|ERROR|ERR|SEVERE|FATAL|CRITICAL|CRIT|PANIC|EMERG)(?:$|[\s\]\)\|:])",
+    )
+    .unwrap()
+});
+static SYSLOG: LazyLock<Regex> = LazyLock::new(|| {
+    // RFC 3164: `Oct 22 14:32:01 host app[123]: msg`; RFC 5424:
+    // `<13>1 2026-10-22T14:32:01Z host app 123 - - msg`.
+    Regex::new(
+        r"(?x)^(?:<(?P<pri>\d{1,3})>(?:\d\s)?)?
+        (?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s\d{2}:\d{2}:\d{2}|\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)\s
+        (?P<host>\S+)\s
+        (?P<app>[^\s\[:]+)(?:\[(?P<pid>\d+)\])?(?:\s\S+\s\S+\s\S+)?:?\s
+        (?P<msg>.*)$",
+    )
+    .unwrap()
+});
+static NGINX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?x)^(?P<ip>\S+)\s\S+\s(?P<user>\S+)\s\[(?P<ts>[^\]]+)\]\s
+        "(?P<method>[A-Z]+)\s(?P<path>\S+)[^"]*"\s(?P<status>\d{3})\s(?P<bytes>\d+|-)
+        (?:\s"(?P<referer>[^"]*)"\s"(?P<ua>[^"]*)")?(?:\s(?P<rt>[\d.]+))?"#,
+    )
+    .unwrap()
+});
+static POSTGRES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)^(?P<ts>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s[A-Z]{2,5})?)\s
+        (?:\[(?P<pid>\d+)\]\s)?(?:(?P<user>[^@\s]+)@(?P<db>\S+)\s)?
+        (?P<level>LOG|ERROR|FATAL|PANIC|WARNING|NOTICE|INFO|DEBUG\d?|STATEMENT|DETAIL|HINT):\s{1,2}
+        (?P<msg>.*)$",
+    )
+    .unwrap()
+});
+static DURATION: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"duration:\s*([\d.]+)\s*ms").unwrap());
+static DOCKER_PREFIX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s(.*)$").unwrap());
+
+/// Timestamps in the forms logs use. Naive ones are read as UTC.
+pub fn parse_timestamp(text: &str) -> Option<DateTime<Utc>> {
+    let t = text.trim().trim_matches(|c| c == '[' || c == ']');
+    if let Ok(d) = DateTime::parse_from_rfc3339(t) {
+        return Some(d.with_timezone(&Utc));
+    }
+    let t2 = t.replacen(',', ".", 1);
+    for f in [
+        "%Y-%m-%dT%H:%M:%S%.f%:z",
+        "%Y-%m-%dT%H:%M:%S%.f%z",
+        "%Y-%m-%d %H:%M:%S%.f%:z",
+        "%Y-%m-%d %H:%M:%S%.f%z",
+        "%d/%b/%Y:%H:%M:%S %z",
+    ] {
+        if let Ok(d) = DateTime::parse_from_str(&t2, f) {
+            return Some(d.with_timezone(&Utc));
+        }
+    }
+    for f in [
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S%.f UTC",
+        "%Y/%m/%d %H:%M:%S%.f",
+    ] {
+        if let Ok(n) = NaiveDateTime::parse_from_str(&t2, f) {
+            return Some(Utc.from_utc_datetime(&n));
+        }
+    }
+    // `Oct 22 14:32:01` (syslog): the current year.
+    if let Ok(n) = NaiveDateTime::parse_from_str(
+        &format!(
+            "{} {}",
+            Utc::now().format("%Y"),
+            t.split_whitespace().collect::<Vec<_>>().join(" ")
+        ),
+        "%Y %b %d %H:%M:%S",
+    ) {
+        return Some(Utc.from_utc_datetime(&n));
+    }
+    // Epoch seconds or milliseconds.
+    if let Ok(n) = t.parse::<i64>() {
+        let (secs, nanos) = if n > 100_000_000_000 {
+            (n / 1000, ((n % 1000) * 1_000_000) as u32)
+        } else {
+            (n, 0)
+        };
+        return DateTime::from_timestamp(secs, nanos);
+    }
+    if let Ok(f) = t.parse::<f64>()
+        && f > 1_000_000_000.0
+    {
+        return DateTime::from_timestamp(f as i64, ((f.fract()) * 1e9) as u32);
+    }
+    None
+}
+
+/// Guess the format from the first lines.
+pub fn detect(sample: &[&str]) -> Format {
+    let lines: Vec<&str> = sample
+        .iter()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .take(64)
+        .collect();
+    if lines.is_empty() {
+        return Format::Plain;
+    }
+    let n = lines.len() as f32;
+    let count = |f: fn(&str) -> bool| lines.iter().filter(|l| f(l)).count() as f32 / n;
+    if count(|l| l.starts_with('{') && serde_json::from_str::<serde_json::Value>(l).is_ok()) >= 0.6
+    {
+        return Format::Json;
+    }
+    if count(|l| NGINX.is_match(l)) >= 0.6 {
+        return Format::Nginx;
+    }
+    if count(|l| POSTGRES.is_match(l)) >= 0.6 {
+        return Format::Postgres;
+    }
+    if count(|l| SYSLOG.is_match(l)) >= 0.6 {
+        return Format::Syslog;
+    }
+    if count(|l| logfmt_pairs(l).len() >= 2) >= 0.6 {
+        return Format::Logfmt;
+    }
+    Format::Plain
+}
+
+/// `key=value key2="quoted value"` pairs; anything else leaves the list
+/// short, which is how a plain line fails the logfmt test.
+pub fn logfmt_pairs(line: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut rest = line.trim();
+    while !rest.is_empty() {
+        let Some(eq) = rest.find('=') else { break };
+        let key = rest[..eq].trim();
+        if key.is_empty() || key.contains(char::is_whitespace) || key.contains('"') {
+            break;
+        }
+        let after = &rest[eq + 1..];
+        let (value, next) = if let Some(q) = after.strip_prefix('"') {
+            let mut v = String::new();
+            let mut chars = q.char_indices();
+            let mut end = q.len();
+            while let Some((i, c)) = chars.next() {
+                match c {
+                    '\\' => {
+                        if let Some((_, n)) = chars.next() {
+                            v.push(match n {
+                                'n' => '\n',
+                                't' => '\t',
+                                other => other,
+                            });
+                        }
+                    }
+                    '"' => {
+                        end = i + 1;
+                        break;
+                    }
+                    c => v.push(c),
+                }
+            }
+            (v, q[end.min(q.len())..].trim_start())
+        } else {
+            let end = after.find(char::is_whitespace).unwrap_or(after.len());
+            (after[..end].to_string(), after[end..].trim_start())
+        };
+        out.push((key.to_string(), value));
+        rest = next;
+    }
+    out
+}
+
+/// A line that belongs to the record before it: a stack frame, an
+/// indented continuation, a `Caused by:`, JSON pretty-printed over lines.
+pub fn is_continuation(format: Format, line: &str) -> bool {
+    if line.is_empty() {
+        return false;
+    }
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() {
+        return true;
+    }
+    if format == Format::Json {
+        // A JSON line starts a record; anything else continues one.
+        return !trimmed.starts_with('{');
+    }
+    if line.starts_with([' ', '\t']) {
+        return true;
+    }
+    trimmed.starts_with("at ")
+        || trimmed.starts_with("Caused by:")
+        || trimmed.starts_with("... ")
+        || trimmed.starts_with("Traceback (most recent call last)")
+        || trimmed.starts_with("File \"")
+        || trimmed.starts_with("---> ")
+        || trimmed.starts_with("--- End of")
+        || (format == Format::Postgres && !POSTGRES.is_match(trimmed) && !ISO.is_match(trimmed))
+}
+
+/// Parse one (first) line of a record.
+pub fn parse(format: Format, line_no: u64, line: &str) -> Record {
+    let mut rec = Record {
+        line: line_no,
+        raw: line.to_string(),
+        ..Default::default()
+    };
+    // A container runtime's timestamp prefix is read and stripped.
+    let text = match DOCKER_PREFIX.captures(line) {
+        Some(c) if format != Format::Nginx => {
+            rec.ts = parse_timestamp(c.get(1).unwrap().as_str());
+            c.get(2).unwrap().as_str().to_string()
+        }
+        _ => line.to_string(),
+    };
+    match format {
+        Format::Json => parse_json(&mut rec, &text),
+        Format::Logfmt => parse_logfmt(&mut rec, &text),
+        Format::Syslog => parse_syslog(&mut rec, &text),
+        Format::Nginx => parse_nginx(&mut rec, &text),
+        Format::Postgres => parse_postgres(&mut rec, &text),
+        Format::Plain | Format::Auto => parse_plain(&mut rec, &text),
+    }
+    rec
+}
+
+fn parse_plain(rec: &mut Record, text: &str) {
+    let mut rest = text;
+    if let Some(c) = ISO.captures(text)
+        && let Some(ts) = parse_timestamp(c.get(1).unwrap().as_str())
+    {
+        rec.ts = rec.ts.or(Some(ts));
+        rest = &text[c.get(0).unwrap().end()..];
+    }
+    if let Some(c) = LEVEL_TOKEN.captures(rest) {
+        rec.level = Level::parse(c.get(1).unwrap().as_str());
+    }
+    rec.message = rest.trim().to_string();
+}
+
+fn parse_json(rec: &mut Record, text: &str) {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(text.trim()) else {
+        parse_plain(rec, text);
+        return;
+    };
+    let Some(obj) = v.as_object() else {
+        parse_plain(rec, text);
+        return;
+    };
+    for (k, v) in obj {
+        let s = match v {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+        rec.fields.push((k.clone(), s));
+    }
+    for k in [
+        "ts",
+        "time",
+        "@timestamp",
+        "timestamp",
+        "t",
+        "date",
+        "datetime",
+    ] {
+        if let Some(v) = rec.field(k) {
+            rec.ts = parse_timestamp(v);
+            if rec.ts.is_some() {
+                break;
+            }
+        }
+    }
+    for k in [
+        "level",
+        "severity",
+        "lvl",
+        "loglevel",
+        "log.level",
+        "levelname",
+    ] {
+        if let Some(v) = rec.field(k) {
+            rec.level = Level::parse(v);
+            if rec.level.is_some() {
+                break;
+            }
+        }
+    }
+    rec.message = ["msg", "message", "text", "event", "log"]
+        .iter()
+        .find_map(|k| rec.field(k).map(str::to_string))
+        .unwrap_or_else(|| text.trim().to_string());
+}
+
+fn parse_logfmt(rec: &mut Record, text: &str) {
+    let pairs = logfmt_pairs(text);
+    if pairs.len() < 2 {
+        parse_plain(rec, text);
+        return;
+    }
+    rec.fields = pairs;
+    for k in ["ts", "time", "t", "timestamp"] {
+        if let Some(v) = rec.field(k) {
+            rec.ts = parse_timestamp(v);
+            if rec.ts.is_some() {
+                break;
+            }
+        }
+    }
+    for k in ["level", "lvl", "severity"] {
+        if let Some(v) = rec.field(k) {
+            rec.level = Level::parse(v);
+            if rec.level.is_some() {
+                break;
+            }
+        }
+    }
+    rec.message = rec
+        .field("msg")
+        .or_else(|| rec.field("message"))
+        .map(str::to_string)
+        .unwrap_or_else(|| text.trim().to_string());
+}
+
+fn parse_syslog(rec: &mut Record, text: &str) {
+    let Some(c) = SYSLOG.captures(text) else {
+        parse_plain(rec, text);
+        return;
+    };
+    let g = |n: &str| {
+        c.name(n)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default()
+    };
+    rec.ts = parse_timestamp(&g("ts"));
+    if let Some(pri) = c.name("pri").and_then(|m| m.as_str().parse::<u32>().ok()) {
+        rec.level = Level::parse(&(pri % 8).to_string());
+        rec.fields.push(("facility".into(), (pri / 8).to_string()));
+    }
+    rec.fields.push(("host".into(), g("host")));
+    rec.fields.push(("app".into(), g("app")));
+    if c.name("pid").is_some() {
+        rec.fields.push(("pid".into(), g("pid")));
+    }
+    rec.message = g("msg");
+    if rec.level.is_none()
+        && let Some(l) = LEVEL_TOKEN.captures(&rec.message)
+    {
+        rec.level = Level::parse(l.get(1).unwrap().as_str());
+    }
+}
+
+fn parse_nginx(rec: &mut Record, text: &str) {
+    let Some(c) = NGINX.captures(text) else {
+        parse_plain(rec, text);
+        return;
+    };
+    let g = |n: &str| {
+        c.name(n)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default()
+    };
+    rec.ts = parse_timestamp(&g("ts"));
+    for k in [
+        "ip", "user", "method", "path", "status", "bytes", "referer", "ua", "rt",
+    ] {
+        if let Some(m) = c.name(k) {
+            let key = match k {
+                "rt" => "request_time",
+                other => other,
+            };
+            rec.fields.push((key.into(), m.as_str().to_string()));
+        }
+    }
+    let status: u16 = g("status").parse().unwrap_or(0);
+    rec.level = Some(match status {
+        500.. => Level::Error,
+        400..=499 => Level::Warn,
+        _ => Level::Info,
+    });
+    rec.message = format!("{} {} {}", g("method"), g("path"), g("status"));
+}
+
+fn parse_postgres(rec: &mut Record, text: &str) {
+    let Some(c) = POSTGRES.captures(text) else {
+        parse_plain(rec, text);
+        return;
+    };
+    let g = |n: &str| {
+        c.name(n)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default()
+    };
+    rec.ts = parse_timestamp(&g("ts"));
+    for k in ["pid", "user", "db"] {
+        if c.name(k).is_some() {
+            rec.fields.push((k.into(), g(k)));
+        }
+    }
+    let level = g("level");
+    rec.level = Some(match level.as_str() {
+        "ERROR" => Level::Error,
+        "FATAL" | "PANIC" => Level::Fatal,
+        "WARNING" => Level::Warn,
+        l if l.starts_with("DEBUG") => Level::Debug,
+        _ => Level::Info,
+    });
+    rec.fields.push(("kind".into(), level));
+    rec.message = g("msg");
+    if let Some(d) = DURATION.captures(&rec.message) {
+        rec.fields
+            .push(("duration_ms".into(), d.get(1).unwrap().as_str().to_string()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn levels_from_many_spellings() {
+        assert_eq!(Level::parse("WARNING"), Some(Level::Warn));
+        assert_eq!(Level::parse("err"), Some(Level::Error));
+        assert_eq!(Level::parse("CRIT"), Some(Level::Fatal));
+        assert_eq!(Level::parse("[info]"), Some(Level::Info));
+        assert_eq!(Level::parse("3"), Some(Level::Error));
+        assert_eq!(Level::parse("hello"), None);
+        assert!(Level::Error > Level::Warn && Level::Warn > Level::Info);
+    }
+
+    #[test]
+    fn timestamps_in_the_usual_shapes() {
+        for t in [
+            "2026-10-22T14:32:01.118Z",
+            "2026-10-22 14:32:01,118",
+            "2026-10-22T14:32:01+02:00",
+            "[2026-10-22 14:32:01]",
+            "22/Oct/2026:14:32:01 +0000",
+            "1761143521",
+            "1761143521118",
+        ] {
+            assert!(parse_timestamp(t).is_some(), "{t}");
+        }
+        assert!(parse_timestamp("Oct 22 14:32:01").is_some());
+        assert!(parse_timestamp("not a time").is_none());
+        assert_eq!(
+            parse_timestamp("2026-10-22T14:32:01+02:00").unwrap(),
+            parse_timestamp("2026-10-22T12:32:01Z").unwrap()
+        );
+    }
+
+    #[test]
+    fn plain_lines_yield_time_level_and_message() {
+        let r = parse(
+            Format::Plain,
+            1,
+            "2026-10-22 14:32:01.118  WARN  OrderSvc payment timeout",
+        );
+        assert!(r.ts.is_some());
+        assert_eq!(r.level, Some(Level::Warn));
+        assert_eq!(r.message, "WARN  OrderSvc payment timeout");
+        let r = parse(Format::Plain, 2, "just text");
+        assert!(r.ts.is_none() && r.level.is_none());
+        assert_eq!(r.message, "just text");
+    }
+
+    #[test]
+    fn json_lines_expose_fields_and_normalise_level() {
+        let line = r#"{"ts":"2026-10-22T14:32:01.120Z","level":"error","service":"OrderSvc","msg":"boom","n":3}"#;
+        let r = parse(Format::Json, 1, line);
+        assert_eq!(r.level, Some(Level::Error));
+        assert_eq!(r.message, "boom");
+        assert_eq!(r.field("service"), Some("OrderSvc"));
+        assert_eq!(r.field("n"), Some("3"));
+        assert!(r.ts.is_some());
+        assert_eq!(detect(&[line, line, "{\"a\":1}"]), Format::Json);
+    }
+
+    #[test]
+    fn logfmt_pairs_and_quotes() {
+        let line = r#"time=2026-10-22T14:32:01Z level=warn msg="redis timeout" attempt=3"#;
+        assert_eq!(logfmt_pairs(line).len(), 4);
+        let r = parse(Format::Logfmt, 1, line);
+        assert_eq!(r.level, Some(Level::Warn));
+        assert_eq!(r.message, "redis timeout");
+        assert_eq!(r.field("attempt"), Some("3"));
+        assert_eq!(detect(&[line, line, line]), Format::Logfmt);
+        assert_eq!(detect(&["plain words here", "more words"]), Format::Plain);
+    }
+
+    #[test]
+    fn syslog_nginx_and_postgres() {
+        let s = "<13>Oct 22 14:32:01 web-01 sshd[1234]: Accepted publickey for dev";
+        let r = parse(Format::Syslog, 1, s);
+        assert_eq!(r.field("host"), Some("web-01"));
+        assert_eq!(r.field("app"), Some("sshd"));
+        assert_eq!(r.field("pid"), Some("1234"));
+        assert_eq!(r.level, Some(Level::Info)); // 13 % 8 = 5 = notice
+        assert_eq!(r.message, "Accepted publickey for dev");
+        assert_eq!(detect(&[s, s]), Format::Syslog);
+
+        let n = r#"10.0.0.7 - - [22/Oct/2026:14:32:01 +0000] "GET /api/orders?x=1 HTTP/1.1" 502 193 "-" "curl/8.0" 0.512"#;
+        let r = parse(Format::Nginx, 1, n);
+        assert_eq!(r.field("status"), Some("502"));
+        assert_eq!(r.field("path"), Some("/api/orders?x=1"));
+        assert_eq!(r.field("request_time"), Some("0.512"));
+        assert_eq!(r.level, Some(Level::Error));
+        assert_eq!(detect(&[n, n]), Format::Nginx);
+
+        let p = "2026-10-22 14:32:01.118 UTC [4321] app@shop LOG:  duration: 812.4 ms  statement: SELECT 1";
+        let r = parse(Format::Postgres, 1, p);
+        assert_eq!(r.field("pid"), Some("4321"));
+        assert_eq!(r.field("db"), Some("shop"));
+        assert_eq!(r.field("duration_ms"), Some("812.4"));
+        assert_eq!(r.level, Some(Level::Info));
+        assert_eq!(detect(&[p, p]), Format::Postgres);
+    }
+
+    #[test]
+    fn continuation_lines_belong_to_the_record_before() {
+        assert!(is_continuation(
+            Format::Plain,
+            "    at com.shop.OrderSvc.charge(OrderSvc.java:212)"
+        ));
+        assert!(is_continuation(
+            Format::Plain,
+            "Caused by: java.io.IOException"
+        ));
+        assert!(is_continuation(Format::Json, "  \"nested\": 1"));
+        assert!(!is_continuation(
+            Format::Plain,
+            "2026-10-22 14:32:03 INFO next"
+        ));
+        assert!(!is_continuation(Format::Json, "{\"a\":1}"));
+    }
+
+    #[test]
+    fn docker_prefix_is_read_then_dropped() {
+        let r = parse(
+            Format::Plain,
+            1,
+            "2026-10-22T14:32:01.118000000Z INFO started",
+        );
+        assert!(r.ts.is_some());
+        assert_eq!(r.message, "INFO started");
+        assert_eq!(r.level, Some(Level::Info));
+    }
+}

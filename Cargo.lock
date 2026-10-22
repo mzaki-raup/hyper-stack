@@ -8432,7 +8432,7 @@ dependencies = [
 
 [[package]]
 name = "tool-logs"
-version = "0.71.1"
+version = "0.72.0"
 dependencies = [
  "chrono",
  "egui",

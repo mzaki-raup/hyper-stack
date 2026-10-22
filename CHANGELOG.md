@@ -11,40 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.75.0 — 2026-10-22
+
 ### Added
 
-- Graphics and image providers: **Upscale** is its own job beside
-  Generate, Edit and Enhance. Settings → AI Assistant → Image Providers
-  gained an **Upscale** card (upscale model, and how much bigger as a
-  ratio or a target width and height, because servers take one shape or
-  the other) and an **Enhance** card (refiner strength and steps, restore
-  faces and restorer strength), each with its own ComfyUI workflow slot.
-- Settings → Appearance → Activity Rail and the Graphics form carry the
-  new job through: a fourth button, its own model field and prompt hint.
-
-### Changed
-
-- The Graphics sidebar's tool list (Image, Icon, Diagram Editor, Diagram
-  Generator) uses the shared list row the Devtools and Settings sidebars
-  use: a larger icon and label, room above and below each row, and the
-  row for the open tab's tool marked as selected.
-
-### Fixed
-
-- **Enhancing is no longer upscaling.** Every backend ran an upscaler
-  under the name Enhance; an enhancement now keeps the picture's size and
-  improves it (a low-denoise refiner pass and the server's face restorer)
-  while Upscale is the one that adds pixels. AUTOMATIC1111, ComfyUI,
-  SwarmUI, InvokeAI, Fooocus and 1min.AI each route the two jobs
-  separately, and the mock-server tests check that an Enhance never
-  resizes and an Upscale always does.
-- Graphics: expanding **Generate Picture** no longer paints the form over
-  the assistant below it. The form scrolls inside its own share of the
-  column, and an assistant given too little room lays its composer out
-  inside it rather than at the column's origin.
-- Workspace logos are drawn larger and centred on the name beside them,
-  in the title bar, its menu, the Workspaces list, Home's header and
-  cards, and every workspace picker in Settings.
+- The Graphics sidebar uses the shared tool-list row (bd807d17)
+- Upscale as its own job, enhance stops resizing, bigger workspace logos (34c198ac)
 
 ## 0.74.0 — 2026-10-22
 

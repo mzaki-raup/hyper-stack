@@ -40,14 +40,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Make Default applies to chat providers, and the assistants list only
   chat kinds while the Graphics activity lists only image kinds.
 
-- Graphics → Generate Picture: **Edit** and **Enhance** jobs beside
-  Generate. Edit changes the current picture as the prompt says
-  (`IMAGE_VARIATOR`, Dzine by default with a Strength slider mapped to
-  `structure_match`/`image_strength`; the model is editable since 1min.AI
-  documents no image-to-image route for Stable Diffusion XL); Enhance
-  upscales and cleans it (`IMAGE_UPSCALER`, Stability AI's Stable Image 4x
-  by default, prompt optional). Each job remembers its own model
-  (`hs_core::ai::ImageJob`).
+## 0.69.0 — 2026-10-22
+
+### Added
+
+- Edit and enhance the current picture through 1min.AI (3751fc5b)
 
 ## 0.68.0 — 2026-10-21
 

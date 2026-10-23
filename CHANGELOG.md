@@ -13,6 +13,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Specified the **Container activity** - Docker (single container,
+  Compose, Swarm), Podman, Kubernetes and Windows containers - as
+  `docs/tools/containers.md` §10 on top of that document's existing
+  resource requirements, with ADR-026, and planned it as eight
+  releasable phases in the roadmap and the checklist. **Nothing is
+  built yet.** The decisions worth arguing about: a container host is a
+  `ConnectionProfile` of a container kind rather than a new store, so
+  the vault, per-environment hosts, read-only handling and ordering are
+  inherited rather than rewritten; **kubeconfig is referenced by path
+  and context rather than copied into the vault**, because a copy goes
+  stale on re-provisioning and breaks the `exec` credential plugins
+  that resolve relative to the real file; logs and shells are handed to
+  `tool-logs` and `hs-term` rather than rebuilt; and
+  `hs_ui::table::DataTable` has to stop clipping and start scrolling
+  first, which fixes S3 and the SFTP pane on the way.
 - **Find Everywhere** (§15.3), and the cross-tool searcher registry it
   needed. A trace, request or correlation id in a record - taken from a
   field named like one, or from a UUID, long hex string or ULID in the

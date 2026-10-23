@@ -110,6 +110,7 @@ is done; releases are published automatically from `main`.
 | Why each major choice was made (ADR-001 … ADR-025) | `docs/08-decisions.md` |
 | CI, automatic releases, asset contract, in-app updater | `docs/09-ci-cd-and-updates.md`; live workflows in `.forgejo/workflows/`, scripts in `scripts/`, signing key notes in `keys/README.md` |
 | One design document per tool | `docs/tools/*.md` |
+| Container activity (Docker, Podman, Kubernetes, Windows containers) | `docs/tools/containers.md`, ADR-026 |
 | Graphics activity, diagram editor/generator, Archify-adapted IR | `docs/tools/diagrams.md`, `THIRD_PARTY_NOTICES.md` |
 | README screenshots and walkthrough GIF, and how to retake them | `docs/screenshots/` (`README.md` there) |
 | App icon and every derived size | `assets/icon/` (master `hyperstack.png`; regenerate with `scripts/make-icons.ps1`, never by hand; usage in `docs/03-architecture.md` §13) |

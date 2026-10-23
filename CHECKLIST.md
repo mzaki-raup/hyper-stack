@@ -118,6 +118,24 @@ Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/dr
 | Logs: diff two time windows (§15.8) | Completed | `chart::diff_windows` counts shapes in A and B and reports appeared / vanished / moved, biggest move first with ties broken by shape so the table is stable; appeared and vanished survive any threshold; a row filters to that shape in that window. Needed a `shape::key` fix first - no word boundary between a digit and a letter meant `31ms` was never normalised, so every duration was its own shape; 9 tests (2026-10-24) |
 | `tool-devtools`: JSON/YAML/TOML/XML, JWT, Base64/URL/hex, regex, cron, UUID/ULID/hash, timestamp, diff | Completed | JSON/YAML/TOML/XML, JWT, Base64/URL, hashes, generators (UUID/ULID), cron and the timestamp converter landed 2026-10-15..17; Regex Tester and Text Diff 2026-10-18 (`regex_tool`, `diff_tool`, 5 tests) |
 
+### Container activity (owner's request, 2026-10-24, before M6)
+
+Specified in `docs/tools/containers.md` §10, which adds the activity shell to the existing §1-§9 resource requirements; decided in ADR-026. A container
+host is a `ConnectionProfile` of kind `docker`/`podman`/`k8s`/`wincontainer`,
+so the vault, environments, read-only handling and ordering come from the
+store that already exists.
+
+| Phase | State | Notes |
+|---|---|---|
+| 1 · `DataTable` scrolls; container kinds; Settings → Containers; vault wiring | Pending | `DataTable` clips instead of scrolling, so nothing is readable until it is fixed; `tool-db::grid` has the working pattern, and S3 and SFTP get it too |
+| 2 · `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH, WSL prefixed) | Pending | Live tests behind an env var, as the DB and Redis drivers have |
+| 3 · Activity, rail entry, dashboard, two-section sidebar, one tab per host | Pending | Dashboard reports no uri and no affinity, or it steals every OpenRequest |
+| 4 · Docker pane (Portainer-shaped) | Pending | Logs open a Logs tab, Exec opens an `hs-term` shell; neither is rebuilt here |
+| 5 · Compose and Swarm | Pending | CLI-only surfaces |
+| 6 · Kubernetes driver and the Lens-shaped pane | Pending | `kube` + `k8s-openapi` as the existing spec chose - typed watches and no external binary - with Use kubectl as an explicit escape hatch |
+| 7 · Apply with a dry-run diff, port-forward, CRD discovery | Pending | Refused on a protected environment unless explicitly not read-only |
+| 8 · AI assistant, prompt buttons, action blocks, Problems feed | Pending | No prompt migration needed: `prompts::resolve` already appends new shipped defaults |
+
 ### M6 · Hardening and 1.0
 | Item | State | Notes |
 |---|---|---|

@@ -98,6 +98,28 @@ in the e2e test).
 - [ ] Docs: user guide, shortcuts page, release notes; signed portable zip for Windows (no installer, Authenticode if a certificate is obtained), tarball/AppImage for Linux, notarised app bundle for macOS
 - [ ] Translations: `en` complete, structure for others
 
+## Container activity (owner's request, 2026-10-24)
+
+Pulled forward from Phase 2 and ahead of M6 at the owner's request:
+Docker (single container, Compose, Swarm), Podman, Kubernetes and
+Windows containers as one activity. Specified in
+`docs/tools/containers.md` §10 (which keeps the existing §1-§9
+resource requirements), decided in ADR-026. Eight phases, each green
+on the full gate and releasable:
+
+- [ ] 1 · `hs_ui::table::DataTable` scrolls instead of clipping (fixes S3 and SFTP too); `podman`/`wincontainer` connection kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring
+- [ ] 2 · `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH), with live tests behind an env var as the DB and Redis drivers have
+- [ ] 3 · The activity, its rail entry, the dashboard, the two-section sidebar, one tab per host
+- [ ] 4 · Docker pane (Portainer-shaped): containers, images, volumes, networks; start/stop/restart; Logs and Exec handed to `tool-logs` and `hs-term`
+- [ ] 5 · Compose and Swarm
+- [ ] 6 · Kubernetes driver (`kube` + `k8s-openapi`, with Use kubectl as the escape hatch) and the Lens-shaped pane: namespaces, workloads, events, YAML
+- [ ] 7 · Apply with a dry-run diff, port-forward, CRD discovery
+- [ ] 8 · AI assistant, prompt buttons, `hs-container` action blocks, the Problems feed
+
+The Phase 2 "Containers" line below is superseded by this; the Phase 2
+Logs line keeps its own Docker/Kubernetes **log source** work, which
+feeds the same handoff.
+
 ## Phase 2 — Depth (≈ 16 weeks)
 
 - [ ] Containers: Docker/Podman (local, TCP, over SSH), compose; logs feed `tool-logs`, exec feeds `hs-term`

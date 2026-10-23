@@ -1,6 +1,6 @@
 # Tool spec — Containers (Docker / Podman / Kubernetes)
 
-**Crate:** `tool-containers` · **Priority:** P1 (Docker/Podman, Compose, remote over SSH) · P2 (Kubernetes) · **Status:** draft
+**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); not built
 
 ## 1. Purpose
 
@@ -119,3 +119,229 @@ env credentials found in `inspect` (offered, never automatic).
 `bollard` against a Docker-in-Docker CI service: list/start/stop/logs/exec;
 compose detection fixtures; kubeconfig parsing fixtures; `kind` cluster in CI
 for the k8s basics (P2).
+
+## 10. The Container activity (owner's request, 2026-10-24)
+
+Commissioned ahead of M6, pulled forward from Phase 2. §1–§9 above are
+the resource-level requirements and still stand; this section adds the
+activity shell the owner asked for, and records the decisions §1–§9 left
+open. ADR-026.
+
+### 10.1 What was already decided, and is confirmed
+
+The draft above got four things right that everything here depends on:
+
+- **A container host is a connection.** §5 already says `kind = "k8s"`
+  *is* a profile of kubeconfig + context + namespace, and `KINDS` in
+  `hs-core::connections` already reserves `docker` and `k8s` with
+  nothing consuming them. **`podman` and `wincontainer` join that
+  list**; no second store is created. That is what gives the activity
+  the vault, per-environment hosts, read-only/protected handling,
+  folders, tags, pinning and ordering without writing any of it.
+- **Logs go to `tool-logs`, exec to `hs-term`, YAML to the editor**
+  (§7). More valuable now than when it was written: the Logs tool has
+  since gained filter chips, level colouring, the time strip, saved
+  investigations and its own assistant. A log viewer inside this
+  activity would be a worse copy that has to be fixed twice.
+- **Apply does a server-side dry-run diff first** (§5).
+- **Protected environments guard every destructive verb** (§6).
+
+### 10.2 kubeconfig is referenced, not copied into the vault
+
+The owner asked for every credential to be vault-bound. For passwords,
+registry tokens, bearer tokens and TLS client keys: yes,
+unconditionally, as `secret:<ulid>`.
+
+**kubeconfig is the deliberate exception.** It normally lives at
+`~/.kube/config`, is rewritten by `az`/`gcloud`/`eksctl`/`rancher`,
+holds many contexts, and usually delegates auth to an `exec` plugin that
+mints short-lived tokens. A copy in the vault would go **stale** the
+moment a cluster is re-provisioned while still looking authoritative,
+would duplicate a secret that already exists on disk, and would break
+the `exec` plugins that resolve relative to the real file.
+
+So the stored form is **path + context name** (relative to the data
+folder when it sits inside it, ADR-017). A **Paste kubeconfig** option
+puts the document in the vault for a portable workspace or a static
+token, and the form says plainly that a pasted copy will not follow
+rotation. Inline `token`, `client-key-data` and passwords inside a
+pasted document are vault-bound like any other secret.
+
+### 10.3 The Kubernetes driver: the `kube` crate, with `kubectl` as the escape hatch
+
+§5 chose `kube` + `k8s-openapi`. That stays, for two reasons that
+outweigh the dependency weight: typed **watches** are what make a live
+pane possible, and needing no external binary matches the portable
+promise. `kube` also runs `exec` credential plugins, which is the part
+nobody should reimplement.
+
+The escape hatch is explicit: where a cluster's auth cannot be satisfied
+in-process, a profile may be marked **Use kubectl** and the driver
+shells out to `kubectl --context <c> -o json` through
+`hs_core::paths::background_command`. Detected binaries and their
+versions are listed in Settings the way language servers are, including
+the note that a tool installed while the app is open needs **Refresh
+Status** (`hs_core::env_path::refresh`).
+
+### 10.4 `DataTable` must scroll before any pane is built
+
+A deferred bug becomes a prerequisite. `hs_ui::table::DataTable` divides
+the width it is handed and then **clips**, so columns off the edge
+cannot be reached; it is already a known fault against S3 and the SFTP
+pane. Both panes here are wide tables, and the owner asked for
+horizontal and vertical scrolling.
+
+`tool-db::grid` has the working pattern: an
+`egui::ScrollArea::horizontal` whose content width is computed from the
+columns' own widths, with **both** `set_min_width` and `set_max_width`
+on the inner `Ui` — `available_rect_before_wrap` is unbounded inside a
+horizontal scroll area, so a trailing `remainder()` column would grow
+without bound. The fix lands in `DataTable`, where S3 and SFTP get it
+too.
+
+### 10.5 Shell: rail, dashboard, sidebar, tabs
+
+- **Rail:** between S3 and Database, which is "between SSH and
+  Database" as the owner described it. The rail is per workspace and
+  user-ordered (`[rail]` in `workspace.toml`, Settings → Appearance), so
+  this is only the default. Activity icon `ph::SHIPPING_CONTAINER`.
+- **Per-kind icons everywhere** — Docker, Podman, Kubernetes
+  (`ph::POLYGON`), Windows containers (`ph::WINDOWS_LOGO`) — the same
+  "what the thing *is*, not where it was found" rule the Logs sidebar
+  now follows.
+- **Dashboard:** a permanent pinned home tab. Stats: hosts configured ·
+  reachable now · running · stopped · images · volumes · and for a
+  cluster nodes ready/total, pods running, pods unhealthy. Start Here:
+  Add Container, Open Compose File…, Open Manifest…, **Scan Local**
+  (finds a Docker or Podman socket, WSL distributions and a kubeconfig
+  without being told where — read-only, and it never starts anything).
+  Rows: each saved host, recent manifests, and anything unhealthy as a
+  direct link. Counts come from a Job with a short per-host cache; the
+  Logs service scan learned the cost of a probe per tab the hard way.
+  The dashboard reports **no** `current_uri` and **no** `uri_affinity`,
+  or it would take every `OpenRequest` for the activity (the Devtools
+  lesson).
+- **Sidebar**, two sections each scrolling on its own, as Logs does:
+  **Containers** (~40%) — saved hosts and clusters with a drag grip,
+  kind icon, name, subtitle and a live dot; and **Saved Commands and
+  Configs** (~60%) — compose files, stack files, kubeconfig contexts,
+  manifests and saved one-off commands. An **Add Container** button goes
+  to Settings → Containers → Container List with the add form open,
+  exactly as Add Connection does from the other activities. Saved
+  commands live in `<workspace>/containers/*.toml`, each file named
+  `slug(name)` — a file under any other name is duplicated the first
+  time anything saves it (the connection-profile gotcha).
+- **One tab per host.** `current_uri` is `container://<profile-id>`, so
+  clicking a host focuses the tab that already shows it rather than
+  opening a second (`TabInfo::uri`, as the Logs sidebar uses).
+
+### 10.6 Work panes
+
+**Docker, Portainer-shaped:** two columns, the right one in two rows — a
+resource rail (Containers, Stacks, Images, Volumes, Networks, and under
+Swarm: Services, Nodes), a filterable table, and a detail block with
+tabs (Overview, Env, Mounts, Networks, Stats) over a fixed row of verbs
+(Start, Stop, Restart, Logs, Exec, Inspect).
+
+**Kubernetes, Lens-shaped:** three columns at full width — a resource
+tree, a namespace-scoped list, and a detail column (Summary, labels and
+annotations, containers, events, editable YAML, then Logs / Exec /
+Scale / Restart). It collapses to two columns and then one as the pane
+narrows: the `size_range` upper bound is tied to `available_width()`
+with a floor, or three stacked minimums leave the middle column at
+zero, which is what the diagram editor had to learn.
+
+Both panes scroll vertically and horizontally per §10.4.
+
+**Windows containers** use the Docker pane against a Windows engine,
+showing `isolation` (process or hyperv), with `cmd`/`powershell` for
+Exec. Honest scope: no Hyper-V VM management, and no Windows networking
+beyond what the engine reports.
+
+### 10.7 Settings → Containers
+
+A page between `Connections` and `Editor` in `Page::all()`. Cards:
+
+1. **Container List** — the kind-filtered view of the connection store,
+   sharing the row component with Settings → Connections: drag grip,
+   kind icon, name, subtitle, environment and read-only badges; Add,
+   Duplicate, Test, Delete. One store, so the two lists can never show
+   different orders for the same host.
+2. **Connection form**, per kind. Docker/Podman: socket, named pipe or
+   TCP, TLS (CA, cert, key — vault), over SSH through a saved `ssh`
+   profile, WSL distribution, registry credentials (vault), API version
+   pin. Kubernetes: kubeconfig path + context or a pasted document
+   (§10.2), default namespace, bearer token (vault), impersonation,
+   proxy, Use kubectl (§10.3), `insecure-skip-tls-verify` with a warning
+   that says what it gives up. Common: name, folder, tags, colour,
+   environment, read-only, connect timeout.
+3. **Defaults and Safety** — confirm before stop/restart/kill/remove;
+   require typing the name for remove and namespace delete; protected
+   environments read-only (on, with the switch explaining it); mask
+   Secret values until revealed; `system prune` off by default and never
+   offered on a protected environment.
+4. **Refresh and Limits** — live refresh interval; whether to stream
+   `/events` and `/stats` (off for a slow link); list page size; log
+   tail lines handed to the Logs tab; driver timeout.
+5. **Tools** — `docker`, `podman`, `kubectl`, `helm` and
+   `docker compose` found on PATH, their versions and a path override
+   each, in the table shape the Editor page already uses.
+6. **YAML and Manifests** — manifest folder; Apply always dry-runs first
+   (on); keep a copy of what was applied; YAML tab width.
+
+### 10.8 The AI assistant
+
+Hard right of the toolbar through `hs_ui::toolbar::hard_right`, as every
+activity does. Answers already render as Markdown — the shared panel
+does that, with tables that fit the pane.
+
+**Prompt buttons need no migration.** `prompts::resolve` already lets
+the saved list win and carry the user's edits, then appends any shipped
+default it does not mention, so a button added by a later version is
+appended rather than lost. Adding `container` to `prompts::ACTIVITIES`
+and its buttons to `DEFAULTS` is the whole change, and no existing
+activity's buttons are touched. The buttons: Explain This Object · Write
+a Deployment · Write a Service · Write an Ingress · Write a ConfigMap ·
+Write a PVC · Write a Compose File · Review This YAML · Fix This YAML ·
+Why Is This Pod Unhealthy? · Right-Size Requests and Limits · Explain
+This Event.
+
+**Action blocks**, mirroring the API client's `hs-api`:
+
+| Block | Offered |
+|---|---|
+| `yaml` | Apply (dry run first), Replace the YAML pane, Save to Manifests… |
+| `hs-container` | Apply — a structured action the tool carries out itself (scale, restart, set image) |
+| `sh`, `powershell` | Insert, and **Insert and Run** into the container's shell |
+
+`can_run` is **false on a protected environment**, so the button is
+absent rather than present and refusing (ADR-019).
+
+### 10.9 Unhealthy objects reach the Problems inbox
+
+`hs_core::problems` did not exist when §1–§9 were written. A container
+that exits non-zero, a pod in `CrashLoopBackOff`, a failing readiness
+probe: one row per shape with a climbing count, cleared when the tab
+closes, visible in the dock without watching the pane.
+
+### 10.10 Phases
+
+Each ends green on the full gate and is releasable on its own.
+
+| # | What |
+|---|---|
+| 1 | `DataTable` scrolls (§10.4, fixing S3 and SFTP too); `podman`/`wincontainer` kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring |
+| 2 | `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH), with live tests behind an env var as the DB and Redis drivers have |
+| 3 | The activity, rail entry, dashboard, two-section sidebar, one tab per host |
+| 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs |
+| 5 | Compose and Swarm (`docker compose`, `docker stack` — CLI-only surfaces) |
+| 6 | Kubernetes driver and the Lens-shaped pane: namespaces, workloads, events, YAML |
+| 7 | Apply with the dry-run diff, port-forward through `Tunnels`, CRD discovery |
+| 8 | AI assistant, prompt buttons, action blocks, the Problems feed |
+
+### 10.11 Still out of scope
+
+Image building and registry browsing beyond pulling by name (§4 already
+defers these); Helm release management past detecting the binary;
+cluster provisioning; Hyper-V VM management; editing a kubeconfig's auth
+plugins; and any polling while the activity has no tab open.

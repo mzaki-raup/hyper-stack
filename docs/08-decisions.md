@@ -715,3 +715,75 @@ the export; the IR and schema adaptation are bounded. PDF export is vector
 with a subset font and the same scene as the screen. A future Archify upgrade
 requires a deliberate re-pin and a notice update. Full draw.io parity is
 explicitly out of scope.
+
+## ADR-026 · A Container activity built on the connection store, with CLI-where-honest drivers
+
+**Date** 2026-10-24 · **Status** accepted (specified; see
+`docs/tools/containers.md`) · **Owner's request**, pulled forward from
+Phase 2 ahead of M6.
+
+**Context.** Docker (single container, Compose, Swarm), Podman,
+Kubernetes and Windows containers belong in the workspace that already
+holds the connections, environments and secrets they need. The owner
+asked for a Portainer-shaped Docker pane and a Lens-shaped Kubernetes
+pane, and for every credential to live in the vault.
+
+**Decision.**
+
+- **A container host is a `ConnectionProfile`**, not a new store.
+  `kind` already reserved `docker` and `k8s` and nothing consumed them;
+  `podman` and `wincontainer` join them. This inherits the vault,
+  environments, read-only/protected handling, folders, tags, pinning
+  and ordering, and it means Settings → Containers → Container List is a
+  kind-filtered view of one store rather than a second list that can
+  disagree with the first.
+- **kubeconfig is referenced by path and context, not copied into the
+  vault**, with a Paste option for a static or portable case. A copy
+  would go stale on re-provisioning, duplicate a secret that already
+  exists on disk, and break the `exec` credential plugins that resolve
+  relative to the real file. Tokens, passwords and TLS keys are
+  vault-bound unconditionally.
+- **The driver choices in the existing spec stand**: `bollard` for the
+  Docker/Podman Engine API (socket, Windows named pipe, TCP with TLS,
+  and over SSH through `Tunnels`), and `kube` + `k8s-openapi` for
+  Kubernetes. Typed watches are what make a live pane possible, and
+  needing no external binary matches the portable promise. A profile
+  may be marked **Use kubectl** as an explicit escape hatch where a
+  cluster's auth cannot be satisfied in-process. **Compose and Swarm
+  are CLI-only surfaces** and are shelled out to for fidelity, through
+  `hs_core::paths::background_command` so no console appears. Docker
+  inside WSL reuses the `wsl.exe -d <d> --` prefixing proven in
+  `tool_logs::services`.
+- **Logs and shells are not rebuilt.** Viewing a container's or pod's
+  log opens a **Logs tab** through `OpenRequest` with the follow
+  command pre-filled; Exec opens a shell through `hs-term`'s
+  `Transport`, as `hs-ssh` does. Containers owns the inventory and the
+  verbs, not a second log viewer to fix twice.
+- **Applying YAML dry-runs and diffs first**
+  (`kubectl apply --dry-run=server`), and is refused on a protected
+  environment unless the profile is explicitly not read-only.
+- **`hs_ui::table::DataTable` is fixed to scroll before the panes are
+  built.** It divides the width it is given and then clips, so a narrow
+  pane hides columns unreachably; `tool-db::grid` already has the
+  working pattern. S3 and the SFTP pane get the fix too.
+- **Unhealthy objects post to `hs_core::problems`**, so a crash loop is
+  visible in the dock without watching the pane.
+
+**Alternatives rejected.** A separate container store (a second
+credential path and a second ordering that would drift from the first).
+A log viewer inside the activity (duplicates `tool-logs`, including its
+filters, levels, time strip and assistant). Copying kubeconfig into the
+vault by default (stale on re-provisioning, and breaks the `exec`
+plugins that resolve relative to the real file). Driving Kubernetes
+through `kubectl` as the primary path was considered and kept only as
+the escape hatch: it would trade live watches and the portable promise
+for auth convenience the `kube` crate largely already provides.
+
+**Consequences.** Kubernetes works without any external binary;
+`kubectl`, `helm` and `docker compose` are detected and reported like a
+language server when they are wanted, never bundled. Windows container
+support is whatever the Windows engine reports; no Hyper-V
+management. New assistant prompt buttons need no
+migration, because `prompts::resolve` already appends shipped defaults
+that a saved list does not mention. Eight phases, each releasable, with
+the `DataTable` fix first because nothing is readable without it.

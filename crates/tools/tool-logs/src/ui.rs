@@ -78,6 +78,10 @@ pub struct State {
     /// On by default, and what is on screen matches what would leave.
     #[serde(default = "yes")]
     pub mask: bool,
+    /// Fold consecutive repeats into one row with a count (§15.5). Off by
+    /// default: a log read in order is what people expect to see first.
+    #[serde(default)]
+    pub collapse: bool,
 }
 
 fn yes() -> bool {
@@ -99,6 +103,7 @@ impl Default for State {
             local_time: true,
             detail_open: true,
             mask: true,
+            collapse: false,
         }
     }
 }
@@ -193,6 +198,14 @@ pub struct LogsTool {
     logs_dir: PathBuf,
     /// Compiled once per change, never per record.
     redactor: crate::redact::Redactor,
+    /// The rows the list draws: one per record, or one per folded run
+    /// (§15.5). Rebuilt when the filtered set or the toggle changes.
+    rows: Vec<crate::shape::Row>,
+    /// How far `rows` was built, so appends extend rather than rebuild.
+    rows_upto: usize,
+    rows_collapse: bool,
+    /// Runs the user has opened; keyed by the run's first position.
+    expanded: std::collections::HashSet<usize>,
     sidebar_filter: String,
     confirm_delete: Option<String>,
     status_text: String,
@@ -231,6 +244,10 @@ impl LogsTool {
             env_id: None,
             is_home: false,
             redactor: crate::redact::Redactor::compile(&crate::redact::RuleSet::load(&logs_dir)),
+            rows: Vec::new(),
+            rows_upto: 0,
+            rows_collapse: false,
+            expanded: std::collections::HashSet::new(),
             logs_dir,
             sidebar_filter: String::new(),
             confirm_delete: None,
@@ -261,6 +278,9 @@ impl LogsTool {
         self.filtered.clear();
         self.filtered_upto = 0;
         self.filtered_dropped = 0;
+        self.rows.clear();
+        self.rows_upto = 0;
+        self.expanded.clear();
         self.selected = None;
         self.unseen = 0;
         self.seen_len = 0;
@@ -314,6 +334,9 @@ impl LogsTool {
         if from_scratch {
             self.filtered.clear();
             self.filtered_upto = 0;
+            self.rows.clear();
+            self.rows_upto = 0;
+            self.expanded.clear();
             self.chips_seen = self.chips_version;
             self.filtered_dropped = sh.dropped;
             self.selected = None;
@@ -342,6 +365,58 @@ impl LogsTool {
         } else {
             self.seen_len = self.filtered.len();
         }
+        drop(sh);
+        self.rebuild_rows();
+    }
+
+    /// The rows the list draws. With Collapse off this is one row per
+    /// filtered record and costs nothing; with it on, consecutive records
+    /// sharing a level and a shape key fold into one (docs/tools/logs.md
+    /// §15.5).
+    ///
+    /// Folding is a view concern only: `self.filtered` is untouched, so
+    /// filters, find, bookmarks and every export still see every record.
+    fn rebuild_rows(&mut self) {
+        if !self.state.collapse {
+            // One row per record. Extend rather than rebuild, because a
+            // followed source appends on most frames.
+            if self.rows_collapse {
+                self.rows.clear();
+                self.rows_upto = 0;
+                self.rows_collapse = false;
+            }
+            if self.rows_upto < self.filtered.len() {
+                self.rows
+                    .extend((self.rows_upto..self.filtered.len()).map(crate::shape::Row::One));
+                self.rows_upto = self.filtered.len();
+            }
+            return;
+        }
+        // Collapsed: the last run can grow as records arrive, so the rows
+        // are rebuilt whenever the filtered set changed at all. The cost is
+        // a hash per filtered record, which the shape cache below absorbs.
+        if self.rows_collapse && self.rows_upto == self.filtered.len() {
+            return;
+        }
+        self.rows_collapse = true;
+        self.rows_upto = self.filtered.len();
+        let sh = self.shared.lock();
+        let filtered = &self.filtered;
+        let rows = crate::shape::fold(filtered.len(), MIN_RUN, |pos| {
+            let r = sh.records.get(*filtered.get(pos)?)?;
+            let body = if r.message.is_empty() {
+                r.raw.as_str()
+            } else {
+                r.message.as_str()
+            };
+            Some(format!(
+                "{}\u{1}{}",
+                r.level.map(|l| l.label()).unwrap_or(""),
+                crate::shape::key(body)
+            ))
+        });
+        drop(sh);
+        self.rows = rows;
     }
 
     fn find_hits(&mut self) {
@@ -492,6 +567,10 @@ fn time_text(r: &Record, local: bool) -> String {
 /// masked when Mask Secrets is on so the list shows what would leave the
 /// tab (docs/tools/logs.md §15.4). Masking runs on the one line that is
 /// drawn, not on the whole record, so a long stack trace costs nothing.
+/// How many consecutive repeats it takes before a run is worth folding.
+/// Two is not a pattern; three reads as one.
+const MIN_RUN: usize = 3;
+
 fn one_line(r: &Record, red: Option<&crate::redact::Redactor>) -> String {
     let first = r.raw.lines().next().unwrap_or("");
     let mut s: String = first.chars().take(4000).collect();
@@ -990,6 +1069,18 @@ impl Tool for LogsTool {
                 self.state.mask = !self.state.mask;
             }
             if ui
+                .selectable_label(self.state.collapse, ph::ARROWS_IN_LINE_VERTICAL)
+                .tip(s.t("logs-collapse-tip"))
+                .clicked()
+            {
+                self.state.collapse = !self.state.collapse;
+                self.expanded.clear();
+                self.rows.clear();
+                self.rows_upto = 0;
+                self.rows_collapse = !self.state.collapse;
+                self.rebuild_rows();
+            }
+            if ui
                 .button(format!("{} {}", ph::FLOPPY_DISK, s.t("logs-save-source")))
                 .tip(s.t("logs-save-source-tip"))
                 .clicked()
@@ -1384,8 +1475,25 @@ impl LogsTool {
             let y = pos as f32 * pitch;
             area = area.vertical_scroll_offset((y - 60.0).max(0.0));
         }
-        let n = self.filtered.len();
+        // One entry per drawn row: the filtered position it shows, and
+        // how many records it stands for (1 unless a run is folded).
+        let view: Vec<(usize, usize)> = self
+            .rows
+            .iter()
+            .flat_map(|row| match row {
+                crate::shape::Row::One(p) => vec![(*p, 1usize)],
+                crate::shape::Row::Run { first, count, span } => {
+                    if self.expanded.contains(&span.0) {
+                        (span.0..=span.1).map(|p| (p, 1usize)).collect()
+                    } else {
+                        vec![(*first, *count)]
+                    }
+                }
+            })
+            .collect();
+        let n = view.len();
         let mut clicked: Option<usize> = None;
+        let mut toggle_run: Option<usize> = None;
         let find_hit: Option<usize> = self
             .find
             .hits
@@ -1397,7 +1505,10 @@ impl LogsTool {
             let sh = self.shared.lock();
             // Column widths: line, time, level, pinned fields.
             let mono = egui::FontId::monospace(12.5);
-            for pos in range {
+            for row_i in range {
+                let Some(&(pos, run)) = view.get(row_i) else {
+                    continue;
+                };
                 let Some(&idx) = self.filtered.get(pos) else {
                     continue;
                 };
@@ -1416,7 +1527,7 @@ impl LogsTool {
                 } else if find_hit == Some(pos) {
                     ui.painter()
                         .rect_filled(rect, 2.0, theme.warning.linear_multiply(0.25));
-                } else if pos % 2 == 1 {
+                } else if row_i % 2 == 1 {
                     ui.painter()
                         .rect_filled(rect, 0.0, theme.surface.linear_multiply(0.5));
                 }
@@ -1499,8 +1610,31 @@ impl LogsTool {
                     font,
                     text_colour,
                 );
+                if run > 1 {
+                    let tag = format!("×{run}");
+                    let g = egui::FontId::proportional(11.0);
+                    let w = 34.0;
+                    let tag_rect = egui::Rect::from_min_size(
+                        egui::pos2(rect.max.x - w - 8.0, rect.center().y - 8.0),
+                        egui::vec2(w, 16.0),
+                    );
+                    p.rect_filled(tag_rect, 8.0, theme.surface_hover);
+                    p.text(
+                        tag_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        tag,
+                        g,
+                        theme.text_muted,
+                    );
+                }
                 if resp.clicked() {
-                    clicked = Some(idx);
+                    if run > 1 {
+                        // Opening a run shows its records; it does not
+                        // select one, because the user asked to see them.
+                        toggle_run = Some(pos + 1 - run);
+                    } else {
+                        clicked = Some(idx);
+                    }
                 }
                 resp.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::WidgetType::Button, true, one_line(r, mask))
@@ -1512,6 +1646,12 @@ impl LogsTool {
         self.at_bottom = out.state.offset.y + out.inner_rect.height() >= content_h - pitch * 2.0;
         if self.at_bottom && !self.paused {
             self.unseen = 0;
+        }
+        if let Some(first) = toggle_run {
+            // Opening a run shows its records; closing it folds them back.
+            if !self.expanded.remove(&first) {
+                self.expanded.insert(first);
+            }
         }
         if let Some(i) = clicked {
             self.selected = if self.selected == Some(i) {

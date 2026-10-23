@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- **Logs: collapse repeats.** Three or more neighbouring records that say
+  the same thing, differing only in their numbers, ids, paths or quoted
+  strings, fold into one row with a ×N count; clicking it opens them. A
+  **Collapse** toggle on the toolbar turns it on. Folding is a view concern
+  only: filters, find, bookmarks and every export still see every record.
+  Second of the eight additions in `docs/tools/logs.md` §15.
 
 ## 0.79.0 — 2026-10-23
 

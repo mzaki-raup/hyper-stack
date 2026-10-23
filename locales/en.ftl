@@ -2744,6 +2744,7 @@ logs-format-nginx = Nginx / Apache
 logs-format-postgres = PostgreSQL
 logs-local-time-tip = Show times in this machine's time zone rather than UTC.
 logs-mask-tip = Mask secrets. Bearer tokens, passwords, keys and e-mail addresses are hidden in the list and in anything you copy, save or send to the assistant. Rules live in the workspace's logs/redaction.toml.
+logs-collapse-tip = Collapse repeats. Three or more neighbouring lines that say the same thing, differing only in their numbers and ids, fold into one row with a count; click it to open them. Filters, find and export still see every line.
 logs-save-source = Save Source
 logs-save-source-tip = Keep this source in the workspace's sidebar.
 logs-source-saved = Source saved.

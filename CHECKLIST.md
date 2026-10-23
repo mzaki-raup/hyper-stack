@@ -84,6 +84,14 @@ Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/dr
 | Item | State | Notes |
 |---|---|---|
 | `tool-logs`: local file engine, SSH source, parsers, filters, highlights, structured view, find, bookmarks, saved sources | Completed | 2026-10-22: `engine::FileFollower` (append, truncation, rotation, 64 MB tail open; 3 tests), SSH `tail -F` over `hs_ssh::SshClient::exec`, local/remote command sources, pasted text; `parse` (plain, JSON, logfmt, syslog, nginx, postgres; 8 tests), `filter` chips + highlights (2 tests), saved sources and presets (1 test), virtualised list with structured columns, find, jump to time, bookmarks, detail pane, Open in Editor. P1 sources (Docker/k8s/journald/Event Log), merge and alerts remain |
+| Logs: AI assistant column (§15.1) | Pending | `split_for_assistant`, review-only, five quick actions, a `filter` action block Insert turns into chips; context redacted first |
+| Logs: errors reach the Problems dock tab (§15.2) | Pending | A highlight rule's Report to Problems switch, a `Services` problems sink any tool can write to, dedup by shape key with a count, per-rule cooldown, click jumps back to the record |
+| Logs: Find Everywhere, correlate by id (§15.3) | Pending | Trace/request/correlation ids and UUID/hex/ULID tokens searched across other Logs tabs, API history, SQL history and Redis as parallel Jobs; replaces the separate "look up in Redis" and "open request" ideas |
+| Logs: redaction rules (§15.4) | Pending | `logs/redaction.toml` per workspace with defaults for bearer tokens, JWTs, passwords, AWS keys, api keys and e-mail; applied on Copy, Copy as JSON, Save Filtered…, assistant context and Problems entries; Mask Secrets toggle in the view; grep-the-file test as the vault has |
+| Logs: collapse repeats (§15.5) | Pending | A shape key normalising numbers, UUIDs, hex ids, quoted strings and paths; consecutive same-shape records fold into one row with a count and span; shared with top-messages and Problems dedup |
+| Logs: the sparkline becomes the navigator (§15.6) | Pending | Drag a range to set after/before chips, click a bucket to jump, drawn from the filtered window; needs §10's chart first |
+| Logs: saved investigations (§15.7) | Pending | `logs/views/<slug>.toml` holding source, chips, highlights, pinned columns, bookmarks with notes, time zone and follow state; its own sidebar section |
+| Logs: diff two time windows (§15.8) | Pending | Count per shape key in ranges A and B, showing only-in-B, only-in-A and moved-by-more-than-a-threshold, each row filtering the list |
 | `tool-devtools`: JSON/YAML/TOML/XML, JWT, Base64/URL/hex, regex, cron, UUID/ULID/hash, timestamp, diff | Completed | JSON/YAML/TOML/XML, JWT, Base64/URL, hashes, generators (UUID/ULID), cron and the timestamp converter landed 2026-10-15..17; Regex Tester and Text Diff 2026-10-18 (`regex_tool`, `diff_tool`, 5 tests) |
 
 ### M6 · Hardening and 1.0

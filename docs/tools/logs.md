@@ -47,7 +47,9 @@
 
 Not yet (P1/P2): globs, Docker/Kubernetes/journald/Event Log sources,
 multi-source merge, statistics and alerts, SFTP range reads for history
-beyond the tail, "look up in Redis" / "open request" actions.
+beyond the tail. The eight additions commissioned on 2026-10-23 are
+specified in §15; "look up in Redis" / "open request" are folded into
+§15.3 rather than built separately.
 
 ## 1. Purpose
 
@@ -196,9 +198,11 @@ timestamps are interleaved by arrival. Follow works across all of them.
 
 Copy selected records (raw or as JSON), save filtered output to a file, open
 `path:line` in the editor (local path, or remote path via `sftp://` when the
-source is SSH and the path exists there), "look up in Redis" for key-like
-tokens, "open request" when a URL and method look like one of the API
-collection's requests, send a record to the devtools JSON viewer.
+source is SSH and the path exists there), send a record to the devtools JSON
+viewer. "Look up in Redis" and "open request" are not separate actions: they
+are two answers of the one **Find Everywhere** action in §15.3. Everything
+that leaves the tab - copy, save, the assistant's context - passes through
+the redaction rules of §15.4 first.
 
 ## 12. Connections and persistence
 
@@ -232,3 +236,154 @@ command-stdout sources, which require confirmation on protected environments).
 | Ctrl+G | jump to time |
 | End / Home | newest / oldest loaded |
 | Ctrl+Shift+C | copy record as JSON |
+
+## 15. Commissioned additions (2026-10-23)
+
+Eight items, asked for together. They are ordered as they should be built:
+each later one leans on something an earlier one puts in place. Nothing here
+changes a parser or the engine's reading path.
+
+### 15.1 An AI assistant column
+
+Logs is the only data tool without one. It gets the same column every other
+tool has (`hs_ui::ai_assistant::split_for_assistant`, the control hard right
+on the toolbar, Read Aloud, the microphone, `logs.ai` in the palette), and
+the same rule: **review-only**. A code block the assistant returns can be
+inserted as a filter chip or a highlight rule; nothing is ever run, and the
+tool has nothing to run anyway.
+
+What it is given, and nothing more: the selected record, up to 40 records
+either side of it, the active filter chips, the source's description (label,
+host, parser) and the record count. The context is built **after** redaction
+(§15.4), so a token in a log line does not reach a provider.
+
+Quick actions, in the per-tool pattern:
+
+| Action | Sends |
+|---|---|
+| Explain This Record | the record and its neighbours |
+| Explain This Stack Trace | the record with its continuation lines |
+| Why Did This Fail | the selected error and the 40 records before it |
+| Write a Filter For… | the user's description plus the parser's field names |
+| Summarise This Window | a sample of the filtered window, newest first |
+
+**Write a Filter For…** is the one with a structured answer: the assistant
+replies with a fenced `filter` block holding chip JSON, and an **Insert**
+button turns it into real chips rather than text the user retypes. That is
+the `hs-api` action-block pattern the API client already uses, narrowed to
+one block type.
+
+### 15.2 Errors reach the Problems dock tab
+
+The bottom dock already has **Problems**, fed by editor diagnostics and SQL
+errors; log errors belong in the same inbox. A highlight rule gains a
+**Report to Problems** switch. A matching record posts one entry carrying the
+source label, time, level, the message and the record's line number; clicking
+it focuses that Logs tab and scrolls to the record.
+
+Two things keep it from being a nuisance. Entries are **deduplicated by
+normalised message** (§15.5's shape key) with a count, so a storm is one row
+that climbs rather than a thousand rows. And a rule has a cooldown, as the
+alerts of §10 do. Posting happens only while the tab exists; nothing runs in
+the background.
+
+This needs a sink on `Services` that any tool can write to, which is new;
+Problems is editor-owned today.
+
+### 15.3 Find Everywhere: correlate by id
+
+The thing a standalone log viewer cannot do. A request id, trace id or
+correlation id in a line is a join key into everything else in the workspace.
+
+Detection: a structured field named `trace_id`, `request_id`,
+`correlation_id`, `span_id` or `x-request-id` (case- and separator-
+insensitive), or, in plain text, a selected token that looks like a UUID, a
+16/32-character hex string or a ULID.
+
+**Find Everywhere** on that token asks, in parallel, each as a Job:
+
+| Where | What is matched |
+|---|---|
+| Every other open Logs tab | the token in the raw record |
+| Saved log sources not open | skipped; offered as "open and search" |
+| API client history | request/response headers and bodies |
+| SQL query history | the statement text |
+| Redis | the token as a key, and as a member of a key named after it |
+
+Results land in a panel under the record detail: grouped by tool, with the
+time, a one-line preview and a jump that opens the right tab through
+`OpenRequest`. This replaces §11's separate "look up in Redis" and "open
+request" ideas, which were the same action seen from two ends.
+
+### 15.4 Redaction rules
+
+Logs carry bearer tokens, passwords, keys and personal data, and **Save
+Filtered… writes a plaintext file**. The project's rule is that secrets never
+touch disk in plaintext (`docs/06-security.md`), so this is closer to a gap
+than a feature.
+
+A rule is a regex and a replacement, kept per workspace in
+`logs/redaction.toml`. Defaults ship for `Authorization: Bearer …`, a JWT
+shape, `password=`/`passwd=`/`pwd=` values, AWS access key ids and secrets,
+`api[-_]?key=` values, and e-mail addresses. Each rule can be turned off.
+
+Where it applies, always: **Copy**, **Copy as JSON**, **Save Filtered…**, the
+assistant's context (§15.1), and a Problems entry (§15.2). In the view it is
+a toggle, **Mask Secrets**, default on, so what is on screen matches what
+would leave the tab. The raw bytes in the window are never rewritten: masking
+happens on the way out, so turning the toggle off needs no reload.
+
+Tested the way the vault is: write a redacted file, then grep it for the
+fixture's secrets.
+
+### 15.5 Collapse repeats
+
+A **shape key** normalises a message: numbers, UUIDs, hex ids, quoted
+strings and paths become placeholders, so `user 4821 not found` and
+`user 9 not found` share a shape. Consecutive records with the same shape and
+level fold into one row showing the newest record, a count, and the time span.
+Expanding shows them individually. The fold is a view concern: filters, find
+and export keep seeing every record.
+
+The normaliser is shared with §10's "top messages" statistic and §15.2's
+deduplication, so it is written once and tested once.
+
+### 15.6 The sparkline becomes the navigator
+
+§10 adds a per-minute chart. On its own it is decoration. Made
+interactive it is the main way to move around a large window:
+
+- **Drag a range** on it to set `after` and `before` chips, replacing the
+  pair already there.
+- **Click a bucket** to jump the list to the first record in that minute,
+  the same jump Ctrl+G performs.
+- The chart draws from the **filtered** window, so it answers "when did this
+  happen" rather than "when was anything logged".
+
+### 15.7 Saved investigations
+
+Sources (`logs/<slug>.toml`) and filter presets (`logs/presets.toml`) persist
+separately today. What is worth reopening after an incident is the whole
+set-up, so an **Investigation** saves a source reference, the filter chips,
+the highlight rules, the pinned columns, the bookmarks with their notes, the
+time zone and whether Follow was on. They live in `logs/views/<slug>.toml`
+and get their own sidebar section under Presets. Saving one is "Save
+Investigation…" on the toolbar; opening one restores the tab as it was.
+
+### 15.8 Diff two time windows
+
+Did the deploy change anything? Pick range **A** and range **B** (dragged on
+the sparkline, §15.6), and the tool counts records per shape key (§15.5) in
+each and shows the difference: shapes only in B, shapes only in A, and shapes
+whose count moved by more than a threshold, sorted by the size of the move.
+Each row filters the list to that shape in the chosen range.
+
+The comparison is a count table, not a text diff, so `hs-git`'s Myers diff is
+the wrong tool here; Devtools' diff view stays where it is.
+
+### 15.9 What this does not add
+
+No background daemon, no writing to a log source, no network calls of its own
+beyond the assistant provider and the sources already supported. Protected
+environments are unaffected except where they already are: a command-stdout
+source still asks for confirmation.

@@ -11,27 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Fixed
+- (nothing yet)
 
-- **ComfyUI upscaling failed with "ComfyUI has no upscale models"** on a
-  recent ComfyUI that has them. The server now describes a combo input as
-  `["COMBO", {"options": […]}]`, and the reader understood only the older
-  `[[…], {}]` shape, so it saw an empty list and gave up before the
-  workflow ran. All three shapes ComfyUI has used are read now, and the same
-  bug affected the checkpoint list for Generate, Edit and Enhance. Both
-  messages also say which Settings field to type a name into when the
-  server really does list nothing.
+## 0.79.0 — 2026-10-23
 
 ### Added
 
-- **Logs: redaction rules.** Bearer tokens, Basic credentials, JWTs,
-  passwords, API keys, AWS key ids and secrets and e-mail addresses are
-  masked in the list and in everything that leaves a Logs tab: Copy, Copy as
-  JSON and Save Filtered…. The rules live in the workspace's
-  `logs/redaction.toml` and can be edited or turned off individually; a
-  **Mask Secrets** toggle on the toolbar governs the view and the exports
-  together, so what is on screen is what would leave. First of the eight
-  additions specified in `docs/tools/logs.md` §15.
+- Redaction rules for the Logs tool (d7123b4d)
+
+### Fixed
+
+- Read every shape ComfyUI describes a combo input in (453d8e81)
 
 ## 0.78.0 — 2026-10-22
 

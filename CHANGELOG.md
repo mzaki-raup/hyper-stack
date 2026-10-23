@@ -11,59 +11,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Security
+- (nothing yet)
 
-- `tokio` moved to 1.54.1 for RUSTSEC's unsoundness advisory against
-  `AsyncFd::new` and its sibling constructors, which do not enforce that
-  the file descriptor stays valid, open and unchanged for the `AsyncFd`'s
-  lifetime. HyperStack calls none of them; the advisory is on the
-  dependency.
+## 0.81.0 — 2026-10-23
 
 ### Added
 
-- **Settings → AI Assistant → Prompt Buttons.** Every activity's one-click
-  assistant prompts can be renamed, rewritten, reordered, hidden, added to
-  and reset, activity by activity. The defaults still ship in code so they
-  stay translatable; only your differences are stored, a prompt added by a
-  later version is appended rather than lost, and the settings are global
-  rather than per workspace.
-- **Logs: Keycloak and seven more servers are recognised**, along with
-  Elasticsearch, Kafka, RabbitMQ, MongoDB, HAProxy and Traefik. A Java
-  server is identified by its command line rather than by the executable,
-  which is only ever "java", and Windows is asked through CIM so there is
-  a command line to read.
-- **Logs: Docker and systemd inside WSL are found.** On Windows the
-  daemon usually lives in a distribution rather than on the host, where
-  `docker ps` sees nothing. Each installed distribution is asked the same
-  questions through `wsl -d <name> --`, and its containers and units are
-  offered with the command that follows them. `wsl.exe` answers in UTF-16
-  while the commands it runs answer in UTF-8, so the encoding is detected
-  rather than assumed.
-- **Logs: a Suggest Filters prompt** on the assistant, which proposes the
-  noise to exclude and the levels worth watching for the log on screen.
-
-### Changed
-
-- **Logs: the tab is named after the saved log** it was opened from,
-  rather than after the file.
-- **Logs: the assistant can only apply a filter.** A log is read, never
-  written, so there is nothing an answer could be inserted into: a
-  `filter` block gets Apply and everything else can be copied and nothing
-  more.
+- Configurable AI Assistant prompt buttons (a2e9423d)
 
 ### Fixed
 
-- **Logs: opening a tab no longer runs a service scan each time.** Every
-  tab drew the sidebar and each one shelled out to PowerShell, Docker,
-  Podman, systemd and kubectl on open, which showed as a flicker. The
-  answer is shared between tabs for a minute, and the refresh button asks
-  again regardless.
-- **Logs: the monospace glyph width is measured when the UI scale
-  changes**, not once a frame per tab; measuring it takes egui's font
-  write lock.
-- **Logs: configuring a service fills the path** even when the server's
-  conventional log is not on this machine, so the field starts from a
-  likely path to correct rather than from nothing.
+- Find Docker and systemd inside WSL (a05c0f4c)
+- Logs service detection, tab names, and a scan per tab (bdd9d736)
+
+### Security
+
+- Take the tokio 1.54.1 fix for the AsyncFd unsoundness (6b508066)
 
 ## 0.80.1 — 2026-10-23
 

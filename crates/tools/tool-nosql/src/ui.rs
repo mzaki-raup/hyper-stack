@@ -780,12 +780,8 @@ impl NoSqlTool {
         );
         self.assistant.set_context("NoSQL query", context);
         if self.assistant.quick_actions.is_empty() {
-            use hs_ui::ai_assistant::QuickAction;
-            self.assistant.quick_actions = vec![
-                QuickAction::new(s, "ai-qa-nosql-filter", "ai-qa-nosql-filter-prompt", ""),
-                QuickAction::new(s, "ai-qa-nosql-explain", "ai-qa-nosql-explain-prompt", ""),
-                QuickAction::new(s, "ai-qa-nosql-index", "ai-qa-nosql-index-prompt", ""),
-            ];
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity(s, "nosql");
         }
         let Some(panel) = panel else {
             // Too narrow to split: the toggle stays on and the column

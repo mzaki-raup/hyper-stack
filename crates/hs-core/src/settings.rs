@@ -366,6 +366,11 @@ pub struct Ai {
     pub default_provider: String,
     /// How many rounds Cascade may run on its own before it stops and asks.
     pub max_rounds: u32,
+    /// The user's changes to the assistant's prompt buttons: their order,
+    /// their names, what they ask, and which are hidden. Global rather
+    /// than per workspace (owner's rule, 2026-10-23): a prompt is how
+    /// someone likes to ask a question, not a property of a project.
+    pub prompts: crate::prompts::Prompts,
 }
 
 impl Default for Ai {
@@ -374,6 +379,7 @@ impl Default for Ai {
             providers: Vec::new(),
             default_provider: String::new(),
             max_rounds: 4,
+            prompts: crate::prompts::Prompts::default(),
         }
     }
 }

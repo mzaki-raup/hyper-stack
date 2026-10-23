@@ -1504,15 +1504,8 @@ impl LogsTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.assistant.set_context("Logs", self.ai_context());
         if self.assistant.quick_actions.is_empty() {
-            use hs_ui::ai_assistant::QuickAction;
-            self.assistant.quick_actions = vec![
-                QuickAction::new(s, "ai-qa-logs-explain", "ai-qa-logs-explain-prompt", ""),
-                QuickAction::new(s, "ai-qa-logs-trace", "ai-qa-logs-trace-prompt", ""),
-                QuickAction::new(s, "ai-qa-logs-why", "ai-qa-logs-why-prompt", ""),
-                QuickAction::new(s, "ai-qa-logs-filter", "ai-qa-logs-filter-prompt", ""),
-                QuickAction::new(s, "ai-qa-logs-suggest", "ai-qa-logs-suggest-prompt", ""),
-                QuickAction::new(s, "ai-qa-logs-summarise", "ai-qa-logs-summarise-prompt", ""),
-            ];
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity(s, "logs");
         }
         let Some(panel) = panel else {
             // Too narrow to split: the toggle stays on and the column

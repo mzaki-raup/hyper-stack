@@ -366,19 +366,6 @@ When the answer changes the diagram, include the complete .hdiag document as a
 {"schema":2,"kind":"flow","title":"Checkout","subtitle":"","page":{"size":"fit","margin":24,"background":"#ffffff"},"nodes":[{"id":"start","label":"Start","kind":"start_end","x":0,"y":0,"w":0,"h":0}],"edges":[],"groups":[],"auto_layout":true}
 Keep ids unique and endpoint ids valid.
 "##;
-const DIAGRAM_QA: [(&str, &str); 4] = [
-    ("ai-qa-diagram-layout", "ai-qa-diagram-layout-prompt"),
-    ("ai-qa-diagram-missing", "ai-qa-diagram-missing-prompt"),
-    ("ai-qa-diagram-name", "ai-qa-diagram-name-prompt"),
-    ("ai-qa-diagram-a11y", "ai-qa-diagram-a11y-prompt"),
-];
-
-const GENERATOR_QA: [(&str, &str); 4] = [
-    ("ai-qa-gen-refine", "ai-qa-gen-refine-prompt"),
-    ("ai-qa-gen-critique", "ai-qa-gen-critique-prompt"),
-    ("ai-qa-gen-layout", "ai-qa-gen-layout-prompt"),
-    ("ai-qa-gen-explain", "ai-qa-gen-explain-prompt"),
-];
 
 /// A private request body for "open this as an icon" and "make a new icon".
 const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
@@ -2195,23 +2182,21 @@ impl GraphicsTool {
         cx: &mut ToolContext,
         theme: &Theme,
         context: String,
-        quick: &[(&str, &str)],
+        quick: &str,
     ) {
         let s = cx.services.clone();
         self.assistant.set_context("diagram state", context);
         if self.assistant.quick_actions.is_empty() {
-            use hs_ui::ai_assistant::QuickAction;
-            self.assistant.quick_actions = quick
-                .iter()
-                .map(|(label, prompt)| {
-                    let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
-                        DIAGRAM_JSON_HINT
-                    } else {
-                        ""
-                    };
-                    QuickAction::new(&s, label, &format!("{}{hint}", s.t(prompt)), "")
-                })
-                .collect();
+            // The diagram tools append a schema reminder to whatever the
+            // prompt says, user-edited or not, because the answer has to
+            // follow it.
+            let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
+                DIAGRAM_JSON_HINT
+            } else {
+                ""
+            };
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity_with(&s, quick, hint);
         }
         // Same rule as the shared assistant: keep 320 px for the tool,
         // shrink the column to make room, and step aside entirely when even
@@ -2331,7 +2316,7 @@ impl GraphicsTool {
         cx: &mut ToolContext,
         theme: &Theme,
         context: String,
-        quick: &[(&str, &str)],
+        quick: &str,
     ) {
         if !self.assistant.open {
             return;
@@ -2340,18 +2325,16 @@ impl GraphicsTool {
         let full = ui.max_rect();
         self.assistant.set_context("diagram state", context);
         if self.assistant.quick_actions.is_empty() {
-            use hs_ui::ai_assistant::QuickAction;
-            self.assistant.quick_actions = quick
-                .iter()
-                .map(|(label, prompt)| {
-                    let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
-                        DIAGRAM_JSON_HINT
-                    } else {
-                        ""
-                    };
-                    QuickAction::new(&s, label, &format!("{}{hint}", s.t(prompt)), "")
-                })
-                .collect();
+            // The diagram tools append a schema reminder to whatever the
+            // prompt says, user-edited or not, because the answer has to
+            // follow it.
+            let hint = if matches!(self.kind, Kind::Diagram | Kind::Generator) {
+                DIAGRAM_JSON_HINT
+            } else {
+                ""
+            };
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity_with(&s, quick, hint);
         }
         let panel = egui::Rect::from_min_max(
             egui::pos2(full.right() - 390.0, full.top()),
@@ -3074,7 +3057,7 @@ impl Tool for GraphicsTool {
                     .as_ref()
                     .map(|state| diagram_context(&state.doc))
                     .unwrap_or_default();
-                self.assistant_column(ui, cx, &theme, context, &DIAGRAM_QA);
+                self.assistant_column(ui, cx, &theme, context, "diagram");
             }
             if let Some(state) = &mut self.diagram {
                 state.ui(ui, cx, &theme);
@@ -3101,7 +3084,7 @@ impl Tool for GraphicsTool {
                     .as_ref()
                     .map(|state| generator_context(state))
                     .unwrap_or_default();
-                self.assistant_column(ui, cx, &theme, context, &GENERATOR_QA);
+                self.assistant_column(ui, cx, &theme, context, "generator");
             }
             if let Some(state) = &mut self.generator {
                 state.ui(ui, cx, &theme);
@@ -3210,13 +3193,8 @@ impl Tool for GraphicsTool {
             );
             self.assistant.set_context("graphics state", context);
             if self.assistant.quick_actions.is_empty() {
-                use hs_ui::ai_assistant::QuickAction;
-                self.assistant.quick_actions = vec![
-                    QuickAction::new(&s, "ai-qa-image-explain", "ai-qa-image-explain-prompt", ""),
-                    QuickAction::new(&s, "ai-qa-image-edits", "ai-qa-image-edits-prompt", ""),
-                    QuickAction::new(&s, "ai-qa-image-export", "ai-qa-image-export-prompt", ""),
-                    QuickAction::new(&s, "ai-qa-image-a11y", "ai-qa-image-a11y-prompt", ""),
-                ];
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(&s, "graphics");
             }
             let mut child = ui.new_child(
                 egui::UiBuilder::new()

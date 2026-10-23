@@ -842,17 +842,8 @@ impl RedisTool {
         );
         self.assistant.set_context("Redis key", context);
         if self.assistant.quick_actions.is_empty() {
-            use hs_ui::ai_assistant::QuickAction;
-            self.assistant.quick_actions = vec![
-                QuickAction::new(
-                    s,
-                    "ai-qa-redis-explain-key",
-                    "ai-qa-redis-explain-key-prompt",
-                    "",
-                ),
-                QuickAction::new(s, "ai-qa-redis-command", "ai-qa-redis-command-prompt", ""),
-                QuickAction::new(s, "ai-qa-redis-memory", "ai-qa-redis-memory-prompt", ""),
-            ];
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity(s, "redis");
         }
         let Some(panel) = panel else {
             // Too narrow to split: the toggle stays on and the column

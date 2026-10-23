@@ -1362,17 +1362,8 @@ impl Tool for S3Tool {
             );
             self.assistant.set_context("S3 selection", context);
             if self.assistant.quick_actions.is_empty() {
-                use hs_ui::ai_assistant::QuickAction;
-                self.assistant.quick_actions = vec![
-                    QuickAction::new(
-                        s,
-                        "ai-qa-explain-selection",
-                        "ai-qa-explain-selection-prompt",
-                        "",
-                    ),
-                    QuickAction::new(s, "ai-qa-aws-cli", "ai-qa-aws-cli-prompt", ""),
-                    QuickAction::new(s, "ai-qa-bucket-policy", "ai-qa-bucket-policy-prompt", ""),
-                ];
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(s, "s3");
             }
             let Some(panel) = assistant_rect else {
                 // Too narrow to split: the toggle stays on and the column

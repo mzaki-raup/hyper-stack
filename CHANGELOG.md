@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Settings → AI Assistant → Prompt Buttons.** Every activity's one-click
+  assistant prompts can be renamed, rewritten, reordered, hidden, added to
+  and reset, activity by activity. The defaults still ship in code so they
+  stay translatable; only your differences are stored, a prompt added by a
+  later version is appended rather than lost, and the settings are global
+  rather than per workspace.
 - **Logs: Keycloak and seven more servers are recognised**, along with
   Elasticsearch, Kafka, RabbitMQ, MongoDB, HAProxy and Traefik. A Java
   server is identified by its command line rather than by the executable,

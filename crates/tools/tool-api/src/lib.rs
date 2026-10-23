@@ -1545,20 +1545,8 @@ impl Tool for ApiTool {
                 self.assistant_key = Some(key);
             }
             if self.assistant.quick_actions.is_empty() {
-                use hs_ui::ai_assistant::QuickAction;
-                self.assistant.quick_actions = vec![
-                    QuickAction::new(s, "ai-qa-pre-script", "ai-qa-pre-script-prompt", ""),
-                    QuickAction::new(s, "ai-qa-post-script", "ai-qa-post-script-prompt", ""),
-                    QuickAction::new(s, "ai-qa-save-vars", "ai-qa-save-vars-prompt", ""),
-                    QuickAction::new(s, "ai-qa-tests", "ai-qa-tests-prompt", ""),
-                    QuickAction::new(
-                        s,
-                        "ai-qa-explain-response",
-                        "ai-qa-explain-response-prompt",
-                        "",
-                    ),
-                    QuickAction::new(s, "ai-qa-docs", "ai-qa-docs-prompt", ""),
-                ];
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(s, "api");
             }
             let mut child = ui.new_child(
                 egui::UiBuilder::new()

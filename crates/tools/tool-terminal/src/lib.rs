@@ -857,7 +857,8 @@ impl Tool for TerminalTool {
                 });
             self.assistant.set_context("terminal state", ctx);
             if self.assistant.quick_actions.is_empty() {
-                self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(s, "terminal");
             }
             let Some(panel) = assistant_rect else {
                 // Too narrow to split: the toggle stays on and the column

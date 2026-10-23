@@ -2064,7 +2064,8 @@ impl Tool for SshTool {
             );
             self.assistant.set_context("SSH session", ctx_text);
             if self.assistant.quick_actions.is_empty() {
-                self.assistant.quick_actions = hs_ui::ai_assistant::shell_actions(s);
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(s, "ssh");
             }
             let Some(panel) = assistant_rect else {
                 // Too narrow to split three ways: the toggle stays on and

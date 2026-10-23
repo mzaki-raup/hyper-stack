@@ -3369,14 +3369,8 @@ impl DbTool {
             );
             self.assistant.set_context("SQL workspace", context);
             if self.assistant.quick_actions.is_empty() {
-                use hs_ui::ai_assistant::QuickAction;
-                self.assistant.quick_actions = vec![
-                    QuickAction::new(s, "ai-qa-select-all", "ai-qa-select-all-prompt", ""),
-                    QuickAction::new(s, "ai-qa-count", "ai-qa-count-prompt", ""),
-                    QuickAction::new(s, "ai-qa-select-ordered", "ai-qa-select-ordered-prompt", ""),
-                    QuickAction::new(s, "ai-qa-explain-query", "ai-qa-explain-query-prompt", ""),
-                    QuickAction::new(s, "ai-qa-improve-query", "ai-qa-improve-query-prompt", ""),
-                ];
+                self.assistant.quick_actions =
+                    hs_ui::ai_assistant::QuickAction::for_activity(s, "db");
             }
             let Some(panel) = assistant_rect else {
                 // Too narrow to split: the toggle stays on, and the panel

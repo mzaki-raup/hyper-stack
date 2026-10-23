@@ -43,6 +43,42 @@ pub struct QuickAction {
 }
 
 impl QuickAction {
+    /// The prompt buttons an activity shows, as the user has them: the
+    /// shipped list, with their renames, rewrites, order and hiding from
+    /// Settings → AI Assistant → Prompt Buttons applied
+    /// (`hs_core::prompts`, owner's request 2026-10-23).
+    ///
+    /// A tool calls this instead of writing its own list, so changing a
+    /// prompt is a setting rather than an edit to the source.
+    pub fn for_activity(s: &Services, activity: &str) -> Vec<Self> {
+        let text = |k: &str| s.t(k);
+        s.settings
+            .read()
+            .ai
+            .prompts
+            .visible(activity, &text)
+            .into_iter()
+            .map(|r| Self {
+                label: r.label,
+                prompt: r.prompt,
+                tip: String::new(),
+            })
+            .collect()
+    }
+
+    /// As [`QuickAction::for_activity`], with `extra` appended to every
+    /// prompt: the Graphics diagram tools add a schema reminder that the
+    /// answer has to follow.
+    pub fn for_activity_with(s: &Services, activity: &str, extra: &str) -> Vec<Self> {
+        Self::for_activity(s, activity)
+            .into_iter()
+            .map(|mut a| {
+                a.prompt.push_str(extra);
+                a
+            })
+            .collect()
+    }
+
     /// A quick action from a label key and a prompt key in `en.ftl`.
     pub fn new(s: &Services, label_key: &str, prompt_key: &str, tip_key: &str) -> Self {
         Self {
@@ -115,6 +151,9 @@ pub fn split_fences(text: &str) -> Vec<Segment> {
 /// The one-click prompts a shell surface offers: the terminal and SSH
 /// ask the same things of their output.
 pub fn shell_actions(s: &Services) -> Vec<QuickAction> {
+    // Kept for the activity the caller names; both shells ship the same
+    // four prompts but the user may change them apart.
+    let _ = &s;
     vec![
         QuickAction::new(s, "ai-qa-explain-output", "ai-qa-explain-output-prompt", ""),
         QuickAction::new(s, "ai-qa-explain-error", "ai-qa-explain-error-prompt", ""),

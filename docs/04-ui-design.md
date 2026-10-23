@@ -472,6 +472,38 @@ at the minimum. Nothing in this block is persisted
 separately; the geometry still lands in `window.toml` the way a dragged
 resize does.
 
+### 9.2 Prompt Buttons (owner's request, 2026-10-23)
+
+Every activity's assistant offers a row of one-click prompts. They were
+written into each tool, so changing one meant editing the source.
+
+The defaults still live in code, in `hs_core::prompts::DEFAULTS`, because
+that is what makes them shared and translatable: a row names the activity,
+a stable id, and the two Fluent keys. Settings → AI Assistant → **Prompt
+Buttons** then lets the user pick an activity and rename a button, rewrite
+what it asks, drag it into another order, turn it off, add one of their
+own, or reset the activity to what it ships with. A tool calls
+`QuickAction::for_activity(s, "logs")` and draws the result.
+
+The settings are **global, not per workspace**: a prompt is how someone
+likes to ask a question, which does not change because they opened a
+different project.
+
+Three rules keep an upgrade from losing anything:
+
+- **Only differences are stored.** A button the user merely reordered or
+  hid keeps empty `label` and `prompt`, so a later translation still
+  reaches it.
+- **A newly shipped button is appended, never dropped.** The saved order
+  leads; anything in `DEFAULTS` that the saved list has not seen follows
+  it, so upgrading brings new prompts with it.
+- **A button the user added is marked as theirs** and is the only kind
+  that can be deleted; a shipped one is hidden instead.
+
+The editor and the Scratchpad are deliberately absent from the activity
+list: their assistants have no prompt buttons, and listing an activity
+whose edits would do nothing is worse than not listing it.
+
 ## 10. Accessibility and ergonomics
 
 - Full keyboard traversal of lists and trees (a known gap in Eden Explorer's

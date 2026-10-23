@@ -1176,6 +1176,16 @@ ai-scheduler = Scheduler
 ai-scheduler-hint = karras, normal, … (empty = server default)
 ai-seed = Seed
 ai-seed-hint = -1 draws a new seed for every picture.
+ai-section-prompts = Prompt Buttons
+ai-prompts-hint = The one-click prompts each activity's assistant offers. Rename one, rewrite what it asks, drag it into another order, or turn it off. These apply to every workspace.
+ai-prompts-activity = Activity
+ai-prompts-name = Button Name
+ai-prompts-prompt = Prompt
+ai-prompts-add = Add Prompt
+ai-prompts-new = New Prompt
+ai-prompts-delete = Delete this prompt.
+ai-prompts-reset = Reset to Defaults
+ai-prompts-reset-tip = Forget every change to this activity's prompts and use the ones HyperStack ships.
 ai-section-upscale = Upscale
 ai-upscale-hint = More pixels, same picture. A super-resolution model enlarges the source; nothing about the subject changes.
 ai-upscaler = Upscale Model

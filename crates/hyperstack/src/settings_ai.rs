@@ -32,6 +32,10 @@ pub struct AiPageState {
     draft: Option<Draft>,
     /// The gallery is open instead of a form.
     picking: bool,
+    /// Which activity's prompt buttons are being edited.
+    prompt_activity: String,
+    /// The button open for editing, by id.
+    prompt_editing: Option<String>,
 }
 
 struct Draft {
@@ -502,9 +506,145 @@ pub fn page(
             }
         });
     });
+    prompt_buttons(ui, theme, s, state, &mut changed);
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
     }
+}
+
+/// Settings → AI Assistant → Prompt Buttons (owner's request,
+/// 2026-10-23): the one-click prompts every activity's assistant offers,
+/// which activity by activity can be renamed, rewritten, reordered and
+/// hidden. The settings are global, not per workspace: a prompt is how
+/// someone likes to ask a question.
+fn prompt_buttons(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut AiPageState,
+    changed: &mut bool,
+) {
+    use hs_core::prompts;
+    if state.prompt_activity.is_empty() {
+        state.prompt_activity = prompts::ACTIVITIES[0].0.to_string();
+    }
+    form::section(ui, theme, &s.t("ai-section-prompts"), |ui| {
+        form::hint(ui, theme, &s.t("ai-prompts-hint"));
+        ui.add_space(8.0);
+        form::field_grid(ui, "ai-prompt-activity", |ui| {
+            form::label(ui, &s.t("ai-prompts-activity"));
+            let here = state.prompt_activity.clone();
+            let name = prompts::ACTIVITIES
+                .iter()
+                .find(|(id, _)| *id == here)
+                .map(|(_, key)| s.t(key))
+                .unwrap_or_else(|| here.clone());
+            egui::ComboBox::from_id_salt("ai-prompt-activity")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(name)
+                .show_ui(ui, |ui| {
+                    for (id, key) in prompts::ACTIVITIES {
+                        if ui
+                            .selectable_label(state.prompt_activity == *id, s.t(key))
+                            .clicked()
+                        {
+                            state.prompt_activity = (*id).to_string();
+                            state.prompt_editing = None;
+                        }
+                    }
+                });
+            ui.end_row();
+        });
+        ui.add_space(8.0);
+
+        let activity = state.prompt_activity.clone();
+        let text = |k: &str| s.t(k);
+        let mut list = s.settings.read().ai.prompts.resolve(&activity, &text);
+        let mut dirty = false;
+        let mut remove: Option<usize> = None;
+
+        let mut reorder = hs_ui::reorder::Reorder::new("ai-prompt-list");
+        for (i, b) in list.iter_mut().enumerate() {
+            reorder.row(ui, i, |ui| {
+                ui.horizontal(|ui| {
+                    // Show is a switch, not a delete: a shipped button
+                    // cannot be removed, only put away.
+                    let mut shown = !b.hidden;
+                    if ui.checkbox(&mut shown, "").changed() {
+                        b.hidden = !shown;
+                        dirty = true;
+                    }
+                    let open = state.prompt_editing.as_deref() == Some(b.id.as_str());
+                    if ui
+                        .add(egui::Button::selectable(open, &b.label))
+                        .on_hover_text(&b.prompt)
+                        .clicked()
+                    {
+                        state.prompt_editing = if open { None } else { Some(b.id.clone()) };
+                    }
+                    if !b.shipped
+                        && form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                            .tip(s.t("ai-prompts-delete"))
+                            .clicked()
+                    {
+                        remove = Some(i);
+                    }
+                });
+            });
+            if state.prompt_editing.as_deref() == Some(b.id.as_str()) {
+                ui.indent(("prompt-edit", i), |ui| {
+                    form::field_grid(ui, ("ai-prompt-fields", i), |ui| {
+                        form::label(ui, &s.t("ai-prompts-name"));
+                        dirty |= form::text_field(ui, &mut b.label, "").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("ai-prompts-prompt"));
+                        dirty |= form::code_field(ui, &mut b.prompt, 4).changed();
+                        ui.end_row();
+                    });
+                });
+            }
+            ui.add_space(2.0);
+        }
+        let moved = reorder.finish(ui, theme.accent);
+
+        if let Some((from, to)) = moved {
+            hs_ui::reorder::move_item(&mut list, from, to);
+            dirty = true;
+        }
+        if let Some(i) = remove {
+            list.remove(i);
+            dirty = true;
+        }
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            if ui.button(s.t("ai-prompts-add")).clicked() {
+                let id = format!("user-{}", hs_core::new_id());
+                list.push(prompts::Resolved {
+                    label: s.t("ai-prompts-new"),
+                    prompt: String::new(),
+                    hidden: false,
+                    shipped: false,
+                    id: id.clone(),
+                });
+                state.prompt_editing = Some(id);
+                dirty = true;
+            }
+            if ui
+                .button(s.t("ai-prompts-reset"))
+                .on_hover_text(s.t("ai-prompts-reset-tip"))
+                .clicked()
+            {
+                s.settings.write().ai.prompts.reset(&activity);
+                state.prompt_editing = None;
+                *changed = true;
+                dirty = false;
+            }
+        });
+        if dirty {
+            s.settings.write().ai.prompts.set(&activity, list, &text);
+            *changed = true;
+        }
+    });
 }
 
 /// The "which service?" gallery. Returns the provider to edit when one is

@@ -11,6 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Security
+
+- `tokio` moved to 1.54.1 for RUSTSEC's unsoundness advisory against
+  `AsyncFd::new` and its sibling constructors, which do not enforce that
+  the file descriptor stays valid, open and unchanged for the `AsyncFd`'s
+  lifetime. HyperStack calls none of them; the advisory is on the
+  dependency.
+
 ### Added
 
 - **Settings → AI Assistant → Prompt Buttons.** Every activity's one-click

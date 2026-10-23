@@ -318,6 +318,35 @@ pub struct LogsTool {
 }
 
 impl LogsTool {
+    /// Choose a file and open it, in this tab when it is empty and in a
+    /// new one otherwise. `format` is what the source is read as:
+    /// **Auto** for a log, a named format when the user said which.
+    fn pick_and_open(&mut self, cx: &mut ToolContext, format: Format) {
+        let picked = rfd::FileDialog::new()
+            .add_filter("Log or thread dump", &["log", "txt", "out", "err", "tdump"])
+            .pick_file();
+        let Some(p) = picked else { return };
+        let spec = SourceSpec::LocalFile {
+            path: p.to_string_lossy().to_string(),
+        };
+        if self.state.spec.is_some() {
+            cx.open_new_tab(
+                "logs",
+                Some(OpenRequest::Text {
+                    mime: SPEC_MIME.into(),
+                    body: serde_json::to_string(&SavedSource {
+                        spec,
+                        format,
+                        ..Default::default()
+                    })
+                    .unwrap_or_default(),
+                }),
+            );
+        } else {
+            self.open_spec(cx.services, spec, format, 2000, None);
+        }
+    }
+
     fn new(services: &Services, state: State) -> Self {
         let logs_dir = services.workspace.read().root().join("logs");
         let filter = Filter::compile(&state.chips);
@@ -978,6 +1007,7 @@ impl Tool for LogsTool {
         };
         vec![
             c("logs.open_file", "Logs: Open File…"),
+            c("logs.open_dump", "Logs: Open Thread Dump…"),
             c("logs.add_source", "Logs: Add Source…"),
             c("logs.paste", "Logs: Paste Text…"),
             c("logs.follow", "Logs: Toggle Follow"),
@@ -995,26 +1025,14 @@ impl Tool for LogsTool {
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
             "logs.open_file" => {
-                if let Some(p) = rfd::FileDialog::new().pick_file() {
-                    let spec = SourceSpec::LocalFile {
-                        path: p.to_string_lossy().to_string(),
-                    };
-                    if self.state.spec.is_some() {
-                        cx.open_new_tab(
-                            "logs",
-                            Some(OpenRequest::Text {
-                                mime: SPEC_MIME.into(),
-                                body: serde_json::to_string(&SavedSource {
-                                    spec,
-                                    ..Default::default()
-                                })
-                                .unwrap_or_default(),
-                            }),
-                        );
-                    } else {
-                        self.open_spec(cx.services, spec, Format::Auto, 2000, None);
-                    }
-                }
+                self.pick_and_open(cx, Format::Auto);
+                true
+            }
+            // A dump is read as a dump even when the file is called
+            // `.txt` and detection would have to guess (owner's request,
+            // 2026-10-24).
+            "logs.open_dump" => {
+                self.pick_and_open(cx, Format::ThreadDump);
                 true
             }
             "logs.add_source" => {
@@ -1096,6 +1114,12 @@ impl Tool for LogsTool {
                 .clicked()
             {
                 self.run_command("logs.open_file", cx);
+            }
+            if form::icon_button(ui, &theme, ph::TREE_STRUCTURE, 16.0, false)
+                .tip(s.t("logs-open-dump"))
+                .clicked()
+            {
+                self.run_command("logs.open_dump", cx);
             }
             if form::icon_button(ui, &theme, ph::PLUS, 16.0, false)
                 .tip(s.t("logs-add-source"))
@@ -1669,6 +1693,12 @@ impl LogsTool {
                         self.run_command("logs.open_file", cx);
                     }
                     if ui
+                        .button(format!("{} {}", ph::TREE_STRUCTURE, s.t("logs-open-dump")))
+                        .clicked()
+                    {
+                        self.run_command("logs.open_dump", cx);
+                    }
+                    if ui
                         .button(format!("{} {}", ph::PLUS, s.t("logs-add-source")))
                         .clicked()
                     {
@@ -1833,6 +1863,12 @@ impl LogsTool {
                 .clicked()
                 {
                     self.run_command("logs.open_file", cx);
+                }
+                if ui
+                    .button(format!("{} {}", ph::TREE_STRUCTURE, s.t("logs-open-dump")))
+                    .clicked()
+                {
+                    self.run_command("logs.open_dump", cx);
                 }
                 if ui
                     .button(format!("{} {}", ph::PLUS, s.t("logs-add-source")))

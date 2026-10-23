@@ -15,6 +15,9 @@ struct Stream {
 struct Running {
     stream: Arc<Mutex<Stream>>,
     abort: tokio::task::AbortHandle,
+    /// When the request went out, so a slow service shows as waiting
+    /// rather than as a frozen pane (owner's report, 2026-10-24).
+    started: std::time::Instant,
 }
 
 /// What the user asked the panel to do with an answer this frame. The
@@ -331,7 +334,14 @@ impl AssistantPanel {
                 content.clone()
             };
             let mut message = Message::new(*role, message_content);
-            if last && let Some(att) = &self.attachment {
+            // Only when the model can actually read one: a service handed
+            // a picture its model does not understand may tokenise the
+            // base64 as text and never answer (owner's report,
+            // 2026-10-24).
+            if last
+                && let Some(att) = &self.attachment
+                && provider.sends_images(&self.model)
+            {
                 message = message.with_images(vec![att.clone()]);
             }
             messages.push(message);
@@ -355,7 +365,22 @@ impl AssistantPanel {
         self.running = Some(Running {
             stream,
             abort: task.abort_handle(),
+            started: std::time::Instant::now(),
         });
+    }
+
+    /// Whether an attached picture would actually be sent with the next
+    /// question: the provider kind takes pictures and the model can read
+    /// one. Used to warn instead of silently dropping it.
+    fn attachment_goes_out(&self, s: &Services) -> bool {
+        let settings = s.settings.read();
+        settings
+            .ai
+            .providers
+            .iter()
+            .find(|p| p.id == self.provider)
+            .or(settings.ai.chosen())
+            .is_some_and(|p| p.sends_images(&self.model))
     }
 
     /// The assistant's latest complete answer, for read-aloud and copy.
@@ -613,6 +638,17 @@ impl AssistantPanel {
     ) -> bool {
         let mut send = false;
         let measuring = ui.is_sizing_pass();
+        // A tool that attaches a picture (Graphics) should say so when the
+        // chosen model cannot read one, rather than answering about a
+        // picture it never saw (owner's report, 2026-10-24).
+        if self.attachment.is_some() && !self.attachment_goes_out(s) {
+            ui.label(
+                egui::RichText::new(s.t("ai-picture-not-sent"))
+                    .small()
+                    .color(theme.warning),
+            );
+            ui.add_space(2.0);
+        }
         if !self.quick_actions.is_empty() && self.running.is_none() {
             let now = ui.input(|i| i.time);
             let fresh = self.last_quick_at != Some(now);
@@ -668,8 +704,24 @@ impl AssistantPanel {
             send = true;
         }
         ui.horizontal(|ui| {
-            if self.running.is_some() {
+            // Read the clock before anything may `take()` the request.
+            let waiting = self.running.as_ref().map(|r| r.started.elapsed().as_secs());
+            if let Some(secs) = waiting {
                 ui.spinner();
+                // A service that is slow rather than broken looks the same
+                // without this; the read timeout only fires on a silent
+                // connection, so a long grind has to be visible.
+                if secs >= 3 {
+                    ui.label(
+                        egui::RichText::new(
+                            s.i18n.t_args("ai-waiting", &[("secs", &secs.to_string())]),
+                        )
+                        .small()
+                        .color(theme.text_muted),
+                    );
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(500));
+                }
                 if ui.button(s.t("ai-stop")).clicked()
                     && !measuring
                     && let Some(r) = self.running.take()

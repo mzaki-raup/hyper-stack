@@ -111,10 +111,15 @@ pub enum Format {
     Syslog,
     Nginx,
     Postgres,
+    /// A JVM thread dump (`jstack`, `kill -3`, a container's crash log):
+    /// one record per thread, its stack folded in, with the thread's name,
+    /// id, state and locks pulled out as fields (owner's request,
+    /// 2026-10-24).
+    ThreadDump,
 }
 
 impl Format {
-    pub const ALL: [Format; 7] = [
+    pub const ALL: [Format; 8] = [
         Format::Auto,
         Format::Plain,
         Format::Json,
@@ -122,6 +127,7 @@ impl Format {
         Format::Syslog,
         Format::Nginx,
         Format::Postgres,
+        Format::ThreadDump,
     ];
     pub fn label_key(self) -> &'static str {
         match self {
@@ -132,6 +138,7 @@ impl Format {
             Format::Syslog => "logs-format-syslog",
             Format::Nginx => "logs-format-nginx",
             Format::Postgres => "logs-format-postgres",
+            Format::ThreadDump => "logs-format-thread-dump",
         }
     }
     /// JSON and logfmt carry named fields, so the list can show columns.
@@ -409,6 +416,18 @@ pub fn detect(sample: &[&str]) -> Format {
     }
     let n = lines.len() as f32;
     let count = |f: fn(&str) -> bool| lines.iter().filter(|l| f(l)).count() as f32 / n;
+    // A thread dump is recognised by presence, not by proportion: most of
+    // its lines are stack frames, so no ratio test would ever pass, but
+    // the VM line, a `tid=`/`nid=` thread header and the state line are
+    // each unmistakable.
+    if lines.iter().any(|l| l.starts_with("Full thread dump"))
+        || lines.iter().any(|l| l.contains("java.lang.Thread.State:"))
+        || lines
+            .iter()
+            .any(|l| l.starts_with('"') && (l.contains("tid=") || l.contains("nid=")))
+    {
+        return Format::ThreadDump;
+    }
     if count(|l| l.starts_with('{') && serde_json::from_str::<serde_json::Value>(l).is_ok()) >= 0.6
     {
         return Format::Json;
@@ -487,6 +506,16 @@ pub fn is_continuation(format: Format, line: &str) -> bool {
         // A JSON line starts a record; anything else continues one.
         return !trimmed.starts_with('{');
     }
+    if format == Format::ThreadDump {
+        // Only a thread header, a snapshot header or a section title
+        // starts a record; every frame, monitor and state line belongs to
+        // the thread above it.
+        return !(is_thread_header(trimmed)
+            || trimmed.starts_with("Full thread dump")
+            || ISO.is_match(trimmed)
+            || trimmed.to_ascii_lowercase().contains("deadlock")
+            || trimmed.starts_with("JNI global ref"));
+    }
     if line.starts_with([' ', '\t']) {
         return true;
     }
@@ -521,9 +550,224 @@ pub fn parse(format: Format, line_no: u64, line: &str) -> Record {
         Format::Syslog => parse_syslog(&mut rec, &text),
         Format::Nginx => parse_nginx(&mut rec, &text),
         Format::Postgres => parse_postgres(&mut rec, &text),
+        Format::ThreadDump => parse_thread_dump(&mut rec, &text),
         Format::Plain | Format::Auto => parse_plain(&mut rec, &text),
     }
     rec
+}
+
+/// A thread dump's thread header:
+/// `"http-nio-8080-exec-1" #42 daemon prio=5 os_prio=0 cpu=12.34ms
+/// elapsed=100.00s tid=0x00007f nid=0x1234 waiting on condition [0x...]`
+///
+/// Everything after the name is optional and varies by JVM and version,
+/// so each piece is read where it appears rather than by position.
+static THREAD_HEADER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"^"(?P<name>(?:[^"\\]|\\.)*)"(?P<rest>.*)$"#).unwrap());
+
+/// Whether a line really is a thread header rather than a quoted thread
+/// *name* used as a reference. The deadlock section is full of the
+/// latter - `"worker-8":`, `which is held by "worker-7"` - and reading
+/// those as headers invented extra threads and split the section apart.
+pub fn is_thread_header(line: &str) -> bool {
+    let Some(c) = THREAD_HEADER.captures(line.trim_end()) else {
+        return false;
+    };
+    let rest = c.name("rest").unwrap().as_str();
+    // A header always carries at least one of the JVM's own attributes.
+    rest.contains("tid=")
+        || rest.contains("nid=")
+        || rest.contains("prio=")
+        || rest.contains(" daemon")
+        || rest.split_whitespace().any(|w| {
+            w.strip_prefix('#')
+                .is_some_and(|n| n.parse::<u64>().is_ok())
+        })
+}
+/// `java.lang.Thread.State: TIMED_WAITING (on object monitor)`
+static THREAD_STATE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*java\.lang\.Thread\.State:\s*(?P<state>[A-Z_]+)(?:\s*\((?P<detail>[^)]*)\))?")
+        .unwrap()
+});
+/// A `key=value` out of a thread header, for the numeric odds and ends.
+static HEADER_PAIR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?P<key>[a-z_]+)=(?P<value>[^\s]+)").unwrap());
+/// The monitor lines under a frame: what this thread holds and what it
+/// wants. These are what a deadlock is read from.
+static LOCK_LINE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)^\s*-\s*
+        (?P<verb>locked|waiting\ to\ lock|waiting\ on|parking\ to\ wait\ for|eliminated)
+        \s*<(?P<id>[^>]*)>
+        (?:\s*\(a\ (?P<class>[^)]*)\))?",
+    )
+    .unwrap()
+});
+
+/// The states a dump reports, as filterable values. A thread's state is a
+/// field rather than a [`Level`], because a waiting thread is not a
+/// warning - but **BLOCKED** and a deadlock are what a dump is opened to
+/// find, so those do get a level and therefore a colour.
+fn parse_thread_dump(rec: &mut Record, text: &str) {
+    let trimmed = text.trim_end();
+    // The dump's own header lines: the timestamp, the VM line, and the
+    // deadlock and JNI sections.
+    if let Some(c) = ISO.captures(trimmed)
+        && let Some(ts) = parse_timestamp(c.get(1).unwrap().as_str())
+    {
+        rec.ts = Some(ts);
+        rec.message = trimmed.trim().to_string();
+        rec.fields.push(("kind".into(), "snapshot".into()));
+        return;
+    }
+    if trimmed.starts_with("Full thread dump") {
+        rec.message = trimmed.trim().to_string();
+        rec.fields.push(("kind".into(), "snapshot".into()));
+        return;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.contains("deadlock") {
+        rec.level = Some(Level::Error);
+        rec.message = trimmed.trim().to_string();
+        rec.fields.push(("kind".into(), "deadlock".into()));
+        return;
+    }
+    let Some(c) = THREAD_HEADER
+        .captures(trimmed)
+        .filter(|_| is_thread_header(trimmed))
+    else {
+        // A section title ("JNI global refs:"), or a quoted thread name
+        // used as a reference rather than as a header.
+        rec.message = trimmed.trim().to_string();
+        return;
+    };
+    let name = c.name("name").unwrap().as_str().to_string();
+    let rest = c.name("rest").unwrap().as_str();
+    rec.message = trimmed.trim().to_string();
+    rec.fields.push(("kind".into(), "thread".into()));
+    rec.fields.push(("thread".into(), name));
+    if rest.contains(" daemon ") || rest.trim_start().starts_with("daemon") {
+        rec.fields.push(("daemon".into(), "true".into()));
+    }
+    if let Some(id) = rest
+        .split_whitespace()
+        .find_map(|w| w.strip_prefix('#'))
+        .filter(|id| !id.is_empty())
+    {
+        rec.fields.push(("id".into(), id.to_string()));
+    }
+    for p in HEADER_PAIR.captures_iter(rest) {
+        let key = p.name("key").unwrap().as_str();
+        // `tid`/`nid` identify the thread; the rest is cost and age.
+        if matches!(key, "tid" | "nid" | "prio" | "os_prio" | "cpu" | "elapsed") {
+            rec.fields.push((
+                key.to_string(),
+                p.name("value").unwrap().as_str().to_string(),
+            ));
+        }
+    }
+    // The trailing words are the JVM's own description of what the thread
+    // is doing ("waiting on condition", "runnable", "in Object.wait()"),
+    // which is kept as `activity`; the authoritative `state` arrives on
+    // the next line.
+    let described = match rest.find('[') {
+        Some(at) => &rest[..at],
+        None => rest,
+    };
+    if let Some(word) = tail_words(described) {
+        rec.fields.push(("activity".into(), word));
+    }
+}
+
+/// The JVM's description at the end of a thread header: the words after
+/// the last `key=value`, which is where "waiting on condition" and
+/// "in Object.wait()" sit.
+fn tail_words(rest: &str) -> Option<String> {
+    let start = HEADER_PAIR
+        .find_iter(rest)
+        .last()
+        .map(|m| m.end())
+        .unwrap_or(0);
+    let tail = rest[start..].trim();
+    (!tail.is_empty()).then(|| tail.to_string())
+}
+
+/// A continuation line of a thread dump record, folded into the thread it
+/// belongs to: the state line and the monitor lines carry the fields a
+/// dump is actually searched by, and they appear *below* the header.
+fn absorb_thread_dump_line(rec: &mut Record, line: &str) {
+    if let Some(c) = THREAD_STATE.captures(line) {
+        let state = c.name("state").unwrap().as_str().to_string();
+        // BLOCKED is the one state worth colouring: it is a thread that
+        // cannot proceed, which is why someone takes a dump.
+        if state == "BLOCKED" {
+            rec.level = Some(Level::Error);
+        }
+        set_field(rec, "state", &state);
+        if let Some(d) = c.name("detail") {
+            set_field(rec, "state_detail", d.as_str());
+        }
+        return;
+    }
+    if let Some(c) = LOCK_LINE.captures(line) {
+        let verb = c.name("verb").unwrap().as_str();
+        let id = c.name("id").unwrap().as_str();
+        let class = c.name("class").map(|m| m.as_str()).unwrap_or("");
+        let key = match verb {
+            "locked" => "locked",
+            "eliminated" => return,
+            _ => "waiting_for",
+        };
+        let value = if class.is_empty() {
+            id.to_string()
+        } else {
+            format!("{id} ({class})")
+        };
+        append_field(rec, key, &value);
+        return;
+    }
+    let trimmed = line.trim();
+    if let Some(frame) = trimmed.strip_prefix("at ") {
+        // The top frame is what a thread is doing right now, and the one
+        // thing worth having without opening the record.
+        if rec.field("top").is_none() {
+            set_field(rec, "top", frame);
+        }
+        let n: u32 = rec
+            .field("frames")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+        set_field(rec, "frames", &(n + 1).to_string());
+    }
+}
+
+/// Replace a field's value, or add it.
+fn set_field(rec: &mut Record, key: &str, value: &str) {
+    match rec.fields.iter_mut().find(|(k, _)| k == key) {
+        Some((_, v)) => *v = value.to_string(),
+        None => rec.fields.push((key.to_string(), value.to_string())),
+    }
+}
+
+/// Add to a field that may hold several values (a thread can hold more
+/// than one monitor).
+fn append_field(rec: &mut Record, key: &str, value: &str) {
+    match rec.fields.iter_mut().find(|(k, _)| k == key) {
+        Some((_, v)) => {
+            v.push_str(", ");
+            v.push_str(value);
+        }
+        None => rec.fields.push((key.to_string(), value.to_string())),
+    }
+}
+
+/// Fold a continuation line into the record above it, pulling out any
+/// fields that line carries. Formats other than a thread dump keep the
+/// old behaviour of simply gluing the text on.
+pub fn absorb_continuation(format: Format, rec: &mut Record, line: &str) {
+    if format == Format::ThreadDump {
+        absorb_thread_dump_line(rec, line);
+    }
 }
 
 fn parse_plain(rec: &mut Record, text: &str) {

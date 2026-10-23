@@ -404,6 +404,23 @@ pub struct AiProvider {
     pub secret_key: String,
     /// How a self-hosted image server is driven (image kinds only).
     pub image: crate::ai::ImageWorkflow,
+    /// Whether this provider's model can be sent a picture (chat kinds
+    /// only). Auto reads the model's name; see [`crate::ai::VisionSupport`].
+    pub vision: crate::ai::VisionSupport,
+}
+
+impl AiProvider {
+    /// Whether a chat request to this provider, using `model`, may carry a
+    /// picture. `model` is the chat's own choice, which may differ from
+    /// the provider's default.
+    pub fn sends_images(&self, model: &str) -> bool {
+        let model = if model.trim().is_empty() {
+            self.model.as_str()
+        } else {
+            model
+        };
+        self.kind.accepts_images() && self.vision.allows(model)
+    }
 }
 
 impl Ai {

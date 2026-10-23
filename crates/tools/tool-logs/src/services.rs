@@ -49,6 +49,12 @@ pub struct Service {
     /// A command that follows this service's log, for the hosts that have
     /// no file to read.
     pub command: Option<String>,
+    /// Where the thing being run lives, taken from the command line: a
+    /// Node or Python app writes beside itself, not beside its runtime,
+    /// so `node D:/shop/server.js` points at `D:/shop` (owner's report,
+    /// 2026-10-24).
+    #[serde(default)]
+    pub home: Option<String>,
 }
 
 impl Service {
@@ -278,6 +284,24 @@ pub fn format_for(kind: &str) -> crate::parse::Format {
     }
 }
 
+/// The glyph for a kind of server, so a row says what the thing *is*
+/// rather than only where it was found (owner's request, 2026-10-24).
+/// A kind this does not know falls back to the host's own glyph.
+pub fn icon_for(kind: &str) -> Option<&'static str> {
+    use hs_ui::icons::ph;
+    Some(match kind {
+        "nginx" | "apache" | "caddy" | "iis" | "haproxy" | "traefik" => ph::GLOBE_SIMPLE,
+        "tomcat" | "jboss" | "wildfly" | "jetty" | "quarkus" | "kestrel" => ph::STACK,
+        "keycloak" => ph::SHIELD_CHECK,
+        "postgres" | "mysql" | "mongodb" | "elasticsearch" => ph::DATABASE,
+        "redis" => ph::LIGHTNING,
+        "kafka" | "rabbitmq" => ph::QUEUE,
+        "node" => ph::FILE_JS,
+        "gunicorn" => ph::FILE_PY,
+        _ => return None,
+    })
+}
+
 /// Every path a known server might write to, whether or not it is here.
 /// The sidebar only ever offers paths that exist, but the configure form
 /// would rather start from a likely path the user can correct than from
@@ -363,7 +387,9 @@ fn run(program: &str, args: &[&str]) -> Option<String> {
 
 /// As [`run`], with arguments that are owned: the WSL probes build theirs.
 fn run_owned(program: &str, args: &[String]) -> Option<String> {
-    let out = std::process::Command::new(program)
+    // Every probe is a helper the user never sees, so none of them may
+    // flash a console window (owner's report, 2026-10-24).
+    let out = hs_core::paths::background_command(program)
         .args(args)
         .stdin(std::process::Stdio::null())
         .output()
@@ -389,6 +415,53 @@ fn decode(bytes: &[u8]) -> String {
         return String::from_utf16_lossy(&units);
     }
     String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// The directory of the thing a runtime is running, from its command
+/// line: the first argument that looks like a path to a file. `node
+/// D:/shop/server.js --port 3000` gives `D:/shop`.
+fn app_home(command_line: &str) -> Option<String> {
+    for word in command_line.split_whitespace().skip(1) {
+        let w = word.trim_matches('"');
+        if w.starts_with('-') {
+            continue;
+        }
+        let p = PathBuf::from(w);
+        if p.is_file()
+            && let Some(dir) = p.parent()
+            && dir.is_dir()
+        {
+            return Some(dir.to_string_lossy().into_owned());
+        }
+    }
+    None
+}
+
+/// The log files an application keeps beside itself, in the places
+/// everyone puts them. Existing files only.
+fn logs_under(home: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for sub in ["logs", "log", "var/log", "."] {
+        let dir = PathBuf::from(home).join(sub);
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        let mut here: Vec<String> = entries
+            .flatten()
+            .filter(|e| e.path().is_file())
+            .filter(|e| {
+                let n = e.file_name().to_string_lossy().to_ascii_lowercase();
+                n.ends_with(".log") || n.ends_with(".out") || n.ends_with(".err")
+            })
+            .map(|e| e.path().to_string_lossy().into_owned())
+            .collect();
+        here.sort();
+        out.append(&mut here);
+        if !out.is_empty() {
+            break;
+        }
+    }
+    out
 }
 
 /// A command on the host, or the same command inside a WSL
@@ -464,7 +537,15 @@ fn processes() -> Vec<Service> {
         let Some(kind) = classify(&name) else {
             continue;
         };
-        let files = known_paths(kind);
+        let home = app_home(&name);
+        let mut files = known_paths(kind);
+        // A runtime with no conventional path of its own logs beside the
+        // application it is running, if it logs to a file at all.
+        if files.is_empty()
+            && let Some(home) = &home
+        {
+            files = logs_under(home);
+        }
         out.push(Service {
             name: format!("{kind} ({pid})"),
             kind: kind.to_string(),
@@ -472,6 +553,7 @@ fn processes() -> Vec<Service> {
             handle: pid,
             files,
             command: None,
+            home,
         });
     }
     out
@@ -525,6 +607,7 @@ fn containers(via: &[String], runtime: &str) -> Vec<Service> {
                 handle,
                 files: Vec::new(),
                 command: Some(command),
+                home: None,
             })
         })
         .collect()
@@ -576,6 +659,7 @@ fn systemd_units(via: &[String]) -> Vec<Service> {
                 handle,
                 files: Vec::new(),
                 command: Some(command),
+                home: None,
             })
         })
         .collect()
@@ -609,6 +693,7 @@ fn kube_pods() -> Vec<Service> {
                 handle: pod.to_string(),
                 files: Vec::new(),
                 command: Some(format!("kubectl logs -f --tail 2000 {pod}")),
+                home: None,
             })
         })
         .collect()
@@ -638,6 +723,7 @@ mod tests {
             handle: "9f2ab3".into(),
             files: Vec::new(),
             command: Some("docker logs -f 9f2ab3".into()),
+            home: None,
         };
         assert_eq!(c.describe(), "container · 9f2ab3");
         assert_eq!(c.key(), "container:9f2ab3");
@@ -649,6 +735,7 @@ mod tests {
             handle: "1234".into(),
             files: vec!["/var/log/nginx/error.log".into()],
             command: None,
+            home: None,
         };
         assert_eq!(local.describe(), "/var/log/nginx/error.log");
         assert_eq!(local.key(), "/var/log/nginx/error.log");

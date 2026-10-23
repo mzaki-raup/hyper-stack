@@ -88,7 +88,8 @@ impl Drop for Tts {
 
 #[cfg(windows)]
 fn command(rate: i32) -> Option<Command> {
-    let mut c = Command::new("powershell.exe");
+    // See `stt::command`: no console window for Read Aloud either.
+    let mut c = crate::paths::background_command("powershell.exe");
     c.args([
         "-NoProfile",
         "-NonInteractive",

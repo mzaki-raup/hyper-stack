@@ -414,8 +414,12 @@ impl Provider {
     pub fn whole_answer_only(self) -> bool {
         self == Provider::Bedrock
     }
-    /// The chat request may carry pictures (a vision-capable model is
-    /// still needed on the other end).
+    /// The chat request may carry pictures. Whether the *model* can read
+    /// one is a separate question, answered by [`VisionSupport`]: a model
+    /// that cannot gets no picture at all, because a service handed one it
+    /// does not understand may treat the base64 as plain text and grind
+    /// through several hundred thousand tokens (owner's report,
+    /// 2026-10-24: LM Studio running a code model).
     pub fn accepts_images(self) -> bool {
         self.chats()
     }
@@ -423,6 +427,91 @@ impl Provider {
     pub fn generates_images(self) -> bool {
         self == Provider::OneMin || self.self_hosted()
     }
+}
+
+/// Whether a provider's model can read a picture. The OpenAI-compatible
+/// API says nothing about it - there is no capability field and no error
+/// a client can rely on - so a service given a picture its model cannot
+/// use may do anything, including tokenising the base64 as text, which is
+/// what made the Graphics assistant hang on LM Studio running
+/// `qwen3-coder` (owner's report, 2026-10-24).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum VisionSupport {
+    /// Decide from the model's name ([`model_reads_images`]). The default,
+    /// because it is right for the models people actually configure and
+    /// needs no setting up.
+    #[default]
+    Auto,
+    /// Always send the picture: a vision model whose name this does not
+    /// recognise.
+    Yes,
+    /// Never send the picture.
+    No,
+}
+
+impl VisionSupport {
+    /// The three settings, in the order the picker shows them.
+    pub const ALL: [Self; 3] = [Self::Auto, Self::Yes, Self::No];
+    /// The `en.ftl` key for this setting's label.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Auto => "ai-vision-auto",
+            Self::Yes => "ai-vision-yes",
+            Self::No => "ai-vision-no",
+        }
+    }
+    /// Whether a request to `model` may carry a picture.
+    pub fn allows(self, model: &str) -> bool {
+        match self {
+            Self::Auto => model_reads_images(model),
+            Self::Yes => true,
+            Self::No => false,
+        }
+    }
+}
+
+/// Whether a model's *name* says it reads pictures. Every family in use
+/// advertises it in the name, either by a vision tag (`-vl`, `vision`) or
+/// by being multimodal throughout (the Claude and Gemini lines, GPT-4o).
+/// A name this does not know is treated as text-only, which costs an
+/// answer about a picture but never a hang; **Yes** overrides it.
+pub fn model_reads_images(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    // Families that are multimodal across the board.
+    const ALWAYS: &[&str] = &[
+        "claude",
+        "gemini",
+        "gpt-4o",
+        "gpt-4.1",
+        "gpt-4-turbo",
+        "gpt-5",
+        "llava",
+        "bakllava",
+        "moondream",
+        "pixtral",
+        "internvl",
+        "cogvlm",
+        "idefics",
+    ];
+    // A vision variant of an otherwise text-only family: Qwen's `-vl`,
+    // MiniCPM-V, Gemma 3, and anything that simply says so. Kept narrow -
+    // a tag broad enough to misfire would send a picture to a model that
+    // cannot read it, which is the fault being fixed.
+    const TAGS: &[&str] = &[
+        "-vl",
+        "_vl",
+        "vl-",
+        "vision",
+        "minicpm-v",
+        "gemma-3",
+        "gemma3",
+        "multimodal",
+    ];
+    if ALWAYS.iter().any(|f| m.contains(f)) {
+        return true;
+    }
+    TAGS.iter().any(|t| m.contains(t))
 }
 
 /// How a self-hosted image server is driven: the checkpoint and sampling
@@ -699,6 +788,12 @@ impl ImagePart {
     pub fn png(data: Vec<u8>) -> Self {
         Self {
             mime: "image/png".into(),
+            data,
+        }
+    }
+    pub fn jpeg(data: Vec<u8>) -> Self {
+        Self {
+            mime: "image/jpeg".into(),
             data,
         }
     }
@@ -1802,7 +1897,10 @@ pub fn assistant_system_prompt(tool: &str) -> String {
 
 #[cfg(test)]
 mod image_tests {
-    use super::{DEFAULT_IMAGE_MODEL, ImageJob, ImageWorkflow, UpscaleMode, sdxl_size};
+    use super::{
+        DEFAULT_IMAGE_MODEL, ImageJob, ImageWorkflow, UpscaleMode, VisionSupport,
+        model_reads_images, sdxl_size,
+    };
 
     #[test]
     fn each_image_job_starts_with_a_documented_model() {
@@ -1842,6 +1940,86 @@ mod image_tests {
         assert_eq!(w.enhance_face_strength, fresh.enhance_face_strength);
         assert!(w.enhance_denoise > 0.0, "an enhancement would do nothing");
         assert!(w.comfy_upscale.is_empty());
+    }
+
+    /// The fault behind all of this: a code model handed a picture. The
+    /// name is the only thing an OpenAI-compatible service tells us, so
+    /// Auto has to read it, and has to answer **no** for anything it does
+    /// not recognise - a missed description is a worse answer, a picture
+    /// sent to a text-only model was a hang (owner's report, 2026-10-24).
+    #[test]
+    fn a_model_that_cannot_read_pictures_is_recognised_by_name() {
+        for text_only in [
+            "qwen3-coder",
+            "qwen2.5-coder-32b-instruct",
+            "deepseek-chat",
+            "deepseek-reasoner",
+            "codellama:13b",
+            "mistral-small",
+            "phi-4",
+            "",
+        ] {
+            assert!(
+                !model_reads_images(text_only),
+                "{text_only} should not be sent a picture"
+            );
+        }
+        for vision in [
+            "claude-sonnet-4-5",
+            "gemini-2.5-pro",
+            "gpt-4o-mini",
+            "qwen2.5-vl-7b-instruct",
+            "Qwen2-VL-72B",
+            "llava-v1.6-mistral-7b",
+            "minicpm-v-2.6",
+            "gemma-3-27b-it",
+            "pixtral-12b",
+            "some-model-with-vision",
+        ] {
+            assert!(model_reads_images(vision), "{vision} does read pictures");
+        }
+    }
+
+    /// Auto is a guess; the two explicit settings must beat it in both
+    /// directions, for a vision model this does not know and for a model
+    /// whose name lies.
+    #[test]
+    fn the_vision_setting_overrides_what_the_name_suggests() {
+        assert!(!VisionSupport::Auto.allows("qwen3-coder"));
+        assert!(VisionSupport::Yes.allows("qwen3-coder"));
+        assert!(VisionSupport::Auto.allows("claude-sonnet-4-5"));
+        assert!(!VisionSupport::No.allows("claude-sonnet-4-5"));
+        assert_eq!(VisionSupport::default(), VisionSupport::Auto);
+    }
+
+    /// A provider saved before this setting existed must come back as
+    /// Auto, not as the field type's first variant by accident, and must
+    /// keep deciding per model. The container's `serde(default)` does it;
+    /// a field-level one would not.
+    #[test]
+    fn an_older_provider_decides_pictures_from_the_model_name() {
+        let old = r#"
+            id = "p1"
+            name = "My LM Studio"
+            kind = "openai"
+            base_url = "http://127.0.0.1:1234/v1"
+            api_key = ""
+            model = "qwen3-coder"
+        "#;
+        let p: crate::settings::AiProvider = toml::from_str(old).unwrap();
+        assert_eq!(p.vision, VisionSupport::Auto);
+        assert!(
+            !p.sends_images(""),
+            "a code model must not be handed a picture"
+        );
+        assert!(
+            !p.sends_images("qwen3-coder"),
+            "the chat's own model is read too"
+        );
+        assert!(
+            p.sends_images("qwen2.5-vl-7b"),
+            "switching the chat to a vision model sends it"
+        );
     }
 
     #[test]

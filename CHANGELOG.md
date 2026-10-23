@@ -11,7 +11,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Logs reads JVM thread dumps (`jstack`, `kill -3`) as a format of their
+  own: one record per thread with its stack folded in, and the thread's
+  name, id, daemon flag, priority, `tid`/`nid`, state, top frame, frame
+  count, the monitor it holds and the monitor it waits for as fields a
+  filter can use. `BLOCKED` threads and the deadlock section are
+  coloured as errors; repeated dumps in one file stay separate
+  snapshots. **Open Thread Dump…** sits beside **Open File…** in the
+  toolbar, the dashboard and the empty state, and reads the file as a
+  dump whatever it is called; pasting a dump into **Add Source** works
+  the same way, and **Auto** detects one.
+- A per-provider **Reads Pictures** setting for the AI assistant
+  (Settings → AI Assistant), defaulting to Auto, which decides from the
+  model's name. A model that cannot read pictures is no longer sent one,
+  and the assistant says so rather than answering about an image it
+  never saw.
+- The assistant shows how long a request has been waiting, so a slow
+  service reads as slow rather than as a frozen pane.
+
+### Fixed
+
+- The Graphics assistant hung when asked to describe a picture. The
+  attachment was a PNG at quality 100 - 2.8 MB of base64 for a
+  photograph - which a service whose model cannot read pictures
+  tokenises as text. The picture now goes as a JPEG once its PNG passes
+  400 KB, and stays a PNG below that so a screenshot's small text is not
+  smeared; transparency always keeps PNG.
+- The Graphics assistant rebuilt and cloned its picture attachment every
+  frame the pane was open.
+- No OS console window is opened behind the app's back any more: the
+  microphone (`hs_core::stt`), Read Aloud (`hs_core::tts`) and the
+  updater's liveness probe spawned PowerShell and `tasklist` without
+  suppressing the window, so a console flashed on screen every time.
+  They go through `paths::background_command` like every other internal
+  command.
 
 ## 0.81.0 — 2026-10-23
 

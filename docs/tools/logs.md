@@ -155,6 +155,7 @@ Auto-detected from the first 64 lines, overridable per source:
 | Nginx/Apache combined | ip, time, method, path, status, bytes, referer, ua, request time |
 | Postgres / MySQL slow log | timestamp, pid, level, statement, duration |
 | Java / .NET / Python / Node stack traces | continuation grouping, file:line extraction |
+| **Thread Dump (Java)** | one record per thread: `thread`, `id`, `daemon`, `prio`, `os_prio`, `cpu`, `elapsed`, `tid`, `nid`, `activity`, `state`, `state_detail`, `top`, `frames`, `locked`, `waiting_for`, `kind` |
 | Docker/k8s timestamps prefix | strips and uses the runtime timestamp |
 
 Parsers are pure functions with fixture tests. Level normalisation:
@@ -477,3 +478,57 @@ No background daemon, no writing to a log source, no network calls of its own
 beyond the assistant provider and the sources already supported. Protected
 environments are unaffected except where they already are: a command-stdout
 source still asks for confirmation.
+
+## 17. Thread dumps (2026-10-24)
+
+Owner's request. A JVM thread dump (`jstack`, `kill -3`, a crash log) is a
+**Thread Dump** source rather than a wall of plain text.
+
+**One record per thread.** The thread header starts a record and every
+frame, monitor and state line below it folds in, so a dump of 400 threads
+is 400 collapsible rows rather than 8,000 lines. Nothing is dropped: the
+records put back together are the file again, which
+`tests/thread_dump.rs` asserts directly.
+
+**The fields a dump is searched by come from below the header.** A thread's
+authoritative state (`java.lang.Thread.State: BLOCKED (on object monitor)`)
+and its monitors (`- locked <0x…>`, `- waiting to lock <0x…>`) are printed
+*under* the header, so `parse::absorb_continuation` reads them as those
+lines are folded in. `locked` and `waiting_for` hold the same address for
+the holder and the waiter, which is what makes contention findable: filter
+on one address and both threads appear.
+
+**State is a field, not a level** — a waiting thread is not a warning, and
+pretending otherwise would make every dump look alarming. The two
+exceptions get a level, and therefore a colour, because they are what a
+dump is opened to find: `BLOCKED` threads and the `Found one Java-level
+deadlock` section are **ERROR**.
+
+**A quoted name is not always a header.** The deadlock section is full of
+references — `"worker-8":`, `which is held by "worker-7"` — and reading
+those as headers invented threads that do not exist and split the section
+apart. `parse::is_thread_header` therefore requires one of the JVM's own
+attributes (`tid=`, `nid=`, `prio=`, `daemon`, `#<id>`) and not merely a
+leading quote.
+
+**Detection is by presence, not proportion.** Most of a dump's lines are
+stack frames, so no 60% ratio test could ever pass; the VM line, a
+`tid=`/`nid=` header or a `java.lang.Thread.State:` line anywhere in the
+sample is conclusive. A plain log that happens to contain a stack trace
+still reads as Plain.
+
+**Repeated dumps stay separate.** `jstack` on a loop writes many snapshots
+into one file; each `Full thread dump` line starts its own record, as does
+the leading timestamp, both tagged `kind=snapshot`.
+
+**Getting one in.** **Open Thread Dump…** sits beside **Open File…** in
+the toolbar, the dashboard and the empty state, and reads the file as a
+dump whatever its extension; **Add Source** takes a pasted dump with the
+same format picker; **Auto** recognises one either way.
+
+### 17.1 Not yet
+
+Per-state counts in the dashboard, and cross-referencing a deadlock cycle
+into the threads it names, are the obvious next steps and are not built.
+Non-JVM dumps (Go's goroutine dump, .NET's `dotnet-dump`) are a different
+grammar and are not covered.

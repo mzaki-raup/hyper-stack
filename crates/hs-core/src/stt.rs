@@ -286,7 +286,10 @@ fn command(language: &str, max_secs: u32) -> Option<Command> {
     } else {
         "SpeechRecognitionEngine".to_string()
     };
-    let mut c = Command::new("powershell.exe");
+    // Through `background_command`: a bare `Command::new` here put a
+    // PowerShell console on screen every time the microphone was used
+    // (owner's rule, 2026-10-24: the app never opens an OS terminal).
+    let mut c = crate::paths::background_command("powershell.exe");
     c.args([
         "-NoProfile",
         "-NonInteractive",

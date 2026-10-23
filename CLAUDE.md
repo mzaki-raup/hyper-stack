@@ -32,7 +32,11 @@ InvokeAI or Fooocus server with per-provider workflow settings,
 `hs-core::ai_local` - feed the Graphics activity); the **Logs** activity
 (`tool-logs`, 2026-10-22: local files followed like `tail -F`, SSH files
 through `hs_ssh::SshClient::exec`, command output, pasted text; parsers
-for plain, JSON lines, logfmt, syslog, Nginx and PostgreSQL; filter chips,
+for plain, JSON lines, logfmt, syslog, Nginx, PostgreSQL and - since
+2026-10-24 - **JVM thread dumps** (one record per thread with its stack
+folded in and its state, locks and top frame as filterable fields,
+`docs/tools/logs.md` §17, opened with **Open Thread Dump…** or pasted);
+filter chips,
 highlights, find, jump to time, bookmarks, saved sources and presets);
 the bottom dock's Logs tab shows the app's own log at the level set in
 Settings → General → Behaviour; since 2026-10-23 the **updater downloads
@@ -172,6 +176,18 @@ in the same commit.
   a selection copies it to the clipboard and clears the selection; right-click
   with no selection pastes the clipboard at the cursor. A per-tool setting may
   turn it off; the default is on. Owner's rule, 2026-10-11.
+- **The app never opens an OS terminal.** Every command HyperStack runs
+  for itself goes through `hs_core::paths::background_command`, which
+  sets `CREATE_NO_WINDOW` on Windows; a bare `std::process::Command::new`
+  for an internal command is a bug, because it flashes a console on
+  screen (the microphone, Read Aloud and the updater's `tasklist` probe
+  all did until 2026-10-24). A command whose *output the user is meant to
+  see* belongs in a surface the app owns - the Terminal activity, the
+  editor's terminal panel, a Logs tab, the DAP console - never a console
+  of its own. The only commands that may open something outside the app
+  are the deliberate hand-offs to the OS: `explorer`/`open`/`xdg-open`
+  for Reveal in Explorer and the updater relaunching the app itself.
+  Owner's rule, 2026-10-24.
 - **Cross-platform core.** Windows ships first, but `hs-core`, `hs-ui`,
   `hs-editor`, `hs-term` and every tool must compile on Linux and macOS.
   Platform code lives only in `hs-core::secrets`, `hs-core::storage::paths`,
@@ -565,6 +581,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   failed writes are rolled back. Delete `target/debug/incremental` — it is
   cache, the artifacts in `debug/deps` stay, and the next build is not a
   full rebuild. Check it after a long session of repeated builds.
+- A debug link can fail with `LINK : fatal error LNK1140: limit exceeded
+  for program database` once `target/debug` has grown large enough: the
+  PDB has outgrown its format limit, and no code change causes or fixes
+  it. Do **not** reach for `CARGO_PROFILE_DEV_DEBUG=0` on the command
+  line as a workaround - it changes every crate's fingerprint, triggers a
+  full rebuild of the whole workspace beside the artifacts that are
+  already there, and filled D: within minutes (os error 112 / "no space
+  on device" mid-build). Delete `target/debug/incremental` first, and if
+  it recurs set the profile's debug level in `Cargo.toml` so the
+  fingerprint is stable rather than passing it per invocation.
 - `cargo test --workspace` on this machine can die with "the paging file
   is too small" (os error 1455) and then "found invalid metadata files for
   crate …" on every later run: the parallel test build exhausts the
@@ -1047,6 +1073,31 @@ above). Keep each entry short: what went wrong, why, what to do instead.
 - Its docs host (`docs.1min.ai`) and `chatplayground.ai` do not resolve from
   the cloud sandbox; test against a local mock server that speaks both SSE
   formats (the OpenAI one ends with `data: [DONE]`).
+- **Never send a picture to a model that cannot read one, and never send
+  a big one.** The Graphics assistant attached a 1024 px PNG at quality
+  100, which for a photograph is ~2 MB - 2.8 MB of base64 in the request
+  body (measured, `tool-graphics/tests/attachment.rs`) - and
+  `Provider::accepts_images` was simply `chats()`, so every chat provider
+  got it. A service whose model has no vision adapter may tokenise that
+  blob as **text**: ~700 k tokens, which reads as the app hanging
+  (owner's report, 2026-10-24, LM Studio running `qwen3-coder`). The
+  OpenAI-compatible API has no capability field and no reliable error for
+  this, so the model's *name* is the only signal: `ai::VisionSupport`
+  (Auto/Yes/No, per provider) with `model_reads_images` as the Auto rule,
+  which answers **no** for anything it does not recognise - a missing
+  description is a worse answer, a picture to a text-only model was a
+  hang. Size follows measurement rather than a guess: PNG while it is
+  under 400 KB (a screenshot or diagram, where JPEG would smear the small
+  text the model is being asked to read), JPEG above it (a photograph,
+  where JPEG is invisible), PNG always when there is transparency.
+- Diagnosing "the app hangs" on an assistant: the request is spawned on
+  the runtime, so the UI thread is not blocked and the pane is not
+  frozen - what is missing is any sign of time passing, because
+  `http_client`'s `read_timeout` only fires on a **silent** connection
+  and a service slowly grinding through a huge prompt never trips it. Ask
+  which providers fail before suspecting the code: two providers sharing
+  one request path (DeepSeek and LM Studio are both `openai_body`) where
+  only one hangs rules out the body shape and points at the payload.
 
 ### Shell (2026-10-15)
 - `Theme::apply` used to call `ctx.set_visuals`, which writes only the
@@ -1356,6 +1407,28 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `D:\Temp\opencode\seed_s3.py`. The fixture projects under `D:\Temp`
   (`ir-conflict`, `lsp-demo`, `debug-demo`) had been cleaned away too;
   `make_fixtures.py` in the session scratchpad rebuilds them.
+
+### Logs (tool-logs)
+- **A quoted name in a thread dump is not always a thread header.** The
+  deadlock section is full of references - `"worker-8":`, `which is held
+  by "worker-7"` - and treating any line starting with `"` as a header
+  invented threads that do not exist and tore the deadlock section into
+  pieces. `parse::is_thread_header` requires one of the JVM's own
+  attributes (`tid=`, `nid=`, `prio=`, `daemon`, `#<id>`).
+- A thread dump cannot be detected by proportion the way the other
+  formats are: almost every line is a stack frame, so no 60% ratio test
+  passes. Detect on **presence** of the VM line, a `tid=`/`nid=` header
+  or a `java.lang.Thread.State:` line anywhere in the sample.
+- A dump prints a thread's state and its monitors on the lines *below*
+  the header, so those fields cannot come from `parse` (it sees one line).
+  `parse::absorb_continuation` reads them as the engine folds each
+  continuation line in; any future format whose fields arrive after its
+  header needs the same hook.
+- Assert "nothing was lost" by **reassembling**: joining every record's
+  `raw` with newlines must equal the input file. Counting
+  `raw.lines()` instead silently miscounts, because `"a\n".lines()` is 1
+  and trailing blank lines vanish - which looked like dropped lines when
+  the parser was in fact correct.
 
 ### Rust / build
 - Merging a release bump (`chore(release): vX.Y.Z`) into a branch that

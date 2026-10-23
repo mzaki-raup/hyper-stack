@@ -867,8 +867,28 @@ fn form_body(
                 );
                 model_field(ui, d, "ai-models", |p| &mut p.model, kind.default_model());
                 ui.end_row();
+                // Whether a picture may go with a question. Auto reads the
+                // model's name, which is right for the models people
+                // configure and keeps a code model from being handed an
+                // image it would tokenise as text.
+                form::label(ui, &s.t("ai-vision"));
+                let here = d.provider.vision;
+                egui::ComboBox::from_id_salt("ai-vision")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(s.t(here.key()))
+                    .show_ui(ui, |ui| {
+                        for v in ai::VisionSupport::ALL {
+                            if ui.selectable_label(here == v, s.t(v.key())).clicked() {
+                                d.provider.vision = v;
+                            }
+                        }
+                    });
+                ui.end_row();
             }
         });
+        if cap == Capability::Chat {
+            form::hint(ui, theme, &s.t("ai-vision-hint"));
+        }
         if cap == Capability::Chat {
             form::hint(
                 ui,

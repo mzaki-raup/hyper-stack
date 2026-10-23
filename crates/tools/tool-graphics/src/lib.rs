@@ -212,6 +212,9 @@ pub struct GraphicsTool {
     /// Bumped whenever the shown picture is re-rendered, so the assistant's
     /// attachment (a PNG of it) is encoded once per change, not per frame.
     render_version: u64,
+    /// The `render_version` whose picture is already on the assistant, so
+    /// the attachment is not rebuilt and re-cloned every frame.
+    attach_sent: Option<u64>,
     attach_cache: Option<(u64, hs_core::ai::ImagePart)>,
     /// The Generate Picture form in the assistant column.
     generate: GenState,
@@ -348,6 +351,7 @@ impl Default for GraphicsTool {
             draft_hash: 0,
             crop_drag: None,
             render_version: 0,
+            attach_sent: None,
             attach_cache: None,
             generate: GenState::default(),
             new_image: None,
@@ -572,8 +576,23 @@ impl GraphicsTool {
         } else {
             img.clone()
         };
+        // PNG while it is small, JPEG once it is not. A 1024 px PNG of a
+        // *photograph* is about 2 MB - 2.8 MB once base64'd into the
+        // request body - and a service whose model cannot read pictures
+        // may tokenise all of it as text, which is what hung the
+        // assistant on LM Studio (owner's report, 2026-10-24). But a
+        // screenshot, diagram or icon compresses to a couple of hundred
+        // KB as PNG and is the one case where JPEG does visible harm: it
+        // smears small text, which the model is often being asked to
+        // read. So the format follows the measurement rather than a
+        // guess, and transparency keeps PNG regardless - flattening it
+        // onto a colour would change what is being asked about.
         let png = ops::encode(&small, Format::Png, 100).ok()?;
-        let part = hs_core::ai::ImagePart::png(png);
+        let part = if png.len() <= PNG_BUDGET || has_transparency(&small) {
+            hs_core::ai::ImagePart::png(png)
+        } else {
+            hs_core::ai::ImagePart::jpeg(ops::encode(&small, Format::Jpeg, 82).ok()?)
+        };
         self.attach_cache = Some((self.render_version, part.clone()));
         Some(part)
     }
@@ -2099,6 +2118,26 @@ fn human_size(n: usize) -> String {
     }
 }
 
+/// How large the assistant's copy of a picture may be as a PNG before it
+/// is sent as a JPEG instead. Chosen from measurement: a 1024 px
+/// screenshot lands near 180 KB and a photograph near 2 MB, so this
+/// separates the two without cutting either fine.
+const PNG_BUDGET: usize = 400 * 1024;
+
+/// Whether any pixel is not fully opaque. Decides whether a picture going
+/// to the assistant has to stay a PNG: flattening transparency onto a
+/// colour would change what the question is about.
+fn has_transparency(img: &DynamicImage) -> bool {
+    match img {
+        DynamicImage::ImageRgb8(_)
+        | DynamicImage::ImageRgb16(_)
+        | DynamicImage::ImageRgb32F(_)
+        | DynamicImage::ImageLuma8(_)
+        | DynamicImage::ImageLuma16(_) => false,
+        other => other.to_rgba8().pixels().any(|p| p.0[3] < u8::MAX),
+    }
+}
+
 impl GraphicsTool {
     fn settings_panel(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services.clone();
@@ -3202,9 +3241,14 @@ impl Tool for GraphicsTool {
                     .layout(egui::Layout::top_down(egui::Align::Min)),
             );
             child.set_clip_rect(panel.intersect(ui.clip_rect()));
-            // The picture itself goes with the question: a PNG of what is
-            // shown, downscaled, encoded once per change.
-            self.assistant.attachment = self.attachment_part();
+            // The picture itself goes with the question: what is shown,
+            // downscaled and encoded once per change. Assigned only when
+            // it changed - the attachment is a few hundred KB and this
+            // runs every frame the pane is open.
+            if self.attach_sent != Some(self.render_version) {
+                self.assistant.attachment = self.attachment_part();
+                self.attach_sent = Some(self.render_version);
+            }
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))
@@ -3216,6 +3260,7 @@ impl Tool for GraphicsTool {
                 });
         } else {
             self.assistant.attachment = None;
+            self.attach_sent = None;
         }
     }
 

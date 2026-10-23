@@ -79,6 +79,10 @@ impl Shared {
             if last.message.is_empty() {
                 last.message = line.trim().to_string();
             }
+            // A thread dump carries its state and its monitors on the
+            // lines *below* the thread header, so the fields it is
+            // searched by are read as those lines are folded in.
+            parse::absorb_continuation(format, last, line);
             self.version += 1;
             return;
         }
@@ -442,13 +446,18 @@ fn run_local_command(
     stop: &AtomicBool,
     wake: &Arc<dyn Fn() + Send + Sync>,
 ) {
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
+    // `background_command`, not `Command::new`: a GUI app that spawns a
+    // console program flashes a console window on Windows, and a followed
+    // command keeps one open for as long as the tab lives. HyperStack has
+    // its own terminal; it should never put a stray one on the desktop
+    // (owner's report, 2026-10-24).
     let mut cmd = if cfg!(windows) {
-        let mut c = Command::new("cmd");
+        let mut c = hs_core::paths::background_command("cmd");
         c.args(["/C", command]);
         c
     } else {
-        let mut c = Command::new("sh");
+        let mut c = hs_core::paths::background_command("sh");
         c.args(["-c", command]);
         c
     };

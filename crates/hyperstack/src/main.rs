@@ -188,7 +188,7 @@ fn wait_for_exit(pid: u32) {
 
 #[cfg(windows)]
 fn process_alive(pid: u32) -> bool {
-    std::process::Command::new("tasklist")
+    hs_core::paths::background_command("tasklist")
         .args(["/FI", &format!("PID eq {pid}"), "/NH"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).contains(&pid.to_string()))

@@ -1258,7 +1258,7 @@ impl LogsTool {
             self.state
                 .chips
                 .iter()
-                .map(|c| c.label())
+                .map(|c| c.label_with(&sh.aliases))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -1556,6 +1556,8 @@ impl LogsTool {
     fn chip_row(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         let mut remove: Option<usize> = None;
         let mut toggle: Option<usize> = None;
+        // Levels read in the source's own words (docs/tools/logs.md §6).
+        let aliases = self.shared.lock().aliases.clone();
         ui.horizontal_wrapped(|ui| {
             ui.label(egui::RichText::new(ph::FUNNEL).color(theme.text_muted));
             for (i, chip) in self.state.chips.iter().enumerate() {
@@ -1572,7 +1574,10 @@ impl LogsTool {
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
                             if ui
-                                .add(egui::Label::new(chip.label()).sense(egui::Sense::click()))
+                                .add(
+                                    egui::Label::new(chip.label_with(&aliases))
+                                        .sense(egui::Sense::click()),
+                                )
                                 .tip(s.t("logs-chip-negate-tip"))
                                 .clicked()
                             {
@@ -2372,11 +2377,12 @@ impl LogsTool {
                     match c.kind {
                         2 => {
                             form::label(ui, &s.t("logs-chip-level"));
+                            let aliases = self.shared.lock().aliases.clone();
                             egui::ComboBox::from_id_salt("logs-chip-level")
-                                .selected_text(c.level.label())
+                                .selected_text(aliases.name(c.level))
                                 .show_ui(ui, |ui| {
                                     for l in Level::ALL {
-                                        ui.selectable_value(&mut c.level, l, l.label());
+                                        ui.selectable_value(&mut c.level, l, aliases.name(l));
                                     }
                                 });
                             ui.end_row();

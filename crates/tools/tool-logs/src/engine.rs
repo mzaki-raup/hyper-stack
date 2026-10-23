@@ -60,6 +60,8 @@ pub struct Shared {
     /// The source's first 64 lines were larger than OPEN_BYTES, so the view
     /// starts part-way through the file.
     pub truncated_start: bool,
+    /// How this source spells each level, learned as records arrive.
+    pub aliases: parse::LevelAliases,
 }
 
 impl Shared {
@@ -77,6 +79,15 @@ impl Shared {
             return;
         }
         let rec = parse::parse(format, self.lines, line);
+        // Learn the source's own spelling of each level, at most six
+        // lookups for the whole log.
+        if let Some(l) = rec.level
+            && self.aliases.wants(l)
+            && let Some(token) = parse::level_token(&rec)
+        {
+            let token = token.to_string();
+            self.aliases.learn(l, &token);
+        }
         self.records.push(rec);
         if self.records.len() > WINDOW {
             let extra = self.records.len() - WINDOW;
@@ -95,6 +106,8 @@ impl Shared {
     fn reparse(&mut self, format: Format, sample: &[String]) {
         self.records.clear();
         self.lines = 0;
+        // A different parser may name levels differently.
+        self.aliases.clear();
         for l in sample {
             self.push_line(format, l);
         }

@@ -25,6 +25,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- **Logs: every spelling of a level is recognised, in any case.** The
+  parser knew `WRN`, `DBG`, `INF` and `TRC` but the scanner that finds a
+  level in a plain or syslog line did not, so a log using the short forms
+  showed no level at all. Both now read one list, which cannot drift.
+  Well-known keys are matched without regard to case or writer's
+  convention, so `Level`, `LEVEL`, `LogLevel`, `levelname` and Serilog's
+  `@l` are all the level; the same for the timestamp and message keys. A
+  field chip the user named still matches that key exactly.
+- **Logs: a filter chip names a level the way the source spells it**, so a
+  Docker log reads `level ≥ warning` and one that writes WARN reads
+  `level ≥ WARN`. The comparison is the same ordered one either way.
+
 - **Logs: a quiet source looked empty until you picked a parser by hand.**
   With the format on Auto the engine buffered every line until sixty-four
   had arrived before showing any, so `journalctl -f -u docker` on an idle

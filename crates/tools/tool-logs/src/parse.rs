@@ -41,18 +41,60 @@ impl Level {
         }
     }
 
+    /// Many spellings into one. This is the single list: `Level::parse`
+    /// reads it, and `LEVEL_TOKEN` - the regex that finds a level in a
+    /// plain or syslog line - is built from it, so the two can never
+    /// disagree about what a level looks like. They had: the parser knew
+    /// `WRN`, `DBG`, `INF` and `TRC`, the scanner did not, so a log that
+    /// used the short forms showed no level at all (owner's report,
+    /// 2026-10-23).
+    ///
+    /// Syslog's numeric severities are deliberately absent: a bare digit
+    /// in prose is not a level, so they are handled by `parse` alone,
+    /// where the caller already knows the field is one.
+    pub const ALIASES: &'static [(&'static str, Level)] = &[
+        ("TRACE", Level::Trace),
+        ("TRC", Level::Trace),
+        ("VERBOSE", Level::Trace),
+        ("FINEST", Level::Trace),
+        ("DEBUG", Level::Debug),
+        ("DBG", Level::Debug),
+        ("FINER", Level::Debug),
+        ("FINE", Level::Debug),
+        ("INFORMATION", Level::Info),
+        ("INFO", Level::Info),
+        ("INF", Level::Info),
+        ("NOTICE", Level::Info),
+        ("WARNING", Level::Warn),
+        ("WARN", Level::Warn),
+        ("WRN", Level::Warn),
+        ("ERROR", Level::Error),
+        ("ERR", Level::Error),
+        ("SEVERE", Level::Error),
+        ("CRITICAL", Level::Fatal),
+        ("CRIT", Level::Fatal),
+        ("EMERGENCY", Level::Fatal),
+        ("EMERG", Level::Fatal),
+        ("FATAL", Level::Fatal),
+        ("PANIC", Level::Fatal),
+        ("ALERT", Level::Fatal),
+    ];
+
     /// Many spellings into one: `WARNING`, `ERR`, `CRIT`, Go's `warn`,
     /// Python's `CRITICAL`, syslog's numeric severities (0-7).
     pub fn parse(token: &str) -> Option<Level> {
         let t = token.trim().trim_matches(|c: char| !c.is_alphanumeric());
-        Some(match t.to_ascii_uppercase().as_str() {
-            "TRACE" | "TRC" | "VERBOSE" | "FINEST" | "7" => Level::Trace,
-            "DEBUG" | "DBG" | "FINE" | "FINER" | "6" => Level::Debug,
-            "INFO" | "INF" | "INFORMATION" | "NOTICE" | "5" => Level::Info,
-            "WARN" | "WARNING" | "WRN" | "4" => Level::Warn,
-            "ERROR" | "ERR" | "SEVERE" | "3" => Level::Error,
-            "FATAL" | "CRIT" | "CRITICAL" | "PANIC" | "EMERG" | "EMERGENCY" | "ALERT" | "2"
-            | "1" | "0" => Level::Fatal,
+        let upper = t.to_ascii_uppercase();
+        if let Some((_, l)) = Self::ALIASES.iter().find(|(name, _)| *name == upper) {
+            return Some(*l);
+        }
+        Some(match upper.as_str() {
+            "7" => Level::Trace,
+            "6" => Level::Debug,
+            "5" => Level::Info,
+            "4" => Level::Warn,
+            "3" => Level::Error,
+            "2" | "1" | "0" => Level::Fatal,
             _ => return None,
         })
     }
@@ -98,6 +140,87 @@ impl Format {
     }
 }
 
+/// How a source spells each level. `WARN`, `warning` and syslog's `4` all
+/// mean the same thing, and HyperStack normalises them so a filter and a
+/// saved preset mean the same across sources. The screen should still read
+/// in the source's own words, so the first spelling each level arrives in
+/// is remembered and used for labels (owner's request, 2026-10-23).
+///
+/// Learning stops once all six are known, so a long log pays for at most
+/// six lookups.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LevelAliases([Option<String>; 6]);
+
+impl LevelAliases {
+    fn slot(level: Level) -> usize {
+        match level {
+            Level::Trace => 0,
+            Level::Debug => 1,
+            Level::Info => 2,
+            Level::Warn => 3,
+            Level::Error => 4,
+            Level::Fatal => 5,
+        }
+    }
+
+    /// Whether this level's spelling is still unknown, so the caller can
+    /// skip looking for one.
+    pub fn wants(&self, level: Level) -> bool {
+        self.0[Self::slot(level)].is_none()
+    }
+
+    /// Remember how this source spells `level`. A token that is only a
+    /// number (syslog's severities) is not a name anyone wants on a
+    /// filter chip, so it is ignored and the canonical label stands.
+    pub fn learn(&mut self, level: Level, token: &str) {
+        let t = token.trim();
+        if t.is_empty() || t.chars().all(|c| c.is_ascii_digit()) {
+            return;
+        }
+        let slot = Self::slot(level);
+        if self.0[slot].is_none() {
+            self.0[slot] = Some(t.to_string());
+        }
+    }
+
+    /// What to call this level on screen: the source's spelling, or the
+    /// canonical one when the source has not shown it yet.
+    pub fn name(&self, level: Level) -> &str {
+        match &self.0[Self::slot(level)] {
+            Some(t) => t.as_str(),
+            None => level.label(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.0 = Default::default();
+    }
+}
+
+/// The token in `rec` that named its level, if one can be found: the
+/// `level`/`severity`/`lvl` field a structured parser pulled out, else the
+/// word in the raw line that `LEVEL_TOKEN` matched.
+pub fn level_token(rec: &Record) -> Option<&str> {
+    for key in [
+        "level",
+        "severity",
+        "lvl",
+        "loglevel",
+        "log_level",
+        "levelname",
+    ] {
+        if let Some(v) = rec.field_ci(key)
+            && Level::parse(v).is_some()
+        {
+            return Some(v);
+        }
+    }
+    LEVEL_TOKEN
+        .captures(&rec.raw)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+}
+
 /// One parsed record: a line and the continuation lines glued to it.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Record {
@@ -118,6 +241,20 @@ impl Record {
             .find(|(k, _)| k == name)
             .map(|(_, v)| v.as_str())
     }
+
+    /// A field by a name whose case the writer chose, not the reader:
+    /// `level`, `Level` and `LEVEL` are the same key, and so are
+    /// `@timestamp` and `@Timestamp`. Used for the well-known keys a
+    /// parser looks up on its own (the level, the timestamp, the
+    /// message), while [`Record::field`] stays exact for a field the user
+    /// named, where the key they picked is the key they meant. Owner's
+    /// request, 2026-10-23.
+    pub fn field_ci(&self, name: &str) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    }
 }
 
 static ISO: LazyLock<Regex> = LazyLock::new(|| {
@@ -128,11 +265,17 @@ static ISO: LazyLock<Regex> = LazyLock::new(|| {
     )
     .unwrap()
 });
+/// Built from [`Level::ALIASES`], longest spelling first so the
+/// alternation prefers `WARNING` over `WARN` and `INFORMATION` over
+/// `INFO` rather than stopping at the shorter prefix.
 static LEVEL_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(
-        r"(?i)(?:^|[\s\[\(\|:])(TRACE|DEBUG|INFO|INFORMATION|NOTICE|WARNING|WARN|ERROR|ERR|SEVERE|FATAL|CRITICAL|CRIT|PANIC|EMERG)(?:$|[\s\]\)\|:])",
-    )
-    .unwrap()
+    let mut names: Vec<&str> = Level::ALIASES.iter().map(|(n, _)| *n).collect();
+    names.sort_by_key(|n| std::cmp::Reverse(n.len()));
+    Regex::new(&format!(
+        r"(?i)(?:^|[\s\[\(\|:])({})(?:$|[\s\]\)\|:])",
+        names.join("|")
+    ))
+    .expect("level alternation")
 });
 static SYSLOG: LazyLock<Regex> = LazyLock::new(|| {
     // RFC 3164: `Oct 22 14:32:01 host app[123]: msg`; RFC 5424:
@@ -394,7 +537,7 @@ fn parse_json(rec: &mut Record, text: &str) {
         "date",
         "datetime",
     ] {
-        if let Some(v) = rec.field(k) {
+        if let Some(v) = rec.field_ci(k) {
             rec.ts = parse_timestamp(v);
             if rec.ts.is_some() {
                 break;
@@ -408,17 +551,19 @@ fn parse_json(rec: &mut Record, text: &str) {
         "loglevel",
         "log.level",
         "levelname",
+        "log_level",
+        "@l",
     ] {
-        if let Some(v) = rec.field(k) {
+        if let Some(v) = rec.field_ci(k) {
             rec.level = Level::parse(v);
             if rec.level.is_some() {
                 break;
             }
         }
     }
-    rec.message = ["msg", "message", "text", "event", "log"]
+    rec.message = ["msg", "message", "text", "event", "log", "@m"]
         .iter()
-        .find_map(|k| rec.field(k).map(str::to_string))
+        .find_map(|k| rec.field_ci(k).map(str::to_string))
         .unwrap_or_else(|| text.trim().to_string());
 }
 
@@ -429,26 +574,32 @@ fn parse_logfmt(rec: &mut Record, text: &str) {
         return;
     }
     rec.fields = pairs;
-    for k in ["ts", "time", "t", "timestamp"] {
-        if let Some(v) = rec.field(k) {
+    for k in ["ts", "time", "t", "timestamp", "date", "datetime"] {
+        if let Some(v) = rec.field_ci(k) {
             rec.ts = parse_timestamp(v);
             if rec.ts.is_some() {
                 break;
             }
         }
     }
-    for k in ["level", "lvl", "severity"] {
-        if let Some(v) = rec.field(k) {
+    for k in [
+        "level",
+        "lvl",
+        "severity",
+        "loglevel",
+        "log_level",
+        "levelname",
+    ] {
+        if let Some(v) = rec.field_ci(k) {
             rec.level = Level::parse(v);
             if rec.level.is_some() {
                 break;
             }
         }
     }
-    rec.message = rec
-        .field("msg")
-        .or_else(|| rec.field("message"))
-        .map(str::to_string)
+    rec.message = ["msg", "message", "text", "event"]
+        .iter()
+        .find_map(|k| rec.field_ci(k).map(str::to_string))
         .unwrap_or_else(|| text.trim().to_string());
 }
 
@@ -503,7 +654,9 @@ fn absorb_embedded_logfmt(rec: &mut Record) {
     let mut message = None;
     for (k, v) in pairs {
         match k.to_ascii_lowercase().as_str() {
-            "level" | "severity" | "lvl" if rec.level.is_none() => {
+            "level" | "severity" | "lvl" | "loglevel" | "log_level" | "levelname"
+                if rec.level.is_none() =>
+            {
                 rec.level = Level::parse(&v);
                 rec.fields.push((k, v));
             }
@@ -741,5 +894,116 @@ mod tests {
             "Oct 23 09:00:03 web-01 sshd[9]: Accepted publickey for dev from 10.0.0.2 port x=1";
         let p = parse(Format::Syslog, 3, prose);
         assert!(p.message.starts_with("Accepted publickey"));
+    }
+
+    /// Every spelling the parser knows has to be findable in a plain line
+    /// too. The two were written out separately and drifted: `WRN`,
+    /// `DBG`, `INF` and `TRC` were parsed but never found, so a log using
+    /// the short forms showed no level at all. Owner's report,
+    /// 2026-10-23.
+    #[test]
+    fn every_level_alias_is_both_parsed_and_found_in_a_plain_line() {
+        for (name, want) in Level::ALIASES {
+            assert_eq!(Level::parse(name), Some(*want), "{name} parses");
+            assert_eq!(
+                Level::parse(&name.to_lowercase()),
+                Some(*want),
+                "{name} parses in lower case"
+            );
+            // Found in the middle of an ordinary line, in either case.
+            for spelled in [name.to_string(), name.to_lowercase()] {
+                let line = format!("2026-10-23T09:00:01Z {spelled} OrderSvc something happened");
+                assert_eq!(
+                    parse(Format::Plain, 1, &line).level,
+                    Some(*want),
+                    "{spelled} is found in a plain line"
+                );
+            }
+            // And in brackets, which is how most Java and .NET logs write it.
+            let line = format!("09:00:01 [{name}] OrderSvc something happened");
+            assert_eq!(
+                parse(Format::Plain, 1, &line).level,
+                Some(*want),
+                "[{name}] is found"
+            );
+        }
+    }
+
+    /// The longer spelling wins, or `WARNING` reads as `WARN` plus stray
+    /// letters and `INFORMATION` as `INFO`.
+    #[test]
+    fn the_longest_spelling_wins() {
+        assert_eq!(
+            parse(Format::Plain, 1, "09:00:01 WARNING disk is filling").level,
+            Some(Level::Warn)
+        );
+        assert_eq!(
+            parse(Format::Plain, 1, "09:00:01 INFORMATION started").level,
+            Some(Level::Info)
+        );
+        // A word that merely starts with a level name is not one.
+        assert_eq!(
+            parse(Format::Plain, 1, "09:00:01 WARNINGS were raised").level,
+            None
+        );
+        assert_eq!(
+            parse(Format::Plain, 1, "09:00:01 INFORMATIONAL note").level,
+            None
+        );
+    }
+
+    /// Syslog's numeric severities are a field, not a word: a bare digit
+    /// in prose must never be read as a level.
+    #[test]
+    fn numbers_are_levels_only_where_a_number_means_one() {
+        assert_eq!(Level::parse("4"), Some(Level::Warn));
+        assert_eq!(Level::parse("0"), Some(Level::Fatal));
+        assert_eq!(
+            parse(Format::Plain, 1, "09:00:01 retried 4 times").level,
+            None,
+            "a digit in prose is not a level"
+        );
+    }
+
+    /// The writer chooses the case of a key, not the reader. Serilog
+    /// writes `@l`, .NET writes `LogLevel`, Python's JSON formatters write
+    /// `levelname`, and plenty write `Level`. All of them are the level.
+    /// Owner's request, 2026-10-23.
+    #[test]
+    fn a_level_key_is_found_whatever_its_case_or_spelling() {
+        let cases = [
+            r#"{"ts":"2026-10-23T09:00:01Z","Level":"Warning","Message":"disk"}"#,
+            r#"{"ts":"2026-10-23T09:00:01Z","LEVEL":"warn","msg":"disk"}"#,
+            r#"{"ts":"2026-10-23T09:00:01Z","LogLevel":"WRN","msg":"disk"}"#,
+            r#"{"ts":"2026-10-23T09:00:01Z","levelname":"WARNING","message":"disk"}"#,
+            r#"{"@t":"2026-10-23T09:00:01Z","@l":"Warning","@m":"disk"}"#,
+        ];
+        for line in cases {
+            let r = parse(Format::Json, 1, line);
+            assert_eq!(r.level, Some(Level::Warn), "{line}");
+            assert_eq!(r.message, "disk", "{line}");
+        }
+
+        // logfmt, the same.
+        for line in [
+            r#"Time=2026-10-23T09:00:01Z Level=warning Msg="disk""#,
+            r#"TS=2026-10-23T09:00:01Z LOGLEVEL=wrn MESSAGE="disk""#,
+        ] {
+            let r = parse(Format::Logfmt, 1, line);
+            assert_eq!(r.level, Some(Level::Warn), "{line}");
+            assert_eq!(r.message, "disk", "{line}");
+        }
+
+        // And inside a syslog envelope, which is the journalctl shape.
+        let line =
+            r#"Oct 23 09:00:01 web-01 app[1]: Time=2026-10-23T09:00:01Z LEVEL=Wrn Msg="disk""#;
+        assert_eq!(parse(Format::Syslog, 1, line).level, Some(Level::Warn));
+
+        // A field the user named keeps its exact case, because the key
+        // they picked is the key they meant.
+        let r = parse(Format::Json, 1, r#"{"Service":"orders","level":"info"}"#);
+        assert_eq!(r.field("Service"), Some("orders"));
+        assert_eq!(r.field("service"), None, "exact lookup stays exact");
+        assert_eq!(r.field_ci("service"), Some("orders"));
     }
 }

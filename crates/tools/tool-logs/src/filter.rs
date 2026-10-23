@@ -35,12 +35,23 @@ impl Chip {
         }
     }
 
-    /// The chip as it reads on screen: `level ≥ WARN`, `!regex: timeout`.
+    /// The chip as it reads on screen, in the canonical spelling:
+    /// `level ≥ WARN`, `!regex: timeout`. Prefer [`Chip::label_with`]
+    /// where the source's own spelling is known.
     pub fn label(&self) -> String {
+        self.label_with(&crate::parse::LevelAliases::default())
+    }
+
+    /// The chip as it reads on screen, naming a level the way this source
+    /// spells it: `level ≥ warning` for a log that writes `level=warning`,
+    /// `level ≥ WARN` for one that writes WARN (owner's request,
+    /// 2026-10-23). Only the label changes; the comparison is the same
+    /// ordered one either way, so a preset still means what it meant.
+    pub fn label_with(&self, aliases: &crate::parse::LevelAliases) -> String {
         let body = match &self.kind {
             ChipKind::Contains(t) => format!("\"{t}\""),
             ChipKind::Regex(r) => format!("/{r}/"),
-            ChipKind::LevelAtLeast(l) => format!("level ≥ {}", l.label()),
+            ChipKind::LevelAtLeast(l) => format!("level ≥ {}", aliases.name(*l)),
             ChipKind::Field(k, v) => format!("{k} = {v}"),
             ChipKind::After(t) => format!("after {}", t.format("%H:%M:%S")),
             ChipKind::Before(t) => format!("before {}", t.format("%H:%M:%S")),

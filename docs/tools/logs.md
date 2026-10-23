@@ -698,19 +698,67 @@ tab had been a placeholder.
   scrolls by **line number** rather than by position, because the window
   drops its oldest records.
 
-### 19.5 §15.3 Find Everywhere: what it is waiting on
+### 19.5 Find Everywhere (§15.3) and the searcher registry
 
-Not built. Token detection and the results panel are straightforward;
-the searching is not. The spec asks for the token to be looked for in
-other Logs tabs, API client history, SQL query history and Redis, and
-**a tool may not depend on another tool crate** (ADR-004) - cross-tool
-features go through `Services`. There is a shared `history.sqlite`, but
-each tool owns its own tables in it, so reading them from `tool-logs`
-would couple the tools through a schema instead of through an interface,
-and Redis needs the driver that `tool-redis` owns.
+Built on the same day, once the registry it needed existed.
 
-What it needs first is a **search capability on `Services`**: a registry
-each tool registers a searcher into, queried in parallel as Jobs, so
-`tool-logs` asks "who has seen this token" without knowing who answers.
-That is a design task in its own right, and the same registry is what
-Find Everywhere would need from the other direction too.
+**The problem.** A request id in a log line is a join key into the rest
+of the workspace, but ADR-004 forbids a tool depending on another tool
+crate. The API client's `history.jsonl` and the SQL `query_history`
+table belong to those tools; reading them from `tool-logs` would couple
+the tools through a file format instead of an interface.
+
+**The registry.** `hs_core::search` holds a `SearchRegistry` on
+`Services`. Each tool implements `Searcher` - an id, a Fluent label key
+and a blocking `search` - and the binary registers them in `bootstrap`,
+because only the binary knows them all. The asking tool queries the
+registry and never learns who answers; the same registry serves the
+other direction.
+
+Decisions worth keeping:
+
+- **An error is not an empty list.** `search` returns a `Result`, so
+  "could not look" and "found nothing" stay different answers and the
+  panel can say which.
+- **One searcher per store.** Registering twice under an id replaces,
+  rather than searching the same store twice and letting start-up order
+  decide which wins.
+- **A panicking searcher becomes a failed answer**: one broken store
+  must not hide the other three.
+- **Paths are resolved at search time**, never captured. A searcher is
+  registered once for the life of the app, so capturing
+  `<workspace>/api/history.jsonl` would leave it reading the previous
+  workspace's requests after a switch.
+- **Excluding a source is not skipping a searcher.** `ask_all` skips a
+  whole searcher by id; `Query::exclude` skips one of its sources. The
+  asking Logs tab excludes *itself* that way, so the other Logs tabs
+  still answer - the record on screen is not a useful search hit.
+- **Answers come back in a stable order**, so the panel does not
+  reshuffle between runs.
+
+**The three searchers.** `tool-logs::searcher` keeps a process-wide
+registry of open tabs, holding each tab's record window **weakly**: a
+closed tab's window drops as it should, and the searcher skips the dead
+entry rather than keeping a tab's worth of records alive for ever.
+`tool-db::searcher` reads `query_history` read-only, scoped to this
+workspace - another workspace's run is not the same incident - with the
+token passed as a parameter and LIKE wildcards escaped, or a token
+containing `%` would match everything. `tool-api::searcher` looks in the
+headers first (where a correlation id is usually minted), then the URL,
+the query and the body, and says which in the row; a disabled header
+was never sent, so it is not a match.
+
+**Detection.** A field named like a correlation id
+(`hs_core::search::is_id_field`: `trace_id`, `x-request-id`,
+`correlation_id` and friends, compared ignoring case, dashes and
+underscores), else the first token in the line that
+`looks_like_id` accepts - a UUID, 16 or more hex characters, or a ULID.
+Deliberately strict: offering to search four stores for the word
+"timeout" would be noise.
+
+**Redis is not wired up.** The spec asks for the token as a key and as a
+member of a key named after it, which needs a live connection and the
+driver `tool-redis` owns. The registry is the hard part and it is done -
+adding Redis is now a `Searcher` impl in that crate and one line in
+`bootstrap`, with the open question being which connection to use, since
+searching every configured Redis unasked would be a surprise.

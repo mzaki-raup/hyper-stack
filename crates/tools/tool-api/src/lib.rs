@@ -12,6 +12,7 @@ pub mod importers;
 pub mod model;
 pub mod postman;
 pub mod script;
+pub mod searcher;
 pub mod send;
 mod ui;
 

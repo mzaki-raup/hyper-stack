@@ -67,6 +67,7 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let services = Services {
         open_tabs: hs_core::open_tabs::OpenTabs::new(),
         problems: hs_core::problems::Problems::new(),
+        search: hs_core::search::SearchRegistry::new(),
         paths,
         settings: Arc::new(RwLock::new(settings)),
         runtime,
@@ -82,6 +83,25 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         updater,
         tunnels,
     };
+    // Who can answer "have you seen this token?" (docs/tools/logs.md
+    // §15.3). Registered here rather than inside the tools, because a
+    // tool must not depend on another tool crate (ADR-004) and only the
+    // binary knows them all. Each searcher resolves its own paths at
+    // search time, so switching workspace needs no re-registration.
+    services
+        .search
+        .register(Arc::new(tool_db::searcher::HistorySearcher::new(
+            services.paths.clone(),
+            services.workspace.clone(),
+        )));
+    services
+        .search
+        .register(Arc::new(tool_api::searcher::HistorySearcher::new(
+            services.workspace.clone(),
+        )));
+    services
+        .search
+        .register(Arc::new(tool_logs::searcher::TabSearcher));
     Ok(Boot {
         services,
         registry,

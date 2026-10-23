@@ -2766,6 +2766,14 @@ gfx-prefix-h = H{" "}
 ## Logs (tool-logs)
 logs-open-file = Open File…
 logs-open-dump = Open Thread Dump…
+logs-find-everywhere = Find Everywhere
+logs-find-everywhere-running = Asking the other tools…
+logs-find-everywhere-none = This id was not found anywhere else in the workspace.
+logs-find-everywhere-no-jump = There is nowhere to open this from.
+logs-no-id-token = Select a record carrying a trace, request or correlation id first.
+search-group-logs = Other Logs Tabs
+search-group-api = API Client History
+search-group-sql = SQL Query History
 logs-highlights = Highlight Rules
 logs-highlights-hint = A rule paints every record its pattern matches. Turn on Report to also send a match to the Problems tab in the bottom dock.
 logs-no-highlights = No rules yet.

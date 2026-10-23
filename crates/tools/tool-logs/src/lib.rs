@@ -12,6 +12,7 @@ pub mod engine;
 pub mod filter;
 pub mod parse;
 pub mod redact;
+pub mod searcher;
 pub mod services;
 pub mod shape;
 pub mod source;

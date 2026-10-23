@@ -45,6 +45,10 @@ pub struct Services {
     /// errors and log records that matched a reporting highlight rule
     /// all belong in one place (docs/tools/logs.md §15.2).
     pub problems: crate::problems::Problems,
+    /// Who can answer "have you seen this token?". Each tool registers
+    /// a searcher at start-up so the asking tool never depends on the
+    /// answering one (ADR-004, docs/tools/logs.md §15.3).
+    pub search: crate::search::SearchRegistry,
 }
 
 /// What a `{{name}}` resolves to right now (for the peek popups).

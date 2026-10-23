@@ -138,6 +138,10 @@ in the same commit.
 - **One crate per tool, one `Tool` trait.** Tools depend on `hs-core`/`hs-ui`
   (and `hs-editor`/`hs-term` where needed), never on each other. Cross-tool
   features go through `Services`, `OpenRequest` and events (ADR-004).
+  "Has any tool seen this?" goes through `hs_core::search`: a tool
+  implements a `Searcher` over its **own** store and the binary
+  registers it, so neither side learns the other's schema
+  (`docs/tools/logs.md` §19.5).
 - **The UI thread never blocks.** All I/O runs on the tokio runtime; results
   arrive through bounded channels drained at frame start; anything over
   ~200 ms is a `Job` with progress and cancel. No `block_on` on the UI thread
@@ -1419,6 +1423,29 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `D:\Temp\opencode\seed_s3.py`. The fixture projects under `D:\Temp`
   (`ir-conflict`, `lsp-demo`, `debug-demo`) had been cleaned away too;
   `make_fixtures.py` in the session scratchpad rebuilds them.
+
+### Cross-tool search (hs-core::search)
+- **A searcher registered for the life of the app must not capture a
+  workspace path.** `<workspace>/api/history.jsonl` is resolved at
+  *search* time; capturing it at registration leaves the searcher
+  reading the previous workspace's data for ever after a switch, which
+  would look like a stale cache and be nearly impossible to spot.
+- **"Could not look" is not "found nothing".** `Searcher::search`
+  returns a `Result` so the panel can show the difference; an
+  implementation that swallows its error into an empty list makes a
+  broken store indistinguishable from a clean miss.
+- Excluding a **source** and skipping a **searcher** are different
+  things: `ask_all(skip)` drops a whole searcher, `Query::exclude` drops
+  one of its sources. The asking Logs tab needs the second - the first
+  would stop every other Logs tab answering too.
+- A process-wide registry makes its own tests order-dependent: they pass
+  under `--test-threads=1` and fail in parallel, because one test's
+  registration is visible to another's assertions. Serialise them with a
+  test-only mutex guard held for the body of each test, rather than
+  relying on how the runner is invoked (`tool_logs::searcher`).
+- Hold a tab's records **weakly** in any long-lived registry
+  (`Weak<Mutex<Shared>>`): a strong handle would keep a closed tab's
+  whole record window alive for the rest of the session.
 
 ### Logs (tool-logs)
 - **A histogram bucket must follow the span, in round units.** A fixed

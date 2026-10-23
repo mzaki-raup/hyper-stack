@@ -389,6 +389,9 @@ pub struct LogsTool {
     /// The range the last drag selected, offered as a filter or as one
     /// side of the window comparison.
     chart_sel: Option<crate::chart::Range>,
+    /// A Find Everywhere search: the token, and the answers once the
+    /// Job has them (§15.3). `None` when the panel is closed.
+    find_everywhere: Option<FindEverywhere>,
     /// The highlight-rule editor is open (§15.2 needs somewhere to
     /// put its Report switch, and the rules had no editor at all).
     highlights_open: bool,
@@ -502,6 +505,7 @@ impl LogsTool {
             threads: None,
             threads_at: 0,
             lists_at: lists_version(),
+            find_everywhere: None,
             highlights_open: false,
             reported_upto: 0,
             views: crate::views::Investigation::load_all(&logs_dir),
@@ -565,6 +569,16 @@ impl LogsTool {
             self.state.text.clone(),
             self.shared.clone(),
         ));
+        // Make this tab's records answerable by the other tools
+        // (docs/tools/logs.md §15.3). Held weakly there, so closing the
+        // tab drops it; registered on every start so the uri it is
+        // filed under is the uri it reports.
+        let label = if self.state.saved_name.is_empty() {
+            spec.label()
+        } else {
+            self.state.saved_name.clone()
+        };
+        crate::searcher::register_tab(&spec.uri(), &label, &self.shared);
     }
 
     fn open_spec(
@@ -945,6 +959,15 @@ const TEXT_COLUMN_X: f32 = 8.0 + 62.0 + 96.0 + 52.0;
 
 /// A running service's glyph: what kind of host it was found on, since
 /// that is what decides how its log is read.
+/// A Find Everywhere search in flight or done (docs/tools/logs.md
+/// §15.3). The answers arrive from a Job, so the panel can draw while
+/// the slower stores are still being asked.
+struct FindEverywhere {
+    token: String,
+    /// Filled by the Job; `None` while it runs.
+    answers: Arc<Mutex<Option<Vec<hs_core::search::Answer>>>>,
+}
+
 /// Bumped whenever any tab writes the saved sources or the filter
 /// presets. Each tab records the value it last read at and reloads when
 /// it falls behind, so two Logs tabs can never show different lists -
@@ -1135,6 +1158,21 @@ impl Tool for LogsTool {
         serde_json::to_value(&self.state).unwrap_or(serde_json::Value::Null)
     }
 
+    /// A closing tab stops being searchable. The registry holds its
+    /// records weakly, so this is not strictly required - but doing it
+    /// here means the entry goes at the moment the tab does rather than
+    /// whenever something next sweeps the list.
+    ///
+    /// `on_close` has no `Services`, so the Problems this tab posted are
+    /// cleared by the shell's own tab bookkeeping instead; see
+    /// `Problems::clear_from`.
+    fn on_close(&mut self) -> hs_core::tool::CloseDecision {
+        if let Some(spec) = &self.state.spec {
+            crate::searcher::unregister_tab(&spec.uri());
+        }
+        hs_core::tool::CloseDecision::Close
+    }
+
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {
         match item {
             OpenRequest::File { uri, .. } => {
@@ -1231,6 +1269,7 @@ impl Tool for LogsTool {
             c("logs.save_filtered", "Logs: Save Filtered Output…"),
             c("logs.save_investigation", "Logs: Save Investigation…"),
             c("logs.highlights", "Logs: Highlight Rules…"),
+            c("logs.find_everywhere", "Logs: Find Everywhere"),
             c("logs.clear_chips", "Logs: Clear Filters"),
         ]
     }
@@ -1246,6 +1285,15 @@ impl Tool for LogsTool {
             // 2026-10-24).
             "logs.open_dump" => {
                 self.pick_and_open(cx, Format::ThreadDump);
+                true
+            }
+            "logs.find_everywhere" => {
+                match self.id_token() {
+                    Some(token) => self.find_everywhere(&token, cx.services),
+                    // Nothing that looks like a correlation id: saying
+                    // so beats an empty panel.
+                    None => cx.toast(ToastLevel::Info, cx.services.t("logs-no-id-token")),
+                }
                 true
             }
             "logs.highlights" => {
@@ -1645,6 +1693,16 @@ impl Tool for LogsTool {
                 self.state.mask = !self.state.mask;
             }
             if ui
+                .add_enabled(
+                    self.selected.is_some(),
+                    egui::Button::new(ph::MAGNIFYING_GLASS_PLUS),
+                )
+                .tip(s.t("logs-find-everywhere"))
+                .clicked()
+            {
+                self.run_command("logs.find_everywhere", cx);
+            }
+            if ui
                 .button(ph::HIGHLIGHTER)
                 .tip(s.t("logs-highlights"))
                 .clicked()
@@ -1749,6 +1807,7 @@ impl Tool for LogsTool {
         self.thread_summary(ui, &s, &theme);
         self.time_strip(ui, &s, &theme);
         self.highlights_editor(ui, cx, &theme);
+        self.find_everywhere_panel(ui, cx, &theme);
         self.diff_panel(ui, &s, &theme);
         if self.state.detail_open && self.selected.is_some() {
             egui::Panel::bottom("logs-detail")
@@ -2604,6 +2663,184 @@ impl LogsTool {
                 .to_string()
         } else {
             at.format("%H:%M:%S").to_string()
+        }
+    }
+
+    /// Ask every other tool whether it has seen this token
+    /// (docs/tools/logs.md §15.3). A request id in a log line is a join
+    /// key into the rest of the workspace, and the registry is what lets
+    /// Logs ask without depending on who answers (ADR-004).
+    ///
+    /// The search opens files and a database, so it is a Job; the panel
+    /// shows a spinner until the answers land.
+    fn find_everywhere(&mut self, token: &str, s: &Services) {
+        let token = token.trim().to_string();
+        if token.is_empty() {
+            return;
+        }
+        let answers: Arc<Mutex<Option<Vec<hs_core::search::Answer>>>> = Arc::new(Mutex::new(None));
+        self.find_everywhere = Some(FindEverywhere {
+            token: token.clone(),
+            answers: answers.clone(),
+        });
+        let registry = s.search.clone();
+        let waker = s.runtime.waker();
+        // Logs leaves itself out: this tab is where the token was found,
+        // and the other Logs tabs answer through the registry's own
+        // searcher, which would also return this one.
+        let here = self.state.spec.as_ref().map(SourceSpec::uri);
+        s.runtime.spawn_blocking(move || {
+            let mut query = hs_core::search::Query::new(token);
+            // This tab leaves itself out; the *other* Logs tabs still
+            // answer, which is what §15.3 asks for.
+            query.exclude.extend(here);
+            let mut found = registry.ask_all(&query, &[]);
+            found.retain(|a| match &a.result {
+                Ok(hits) => !hits.is_empty(),
+                Err(_) => true,
+            });
+            *answers.lock() = Some(found);
+            waker.request_repaint();
+        });
+    }
+
+    /// The token under the selection, if there is one worth searching
+    /// for: a field named like a correlation id, or a selected run of
+    /// text that looks like one.
+    fn id_token(&self) -> Option<String> {
+        let pos = self.selected?;
+        let i = *self.filtered.get(pos)?;
+        let sh = self.shared.lock();
+        let r = sh.records.get(i)?;
+        // A named field first: it says what it is, so no guessing.
+        if let Some((_, value)) = r
+            .fields
+            .iter()
+            .find(|(k, v)| hs_core::search::is_id_field(k) && !v.trim().is_empty())
+        {
+            return Some(value.trim().to_string());
+        }
+        // Otherwise the first token in the line that looks like an id.
+        r.raw
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+            .find(|t| hs_core::search::looks_like_id(t))
+            .map(|t| t.to_string())
+    }
+
+    /// The results, under the record detail as §15.3 asks: grouped by
+    /// the tool that answered, each row opening the right tab.
+    fn find_everywhere_panel(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services.clone();
+        let Some(search) = &self.find_everywhere else {
+            return;
+        };
+        let token = search.token.clone();
+        let answers = search.answers.lock().clone();
+        let mut close = false;
+        let mut jump: Option<hs_core::search::Jump> = None;
+        egui::Panel::bottom("logs-find-everywhere")
+            .default_size(200.0)
+            .size_range(120.0..=(ui.available_height() * 0.7).max(120.0))
+            .resizable(true)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(s.t("logs-find-everywhere")).strong());
+                    ui.label(
+                        egui::RichText::new(&token)
+                            .monospace()
+                            .small()
+                            .color(theme.accent),
+                    );
+                    hs_ui::toolbar::hard_right(ui, |ui| {
+                        if ui.small_button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+                let Some(answers) = answers else {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        form::hint(ui, theme, &s.t("logs-find-everywhere-running"));
+                    });
+                    return;
+                };
+                if answers.is_empty() {
+                    form::hint(ui, theme, &s.t("logs-find-everywhere-none"));
+                    return;
+                }
+                egui::ScrollArea::vertical()
+                    .id_salt("logs-fe-rows")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for a in &answers {
+                            ui.add_space(4.0);
+                            ui.label(
+                                egui::RichText::new(s.t(&a.label_key))
+                                    .small()
+                                    .strong()
+                                    .color(theme.text_muted),
+                            );
+                            match &a.result {
+                                // "Could not look" is not "found
+                                // nothing", and saying so is the whole
+                                // reason the searcher returns a Result.
+                                Err(e) => {
+                                    ui.label(egui::RichText::new(e).small().color(theme.error));
+                                }
+                                Ok(hits) => {
+                                    for h in hits {
+                                        ui.horizontal(|ui| {
+                                            if let Some(at) = h.at {
+                                                ui.label(
+                                                    egui::RichText::new(self.stamp(at))
+                                                        .small()
+                                                        .monospace()
+                                                        .color(theme.text_muted),
+                                                );
+                                            }
+                                            if !h.detail.is_empty() {
+                                                ui.label(
+                                                    egui::RichText::new(&h.detail)
+                                                        .small()
+                                                        .color(theme.text_muted),
+                                                );
+                                            }
+                                            // Truncated, never wrapped:
+                                            // a grid or a dock row keeps
+                                            // the tallest height it ever
+                                            // had.
+                                            let r = ui.add(
+                                                egui::Label::new(
+                                                    egui::RichText::new(&h.preview).small(),
+                                                )
+                                                .selectable(false)
+                                                .truncate()
+                                                .sense(egui::Sense::click()),
+                                            );
+                                            let r = r.on_hover_text(&h.preview);
+                                            if h.open.is_some() {
+                                                if r.clicked() {
+                                                    jump = h.open.clone();
+                                                }
+                                            } else {
+                                                // Honest about a hit
+                                                // with nowhere to go.
+                                                r.on_hover_text(
+                                                    s.t("logs-find-everywhere-no-jump"),
+                                                );
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    });
+            });
+        if let Some(j) = jump {
+            cx.open(&j.tool, Some(j.request));
+        }
+        if close {
+            self.find_everywhere = None;
         }
     }
 

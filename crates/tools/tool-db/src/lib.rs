@@ -17,6 +17,7 @@ pub mod grid;
 pub mod history;
 pub mod profile;
 pub mod runner;
+pub mod searcher;
 pub mod sql;
 
 use std::borrow::Cow;

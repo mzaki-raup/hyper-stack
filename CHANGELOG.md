@@ -13,6 +13,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Find Everywhere** (§15.3), and the cross-tool searcher registry it
+  needed. A trace, request or correlation id in a record - taken from a
+  field named like one, or from a UUID, long hex string or ULID in the
+  line - is searched in parallel across every other open Logs tab, the
+  SQL query history and the API client history, with the results grouped
+  by tool under the record and each row opening the right tab.
+
+  The registry is `hs_core::search` on `Services`: each tool implements
+  a `Searcher` over its own store and the binary registers them, so the
+  asking tool never depends on the answering one (ADR-004). An error is
+  kept distinct from an empty result, so "could not look" and "found
+  nothing" read differently; a searcher that panics becomes a failed
+  answer rather than taking the search down; paths resolve at search
+  time, so switching workspace cannot leave a searcher reading the old
+  one; and a Logs tab excludes itself without excluding the other Logs
+  tabs. Redis is the one source in the spec not yet wired up - it needs
+  a live connection and `tool-redis`'s driver - and is now a `Searcher`
+  impl away.
 - **The time strip** above the list (§10, §15.6): records per bucket over
   the *filtered* window, so it answers "when did this happen" rather than
   "when was anything logged". The bucket follows the span in round units

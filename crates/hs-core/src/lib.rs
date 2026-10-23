@@ -39,6 +39,7 @@ pub mod portable;
 pub mod problems;
 pub mod prompts;
 pub mod runtime;
+pub mod search;
 pub mod secrets;
 pub mod services;
 pub mod settings;

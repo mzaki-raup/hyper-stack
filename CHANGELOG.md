@@ -18,6 +18,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   server is identified by its command line rather than by the executable,
   which is only ever "java", and Windows is asked through CIM so there is
   a command line to read.
+- **Logs: Docker and systemd inside WSL are found.** On Windows the
+  daemon usually lives in a distribution rather than on the host, where
+  `docker ps` sees nothing. Each installed distribution is asked the same
+  questions through `wsl -d <name> --`, and its containers and units are
+  offered with the command that follows them. `wsl.exe` answers in UTF-16
+  while the commands it runs answer in UTF-8, so the encoding is detected
+  rather than assumed.
 - **Logs: a Suggest Filters prompt** on the assistant, which proposes the
   noise to exclude and the levels worth watching for the log on screen.
 

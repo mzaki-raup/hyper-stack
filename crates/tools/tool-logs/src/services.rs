@@ -213,12 +213,22 @@ const KNOWN: &[Known] = &[
     Known {
         kind: "postgres",
         matches: &["postgres"],
-        paths: &["/var/log/postgresql"],
+        paths: &[
+            "/var/log/postgresql",
+            "C:/Program Files/PostgreSQL/17/data/log",
+            "C:/Program Files/PostgreSQL/16/data/log",
+            "C:/Program Files/PostgreSQL/15/data/log",
+        ],
     },
     Known {
         kind: "mysql",
         matches: &["mysqld", "mariadbd"],
-        paths: &["/var/log/mysql/error.log", "/var/log/mariadb/mariadb.log"],
+        paths: &[
+            "/var/log/mysql/error.log",
+            "/var/log/mariadb/mariadb.log",
+            "C:/ProgramData/MySQL/MySQL Server 8.4/Data",
+            "C:/ProgramData/MySQL/MySQL Server 8.0/Data",
+        ],
     },
     Known {
         kind: "redis",
@@ -322,10 +332,19 @@ pub fn rescan() -> Vec<Service> {
 fn scan() -> Vec<Service> {
     let mut out = Vec::new();
     out.extend(processes());
-    out.extend(containers("docker"));
-    out.extend(containers("podman"));
-    out.extend(systemd_units());
+    out.extend(containers(&[], "docker"));
+    out.extend(containers(&[], "podman"));
+    out.extend(systemd_units(&[]));
     out.extend(kube_pods());
+    // Docker on Windows is very often inside WSL rather than on the host,
+    // where `docker ps` finds nothing (owner's report, 2026-10-23). Each
+    // distribution is asked the same questions through `wsl -d <name> --`.
+    for distro in wsl_distros() {
+        let via: Vec<String> = vec!["-d".into(), distro.clone(), "--".into()];
+        out.extend(containers(&via, "docker"));
+        out.extend(containers(&via, "podman"));
+        out.extend(systemd_units(&via));
+    }
     // One row per thing: a server found both as a process and as a unit
     // is the same server.
     out.sort_by_key(|s| s.name.to_lowercase());
@@ -334,8 +353,16 @@ fn scan() -> Vec<Service> {
 }
 
 /// Run a command and give back its stdout, or nothing when it is not
-/// installed or fails. Bounded by the caller's own timeout.
+/// installed or fails.
 fn run(program: &str, args: &[&str]) -> Option<String> {
+    run_owned(
+        program,
+        &args.iter().map(|a| (*a).to_string()).collect::<Vec<_>>(),
+    )
+}
+
+/// As [`run`], with arguments that are owned: the WSL probes build theirs.
+fn run_owned(program: &str, args: &[String]) -> Option<String> {
     let out = std::process::Command::new(program)
         .args(args)
         .stdin(std::process::Stdio::null())
@@ -344,7 +371,49 @@ fn run(program: &str, args: &[&str]) -> Option<String> {
     if !out.status.success() {
         return None;
     }
-    Some(String::from_utf8_lossy(&out.stdout).into_owned())
+    Some(decode(&out.stdout))
+}
+
+/// `wsl.exe` writes its own output as UTF-16, while the commands it runs
+/// write UTF-8. Reading the first as UTF-8 gives a string of NULs, so the
+/// encoding is detected rather than assumed.
+fn decode(bytes: &[u8]) -> String {
+    let nuls = bytes.iter().filter(|b| **b == 0).count();
+    if bytes.len() >= 4 && nuls * 3 >= bytes.len() {
+        let units: Vec<u16> = bytes
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
+            .collect();
+        return String::from_utf16_lossy(&units);
+    }
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// A command on the host, or the same command inside a WSL
+/// distribution: `wsl.exe -d <distro> -- <program> …`.
+fn prefixed(via: &[String], program: &str) -> (String, Vec<String>) {
+    if via.is_empty() {
+        return (program.to_string(), Vec::new());
+    }
+    let mut args = via.to_vec();
+    args.push(program.to_string());
+    ("wsl.exe".to_string(), args)
+}
+
+/// The installed WSL distributions, or nothing when WSL is absent.
+fn wsl_distros() -> Vec<String> {
+    if !cfg!(windows) {
+        return Vec::new();
+    }
+    let Some(text) = run("wsl.exe", &["-l", "-q"]) else {
+        return Vec::new();
+    };
+    text.lines()
+        .map(|l| l.trim().trim_matches('\u{0}').to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
 }
 
 /// Server processes on this machine.
@@ -409,13 +478,19 @@ fn processes() -> Vec<Service> {
 }
 
 /// Containers under a runtime that speaks the Docker CLI.
-fn containers(runtime: &str) -> Vec<Service> {
-    let Some(text) = run(
-        runtime,
-        &["ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}"],
-    ) else {
+fn containers(via: &[String], runtime: &str) -> Vec<Service> {
+    // `via` is empty on the host, or `-d <distro> --` to ask inside a WSL
+    // distribution; the runtime's own arguments follow either way.
+    let (program, mut args) = prefixed(via, runtime);
+    args.extend(
+        ["ps", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}"]
+            .iter()
+            .map(|a| (*a).to_string()),
+    );
+    let Some(text) = run_owned(&program, &args) else {
         return Vec::new();
     };
+    let inside = (!via.is_empty()).then(|| via[1].clone());
     text.lines()
         .filter_map(|l| {
             let mut c = l.split('\t');
@@ -428,45 +503,79 @@ fn containers(runtime: &str) -> Vec<Service> {
             let kind = classify(image)
                 .or_else(|| classify(&name))
                 .unwrap_or("container");
+            let (host, handle, command) = match &inside {
+                Some(distro) => (
+                    Host::Wsl,
+                    format!("{distro}/{id}"),
+                    format!("wsl.exe -d {distro} -- {runtime} logs -f --tail 2000 {id}"),
+                ),
+                None => (
+                    Host::Container,
+                    id.clone(),
+                    format!("{runtime} logs -f --tail 2000 {id}"),
+                ),
+            };
             Some(Service {
-                name,
+                name: match &inside {
+                    Some(distro) => format!("{name} ({distro})"),
+                    None => name,
+                },
                 kind: kind.to_string(),
-                host: Host::Container,
-                handle: id.clone(),
+                host,
+                handle,
                 files: Vec::new(),
-                command: Some(format!("{runtime} logs -f --tail 2000 {id}")),
+                command: Some(command),
             })
         })
         .collect()
 }
 
 /// Running systemd units that look like a server.
-fn systemd_units() -> Vec<Service> {
-    let Some(text) = run(
-        "systemctl",
-        &[
+fn systemd_units(via: &[String]) -> Vec<Service> {
+    let (program, mut args) = prefixed(via, "systemctl");
+    args.extend(
+        [
             "list-units",
             "--type=service",
             "--state=running",
             "--no-legend",
             "--no-pager",
             "--plain",
-        ],
-    ) else {
+        ]
+        .iter()
+        .map(|a| (*a).to_string()),
+    );
+    let Some(text) = run_owned(&program, &args) else {
         return Vec::new();
     };
+    let inside = (!via.is_empty()).then(|| via[1].clone());
     text.lines()
         .filter_map(|l| {
             let unit = l.split_whitespace().next()?;
             let bare = unit.strip_suffix(".service").unwrap_or(unit);
             let kind = classify(bare)?;
+            let (host, handle, command) = match &inside {
+                Some(distro) => (
+                    Host::Wsl,
+                    format!("{distro}/{unit}"),
+                    format!("wsl.exe -d {distro} -- journalctl -n 2000 -f -u {unit}"),
+                ),
+                None => (
+                    Host::Systemd,
+                    unit.to_string(),
+                    format!("journalctl -n 2000 -f -u {unit}"),
+                ),
+            };
             Some(Service {
-                name: bare.to_string(),
+                name: match &inside {
+                    Some(distro) => format!("{bare} ({distro})"),
+                    None => bare.to_string(),
+                },
                 kind: kind.to_string(),
-                host: Host::Systemd,
-                handle: unit.to_string(),
+                host,
+                handle,
                 files: Vec::new(),
-                command: Some(format!("journalctl -n 2000 -f -u {unit}")),
+                command: Some(command),
             })
         })
         .collect()

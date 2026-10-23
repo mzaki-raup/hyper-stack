@@ -182,6 +182,34 @@ mod tests {
         );
     }
 
+    /// `level >= WARN` is an ordered comparison, not an equality, and it
+    /// has to work on a level that came out of a journalctl payload's
+    /// `level=warning` rather than out of a level column. Owner's point,
+    /// 2026-10-23.
+    #[test]
+    fn level_at_least_is_ordered_and_reads_a_journalctl_level() {
+        let line = |lvl: &str| {
+            format!(
+                r#"Oct 23 09:00:01 web-01 dockerd[1234]: time="2026-10-23T09:00:01Z" level={lvl} msg="x""#
+            )
+        };
+        let rec = |lvl: &str| parse(Format::Syslog, 1, &line(lvl));
+
+        let info = rec("info");
+        let warning = rec("warning");
+        let err = rec("error");
+        assert_eq!(warning.level, Some(Level::Warn), "warning is WARN");
+
+        let at_least_warn = Filter::compile(&[Chip::new(ChipKind::LevelAtLeast(Level::Warn))]);
+        assert!(!at_least_warn.matches(&info), "info is below warning");
+        assert!(at_least_warn.matches(&warning), "warning is included");
+        assert!(at_least_warn.matches(&err), "error is above warning");
+
+        let at_least_error = Filter::compile(&[Chip::new(ChipKind::LevelAtLeast(Level::Error))]);
+        assert!(!at_least_error.matches(&warning));
+        assert!(at_least_error.matches(&err));
+    }
+
     #[test]
     fn highlights_pick_the_first_matching_rule() {
         let h = Highlights::compile(&[

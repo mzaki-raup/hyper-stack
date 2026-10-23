@@ -85,7 +85,25 @@ impl Shared {
         }
         self.version += 1;
     }
+
+    /// Re-read the sample with a different parser. While the format is
+    /// still being detected the records on screen were parsed with a
+    /// running guess; when the verdict changes they have to be rebuilt,
+    /// or a journalctl tail keeps the plain parsing of its first line
+    /// for ever. The sample is capped at `SAMPLE_LINES`, so this is a
+    /// few dozen records at most and never runs once the format settles.
+    fn reparse(&mut self, format: Format, sample: &[String]) {
+        self.records.clear();
+        self.lines = 0;
+        for l in sample {
+            self.push_line(format, l);
+        }
+        self.version += 1;
+    }
 }
+
+/// How many lines the detector looks at before fixing the parser.
+pub const SAMPLE_LINES: usize = 64;
 
 /// Split a chunk into lines, holding back an unterminated last line.
 #[derive(Default)]
@@ -495,32 +513,63 @@ fn ingest(
     lines: &[String],
     bytes: u64,
 ) {
-    if format.is_none() {
-        sample.extend(lines.iter().cloned());
-        if sample.len() >= 64 || saved_format != Format::Auto {
-            let f = pick_format(saved_format, sample);
-            shared.lock().format = f;
-            *format = Some(f);
-            feed(shared, f, &std::mem::take(sample), bytes);
-        }
+    // Settled: the sample is full, or the user pinned a parser.
+    if let Some(f) = *format {
+        feed(shared, f, lines, bytes);
         return;
     }
-    feed(shared, format.unwrap_or(Format::Plain), lines, bytes);
+    if saved_format != Format::Auto {
+        *format = Some(saved_format);
+        shared.lock().format = saved_format;
+        feed(shared, saved_format, lines, bytes);
+        return;
+    }
+    // Auto, still sampling. Show the lines now with the best guess so far
+    // rather than holding them back until 64 have arrived: a followed
+    // source that is quiet - `journalctl -f -u docker` on an idle unit -
+    // would otherwise look empty until the user picked a parser by hand
+    // (owner's report, 2026-10-23).
+    sample.extend(lines.iter().cloned());
+    let guess = pick_format(Format::Auto, sample);
+    let settled = sample.len() >= SAMPLE_LINES;
+    let previous = shared.lock().format;
+    if guess != previous {
+        // The verdict changed, so what was already shown was parsed with
+        // the wrong one. The sample is bounded, so re-reading it is cheap.
+        let mut sh = shared.lock();
+        sh.format = guess;
+        sh.reparse(guess, sample);
+        sh.bytes += bytes;
+    } else {
+        feed(shared, guess, lines, bytes);
+    }
+    if settled {
+        *format = Some(guess);
+        sample.clear();
+    }
 }
 
-/// Decide the format from a short sample when a stream ends early.
+/// Lock the parser in when a stream ends before the sample filled. The
+/// records are already on screen (see `ingest`); this only re-reads them
+/// if the final verdict differs from the running guess.
 fn settle(
     format: &mut Option<Format>,
     sample: &mut Vec<String>,
     saved_format: Format,
     shared: &Mutex<Shared>,
 ) {
-    if format.is_none() {
-        let f = pick_format(saved_format, sample);
-        shared.lock().format = f;
-        *format = Some(f);
-        feed(shared, f, &std::mem::take(sample), 0);
+    if format.is_some() {
+        return;
     }
+    let f = pick_format(saved_format, sample);
+    let mut sh = shared.lock();
+    if sh.format != f {
+        sh.format = f;
+        sh.reparse(f, sample);
+    }
+    drop(sh);
+    *format = Some(f);
+    sample.clear();
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -394,6 +394,36 @@ Each row filters the list to that shape in the chosen range.
 The comparison is a count table, not a text diff, so `hs-git`'s Myers diff is
 the wrong tool here; Devtools' diff view stays where it is.
 
+### 15.10 Three reports from the field (2026-10-23)
+
+Found while the additions above were being built, all three on a
+`journalctl -f -u docker` source over SSH.
+
+- **Auto withheld the log.** `engine::ingest` collected lines into a sample
+  and fed the view nothing until sixty-four had arrived. A followed source
+  that is quiet never reaches sixty-four, so the tab looked empty, and
+  picking any parser by hand fixed it because that path fed immediately.
+  Lines are shown at once now with the best guess so far; while the sample
+  fills, a changed verdict re-reads it (`Shared::reparse`, bounded by
+  `SAMPLE_LINES`). Once the sample is full the parser is fixed as before.
+- **A journalctl line kept its level to itself.** The payload of a syslog
+  envelope is usually logfmt - `time="…" level=info msg="…"` is what every
+  Go daemon under systemd writes. The level was never read, so the row had
+  no colour and `level ≥ WARN` did not match it.
+  `parse::absorb_embedded_logfmt` reads those pairs for the Syslog and
+  Plain parsers: `level` sets the level, `msg` becomes the message, `time`
+  is preferred over the envelope's timestamp, and the rest become fields.
+  Two pairs is the bar, so prose with one equals sign in it is left alone.
+  The list still shows the raw line for these formats; only the level
+  column and the filters change.
+- **There was no dashboard.** Logs had a home tab but not
+  `home_is_dashboard`, so it showed the empty state. It now shows what the
+  activity has: saved sources, filter presets and open tabs as counts,
+  Start Here actions, the saved sources as rows that open them, and the
+  shared Open Here previews. As the Devtools home tab learned the hard way,
+  it reports **no** `current_uri` and **no** `uri_affinity`, or it would
+  take every `OpenRequest` for the activity.
+
 ### 15.9 What this does not add
 
 No background daemon, no writing to a log source, no network calls of its own

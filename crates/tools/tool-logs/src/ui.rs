@@ -198,6 +198,9 @@ pub struct LogsTool {
     logs_dir: PathBuf,
     /// Compiled once per change, never per record.
     redactor: crate::redact::Redactor,
+    /// Review-only assistant (ADR-019, docs/tools/logs.md §15.1). It is
+    /// told the selected record and its neighbours, after redaction.
+    assistant: hs_ui::ai_assistant::AssistantPanel,
     /// The rows the list draws: one per record, or one per folded run
     /// (§15.5). Rebuilt when the filtered set or the toggle changes.
     rows: Vec<crate::shape::Row>,
@@ -244,6 +247,7 @@ impl LogsTool {
             env_id: None,
             is_home: false,
             redactor: crate::redact::Redactor::compile(&crate::redact::RuleSet::load(&logs_dir)),
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             rows: Vec::new(),
             rows_upto: 0,
             rows_collapse: false,
@@ -614,16 +618,24 @@ impl Tool for LogsTool {
     }
 
     fn current_uri(&self) -> Option<String> {
+        if self.is_home {
+            return None;
+        }
         self.state.spec.as_ref().map(SourceSpec::uri)
     }
 
     fn uri_affinity(&self, _uri: &str) -> Option<u8> {
         // An empty tab takes any source; a tab with one leaves it to a
-        // new tab.
-        self.state.spec.is_none().then_some(1)
+        // new tab. The dashboard takes nothing: a home tab that answers
+        // here swallows every request for the activity.
+        (!self.is_home && self.state.spec.is_none()).then_some(1)
     }
 
     fn wants_home_tab(&self) -> bool {
+        true
+    }
+
+    fn home_is_dashboard(&self) -> bool {
         true
     }
 
@@ -694,6 +706,7 @@ impl Tool for LogsTool {
             c("logs.chip", "Logs: Add Filter"),
             c("logs.bookmark", "Logs: Bookmark Record"),
             c("logs.jump", "Logs: Jump to Time"),
+            c("logs.ai", "Logs: AI Assistant"),
             c("logs.save_filtered", "Logs: Save Filtered Output…"),
             c("logs.clear_chips", "Logs: Clear Filters"),
         ]
@@ -764,6 +777,10 @@ impl Tool for LogsTool {
             }
             "logs.jump" => {
                 self.jump = Some(String::new());
+                true
+            }
+            "logs.ai" => {
+                self.assistant.toggle("Logs");
                 true
             }
             "logs.save_filtered" => {
@@ -1114,6 +1131,21 @@ impl Tool for LogsTool {
                 self.start(s);
             }
         }
+        // The assistant is the same control in every tool, so it sits in
+        // the same place: hard right of the toolbar. Not on the dashboard,
+        // which has no record to discuss and draws no column, so the
+        // control there would be a toggle that does nothing.
+        if !cx.is_home {
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui
+                    .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                    .on_hover_text(s.t("ai-shared-button-tip"))
+                    .clicked()
+                {
+                    self.assistant.toggle("Logs");
+                }
+            });
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -1121,12 +1153,23 @@ impl Tool for LogsTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.is_home = cx.is_home;
         self.dialogs(ui, cx, &theme);
+        if cx.is_home {
+            self.dashboard(ui, cx);
+            return;
+        }
         if self.state.spec.is_none() {
             self.empty_state(ui, cx, &theme);
             return;
         }
         self.keys(ui, cx);
         self.refilter();
+        // The column's rectangle is taken out of the tab first, so the
+        // list lays out in what is left; it is drawn last, as every other
+        // tool draws it, so nothing of the tool paints over it.
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let outer = ui;
+        let ui = &mut content;
         self.chip_row(ui, &s, &theme);
         if self.state.detail_open && self.selected.is_some() {
             egui::Panel::bottom("logs-detail")
@@ -1137,10 +1180,257 @@ impl Tool for LogsTool {
         }
         self.status_line(ui, &s, &theme);
         self.list(ui, &s, &theme);
+        self.assistant_column(outer, assistant_rect, cx);
     }
 }
 
 impl LogsTool {
+    /// How many records either side of the selection the assistant is
+    /// given. Enough to show what led to an error, short enough that a
+    /// provider's context is not spent on a log tail.
+    const AI_CONTEXT: usize = 40;
+
+    /// Everything the assistant is told about this tab, and the column it
+    /// is drawn in (docs/tools/logs.md §15.1).
+    ///
+    /// The context is built from `leaving`, the same funnel Copy and Save
+    /// use, so a bearer token in a log line never reaches a provider.
+    fn assistant_column(
+        &mut self,
+        outer: &mut egui::Ui,
+        panel: Option<egui::Rect>,
+        cx: &mut ToolContext,
+    ) {
+        if !self.assistant.open {
+            return;
+        }
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        self.assistant.set_context("Logs", self.ai_context());
+        if self.assistant.quick_actions.is_empty() {
+            use hs_ui::ai_assistant::QuickAction;
+            self.assistant.quick_actions = vec![
+                QuickAction::new(s, "ai-qa-logs-explain", "ai-qa-logs-explain-prompt", ""),
+                QuickAction::new(s, "ai-qa-logs-trace", "ai-qa-logs-trace-prompt", ""),
+                QuickAction::new(s, "ai-qa-logs-why", "ai-qa-logs-why-prompt", ""),
+                QuickAction::new(s, "ai-qa-logs-filter", "ai-qa-logs-filter-prompt", ""),
+                QuickAction::new(s, "ai-qa-logs-summarise", "ai-qa-logs-summarise-prompt", ""),
+            ];
+        }
+        let Some(panel) = panel else {
+            // Too narrow to split: the toggle stays on and the column
+            // returns when there is room for it.
+            return;
+        };
+        let mut child = outer.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(outer.clip_rect()));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                // Review only (ADR-019). There is nothing to run here; a
+                // block the assistant writes becomes a filter chip, and
+                // only because the user pressed Insert.
+                self.assistant.can_insert = true;
+                let out = self.assistant.ui(ui, s, &theme, "Logs");
+                if let Some(code) = out.use_block {
+                    self.insert_ai_filter(&code, cx);
+                }
+            });
+    }
+
+    /// The selected record, its neighbours, the filters in force and what
+    /// the source is. What is on screen, nothing more, and redacted.
+    fn ai_context(&self) -> String {
+        let sh = self.shared.lock();
+        let source = match &self.state.spec {
+            Some(spec) => spec.label(),
+            None => "(none)".to_string(),
+        };
+        let chips = if self.state.chips.is_empty() {
+            "(none)".to_string()
+        } else {
+            self.state
+                .chips
+                .iter()
+                .map(|c| c.label())
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        // The window around the selection, in the order it was logged.
+        let here = self
+            .selected
+            .and_then(|idx| self.filtered.iter().position(|&i| i == idx))
+            .unwrap_or_else(|| self.filtered.len().saturating_sub(1));
+        let from = here.saturating_sub(Self::AI_CONTEXT);
+        let to = (here + Self::AI_CONTEXT).min(self.filtered.len().saturating_sub(1));
+        let mut lines = String::new();
+        for pos in from..=to {
+            let Some(&idx) = self.filtered.get(pos) else {
+                continue;
+            };
+            let Some(r) = sh.records.get(idx) else {
+                continue;
+            };
+            if pos == here {
+                lines.push_str(">> ");
+            }
+            lines.push_str(&self.leaving(&r.raw));
+            lines.push('\n');
+        }
+        let selected = match self.selected.and_then(|i| sh.records.get(i)) {
+            Some(r) => self.leaving(&r.raw),
+            None => "(no record selected)".to_string(),
+        };
+        format!(
+            "Source: {source}\nParser: {:?}\nRecords loaded: {}\nShown after filters: {}\nFilters: {chips}\n\n\
+             Selected record (also marked >> below):\n{selected}\n\n\
+             Surrounding records, oldest first:\n{lines}",
+            sh.format,
+            sh.records.len(),
+            self.filtered.len(),
+        )
+    }
+
+    /// A `filter` block the assistant wrote, turned into real chips. The
+    /// body is a JSON array of chips in the shape `filter::Chip`
+    /// serialises to; anything else is reported rather than guessed at.
+    fn insert_ai_filter(&mut self, code: &str, cx: &mut ToolContext) {
+        let body = code
+            .trim()
+            .trim_start_matches("```filter")
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        match serde_json::from_str::<Vec<Chip>>(body) {
+            Ok(chips) if !chips.is_empty() => {
+                let n = chips.len();
+                self.state.chips.extend(chips);
+                self.chips_version += 1;
+                self.filter = Filter::compile(&self.state.chips);
+                cx.toast(
+                    ToastLevel::Success,
+                    cx.services
+                        .i18n
+                        .t_args("logs-ai-chips-added", &[("count", &n.to_string())]),
+                );
+            }
+            _ => cx.toast(ToastLevel::Error, cx.services.t("logs-ai-chips-bad")),
+        }
+    }
+
+    /// What the activity has open and what it could open, in the shape
+    /// every other activity's dashboard uses (owner's request,
+    /// 2026-10-23).
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let tabs = s.open_tabs.of("logs");
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-logs"),
+            Some(&s.t("logs-dashboard-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(
+                ui,
+                &theme,
+                &self.saved.len().to_string(),
+                &s.t("logs-dash-sources"),
+            );
+            hs_ui::dashboard::stat(
+                ui,
+                &theme,
+                &self.presets.len().to_string(),
+                &s.t("logs-dash-presets"),
+            );
+            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
+        });
+        egui::ScrollArea::vertical()
+            .id_salt("logs-dashboard")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.add_space(12.0);
+                ui.label(
+                    egui::RichText::new(s.t("logs-dash-start"))
+                        .size(15.0)
+                        .strong(),
+                );
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(format!("{} {}", ph::FOLDER_OPEN, s.t("logs-open-file")))
+                        .clicked()
+                    {
+                        self.run_command("logs.open_file", cx);
+                    }
+                    if ui
+                        .button(format!("{} {}", ph::PLUS, s.t("logs-add-source")))
+                        .clicked()
+                    {
+                        self.run_command("logs.add_source", cx);
+                    }
+                    if ui
+                        .button(format!("{} {}", ph::CLIPBOARD_TEXT, s.t("logs-paste")))
+                        .clicked()
+                    {
+                        self.run_command("logs.paste", cx);
+                    }
+                });
+                // Saved sources, so a dashboard is a way in rather than a
+                // page that only counts things.
+                ui.add_space(16.0);
+                ui.label(
+                    egui::RichText::new(s.t("logs-dash-saved"))
+                        .size(15.0)
+                        .strong(),
+                );
+                ui.add_space(6.0);
+                if self.saved.is_empty() {
+                    hs_ui::form::hint(ui, &theme, &s.t("logs-dash-no-saved"));
+                } else {
+                    let saved = self.saved.clone();
+                    for src in &saved {
+                        let r = hs_ui::form::list_row(
+                            ui,
+                            &theme,
+                            false,
+                            ph::SCROLL,
+                            &src.name,
+                            Some(&src.spec.describe()),
+                        );
+                        if r.clicked() {
+                            cx.actions.push(hs_core::tool::Action::OpenTool {
+                                factory_id: "logs".into(),
+                                request: Some(hs_core::tool::OpenRequest::File {
+                                    uri: src.spec.uri(),
+                                    line: None,
+                                }),
+                            });
+                        }
+                        ui.add_space(2.0);
+                    }
+                }
+                ui.add_space(16.0);
+                let labels = hs_ui::dashboard::DashboardLabels {
+                    open_heading: &s.t("dash-open"),
+                    nothing_open: &s.t("dash-nothing-open"),
+                    no_preview: &s.t("dash-no-preview"),
+                };
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
+            });
+    }
+
     fn keys(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         if ui.ctx().egui_wants_keyboard_input() {
             return;

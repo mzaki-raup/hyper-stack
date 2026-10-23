@@ -13,6 +13,31 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Logs: an AI assistant column**, the review-only one every other tool
+  has. It is told the selected record, up to forty either side, the filters
+  in force and what the source is, all through the same redaction funnel as
+  Copy and Save, so a token in a log line never reaches a provider. Five
+  quick actions; the Write a Filter one answers with a block that Insert
+  turns into real filter chips. `logs.ai` in the palette.
+- **Logs: a dashboard home tab.** Saved sources, filter presets and open
+  tabs as counts, Start Here actions, the workspace's saved sources as rows
+  and the shared Open Here previews.
+
+### Fixed
+
+- **Logs: a quiet source looked empty until you picked a parser by hand.**
+  With the format on Auto the engine buffered every line until sixty-four
+  had arrived before showing any, so `journalctl -f -u docker` on an idle
+  unit displayed nothing. Lines now appear at once with the best guess so
+  far, and the sample is re-read if the verdict changes.
+- **Logs: a journalctl line now gives up its level.** A syslog envelope
+  wrapping `level=…  msg=…`, which is what every Go daemon under systemd
+  writes, had its level ignored, so the row had no colour and `level ≥ WARN`
+  did not match it. Those pairs are read out of the message now, and the
+  inner timestamp is preferred over the envelope's.
+
+### Added
+
 - **Logs: collapse repeats.** Three or more neighbouring records that say
   the same thing, differing only in their numbers, ids, paths or quoted
   strings, fold into one row with a ×N count; clicking it opens them. A

@@ -1366,6 +1366,21 @@ ai-qa-nosql-explain = Explain This Query
 ai-qa-nosql-explain-prompt = Explain what the filter, projection and sort on screen do, what they return, and anything in them that would scan more than it needs to.
 ai-qa-nosql-index = Suggest an Index
 ai-qa-nosql-index-prompt = Say which index would serve this query, give the command that creates it, and say what it costs on writes.
+ai-qa-logs-explain = Explain This Record
+ai-qa-logs-explain-prompt = Explain the selected record: what the component was doing, what the fields mean, and what the records around it suggest led to it.
+ai-qa-logs-trace = Explain This Stack Trace
+ai-qa-logs-trace-prompt = Read the stack trace in the selected record. Say which frame is the likely cause rather than the top of the trace, what the exception means here, and which file and line to look at first.
+ai-qa-logs-why = Why Did This Fail
+ai-qa-logs-why-prompt = Using the records before the selected one, work out why it failed. Name the most likely cause, say what in the log supports it, and what to check next. Say so plainly if the log does not show enough.
+ai-qa-logs-filter = Write a Filter For…
+ai-qa-logs-filter-prompt = Write filter chips for what I describe. Answer with one fenced block marked filter holding a JSON array of chips. Each chip is {"{"}"kind": …, "negate": false{"}"}, where kind is one of {"{"}"contains": "text"{"}"}, {"{"}"regex": "pattern"{"}"}, {"{"}"level_at_least": "warn"{"}"} or {"{"}"field": ["name", "value"]{"}"}. Use the field names this source actually has. What I want to find:
+ai-qa-logs-summarise = Summarise This Window
+ai-qa-logs-summarise-prompt = Summarise the records shown: what the component was doing, which errors and warnings appeared and how often, and anything that looks out of place. Keep it to a few sentences.
+logs-ai-chips-added = { $count ->
+    [one] Added 1 filter chip.
+   *[other] Added { $count } filter chips.
+}
+logs-ai-chips-bad = That block is not a list of filter chips, so nothing was added.
 ai-qa-redis-explain-key = Explain This Key
 ai-qa-redis-explain-key-prompt = Explain the key that is open: what its type and encoding mean, what the value looks like it is for, and whether its TTL and size look sensible.
 ai-qa-redis-command = Suggest a Command
@@ -2742,6 +2757,12 @@ logs-format-logfmt = logfmt
 logs-format-syslog = Syslog
 logs-format-nginx = Nginx / Apache
 logs-format-postgres = PostgreSQL
+logs-dashboard-sub = Follow a file, a server's log or a command's output.
+logs-dash-sources = Saved Sources
+logs-dash-presets = Filter Presets
+logs-dash-start = Start Here
+logs-dash-saved = Saved Sources
+logs-dash-no-saved = Nothing saved yet. Open a source, then Save Source keeps it in this workspace.
 logs-local-time-tip = Show times in this machine's time zone rather than UTC.
 logs-mask-tip = Mask secrets. Bearer tokens, passwords, keys and e-mail addresses are hidden in the list and in anything you copy, save or send to the assistant. Rules live in the workspace's logs/redaction.toml.
 logs-collapse-tip = Collapse repeats. Three or more neighbouring lines that say the same thing, differing only in their numbers and ids, fold into one row with a count; click it to open them. Filters, find and export still see every line.

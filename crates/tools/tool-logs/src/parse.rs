@@ -366,6 +366,7 @@ fn parse_plain(rec: &mut Record, text: &str) {
         rec.level = Level::parse(c.get(1).unwrap().as_str());
     }
     rec.message = rest.trim().to_string();
+    absorb_embedded_logfmt(rec);
 }
 
 fn parse_json(rec: &mut Record, text: &str) {
@@ -472,10 +473,50 @@ fn parse_syslog(rec: &mut Record, text: &str) {
         rec.fields.push(("pid".into(), g("pid")));
     }
     rec.message = g("msg");
+    absorb_embedded_logfmt(rec);
     if rec.level.is_none()
         && let Some(l) = LEVEL_TOKEN.captures(&rec.message)
     {
         rec.level = Level::parse(l.get(1).unwrap().as_str());
+    }
+}
+
+/// A syslog or plain line whose payload is `key=value` pairs: what every
+/// Go daemon under systemd writes, which is what `journalctl -f -u docker`
+/// hands back.
+///
+/// ```text
+/// Oct 23 09:00:01 host dockerd[123]: time="…" level=info msg="API listen"
+/// ```
+///
+/// The pairs become fields, so `level=warn` colours the row and
+/// `level >= WARN` filters it, and `msg` becomes the message so the list
+/// shows the sentence rather than the envelope. Owner's report,
+/// 2026-10-23.
+fn absorb_embedded_logfmt(rec: &mut Record) {
+    let pairs = logfmt_pairs(&rec.message);
+    // Two pairs is the bar the detector uses; one `a=b` in prose is not
+    // logfmt.
+    if pairs.len() < 2 {
+        return;
+    }
+    let mut message = None;
+    for (k, v) in pairs {
+        match k.to_ascii_lowercase().as_str() {
+            "level" | "severity" | "lvl" if rec.level.is_none() => {
+                rec.level = Level::parse(&v);
+                rec.fields.push((k, v));
+            }
+            "msg" | "message" if message.is_none() => message = Some(v),
+            "time" | "ts" | "timestamp" if rec.ts.is_none() => {
+                rec.ts = parse_timestamp(&v);
+                rec.fields.push((k, v));
+            }
+            _ => rec.fields.push((k, v)),
+        }
+    }
+    if let Some(m) = message {
+        rec.message = m;
     }
 }
 
@@ -673,5 +714,32 @@ mod tests {
         assert!(r.ts.is_some());
         assert_eq!(r.message, "INFO started");
         assert_eq!(r.level, Some(Level::Info));
+    }
+
+    /// `journalctl -f -u docker`: a syslog envelope wrapping logfmt, which
+    /// is what every Go daemon under systemd writes. The level has to come
+    /// out of `level=` or the row has no colour and no level filter, and
+    /// the message has to be the sentence rather than the envelope.
+    /// Owner's report, 2026-10-23.
+    #[test]
+    fn journalctl_lines_give_up_their_level_and_message() {
+        let line = r#"Oct 23 09:00:01 web-01 dockerd[1234]: time="2026-10-23T09:00:01.123456789Z" level=warning msg="Health check for container 9f2 failed" container=9f2"#;
+        let f = detect(&[line]);
+        let r = parse(f, 1, line);
+        assert_eq!(r.level, Some(Level::Warn), "level= decides the level");
+        assert_eq!(r.message, "Health check for container 9f2 failed");
+        assert!(r.ts.is_some(), "the inner timestamp is preferred");
+        assert_eq!(r.field("container"), Some("9f2"));
+        assert_eq!(r.field("app"), Some("dockerd"), "the envelope is kept too");
+
+        // An error line colours red by the same route.
+        let err = r#"Oct 23 09:00:02 web-01 dockerd[1234]: time="2026-10-23T09:00:02Z" level=error msg="failed to start"#;
+        assert_eq!(parse(detect(&[err]), 2, err).level, Some(Level::Error));
+
+        // Prose with one equals sign in it is not logfmt and is left alone.
+        let prose =
+            "Oct 23 09:00:03 web-01 sshd[9]: Accepted publickey for dev from 10.0.0.2 port x=1";
+        let p = parse(Format::Syslog, 3, prose);
+        assert!(p.message.starts_with("Accepted publickey"));
     }
 }

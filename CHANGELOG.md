@@ -11,7 +11,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- **Every AI Assistant: a Markdown table fits the panel.** Tables were laid
+  out at an unbounded width, because the horizontal scroll area they sit in
+  leaves `available_width` unbounded and the wrapping cells inside it
+  therefore never wrapped. Only the left half of a table was readable. The
+  cells now wrap to the panel, each column gets a fair share of it, and the
+  scroll remains for a table that cannot fit even then.
+- **Logs: the level word is coloured wherever it appears.** `level=info`,
+  `lvl=dbg`, `"severity":"error"` and a bare `WARN` in the text are all
+  painted in the level's colour, whatever the parser, so a line reads at a
+  glance the way the level column does. A highlight rule still wins.
+- **Logs: configuring a running service fills the whole form.** The source
+  type, path or command and the parser are all taken from what was
+  detected, rather than only the name and one field.
 
 ## 0.80.0 — 2026-10-23
 

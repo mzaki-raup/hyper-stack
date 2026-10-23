@@ -197,6 +197,35 @@ impl LevelAliases {
     }
 }
 
+/// Where the level word sits in `text`, so the list can paint that word
+/// in the level's colour whatever the format (owner's request,
+/// 2026-10-23). `LEVEL_TOKEN` alone is not enough: it requires the word to
+/// follow a space or a bracket, and the commonest shape of all is
+/// `level=info`, where it follows an equals sign or a quote.
+pub fn level_span(text: &str) -> Option<(std::ops::Range<usize>, Level)> {
+    // `level=info`, `severity: "warn"`, `lvl='dbg'` and the like first:
+    // the word after a level key is the level even when the same word
+    // elsewhere in the line would not be.
+    if let Some(c) = LEVEL_ASSIGN.captures(text)
+        && let Some(m) = c.get(1)
+        && let Some(l) = Level::parse(m.as_str())
+    {
+        return Some((m.range(), l));
+    }
+    let c = LEVEL_TOKEN.captures(text)?;
+    let m = c.get(1)?;
+    Level::parse(m.as_str()).map(|l| (m.range(), l))
+}
+
+/// `level=info`, `level: warn`, `"severity":"error"`: a level key, then
+/// the word that is its value.
+static LEVEL_ASSIGN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?i)(?:level|lvl|severity|loglevel|log_level|levelname)"?\s*[:=]\s*"?'?([A-Za-z]+)"#,
+    )
+    .expect("level assignment")
+});
+
 /// The token in `rec` that named its level, if one can be found: the
 /// `level`/`severity`/`lvl` field a structured parser pulled out, else the
 /// word in the raw line that `LEVEL_TOKEN` matched.
@@ -1005,5 +1034,41 @@ mod tests {
         assert_eq!(r.field("Service"), Some("orders"));
         assert_eq!(r.field("service"), None, "exact lookup stays exact");
         assert_eq!(r.field_ci("service"), Some("orders"));
+    }
+
+    /// The level word is painted in the level's colour wherever it sits,
+    /// and `level=info` is the commonest place of all. Owner's report,
+    /// 2026-10-23.
+    #[test]
+    fn the_level_word_is_located_in_every_shape_a_line_writes_it() {
+        let cases = [
+            (r#"time="..." level=info msg="up""#, "info", Level::Info),
+            (
+                r#"time="..." level=warning msg="x""#,
+                "warning",
+                Level::Warn,
+            ),
+            (r#"{"level":"error","msg":"x"}"#, "error", Level::Error),
+            ("ts=1 lvl=dbg msg=x", "dbg", Level::Debug),
+            ("severity: CRITICAL something", "CRITICAL", Level::Fatal),
+            (
+                "2026-10-23 09:00:01 WARN OrderSvc slow",
+                "WARN",
+                Level::Warn,
+            ),
+            ("09:00:01 [Trace] entering", "Trace", Level::Trace),
+        ];
+        for (line, word, want) in cases {
+            let (span, got) = level_span(line).unwrap_or_else(|| panic!("no level in {line}"));
+            assert_eq!(got, want, "{line}");
+            assert_eq!(&line[span], word, "{line}");
+        }
+        // A line with no level has no span to paint.
+        assert!(level_span("just some text about levels of water").is_none());
+        // The level key wins over a level word elsewhere in the line.
+        let line = "msg=\"ERROR was logged earlier\" level=info";
+        let (span, got) = level_span(line).unwrap();
+        assert_eq!(got, Level::Info);
+        assert_eq!(&line[span], "info");
     }
 }

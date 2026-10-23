@@ -1030,15 +1030,31 @@ pub fn markdown_text(ui: &mut egui::Ui, text: &str, theme: &crate::theme::Theme)
 fn table(ui: &mut egui::Ui, theme: &crate::theme::Theme, header: &[String], rows: &[Vec<String>]) {
     let id = ui.next_auto_id();
     ui.skip_ahead_auto_ids(1);
+    // The width the panel actually has, measured before entering the
+    // scroll area: inside one, `available_width` is unbounded, so a
+    // wrapping cell wraps at an enormous width, no cell ever wraps, and
+    // the table runs off the side of the pane with only its left half
+    // visible (owner's report, 2026-10-23). Bounding the inner `Ui` makes
+    // the cells wrap to the pane instead. The scroll area stays for the
+    // case the columns cannot fit even then - a long unbreakable token,
+    // or more columns than the minimum width allows.
+    let avail = (ui.available_width() - 8.0).max(120.0);
     egui::ScrollArea::horizontal().id_salt(id).show(ui, |ui| {
+        ui.set_max_width(avail);
         egui::Frame::new()
             .stroke(egui::Stroke::new(1.0, theme.border))
             .corner_radius(egui::CornerRadius::same(4))
             .show(ui, |ui| {
+                ui.set_max_width(avail - 8.0);
+                // A fair share of the panel each, so three columns do not
+                // become one wide and two thin.
+                let columns = header.len().max(1);
+                let fair = ((avail - 24.0 - 14.0 * columns as f32) / columns as f32).max(40.0);
                 egui::Grid::new(id.with("grid"))
                     .striped(true)
                     .spacing([14.0, 4.0])
                     .min_col_width(40.0)
+                    .max_col_width(fair)
                     .show(ui, |ui| {
                         for cell in header {
                             ui.add(egui::Label::new(inline_job(cell, theme, true)).wrap());

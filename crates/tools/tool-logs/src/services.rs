@@ -209,6 +209,23 @@ pub fn known_paths(kind: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The parser a known server's log wants, so the configure form opens on
+/// the right one rather than on Auto (owner's request, 2026-10-23).
+/// Anything not listed stays Auto, which now settles on its own.
+pub fn format_for(kind: &str) -> crate::parse::Format {
+    use crate::parse::Format;
+    match kind {
+        // Both write the combined access log; the error log is plain and
+        // Auto settles that one correctly on its own.
+        "nginx" | "apache" | "caddy" => Format::Nginx,
+        "postgres" => Format::Postgres,
+        // A container runtime prefixes its own timestamp and the payload
+        // is usually JSON or logfmt; Auto reads both and the prefix is
+        // stripped either way.
+        _ => Format::Auto,
+    }
+}
+
 /// Every kind this knows about, for the configure form's picker.
 pub fn kinds() -> Vec<&'static str> {
     KNOWN.iter().map(|k| k.kind).collect()

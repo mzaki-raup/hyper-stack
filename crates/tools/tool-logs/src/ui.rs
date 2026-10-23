@@ -143,24 +143,40 @@ impl AddSource {
     fn from_service(svc: &crate::services::Service, order: u32) -> Self {
         let mut a = Self {
             name: svc.name.clone(),
-            format: Format::Auto,
+            // The parser this server's log wants, not a blank Auto.
+            format: crate::services::format_for(&svc.kind),
             tail_lines: 2000,
+            // A container or a unit is followed, so it starts with the
+            // history the runtime still holds; a file is read from disk
+            // and does not need as much.
             save: true,
             order,
             ..Default::default()
         };
         match (svc.files.first(), svc.command.as_deref()) {
+            // A file on this machine: source type File, path filled in.
             (Some(path), _) => {
                 a.kind = 0;
                 a.path = path.clone();
+                // Every remaining field is still filled in, so switching
+                // the source type in the form does not empty the others.
+                if let Some(cmd) = &svc.command {
+                    a.command = cmd.clone();
+                }
             }
+            // No file here, but something that follows it: source type
+            // Command, run locally (no connection).
             (None, Some(command)) => {
                 a.kind = 2;
                 a.command = command.to_string();
+                a.conn_id.clear();
             }
-            // Nothing found: the form opens on the file picker so the
-            // user can say where it writes.
-            (None, None) => a.kind = 0,
+            // Neither: the form opens on the file picker so the user can
+            // say where this one writes, with the name already set.
+            (None, None) => {
+                a.kind = 0;
+                a.path.clear();
+            }
         }
         a
     }
@@ -2153,13 +2169,36 @@ impl LogsTool {
                 } else {
                     mono.clone()
                 };
-                p.text(
-                    egui::pos2(x, y),
-                    egui::Align2::LEFT_CENTER,
-                    line,
-                    font,
-                    text_colour,
-                );
+                // The level word inside the line is painted in the level's
+                // own colour, whatever the format: `level=info` reads as
+                // info at a glance, the same as the level column does
+                // (owner's request, 2026-10-23). A highlight rule still
+                // wins, because the user asked for that one by hand.
+                match crate::parse::level_span(&line).filter(|_| paint.is_none()) {
+                    Some((span, l)) => {
+                        let mut job = egui::text::LayoutJob::default();
+                        let plain = egui::TextFormat::simple(font.clone(), text_colour);
+                        let lit = egui::TextFormat::simple(font.clone(), level_colour(theme, l));
+                        job.append(&line[..span.start], 0.0, plain.clone());
+                        job.append(&line[span.clone()], 0.0, lit);
+                        job.append(&line[span.end..], 0.0, plain);
+                        let galley = ui.ctx().fonts_mut(|f| f.layout_job(job));
+                        p.galley(
+                            egui::pos2(x, y - galley.size().y * 0.5),
+                            galley,
+                            text_colour,
+                        );
+                    }
+                    None => {
+                        p.text(
+                            egui::pos2(x, y),
+                            egui::Align2::LEFT_CENTER,
+                            line,
+                            font,
+                            text_colour,
+                        );
+                    }
+                }
                 if run > 1 {
                     let tag = format!("×{run}");
                     let g = egui::FontId::proportional(11.0);

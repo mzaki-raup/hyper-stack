@@ -11,7 +11,38 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- **Logs: Keycloak and seven more servers are recognised**, along with
+  Elasticsearch, Kafka, RabbitMQ, MongoDB, HAProxy and Traefik. A Java
+  server is identified by its command line rather than by the executable,
+  which is only ever "java", and Windows is asked through CIM so there is
+  a command line to read.
+- **Logs: a Suggest Filters prompt** on the assistant, which proposes the
+  noise to exclude and the levels worth watching for the log on screen.
+
+### Changed
+
+- **Logs: the tab is named after the saved log** it was opened from,
+  rather than after the file.
+- **Logs: the assistant can only apply a filter.** A log is read, never
+  written, so there is nothing an answer could be inserted into: a
+  `filter` block gets Apply and everything else can be copied and nothing
+  more.
+
+### Fixed
+
+- **Logs: opening a tab no longer runs a service scan each time.** Every
+  tab drew the sidebar and each one shelled out to PowerShell, Docker,
+  Podman, systemd and kubectl on open, which showed as a flicker. The
+  answer is shared between tabs for a minute, and the refresh button asks
+  again regardless.
+- **Logs: the monospace glyph width is measured when the UI scale
+  changes**, not once a frame per tab; measuring it takes egui's font
+  write lock.
+- **Logs: configuring a service fills the path** even when the server's
+  conventional log is not on this machine, so the field starts from a
+  likely path to correct rather than from nothing.
 
 ## 0.80.1 — 2026-10-23
 

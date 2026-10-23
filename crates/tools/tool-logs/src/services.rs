@@ -129,6 +129,48 @@ const KNOWN: &[Known] = &[
         ],
     },
     Known {
+        kind: "keycloak",
+        // Keycloak runs as `java -jar quarkus-run.jar` or `kc.sh start`,
+        // so the executable alone says only "java": the arguments are
+        // what identify it (owner's report, 2026-10-23).
+        matches: &["keycloak", "kc.sh", "kc.bat", "quarkus-run.jar"],
+        paths: &[
+            "/opt/keycloak/data/log/keycloak.log",
+            "/var/log/keycloak/keycloak.log",
+            "C:/keycloak/data/log/keycloak.log",
+        ],
+    },
+    Known {
+        kind: "elasticsearch",
+        matches: &["elasticsearch"],
+        paths: &["/var/log/elasticsearch/elasticsearch.log"],
+    },
+    Known {
+        kind: "kafka",
+        matches: &["kafka.Kafka", "kafka-server"],
+        paths: &["/var/log/kafka/server.log", "/opt/kafka/logs/server.log"],
+    },
+    Known {
+        kind: "rabbitmq",
+        matches: &["rabbitmq", "beam.smp"],
+        paths: &["/var/log/rabbitmq"],
+    },
+    Known {
+        kind: "mongodb",
+        matches: &["mongod"],
+        paths: &["/var/log/mongodb/mongod.log"],
+    },
+    Known {
+        kind: "haproxy",
+        matches: &["haproxy"],
+        paths: &["/var/log/haproxy.log"],
+    },
+    Known {
+        kind: "traefik",
+        matches: &["traefik"],
+        paths: &["/var/log/traefik/traefik.log"],
+    },
+    Known {
         kind: "jboss",
         matches: &["jboss", "standalone.sh"],
         paths: &["/opt/jboss/standalone/log/server.log"],
@@ -226,15 +268,58 @@ pub fn format_for(kind: &str) -> crate::parse::Format {
     }
 }
 
+/// Every path a known server might write to, whether or not it is here.
+/// The sidebar only ever offers paths that exist, but the configure form
+/// would rather start from a likely path the user can correct than from
+/// an empty field (owner's report, 2026-10-23).
+pub fn candidate_paths(kind: &str) -> Vec<String> {
+    KNOWN
+        .iter()
+        .find(|k| k.kind == kind)
+        .map(|k| k.paths.iter().map(|p| (*p).to_string()).collect())
+        .unwrap_or_default()
+}
+
 /// Every kind this knows about, for the configure form's picker.
 pub fn kinds() -> Vec<&'static str> {
     KNOWN.iter().map(|k| k.kind).collect()
 }
 
-/// Look for everything running here. Blocking: the caller puts it on the
-/// runtime, never on the UI thread. Each probe is independent, and one
-/// that is not installed simply contributes nothing.
+/// How long a scan's answer is reused. Services do not come and go fast
+/// enough to be worth asking more often, and each ask spawns five
+/// processes.
+const CACHE_FOR: std::time::Duration = std::time::Duration::from_secs(60);
+
+static CACHE: std::sync::Mutex<Option<(std::time::Instant, Vec<Service>)>> =
+    std::sync::Mutex::new(None);
+
+/// The running services, from the cache when it is fresh. Every Logs tab
+/// draws the sidebar, so without this a workspace with six log tabs ran
+/// five processes per tab on open, which the owner saw as a flicker
+/// (2026-10-23). `refresh` on the sidebar calls [`rescan`] instead.
 pub fn detect() -> Vec<Service> {
+    if let Ok(guard) = CACHE.lock()
+        && let Some((at, found)) = guard.as_ref()
+        && at.elapsed() < CACHE_FOR
+    {
+        return found.clone();
+    }
+    rescan()
+}
+
+/// Ask again, whatever the cache says, and remember the answer.
+/// Blocking: the caller puts it on a thread, never on the UI.
+pub fn rescan() -> Vec<Service> {
+    let found = scan();
+    if let Ok(mut guard) = CACHE.lock() {
+        *guard = Some((std::time::Instant::now(), found.clone()));
+    }
+    found
+}
+
+/// Each probe is independent, and one whose tool is not installed simply
+/// contributes nothing.
+fn scan() -> Vec<Service> {
     let mut out = Vec::new();
     out.extend(processes());
     out.extend(containers("docker"));
@@ -264,8 +349,21 @@ fn run(program: &str, args: &[&str]) -> Option<String> {
 
 /// Server processes on this machine.
 fn processes() -> Vec<Service> {
+    // The executable name alone is not enough: Keycloak, Tomcat, Kafka
+    // and Elasticsearch are all "java", and what tells them apart is the
+    // command line. `tasklist` does not print one, so Windows asks CIM
+    // instead and falls back to `tasklist` where PowerShell is absent.
     let listing = if cfg!(windows) {
-        run("tasklist", &["/fo", "csv", "/nh"])
+        run(
+            "powershell",
+            &[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.Name) $($_.CommandLine)\" }",
+            ],
+        )
+        .or_else(|| run("tasklist", &["/fo", "csv", "/nh"]))
     } else {
         run("ps", &["-eo", "pid=,comm=,args="])
     };
@@ -278,8 +376,9 @@ fn processes() -> Vec<Service> {
         if line.is_empty() {
             continue;
         }
-        let (pid, name) = if cfg!(windows) {
-            // "image.exe","1234","Services","0","1,234 K"
+        // Both shapes are "<pid> <the rest>", except `tasklist`'s CSV,
+        // which is recognised by its leading quote.
+        let (pid, name) = if line.starts_with('"') {
             let cols: Vec<&str> = line.split("\",\"").collect();
             let Some(first) = cols.first() else { continue };
             let name = first.trim_matches('"').to_string();
@@ -290,6 +389,9 @@ fn processes() -> Vec<Service> {
             let pid = it.next().unwrap_or("").to_string();
             (pid, it.next().unwrap_or("").trim().to_string())
         };
+        if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
         let Some(kind) = classify(&name) else {
             continue;
         };

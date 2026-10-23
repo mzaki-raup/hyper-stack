@@ -73,6 +73,11 @@ pub struct State {
     pub bookmarks: Vec<(u64, String)>,
     pub local_time: bool,
     pub detail_open: bool,
+    /// The saved log this tab was opened from, so the strip says the name
+    /// the user gave it rather than the file's (owner's request,
+    /// 2026-10-23). Empty for a tab opened from a path or a paste.
+    #[serde(default)]
+    pub saved_name: String,
     /// Mask secrets on the way out of the tab (docs/tools/logs.md §15.4).
     /// On by default, and what is on screen matches what would leave.
     #[serde(default = "yes")]
@@ -101,6 +106,7 @@ impl Default for State {
             bookmarks: Vec::new(),
             local_time: true,
             detail_open: true,
+            saved_name: String::new(),
             mask: true,
             collapse: false,
         }
@@ -171,11 +177,16 @@ impl AddSource {
                 a.command = command.to_string();
                 a.conn_id.clear();
             }
-            // Neither: the form opens on the file picker so the user can
-            // say where this one writes, with the name already set.
+            // Neither a file here nor a way to follow it. The form
+            // opens on a file with the server's conventional path filled
+            // in, which the user corrects: a likely path beats an empty
+            // field (owner's report, 2026-10-23).
             (None, None) => {
                 a.kind = 0;
-                a.path.clear();
+                a.path = crate::services::candidate_paths(&svc.kind)
+                    .into_iter()
+                    .next()
+                    .unwrap_or_default();
             }
         }
         a
@@ -279,6 +290,11 @@ pub struct LogsTool {
     logs_dir: PathBuf,
     /// Compiled once per change, never per record.
     redactor: crate::redact::Redactor,
+    /// The monospace glyph width, and the scale it was measured at.
+    /// Measuring takes egui's font write lock, so it is done when the
+    /// scale changes rather than every frame.
+    glyph_w: f32,
+    glyph_at: f32,
     /// What is running here, and the scan that finds it. The scan is a
     /// Job: it shells out to docker, systemctl and kubectl, which must
     /// never happen on the UI thread.
@@ -338,6 +354,8 @@ impl LogsTool {
             services: Vec::new(),
             services_scan: None,
             services_scanned: false,
+            glyph_w: 0.0,
+            glyph_at: 0.0,
             rows: Vec::new(),
             rows_upto: 0,
             rows_collapse: false,
@@ -399,6 +417,10 @@ impl LogsTool {
         self.state.spec = Some(spec);
         self.state.format = format;
         self.state.tail_lines = tail;
+        // Opening anything clears the name; the saved-source route sets
+        // it again afterwards. Otherwise a tab reused for a file picked
+        // by hand would keep the last saved log's name.
+        self.state.saved_name.clear();
         self.state.text = text;
         self.start(services);
     }
@@ -595,7 +617,9 @@ impl LogsTool {
                     .tip(s.t("logs-rescan-services"))
                     .clicked()
                 {
-                    self.scan_services();
+                    // The button means "ask again", so it goes past the
+                    // cache the first look is happy with.
+                    self.scan_services(true);
                 }
             });
         });
@@ -603,7 +627,7 @@ impl LogsTool {
         // workspace that never opens Logs pays nothing for it.
         if !self.services_scanned {
             self.services_scanned = true;
-            self.scan_services();
+            self.scan_services(false);
         }
         // Anything already saved is not offered again.
         let saved_keys: Vec<String> = self
@@ -661,11 +685,15 @@ impl LogsTool {
 
     /// Start a scan on the runtime. The result arrives through a channel
     /// the next frame reads; the UI thread never waits.
-    fn scan_services(&mut self) {
+    fn scan_services(&mut self, force: bool) {
         let (tx, rx) = std::sync::mpsc::channel();
         self.services_scan = Some(rx);
         std::thread::spawn(move || {
-            let _ = tx.send(crate::services::detect());
+            let _ = tx.send(if force {
+                crate::services::rescan()
+            } else {
+                crate::services::detect()
+            });
         });
     }
 
@@ -841,6 +869,9 @@ impl Tool for LogsTool {
         if self.is_home {
             return Cow::Borrowed("Logs");
         }
+        if !self.state.saved_name.is_empty() {
+            return Cow::Borrowed(&self.state.saved_name);
+        }
         match &self.state.spec {
             Some(spec) => Cow::Owned(spec.label()),
             None => Cow::Borrowed("Logs"),
@@ -907,7 +938,12 @@ impl Tool for LogsTool {
             OpenRequest::Text { mime, body } if mime == SPEC_MIME => {
                 match serde_json::from_str::<SavedSource>(&body) {
                     Ok(s) => {
+                        let name = s.name.clone();
                         self.open_spec(cx.services, s.spec, s.format, s.tail_lines, None);
+                        // After, because opening clears it: the tab takes
+                        // the name the user gave the saved log, not the
+                        // file's own.
+                        self.state.saved_name = name;
                         true
                     }
                     Err(_) => false,
@@ -1474,6 +1510,7 @@ impl LogsTool {
                 QuickAction::new(s, "ai-qa-logs-trace", "ai-qa-logs-trace-prompt", ""),
                 QuickAction::new(s, "ai-qa-logs-why", "ai-qa-logs-why-prompt", ""),
                 QuickAction::new(s, "ai-qa-logs-filter", "ai-qa-logs-filter-prompt", ""),
+                QuickAction::new(s, "ai-qa-logs-suggest", "ai-qa-logs-suggest-prompt", ""),
                 QuickAction::new(s, "ai-qa-logs-summarise", "ai-qa-logs-summarise-prompt", ""),
             ];
         }
@@ -1493,12 +1530,19 @@ impl LogsTool {
             .stroke(egui::Stroke::new(1.0, theme.border))
             .show(&mut child, |ui| {
                 ui.set_min_width(370.0);
-                // Review only (ADR-019). There is nothing to run here; a
-                // block the assistant writes becomes a filter chip, and
-                // only because the user pressed Insert.
-                self.assistant.can_insert = true;
+                // Review only (ADR-019), and narrower than that here: a
+                // log is read, never written, so there is nothing an
+                // answer could be inserted *into*. Only a `filter` block
+                // is actionable, and it gets **Apply**; everything else
+                // the assistant writes can be copied and nothing more
+                // (owner's request, 2026-10-23).
+                self.assistant.can_insert = false;
+                self.assistant.can_run = false;
+                self.assistant.action_lang = Some("filter".into());
                 let out = self.assistant.ui(ui, s, &theme, "Logs");
-                if let Some(code) = out.use_block {
+                if let Some(code) = out.use_block
+                    && out.use_block_lang.eq_ignore_ascii_case("filter")
+                {
                     self.insert_ai_filter(&code, cx);
                 }
             });
@@ -2025,9 +2069,14 @@ impl LogsTool {
         // had nothing to scroll and a long line was simply cut off - and
         // opening the assistant made the cut land mid-sentence (owner's
         // report, 2026-10-23).
-        let glyph = ui
-            .ctx()
-            .fonts_mut(|f| f.glyph_width(&egui::FontId::monospace(12.5), 'M'));
+        let ppp = ui.ctx().pixels_per_point();
+        if self.glyph_w <= 0.0 || (self.glyph_at - ppp).abs() > f32::EPSILON {
+            self.glyph_w = ui
+                .ctx()
+                .fonts_mut(|f| f.glyph_width(&egui::FontId::monospace(12.5), 'M'));
+            self.glyph_at = ppp;
+        }
+        let glyph = self.glyph_w;
         let longest = self.shared.lock().max_chars;
         let text_w = TEXT_COLUMN_X + pinned.len() as f32 * 150.0 + longest as f32 * glyph + 24.0;
         let mut area = egui::ScrollArea::both()

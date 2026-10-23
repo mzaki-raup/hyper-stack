@@ -23,6 +23,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   tabs as counts, Start Here actions, the workspace's saved sources as rows
   and the shared Open Here previews.
 
+### Security
+
+- `ctutils` moved to 0.4.5 for RUSTSEC-2026-0385, a constant-time flaw in
+  its mask generation and `u128` comparisons; it reaches HyperStack through
+  russh's crypto stack. `clipboard-win` moved to 5.4.3 off a yanked
+  release. No HyperStack code changed.
+
 ### Fixed
 
 - **Logs: every spelling of a level is recognised, in any case.** The

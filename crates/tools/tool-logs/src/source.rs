@@ -59,6 +59,18 @@ impl SourceSpec {
         }
     }
 
+    /// The glyph the sidebar and the dashboard draw for this kind of
+    /// source, so the two never disagree about what a command looks like.
+    pub fn icon(&self) -> &'static str {
+        use hs_ui::icons::ph;
+        match self {
+            SourceSpec::LocalFile { .. } => ph::FILE_TEXT,
+            SourceSpec::SshFile { .. } => ph::HARD_DRIVES,
+            SourceSpec::Command { .. } => ph::TERMINAL,
+            SourceSpec::Text { .. } => ph::CLIPBOARD_TEXT,
+        }
+    }
+
     pub fn conn_id(&self) -> Option<&str> {
         match self {
             SourceSpec::SshFile { conn_id, .. } => Some(conn_id),
@@ -95,6 +107,12 @@ pub struct SavedSource {
     pub format: Format,
     /// Lines of history a tail starts with (SSH and command sources).
     pub tail_lines: u32,
+    /// Where this sits in the sidebar. The list is the user's to arrange,
+    /// so it is dragged rather than sorted by name (owner's request,
+    /// 2026-10-23); sources saved before this all read 0 and keep their
+    /// alphabetical order until one is moved.
+    #[serde(default)]
+    pub order: u32,
 }
 
 impl Default for SavedSource {
@@ -107,6 +125,7 @@ impl Default for SavedSource {
             },
             format: Format::Auto,
             tail_lines: 2000,
+            order: 0,
         }
     }
 }
@@ -132,7 +151,11 @@ impl SavedSource {
                 }
             }
         }
-        out.sort_by_key(|s| s.name.to_lowercase());
+        out.sort_by(|a, b| {
+            a.order
+                .cmp(&b.order)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
         out
     }
 

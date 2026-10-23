@@ -424,6 +424,53 @@ Found while the additions above were being built, all three on a
   it reports **no** `current_uri` and **no** `uri_affinity`, or it would
   take every `OpenRequest` for the activity.
 
+## 16. The sidebar and Running Service (2026-10-23)
+
+The column is three stacked sections, each scrolling on its own so a long
+list never pushes the others off: **Saved Logs** at about 40% of the
+height, **Running Service** at 30%, and **Filter Presets** with the rest.
+
+**Saved Logs is a flat list the user arranges.** It used to be grouped by
+the environment of each source's connection, which said the same thing
+twice: the environment is chosen in the title bar and every tab already
+follows it. Rows carry a drag grip, as every other activity's list does
+(`hs_ui::reorder`), and the order lives on each source's own file
+(`SavedSource::order`), so a move rewrites only the files that shifted and
+a source saved before this reads 0 and keeps its alphabetical place until
+something is moved. The context menu offers Open, **Edit Source…** and
+Delete; Edit opens the Add Source form filled in, keeps the source's place
+and removes the old file when the name changes.
+
+**Clicking a saved log opens it in its own tab, and only one.** A log that
+is already open is focused instead of opened twice. `TabInfo` carries the
+`current_uri` of each tab so any tool can ask that question.
+
+**Running Service** lists what is running on this machine so a log can be
+opened without knowing where it lives (`services.rs`). It asks the process
+list, Docker, Podman, systemd and kubectl, matches each executable or
+image against a table of well-known servers (nginx, Apache, Caddy, Tomcat,
+JBoss, WildFly, Jetty, Quarkus, IIS, Kestrel, Node, gunicorn and friends,
+PostgreSQL, MySQL, Redis) and offers the paths that server conventionally
+writes to. Adding a server is a row in `KNOWN`, not code elsewhere.
+
+Three rules keep it honest:
+
+- **It never starts, stops or configures anything.** Every probe is a
+  read, and a runtime that is not installed contributes nothing.
+- **A guessed path is checked before it is offered.** A server with no
+  file here is offered as the command that follows it instead
+  (`docker logs -f`, `journalctl -f -u`, `kubectl logs -f`), and one with
+  neither opens the form on the file picker.
+- **The scan is a Job.** It shells out, so it runs on a thread and the
+  result arrives through a channel; the UI thread never waits. The first
+  scan happens when the tab is first drawn, not at start, so a workspace
+  that never opens Logs pays nothing.
+
+Clicking a row opens the Add Source form pre-filled, and saving it puts
+the service in Saved Logs. **It then drops off Running Service**: it
+belongs to the saved list now, and the two should not show the same thing
+twice (owner's request).
+
 ### 15.9 What this does not add
 
 No background daemon, no writing to a log source, no network calls of its own

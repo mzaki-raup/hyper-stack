@@ -33,6 +33,11 @@ pub struct TabInfo {
     pub home: bool,
     /// The tab the user is looking at.
     pub active: bool,
+    /// What this tab holds, as [`crate::tool::Tool::current_uri`] reports
+    /// it. A tool uses it to ask whether the thing it is about to open is
+    /// already open, so it can focus that tab instead of making a second
+    /// one (the Logs sidebar does: one tab per saved log).
+    pub uri: Option<String>,
 }
 
 /// The shell's view of the window, shared with every tool.

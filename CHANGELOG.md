@@ -23,6 +23,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   tabs as counts, Start Here actions, the workspace's saved sources as rows
   and the shared Open Here previews.
 
+### Added
+
+- **Logs: a Running Service section in the sidebar.** It lists what is
+  running on this machine, from the process list, Docker, Podman, systemd
+  and kubectl, recognises the well-known servers (nginx, Apache, Caddy,
+  Tomcat, JBoss, WildFly, Jetty, Quarkus, IIS, Kestrel, Node, gunicorn,
+  PostgreSQL, MySQL, Redis) and offers the log each conventionally writes.
+  Clicking one opens the Add Source form already pointed at it; saving it
+  moves it into Saved Logs and off this list. The scan runs off the UI
+  thread and never starts, stops or configures anything.
+- **Logs: saved sources can be reordered and edited.** Rows carry a drag
+  grip like every other activity's list, the order is persisted per
+  source, and Edit Source… opens the form filled in, keeping the source's
+  place and tidying up the old file on a rename.
+
+### Changed
+
+- **Logs: the sidebar is three sections** (Saved Logs, Running Service,
+  Filter Presets), each scrolling on its own.
+- **Logs: saved sources are no longer grouped by environment.** The
+  environment is chosen in the title bar and every tab already follows it.
+- **Logs: clicking a saved log opens its own tab, and only one.** A log
+  that is already open is focused rather than opened a second time.
+
+### Fixed
+
+- **Logs: a long line can be scrolled to its end.** Rows claimed only the
+  width already on screen, so the list had nothing to scroll horizontally
+  and a long line was simply cut, which opening the AI Assistant made
+  obvious. Rows now claim the width of the longest line.
+
 ### Security
 
 - `ctutils` moved to 0.4.5 for RUSTSEC-2026-0385, a constant-time flaw in

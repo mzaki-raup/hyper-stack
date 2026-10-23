@@ -2882,6 +2882,7 @@ impl HyperStackApp {
                 thumbnail: None,
                 home: t.home,
                 active: Some(t.id) == active,
+                uri: t.tool.current_uri(),
             })
             .collect();
         self.services.open_tabs.set(tabs);

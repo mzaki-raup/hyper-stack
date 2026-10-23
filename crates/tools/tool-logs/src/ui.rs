@@ -4,7 +4,6 @@
 //! pane. Everything the list shows comes from [`crate::engine::Shared`].
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -117,7 +116,9 @@ fn default_highlights() -> Vec<Highlight> {
     }]
 }
 
-/// The Add Source form.
+/// The Add Source form, which doubles as Edit Source: the fields are the
+/// same ones, and `editing` carries the name the source had so the old
+/// file can be removed when it is renamed (owner's request, 2026-10-23).
 #[derive(Default)]
 struct AddSource {
     kind: usize,
@@ -129,6 +130,70 @@ struct AddSource {
     tail_lines: u32,
     pasted: String,
     save: bool,
+    /// The saved source being edited, by the name it had.
+    editing: Option<String>,
+    /// Its place in the list, kept across an edit.
+    order: u32,
+}
+
+impl AddSource {
+    /// The form filled in from a running service, with its log already
+    /// pointed at: a file when the server writes one here, otherwise the
+    /// command that follows it (docs/tools/logs.md §16).
+    fn from_service(svc: &crate::services::Service, order: u32) -> Self {
+        let mut a = Self {
+            name: svc.name.clone(),
+            format: Format::Auto,
+            tail_lines: 2000,
+            save: true,
+            order,
+            ..Default::default()
+        };
+        match (svc.files.first(), svc.command.as_deref()) {
+            (Some(path), _) => {
+                a.kind = 0;
+                a.path = path.clone();
+            }
+            (None, Some(command)) => {
+                a.kind = 2;
+                a.command = command.to_string();
+            }
+            // Nothing found: the form opens on the file picker so the
+            // user can say where it writes.
+            (None, None) => a.kind = 0,
+        }
+        a
+    }
+
+    /// The form filled in from a saved source.
+    fn editing(src: &SavedSource) -> Self {
+        let (kind, path, conn_id, command) = match &src.spec {
+            SourceSpec::LocalFile { path } => (0, path.clone(), String::new(), String::new()),
+            SourceSpec::SshFile { conn_id, path } => {
+                (1, path.clone(), conn_id.clone(), String::new())
+            }
+            SourceSpec::Command { conn_id, command } => (
+                2,
+                String::new(),
+                conn_id.clone().unwrap_or_default(),
+                command.clone(),
+            ),
+            SourceSpec::Text { .. } => (3, String::new(), String::new(), String::new()),
+        };
+        Self {
+            kind,
+            name: src.name.clone(),
+            path,
+            conn_id,
+            command,
+            format: src.format,
+            tail_lines: src.tail_lines,
+            pasted: String::new(),
+            save: true,
+            editing: Some(src.name.clone()),
+            order: src.order,
+        }
+    }
 }
 
 struct NewChip {
@@ -198,6 +263,12 @@ pub struct LogsTool {
     logs_dir: PathBuf,
     /// Compiled once per change, never per record.
     redactor: crate::redact::Redactor,
+    /// What is running here, and the scan that finds it. The scan is a
+    /// Job: it shells out to docker, systemctl and kubectl, which must
+    /// never happen on the UI thread.
+    services: Vec<crate::services::Service>,
+    services_scan: Option<std::sync::mpsc::Receiver<Vec<crate::services::Service>>>,
+    services_scanned: bool,
     /// Review-only assistant (ADR-019, docs/tools/logs.md §15.1). It is
     /// told the selected record and its neighbours, after redaction.
     assistant: hs_ui::ai_assistant::AssistantPanel,
@@ -248,6 +319,9 @@ impl LogsTool {
             is_home: false,
             redactor: crate::redact::Redactor::compile(&crate::redact::RuleSet::load(&logs_dir)),
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            services: Vec::new(),
+            services_scan: None,
+            services_scanned: false,
             rows: Vec::new(),
             rows_upto: 0,
             rows_collapse: false,
@@ -444,6 +518,141 @@ impl LogsTool {
         self.find.at = self.find.at.min(self.find.hits.len().saturating_sub(1));
     }
 
+    /// Put `name` where `before` is, and renumber. The order lives on
+    /// each source's own file, so a move rewrites the ones that shifted.
+    fn reorder_saved(&mut self, name: &str, before: Option<&str>, cx: &mut ToolContext) {
+        let Some(from) = self.saved.iter().position(|s| s.name == name) else {
+            return;
+        };
+        let to = match before {
+            Some(b) => self
+                .saved
+                .iter()
+                .position(|s| s.name == b)
+                .unwrap_or(self.saved.len()),
+            None => self.saved.len(),
+        };
+        let mut list = std::mem::take(&mut self.saved);
+        hs_ui::reorder::move_item(&mut list, from, to);
+        for (i, src) in list.iter_mut().enumerate() {
+            let want = i as u32;
+            if src.order != want {
+                src.order = want;
+                if let Err(e) = src.save(&self.logs_dir) {
+                    cx.toast(ToastLevel::Error, e.to_string());
+                }
+            }
+        }
+        self.saved = list;
+    }
+
+    /// What is running on this machine, so a log can be opened without
+    /// knowing where it lives (docs/tools/logs.md §16). A service that has
+    /// already been saved drops off the list: it belongs to Saved Logs
+    /// now (owner's request, 2026-10-23).
+    fn running_services(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &mut ToolContext,
+        theme: &Theme,
+        height: f32,
+    ) {
+        let s = cx.services.clone();
+        // Collect a finished scan.
+        if let Some(rx) = &self.services_scan
+            && let Ok(found) = rx.try_recv()
+        {
+            self.services = found;
+            self.services_scan = None;
+        }
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("logs-running-services"))
+                    .small()
+                    .strong()
+                    .color(theme.text_muted),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                let busy = self.services_scan.is_some();
+                if ui
+                    .add_enabled(!busy, egui::Button::new(ph::ARROWS_CLOCKWISE).small())
+                    .tip(s.t("logs-rescan-services"))
+                    .clicked()
+                {
+                    self.scan_services();
+                }
+            });
+        });
+        // The first look happens once the tab is drawn, not at start: a
+        // workspace that never opens Logs pays nothing for it.
+        if !self.services_scanned {
+            self.services_scanned = true;
+            self.scan_services();
+        }
+        // Anything already saved is not offered again.
+        let saved_keys: Vec<String> = self
+            .saved
+            .iter()
+            .map(|x| match &x.spec {
+                SourceSpec::LocalFile { path } => path.clone(),
+                SourceSpec::Command { command, .. } => command.clone(),
+                other => other.uri(),
+            })
+            .collect();
+        let offered: Vec<crate::services::Service> = self
+            .services
+            .iter()
+            .filter(|svc| {
+                let mine = svc.key();
+                !saved_keys.iter().any(|k| {
+                    k == &mine
+                        || svc.command.as_deref().is_some_and(|c| k == c)
+                        || svc.files.iter().any(|f| k == f)
+                })
+            })
+            .cloned()
+            .collect();
+        let mut configure: Option<crate::services::Service> = None;
+        egui::ScrollArea::vertical()
+            .id_salt("logs-services")
+            .auto_shrink([false, false])
+            .max_height(height)
+            .show(ui, |ui| {
+                if self.services_scan.is_some() && self.services.is_empty() {
+                    form::hint(ui, theme, &s.t("logs-services-scanning"));
+                } else if offered.is_empty() {
+                    form::hint(ui, theme, &s.t("logs-no-services"));
+                }
+                for svc in &offered {
+                    let r = form::list_row(
+                        ui,
+                        theme,
+                        false,
+                        service_icon(svc),
+                        &svc.name,
+                        Some(&svc.describe()),
+                    );
+                    if r.tip(s.t("logs-configure-service")).clicked() {
+                        configure = Some(svc.clone());
+                    }
+                    ui.add_space(2.0);
+                }
+            });
+        if let Some(svc) = configure {
+            self.add = Some(AddSource::from_service(&svc, self.saved.len() as u32));
+        }
+    }
+
+    /// Start a scan on the runtime. The result arrives through a channel
+    /// the next frame reads; the UI thread never waits.
+    fn scan_services(&mut self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.services_scan = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(crate::services::detect());
+        });
+    }
+
     fn save_source(&mut self, name: &str) -> Result<(), String> {
         let Some(spec) = self.state.spec.clone() else {
             return Err("no source".into());
@@ -453,6 +662,7 @@ impl LogsTool {
             spec,
             format: self.state.format,
             tail_lines: self.state.tail_lines,
+            order: self.saved.len() as u32,
             ..Default::default()
         };
         s.save(&self.logs_dir).map_err(|e| e.to_string())?;
@@ -517,6 +727,24 @@ fn save_presets(dir: &std::path::Path, presets: &[Preset]) -> Result<(), String>
         },
     )
     .map_err(|e| e.to_string())
+}
+
+/// Where a row's message starts: 8 px of margin, then the line number,
+/// the time and the level columns (62 + 96 + 52). Pinned columns push it
+/// further right and are added on top. Keep in step with `list`.
+const TEXT_COLUMN_X: f32 = 8.0 + 62.0 + 96.0 + 52.0;
+
+/// A running service's glyph: what kind of host it was found on, since
+/// that is what decides how its log is read.
+fn service_icon(svc: &crate::services::Service) -> &'static str {
+    use crate::services::Host;
+    match svc.host {
+        Host::Local => ph::GEAR,
+        Host::Container => ph::SHIPPING_CONTAINER,
+        Host::Systemd => ph::TREE_STRUCTURE,
+        Host::Wsl => ph::LINUX_LOGO,
+        Host::Kubernetes => ph::POLYGON,
+    }
 }
 
 fn level_colour(theme: &Theme, level: Level) -> egui::Color32 {
@@ -836,67 +1064,48 @@ impl Tool for LogsTool {
             );
         });
         ui.add_space(4.0);
-        // Saved sources grouped by the environment of their connection
-        // (local ones under "Local").
-        let mut groups: BTreeMap<String, Vec<SavedSource>> = BTreeMap::new();
-        {
-            let conns = s.connections.read();
-            let envs = s.environments.read();
-            for src in &self.saved {
-                if !self.sidebar_filter.is_empty()
-                    && !src
-                        .name
-                        .to_lowercase()
-                        .contains(&self.sidebar_filter.to_lowercase())
-                {
-                    continue;
-                }
-                let group = src
-                    .spec
-                    .conn_id()
-                    .and_then(|id| conns.by_id(id))
-                    .map(|c| {
-                        c.environment
-                            .as_deref()
-                            .and_then(|e| envs.by_id(e))
-                            .map(|e| e.name.clone())
-                            .unwrap_or_else(|| c.name.clone())
-                    })
-                    .unwrap_or_else(|| s.t("logs-group-local"));
-                groups.entry(group).or_default().push(src.clone());
-            }
-        }
+        // The column is three stacked sections (owner's request,
+        // 2026-10-23): the saved logs take about 40% of it, Running
+        // Service 30%, and the filter presets what is left. Each scrolls
+        // on its own, so a long list never pushes the others off.
+        let col_h = ui.available_height();
+        let saved_height = (col_h * 0.40).max(120.0);
+        let services_height = (col_h * 0.30).max(100.0);
+        // A flat list the user arranges themselves. It used to be grouped
+        // by the environment of each source's connection, which said the
+        // same thing twice: the environment is chosen in the title bar and
+        // every tab already follows it (owner's request, 2026-10-23).
+        let needle = self.sidebar_filter.to_lowercase();
+        let shown: Vec<SavedSource> = self
+            .saved
+            .iter()
+            .filter(|src| needle.is_empty() || src.name.to_lowercase().contains(&needle))
+            .cloned()
+            .collect();
         let current_uri = self.state.spec.as_ref().map(SourceSpec::uri);
         let mut open: Option<SavedSource> = None;
+        let mut edit: Option<SavedSource> = None;
         let mut delete: Option<String> = None;
+        let mut moved: Option<(usize, usize)> = None;
         egui::ScrollArea::vertical()
             .id_salt("logs-sources")
             .auto_shrink([false, false])
-            .max_height((ui.available_height() * 0.6).max(120.0))
+            .max_height(saved_height)
             .show(ui, |ui| {
                 if self.saved.is_empty() {
                     form::note(ui, &theme, hs_ui::icons::INFO, &s.t("logs-no-sources"));
                 }
-                for (group, sources) in &groups {
-                    ui.label(
-                        egui::RichText::new(group)
-                            .small()
-                            .strong()
-                            .color(theme.text_muted),
-                    );
-                    for src in sources {
+                // The grip is the drag source, as in every other activity's
+                // list; the row itself stays clickable.
+                let mut reorder = hs_ui::reorder::Reorder::new("logs-sources");
+                for (i, src) in shown.iter().enumerate() {
+                    reorder.row(ui, i, |ui| {
                         let live = current_uri.as_deref() == Some(src.spec.uri().as_str());
-                        let icon = match src.spec {
-                            SourceSpec::LocalFile { .. } => ph::FILE_TEXT,
-                            SourceSpec::SshFile { .. } => ph::HARD_DRIVES,
-                            SourceSpec::Command { .. } => ph::TERMINAL,
-                            SourceSpec::Text { .. } => ph::CLIPBOARD_TEXT,
-                        };
                         let r = form::list_row(
                             ui,
                             &theme,
                             live,
-                            icon,
+                            src.spec.icon(),
                             &src.name,
                             Some(&src.spec.describe()),
                         );
@@ -905,9 +1114,14 @@ impl Tool for LogsTool {
                         }
                         let del = s.t("logs-delete-source");
                         let open_label = s.t("logs-open-source");
+                        let edit_label = s.t("logs-edit-source");
                         r.context_menu(|ui| {
                             if ui.button(&open_label).clicked() {
                                 open = Some(src.clone());
+                                ui.close();
+                            }
+                            if ui.button(&edit_label).clicked() {
+                                edit = Some(src.clone());
                                 ui.close();
                             }
                             if ui.button(&del).clicked() {
@@ -915,22 +1129,52 @@ impl Tool for LogsTool {
                                 ui.close();
                             }
                         });
-                    }
-                    ui.add_space(4.0);
+                    });
+                    ui.add_space(2.0);
                 }
+                moved = reorder.finish(ui, theme.accent);
             });
-        if let Some(src) = open {
-            cx.open_new_tab(
-                "logs",
-                Some(OpenRequest::Text {
-                    mime: SPEC_MIME.into(),
-                    body: serde_json::to_string(&src).unwrap_or_default(),
-                }),
-            );
+        if let Some((from, to)) = moved
+            && from < shown.len()
+        {
+            // The order is the whole saved list's, not the filtered view's,
+            // so a move made while filtering still means what it looks like.
+            let name = shown[from].name.clone();
+            let before = shown.get(to).map(|s| s.name.clone());
+            self.reorder_saved(&name, before.as_deref(), cx);
         }
+        if let Some(src) = edit {
+            self.add = Some(AddSource::editing(&src));
+        }
+        if let Some(src) = open {
+            // One tab per saved log (owner's request, 2026-10-23): a log
+            // that is already open is focused rather than opened twice.
+            let want = src.spec.uri();
+            let existing = s
+                .open_tabs
+                .of("logs")
+                .into_iter()
+                .find(|t| t.uri.as_deref() == Some(want.as_str()))
+                .map(|t| t.id);
+            match existing {
+                Some(id) => cx
+                    .actions
+                    .push(hs_core::tool::Action::FocusTab { tab_id: id }),
+                None => cx.open_new_tab(
+                    "logs",
+                    Some(OpenRequest::Text {
+                        mime: SPEC_MIME.into(),
+                        body: serde_json::to_string(&src).unwrap_or_default(),
+                    }),
+                ),
+            }
+        }
+
         if let Some(name) = delete {
             self.confirm_delete = Some(name);
         }
+        ui.separator();
+        self.running_services(ui, cx, &theme, services_height);
         ui.separator();
         ui.label(
             egui::RichText::new(s.t("logs-presets"))
@@ -1759,6 +2003,17 @@ impl LogsTool {
         let local = self.state.local_time;
         let bookmarks: Vec<u64> = self.state.bookmarks.iter().map(|(l, _)| *l).collect();
         let stick = self.state.follow && !self.paused && self.scroll_to.is_none();
+        // How wide the widest line needs. The rows are monospaced, so one
+        // glyph width answers for all of them. Without this the rows only
+        // ever claimed the width already on screen, so `ScrollArea::both`
+        // had nothing to scroll and a long line was simply cut off - and
+        // opening the assistant made the cut land mid-sentence (owner's
+        // report, 2026-10-23).
+        let glyph = ui
+            .ctx()
+            .fonts_mut(|f| f.glyph_width(&egui::FontId::monospace(12.5), 'M'));
+        let longest = self.shared.lock().max_chars;
+        let text_w = TEXT_COLUMN_X + pinned.len() as f32 * 150.0 + longest as f32 * glyph + 24.0;
         let mut area = egui::ScrollArea::both()
             .id_salt("logs-list")
             .auto_shrink([false, false])
@@ -1813,7 +2068,7 @@ impl LogsTool {
                 let selected = self.selected == Some(idx);
                 let paint = self.highlights.paint(r);
                 let (rect, resp) = ui.allocate_exact_size(
-                    egui::vec2(ui.available_width().max(400.0), row_h),
+                    egui::vec2(ui.available_width().max(400.0).max(text_w), row_h),
                     egui::Sense::click(),
                 );
                 if selected {
@@ -2317,15 +2572,25 @@ impl LogsTool {
                     spec: spec.clone(),
                     format: a.format,
                     tail_lines: a.tail_lines,
+                    order: a.order,
                     ..Default::default()
                 };
                 if a.save && a.kind != 4 {
+                    // A renamed source changes its file name, so the file
+                    // it had has to go or the list shows both.
+                    if let Some(was) = a.editing.as_deref()
+                        && was != saved.name
+                        && let Some(old) = self.saved.iter().find(|x| x.name == was)
+                        && let Err(e) = old.delete(&self.logs_dir)
+                    {
+                        cx.toast(ToastLevel::Error, e.to_string());
+                    }
                     match saved.save(&self.logs_dir) {
                         Ok(()) => self.saved = SavedSource::load_all(&self.logs_dir),
                         Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
                     }
                 }
-                if self.state.spec.is_some() && text.is_none() {
+                if a.editing.is_none() && self.state.spec.is_some() && text.is_none() {
                     cx.open_new_tab(
                         "logs",
                         Some(OpenRequest::Text {

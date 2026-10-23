@@ -62,6 +62,10 @@ pub struct Shared {
     pub truncated_start: bool,
     /// How this source spells each level, learned as records arrive.
     pub aliases: parse::LevelAliases,
+    /// The longest line seen, in characters. The list is monospaced, so
+    /// this is all it needs to allocate a width wide enough to scroll to
+    /// the end of the longest line rather than clipping it.
+    pub max_chars: usize,
 }
 
 impl Shared {
@@ -78,6 +82,9 @@ impl Shared {
             self.version += 1;
             return;
         }
+        // Capped: a 4 k line is already past the point of reading, and
+        // the row truncates there too.
+        self.max_chars = self.max_chars.max(line.chars().take(4000).count());
         let rec = parse::parse(format, self.lines, line);
         // Learn the source's own spelling of each level, at most six
         // lookups for the whole log.
@@ -108,6 +115,7 @@ impl Shared {
         self.lines = 0;
         // A different parser may name levels differently.
         self.aliases.clear();
+        self.max_chars = 0;
         for l in sample {
             self.push_line(format, l);
         }

@@ -11,36 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Added
+- (nothing yet)
 
-- Graphics → Image has a **Properties** card: format, dimensions,
-  megapixels, aspect ratio (reduced, `16:9`), colour model, bit depth,
-  transparency (and whether any pixel is *actually* transparent),
-  resolution read from the file's own PNG `pHYs` or JPEG JFIF density,
-  the print size that implies, the embedded colour profile by name, the
-  size on disk and the decoded size in memory. Nothing is guessed: a
-  field the file does not record is left out rather than filled with a
-  plausible default.
-- Settings → AI Assistant → **Providers** is now its own card, with Add,
-  the list and the configuration inside it, so the page reads as
-  sections rather than one card followed by loose controls.
+## 0.82.1 — 2026-10-23
 
 ### Fixed
 
-- Saved Logs and Running Service rows carry an icon for what the thing
-  **is** - a database, a web server, a queue, Node, an identity server -
-  rather than only for where it was found.
-- A Node or Python service's log path is offered from the application's
-  own directory, taken from its command line: a runtime writes beside
-  the app it runs, not beside itself, so the field used to open empty.
-- Two Logs tabs no longer show different Saved Logs and Running Service
-  lists. Each tab read the files once when it was created, so another
-  tab's save, rename, reorder or delete was invisible to it - and a
-  service saved in one tab stayed on the other's running list.
-- A log file that cannot be opened says what to do about it. MySQL and
-  PostgreSQL on Windows keep their logs under `ProgramData` with an ACL
-  that admits only the service account, and the bare "Access is denied.
-  (os error 5)" gave the reader nothing to act on.
+- Four Logs reports, providers in a card, and image properties (717279e6)
 
 ## 0.82.0 — 2026-10-23
 

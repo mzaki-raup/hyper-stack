@@ -17,6 +17,7 @@ owner's process rules require.
 | Diagram Editor UI (flowchart, architecture; selection, drag, add, connect, undo, templates, save/export) | Implemented 2026-10-19 |
 | Diagram Generator UI (prompt, examples, AI, offline templates, preview, Open in Editor, export) | Implemented 2026-10-20 |
 | Review-only AI assistant in all four tools | Implemented 2026-10-20 |
+| Image Properties card (`tool-graphics::meta`): format, dimensions, megapixels, reduced aspect ratio, colour model, bit depth, real transparency, resolution from PNG `pHYs` / JPEG JFIF, print size, embedded colour profile, size on disk, decoded size. The container is read directly, because the `image` crate does not surface DPI or profiles; nothing is guessed, so a field the file omits is left out. Read once per loaded file, never per frame | Implemented 2026-10-24 |
 | ERD, sequence, Archify JSON and draw.io XML import (Release 2) | Partial 2026-10-21: imports, Entity tables and sequence lifelines done; fragments/activations remain |
 
 Related documents: [graphics.md](graphics.md) (the existing image/ICO tool),

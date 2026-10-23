@@ -558,6 +558,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   releases. `grep -n '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md` before
   committing any merge; `ci.yml` now fails on markers in tracked text.
   Repair is the last clean tag's copy plus the sections released since.
+- **Writing `Unreleased` notes before the release lands guarantees a
+  CHANGELOG conflict**, and resolving it by keeping "both" duplicates
+  every line into the released section - which is how v0.60.3..v0.65.0
+  got their mangled history. When the release job moves `Unreleased`
+  into `## X.Y.Z`, the branch still has those lines under `Unreleased`,
+  so `git stash pop` (or the merge) collides on exactly that hunk. The
+  resolution is never "both": the **released section belongs to the
+  workflow** - keep its generated one-line-per-commit form verbatim -
+  and `Unreleased` keeps **only what is not yet released**, so every
+  item the release just took is deleted from it rather than kept. Then
+  `grep -c '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md` must print 0
+  before committing.
 - Adding a **new workspace member** on a branch and then merging a release
   bump from `main` leaves that member at its old version in `Cargo.lock`
   (`update-version.ps1` could not see a crate that only existed on the

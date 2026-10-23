@@ -270,6 +270,32 @@ impl FileFollower {
 }
 
 /// The parser for a source: the saved one, or detected from a sample.
+/// Why a log file would not open, in terms the reader can act on.
+///
+/// A database's log is the case that bites: MySQL and PostgreSQL on
+/// Windows keep theirs under `ProgramData` with an ACL that grants only
+/// the service account and the administrators group, so a normal user's
+/// process is refused with a bare "Access is denied. (os error 5)" that
+/// says nothing about what to do (owner's report, 2026-10-24). The raw
+/// error is kept - it is the ground truth - and the remedy added after
+/// it.
+pub fn explain_open(path: &std::path::Path, e: &std::io::Error) -> String {
+    let shown = path.display();
+    match e.kind() {
+        std::io::ErrorKind::PermissionDenied => format!(
+            "{shown}: {e} - the file's permissions do not let this user read it. \
+             Grant your account Read on the file, or start HyperStack as an \
+             administrator. For a server running in a container or as a unit, \
+             follow its own log instead: Add Source, source type Command."
+        ),
+        std::io::ErrorKind::NotFound => format!(
+            "{shown}: {e} - check the path, and whether the server logs to a \
+             file at all rather than to stdout or the Event Log."
+        ),
+        _ => format!("{shown}: {e}"),
+    }
+}
+
 fn pick_format(saved: Format, sample: &[String]) -> Format {
     if saved != Format::Auto {
         return saved;
@@ -401,7 +427,7 @@ fn follow_local(
     let (lines, cut) = match follower.open() {
         Ok(v) => v,
         Err(e) => {
-            set_status(shared, Status::Failed(format!("{}: {e}", path.display())));
+            set_status(shared, Status::Failed(explain_open(path, &e)));
             wake();
             return;
         }
@@ -723,6 +749,54 @@ fn start_remote(
         }
         client.disconnect().await;
     });
+}
+
+#[cfg(test)]
+mod open_error_tests {
+    use super::explain_open;
+    use std::io::{Error, ErrorKind};
+    use std::path::Path;
+
+    /// The bare "Access is denied. (os error 5)" a database log gives on
+    /// Windows says nothing about what to do; the remedy has to be in
+    /// the message, because this is the one error a reader cannot
+    /// diagnose from the log tool (owner's report, 2026-10-24).
+    #[test]
+    fn a_refused_log_file_says_how_to_get_at_it() {
+        let e = Error::new(
+            ErrorKind::PermissionDenied,
+            "Access is denied. (os error 5)",
+        );
+        let msg = explain_open(Path::new(r"C:\ProgramData\MySQL\data\host.err"), &e);
+        assert!(msg.contains("host.err"), "the path is named: {msg}");
+        assert!(
+            msg.contains("Access is denied"),
+            "the real error is kept: {msg}"
+        );
+        assert!(msg.contains("Read"), "it says to grant Read: {msg}");
+        assert!(msg.contains("administrator"), "and the other way: {msg}");
+        assert!(msg.contains("Command"), "and the way round it: {msg}");
+    }
+
+    #[test]
+    fn a_missing_log_file_asks_whether_the_server_writes_one() {
+        let e = Error::new(
+            ErrorKind::NotFound,
+            "The system cannot find the file specified.",
+        );
+        let msg = explain_open(Path::new("/var/log/nope.log"), &e);
+        assert!(msg.contains("nope.log"));
+        assert!(msg.contains("stdout"), "it names the likely reason: {msg}");
+    }
+
+    /// Any other error is passed through unchanged: inventing advice for
+    /// an error we have not seen would be worse than the error.
+    #[test]
+    fn an_unrecognised_error_is_left_alone() {
+        let e = Error::other("disk on fire");
+        let msg = explain_open(Path::new("/var/log/a.log"), &e);
+        assert_eq!(msg, "/var/log/a.log: disk on fire");
+    }
 }
 
 #[cfg(test)]

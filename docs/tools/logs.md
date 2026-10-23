@@ -562,3 +562,43 @@ Non-JVM dumps (Go's goroutine dump, .NET's `dotnet-dump`) are a
 different grammar and are not covered. The cycle is followed by thread
 *name*, which is what the JVM prints; two threads sharing a name would
 both match.
+
+## 18. Four reports from the field (2026-10-24)
+
+**A row's icon says what the thing is.** `services::icon_for` maps a
+server kind to a glyph - a database for MySQL/PostgreSQL/Mongo, a globe
+for nginx/Apache/Caddy/IIS, a stack for an application server, a queue
+for Kafka/RabbitMQ, a shield for Keycloak, the JS and Python file marks
+for Node and gunicorn - and the host's own glyph is only the fallback.
+Saved Logs rows get the same treatment through `saved_icon`, which
+recognises the server from the path or follow command the user typed,
+using the same `KNOWN` table; without that a saved MySQL log and a
+running one looked like different kinds of thing.
+
+**A runtime's log lives beside the application, not beside the
+runtime.** `node D:/shop/server.js` has no conventional log path of its
+own, which is why the configure form always opened empty for Node.
+`services::app_home` takes the first argument that is a real file and
+uses its directory, `logs_under` looks for `logs/`, `log/`, `var/log/`
+or the directory itself, and the app's own directory is the fallback -
+not a made-up filename, which would only fail to open.
+
+**The lists are shared, so every tab shows the same ones.** Each tab
+used to load `logs/*.toml` once when it was created, so another tab's
+save, rename, reorder or delete was invisible to it - and because
+Running Service is the scan *minus* what is saved, a service saved in
+one tab stayed on the other tab's running list. A module-level
+`LISTS_VERSION` is bumped by every writer and compared by every tab in
+`sync_lists`; the files stay the state, since loading them is cheap and
+every tab already knows how.
+
+**A refused log file says what to do.** MySQL and PostgreSQL on Windows
+keep their logs under `ProgramData` with an ACL that admits only the
+service account and the administrators group, so a normal user's
+process gets "Access is denied. (os error 5)" and no idea what to do
+about it. `engine::explain_open` keeps the real error - it is the ground
+truth - and adds the remedy: grant the account Read, start as an
+administrator, or follow the server's own log through a Command source.
+A missing file asks whether the server logs to a file at all. Any other
+error is passed through untouched, because inventing advice for an
+error we have not seen is worse than the error.

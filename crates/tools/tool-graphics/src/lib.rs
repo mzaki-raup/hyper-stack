@@ -10,6 +10,7 @@
 pub mod activity;
 pub mod diagram;
 pub mod generator;
+pub mod meta;
 pub mod ops;
 
 use std::borrow::Cow;
@@ -215,6 +216,9 @@ pub struct GraphicsTool {
     /// The `render_version` whose picture is already on the assistant, so
     /// the attachment is not rebuilt and re-cloned every frame.
     attach_sent: Option<u64>,
+    /// The loaded file's own properties, read once when it is opened.
+    /// Cleared with the picture, because they describe the file.
+    properties: Option<Vec<meta::Property>>,
     attach_cache: Option<(u64, hs_core::ai::ImagePart)>,
     /// The Generate Picture form in the assistant column.
     generate: GenState,
@@ -352,6 +356,7 @@ impl Default for GraphicsTool {
             crop_drag: None,
             render_version: 0,
             attach_sent: None,
+            properties: None,
             attach_cache: None,
             generate: GenState::default(),
             new_image: None,
@@ -409,6 +414,7 @@ impl GraphicsTool {
         self.path = Some(path.to_path_buf());
         self.original = Some(img);
         self.original_bytes = bytes;
+        self.properties = None;
         self.ops.clear();
         self.undo_stack.clear();
         self.redo_stack.clear();
@@ -1131,6 +1137,7 @@ impl GraphicsTool {
         self.path = None;
         self.original_bytes.clear();
         self.original = Some(img.clone());
+        self.properties = None;
         self.current = Some(img);
         self.texture = None;
         self.ops.clear();
@@ -1215,6 +1222,51 @@ impl GraphicsTool {
         }
     }
 
+    /// Properties: everything the file says about itself (owner's
+    /// request, 2026-10-24). The picture as loaded, not as edited, since
+    /// these are facts about the file - the edited size is already in the
+    /// Transform rows and in the title bar.
+    ///
+    /// Read once per loaded file: decoding the container and counting
+    /// transparent pixels is far too much for a frame.
+    fn properties_section(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        let Some(original) = &self.original else {
+            return;
+        };
+        if self.properties.is_none() {
+            let on_disk = self
+                .path
+                .as_ref()
+                .and_then(|p| std::fs::metadata(p).ok())
+                .map(|m| m.len());
+            self.properties = Some(meta::describe(&self.original_bytes, original, on_disk));
+        }
+        let Some(props) = self.properties.clone() else {
+            return;
+        };
+        form::section(ui, theme, &s.t("gfx-properties"), |ui| {
+            form::field_grid(ui, "gfx-properties-grid", |ui| {
+                for p in &props {
+                    form::label(ui, &s.t(p.key));
+                    // Truncated, not wrapped: a grid remembers the
+                    // tallest each row has ever been, so a wrapped value
+                    // would leave the row tall for ever.
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&p.value).monospace().size(11.5))
+                            .selectable(true)
+                            .truncate(),
+                    )
+                    .on_hover_text(&p.value);
+                    ui.end_row();
+                }
+            });
+            if let Some(path) = &self.path {
+                form::hint(ui, theme, &path.display().to_string());
+            }
+        });
+    }
+
     fn sidebar_sections(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
         if self.kind == Kind::Icon {
@@ -1222,6 +1274,7 @@ impl GraphicsTool {
         }
         let has = self.original.is_some();
         let apply = s.t("gfx-apply");
+        self.properties_section(ui, cx, theme);
         // Transform
         form::section(ui, theme, &s.t("gfx-transform"), |ui| {
             ui.add_enabled_ui(has, |ui| {
@@ -1606,6 +1659,7 @@ impl GraphicsTool {
                             if let Some(i) = pick {
                                 let img = self.frames[i].2.clone();
                                 self.original = Some(img);
+                                self.properties = None;
                                 self.ops.clear();
                                 self.undo_stack.clear();
                                 self.redo_stack.clear();

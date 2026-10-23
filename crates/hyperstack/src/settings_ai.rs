@@ -398,112 +398,120 @@ pub fn page(
         });
         form::hint(ui, theme, &s.t("ai-max-rounds-hint"));
     });
-    form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-privacy-note"));
-    ui.add_space(8.0);
-    // The right column needs a real width: inside a horizontal layout
-    // `available_width` is unbounded, and a wrapped row would never wrap.
-    let list_width = 230.0;
-    let right_width = (ui.available_width() - list_width - 16.0).max(320.0);
-    ui.horizontal_top(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width(list_width);
-            if form::primary_button(ui, theme, &format!("{} {}", ph::PLUS, s.t("ai-add"))).clicked()
-            {
-                state.picking = true;
-                state.draft = None;
-                state.selected = None;
-            }
-            ui.add_space(8.0);
-            let (list, default_id) = {
-                let st = s.settings.read();
-                (
-                    st.ai.providers.clone(),
-                    st.ai.chosen().map(|p| p.id.clone()),
-                )
-            };
-            if list.is_empty() {
-                form::hint(ui, theme, &s.t("ai-none"));
-            }
-            // One list per capability, so a chat service and an image
-            // server never read as interchangeable.
-            for cap in [Capability::Chat, Capability::Image] {
-                let rows: Vec<&AiProvider> =
-                    list.iter().filter(|p| p.kind.capability() == cap).collect();
-                if rows.is_empty() {
-                    continue;
-                }
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(format!(
-                        "{} {}",
-                        capability_icon(cap),
-                        capability_label(s, cap)
-                    ))
-                    .small()
-                    .strong()
-                    .color(theme.text_muted),
-                );
-                ui.add_space(2.0);
-                for p in rows {
-                    let star = if default_id.as_deref() == Some(&p.id) {
-                        "★ "
-                    } else {
-                        ""
-                    };
-                    let what = match cap {
-                        Capability::Chat if !p.model.is_empty() => p.model.clone(),
-                        Capability::Image if !p.image.checkpoint.is_empty() => {
-                            p.image.checkpoint.clone()
-                        }
-                        _ => kind_label(s, p.kind),
-                    };
-                    let mut sub = format!("{star}{what}");
-                    if sub.chars().count() > 30 {
-                        sub = format!("{}…", sub.chars().take(29).collect::<String>());
-                    }
-                    if form::list_row(
-                        ui,
-                        theme,
-                        state.selected.as_deref() == Some(&p.id),
-                        if cap == Capability::Chat {
-                            ph::SPARKLE
-                        } else {
-                            ph::IMAGE
-                        },
-                        &p.name,
-                        Some(&sub),
-                    )
+    // Everything about providers in one card - Add, the list and the
+    // configuration - so the page reads as sections rather than a card
+    // followed by loose controls (owner's request, 2026-10-24).
+    form::section(ui, theme, &s.t("ai-section-providers"), |ui| {
+        form::hint(ui, theme, &s.t("ai-providers-hint"));
+        form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-privacy-note"));
+        ui.add_space(8.0);
+        // The right column needs a real width: inside a horizontal layout
+        // `available_width` is unbounded, and a wrapped row would never
+        // wrap. Measured inside the card, so it is the card's width.
+        let list_width = 230.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(320.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                if form::primary_button(ui, theme, &format!("{} {}", ph::PLUS, s.t("ai-add")))
                     .clicked()
-                    {
+                {
+                    state.picking = true;
+                    state.draft = None;
+                    state.selected = None;
+                }
+                ui.add_space(8.0);
+                let (list, default_id) = {
+                    let st = s.settings.read();
+                    (
+                        st.ai.providers.clone(),
+                        st.ai.chosen().map(|p| p.id.clone()),
+                    )
+                };
+                if list.is_empty() {
+                    form::hint(ui, theme, &s.t("ai-none"));
+                }
+                // One list per capability, so a chat service and an image
+                // server never read as interchangeable.
+                for cap in [Capability::Chat, Capability::Image] {
+                    let rows: Vec<&AiProvider> =
+                        list.iter().filter(|p| p.kind.capability() == cap).collect();
+                    if rows.is_empty() {
+                        continue;
+                    }
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "{} {}",
+                            capability_icon(cap),
+                            capability_label(s, cap)
+                        ))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                    );
+                    ui.add_space(2.0);
+                    for p in rows {
+                        let star = if default_id.as_deref() == Some(&p.id) {
+                            "★ "
+                        } else {
+                            ""
+                        };
+                        let what = match cap {
+                            Capability::Chat if !p.model.is_empty() => p.model.clone(),
+                            Capability::Image if !p.image.checkpoint.is_empty() => {
+                                p.image.checkpoint.clone()
+                            }
+                            _ => kind_label(s, p.kind),
+                        };
+                        let mut sub = format!("{star}{what}");
+                        if sub.chars().count() > 30 {
+                            sub = format!("{}…", sub.chars().take(29).collect::<String>());
+                        }
+                        if form::list_row(
+                            ui,
+                            theme,
+                            state.selected.as_deref() == Some(&p.id),
+                            if cap == Capability::Chat {
+                                ph::SPARKLE
+                            } else {
+                                ph::IMAGE
+                            },
+                            &p.name,
+                            Some(&sub),
+                        )
+                        .clicked()
+                        {
+                            state.picking = false;
+                            state.selected = Some(p.id.clone());
+                            state.draft = Some(Draft::new(p.clone()));
+                        }
+                        ui.add_space(2.0);
+                    }
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                if state.picking {
+                    if let Some(p) = gallery(ui, theme, s) {
                         state.picking = false;
                         state.selected = Some(p.id.clone());
-                        state.draft = Some(Draft::new(p.clone()));
+                        state.draft = Some(Draft::new(p));
                     }
-                    ui.add_space(2.0);
+                    return;
                 }
-            }
-        });
-        ui.add_space(12.0);
-        ui.vertical(|ui| {
-            ui.set_width(right_width);
-            if state.picking {
-                if let Some(p) = gallery(ui, theme, s) {
-                    state.picking = false;
-                    state.selected = Some(p.id.clone());
-                    state.draft = Some(Draft::new(p));
+                let Some(d) = &mut state.draft else {
+                    form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-select-hint"));
+                    return;
+                };
+                let mut close = false;
+                form_body(ui, theme, s, d, effects, &mut changed, &mut close);
+                if close {
+                    state.draft = None;
+                    state.selected = None;
                 }
-                return;
-            }
-            let Some(d) = &mut state.draft else {
-                form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-select-hint"));
-                return;
-            };
-            let mut close = false;
-            form_body(ui, theme, s, d, effects, &mut changed, &mut close);
-            if close {
-                state.draft = None;
-                state.selected = None;
-            }
+            });
         });
     });
     prompt_buttons(ui, theme, s, state, &mut changed);

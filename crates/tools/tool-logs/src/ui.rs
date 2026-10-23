@@ -178,14 +178,24 @@ impl AddSource {
                 a.conn_id.clear();
             }
             // Neither a file here nor a way to follow it. The form
-            // opens on a file with the server's conventional path filled
-            // in, which the user corrects: a likely path beats an empty
-            // field (owner's report, 2026-10-23).
+            // opens on a file with the best path we can offer, which the
+            // user corrects: a likely path beats an empty field
+            // (owner's report, 2026-10-23).
             (None, None) => {
                 a.kind = 0;
+                // A runtime has no conventional log path of its own - a
+                // Node or Python app writes beside *itself*, not beside
+                // the interpreter - so the directory taken from its
+                // command line is the only useful guess, and leaving it
+                // out is why Node always opened an empty field (owner's
+                // report, 2026-10-24).
+                // The app's own directory, not a made-up file inside it:
+                // a path that does not exist would only fail to open,
+                // while the directory puts Browse in the right place.
                 a.path = crate::services::candidate_paths(&svc.kind)
                     .into_iter()
                     .next()
+                    .or_else(|| svc.home.clone())
                     .unwrap_or_default();
             }
         }
@@ -353,6 +363,9 @@ pub struct LogsTool {
     /// so it is computed when the log changes rather than every frame.
     threads: Option<ThreadSummary>,
     threads_at: u64,
+    /// The `LISTS_VERSION` the saved sources and presets were read at,
+    /// so another tab's save is picked up.
+    lists_at: u64,
     /// The monospace glyph width, and the scale it was measured at.
     /// Measuring takes egui's font write lock, so it is done when the
     /// scale changes rather than every frame.
@@ -448,6 +461,7 @@ impl LogsTool {
             services_scanned: false,
             threads: None,
             threads_at: 0,
+            lists_at: lists_version(),
             glyph_w: 0.0,
             glyph_at: 0.0,
             rows: Vec::new(),
@@ -675,7 +689,9 @@ impl LogsTool {
                 }
             }
         }
+        lists_changed();
         self.saved = list;
+        self.lists_at = lists_version();
     }
 
     /// What is running on this machine, so a log can be opened without
@@ -804,7 +820,9 @@ impl LogsTool {
             ..Default::default()
         };
         s.save(&self.logs_dir).map_err(|e| e.to_string())?;
+        lists_changed();
         self.saved = SavedSource::load_all(&self.logs_dir);
+        self.lists_at = lists_version();
         Ok(())
     }
 
@@ -874,15 +892,63 @@ const TEXT_COLUMN_X: f32 = 8.0 + 62.0 + 96.0 + 52.0;
 
 /// A running service's glyph: what kind of host it was found on, since
 /// that is what decides how its log is read.
+/// Bumped whenever any tab writes the saved sources or the filter
+/// presets. Each tab records the value it last read at and reloads when
+/// it falls behind, so two Logs tabs can never show different lists -
+/// they used to, because each loaded the files once when it was created
+/// and nothing told it another tab had saved, renamed, reordered or
+/// deleted something (owner's report, 2026-10-24).
+///
+/// A counter rather than a shared list: the files are the state, loading
+/// them is cheap, and every tab already knows how to read them.
+static LISTS_VERSION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// Say that the saved sources or presets on disk have changed.
+fn lists_changed() {
+    LISTS_VERSION.fetch_add(1, std::sync::atomic::Ordering::Release);
+}
+
+fn lists_version() -> u64 {
+    LISTS_VERSION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// A running service's glyph: what the thing **is** before where it was
+/// found, so a row reads "a database" rather than "a container"
+/// (owner's request, 2026-10-24). The host's own glyph is the fallback
+/// for a kind the table does not know.
 fn service_icon(svc: &crate::services::Service) -> &'static str {
+    if let Some(icon) = crate::services::icon_for(&svc.kind) {
+        return icon;
+    }
+    host_icon(svc.host)
+}
+
+fn host_icon(host: crate::services::Host) -> &'static str {
     use crate::services::Host;
-    match svc.host {
+    match host {
         Host::Local => ph::GEAR,
         Host::Container => ph::SHIPPING_CONTAINER,
         Host::Systemd => ph::TREE_STRUCTURE,
         Host::Wsl => ph::LINUX_LOGO,
         Host::Kubernetes => ph::POLYGON,
     }
+}
+
+/// A saved log's glyph. A saved source carries no `kind`, so the server
+/// is recognised from the text the user gave us - the path or the follow
+/// command - through the same `KNOWN` table the Running Service scan
+/// uses, which is what makes a saved MySQL log and a running one look
+/// alike (owner's request, 2026-10-24). Failing that it falls back to
+/// what the source *is*, which is what the spec already answers.
+fn saved_icon(src: &SavedSource) -> &'static str {
+    let text = match &src.spec {
+        SourceSpec::LocalFile { path } | SourceSpec::SshFile { path, .. } => path.as_str(),
+        SourceSpec::Command { command, .. } => command.as_str(),
+        SourceSpec::Text { title } => title.as_str(),
+    };
+    crate::services::classify(text)
+        .and_then(crate::services::icon_for)
+        .unwrap_or_else(|| src.spec.icon())
 }
 
 fn level_colour(theme: &Theme, level: Level) -> egui::Color32 {
@@ -1170,6 +1236,7 @@ impl Tool for LogsTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        self.sync_lists();
         form::header_bar(ui, &theme, |ui| {
             ui.label(egui::RichText::new(s.t("tool-logs")).strong().size(15.0));
         });
@@ -1246,7 +1313,7 @@ impl Tool for LogsTool {
                             ui,
                             &theme,
                             live,
-                            src.spec.icon(),
+                            saved_icon(src),
                             &src.name,
                             Some(&src.spec.describe()),
                         );
@@ -1347,6 +1414,8 @@ impl Tool for LogsTool {
         }
         if let Some(i) = remove {
             self.presets.remove(i);
+            lists_changed();
+            self.lists_at = lists_version();
             if let Err(e) = save_presets(&self.logs_dir, &self.presets) {
                 cx.toast(ToastLevel::Error, e);
             }
@@ -1369,7 +1438,9 @@ impl Tool for LogsTool {
                         if let Err(e) = src.delete(&self.logs_dir) {
                             cx.toast(ToastLevel::Error, e.to_string());
                         }
+                        lists_changed();
                         self.saved = SavedSource::load_all(&self.logs_dir);
+                        self.lists_at = lists_version();
                     }
                 }
                 hs_ui::dialog::DialogResult::Cancel => self.confirm_delete = None,
@@ -1547,6 +1618,7 @@ impl Tool for LogsTool {
             return;
         }
         self.keys(ui, cx);
+        self.sync_lists();
         self.refilter();
         // The column's rectangle is taken out of the tab first, so the
         // list lays out in what is left; it is drawn last, as every other
@@ -1716,6 +1788,7 @@ impl LogsTool {
     /// every other activity's dashboard uses (owner's request,
     /// 2026-10-23).
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        self.sync_lists();
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let tabs = s.open_tabs.of("logs");
@@ -2072,6 +2145,22 @@ impl LogsTool {
             self.chips_changed();
         }
         ui.add_space(2.0);
+    }
+
+    /// Pick up another tab's save, rename, reorder or delete. Each tab
+    /// loaded these files once when it was created, so two tabs showed
+    /// different Saved Logs and different Running Service lists - a
+    /// service saved in one tab stayed on the other's running list,
+    /// because that list is the scan minus what is saved (owner's
+    /// report, 2026-10-24).
+    fn sync_lists(&mut self) {
+        let now = lists_version();
+        if self.lists_at == now {
+            return;
+        }
+        self.lists_at = now;
+        self.saved = SavedSource::load_all(&self.logs_dir);
+        self.presets = load_presets(&self.logs_dir);
     }
 
     fn chip_row(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
@@ -2891,7 +2980,11 @@ impl LogsTool {
                         cx.toast(ToastLevel::Error, e.to_string());
                     }
                     match saved.save(&self.logs_dir) {
-                        Ok(()) => self.saved = SavedSource::load_all(&self.logs_dir),
+                        Ok(()) => {
+                            lists_changed();
+                            self.saved = SavedSource::load_all(&self.logs_dir);
+                            self.lists_at = lists_version();
+                        }
                         Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
                     }
                 }
@@ -3100,6 +3193,8 @@ impl LogsTool {
                     name: name.trim().to_string(),
                     chips: self.state.chips.clone(),
                 });
+                lists_changed();
+                self.lists_at = lists_version();
                 if let Err(e) = save_presets(&self.logs_dir, &self.presets) {
                     cx.toast(ToastLevel::Error, e);
                 }

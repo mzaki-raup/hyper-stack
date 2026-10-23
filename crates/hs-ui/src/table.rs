@@ -6,6 +6,10 @@ use egui_extras::{Column, TableBuilder};
 
 use crate::theme::Theme;
 
+/// How narrow a column may be dragged, and the floor used when adding
+/// the declared widths up.
+const MIN_COLUMN: f32 = 40.0;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnSpec {
     pub name: String,
@@ -90,6 +94,26 @@ impl DataTable<'_> {
         idx
     }
 
+    /// What the data columns add up to, with the spacing between them.
+    /// Never narrower than the pane: a table with two columns in a wide
+    /// pane should fill it rather than huddle on the left, which is what
+    /// the trailing remainder column is for.
+    ///
+    /// A column the user has dragged wider is not tracked here -
+    /// `egui_extras` keeps that in its own state - so the scroll range
+    /// follows the declared widths. `tool-db::grid` reads the real widths
+    /// back through `TableBody::widths()` where that matters; this table
+    /// does not need it, and guessing would be worse.
+    pub fn content_width(&self, ui: &egui::Ui) -> f32 {
+        let spacing = ui.spacing().item_spacing.x;
+        let natural: f32 = self
+            .columns
+            .iter()
+            .map(|c| c.width.max(MIN_COLUMN) + spacing)
+            .sum();
+        natural.max(ui.available_width())
+    }
+
     pub fn show(&self, ui: &mut egui::Ui, state: &mut TableState) -> TableResponse {
         let mut resp = TableResponse::default();
         if self.show_filter {
@@ -110,108 +134,136 @@ impl DataTable<'_> {
             });
         }
         let order = self.order(state);
-        let mut builder = TableBuilder::new(ui)
-            .striped(true)
-            .resizable(true)
-            .sense(egui::Sense::click());
-        for c in self.columns {
-            builder = builder.column(Column::initial(c.width).at_least(40.0).clip(true));
-        }
-        builder = builder.column(Column::remainder());
         let mut new_sort = None;
         let mut copy_row = None;
-        builder
-            .header(22.0, |mut header| {
-                for (i, c) in self.columns.iter().enumerate() {
-                    header.col(|ui| {
-                        let arrow = match state.sort {
-                            Some((col, true)) if col == i => " ▲",
-                            Some((col, false)) if col == i => " ▼",
-                            _ => "",
-                        };
-                        if ui
-                            .add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!("{}{arrow}", c.name)).strong(),
-                                )
-                                .sense(egui::Sense::click()),
-                            )
-                            .clicked()
-                        {
-                            new_sort = Some(match state.sort {
-                                Some((col, true)) if col == i => Some((i, false)),
-                                Some((col, false)) if col == i => None,
-                                _ => Some((i, true)),
+        // The width the columns actually want. `TableBuilder` only ever
+        // *shares out* the width it is handed, so a table asked to fit a
+        // narrow pane shrinks its columns, clips them, and leaves nothing
+        // to scroll to - the columns past the edge become unreachable.
+        // Working the total out here, from the same numbers the columns
+        // are built with, is what makes scrolling possible at all.
+        let content_width = self.content_width(ui);
+        let scroll_id = ui.next_auto_id();
+        ui.skip_ahead_auto_ids(1);
+        egui::ScrollArea::horizontal()
+            .id_salt(scroll_id)
+            .show(ui, |ui| {
+                // Both bounds. The table reads `available_rect_before_wrap` to
+                // share out its width, and inside a horizontal ScrollArea that is
+                // unbounded, which would make a trailing remainder column
+                // infinitely wide.
+                ui.set_min_width(content_width);
+                ui.set_max_width(content_width);
+                let mut builder = TableBuilder::new(ui)
+                    .striped(true)
+                    .resizable(true)
+                    .sense(egui::Sense::click());
+                for c in self.columns {
+                    builder =
+                        builder.column(Column::initial(c.width).at_least(MIN_COLUMN).clip(true));
+                }
+                // The remainder only soaks up slack when the columns do not fill
+                // the pane; it is not counted in `content_width`, or the content
+                // would wedge at whatever width it first had.
+                builder = builder.column(Column::remainder());
+                builder
+                    .header(22.0, |mut header| {
+                        for (i, c) in self.columns.iter().enumerate() {
+                            header.col(|ui| {
+                                let arrow = match state.sort {
+                                    Some((col, true)) if col == i => " ▲",
+                                    Some((col, false)) if col == i => " ▼",
+                                    _ => "",
+                                };
+                                if ui
+                                    .add(
+                                        egui::Label::new(
+                                            egui::RichText::new(format!("{}{arrow}", c.name))
+                                                .strong(),
+                                        )
+                                        .sense(egui::Sense::click()),
+                                    )
+                                    .clicked()
+                                {
+                                    new_sort = Some(match state.sort {
+                                        Some((col, true)) if col == i => Some((i, false)),
+                                        Some((col, false)) if col == i => None,
+                                        _ => Some((i, true)),
+                                    });
+                                }
                             });
                         }
-                    });
-                }
-                header.col(|_| {});
-            })
-            .body(|body| {
-                body.rows(self.row_height, order.len(), |mut row| {
-                    let data_idx = order[row.index()];
-                    row.set_selected(state.selected == Some(data_idx));
-                    for (ci, c) in self.columns.iter().enumerate() {
-                        row.col(|ui| {
-                            let text = self.rows[data_idx]
-                                .get(ci)
-                                .map(String::as_str)
-                                .unwrap_or("");
-                            if c.numeric {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.add(
-                                            egui::Label::new(egui::RichText::new(text).monospace())
-                                                .truncate()
-                                                .selectable(false),
+                        header.col(|_| {});
+                    })
+                    .body(|body| {
+                        body.rows(self.row_height, order.len(), |mut row| {
+                            let data_idx = order[row.index()];
+                            row.set_selected(state.selected == Some(data_idx));
+                            for (ci, c) in self.columns.iter().enumerate() {
+                                row.col(|ui| {
+                                    let text = self.rows[data_idx]
+                                        .get(ci)
+                                        .map(String::as_str)
+                                        .unwrap_or("");
+                                    if c.numeric {
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                ui.add(
+                                                    egui::Label::new(
+                                                        egui::RichText::new(text).monospace(),
+                                                    )
+                                                    .truncate()
+                                                    .selectable(false),
+                                                );
+                                            },
                                         );
-                                    },
-                                );
-                            } else if ci == 0
-                                && let Some(icon) =
-                                    self.row_icons.and_then(|icons| icons.get(data_idx))
-                            {
-                                // The icon and the name read as one thing.
-                                ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing.x = 6.0;
-                                    ui.add(
-                                        egui::Image::new(icon.clone())
-                                            .fit_to_exact_size(egui::vec2(16.0, 16.0)),
-                                    );
-                                    ui.add(egui::Label::new(text).truncate().selectable(false));
+                                    } else if ci == 0
+                                        && let Some(icon) =
+                                            self.row_icons.and_then(|icons| icons.get(data_idx))
+                                    {
+                                        // The icon and the name read as one thing.
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 6.0;
+                                            ui.add(
+                                                egui::Image::new(icon.clone())
+                                                    .fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                                            );
+                                            ui.add(
+                                                egui::Label::new(text).truncate().selectable(false),
+                                            );
+                                        });
+                                    } else {
+                                        // Not selectable: a selectable label takes the
+                                        // click, so the row would not select or open.
+                                        ui.add(egui::Label::new(text).truncate().selectable(false));
+                                    }
                                 });
-                            } else {
-                                // Not selectable: a selectable label takes the
-                                // click, so the row would not select or open.
-                                ui.add(egui::Label::new(text).truncate().selectable(false));
+                            }
+                            row.col(|_| {});
+                            let r = row
+                                .response()
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if r.clicked() {
+                                state.selected = Some(data_idx);
+                                resp.clicked = Some(data_idx);
+                            }
+                            if r.double_clicked() {
+                                resp.double_clicked = Some(data_idx);
+                            }
+                            if r.secondary_clicked() {
+                                resp.secondary = Some(data_idx);
+                            }
+                            if self.built_in_menu {
+                                r.context_menu(|ui| {
+                                    if ui.button(self.copy_row_label).clicked() {
+                                        copy_row = Some(data_idx);
+                                        ui.close();
+                                    }
+                                });
                             }
                         });
-                    }
-                    row.col(|_| {});
-                    let r = row
-                        .response()
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    if r.clicked() {
-                        state.selected = Some(data_idx);
-                        resp.clicked = Some(data_idx);
-                    }
-                    if r.double_clicked() {
-                        resp.double_clicked = Some(data_idx);
-                    }
-                    if r.secondary_clicked() {
-                        resp.secondary = Some(data_idx);
-                    }
-                    if self.built_in_menu {
-                        r.context_menu(|ui| {
-                            if ui.button(self.copy_row_label).clicked() {
-                                copy_row = Some(data_idx);
-                                ui.close();
-                            }
-                        });
-                    }
-                });
+                    });
             });
         if let Some(s) = new_sort {
             state.sort = s;

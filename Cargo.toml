@@ -9,6 +9,7 @@ members = [
   "crates/hs-editor",
   "crates/tools/tool-editor",
   "crates/hs-ssh",
+  "crates/hs-container",
   "crates/hs-git",
   "crates/hs-lsp",
   "crates/hs-dap",
@@ -45,6 +46,7 @@ tool-terminal = { path = "crates/tools/tool-terminal" }
 hs-editor = { path = "crates/hs-editor" }
 tool-editor = { path = "crates/tools/tool-editor" }
 hs-ssh = { path = "crates/hs-ssh" }
+hs-container = { path = "crates/hs-container" }
 hs-git = { path = "crates/hs-git" }
 hs-lsp = { path = "crates/hs-lsp" }
 hs-dap = { path = "crates/hs-dap" }

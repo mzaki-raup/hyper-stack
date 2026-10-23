@@ -13,6 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Container activity, phase 1** (`docs/tools/containers.md` §10,
+  ADR-026): `podman` and `wincontainer` join `docker` and `k8s` as
+  connection kinds, a new `hs-container` crate owns the `[container]`
+  fields a container profile carries, and **Settings → Containers** sits
+  between Connections and Editor with a reorderable Container List, the
+  per-kind connection forms, Defaults and Safety, and a Tools card. The
+  list is a kind-filtered view of the connection store, not a second
+  store, so it can never disagree with Settings → Connections about the
+  same host. Credentials - TLS client key, registry password, bearer
+  token, a pasted kubeconfig - go into the vault on save; a kubeconfig
+  **path** stays a path, deliberately (§10.2). No driver and no panes
+  yet: a host can be configured, not yet opened.
 - Specified the **Container activity** - Docker (single container,
   Compose, Swarm), Podman, Kubernetes and Windows containers - as
   `docs/tools/containers.md` §10 on top of that document's existing
@@ -78,6 +90,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- `hs_ui::table::DataTable` scrolls instead of clipping. It divided the
+  width it was handed and then cut the columns off, so in a narrow pane
+  the ones past the edge could not be reached at all and there was
+  nothing to scroll - a known fault against the S3 object list and the
+  SFTP pane, both of which this fixes. The table now computes its own
+  content width and bounds the inner `Ui` to it, which is what
+  `tool-db::grid` already does; four tests, one of which fails against
+  the old behaviour.
 - `shape::key` now normalises a measurement with its unit attached, so
   `took 31ms` and `took 904ms` are one shape. There is no word boundary
   between a digit and a letter, so the bare-number rule never matched the

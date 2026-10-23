@@ -3399,6 +3399,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hs-container"
+version = "0.82.1"
+dependencies = [
+ "hs-core",
+ "serde",
+ "tempfile",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
 name = "hs-core"
 version = "0.82.1"
 dependencies = [
@@ -3691,6 +3702,7 @@ dependencies = [
  "egui-phosphor",
  "egui_extras",
  "egui_kittest",
+ "hs-container",
  "hs-core",
  "hs-dap",
  "hs-editor",

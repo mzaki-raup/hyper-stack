@@ -27,6 +27,7 @@ pub enum Page {
     Shortcuts,
     Environments,
     Connections,
+    Containers,
     Security,
     Terminal,
     Editor,
@@ -36,7 +37,7 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 13] {
+    pub fn all() -> [(Page, &'static str); 14] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -46,6 +47,7 @@ impl Page {
             (Page::Security, "settings-security"),
             (Page::Terminal, "settings-terminal"),
             (Page::Connections, "settings-connections"),
+            (Page::Containers, "settings-containers"),
             (Page::Editor, "settings-editor"),
             (Page::Browser, "settings-browser"),
             (Page::Ai, "settings-ai"),
@@ -64,6 +66,7 @@ impl Page {
             Page::Shortcuts => ph::KEYBOARD,
             Page::Environments => ph::GLOBE_HEMISPHERE_WEST,
             Page::Connections => ph::PLUGS_CONNECTED,
+            Page::Containers => ph::SHIPPING_CONTAINER,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -315,6 +318,7 @@ pub fn page(
         Page::Shortcuts => shortcuts(ui, theme, services, state, effects),
         Page::Environments => environments(ui, theme, services, state, effects),
         Page::Connections => connections(ui, theme, services, state, effects),
+        Page::Containers => containers(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, effects),
@@ -2345,6 +2349,286 @@ fn env_copy_dialog(
     }
 }
 
+/// Settings → Containers (ADR-026, `docs/tools/containers.md` §10.7).
+///
+/// The Container List is a **kind-filtered view of the connection
+/// store**, not a second store: a container host is an ordinary
+/// `ConnectionProfile` of kind `docker`, `podman`, `k8s` or
+/// `wincontainer`. That is what makes the vault, per-environment hosts,
+/// read-only handling, folders, tags, pinning and ordering work here
+/// without being written again — and it is why this list and Settings →
+/// Connections can never disagree about the same host.
+fn containers(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-containers"),
+        Some(&s.t("settings-containers-sub")),
+    );
+    container_list(ui, theme, s, state, effects);
+    container_defaults(ui, theme, s, effects);
+    container_tools(ui, theme, s);
+}
+
+/// The list, and the form for whichever host is chosen.
+fn container_list(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::{CONTAINER_KINDS, kind_label};
+    form::section(ui, theme, &s.t("settings-container-list"), |ui| {
+        form::hint(ui, theme, &s.t("settings-container-list-hint"));
+        ui.add_space(8.0);
+        // The right column needs a real width: inside a horizontal
+        // layout `available_width` is unbounded and a wrapped row would
+        // never wrap.
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                ui.horizontal_wrapped(|ui| {
+                    for kind in CONTAINER_KINDS {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                container_kind_icon(kind),
+                                kind_label(kind)
+                            ))
+                            .on_hover_text(s.t("settings-container-add-hint"))
+                            .clicked()
+                        {
+                            let mut draft = hs_core::connections::ConnectionProfile {
+                                name: format!("New {}", kind_label(kind)),
+                                kind: (*kind).to_string(),
+                                ..Default::default()
+                            };
+                            // The defaults for the kind, so the form opens
+                            // on something that would work rather than on
+                            // empty fields.
+                            hs_container::profile::ContainerFields::default()
+                                .write_into(&mut draft.fields);
+                            state.conn_selected = Some(draft.id.clone());
+                            let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+                            state.conn_draft = Some((draft, text));
+                        }
+                    }
+                });
+                ui.add_space(8.0);
+                let hosts: Vec<(String, String, String)> = s
+                    .connections
+                    .read()
+                    .all()
+                    .iter()
+                    .filter(|c| CONTAINER_KINDS.contains(&c.kind.as_str()))
+                    .map(|c| (c.id.clone(), c.kind.clone(), c.name.clone()))
+                    .collect();
+                if hosts.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-container-none"));
+                }
+                // Dragging here is the order the activity's sidebar
+                // inherits, and `reorder` takes the same kind filter, so
+                // moving a container never disturbs a database.
+                let mut reorder = hs_ui::reorder::Reorder::new("container-list-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name)) in hosts.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    let subtitle = container_subtitle(s, id, kind);
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            theme,
+                            selected,
+                            container_kind_icon(kind),
+                            name,
+                            Some(&subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(CONTAINER_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_container = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_container_kind(&d.kind));
+                if !is_container {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-container-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+}
+
+/// What a row says under the name: the kind, and how it is reached.
+fn container_subtitle(s: &Services, id: &str, kind: &str) -> String {
+    let label = hs_core::connections::kind_label(kind);
+    let Some(p) = s.connections.read().by_id(id).cloned() else {
+        return label.to_string();
+    };
+    let f = hs_container::profile::ContainerFields::from_table(&p.fields);
+    format!("{label} · {}", f.describe(kind))
+}
+
+/// The glyph for a container kind: what the thing **is**, as every other
+/// list in the app now does.
+fn container_kind_icon(kind: &str) -> &'static str {
+    use hs_ui::icons::ph;
+    match kind {
+        "k8s" => ph::POLYGON,
+        "podman" => ph::HARD_DRIVES,
+        "wincontainer" => ph::WINDOWS_LOGO,
+        _ => ph::SHIPPING_CONTAINER,
+    }
+}
+
+/// Defaults and Safety: the guards that apply to every container host.
+fn container_defaults(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-container-safety"), |ui| {
+        let mut st = s.settings.write();
+        let c = &mut st.containers;
+        form::field_grid(ui, "container-safety", |ui| {
+            form::label(ui, &s.t("settings-container-confirm-stop"));
+            changed |= ui.checkbox(&mut c.confirm_stop, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-confirm-remove"));
+            changed |= ui.checkbox(&mut c.confirm_remove_by_name, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-protected-read-only"));
+            changed |= ui
+                .checkbox(&mut c.protected_read_only, "")
+                .on_hover_text(s.t("settings-container-protected-read-only-hint"))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-mask-secrets"));
+            changed |= ui.checkbox(&mut c.mask_secret_values, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-allow-prune"));
+            changed |= ui.checkbox(&mut c.allow_prune, "").changed();
+            ui.end_row();
+        });
+        form::hint(
+            ui,
+            theme,
+            &s.t("settings-container-protected-read-only-hint"),
+        );
+        ui.add_space(8.0);
+        form::field_grid(ui, "container-limits", |ui| {
+            form::label(ui, &s.t("settings-container-refresh"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut c.refresh_secs)
+                        .range(1..=300)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-stream-stats"));
+            changed |= ui
+                .checkbox(&mut c.stream_stats, "")
+                .on_hover_text(s.t("settings-container-stream-stats-hint"))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-page-size"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut c.page_size).range(20..=5000))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-log-tail"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut c.log_tail_lines).range(50..=100_000))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-dry-run-first"));
+            changed |= ui
+                .checkbox(&mut c.apply_dry_run_first, "")
+                .on_hover_text(s.t("settings-container-dry-run-first-hint"))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-container-manifest-dir"));
+            changed |= form::text_field(ui, &mut c.manifest_dir, "").changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-container-dry-run-first-hint"));
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+/// The command-line tools the activity can use, and whether they are
+/// here. The same shape the Editor page uses for language servers,
+/// including its note that a tool installed while the app is open is not
+/// seen until Refresh Status.
+fn container_tools(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+    const TOOLS: &[(&str, &str)] = &[
+        ("docker", "Docker"),
+        ("podman", "Podman"),
+        ("kubectl", "kubectl"),
+        ("helm", "Helm"),
+    ];
+    form::section(ui, theme, &s.t("settings-container-tools"), |ui| {
+        form::hint(ui, theme, &s.t("settings-container-tools-hint"));
+        ui.add_space(8.0);
+        form::field_grid(ui, "container-tools", |ui| {
+            for (cmd, label) in TOOLS {
+                form::label(ui, label);
+                let found = hs_core::env_path::find(cmd).is_some();
+                ui.label(if found {
+                    egui::RichText::new(s.t("settings-editor-lsp-found")).color(theme.accent)
+                } else {
+                    egui::RichText::new(s.t("settings-editor-lsp-not-found"))
+                        .color(theme.text_muted)
+                });
+                ui.end_row();
+            }
+        });
+    });
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -2427,287 +2711,313 @@ fn connections(
                 }
             });
         });
-        ui.add_space(12.0);
-        ui.vertical(|ui| {
-            let Some((draft, fields_text)) = &mut state.conn_draft else {
-                form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-select-hint"));
-                return;
-            };
-            form::section(ui, theme, &s.t("conn-section-details"), |ui| {
-                form::field_grid(ui, "conn-form", |ui| {
-                    form::label(ui, &s.t("conn-name"));
-                    form::text_field(ui, &mut draft.name, &s.t("conn-name"));
-                    ui.end_row();
-                    form::label(ui, &s.t("conn-kind"));
-                    egui::ComboBox::from_id_salt("conn-kind")
-                        .width(form::FIELD_MIN_WIDTH)
-                        .selected_text(hs_core::connections::kind_label(&draft.kind))
-                        .show_ui(ui, |ui| {
-                            for k in hs_core::connections::KINDS {
-                                ui.selectable_value(
-                                    &mut draft.kind,
-                                    (*k).to_string(),
-                                    hs_core::connections::kind_label(k),
-                                );
-                            }
-                        });
-                    ui.end_row();
-                    form::label(ui, &s.t("conn-folder"));
-                    form::text_field(ui, &mut draft.folder, &s.t("conn-folder-hint"));
-                    ui.end_row();
-                    form::label(ui, &s.t("conn-tags"));
-                    let mut tags = draft.tags.join(", ");
-                    if form::text_field(ui, &mut tags, &s.t("conn-tags-hint")).changed() {
-                        draft.tags = tags
-                            .split(',')
-                            .map(|t| t.trim().to_string())
-                            .filter(|t| !t.is_empty())
-                            .collect();
+        conn_detail(ui, theme, s, state, effects);
+    });
+}
+
+/// The connection detail column: the shared form for one profile, with
+/// its kind-specific section, Save, Test and Delete.
+///
+/// Extracted from `connections()` so Settings -> Containers can show the
+/// same form for a container host (ADR-026). Duplicating a form that
+/// moves secrets into the vault would be the worst thing in this file to
+/// have two copies of.
+fn conn_detail(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let Some((draft, fields_text)) = &mut state.conn_draft else {
+        form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-select-hint"));
+        return;
+    };
+    form::section(ui, theme, &s.t("conn-section-details"), |ui| {
+        form::field_grid(ui, "conn-form", |ui| {
+            form::label(ui, &s.t("conn-name"));
+            form::text_field(ui, &mut draft.name, &s.t("conn-name"));
+            ui.end_row();
+            form::label(ui, &s.t("conn-kind"));
+            egui::ComboBox::from_id_salt("conn-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(hs_core::connections::kind_label(&draft.kind))
+                .show_ui(ui, |ui| {
+                    for k in hs_core::connections::KINDS {
+                        ui.selectable_value(
+                            &mut draft.kind,
+                            (*k).to_string(),
+                            hs_core::connections::kind_label(k),
+                        );
                     }
-                    ui.end_row();
-                    form::label(ui, &s.t("conn-environment"));
-                    let envs: Vec<(String, String)> = s
-                        .environments
-                        .read()
-                        .all()
-                        .iter()
-                        .map(|e| (e.id.clone(), e.name.clone()))
-                        .collect();
-                    let cur = draft
-                        .environment
-                        .clone()
-                        .and_then(|id| envs.iter().find(|(i, _)| *i == id).map(|(_, n)| n.clone()))
-                        .unwrap_or_else(|| "—".into());
-                    egui::ComboBox::from_id_salt("conn-env")
-                        .width(form::FIELD_MIN_WIDTH)
-                        .selected_text(cur)
-                        .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(draft.environment.is_none(), "—")
-                                .clicked()
-                            {
-                                draft.environment = None;
-                            }
-                            for (id, name) in envs {
-                                if ui
-                                    .selectable_label(
-                                        draft.environment.as_deref() == Some(&id),
-                                        name,
-                                    )
-                                    .clicked()
-                                {
-                                    draft.environment = Some(id);
-                                }
-                            }
-                        });
-                    ui.end_row();
-                    form::label(ui, "");
-                    ui.checkbox(&mut draft.read_only, s.t("conn-read-only"));
-                    ui.end_row();
                 });
-            });
-            let is_ssh = draft.kind == "ssh";
-            let is_s3 = draft.kind == "s3";
-            let is_db = draft.kind == "db";
-            let is_redis = draft.kind == "redis";
-            if is_ssh {
-                ssh_form(ui, theme, s, draft, fields_text, effects);
-            } else if is_s3 {
-                s3_form(ui, theme, s, draft, fields_text);
-            } else if is_db {
-                db_form(ui, theme, s, draft, fields_text);
-            } else if is_redis {
-                redis_form(ui, theme, s, draft, fields_text);
-            } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb") {
-                nosql_form(ui, theme, s, draft, fields_text);
-            } else {
-                form::section(ui, theme, &s.t("conn-fields"), |ui| {
-                    form::code_field(ui, fields_text, 8);
-                    form::hint(ui, theme, &s.t("conn-fields-hint"));
-                });
+            ui.end_row();
+            form::label(ui, &s.t("conn-folder"));
+            form::text_field(ui, &mut draft.folder, &s.t("conn-folder-hint"));
+            ui.end_row();
+            form::label(ui, &s.t("conn-tags"));
+            let mut tags = draft.tags.join(", ");
+            if form::text_field(ui, &mut tags, &s.t("conn-tags-hint")).changed() {
+                draft.tags = tags
+                    .split(',')
+                    .map(|t| t.trim().to_string())
+                    .filter(|t| !t.is_empty())
+                    .collect();
             }
-            // Testing is offered between Save and Delete: try it, read the
-            // answer, then decide whether to keep the profile.
-            let mut start_test = false;
-            ui.horizontal(|ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
-                    let parsed = if is_ssh || is_s3 || is_db {
-                        Ok(draft.fields.clone())
-                    } else {
-                        toml::from_str::<toml::Table>(fields_text)
-                    };
-                    match parsed {
-                        Ok(mut table) => {
-                            let mut secrets_ok = true;
-                            if is_ssh {
-                                let mut f = hs_ssh::SshFields::from_table(&table);
-                                secrets_ok = store_typed_secrets(
-                                    s,
-                                    &draft.name,
-                                    [
-                                        ("password", &mut f.password),
-                                        ("key passphrase", &mut f.key_passphrase),
-                                    ],
-                                    effects,
-                                );
-                                f.write_into(&mut table);
-                                draft.fields = table.clone();
-                            } else if is_s3 {
-                                let mut f = S3Fields::from_table(&table);
-                                secrets_ok = store_typed_secrets(
-                                    s,
-                                    &draft.name,
-                                    [
-                                        ("secret key", &mut f.secret_key),
-                                        ("session token", &mut f.session_token),
-                                    ],
-                                    effects,
-                                );
-                                f.write_into(&mut table);
-                                draft.fields = table.clone();
-                            } else if is_db {
-                                let mut f = DbFields::from_table(&table);
-                                secrets_ok = store_typed_secrets(
-                                    s,
-                                    &draft.name,
-                                    [("password", &mut f.password)],
-                                    effects,
-                                );
-                                f.write_into(&mut table);
-                                draft.fields = table.clone();
-                            }
-                            if !secrets_ok {
-                                // Never write a typed secret to disk.
-                                return;
-                            }
-                            let mut c = draft.clone();
-                            c.fields = table;
-                            // A connection for a tool whose rail entry is
-                            // hidden would otherwise have nowhere to open.
-                            let tool = crate::launcher::tool_for_kind(&c.kind);
-                            match s.connections.write().upsert(c) {
-                                Ok(()) => {
-                                    if let Some(tool) = tool {
-                                        let appearance = s.settings.read().appearance.clone();
-                                        let mut ws = s.workspace.write();
-                                        let prefs = ws.meta.rail_prefs_mut(&appearance);
-                                        let before = prefs.hidden.len();
-                                        prefs.hidden.retain(|h| h != tool);
-                                        if prefs.hidden.len() != before {
-                                            let _ = ws.save_meta();
-                                        }
-                                    }
-                                    effects.push(SettingsEffect::ConnectionsChanged)
+            ui.end_row();
+            form::label(ui, &s.t("conn-environment"));
+            let envs: Vec<(String, String)> = s
+                .environments
+                .read()
+                .all()
+                .iter()
+                .map(|e| (e.id.clone(), e.name.clone()))
+                .collect();
+            let cur = draft
+                .environment
+                .clone()
+                .and_then(|id| envs.iter().find(|(i, _)| *i == id).map(|(_, n)| n.clone()))
+                .unwrap_or_else(|| "—".into());
+            egui::ComboBox::from_id_salt("conn-env")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(cur)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(draft.environment.is_none(), "—")
+                        .clicked()
+                    {
+                        draft.environment = None;
+                    }
+                    for (id, name) in envs {
+                        if ui
+                            .selectable_label(draft.environment.as_deref() == Some(&id), name)
+                            .clicked()
+                        {
+                            draft.environment = Some(id);
+                        }
+                    }
+                });
+            ui.end_row();
+            form::label(ui, "");
+            ui.checkbox(&mut draft.read_only, s.t("conn-read-only"));
+            ui.end_row();
+        });
+    });
+    let is_ssh = draft.kind == "ssh";
+    let is_s3 = draft.kind == "s3";
+    let is_db = draft.kind == "db";
+    let is_redis = draft.kind == "redis";
+    let is_container = hs_core::connections::is_container_kind(&draft.kind);
+    if is_ssh {
+        ssh_form(ui, theme, s, draft, fields_text, effects);
+    } else if is_s3 {
+        s3_form(ui, theme, s, draft, fields_text);
+    } else if is_db {
+        db_form(ui, theme, s, draft, fields_text);
+    } else if is_redis {
+        redis_form(ui, theme, s, draft, fields_text);
+    } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb") {
+        nosql_form(ui, theme, s, draft, fields_text);
+    } else if hs_core::connections::is_container_kind(&draft.kind) {
+        container_form(ui, theme, s, draft, fields_text);
+    } else {
+        form::section(ui, theme, &s.t("conn-fields"), |ui| {
+            form::code_field(ui, fields_text, 8);
+            form::hint(ui, theme, &s.t("conn-fields-hint"));
+        });
+    }
+    // Testing is offered between Save and Delete: try it, read the
+    // answer, then decide whether to keep the profile.
+    let mut start_test = false;
+    ui.horizontal(|ui| {
+        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+            let parsed = if is_ssh || is_s3 || is_db || is_container {
+                // These forms write into `draft.fields` directly,
+                // so the text box is a view rather than the truth.
+                Ok(draft.fields.clone())
+            } else {
+                toml::from_str::<toml::Table>(fields_text)
+            };
+            match parsed {
+                Ok(mut table) => {
+                    let mut secrets_ok = true;
+                    if is_ssh {
+                        let mut f = hs_ssh::SshFields::from_table(&table);
+                        secrets_ok = store_typed_secrets(
+                            s,
+                            &draft.name,
+                            [
+                                ("password", &mut f.password),
+                                ("key passphrase", &mut f.key_passphrase),
+                            ],
+                            effects,
+                        );
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    } else if is_s3 {
+                        let mut f = S3Fields::from_table(&table);
+                        secrets_ok = store_typed_secrets(
+                            s,
+                            &draft.name,
+                            [
+                                ("secret key", &mut f.secret_key),
+                                ("session token", &mut f.session_token),
+                            ],
+                            effects,
+                        );
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    } else if is_db {
+                        let mut f = DbFields::from_table(&table);
+                        secrets_ok = store_typed_secrets(
+                            s,
+                            &draft.name,
+                            [("password", &mut f.password)],
+                            effects,
+                        );
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    } else if is_container {
+                        // Every sensitive field at once, from the
+                        // one list that knows which they are, so a
+                        // field added later cannot be forgotten
+                        // here and written in the clear.
+                        let mut f = hs_container::profile::ContainerFields::from_table(&table);
+                        secrets_ok =
+                            store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    }
+                    if !secrets_ok {
+                        // Never write a typed secret to disk.
+                        return;
+                    }
+                    let mut c = draft.clone();
+                    c.fields = table;
+                    // A connection for a tool whose rail entry is
+                    // hidden would otherwise have nowhere to open.
+                    let tool = crate::launcher::tool_for_kind(&c.kind);
+                    match s.connections.write().upsert(c) {
+                        Ok(()) => {
+                            if let Some(tool) = tool {
+                                let appearance = s.settings.read().appearance.clone();
+                                let mut ws = s.workspace.write();
+                                let prefs = ws.meta.rail_prefs_mut(&appearance);
+                                let before = prefs.hidden.len();
+                                prefs.hidden.retain(|h| h != tool);
+                                if prefs.hidden.len() != before {
+                                    let _ = ws.save_meta();
                                 }
-                                Err(e) => effects.push(SettingsEffect::Toast(
-                                    hs_core::tool::ToastLevel::Error,
-                                    e.to_string(),
-                                )),
                             }
+                            effects.push(SettingsEffect::ConnectionsChanged)
                         }
                         Err(e) => effects.push(SettingsEffect::Toast(
                             hs_core::tool::ToastLevel::Error,
-                            s.i18n
-                                .t_args("conn-toml-error", &[("error", &e.to_string())]),
+                            e.to_string(),
                         )),
                     }
                 }
-                // A kind with no driver has nothing to open, so the button
-                // is there but says why it cannot do anything.
-                let can_test = crate::conn_test::testable(&draft.kind);
-                let busy = state
-                    .conn_test
-                    .as_ref()
-                    .is_some_and(|t| t.profile_id == draft.id && t.running());
-                let label = if busy {
-                    s.t("conn-test-running")
-                } else {
-                    s.t("conn-test")
-                };
-                if ui
-                    .add_enabled(can_test && !busy, egui::Button::new(label))
-                    .on_disabled_hover_text(if can_test {
-                        s.t("conn-test-running")
-                    } else {
-                        s.t("conn-test-not-testable")
-                    })
-                    .clicked()
-                {
-                    start_test = true;
-                }
-                if form::danger_button(ui, theme, &s.t("delete")).clicked() {
-                    state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), false));
-                }
-            });
-            if let Some(test) = &state.conn_test
-                && test.profile_id == draft.id
-            {
-                ui.add_space(6.0);
-                match test.outcome() {
-                    crate::conn_test::Outcome::Running => {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.colored_label(theme.text_muted, s.t("conn-test-running"));
-                        });
-                    }
-                    crate::conn_test::Outcome::Ok(detail) => {
-                        let text = if detail.is_empty() {
-                            s.t("conn-test-ok")
-                        } else {
-                            s.i18n.t_args("conn-test-ok-detail", &[("detail", &detail)])
-                        };
-                        ui.colored_label(theme.success, format!("{} {text}", hs_ui::icons::CHECK));
-                    }
-                    crate::conn_test::Outcome::Failed(e) => {
-                        ui.colored_label(theme.error, format!("{} {e}", hs_ui::icons::WARNING));
-                    }
-                    crate::conn_test::Outcome::UnknownHostKey(fingerprint) => {
-                        ui.colored_label(
-                            theme.warning,
-                            s.i18n
-                                .t_args("conn-test-host-key", &[("fingerprint", &fingerprint)]),
-                        );
-                    }
-                    crate::conn_test::Outcome::NotTestable => {
-                        form::hint(ui, theme, &s.t("conn-test-not-testable"));
-                    }
-                    // Nothing was tried: say what is missing, not what a
-                    // driver would have said.
-                    crate::conn_test::Outcome::VaultLocked => {
-                        ui.colored_label(theme.warning, s.t("conn-test-vault-locked"));
-                    }
-                    crate::conn_test::Outcome::MissingVariables(names) => {
-                        ui.colored_label(
-                            theme.warning,
-                            s.i18n.t_args("conn-test-missing", &[("names", &names)]),
-                        );
-                    }
-                    crate::conn_test::Outcome::NoPassword => {
-                        ui.colored_label(theme.warning, s.t("conn-test-no-password"));
-                    }
-                    crate::conn_test::Outcome::NoKeys => {
-                        ui.colored_label(theme.warning, s.t("conn-test-no-keys"));
-                    }
-                    crate::conn_test::Outcome::UnknownEngine(engine) => {
-                        ui.colored_label(
-                            theme.error,
-                            s.i18n.t_args("db-unknown-engine", &[("engine", &engine)]),
-                        );
-                    }
-                }
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    s.i18n
+                        .t_args("conn-toml-error", &[("error", &e.to_string())]),
+                )),
             }
-            if start_test {
-                // Test what is on the form, not what was last saved.
-                let mut probe = draft.clone();
-                if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
-                    && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
-                {
-                    probe.fields = table;
-                }
-                state.conn_test = Some(crate::conn_test::start(s, &probe));
-            }
-        });
+        }
+        // A kind with no driver has nothing to open, so the button
+        // is there but says why it cannot do anything.
+        let can_test = crate::conn_test::testable(&draft.kind);
+        let busy = state
+            .conn_test
+            .as_ref()
+            .is_some_and(|t| t.profile_id == draft.id && t.running());
+        let label = if busy {
+            s.t("conn-test-running")
+        } else {
+            s.t("conn-test")
+        };
+        if ui
+            .add_enabled(can_test && !busy, egui::Button::new(label))
+            .on_disabled_hover_text(if can_test {
+                s.t("conn-test-running")
+            } else {
+                s.t("conn-test-not-testable")
+            })
+            .clicked()
+        {
+            start_test = true;
+        }
+        if form::danger_button(ui, theme, &s.t("delete")).clicked() {
+            state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), false));
+        }
     });
+    if let Some(test) = &state.conn_test
+        && test.profile_id == draft.id
+    {
+        ui.add_space(6.0);
+        match test.outcome() {
+            crate::conn_test::Outcome::Running => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.colored_label(theme.text_muted, s.t("conn-test-running"));
+                });
+            }
+            crate::conn_test::Outcome::Ok(detail) => {
+                let text = if detail.is_empty() {
+                    s.t("conn-test-ok")
+                } else {
+                    s.i18n.t_args("conn-test-ok-detail", &[("detail", &detail)])
+                };
+                ui.colored_label(theme.success, format!("{} {text}", hs_ui::icons::CHECK));
+            }
+            crate::conn_test::Outcome::Failed(e) => {
+                ui.colored_label(theme.error, format!("{} {e}", hs_ui::icons::WARNING));
+            }
+            crate::conn_test::Outcome::UnknownHostKey(fingerprint) => {
+                ui.colored_label(
+                    theme.warning,
+                    s.i18n
+                        .t_args("conn-test-host-key", &[("fingerprint", &fingerprint)]),
+                );
+            }
+            crate::conn_test::Outcome::NotTestable => {
+                form::hint(ui, theme, &s.t("conn-test-not-testable"));
+            }
+            // Nothing was tried: say what is missing, not what a
+            // driver would have said.
+            crate::conn_test::Outcome::VaultLocked => {
+                ui.colored_label(theme.warning, s.t("conn-test-vault-locked"));
+            }
+            crate::conn_test::Outcome::MissingVariables(names) => {
+                ui.colored_label(
+                    theme.warning,
+                    s.i18n.t_args("conn-test-missing", &[("names", &names)]),
+                );
+            }
+            crate::conn_test::Outcome::NoPassword => {
+                ui.colored_label(theme.warning, s.t("conn-test-no-password"));
+            }
+            crate::conn_test::Outcome::NoKeys => {
+                ui.colored_label(theme.warning, s.t("conn-test-no-keys"));
+            }
+            crate::conn_test::Outcome::UnknownEngine(engine) => {
+                ui.colored_label(
+                    theme.error,
+                    s.i18n.t_args("db-unknown-engine", &[("engine", &engine)]),
+                );
+            }
+        }
+    }
+    if start_test {
+        // Test what is on the form, not what was last saved.
+        let mut probe = draft.clone();
+        if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
+            && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
+        {
+            probe.fields = table;
+        }
+        state.conn_test = Some(crate::conn_test::start(s, &probe));
+    }
 }
 
 fn security(
@@ -4780,10 +5090,15 @@ fn ssh_form(
 /// stored (vault locked, write failed): the caller must not save the
 /// profile then, or the typed text would reach the TOML file in plaintext.
 /// `{{variables}}` are references, not secrets, and stay as typed.
-pub(crate) fn store_typed_secrets<const N: usize>(
+/// Takes any iterable of `(what it is, the value)`: an array at a call
+/// site that knows its fields, or a `Vec` from a type that owns the list
+/// of which of its own fields are sensitive (`ContainerFields`). The
+/// second form matters - a field added to such a type later is covered
+/// without anyone remembering to edit this call.
+pub(crate) fn store_typed_secrets<'a>(
     s: &Services,
     profile_name: &str,
-    fields: [(&str, &mut String); N],
+    fields: impl IntoIterator<Item = (&'a str, &'a mut String)>,
     effects: &mut Vec<SettingsEffect>,
 ) -> bool {
     let mut ok = true;
@@ -4888,6 +5203,245 @@ fn s3_form(
     if changed {
         f.write_into(&mut draft.fields);
     }
+}
+
+/// The container form (`docker`, `podman`, `k8s`, `wincontainer` —
+/// ADR-026, `docs/tools/containers.md` §10.7). One form for all four
+/// kinds, because they overlap heavily and the kind decides which
+/// sections are shown.
+///
+/// Secrets are typed in the clear here and moved into the vault on save
+/// by `container_secrets`, exactly as every other kind does. The
+/// exception is the kubeconfig **path**, which is a path and stays one
+/// (§10.2).
+fn container_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use hs_container::profile::{ContainerFields, Transport};
+    let cluster = hs_core::connections::is_cluster_kind(&draft.kind);
+    let mut f = ContainerFields::from_table(&draft.fields);
+    let mut changed = false;
+
+    if cluster {
+        form::section(ui, theme, &s.t("conn-container-section-cluster"), |ui| {
+            form::field_grid(ui, "container-cluster", |ui| {
+                form::label(ui, &s.t("conn-container-kubeconfig"));
+                ui.horizontal(|ui| {
+                    changed |=
+                        form::text_field(ui, &mut f.kubeconfig_path, "~/.kube/config").changed();
+                    if ui.button(s.t("settings-container-browse")).clicked()
+                        && let Some(p) = rfd::FileDialog::new().pick_file()
+                    {
+                        f.kubeconfig_path = p.to_string_lossy().to_string();
+                        changed = true;
+                    }
+                });
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-context"));
+                changed |= form::text_field(ui, &mut f.context, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-namespace"));
+                changed |= form::text_field(ui, &mut f.namespace, "default").changed();
+                ui.end_row();
+            });
+            // Why a path and not a copy, said where the choice is made.
+            form::hint(ui, theme, &s.t("conn-container-kubeconfig-hint"));
+            ui.add_space(6.0);
+            form::field_grid(ui, "container-cluster-auth", |ui| {
+                form::label(ui, &s.t("conn-container-paste-kubeconfig"));
+                changed |= form::code_field(ui, &mut f.kubeconfig_inline, 4).changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-token"));
+                changed |=
+                    form::secret_field(ui, &mut f.token, "", form::FIELD_MIN_WIDTH).changed();
+                ui.end_row();
+            });
+            form::note(
+                ui,
+                theme,
+                hs_ui::icons::INFO,
+                &s.t("conn-container-paste-kubeconfig-note"),
+            );
+            ui.add_space(6.0);
+            form::field_grid(ui, "container-cluster-extra", |ui| {
+                form::label(ui, &s.t("conn-container-impersonate-user"));
+                changed |= form::text_field(ui, &mut f.impersonate_user, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-impersonate-group"));
+                changed |= form::text_field(ui, &mut f.impersonate_group, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-proxy"));
+                changed |= form::text_field(ui, &mut f.proxy_url, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-container-use-kubectl"));
+                changed |= ui
+                    .checkbox(&mut f.use_kubectl, "")
+                    .on_hover_text(s.t("conn-container-use-kubectl-hint"))
+                    .changed();
+                ui.end_row();
+            });
+            form::hint(ui, theme, &s.t("conn-container-use-kubectl-hint"));
+        });
+    } else {
+        form::section(ui, theme, &s.t("conn-container-section-engine"), |ui| {
+            form::field_grid(ui, "container-engine", |ui| {
+                form::label(ui, &s.t("conn-container-transport"));
+                egui::ComboBox::from_id_salt("container-transport")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(s.t(f.transport.key()))
+                    .show_ui(ui, |ui| {
+                        for t in Transport::ALL {
+                            if ui
+                                .selectable_label(f.transport == t, s.t(t.key()))
+                                .clicked()
+                            {
+                                f.transport = t;
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+                // Only the fields the chosen transport actually uses, so
+                // the form says what matters rather than everything.
+                match f.transport {
+                    Transport::Local => {
+                        form::label(ui, &s.t("conn-container-socket"));
+                        changed |=
+                            form::text_field(ui, &mut f.socket, "/var/run/docker.sock").changed();
+                        ui.end_row();
+                    }
+                    Transport::Tcp => {
+                        form::label(ui, &s.t("conn-host"));
+                        changed |= form::text_field(ui, &mut f.host, "127.0.0.1").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("conn-port"));
+                        changed |= ui
+                            .add(egui::DragValue::new(&mut f.port).range(1..=65535))
+                            .changed();
+                        ui.end_row();
+                    }
+                    Transport::Ssh => {
+                        form::label(ui, &s.t("conn-container-over-ssh"));
+                        changed |= ssh_profile_picker(ui, s, &mut f.tunnel_ssh);
+                        ui.end_row();
+                    }
+                    Transport::Wsl => {
+                        form::label(ui, &s.t("conn-container-distro"));
+                        changed |= form::text_field(ui, &mut f.distro, "Ubuntu-24.04").changed();
+                        ui.end_row();
+                    }
+                }
+                form::label(ui, &s.t("conn-container-api-version"));
+                changed |= form::text_field(ui, &mut f.api_version, "").changed();
+                ui.end_row();
+            });
+            form::hint(ui, theme, &s.t("conn-container-transport-hint"));
+        });
+        if f.transport == Transport::Tcp {
+            form::section(ui, theme, &s.t("conn-container-section-tls"), |ui| {
+                form::field_grid(ui, "container-tls", |ui| {
+                    form::label(ui, &s.t("conn-container-tls"));
+                    changed |= ui.checkbox(&mut f.tls, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-container-tls-ca"));
+                    changed |= form::text_field(ui, &mut f.tls_ca, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-container-tls-cert"));
+                    changed |= form::text_field(ui, &mut f.tls_cert, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-container-tls-key"));
+                    changed |=
+                        form::secret_field(ui, &mut f.tls_key, "", form::FIELD_MIN_WIDTH).changed();
+                    ui.end_row();
+                });
+                form::hint(ui, theme, &s.t("conn-container-tls-hint"));
+            });
+        }
+        form::section(ui, theme, &s.t("conn-container-section-registry"), |ui| {
+            form::field_grid(ui, "container-registry", |ui| {
+                form::label(ui, &s.t("conn-container-registry"));
+                changed |= form::text_field(ui, &mut f.registry, "registry.example.com").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-user"));
+                changed |= form::text_field(ui, &mut f.registry_user, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-password"));
+                changed |=
+                    form::secret_field(ui, &mut f.registry_password, "", form::FIELD_MIN_WIDTH)
+                        .changed();
+                ui.end_row();
+            });
+        });
+    }
+
+    form::section(ui, theme, &s.t("conn-container-section-common"), |ui| {
+        form::field_grid(ui, "container-common", |ui| {
+            form::label(ui, &s.t("conn-container-timeout"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut f.connect_timeout_secs).range(1..=300))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-container-insecure-tls"));
+            changed |= ui.checkbox(&mut f.insecure_tls, "").changed();
+            ui.end_row();
+        });
+        if f.insecure_tls {
+            // Say what it gives up, rather than only that it is on.
+            form::note(
+                ui,
+                theme,
+                hs_ui::icons::WARNING,
+                &s.t("conn-container-insecure-tls-note"),
+            );
+        }
+    });
+
+    if changed {
+        f.write_into(&mut draft.fields);
+        *scratch = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+    }
+}
+
+/// A picker over the saved `ssh` profiles, for reaching an engine on
+/// another machine. Returns whether the choice changed.
+fn ssh_profile_picker(ui: &mut egui::Ui, s: &Services, chosen: &mut String) -> bool {
+    let profiles: Vec<(String, String)> = s
+        .connections
+        .read()
+        .all()
+        .iter()
+        .filter(|p| p.kind == "ssh")
+        .map(|p| (p.id.clone(), p.name.clone()))
+        .collect();
+    let mut changed = false;
+    let label = profiles
+        .iter()
+        .find(|(id, _)| id == chosen)
+        .map(|(_, name)| name.clone())
+        .unwrap_or_else(|| s.t("conn-container-no-ssh"));
+    egui::ComboBox::from_id_salt("container-ssh")
+        .width(form::FIELD_MIN_WIDTH)
+        .selected_text(label)
+        .show_ui(ui, |ui| {
+            if ui
+                .selectable_label(chosen.is_empty(), s.t("conn-container-no-ssh"))
+                .clicked()
+            {
+                chosen.clear();
+                changed = true;
+            }
+            for (id, name) in &profiles {
+                if ui.selectable_label(chosen == id, name).clicked() {
+                    *chosen = id.clone();
+                    changed = true;
+                }
+            }
+        });
+    changed
 }
 
 /// The `kind = "db"` form: engine, server or file, credentials (password

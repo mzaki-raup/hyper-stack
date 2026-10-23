@@ -18,7 +18,9 @@ pub const KINDS: &[&str] = &[
     "s3",
     "api",
     "docker",
+    "podman",
     "k8s",
+    "wincontainer",
     "redis",
     "mongodb",
     "couchdb",
@@ -26,6 +28,27 @@ pub const KINDS: &[&str] = &[
     "dynamodb",
     "cassandra",
 ];
+
+/// The kinds the Container activity owns (ADR-026,
+/// `docs/tools/containers.md` §10.1). A container host is an ordinary
+/// connection profile, so the vault, per-environment hosts, read-only
+/// handling, folders, tags, pinning and ordering are inherited rather
+/// than rewritten - and Settings → Containers is a filtered view of this
+/// one store, which is why it can never disagree with Settings →
+/// Connections about the same host.
+pub const CONTAINER_KINDS: &[&str] = &["docker", "podman", "k8s", "wincontainer"];
+
+/// Whether a kind belongs to the Container activity.
+pub fn is_container_kind(kind: &str) -> bool {
+    CONTAINER_KINDS.contains(&kind)
+}
+
+/// Whether a kind is a Kubernetes cluster rather than a container
+/// engine. The two take different forms and different panes, and the
+/// difference is asked for often enough to belong here.
+pub fn is_cluster_kind(kind: &str) -> bool {
+    kind == "k8s"
+}
 
 /// Display label for a connection kind id ("db" → "DB", "mongodb" → "MongoDB").
 /// Unknown kinds are returned unchanged so custom ids still show.
@@ -36,7 +59,9 @@ pub fn kind_label(kind: &str) -> &str {
         "s3" => "S3",
         "api" => "API",
         "docker" => "Docker",
-        "k8s" => "K8s",
+        "podman" => "Podman",
+        "k8s" => "Kubernetes",
+        "wincontainer" => "Windows Container",
         "redis" => "Redis",
         "mongodb" => "MongoDB",
         "couchdb" => "CouchDB",

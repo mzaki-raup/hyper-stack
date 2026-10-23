@@ -22,6 +22,61 @@ pub struct Settings {
     pub accessibility: Accessibility,
     pub browser: Browser,
     pub git: Git,
+    pub containers: Containers,
+}
+
+/// Settings → Containers: the guards and limits that apply to every
+/// container host (`docs/tools/containers.md` §10.7, ADR-026). The hosts
+/// themselves are connection profiles, not settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Containers {
+    /// Confirm before stopping, restarting or killing something.
+    pub confirm_stop: bool,
+    /// Require the name to be typed before a remove or a namespace
+    /// delete - the same bar the other destructive actions use.
+    pub confirm_remove_by_name: bool,
+    /// A protected environment's hosts are read-only however the
+    /// profile is marked. On, because a production cluster is not a
+    /// place to discover a mis-click.
+    pub protected_read_only: bool,
+    /// Mask Kubernetes Secret values until revealed.
+    pub mask_secret_values: bool,
+    /// Offer `system prune` at all. Off, and never offered on a
+    /// protected environment whatever this says.
+    pub allow_prune: bool,
+    /// How often a live pane re-reads its inventory.
+    pub refresh_secs: u32,
+    /// Stream `/events` and `/stats`. Worth turning off on a slow link,
+    /// where the streams cost more than they tell.
+    pub stream_stats: bool,
+    pub page_size: u32,
+    /// How much history a Logs tab opened from here starts with.
+    pub log_tail_lines: u32,
+    /// Always dry-run an apply and show the diff first. On: this is the
+    /// guard that makes an assistant-written manifest safe to apply.
+    pub apply_dry_run_first: bool,
+    /// Where Save to Manifests writes, relative to the workspace when
+    /// it is not absolute. Empty means `manifests/`.
+    pub manifest_dir: String,
+}
+
+impl Default for Containers {
+    fn default() -> Self {
+        Self {
+            confirm_stop: true,
+            confirm_remove_by_name: true,
+            protected_read_only: true,
+            mask_secret_values: true,
+            allow_prune: false,
+            refresh_secs: 5,
+            stream_stats: true,
+            page_size: 500,
+            log_tail_lines: 2000,
+            apply_dry_run_first: true,
+            manifest_dir: String::new(),
+        }
+    }
 }
 
 /// Settings → Editor → Git: how commits are made and what is protected
@@ -221,6 +276,7 @@ impl Default for Settings {
             accessibility: Accessibility::default(),
             browser: Browser::default(),
             git: Git::default(),
+            containers: Containers::default(),
         }
     }
 }

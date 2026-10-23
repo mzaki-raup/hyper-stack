@@ -864,6 +864,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   editor's new terminal panel and to the bottom dock
   (`hs_term::widget::TerminalView::show` now calls `allocate_rect`).
   Suspect this whenever a resizable panel ignores `default_size`.
+- `hs_ui::table::DataTable` has the horizontal-scroll fix now
+  (2026-10-24): it computes its own content width and bounds the inner
+  `Ui` to it, so S3, SFTP and anything else using it scrolls rather than
+  clipping. A new wide table should use `DataTable` rather than a bare
+  `TableBuilder`, which still has the fault below.
 - `egui_extras::TableBuilder` scrolls **vertically only** — there is a
   `vscroll` but no horizontal equivalent — and its sizing only ever
   divides up the width it is handed, so a table too wide for its pane

@@ -127,7 +127,7 @@ store that already exists.
 
 | Phase | State | Notes |
 |---|---|---|
-| 1 · `DataTable` scrolls; container kinds; Settings → Containers; vault wiring | Pending | `DataTable` clips instead of scrolling, so nothing is readable until it is fixed; `tool-db::grid` has the working pattern, and S3 and SFTP get it too |
+| 1 · `DataTable` scrolls; container kinds; Settings → Containers; vault wiring | Completed | `DataTable` computes its own content width and bounds the inner `Ui` to it, so a table wider than its pane scrolls instead of clipping (4 tests, one failing against the old behaviour); S3 and SFTP fixed with it. `podman` and `wincontainer` joined the connection kinds, with `CONTAINER_KINDS`/`is_container_kind`/`is_cluster_kind` so no caller keeps its own list. New `hs-container` crate owns `[container]` fields and the list of which of them are secrets, so a field added later cannot be written in the clear (7 tests). Settings → Containers between Connections and Editor: kind-filtered Container List with per-kind reordering, the per-kind forms, Defaults and Safety, Tools. The connection detail column was extracted from `connections()` so both pages share one form rather than duplicating one that writes to the vault (2026-10-24) |
 | 2 · `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH, WSL prefixed) | Pending | Live tests behind an env var, as the DB and Redis drivers have |
 | 3 · Activity, rail entry, dashboard, two-section sidebar, one tab per host | Pending | Dashboard reports no uri and no affinity, or it steals every OpenRequest |
 | 4 · Docker pane (Portainer-shaped) | Pending | Logs open a Logs tab, Exec opens an `hs-term` shell; neither is rebuilt here |

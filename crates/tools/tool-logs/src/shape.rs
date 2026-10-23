@@ -41,6 +41,19 @@ static RULES: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
         r(r"\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b", "<time>"),
         // Anything numeric last, including hex literals and decimals.
         r(r"\b0x[0-9a-fA-F]+\b", "<n>"),
+        // A measurement with its unit attached, *before* the bare number
+        // rule: there is no word boundary between a digit and a letter,
+        // so `\b\d+\b` never matches the `31` in `31ms` and `took 31ms`
+        // and `took 904ms` were two shapes. Durations and sizes written
+        // this way are everywhere in a log, and leaving them unshaped
+        // made every row unique - which is exactly what the collapse of
+        // §15.5 and the window diff of §15.8 exist to avoid. The unit
+        // list is deliberately short: a long one would start eating
+        // words.
+        r(
+            r"(?i)\b\d+(?:\.\d+)?(?:ns|us|ms|s|m|h|d|kb|mb|gb|tb|kib|mib|gib|b|%)\b",
+            "<n>",
+        ),
         r(r"\b\d+(?:\.\d+)?\b", "<n>"),
     ]
 });

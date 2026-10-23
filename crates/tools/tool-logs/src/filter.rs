@@ -111,16 +111,46 @@ impl Filter {
 
 /// A regex that paints matching records.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Highlight {
     pub pattern: String,
     pub colour: [u8; 3],
     pub bold: bool,
     pub enabled: bool,
+    /// Post a matching record to the Problems dock tab
+    /// (docs/tools/logs.md §15.2). Off by default: a highlight is a way
+    /// of seeing, and turning every one of them into an inbox entry
+    /// would make the inbox useless.
+    pub report: bool,
+    /// Seconds between two reports of the same shape from this rule.
+    /// Zero uses `hs_core::problems::COOLDOWN`.
+    pub cooldown_secs: u32,
+}
+
+impl Default for Highlight {
+    fn default() -> Self {
+        Self {
+            pattern: String::new(),
+            colour: [220, 80, 80],
+            bold: false,
+            enabled: true,
+            report: false,
+            cooldown_secs: 0,
+        }
+    }
 }
 
 /// Highlights compiled for the frame.
 pub struct Highlights {
-    rules: Vec<(Regex, [u8; 3], bool)>,
+    rules: Vec<Compiled>,
+}
+
+struct Compiled {
+    re: Regex,
+    colour: [u8; 3],
+    bold: bool,
+    report: bool,
+    cooldown_secs: u32,
 }
 
 impl Highlights {
@@ -132,7 +162,13 @@ impl Highlights {
                 .filter_map(|h| {
                     Regex::new(&format!("(?i){}", h.pattern))
                         .ok()
-                        .map(|re| (re, h.colour, h.bold))
+                        .map(|re| Compiled {
+                            re,
+                            colour: h.colour,
+                            bold: h.bold,
+                            report: h.report,
+                            cooldown_secs: h.cooldown_secs,
+                        })
                 })
                 .collect(),
         }
@@ -142,8 +178,25 @@ impl Highlights {
     pub fn paint(&self, r: &Record) -> Option<([u8; 3], bool)> {
         self.rules
             .iter()
-            .find(|(re, _, _)| re.is_match(&r.raw))
-            .map(|(_, c, b)| (*c, *b))
+            .find(|c| c.re.is_match(&r.raw))
+            .map(|c| (c.colour, c.bold))
+    }
+
+    /// Whether any **reporting** rule matches, and its cooldown in
+    /// seconds. Separate from `paint` because a record can be painted by
+    /// a rule that does not report, and the first match is not
+    /// necessarily the reporting one.
+    pub fn reports(&self, r: &Record) -> Option<u32> {
+        self.rules
+            .iter()
+            .find(|c| c.report && c.re.is_match(&r.raw))
+            .map(|c| c.cooldown_secs)
+    }
+
+    /// Whether any rule reports at all, so a tab with none can skip the
+    /// scan entirely.
+    pub fn any_reporting(&self) -> bool {
+        self.rules.iter().any(|c| c.report)
     }
 }
 
@@ -229,17 +282,81 @@ mod tests {
                 colour: [255, 140, 0],
                 bold: true,
                 enabled: true,
+                ..Default::default()
             },
             Highlight {
                 pattern: "timeout".into(),
                 colour: [255, 0, 0],
                 bold: false,
                 enabled: false,
+                ..Default::default()
             },
         ]);
         let slow = parse(Format::Plain, 1, "LOG: duration: 812 ms");
         assert_eq!(h.paint(&slow), Some(([255, 140, 0], true)));
         let t = parse(Format::Plain, 1, "redis timeout");
         assert_eq!(h.paint(&t), None, "a disabled rule paints nothing");
+    }
+
+    /// §15.2: reporting is a separate question from painting. A record
+    /// can be painted by a rule that does not report, and the first
+    /// rule that matches is not necessarily the reporting one.
+    #[test]
+    fn reporting_is_asked_separately_from_painting() {
+        let h = Highlights::compile(&[
+            Highlight {
+                pattern: "timeout".into(),
+                colour: [1, 2, 3],
+                report: false,
+                ..Default::default()
+            },
+            Highlight {
+                pattern: "timeout".into(),
+                colour: [9, 9, 9],
+                report: true,
+                cooldown_secs: 30,
+                ..Default::default()
+            },
+        ]);
+        let r = parse(Format::Plain, 1, "redis timeout talking to cache");
+        assert_eq!(
+            h.paint(&r),
+            Some(([1, 2, 3], false)),
+            "the first match paints"
+        );
+        assert_eq!(
+            h.reports(&r),
+            Some(30),
+            "but the reporting rule is the one found for reporting"
+        );
+        assert!(h.any_reporting());
+    }
+
+    /// A tab whose rules never report must be able to skip the scan
+    /// entirely, so the common case costs nothing.
+    #[test]
+    fn a_tab_with_no_reporting_rules_says_so() {
+        let h = Highlights::compile(&[Highlight {
+            pattern: "warn".into(),
+            ..Default::default()
+        }]);
+        assert!(!h.any_reporting(), "off by default on every rule");
+        let r = parse(Format::Plain, 1, "a warn line");
+        assert!(h.paint(&r).is_some(), "it still paints");
+        assert_eq!(h.reports(&r), None);
+    }
+
+    /// A disabled rule does nothing at all, reporting included.
+    #[test]
+    fn a_disabled_rule_does_not_report() {
+        let h = Highlights::compile(&[Highlight {
+            pattern: "boom".into(),
+            enabled: false,
+            report: true,
+            ..Default::default()
+        }]);
+        assert!(!h.any_reporting());
+        let r = parse(Format::Plain, 1, "boom");
+        assert_eq!(h.reports(&r), None);
     }
 }

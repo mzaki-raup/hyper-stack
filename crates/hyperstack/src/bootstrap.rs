@@ -66,6 +66,7 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
 
     let services = Services {
         open_tabs: hs_core::open_tabs::OpenTabs::new(),
+        problems: hs_core::problems::Problems::new(),
         paths,
         settings: Arc::new(RwLock::new(settings)),
         runtime,

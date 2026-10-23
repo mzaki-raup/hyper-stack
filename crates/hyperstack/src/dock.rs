@@ -61,13 +61,16 @@ pub fn level_from_name(name: &str) -> tracing::Level {
         .unwrap_or(tracing::Level::INFO)
 }
 
+/// Draw the dock. Returns the origin of a Problems row the user
+/// clicked, for the shell to focus; `None` otherwise.
 pub fn show(
     ui: &mut egui::Ui,
     theme: &Theme,
     services: &Services,
     logs: &LogBuffer,
     state: &mut DockState,
-) {
+) -> Option<hs_core::problems::Origin> {
+    let mut jump = None;
     if !state.level_synced {
         state.min_level = level_from_name(&services.settings.read().general.log_level);
         state.level_synced = true;
@@ -222,9 +225,97 @@ pub fn show(
             });
         }
         DockTab::Problems => {
-            ui.colored_label(theme.text_muted, "—");
+            // The inbox any tool writes to (docs/tools/logs.md §15.2).
+            // Editor diagnostics and SQL errors belong here too; the
+            // Logs tool is the first to use it.
+            let rows = services.problems.all();
+            ui.horizontal(|ui| {
+                form_hint(
+                    ui,
+                    theme,
+                    &services
+                        .i18n
+                        .t_args("problems-count", &[("n", &rows.len().to_string())]),
+                );
+                if !rows.is_empty() && ui.small_button(services.t("problems-clear")).clicked() {
+                    services.problems.clear();
+                }
+            });
+            if rows.is_empty() {
+                form_hint(ui, theme, &services.t("problems-none"));
+                return None;
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("dock-problems")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    for p in &rows {
+                        ui.horizontal(|ui| {
+                            let (icon, colour) = match p.severity {
+                                hs_core::problems::Severity::Error => {
+                                    (hs_ui::icons::ph::X_CIRCLE, theme.error)
+                                }
+                                hs_core::problems::Severity::Warning => {
+                                    (hs_ui::icons::ph::WARNING, theme.warning)
+                                }
+                                hs_core::problems::Severity::Info => {
+                                    (hs_ui::icons::ph::INFO, theme.accent)
+                                }
+                            };
+                            ui.label(egui::RichText::new(icon).color(colour));
+                            // A storm is one row whose count climbs, so
+                            // the count is part of the row rather than
+                            // hidden.
+                            if p.count > 1 {
+                                ui.label(
+                                    egui::RichText::new(format!("{}x", p.count))
+                                        .small()
+                                        .strong()
+                                        .color(theme.text_muted),
+                                );
+                            }
+                            ui.label(
+                                egui::RichText::new(
+                                    p.last
+                                        .with_timezone(&chrono::Local)
+                                        .format("%H:%M:%S")
+                                        .to_string(),
+                                )
+                                .small()
+                                .monospace()
+                                .color(theme.text_muted),
+                            );
+                            let where_at = match p.origin.line {
+                                Some(l) => format!("{}:{l}", p.origin.label),
+                                None => p.origin.label.clone(),
+                            };
+                            if ui
+                                .add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&where_at).small().color(theme.accent),
+                                    )
+                                    .selectable(false)
+                                    .sense(egui::Sense::click()),
+                                )
+                                .on_hover_text(services.t("problems-jump-tip"))
+                                .clicked()
+                            {
+                                jump = Some(p.origin.clone());
+                            }
+                            // Truncated, never wrapped: this row sits in
+                            // a dock whose height the user chose.
+                            ui.add(
+                                egui::Label::new(egui::RichText::new(&p.message).small())
+                                    .selectable(true)
+                                    .truncate(),
+                            )
+                            .on_hover_text(&p.message);
+                        });
+                    }
+                });
         }
     }
+    jump
 }
 
 fn level_name(l: tracing::Level) -> &'static str {

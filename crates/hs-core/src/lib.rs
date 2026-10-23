@@ -36,6 +36,7 @@ pub mod objstore;
 pub mod open_tabs;
 pub mod paths;
 pub mod portable;
+pub mod problems;
 pub mod prompts;
 pub mod runtime;
 pub mod secrets;

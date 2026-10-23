@@ -924,6 +924,35 @@ impl HyperStackApp {
 
     /// Focus an existing tab and hand it the request (jump to a line,
     /// reconnect a dropped connection).
+    /// Focus the tab a Problems row came from and show that record
+    /// (docs/tools/logs.md §15.2).
+    ///
+    /// By `current_uri`, not by tool: the point is to reach the exact
+    /// tab that posted it, and two tabs of one activity are two
+    /// different places. A tab that has since closed is reported rather
+    /// than silently ignored - a dead row is worse than an error.
+    fn jump_to_problem(&mut self, origin: &hs_core::problems::Origin) {
+        let found = self
+            .tabs
+            .tabs
+            .iter()
+            .find(|t| t.tool.current_uri().as_deref() == Some(origin.uri.as_str()))
+            .map(|t| t.id);
+        let Some(id) = found else {
+            let text = self
+                .services
+                .i18n
+                .t_args("problems-tab-gone", &[("name", &origin.label)]);
+            self.toasts.push(ToastLevel::Warning, text);
+            return;
+        };
+        let request = origin.line.map(|line| OpenRequest::Text {
+            mime: tool_logs::GOTO_MIME.to_string(),
+            body: line.to_string(),
+        });
+        self.focus_and_open(id, &origin.tool, request);
+    }
+
     fn focus_and_open(&mut self, id: u64, factory_id: &str, request: Option<OpenRequest>) {
         self.group = Some(group_of(factory_id).to_string());
         self.tabs.activate(id);
@@ -3401,8 +3430,13 @@ impl eframe::App for HyperStackApp {
                 .size_range(100.0..=max_h)
                 .resizable(true)
                 .show(root, |ui| {
-                    dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock);
+                    dock::show(ui, &self.theme, &self.services, &logs, &mut self.dock)
                 });
+            // A Problems row the user clicked: focus the tab it came
+            // from and ask it to show that record.
+            if let Some(origin) = r.inner.clone() {
+                self.jump_to_problem(&origin);
+            }
             let _ = &r;
             let height =
                 egui::containers::panel::PanelState::load(root.ctx(), egui::Id::new("hs-dock"))

@@ -1421,6 +1421,32 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `make_fixtures.py` in the session scratchpad rebuilds them.
 
 ### Logs (tool-logs)
+- **A histogram bucket must follow the span, in round units.** A fixed
+  per-minute bucket is right for an incident and useless for a week:
+  10 080 bars in a 300 px strip is one bar per thirty-three pixels of
+  nothing. `chart::Bucket::pick` returns the smallest round unit that
+  keeps the count under `TARGET_BARS`; a computed bucket like "37
+  seconds" would make the axis unreadable.
+- `Response::drag_started()` fires only past egui's drag threshold, so a
+  range dragged on a strip must be measured from
+  `i.pointer.press_origin()` - otherwise the selection is clipped by
+  however far the pointer moved before egui called it a drag. Same
+  lesson as the crop overlay in tool-graphics.
+- **Filtering to a time range must replace the after/before chips, not
+  add to them.** Two overlapping time windows combine with AND and
+  filter to nothing, which reads as a broken feature rather than as two
+  filters.
+- A record is reached again by **line number**, never by filtered
+  position: the window drops its oldest records, so a position means a
+  different record ten minutes later. `GOTO_MIME` scrolls an open tab to
+  a line; an `OpenRequest::File` would reopen the source and lose the
+  place.
+- `shape::key` had no word boundary to work with between a digit and a
+  letter, so `\d+` never matched the `31` in `31ms` and every
+  duration was its own shape - which quietly defeated both the repeat
+  collapse and the window diff. A measurement with its unit attached is
+  normalised now; keep that unit list short, since a long one starts
+  eating words.
 - **A quoted name in a thread dump is not always a thread header.** The
   deadlock section is full of references - `"worker-8":`, `which is held
   by "worker-7"` - and treating any line starting with `"` as a header

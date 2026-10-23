@@ -36,6 +36,11 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
 
 /// The MIME a source spec travels under between tabs (sidebar → new tab).
 pub const SPEC_MIME: &str = "application/x-hyperstack-log-source+json";
+/// Ask an **already open** Logs tab to scroll to a record by its line
+/// number. The body is that number. A `File` request would reopen the
+/// source and lose the place, which is not what jumping from the
+/// Problems dock tab means (docs/tools/logs.md §15.2).
+pub const GOTO_MIME: &str = "application/x-hyperstack-log-goto";
 
 pub struct LogsFactory;
 
@@ -82,6 +87,10 @@ pub struct State {
     /// On by default, and what is on screen matches what would leave.
     #[serde(default = "yes")]
     pub mask: bool,
+    /// Show the time strip above the list (§10, §15.6). On by default:
+    /// it is how a large window is navigated, not decoration.
+    #[serde(default = "yes")]
+    pub chart_open: bool,
     /// Fold consecutive repeats into one row with a count (§15.5). Off by
     /// default: a log read in order is what people expect to see first.
     #[serde(default)]
@@ -108,6 +117,7 @@ impl Default for State {
             detail_open: true,
             saved_name: String::new(),
             mask: true,
+            chart_open: true,
             collapse: false,
         }
     }
@@ -119,6 +129,7 @@ fn default_highlights() -> Vec<Highlight> {
         colour: [0xfb, 0x92, 0x3c],
         bold: true,
         enabled: true,
+        ..Default::default()
     }]
 }
 
@@ -366,6 +377,35 @@ pub struct LogsTool {
     /// The `LISTS_VERSION` the saved sources and presets were read at,
     /// so another tab's save is picked up.
     lists_at: u64,
+    /// The time histogram of the filtered window, and the
+    /// `(records version, chips version)` it was built at. Derived from
+    /// every filtered record, so it is built when one of those moves and
+    /// never per frame (docs/tools/logs.md §10).
+    chart: Option<crate::chart::Histogram>,
+    chart_at: (u64, u64),
+    /// A drag in progress on the strip, as the press and current
+    /// fractions of its width.
+    chart_drag: Option<(f32, f32)>,
+    /// The range the last drag selected, offered as a filter or as one
+    /// side of the window comparison.
+    chart_sel: Option<crate::chart::Range>,
+    /// The highlight-rule editor is open (§15.2 needs somewhere to
+    /// put its Report switch, and the rules had no editor at all).
+    highlights_open: bool,
+    /// How far `report_problems` has scanned, so each record is
+    /// considered once however many frames it survives.
+    reported_upto: usize,
+    /// Saved investigations (§15.7) and the name being typed for a new
+    /// one; `None` when the dialog is closed.
+    views: Vec<crate::views::Investigation>,
+    new_view: Option<(String, String)>,
+    confirm_view_delete: Option<String>,
+    /// The two windows being compared (§15.8).
+    window_a: Option<crate::chart::Range>,
+    window_b: Option<crate::chart::Range>,
+    /// The comparison table is open, and how big a move it reports.
+    diff_open: bool,
+    diff_threshold: u32,
     /// The monospace glyph width, and the scale it was measured at.
     /// Measuring takes egui's font write lock, so it is done when the
     /// scale changes rather than every frame.
@@ -462,6 +502,19 @@ impl LogsTool {
             threads: None,
             threads_at: 0,
             lists_at: lists_version(),
+            highlights_open: false,
+            reported_upto: 0,
+            views: crate::views::Investigation::load_all(&logs_dir),
+            new_view: None,
+            confirm_view_delete: None,
+            chart: None,
+            chart_at: (u64::MAX, u64::MAX),
+            chart_drag: None,
+            chart_sel: None,
+            window_a: None,
+            window_b: None,
+            diff_open: false,
+            diff_threshold: 1,
             glyph_w: 0.0,
             glyph_at: 0.0,
             rows: Vec::new(),
@@ -1095,6 +1148,33 @@ impl Tool for LogsTool {
                 );
                 true
             }
+            OpenRequest::Text { mime, body } if mime == GOTO_MIME => {
+                // By line number, not by position: the window drops its
+                // oldest records, so a position means a different record
+                // ten minutes later.
+                let Ok(line) = body.trim().parse::<u64>() else {
+                    return false;
+                };
+                let sh = self.shared.lock();
+                let found = self
+                    .filtered
+                    .iter()
+                    .position(|&i| sh.records.get(i).is_some_and(|r| r.line == line));
+                drop(sh);
+                match found {
+                    Some(pos) => {
+                        self.scroll_to = Some(pos);
+                        self.selected = Some(pos);
+                        // Following would scroll straight back to the
+                        // newest line and undo the jump.
+                        self.state.follow = false;
+                        true
+                    }
+                    // The record has been filtered out or has aged out of
+                    // the window; saying so beats silently doing nothing.
+                    None => false,
+                }
+            }
             OpenRequest::Text { mime, body } if mime == SPEC_MIME => {
                 match serde_json::from_str::<SavedSource>(&body) {
                     Ok(s) => {
@@ -1149,6 +1229,8 @@ impl Tool for LogsTool {
             c("logs.jump", "Logs: Jump to Time"),
             c("logs.ai", "Logs: AI Assistant"),
             c("logs.save_filtered", "Logs: Save Filtered Output…"),
+            c("logs.save_investigation", "Logs: Save Investigation…"),
+            c("logs.highlights", "Logs: Highlight Rules…"),
             c("logs.clear_chips", "Logs: Clear Filters"),
         ]
     }
@@ -1164,6 +1246,25 @@ impl Tool for LogsTool {
             // 2026-10-24).
             "logs.open_dump" => {
                 self.pick_and_open(cx, Format::ThreadDump);
+                true
+            }
+            "logs.highlights" => {
+                self.highlights_open = true;
+                true
+            }
+            "logs.save_investigation" => {
+                if self.state.spec.is_some() {
+                    let suggested = if self.state.saved_name.is_empty() {
+                        self.state
+                            .spec
+                            .as_ref()
+                            .map(|sp| sp.label())
+                            .unwrap_or_default()
+                    } else {
+                        self.state.saved_name.clone()
+                    };
+                    self.new_view = Some((suggested, String::new()));
+                }
                 true
             }
             "logs.add_source" => {
@@ -1384,6 +1485,8 @@ impl Tool for LogsTool {
         ui.separator();
         self.running_services(ui, cx, &theme, services_height);
         ui.separator();
+        self.investigations_section(ui, cx, &theme);
+        ui.separator();
         ui.label(
             egui::RichText::new(s.t("logs-presets"))
                 .small()
@@ -1542,6 +1645,20 @@ impl Tool for LogsTool {
                 self.state.mask = !self.state.mask;
             }
             if ui
+                .button(ph::HIGHLIGHTER)
+                .tip(s.t("logs-highlights"))
+                .clicked()
+            {
+                self.highlights_open = true;
+            }
+            if ui
+                .selectable_label(self.state.chart_open, ph::CHART_BAR)
+                .tip(s.t("logs-chart-tip"))
+                .clicked()
+            {
+                self.state.chart_open = !self.state.chart_open;
+            }
+            if ui
                 .selectable_label(self.state.collapse, ph::ARROWS_IN_LINE_VERTICAL)
                 .tip(s.t("logs-collapse-tip"))
                 .clicked()
@@ -1620,6 +1737,7 @@ impl Tool for LogsTool {
         self.keys(ui, cx);
         self.sync_lists();
         self.refilter();
+        self.report_problems(&s);
         // The column's rectangle is taken out of the tab first, so the
         // list lays out in what is left; it is drawn last, as every other
         // tool draws it, so nothing of the tool paints over it.
@@ -1629,6 +1747,9 @@ impl Tool for LogsTool {
         let ui = &mut content;
         self.chip_row(ui, &s, &theme);
         self.thread_summary(ui, &s, &theme);
+        self.time_strip(ui, &s, &theme);
+        self.highlights_editor(ui, cx, &theme);
+        self.diff_panel(ui, &s, &theme);
         if self.state.detail_open && self.selected.is_some() {
             egui::Panel::bottom("logs-detail")
                 .default_size(200.0)
@@ -2161,6 +2282,792 @@ impl LogsTool {
         self.lists_at = now;
         self.saved = SavedSource::load_all(&self.logs_dir);
         self.presets = load_presets(&self.logs_dir);
+        self.views = crate::views::Investigation::load_all(&self.logs_dir);
+    }
+
+    /// Did the deploy change anything (docs/tools/logs.md §15.8)? Two
+    /// ranges dragged on the strip, counted per shape key, shown as what
+    /// appeared, what went away and what moved.
+    ///
+    /// A count table, not a text diff: the question is "how many of
+    /// this kind", which a Myers diff cannot answer.
+    fn diff_panel(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        if !self.diff_open {
+            return;
+        }
+        let (Some(a), Some(b)) = (self.window_a, self.window_b) else {
+            return;
+        };
+        let rows = {
+            let sh = self.shared.lock();
+            crate::chart::diff_windows(&sh.records, &self.filtered, a, b, self.diff_threshold)
+        };
+        let mut close = false;
+        let mut pick: Option<(String, crate::chart::Range)> = None;
+        egui::Panel::bottom("logs-diff")
+            .default_size(220.0)
+            .size_range(120.0..=(ui.available_height() * 0.7).max(120.0))
+            .resizable(true)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(s.t("logs-diff-title")).strong());
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "A {} - {}   B {} - {}",
+                            self.stamp(a.from),
+                            self.stamp(a.to),
+                            self.stamp(b.from),
+                            self.stamp(b.to)
+                        ))
+                        .small()
+                        .color(theme.text_muted),
+                    );
+                    hs_ui::toolbar::hard_right(ui, |ui| {
+                        if ui.small_button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                        ui.label(
+                            egui::RichText::new(s.t("logs-diff-threshold"))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut self.diff_threshold)
+                                .range(1..=10_000)
+                                .speed(0.25),
+                        );
+                    });
+                });
+                if rows.is_empty() {
+                    form::hint(ui, theme, &s.t("logs-diff-same"));
+                    return;
+                }
+                egui::ScrollArea::vertical()
+                    .id_salt("logs-diff-rows")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        egui::Grid::new("logs-diff-grid")
+                            .striped(true)
+                            .num_columns(4)
+                            .spacing([12.0, 3.0])
+                            .show(ui, |ui| {
+                                ui.label(
+                                    egui::RichText::new(s.t("logs-diff-change"))
+                                        .small()
+                                        .strong(),
+                                );
+                                ui.label(egui::RichText::new("A").small().strong());
+                                ui.label(egui::RichText::new("B").small().strong());
+                                ui.label(
+                                    egui::RichText::new(s.t("logs-diff-shape")).small().strong(),
+                                );
+                                ui.end_row();
+                                for d in &rows {
+                                    let change = d.change();
+                                    // More of something is the alarming
+                                    // direction; less of it is usually
+                                    // the fix working.
+                                    let colour = if change > 0 {
+                                        theme.error
+                                    } else {
+                                        theme.accent
+                                    };
+                                    let mark = if d.only_in_b() {
+                                        s.t("logs-diff-new")
+                                    } else if d.only_in_a() {
+                                        s.t("logs-diff-gone")
+                                    } else {
+                                        format!("{change:+}")
+                                    };
+                                    ui.label(egui::RichText::new(mark).color(colour).monospace());
+                                    ui.label(egui::RichText::new(d.a.to_string()).monospace());
+                                    ui.label(egui::RichText::new(d.b.to_string()).monospace());
+                                    // Truncated, never wrapped: a grid
+                                    // keeps the tallest height a row
+                                    // ever had, so one wrapped shape
+                                    // would leave every row tall.
+                                    let r = ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(&d.shape).monospace().size(11.5),
+                                        )
+                                        .selectable(false)
+                                        .truncate()
+                                        .sense(egui::Sense::click()),
+                                    );
+                                    if r.on_hover_text(s.t("logs-diff-row-tip")).clicked() {
+                                        // Filter to this shape in the
+                                        // window it is interesting in.
+                                        let range = if d.only_in_a() { a } else { b };
+                                        pick = Some((d.shape.clone(), range));
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                    });
+            });
+        if let Some((shape, range)) = pick {
+            self.filter_to_shape(&shape, range);
+        }
+        if close {
+            self.diff_open = false;
+        }
+    }
+
+    /// Show one shape inside one window. The shape key is a normalised
+    /// message, not a literal, so it cannot be matched as text: the
+    /// longest run of it that survived normalisation is used as a
+    /// contains chip, which is what a reader would have typed.
+    fn filter_to_shape(&mut self, shape: &str, range: crate::chart::Range) {
+        let literal = shape
+            .split(['<', '>'])
+            .filter(|part| !part.trim().is_empty())
+            .max_by_key(|part| part.trim().len())
+            .map(|part| part.trim().to_string())
+            .unwrap_or_default();
+        self.state
+            .chips
+            .retain(|c| !matches!(c.kind, ChipKind::After(_) | ChipKind::Before(_)));
+        if !literal.is_empty() {
+            self.state
+                .chips
+                .push(Chip::new(ChipKind::Contains(literal)));
+        }
+        self.state
+            .chips
+            .push(Chip::new(ChipKind::After(range.from)));
+        self.state.chips.push(Chip::new(ChipKind::Before(range.to)));
+        self.chips_changed();
+    }
+
+    /// Saved investigations (docs/tools/logs.md §15.7): a whole tab
+    /// worth reopening after an incident. Clicking one restores it.
+    fn investigations_section(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services.clone();
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("logs-investigations"))
+                    .small()
+                    .strong()
+                    .color(theme.text_muted),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                // Only offered for a tab that is reading something:
+                // there is nothing to save about an empty tab.
+                if ui
+                    .add_enabled(
+                        self.state.spec.is_some(),
+                        egui::Button::new(ph::FLOPPY_DISK).small().frame(false),
+                    )
+                    .tip(s.t("logs-save-investigation-tip"))
+                    .clicked()
+                {
+                    let suggested = if self.state.saved_name.is_empty() {
+                        self.state
+                            .spec
+                            .as_ref()
+                            .map(|sp| sp.label())
+                            .unwrap_or_default()
+                    } else {
+                        self.state.saved_name.clone()
+                    };
+                    self.new_view = Some((suggested, String::new()));
+                }
+            });
+        });
+        if self.views.is_empty() {
+            form::hint(ui, theme, &s.t("logs-no-investigations"));
+        }
+        let mut open: Option<crate::views::Investigation> = None;
+        let mut delete: Option<String> = None;
+        for v in &self.views {
+            let r = form::list_row(
+                ui,
+                theme,
+                false,
+                ph::MAGNIFYING_GLASS,
+                &v.name,
+                Some(&v.describe()),
+            );
+            if r.clicked() {
+                open = Some(v.clone());
+            }
+            let label = s.t("logs-delete-investigation");
+            r.context_menu(|ui| {
+                if ui.button(&label).clicked() {
+                    delete = Some(v.name.clone());
+                    ui.close();
+                }
+            });
+            ui.add_space(2.0);
+        }
+        if let Some(v) = open {
+            self.open_investigation(&v, cx);
+        }
+        if let Some(name) = delete {
+            self.confirm_view_delete = Some(name);
+        }
+        self.investigation_dialogs(ui, cx, theme);
+    }
+
+    /// Naming a new investigation, and confirming the deletion of one.
+    fn investigation_dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services.clone();
+        if let Some((name, note)) = &mut self.new_view {
+            let mut name = name.clone();
+            let mut note = note.clone();
+            let mut save = false;
+            let mut cancel = false;
+            egui::Modal::new(egui::Id::new("logs-new-investigation")).show(ui.ctx(), |ui| {
+                ui.set_width(360.0);
+                ui.label(egui::RichText::new(s.t("logs-save-investigation")).strong());
+                form::hint(ui, theme, &s.t("logs-save-investigation-hint"));
+                ui.add_space(6.0);
+                form::field_grid(ui, "logs-new-view-grid", |ui| {
+                    form::label(ui, &s.t("logs-investigation-name"));
+                    form::text_field(ui, &mut name, "");
+                    ui.end_row();
+                    form::label(ui, &s.t("logs-investigation-note"));
+                    form::text_field(ui, &mut note, "");
+                    ui.end_row();
+                });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            !name.trim().is_empty(),
+                            egui::Button::new(s.t("logs-save-investigation")),
+                        )
+                        .clicked()
+                    {
+                        save = true;
+                    }
+                    if ui.button(s.t("cancel")).clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+            if save {
+                if let Some(v) = self.as_investigation(&name, &note) {
+                    match v.save(&self.logs_dir) {
+                        Ok(()) => {
+                            lists_changed();
+                            self.views = crate::views::Investigation::load_all(&self.logs_dir);
+                            self.lists_at = lists_version();
+                            self.state.saved_name = v.name.clone();
+                        }
+                        Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+                    }
+                }
+                self.new_view = None;
+            } else if cancel {
+                self.new_view = None;
+            } else {
+                self.new_view = Some((name, note));
+            }
+        }
+        if let Some(name) = self.confirm_view_delete.clone() {
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                theme,
+                "logs-delete-investigation",
+                &s.t("logs-delete-investigation"),
+                &s.i18n
+                    .t_args("logs-delete-investigation-confirm", &[("name", &name)]),
+                &s.t("logs-delete-investigation"),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.confirm_view_delete = None;
+                    if let Some(v) = self.views.iter().find(|x| x.name == name).cloned() {
+                        if let Err(e) = v.delete(&self.logs_dir) {
+                            cx.toast(ToastLevel::Error, e.to_string());
+                        }
+                        lists_changed();
+                        self.views = crate::views::Investigation::load_all(&self.logs_dir);
+                        self.lists_at = lists_version();
+                    }
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_view_delete = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        }
+    }
+
+    /// A bar or range boundary as a clock reading, in the tab's own
+    /// time zone so it matches the list's time column. Seconds are
+    /// enough: a bucket is never finer than a second.
+    fn stamp(&self, at: chrono::DateTime<chrono::Utc>) -> String {
+        if self.state.local_time {
+            at.with_timezone(&chrono::Local)
+                .format("%H:%M:%S")
+                .to_string()
+        } else {
+            at.format("%H:%M:%S").to_string()
+        }
+    }
+
+    /// The highlight rules: a regex, the colour it paints, and whether
+    /// a match is also posted to the Problems dock tab
+    /// (docs/tools/logs.md §15.2).
+    ///
+    /// Reporting is off by default on every rule. A highlight is a way
+    /// of *seeing* something while reading; turning every one of them
+    /// into an inbox entry would make the inbox useless.
+    fn highlights_editor(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        if !self.highlights_open {
+            return;
+        }
+        let s = cx.services.clone();
+        let mut close = false;
+        let mut changed = false;
+        let mut remove: Option<usize> = None;
+        egui::Modal::new(egui::Id::new("logs-highlights")).show(ui.ctx(), |ui| {
+            ui.set_width(560.0);
+            ui.label(egui::RichText::new(s.t("logs-highlights")).strong());
+            form::hint(ui, theme, &s.t("logs-highlights-hint"));
+            ui.add_space(8.0);
+            if self.state.highlights.is_empty() {
+                form::hint(ui, theme, &s.t("logs-no-highlights"));
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("logs-hl-rows")
+                .max_height(300.0)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    for (i, h) in self.state.highlights.iter_mut().enumerate() {
+                        ui.horizontal(|ui| {
+                            changed |= ui
+                                .checkbox(&mut h.enabled, "")
+                                .on_hover_text(s.t("logs-highlight-enabled"))
+                                .changed();
+                            changed |= ui.color_edit_button_srgb(&mut h.colour).changed();
+                            changed |= ui
+                                .checkbox(&mut h.bold, s.t("logs-highlight-bold"))
+                                .changed();
+                            // A regex, so the field has to be wide; the
+                            // rest of the row is fixed.
+                            changed |= ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut h.pattern)
+                                        .desired_width(200.0)
+                                        .font(egui::TextStyle::Monospace)
+                                        .hint_text(s.t("logs-highlight-pattern")),
+                                )
+                                .changed();
+                            changed |= ui
+                                .checkbox(&mut h.report, s.t("logs-highlight-report"))
+                                .on_hover_text(s.t("logs-highlight-report-tip"))
+                                .changed();
+                            // Only meaningful for a reporting rule, so
+                            // it is disabled rather than hidden: a
+                            // control that moves is harder to find.
+                            ui.add_enabled_ui(h.report, |ui| {
+                                changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut h.cooldown_secs)
+                                            .range(0..=3600)
+                                            .suffix("s"),
+                                    )
+                                    .on_hover_text(s.t("logs-highlight-cooldown-tip"))
+                                    .changed();
+                            });
+                            if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                                .tip(s.t("logs-highlight-delete"))
+                                .clicked()
+                            {
+                                remove = Some(i);
+                            }
+                        });
+                        // An unparseable regex is dropped by `compile`,
+                        // which would otherwise look like a rule that
+                        // simply never matches.
+                        if !h.pattern.is_empty() && regex::Regex::new(&h.pattern).is_err() {
+                            ui.label(
+                                egui::RichText::new(s.t("logs-highlight-bad-regex"))
+                                    .small()
+                                    .color(theme.error),
+                            );
+                        }
+                        ui.add_space(2.0);
+                    }
+                });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(s.t("logs-highlight-add")).clicked() {
+                    self.state.highlights.push(Highlight::default());
+                    changed = true;
+                }
+                hs_ui::toolbar::hard_right(ui, |ui| {
+                    if ui.button(s.t("close")).clicked() {
+                        close = true;
+                    }
+                });
+            });
+        });
+        if let Some(i) = remove {
+            self.state.highlights.remove(i);
+            changed = true;
+        }
+        if changed {
+            self.highlights = Highlights::compile(&self.state.highlights);
+            // A rule that has just been turned on must not post the
+            // whole backlog at once.
+            self.reported_upto = self.shared.lock().records.len();
+        }
+        if close {
+            self.highlights_open = false;
+        }
+    }
+
+    /// Post records that matched a reporting highlight rule to the
+    /// Problems dock tab (docs/tools/logs.md §15.2).
+    ///
+    /// Each record is considered once, however many frames it survives,
+    /// and the scan is skipped entirely when no rule reports - which is
+    /// the default, so a tab pays nothing for this feature unless it is
+    /// asked for. Posting happens only while the tab exists; nothing
+    /// runs in the background.
+    fn report_problems(&mut self, s: &Services) {
+        if !self.highlights.any_reporting() {
+            // Keep the mark level with the window, or turning a rule on
+            // later would post the whole backlog at once.
+            self.reported_upto = self.shared.lock().records.len();
+            return;
+        }
+        let Some(spec) = &self.state.spec else { return };
+        let uri = spec.uri();
+        let label = if self.state.saved_name.is_empty() {
+            spec.label()
+        } else {
+            self.state.saved_name.clone()
+        };
+        // Collected under the lock and posted outside it: `post` takes
+        // its own lock, and holding two is how a deadlock starts.
+        let mut pending: Vec<(crate::parse::Record, u32)> = Vec::new();
+        {
+            let sh = self.shared.lock();
+            let from = self.reported_upto.min(sh.records.len());
+            for r in &sh.records[from..] {
+                if let Some(cooldown) = self.highlights.reports(r) {
+                    pending.push((r.clone(), cooldown));
+                }
+            }
+            self.reported_upto = sh.records.len();
+        }
+        for (r, cooldown) in pending {
+            // Redacted on the way out, like everything else that leaves
+            // the tab (§15.4): the inbox is outside it.
+            let message = self.leaving(if r.message.is_empty() {
+                &r.raw
+            } else {
+                &r.message
+            });
+            let severity = match r.level {
+                Some(l) if l >= crate::parse::Level::Error => hs_core::problems::Severity::Error,
+                Some(crate::parse::Level::Warn) => hs_core::problems::Severity::Warning,
+                _ => hs_core::problems::Severity::Info,
+            };
+            let pause = if cooldown == 0 {
+                hs_core::problems::COOLDOWN
+            } else {
+                std::time::Duration::from_secs(u64::from(cooldown))
+            };
+            s.problems.post_with_cooldown(
+                hs_core::problems::Report {
+                    severity,
+                    message: message.chars().take(300).collect(),
+                    // Deduplicated by the same shape key the collapse
+                    // uses, so a storm is one row that climbs.
+                    shape: crate::shape::key(&r.message),
+                    origin: hs_core::problems::Origin {
+                        tool: "logs".into(),
+                        uri: uri.clone(),
+                        label: label.clone(),
+                        line: Some(r.line),
+                    },
+                },
+                pause,
+            );
+        }
+    }
+
+    /// This tab as an investigation (docs/tools/logs.md §15.7): the
+    /// source, the chips, the highlights, the pinned columns, the
+    /// bookmarks with their notes, the time zone and Follow.
+    fn as_investigation(&self, name: &str, note: &str) -> Option<crate::views::Investigation> {
+        let spec = self.state.spec.clone()?;
+        Some(crate::views::Investigation {
+            name: name.trim().to_string(),
+            spec,
+            format: self.state.format,
+            tail_lines: self.state.tail_lines,
+            chips: self.state.chips.clone(),
+            highlights: self.state.highlights.clone(),
+            pinned: self.state.pinned.clone(),
+            bookmarks: self.state.bookmarks.clone(),
+            local_time: self.state.local_time,
+            follow: self.state.follow,
+            mask: self.state.mask,
+            collapse: self.state.collapse,
+            chart_open: self.state.chart_open,
+            order: self.views.len() as u32,
+            note: note.trim().to_string(),
+            ..Default::default()
+        })
+    }
+
+    /// Open an investigation as it was saved. The source is reopened
+    /// first and the rest of the set-up applied over it, so the chips
+    /// are in place before the first records arrive rather than after.
+    fn open_investigation(&mut self, v: &crate::views::Investigation, cx: &mut ToolContext) {
+        self.state.chips = v.chips.clone();
+        self.state.highlights = v.highlights.clone();
+        self.state.pinned = v.pinned.clone();
+        self.state.bookmarks = v.bookmarks.clone();
+        self.state.local_time = v.local_time;
+        self.state.mask = v.mask;
+        self.state.collapse = v.collapse;
+        self.state.chart_open = v.chart_open;
+        self.state.saved_name = v.name.clone();
+        self.open_spec(
+            cx.services,
+            v.spec.clone(),
+            v.format,
+            v.tail_lines,
+            self.state.text.clone(),
+        );
+        // After `open_spec`, which resets Follow to the source's own
+        // default: an investigation is a frozen picture and must not
+        // rush to the newest line.
+        self.state.follow = v.follow;
+        self.chips_changed();
+    }
+
+    /// The time strip (docs/tools/logs.md §10, §15.6): records per
+    /// bucket over the **filtered** window, so it answers "when did this
+    /// happen" rather than "when was anything logged".
+    ///
+    /// It is a navigator, not decoration. Clicking a bar jumps the list
+    /// to the first record in it, exactly as Ctrl+G does; dragging across
+    /// it selects a range that can become the after/before chips or one
+    /// side of the window comparison.
+    fn time_strip(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        if !self.state.chart_open {
+            return;
+        }
+        // Built from every filtered record, so only when one of those
+        // two versions moves.
+        let version = self.shared.lock().version;
+        if self.chart_at != (version, self.chips_version) {
+            self.chart_at = (version, self.chips_version);
+            let sh = self.shared.lock();
+            self.chart = Some(crate::chart::histogram(&sh.records, &self.filtered));
+        }
+        let Some(h) = self.chart.clone() else { return };
+        if h.is_empty() {
+            // A log with no timestamps at all has nothing to place, and
+            // an empty strip would only take space and puzzle the reader.
+            return;
+        }
+
+        const HEIGHT: f32 = 34.0;
+        let width = ui.available_width();
+        let (rect, response) =
+            ui.allocate_exact_size(egui::vec2(width, HEIGHT), egui::Sense::click_and_drag());
+        let painter = ui.painter_at(rect);
+        painter.rect_filled(rect, 2.0, theme.panel_bg);
+
+        let peak = h.peak().max(1) as f32;
+        let n = h.bars.len().max(1);
+        let bar_w = rect.width() / n as f32;
+        for (i, bar) in h.bars.iter().enumerate() {
+            let total = bar.total();
+            if total == 0 {
+                continue;
+            }
+            // A bar takes the colour of its worst level: one error in a
+            // minute of chatter is the thing worth seeing.
+            let colour = match bar.worst() {
+                Some(l) => level_colour(theme, l),
+                None => theme.text_muted,
+            };
+            // Always at least a pixel, so a lone record is visible rather
+            // than rounded away to nothing.
+            let tall = (total as f32 / peak * (HEIGHT - 4.0)).max(1.0);
+            let x = rect.left() + bar_w * i as f32;
+            painter.rect_filled(
+                egui::Rect::from_min_size(
+                    egui::pos2(x, rect.bottom() - 2.0 - tall),
+                    egui::vec2((bar_w - 1.0).max(1.0), tall),
+                ),
+                0.0,
+                colour,
+            );
+        }
+
+        // The ranges already chosen, drawn behind the pointer's own.
+        for (range, tint) in [
+            (self.window_a, theme.accent),
+            (self.window_b, theme.warning),
+        ] {
+            if let Some(r) = range
+                && let Some((a, b)) = self.span_fractions(&h, r)
+            {
+                let band = egui::Rect::from_x_y_ranges(
+                    (rect.left() + a * rect.width())..=(rect.left() + b * rect.width()),
+                    rect.y_range(),
+                );
+                painter.rect_filled(band, 0.0, tint.linear_multiply(0.15));
+                painter.rect_stroke(
+                    band,
+                    0.0,
+                    egui::Stroke::new(1.0, tint),
+                    egui::StrokeKind::Inside,
+                );
+            }
+        }
+
+        let fraction_at = |x: f32| ((x - rect.left()) / rect.width().max(1.0)).clamp(0.0, 1.0);
+        // A drag is tracked from its press origin, not from where egui
+        // first reported the drag: by then the pointer has already moved
+        // past the threshold, which would clip the range.
+        if response.dragged() || response.drag_started() {
+            let origin = ui
+                .input(|i| i.pointer.press_origin())
+                .map(|pos| fraction_at(pos.x));
+            let now = response
+                .interact_pointer_pos()
+                .map(|pos| fraction_at(pos.x));
+            if let (Some(a), Some(b)) = (origin, now) {
+                self.chart_drag = Some((a, b));
+            }
+        }
+        if let Some((a, b)) = self.chart_drag {
+            let band = egui::Rect::from_x_y_ranges(
+                (rect.left() + a.min(b) * rect.width())..=(rect.left() + a.max(b) * rect.width()),
+                rect.y_range(),
+            );
+            painter.rect_filled(band, 0.0, theme.accent.linear_multiply(0.2));
+        }
+        if response.drag_stopped()
+            && let Some((a, b)) = self.chart_drag.take()
+        {
+            // A drag that never left the spot is a click, not a range.
+            if (a - b).abs() * rect.width() >= 3.0 {
+                self.chart_sel = crate::chart::range_at(&h, a, b);
+            }
+        }
+        if response.clicked()
+            && let Some(pos) = response.interact_pointer_pos()
+            && let Some(i) = crate::chart::bar_at(&h, fraction_at(pos.x))
+            && let Some(bar) = h.bars.get(i)
+            && bar.first != usize::MAX
+        {
+            self.scroll_to = Some(bar.first);
+            self.state.follow = false;
+        }
+        if let Some(pos) = response.hover_pos()
+            && let Some(i) = crate::chart::bar_at(&h, fraction_at(pos.x))
+            && let Some(bar) = h.bars.get(i)
+        {
+            let when = self.stamp(bar.start);
+            response.clone().on_hover_text(format!(
+                "{when} - {} ({})",
+                bar.total(),
+                h.bucket().label()
+            ));
+        }
+        self.strip_actions(ui, s, theme, &h);
+    }
+
+    /// What can be done with a dragged range, and the undated records the
+    /// strip cannot show. Only drawn when there is something to say.
+    fn strip_actions(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        theme: &Theme,
+        h: &crate::chart::Histogram,
+    ) {
+        let mut clear_sel = false;
+        ui.horizontal_wrapped(|ui| {
+            if h.undated > 0 {
+                // Never silently dropped: a strip that hid half a plain
+                // log would be a lie about the window.
+                ui.label(
+                    egui::RichText::new(
+                        s.i18n
+                            .t_args("logs-chart-undated", &[("n", &h.undated.to_string())]),
+                    )
+                    .small()
+                    .color(theme.text_muted),
+                );
+            }
+            if let Some(r) = self.chart_sel {
+                ui.label(
+                    egui::RichText::new(format!("{} - {}", self.stamp(r.from), self.stamp(r.to)))
+                        .small()
+                        .strong(),
+                );
+                if ui.small_button(s.t("logs-chart-filter")).clicked() {
+                    // Replacing the pair already there, as §15.6 says:
+                    // two overlapping time windows filter to nothing and
+                    // read as a bug.
+                    self.state
+                        .chips
+                        .retain(|c| !matches!(c.kind, ChipKind::After(_) | ChipKind::Before(_)));
+                    self.state.chips.push(Chip::new(ChipKind::After(r.from)));
+                    self.state.chips.push(Chip::new(ChipKind::Before(r.to)));
+                    self.chips_changed();
+                    clear_sel = true;
+                }
+                if ui.small_button(s.t("logs-chart-set-a")).clicked() {
+                    self.window_a = Some(r);
+                    clear_sel = true;
+                }
+                if ui.small_button(s.t("logs-chart-set-b")).clicked() {
+                    self.window_b = Some(r);
+                    clear_sel = true;
+                }
+            }
+            if self.window_a.is_some() || self.window_b.is_some() {
+                let ready = self.window_a.is_some() && self.window_b.is_some();
+                if ui
+                    .add_enabled(ready, egui::Button::new(s.t("logs-chart-compare")).small())
+                    .on_hover_text(s.t("logs-chart-compare-tip"))
+                    .clicked()
+                {
+                    self.diff_open = true;
+                }
+                if ui.small_button(s.t("logs-chart-clear-windows")).clicked() {
+                    self.window_a = None;
+                    self.window_b = None;
+                    self.diff_open = false;
+                }
+            }
+        });
+        if clear_sel {
+            self.chart_sel = None;
+        }
+    }
+
+    /// Where a range sits on the strip, as two fractions of its width.
+    /// `None` when the range is wholly outside the window.
+    fn span_fractions(
+        &self,
+        h: &crate::chart::Histogram,
+        r: crate::chart::Range,
+    ) -> Option<(f32, f32)> {
+        let from = h.from?;
+        let bucket = h.bucket().0.num_seconds().max(1) as f32;
+        let total = h.bars.len() as f32;
+        let a = (r.from - from).num_seconds() as f32 / bucket / total;
+        let b = (r.to - from).num_seconds() as f32 / bucket / total;
+        if b < 0.0 || a > 1.0 {
+            return None;
+        }
+        Some((a.clamp(0.0, 1.0), b.clamp(0.0, 1.0)))
     }
 
     fn chip_row(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {

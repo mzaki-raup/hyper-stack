@@ -7,6 +7,7 @@
 //! All reading happens on the runtime ([`engine`]); the UI only touches
 //! the record window under a short lock.
 
+pub mod chart;
 pub mod engine;
 pub mod filter;
 pub mod parse;
@@ -15,5 +16,6 @@ pub mod services;
 pub mod shape;
 pub mod source;
 pub mod ui;
+pub mod views;
 
-pub use ui::{DESCRIPTOR, LogsFactory, LogsTool, SPEC_MIME, State};
+pub use ui::{DESCRIPTOR, GOTO_MIME, LogsFactory, LogsTool, SPEC_MIME, State};

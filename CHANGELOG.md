@@ -11,7 +11,45 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- **The time strip** above the list (§10, §15.6): records per bucket over
+  the *filtered* window, so it answers "when did this happen" rather than
+  "when was anything logged". The bucket follows the span in round units
+  a reader recognises, a bar takes the colour of its worst level, and a
+  gap stays a gap. It is a navigator: clicking a bar jumps the list to
+  the first record in it, and dragging across it selects a range that
+  becomes the after/before chips.
+- **Compare Windows** (§15.8): drag two ranges, set them as A and B, and
+  see what a deploy changed - shapes only in B, shapes only in A, and
+  shapes whose count moved - counted by the same normalised shape key the
+  repeat collapse uses, biggest move first. A row filters the list to
+  that shape in that window.
+- **Investigations** (§15.7): a whole Logs tab saved under a name - the
+  source, the filter chips, the highlight rules, the pinned columns, the
+  bookmarks *with their notes*, the time zone and Follow - in
+  `logs/views/<slug>.toml`, with its own sidebar section. Reopening one
+  restores the tab as it was, deliberately without Follow: an
+  investigation is a frozen picture, and following would lose the place.
+- **Errors reach the Problems dock tab** (§15.2). A highlight rule gains
+  a **Report** switch and a per-rule cooldown; a match posts to a new
+  `Services`-level inbox (`hs_core::problems`) any tool can write to,
+  deduplicated by shape with a count so a storm is one row that climbs
+  rather than a thousand rows. Clicking a row focuses the exact tab it
+  came from and scrolls to that record. The dock's Problems tab had been
+  a placeholder.
+- **Highlight rules have an editor** at all now (toolbar, or
+  `Logs: Highlight Rules…`): pattern, colour, bold, enabled, Report and
+  its cooldown, with an invalid regular expression called out rather
+  than silently ignored.
+
+### Fixed
+
+- `shape::key` now normalises a measurement with its unit attached, so
+  `took 31ms` and `took 904ms` are one shape. There is no word boundary
+  between a digit and a letter, so the bare-number rule never matched the
+  `31` in `31ms` - which made every such row its own shape and defeated
+  both the repeat collapse and the window diff.
 
 ## 0.82.1 — 2026-10-23
 

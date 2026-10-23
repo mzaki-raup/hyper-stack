@@ -41,6 +41,10 @@ pub struct Services {
     /// so a tool's home tab can list its own. Owner's requirement,
     /// 2026-10-17.
     pub open_tabs: crate::open_tabs::OpenTabs,
+    /// The Problems inbox any tool may write to: editor diagnostics, SQL
+    /// errors and log records that matched a reporting highlight rule
+    /// all belong in one place (docs/tools/logs.md §15.2).
+    pub problems: crate::problems::Problems,
 }
 
 /// What a `{{name}}` resolves to right now (for the peek popups).

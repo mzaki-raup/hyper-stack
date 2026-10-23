@@ -602,3 +602,115 @@ administrator, or follow the server's own log through a Command source.
 A missing file asks whether the server logs to a file at all. Any other
 error is passed through untouched, because inventing advice for an
 error we have not seen is worse than the error.
+
+## 19. The M5 additions built on 2026-10-24
+
+§15.2, §15.6, §15.7 and §15.8 as built. §15.3 is still pending and §19.5
+says what it is waiting on.
+
+### 19.1 The time strip (§10, §15.6)
+
+`chart.rs` is pure arithmetic with the drawing in `ui::time_strip`.
+
+**The bucket follows the span.** A minute is right for an incident and
+useless for a week - 10 080 bars in a 300 px strip is one bar per
+thirty-three pixels of nothing - so `Bucket::pick` returns the smallest
+*round* unit (1 s, 5 s, 15 s, 30 s, a minute, 5, 15, 30, an hour, 3, 6,
+12, a day, a week) that keeps the bar count at or under `TARGET_BARS`.
+Only round units: a bucket of "37 seconds" would make the axis
+unreadable.
+
+**It counts the filtered window**, so it answers "when did this happen"
+rather than "when was anything logged", and it is rebuilt when
+`Shared::version` or the chips version moves, never per frame.
+
+**A gap stays a gap.** Empty buckets inside the span are kept: a log that
+stopped for ten minutes should look like it stopped.
+
+**A bar takes the colour of its worst level**, because one error in a
+minute of chatter is the thing worth seeing, and a bar is never thinner
+than a pixel so a lone record is not rounded away.
+
+**Records with no timestamp are reported, not hidden** - "N without a
+time" beside the strip. Silently dropping half a plain log would be a lie
+about the window.
+
+Clicking a bar jumps to the first record in it (and releases Follow,
+which would otherwise scroll straight back). Dragging selects a range;
+the drag is measured from `press_origin`, not from where egui first
+reports the drag, or the range is clipped by the drag threshold. **Filter
+to Range** replaces the after/before pair already there rather than
+adding a second one, which would filter to nothing and read as a bug.
+
+### 19.2 Compare Windows (§15.8)
+
+Set the dragged range as **A** or **B**, then Compare. `diff_windows`
+counts shapes in each and reports what appeared, what went away and what
+moved, biggest move first with ties broken by shape so the table does not
+reshuffle under the pointer. A shape that appeared or vanished survives
+any threshold - it is the most interesting row there is. A record with no
+timestamp is in neither window. Clicking a row filters to that shape in
+the window it is interesting in; the shape key is normalised text, so the
+longest surviving literal is used as the contains chip.
+
+This needed a fix in `shape::key` first: there is no word boundary
+between a digit and a letter, so `\b\d+\b` never matched the `31` in
+`31ms` and `took 31ms` and `took 904ms` were two shapes. Measurements
+with a unit attached are now normalised, which the repeat collapse of
+§15.5 benefits from equally.
+
+### 19.3 Investigations (§15.7)
+
+`views.rs`, `logs/views/<slug>.toml`, its own sidebar section. The source
+is kept **by value**, not as a reference to a saved source: an
+investigation has to survive that source being renamed or deleted, which
+is exactly what happens while someone tidies up after an incident.
+Reopening restores the chips before the source is opened, so the filter
+is in place before the first records arrive. Follow is off by default.
+
+### 19.4 Problems (§15.2)
+
+`hs_core::problems` is the inbox, on `Services` because editor
+diagnostics and SQL errors belong in the same one; the dock's Problems
+tab had been a placeholder.
+
+- **Deduplicated by shape with a count**, so a storm is one row that
+  climbs. The caller supplies the shape, because only the caller knows
+  how to normalise its own text.
+- **A cooldown per source and shape**, per rule, defaulting to ten
+  seconds. `post` returns false when it refuses, so the caller can stop
+  building entries.
+- **Capped at 500 rows**, oldest out first.
+- **A closing tab takes its problems with it** (`clear_from`): a row that
+  jumps to a tab which no longer exists is worse than no row. Its
+  cooldown is forgotten too, so reopening reports immediately rather than
+  looking broken.
+- Reporting is **off on every rule by default**. A highlight is a way of
+  seeing while reading; turning all of them into inbox entries would make
+  the inbox useless. A tab with no reporting rule skips the scan
+  entirely.
+- A match is redacted on the way out (§15.4) - the inbox is outside the
+  tab - and each record is considered once however many frames it
+  survives. Turning a rule on does not post the backlog.
+- The jump goes by `current_uri`, not by tool: two tabs of one activity
+  are two different places. It uses `GOTO_MIME` rather than a `File`
+  request, which would reopen the source and lose the place, and it
+  scrolls by **line number** rather than by position, because the window
+  drops its oldest records.
+
+### 19.5 §15.3 Find Everywhere: what it is waiting on
+
+Not built. Token detection and the results panel are straightforward;
+the searching is not. The spec asks for the token to be looked for in
+other Logs tabs, API client history, SQL query history and Redis, and
+**a tool may not depend on another tool crate** (ADR-004) - cross-tool
+features go through `Services`. There is a shared `history.sqlite`, but
+each tool owns its own tables in it, so reading them from `tool-logs`
+would couple the tools through a schema instead of through an interface,
+and Redis needs the driver that `tool-redis` owns.
+
+What it needs first is a **search capability on `Services`**: a registry
+each tool registers a searcher into, queried in parallel as Jobs, so
+`tool-logs` asks "who has seen this token" without knowing who answers.
+That is a design task in its own right, and the same registry is what
+Find Everywhere would need from the other direction too.

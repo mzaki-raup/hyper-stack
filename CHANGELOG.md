@@ -11,6 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Fixed
+
+- **ComfyUI upscaling failed with "ComfyUI has no upscale models"** on a
+  recent ComfyUI that has them. The server now describes a combo input as
+  `["COMBO", {"options": […]}]`, and the reader understood only the older
+  `[[…], {}]` shape, so it saw an empty list and gave up before the
+  workflow ran. All three shapes ComfyUI has used are read now, and the same
+  bug affected the checkpoint list for Generate, Edit and Enhance. Both
+  messages also say which Settings field to type a name into when the
+  server really does list nothing.
+
 ### Added
 
 - **Logs: redaction rules.** Bearer tokens, Basic credentials, JWTs,

@@ -623,14 +623,47 @@ async fn comfy_choices(
         creds,
     ))
     .await?;
-    Ok(v.pointer(&format!("/{class}/input/required/{field}/0"))
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|m| m.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default())
+    Ok(combo_options(
+        v.pointer(&format!("/{class}/input/required/{field}")),
+    ))
+}
+
+/// The names in a ComfyUI combo input, in any of the three shapes the
+/// server has used. A reader that knows only the first reports "no
+/// checkpoints" / "no upscale models" against a server that has plenty,
+/// which is what a recent ComfyUI did here (owner's report, 2026-10-23).
+///
+/// - Classic: `[["a.safetensors", "b.safetensors"], { "tooltip": … }]`
+/// - V3 schema: `["COMBO", { "options": ["a.safetensors", …] }]`
+/// - Bare: `{ "options": [ … ] }`
+fn combo_options(spec: Option<&Value>) -> Vec<String> {
+    let strings = |v: &Value| -> Option<Vec<String>> {
+        let a = v.as_array()?;
+        // An empty list is a real answer; a list of non-strings is not.
+        a.iter()
+            .map(|m| m.as_str().map(str::to_string))
+            .collect::<Option<Vec<_>>>()
+    };
+    let Some(spec) = spec else {
+        return Vec::new();
+    };
+    // `{ "options": [...] }`, or an array whose first element is the list.
+    if let Some(found) = spec.get("options").and_then(strings) {
+        return found;
+    }
+    let Some(parts) = spec.as_array() else {
+        return Vec::new();
+    };
+    if let Some(found) = parts.first().and_then(strings) {
+        return found;
+    }
+    // `["COMBO", { "options": [...] }]`: the names moved into the second
+    // element's settings object.
+    parts
+        .iter()
+        .skip(1)
+        .find_map(|p| p.get("options").and_then(strings))
+        .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -657,7 +690,12 @@ async fn comfy(
             .await?
             .into_iter()
             .next()
-            .ok_or_else(|| AiError::Format("ComfyUI has no checkpoints".into()))?;
+            .ok_or_else(|| {
+                AiError::Format(
+                    "ComfyUI listed no checkpoints. Type the file name in                      Settings → AI Assistant → Image Providers → Checkpoint                      to use it anyway."
+                        .into(),
+                )
+            })?;
     }
     let mut upscale = w.upscaler.trim().to_string();
     if upscale.is_empty() && job == ImageJob::Upscale {
@@ -665,7 +703,12 @@ async fn comfy(
             .await?
             .into_iter()
             .next()
-            .ok_or_else(|| AiError::Format("ComfyUI has no upscale models".into()))?;
+            .ok_or_else(|| {
+                AiError::Format(
+                    "ComfyUI listed no upscale models. Type the file name in                      Settings → AI Assistant → Image Providers → Upscale →                      Upscale Model to use it anyway."
+                        .into(),
+                )
+            })?;
     }
     let image_name = match source {
         Some(img) => {
@@ -1397,6 +1440,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// ComfyUI has described a combo input three ways across versions. A
+    /// reader that knows only the oldest reports "no upscale models"
+    /// against a server that has them, which is exactly what a recent
+    /// ComfyUI did here (owner's report, 2026-10-23).
+    #[test]
+    fn combo_options_are_read_in_every_shape_comfyui_has_used() {
+        let classic: Value = serde_json::from_str(
+            r#"[["RealESRGAN_x4plus.safetensors", "4x-UltraSharp.pth"], {"tooltip": "the model"}]"#,
+        )
+        .unwrap();
+        let v3: Value = serde_json::from_str(
+            r#"["COMBO", {"options": ["RealESRGAN_x4plus.safetensors", "4x-UltraSharp.pth"], "tooltip": "the model"}]"#,
+        )
+        .unwrap();
+        let bare: Value = serde_json::from_str(
+            r#"{"options": ["RealESRGAN_x4plus.safetensors", "4x-UltraSharp.pth"]}"#,
+        )
+        .unwrap();
+        let want = vec![
+            "RealESRGAN_x4plus.safetensors".to_string(),
+            "4x-UltraSharp.pth".to_string(),
+        ];
+        for (name, spec) in [("classic", classic), ("v3", v3), ("bare", bare)] {
+            assert_eq!(combo_options(Some(&spec)), want, "{name} shape");
+        }
+
+        // A server with none of that model really does answer with none.
+        let empty: Value = serde_json::from_str(r#"[[], {}]"#).unwrap();
+        assert!(combo_options(Some(&empty)).is_empty());
+        assert!(combo_options(None).is_empty());
+        // A field that is not a combo at all (a number, a string) is not
+        // mistaken for one.
+        let scalar: Value = serde_json::from_str(r#"["INT", {"default": 1}]"#).unwrap();
+        assert!(combo_options(Some(&scalar)).is_empty());
     }
 
     #[test]

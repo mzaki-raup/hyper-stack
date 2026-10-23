@@ -303,9 +303,15 @@ fn comfyui_uploads_queues_polls_and_downloads() {
         "/object_info/CheckpointLoaderSimple" => ok_json(
             json!({ "CheckpointLoaderSimple": { "input": { "required": { "ckpt_name": [["v1-5-pruned.safetensors", "sdxl.safetensors"]] } } } }),
         ),
-        "/object_info/UpscaleModelLoader" => ok_json(
-            json!({ "UpscaleModelLoader": { "input": { "required": { "model_name": [["RealESRGAN_x4plus.pth"]] } } } }),
-        ),
+        // The V3 schema a recent ComfyUI answers with: the names live in
+        // the settings object, not in the first element. Reading only the
+        // old shape reported "no upscale models" against a server that had
+        // one (owner's report, 2026-10-23).
+        "/object_info/UpscaleModelLoader" => ok_json(json!({
+            "UpscaleModelLoader": { "input": { "required": {
+                "model_name": ["COMBO", { "options": ["RealESRGAN_x4plus.pth"], "tooltip": "the model" }]
+            } } }
+        })),
         _ => (404, "text/plain", b"nope".to_vec()),
     }));
     let cfg = cfg(Provider::ComfyUi, &mock.base);

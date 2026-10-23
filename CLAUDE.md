@@ -1036,6 +1036,14 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   endpoint and no tool calling, which is why edits use SEARCH/REPLACE blocks
   rather than tools. The SSE stream sends `content` pieces, then a `result`
   record repeating the whole answer (ignore it unless nothing streamed).
+- **ComfyUI's `/object_info` describes a combo input three ways** across
+  versions: `[[names], {}]` (classic), `["COMBO", {"options": [names]}]`
+  (the V3 schema a 2026 ComfyUI answers with) and a bare
+  `{"options": [names]}`. Reading only the first yields an empty list, and
+  the caller then reports "ComfyUI has no upscale models" against a server
+  that has them - which is what happened to the owner's Z-Image upscale
+  graph. `ai_local::combo_options` reads all three; the mock test answers
+  in the V3 shape so the old reader cannot come back.
 - Its docs host (`docs.1min.ai`) and `chatplayground.ai` do not resolve from
   the cloud sandbox; test against a local mock server that speaks both SSE
   formats (the OpenAI one ends with `data: [DONE]`).

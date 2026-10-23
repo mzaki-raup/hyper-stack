@@ -200,3 +200,60 @@ fn detection_does_not_confuse_a_dump_with_an_ordinary_log() {
     let dump = ["\"main\" #1 prio=5 tid=0x1 nid=0x2 runnable"];
     assert_eq!(detect(&dump), Format::ThreadDump);
 }
+
+/// The deadlock section names the threads in the cycle; following it is
+/// the next question after "there is a deadlock" (owner's request,
+/// 2026-10-24).
+#[test]
+fn the_deadlock_cycle_names_the_threads_it_involves() {
+    let recs = records(DUMP);
+    let section = recs
+        .iter()
+        .find(|r| r.field("kind") == Some("deadlock"))
+        .expect("the deadlock section is a record");
+    let cycle = tool_logs::parse::deadlock_cycle(&section.raw);
+    assert_eq!(cycle.len(), 1, "one link in this dump");
+    assert_eq!(cycle[0].waiter, "worker-8");
+    assert_eq!(cycle[0].holder, "worker-7");
+    assert_eq!(cycle[0].monitor, "0x00007f8a1c0d0000");
+    // Both ends must be threads the dump actually carries, or the names
+    // could not be used to open them.
+    for name in [&cycle[0].waiter, &cycle[0].holder] {
+        assert!(
+            recs.iter()
+                .any(|r| r.field("thread") == Some(name.as_str())),
+            "{name} is not a thread in the dump"
+        );
+    }
+}
+
+/// A full cycle: two threads each waiting on the other's monitor, which
+/// is what a real `jstack` prints.
+#[test]
+fn both_halves_of_a_two_thread_cycle_are_read() {
+    let section = "Found one Java-level deadlock:\n\
+         =============================\n\
+         \"worker-8\":\n\
+         \x20 waiting to lock monitor 0x00007f8a1c0d0000,\n\
+         \x20 which is held by \"worker-7\"\n\
+         \"worker-7\":\n\
+         \x20 waiting to lock monitor 0x00007f8a1c0d0010,\n\
+         \x20 which is held by \"worker-8\"";
+    let cycle = tool_logs::parse::deadlock_cycle(section);
+    assert_eq!(cycle.len(), 2);
+    assert_eq!(cycle[1].waiter, "worker-7");
+    assert_eq!(cycle[1].holder, "worker-8");
+    assert_eq!(cycle[1].monitor, "0x00007f8a1c0d0010");
+}
+
+/// A section with no deadlock in it, and a half-written entry, must
+/// yield nothing rather than a half-read edge.
+#[test]
+fn an_unrecognised_deadlock_section_yields_nothing() {
+    assert!(tool_logs::parse::deadlock_cycle("JNI global refs: 42").is_empty());
+    assert!(
+        tool_logs::parse::deadlock_cycle("\"worker-8\":\n  waiting to lock monitor 0x1,")
+            .is_empty(),
+        "an entry with no holder is not an edge"
+    );
+}

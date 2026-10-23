@@ -526,9 +526,39 @@ the toolbar, the dashboard and the empty state, and reads the file as a
 dump whatever its extension; **Add Source** takes a pasted dump with the
 same format picker; **Auto** recognises one either way.
 
-### 17.1 Not yet
+### 17.1 The dump's summary bar
 
-Per-state counts in the dashboard, and cross-referencing a deadlock cycle
-into the threads it names, are the obvious next steps and are not built.
-Non-JVM dumps (Go's goroutine dump, .NET's `dotnet-dump`) are a different
-grammar and are not covered.
+A dump of 400 threads is unreadable as a list, so a **Thread Dump**
+source gets its own summary between the filter chips and the list. It
+appears for a dump whatever picked the format — the bar reads
+`Shared::format`, the format the detector settled on, not the source's
+saved `Auto`.
+
+**A count per state, commonest first, with `BLOCKED` always leading** —
+three blocked threads out of four hundred is the reason the dump was
+taken, so they are never sorted to the bottom, and `BLOCKED` is the one
+state painted in the error colour because it is a problem rather than a
+fact. A thread whose record was cut off mid-dump counts as `UNKNOWN`
+rather than disappearing.
+
+**Every count is a filter.** Clicking `BLOCKED 3` adds a
+`state = BLOCKED` chip, which is an ordinary field chip: negatable,
+combinable and savable as a preset like any other.
+
+**A deadlock banner follows the cycle into the threads it names.**
+`parse::deadlock_cycle` reads the section into `DeadlockEdge { waiter,
+monitor, holder }` entries, and each end is a button that adds a
+`thread = <name>` chip — the next question after "there is a deadlock"
+is always "show me those two threads". An entry is reported only once
+the waiter, monitor and holder are all known, so a section the parser
+does not recognise yields nothing rather than a half-read edge.
+
+The summary is derived from every record, so it is computed when
+`Shared::version` moves rather than every frame.
+
+### 17.2 Not yet
+
+Non-JVM dumps (Go's goroutine dump, .NET's `dotnet-dump`) are a
+different grammar and are not covered. The cycle is followed by thread
+*name*, which is what the JVM prints; two threads sharing a name would
+both match.

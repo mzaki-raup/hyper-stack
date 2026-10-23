@@ -23,6 +23,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   toolbar, the dashboard and the empty state, and reads the file as a
   dump whatever it is called; pasting a dump into **Add Source** works
   the same way, and **Auto** detects one.
+- A thread dump's own summary bar above the list: a count per thread
+  state with `BLOCKED` always leading and painted as an error, and a
+  deadlock banner that follows the cycle into the threads it names.
+  Every count and every named thread is a click that filters to it.
 - A per-provider **Reads Pictures** setting for the AI assistant
   (Settings → AI Assistant), defaulting to Auto, which decides from the
   model's name. A model that cannot read pictures is no longer sent one,

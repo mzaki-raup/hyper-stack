@@ -258,6 +258,64 @@ static PATH_LINE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"((?:[A-Za-z]:[\\/]|/|\./|[\w.-]+/)?[\w./\\-]+\.(?:rs|py|js|ts|tsx|jsx|go|java|kt|cs|rb|php|c|cc|cpp|h|hpp|sql|toml|yaml|yml|json))"?(?::|\(|, line )(\d+)"#).unwrap()
 });
 
+/// What a thread dump adds up to: how many threads are in each state,
+/// and the deadlock cycle if the JVM found one (owner's request,
+/// 2026-10-24). A dump of 400 threads is unreadable without this.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct ThreadSummary {
+    /// Threads in the dump.
+    total: usize,
+    /// `(state, count)`, commonest first, with the states that matter
+    /// (BLOCKED) sorted to the front regardless of how many there are.
+    states: Vec<(String, usize)>,
+    /// Every link of every deadlock cycle the dump reports.
+    deadlocks: Vec<crate::parse::DeadlockEdge>,
+}
+
+impl ThreadSummary {
+    /// Read the tally off the records. Only thread records count: the
+    /// snapshot headers and the deadlock section are not threads.
+    fn of(records: &[crate::parse::Record]) -> Self {
+        let mut counts: Vec<(String, usize)> = Vec::new();
+        let mut total = 0;
+        let mut deadlocks = Vec::new();
+        for r in records {
+            match r.field("kind") {
+                Some("thread") => {
+                    total += 1;
+                    // A thread whose dump was cut off mid-record has no
+                    // state line; it is still a thread.
+                    let state = r.field("state").unwrap_or("UNKNOWN").to_string();
+                    match counts.iter_mut().find(|(s, _)| *s == state) {
+                        Some((_, n)) => *n += 1,
+                        None => counts.push((state, 1)),
+                    }
+                }
+                Some("deadlock") => deadlocks.extend(crate::parse::deadlock_cycle(&r.raw)),
+                _ => {}
+            }
+        }
+        // Commonest first, but BLOCKED leads: three blocked threads out
+        // of four hundred is the whole reason the dump was taken.
+        counts.sort_by(|a, b| {
+            let rank = |s: &str| match s {
+                "BLOCKED" => 0,
+                "UNKNOWN" => 2,
+                _ => 1,
+            };
+            rank(&a.0)
+                .cmp(&rank(&b.0))
+                .then(b.1.cmp(&a.1))
+                .then(a.0.cmp(&b.0))
+        });
+        Self {
+            total,
+            states: counts,
+            deadlocks,
+        }
+    }
+}
+
 pub struct LogsTool {
     state: State,
     shared: Arc<Mutex<Shared>>,
@@ -290,6 +348,11 @@ pub struct LogsTool {
     logs_dir: PathBuf,
     /// Compiled once per change, never per record.
     redactor: crate::redact::Redactor,
+    /// The thread-state tally and deadlock cycle of a thread dump, and
+    /// the `Shared::version` it was read at. Derived from every record,
+    /// so it is computed when the log changes rather than every frame.
+    threads: Option<ThreadSummary>,
+    threads_at: u64,
     /// The monospace glyph width, and the scale it was measured at.
     /// Measuring takes egui's font write lock, so it is done when the
     /// scale changes rather than every frame.
@@ -383,6 +446,8 @@ impl LogsTool {
             services: Vec::new(),
             services_scan: None,
             services_scanned: false,
+            threads: None,
+            threads_at: 0,
             glyph_w: 0.0,
             glyph_at: 0.0,
             rows: Vec::new(),
@@ -1491,6 +1556,7 @@ impl Tool for LogsTool {
         let outer = ui;
         let ui = &mut content;
         self.chip_row(ui, &s, &theme);
+        self.thread_summary(ui, &s, &theme);
         if self.state.detail_open && self.selected.is_some() {
             egui::Panel::bottom("logs-detail")
                 .default_size(200.0)
@@ -1884,6 +1950,128 @@ impl LogsTool {
                 }
             });
         });
+    }
+
+    /// A thread dump's own summary, above the list: how many threads are
+    /// in each state, and the deadlock cycle if there is one (owner's
+    /// request, 2026-10-24). Every count is a filter - clicking
+    /// **BLOCKED 3** shows those three threads - and so is every thread
+    /// named in a cycle, because the next question after "there is a
+    /// deadlock" is always "show me those two threads".
+    ///
+    /// Only for a thread dump: nothing is drawn for any other format.
+    fn thread_summary(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        // `Shared::format` is the *effective* format, which is what the
+        // detector settled on; `state.format` is still Auto for a dump
+        // that was recognised rather than chosen, which is the usual
+        // case for an opened or pasted one.
+        {
+            let sh = self.shared.lock();
+            if sh.format != Format::ThreadDump {
+                return;
+            }
+            // Derived from every record, so it is read when the log
+            // changes rather than every frame.
+            if self.threads.is_none() || self.threads_at != sh.version {
+                self.threads_at = sh.version;
+                self.threads = Some(ThreadSummary::of(&sh.records));
+            }
+        }
+        let Some(summary) = self.threads.clone() else {
+            return;
+        };
+        if summary.total == 0 {
+            return;
+        }
+        let mut add: Option<Chip> = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                egui::RichText::new(s.i18n.t_args(
+                    "logs-threads-total",
+                    &[("count", &summary.total.to_string())],
+                ))
+                .color(theme.text_muted)
+                .small(),
+            );
+            for (state, n) in &summary.states {
+                // BLOCKED is the one state that is a problem rather than
+                // a fact, so it is the one that is coloured.
+                let tint = if state == "BLOCKED" {
+                    theme.error
+                } else {
+                    theme.text_muted
+                };
+                if ui
+                    .small_button(egui::RichText::new(format!("{state} {n}")).color(tint))
+                    .on_hover_text(s.t("logs-threads-filter-tip"))
+                    .clicked()
+                {
+                    add = Some(Chip::new(ChipKind::Field("state".into(), state.clone())));
+                }
+            }
+        });
+        if !summary.deadlocks.is_empty() {
+            egui::Frame::new()
+                .fill(theme.error.linear_multiply(0.18))
+                .stroke(egui::Stroke::new(1.0, theme.error))
+                .corner_radius(egui::CornerRadius::same(4))
+                .inner_margin(egui::Margin::symmetric(8, 4))
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} {}",
+                                ph::WARNING,
+                                s.t("logs-deadlock")
+                            ))
+                            .color(theme.error)
+                            .strong()
+                            .small(),
+                        );
+                        for edge in &summary.deadlocks {
+                            // Each link reads as it does in the dump, and
+                            // both ends open the thread they name.
+                            if ui
+                                .small_button(&edge.waiter)
+                                .on_hover_text(s.t("logs-deadlock-thread-tip"))
+                                .clicked()
+                            {
+                                add = Some(Chip::new(ChipKind::Field(
+                                    "thread".into(),
+                                    edge.waiter.clone(),
+                                )));
+                            }
+                            ui.label(
+                                egui::RichText::new(s.t("logs-deadlock-waits-for"))
+                                    .color(theme.text_muted)
+                                    .small(),
+                            );
+                            if ui
+                                .small_button(&edge.holder)
+                                .on_hover_text(s.t("logs-deadlock-thread-tip"))
+                                .clicked()
+                            {
+                                add = Some(Chip::new(ChipKind::Field(
+                                    "thread".into(),
+                                    edge.holder.clone(),
+                                )));
+                            }
+                            if !edge.monitor.is_empty() {
+                                ui.label(
+                                    egui::RichText::new(&edge.monitor)
+                                        .color(theme.text_muted)
+                                        .small(),
+                                );
+                            }
+                        }
+                    });
+                });
+        }
+        if let Some(chip) = add {
+            self.state.chips.push(chip);
+            self.chips_changed();
+        }
+        ui.add_space(2.0);
     }
 
     fn chip_row(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
@@ -2972,6 +3160,54 @@ impl LogsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The tally the thread-dump summary bar shows. BLOCKED leads
+    /// however few there are: three blocked threads out of four hundred
+    /// is the reason the dump was taken (owner's request, 2026-10-24).
+    #[test]
+    fn the_thread_tally_puts_blocked_first_then_the_commonest() {
+        let mut records = Vec::new();
+        let mut thread = |state: &str| {
+            let mut r = crate::parse::Record::default();
+            r.fields.push(("kind".into(), "thread".into()));
+            r.fields.push(("state".into(), state.into()));
+            records.push(r);
+        };
+        for _ in 0..5 {
+            thread("RUNNABLE");
+        }
+        for _ in 0..9 {
+            thread("WAITING");
+        }
+        thread("BLOCKED");
+        // A record that is not a thread must not be counted as one.
+        let mut other = crate::parse::Record::default();
+        other.fields.push(("kind".into(), "snapshot".into()));
+        records.push(other);
+
+        let summary = ThreadSummary::of(&records);
+        assert_eq!(summary.total, 15, "only threads are counted");
+        assert_eq!(
+            summary.states,
+            vec![
+                ("BLOCKED".to_string(), 1),
+                ("WAITING".to_string(), 9),
+                ("RUNNABLE".to_string(), 5),
+            ]
+        );
+        assert!(summary.deadlocks.is_empty());
+    }
+
+    /// A dump cut off mid-record leaves a thread with no state line; it
+    /// is still a thread, and must not vanish from the count.
+    #[test]
+    fn a_thread_with_no_state_line_is_still_counted() {
+        let mut r = crate::parse::Record::default();
+        r.fields.push(("kind".into(), "thread".into()));
+        let summary = ThreadSummary::of(&[r]);
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.states, vec![("UNKNOWN".to_string(), 1)]);
+    }
 
     #[test]
     fn path_line_tokens_are_found() {

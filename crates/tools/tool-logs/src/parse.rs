@@ -761,6 +761,72 @@ fn append_field(rec: &mut Record, key: &str, value: &str) {
     }
 }
 
+/// One link of a deadlock cycle: `waiter` cannot proceed until `holder`
+/// lets go of `monitor`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeadlockEdge {
+    pub waiter: String,
+    pub monitor: String,
+    pub holder: String,
+}
+
+/// `"worker-8":` - the thread an entry of the deadlock section is about.
+static DEADLOCK_WAITER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"^\s*"(?P<name>(?:[^"\\]|\\.)*)"\s*:"#).unwrap());
+/// `waiting to lock monitor 0x00007f8a1c0d0000,`
+static DEADLOCK_MONITOR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"waiting\s+(?:to\s+lock|for\s+ownable\s+synchronizer)\s+(?:monitor\s+)?(?P<id>0x[0-9a-fA-F]+)")
+        .unwrap()
+});
+/// `which is held by "worker-7"`
+static DEADLOCK_HOLDER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"which\s+is\s+held\s+by\s+"(?P<name>(?:[^"\\]|\\.)*)""#).unwrap()
+});
+
+/// The cycle a dump's deadlock section describes, as the edges between the
+/// threads it names (owner's request, 2026-10-24). The section is one
+/// record, so this reads its folded text:
+///
+/// ```text
+/// Found one Java-level deadlock:
+/// =============================
+/// "worker-8":
+///   waiting to lock monitor 0x00007f8a1c0d0000,
+///   which is held by "worker-7"
+/// ```
+///
+/// An entry is only reported once all three parts are known, so a
+/// section this does not recognise yields nothing rather than a
+/// half-read edge.
+pub fn deadlock_cycle(raw: &str) -> Vec<DeadlockEdge> {
+    let mut out = Vec::new();
+    let mut waiter: Option<String> = None;
+    let mut monitor: Option<String> = None;
+    for line in raw.lines() {
+        if let Some(c) = DEADLOCK_WAITER.captures(line) {
+            // A new entry begins; anything half-read is abandoned.
+            waiter = Some(c.name("name").unwrap().as_str().to_string());
+            monitor = None;
+            continue;
+        }
+        if let Some(c) = DEADLOCK_MONITOR.captures(line) {
+            monitor = Some(c.name("id").unwrap().as_str().to_string());
+        }
+        if let Some(c) = DEADLOCK_HOLDER.captures(line)
+            && let Some(w) = &waiter
+        {
+            out.push(DeadlockEdge {
+                waiter: w.clone(),
+                monitor: monitor.clone().unwrap_or_default(),
+                holder: c.name("name").unwrap().as_str().to_string(),
+            });
+            waiter = None;
+            monitor = None;
+        }
+    }
+    out
+}
+
 /// Fold a continuation line into the record above it, pulling out any
 /// fields that line carries. Formats other than a thread dump keep the
 /// old behaviour of simply gluing the text on.

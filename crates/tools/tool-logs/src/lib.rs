@@ -10,6 +10,7 @@
 pub mod engine;
 pub mod filter;
 pub mod parse;
+pub mod redact;
 pub mod source;
 pub mod ui;
 

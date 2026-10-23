@@ -74,6 +74,14 @@ pub struct State {
     pub bookmarks: Vec<(u64, String)>,
     pub local_time: bool,
     pub detail_open: bool,
+    /// Mask secrets on the way out of the tab (docs/tools/logs.md §15.4).
+    /// On by default, and what is on screen matches what would leave.
+    #[serde(default = "yes")]
+    pub mask: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for State {
@@ -90,6 +98,7 @@ impl Default for State {
             bookmarks: Vec::new(),
             local_time: true,
             detail_open: true,
+            mask: true,
         }
     }
 }
@@ -182,6 +191,8 @@ pub struct LogsTool {
     env_id: Option<String>,
     is_home: bool,
     logs_dir: PathBuf,
+    /// Compiled once per change, never per record.
+    redactor: crate::redact::Redactor,
     sidebar_filter: String,
     confirm_delete: Option<String>,
     status_text: String,
@@ -219,6 +230,7 @@ impl LogsTool {
             conn_name: String::new(),
             env_id: None,
             is_home: false,
+            redactor: crate::redact::Redactor::compile(&crate::redact::RuleSet::load(&logs_dir)),
             logs_dir,
             sidebar_filter: String::new(),
             confirm_delete: None,
@@ -380,11 +392,25 @@ impl LogsTool {
         let sh = self.shared.lock();
         let mut out = String::new();
         for &i in &self.filtered {
-            out.push_str(&sh.records[i].raw);
+            out.push_str(&self.leaving(&sh.records[i].raw));
             out.push('\n');
         }
         std::fs::write(&path, out).map_err(|e| e.to_string())?;
         Ok(path)
+    }
+
+    /// Text on its way out of the tab: the clipboard, a file, a provider.
+    /// Everything that leaves goes through here, so adding an export that
+    /// does not mask takes a deliberate detour (docs/tools/logs.md §15.4).
+    /// Masking is skipped only when the user has turned **Mask Secrets**
+    /// off, which also stops the masking on screen, so what is shown and
+    /// what leaves can never disagree.
+    fn leaving(&self, text: &str) -> String {
+        if self.state.mask {
+            self.redactor.apply(text)
+        } else {
+            text.to_string()
+        }
     }
 }
 
@@ -462,10 +488,16 @@ fn time_text(r: &Record, local: bool) -> String {
     }
 }
 
-/// One line of a record for the list: the first line, cut at 4 k chars.
-fn one_line(r: &Record) -> String {
+/// One line of a record for the list: the first line, cut at 4 k chars,
+/// masked when Mask Secrets is on so the list shows what would leave the
+/// tab (docs/tools/logs.md §15.4). Masking runs on the one line that is
+/// drawn, not on the whole record, so a long stack trace costs nothing.
+fn one_line(r: &Record, red: Option<&crate::redact::Redactor>) -> String {
     let first = r.raw.lines().next().unwrap_or("");
     let mut s: String = first.chars().take(4000).collect();
+    if let Some(red) = red {
+        s = red.apply(&s);
+    }
     let more = r.raw.lines().count().saturating_sub(1);
     if more > 0 {
         s.push_str(&format!("  ⏎ +{more}"));
@@ -948,6 +980,15 @@ impl Tool for LogsTool {
             {
                 self.state.local_time = !self.state.local_time;
             }
+            // Mask Secrets governs the view and every export at once, so
+            // what is on screen is what would leave the tab.
+            if ui
+                .selectable_label(self.state.mask, ph::EYE_SLASH)
+                .tip(s.t("logs-mask-tip"))
+                .clicked()
+            {
+                self.state.mask = !self.state.mask;
+            }
             if ui
                 .button(format!("{} {}", ph::FLOPPY_DISK, s.t("logs-save-source")))
                 .tip(s.t("logs-save-source-tip"))
@@ -1326,6 +1367,9 @@ impl LogsTool {
             sh.format.structured()
         };
         let pinned: Vec<String> = self.state.pinned.clone();
+        // The list shows what would leave the tab, so a secret is masked in
+        // the message, in a pinned column and in the accessibility label.
+        let mask = self.state.mask.then_some(&self.redactor);
         let local = self.state.local_time;
         let bookmarks: Vec<u64> = self.state.bookmarks.iter().map(|(l, _)| *l).collect();
         let stick = self.state.follow && !self.paused && self.scroll_to.is_none();
@@ -1420,7 +1464,10 @@ impl LogsTool {
                 if structured {
                     for f in &pinned {
                         let v = r.field(f).unwrap_or("");
-                        let v: String = v.chars().take(24).collect();
+                        let mut v: String = v.chars().take(24).collect();
+                        if let Some(red) = mask {
+                            v = red.apply(&v);
+                        }
                         p.text(
                             egui::pos2(x, y),
                             egui::Align2::LEFT_CENTER,
@@ -1432,9 +1479,13 @@ impl LogsTool {
                     }
                 }
                 let line = if structured && !r.message.is_empty() {
-                    r.message.replace('\n', " ⏎ ")
+                    let m = r.message.replace('\n', " ⏎ ");
+                    match mask {
+                        Some(red) => red.apply(&m),
+                        None => m,
+                    }
                 } else {
-                    one_line(r)
+                    one_line(r, mask)
                 };
                 let font = if paint.is_some_and(|(_, b)| b) {
                     egui::FontId::monospace(13.0)
@@ -1452,7 +1503,7 @@ impl LogsTool {
                     clicked = Some(idx);
                 }
                 resp.widget_info(|| {
-                    egui::WidgetInfo::labeled(egui::WidgetType::Button, true, one_line(r))
+                    egui::WidgetInfo::labeled(egui::WidgetType::Button, true, one_line(r, mask))
                 });
             }
         });
@@ -1511,7 +1562,7 @@ impl LogsTool {
                 .small_button(format!("{} {}", ph::CLIPBOARD_TEXT, s.t("logs-copy")))
                 .clicked()
             {
-                ui.ctx().copy_text(rec.raw.clone());
+                ui.ctx().copy_text(self.leaving(&rec.raw));
             }
             if !rec.fields.is_empty() && ui.small_button(s.t("logs-copy-json")).clicked() {
                 let map: serde_json::Map<String, serde_json::Value> = rec
@@ -1519,8 +1570,8 @@ impl LogsTool {
                     .iter()
                     .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
                     .collect();
-                ui.ctx()
-                    .copy_text(serde_json::to_string_pretty(&map).unwrap_or_default());
+                let json = serde_json::to_string_pretty(&map).unwrap_or_default();
+                ui.ctx().copy_text(self.leaving(&json));
             }
             let marked = self.state.bookmarks.iter().any(|(l, _)| *l == rec.line);
             if ui
@@ -1629,7 +1680,7 @@ impl LogsTool {
                     }
                     ui.separator();
                 }
-                let mut raw = rec.raw.clone();
+                let mut raw = self.leaving(&rec.raw);
                 ui.add(
                     egui::TextEdit::multiline(&mut raw)
                         .code_editor()

@@ -2743,6 +2743,7 @@ logs-format-syslog = Syslog
 logs-format-nginx = Nginx / Apache
 logs-format-postgres = PostgreSQL
 logs-local-time-tip = Show times in this machine's time zone rather than UTC.
+logs-mask-tip = Mask secrets. Bearer tokens, passwords, keys and e-mail addresses are hidden in the list and in anything you copy, save or send to the assistant. Rules live in the workspace's logs/redaction.toml.
 logs-save-source = Save Source
 logs-save-source-tip = Keep this source in the workspace's sidebar.
 logs-source-saved = Source saved.

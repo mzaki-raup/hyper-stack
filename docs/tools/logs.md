@@ -239,9 +239,22 @@ command-stdout sources, which require confirmation on protected environments).
 
 ## 15. Commissioned additions (2026-10-23)
 
-Eight items, asked for together. They are ordered as they should be built:
-each later one leans on something an earlier one puts in place. Nothing here
-changes a parser or the engine's reading path.
+Eight items, asked for together. Nothing here changes a parser or the
+engine's reading path.
+
+They are numbered as they were proposed, which is **not** the order to build
+them in: the assistant must redact before it sends anything, and both the
+Problems inbox and the window diff count by the shape key. The build order is
+
+1. **§15.4 Redaction** - no dependencies, and it closes a real gap today.
+2. **§15.5 Collapse repeats** - gives everything else the shape key.
+3. **§15.1 The assistant** - redacts its context with §15.4.
+4. **§15.2 Problems** - deduplicates with §15.5.
+5. **§15.3 Find Everywhere** - independent, but larger than the four above.
+6. **§15.7 Saved investigations** - saves whatever the earlier items added.
+7. **§15.6 The sparkline** - §10's chart does not exist yet, so this item
+   builds it and makes it interactive in one go.
+8. **§15.8 Window diff** - needs §15.5's key and §15.6's range selection.
 
 ### 15.1 An AI assistant column
 

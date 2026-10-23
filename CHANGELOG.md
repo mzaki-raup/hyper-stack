@@ -11,7 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- **Logs: redaction rules.** Bearer tokens, Basic credentials, JWTs,
+  passwords, API keys, AWS key ids and secrets and e-mail addresses are
+  masked in the list and in everything that leaves a Logs tab: Copy, Copy as
+  JSON and Save Filtered…. The rules live in the workspace's
+  `logs/redaction.toml` and can be edited or turned off individually; a
+  **Mask Secrets** toggle on the toolbar governs the view and the exports
+  together, so what is on screen is what would leave. First of the eight
+  additions specified in `docs/tools/logs.md` §15.
 
 ## 0.78.0 — 2026-10-22
 

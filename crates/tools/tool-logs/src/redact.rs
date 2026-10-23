@@ -189,12 +189,16 @@ mod tests {
     #[test]
     fn the_default_rules_mask_a_secret_and_keep_what_names_it() {
         let red = r();
-        let out = red.apply("GET /v1/orders Authorization: Bearer sk_live_4eC39Hq2wXc");
+        let out =
+            red.apply("GET /v1/orders Authorization: Bearer fixture-token-NOT-A-REAL-SECRET-0002");
         assert!(
             out.contains("Authorization: Bearer "),
             "the header survives"
         );
-        assert!(!out.contains("sk_live_4eC39Hq2wXc"), "the token does not");
+        assert!(
+            !out.contains("fixture-token-NOT-A-REAL-SECRET-0002"),
+            "the token does not"
+        );
         assert!(out.contains(MASK));
 
         let out = red.apply(r#"{"user":"ada","password":"hunter2","ok":true}"#);
@@ -251,8 +255,12 @@ mod tests {
 
         // A disabled rule stops masking; the rest keep going.
         let red = Redactor::compile(&back);
-        let out = red.apply("Authorization: Bearer sk_live_abcdefgh for TICKET-42");
-        assert!(out.contains("sk_live_abcdefgh"), "the disabled rule is off");
+        let out =
+            red.apply("Authorization: Bearer fixture-token-NOT-A-REAL-SECRET-0003 for TICKET-42");
+        assert!(
+            out.contains("fixture-token-NOT-A-REAL-SECRET-0003"),
+            "the disabled rule is off"
+        );
         assert!(!out.contains("TICKET-42"), "the added rule is on");
     }
 
@@ -263,13 +271,13 @@ mod tests {
     #[test]
     fn a_saved_file_does_not_contain_the_secrets_that_went_into_it() {
         let secrets = [
-            "sk_live_4eC39HqLyjWDarjtT1zdp7dc",
+            "fixture-token-NOT-A-REAL-SECRET-0001",
             "hunter2",
             "AKIAIOSFODNN7EXAMPLE",
             "ada.lovelace@example.com",
         ];
         let lines = [
-            "14:32:01 INFO  GET /orders Authorization: Bearer sk_live_4eC39HqLyjWDarjtT1zdp7dc",
+            "14:32:01 INFO  GET /orders Authorization: Bearer fixture-token-NOT-A-REAL-SECRET-0001",
             r#"14:32:02 DEBUG login {"user":"ada","password":"hunter2"}"#,
             "14:32:03 WARN  s3 put failed, key AKIAIOSFODNN7EXAMPLE",
             "14:32:04 INFO  receipt sent to ada.lovelace@example.com",

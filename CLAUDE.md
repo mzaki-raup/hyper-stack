@@ -1389,6 +1389,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   is not enough when the new text starts with the old one; check the
   inserted marker alone, and `grep -c` the markers after any re-run.
 
+- A **Windows path** is the same trap as `\u{b7}`, and bit three times
+  in a row on 2026-10-24: `"C:\\Users\\..."` in a plain Python string
+  is read as a truncated `\U` escape and the script dies before it
+  runs. Use a raw string (`r"C:\Users\..."`) for every path. The same
+  path in **TOML** needs a *literal* string with single quotes
+  (`kubeconfig_path = 'C:\Users\...'`): a basic double-quoted TOML
+  string processes `\U` too, and an invalid escape fails the whole
+  file - which showed up only as `skipping connection ...: TOML parse
+  error` in the log and a profile that silently never appeared.
+
 ### Patch scripts (continued)
 - Re-running a half-applied patch script duplicates whatever its earlier
   steps already did (two `LspStatus` definitions, two toolbar blocks).

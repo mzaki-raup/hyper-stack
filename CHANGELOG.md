@@ -11,8 +11,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Added
-
 - **Qdrant** opens in the NoSQL activity (`kind = "qdrant"`): a
   collection is a container and a point is a document, so the tree,
   Find, the views, paging and the guards all serve it unchanged. Two
@@ -308,6 +306,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   between a digit and a letter, so the bare-number rule never matched the
   `31` in `31ms` - which made every such row its own shape and defeated
   both the repeat collapse and the window diff.
+
+## 0.83.0 — 2026-10-23
+
+### Added
+
+- A cross-tool searcher registry, and Find Everywhere on top of it (30bde722)
+- The time strip, window compare, investigations and a Problems inbox (10548e94)
 
 ## 0.82.1 — 2026-10-23
 

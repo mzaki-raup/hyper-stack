@@ -528,6 +528,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   dependencies surfaced `RUSTSEC-2026-0206` (`rustybuzz` unmaintained) even
   though it was already transitive through `egui_extras`; the ignore in
   `deny.toml` records why (local SVG rendering only, no fixed version).
+  It happened again on 2026-10-24: `RUSTSEC-2026-0387` against
+  `crypto-bigint 0.7.5` (constant-time operations taking
+  secret-dependent branches), reached through
+  russh → rsa/ssh-key/p256 → crypto-bigint, on a branch whose code had
+  not touched any of that. **A red `cargo deny` is the first thing to
+  check when CI fails on a branch that passed locally an hour earlier**,
+  and when the advisory names a fixed version the answer is
+  `cargo update -p <crate>` and a `security:` commit, not an ignore -
+  ignores are for advisories with no fix.
 
 ### Git and signing
 - A fixture repository in a test inherits the owner's global

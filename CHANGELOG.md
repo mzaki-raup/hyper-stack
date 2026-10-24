@@ -150,6 +150,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   its cooldown, with an invalid regular expression called out rather
   than silently ignored.
 
+### Security
+
+- **crypto-bigint 0.7.6** for `RUSTSEC-2026-0387`. Several operations
+  meant to be constant-time could take secret-dependent branches
+  depending on the compiler and target CPU — subtraction, zero counting,
+  division, Montgomery multiplication, `UintRef` equality and
+  `BoxedMontyForm::invert` — which can leak information about secrets
+  through timing. It reaches HyperStack through the SSH crypto path
+  (russh → rsa/ssh-key/p256/p384/p521). A lock bump; nothing else
+  changes.
+
 ### Fixed
 
 - **A cross-tool request into an activity never opened was silently

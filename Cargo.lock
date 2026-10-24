@@ -3415,6 +3415,7 @@ name = "hs-core"
 version = "0.82.1"
 dependencies = [
  "argon2 0.5.3",
+ "async-trait",
  "base64 0.22.1",
  "chacha20poly1305",
  "chrono",

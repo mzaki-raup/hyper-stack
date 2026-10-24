@@ -10,6 +10,7 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+async-trait = { workspace = true }
 rfd = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-util"] }
 tokio-util = { workspace = true }

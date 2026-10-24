@@ -814,6 +814,105 @@ pub fn content_type_for(key: &str) -> &'static str {
     }
 }
 
+// --- the shared interface --------------------------------------------
+//
+// S3 is the backend the others are shaped after, so this is a thin
+// delegation: the work it does beyond the trait - multipart upload,
+// presigned URLs, versioning - lives in the methods above and stays
+// reachable for callers that hold an `S3Client` directly.
+
+#[async_trait::async_trait]
+impl super::store::ObjectStore for S3Client {
+    fn backend(&self) -> super::store::Backend {
+        super::store::Backend::S3
+    }
+
+    fn caps(&self) -> super::store::Caps {
+        super::store::Caps {
+            containers: true,
+            create_container: true,
+            delete_container: true,
+            upload: true,
+            delete: true,
+            versioning: true,
+            presign: true,
+            // A key with slashes in it is just a key.
+            needs_directories: false,
+        }
+    }
+
+    async fn containers(&self) -> Result<Vec<Bucket>> {
+        self.list_buckets().await
+    }
+
+    async fn list(
+        &self,
+        container: &str,
+        prefix: &str,
+        delimited: bool,
+        token: Option<&str>,
+        max_keys: u32,
+    ) -> Result<Listing> {
+        S3Client::list(self, container, prefix, delimited, token, max_keys).await
+    }
+
+    async fn head(&self, container: &str, key: &str) -> Result<Head> {
+        S3Client::head(self, container, key).await
+    }
+
+    async fn get_bytes(&self, container: &str, key: &str) -> Result<Vec<u8>> {
+        S3Client::get_bytes(self, container, key).await
+    }
+
+    async fn download(
+        &self,
+        container: &str,
+        key: &str,
+        dest: &std::path::Path,
+        progress: Progress,
+        cancel: CancellationToken,
+    ) -> Result<u64> {
+        S3Client::download(self, container, key, dest, progress, cancel).await
+    }
+
+    async fn put_bytes(
+        &self,
+        container: &str,
+        key: &str,
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> Result<()> {
+        S3Client::put_bytes(self, container, key, body, content_type).await
+    }
+
+    async fn upload_file(
+        &self,
+        container: &str,
+        key: &str,
+        path: &std::path::Path,
+        progress: Progress,
+        cancel: CancellationToken,
+    ) -> Result<()> {
+        S3Client::upload_file(self, container, key, path, progress, cancel).await
+    }
+
+    async fn delete(&self, container: &str, key: &str) -> Result<()> {
+        S3Client::delete(self, container, key).await
+    }
+
+    async fn delete_many(&self, container: &str, keys: &[String]) -> Result<Vec<(String, String)>> {
+        S3Client::delete_many(self, container, keys).await
+    }
+
+    async fn list_all_keys(&self, container: &str, prefix: &str) -> Result<Vec<String>> {
+        S3Client::list_all_keys(self, container, prefix).await
+    }
+
+    async fn versioning(&self, container: &str) -> Result<Versioning> {
+        S3Client::versioning(self, container).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

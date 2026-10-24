@@ -108,7 +108,7 @@ resource requirements), decided in ADR-026. Eight phases, each green
 on the full gate and releasable:
 
 - [ ] 1 · `hs_ui::table::DataTable` scrolls instead of clipping (fixes S3 and SFTP too); `podman`/`wincontainer` connection kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring
-- [ ] 2 · `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH), with live tests behind an env var as the DB and Redis drivers have
+- [x] 2 · `hs-container` Docker/Podman driver: the CLI across all four transports, verified against a real engine behind an env var. `bollard` deferred to phase 4 for streaming (see `docs/tools/containers.md` §10.3a)
 - [ ] 3 · The activity, its rail entry, the dashboard, the two-section sidebar, one tab per host
 - [ ] 4 · Docker pane (Portainer-shaped): containers, images, volumes, networks; start/stop/restart; Logs and Exec handed to `tool-logs` and `hs-term`
 - [ ] 5 · Compose and Swarm

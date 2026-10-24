@@ -167,6 +167,43 @@ token, and the form says plainly that a pasted copy will not follow
 rotation. Inline `token`, `client-key-data` and passwords inside a
 pasted document are vault-bound like any other secret.
 
+### 10.3a The Docker/Podman driver is the CLI, not `bollard` (2026-10-24)
+
+§4 chose `bollard`, and phase 2 was planned around it. Building phase 2
+changed the answer, and the reasons are worth keeping:
+
+- **The CLI covers every transport; `bollard` covers two.** An Engine
+  API client can reach a local socket and a TCP host. It cannot reach
+  an engine inside a WSL distribution - which on Windows is where the
+  engine usually is - without someone first exposing a socket, and it
+  cannot reach one over SSH without forwarding a socket through the
+  tunnel manager. The CLI reaches all four by construction, because
+  `wsl.exe -d <d> -- docker …` and `ssh host docker …` are just
+  prefixes.
+- **One parser, both engines.** `docker` and `podman` accept the same
+  `--format '{{json .}}'`, so one code path serves both. Two API
+  clients would not.
+- **It is verified against a real engine.** `tests/live.rs` runs against
+  Docker 29.5.0 in WSL and reads containers, images, volumes and
+  networks; `bollard` would have needed the same tests plus a socket to
+  point them at.
+
+What the CLI cannot do is **stream**: `/events` and `/stats` are what a
+live pane would want, and polling `docker stats --no-stream` per refresh
+is not the same thing. So `bollard` is **not rejected, it is deferred**
+to the point where streaming is actually needed - phase 4's live pane,
+and only for the Local and Tcp transports, behind the same `Engine`
+interface so nothing above it changes. Until then the refresh interval
+in Settings governs, which is honest for a list of containers.
+
+The parsing is where the surprises were, and they are the reason this is
+testable in isolation: `docker ps --format '{{json .}}'` is
+**line-delimited** JSON whose `Labels`, `Ports` and `Mounts` are *human
+strings*, while `podman ps --format json` is a **JSON array** with `Id`
+rather than `ID`, `Names` as an array, `Labels` as an object and `Ports`
+as objects. The parsers accept either shape for each, which also buys
+tolerance of version drift.
+
 ### 10.3 The Kubernetes driver: the `kube` crate, with `kubectl` as the escape hatch
 
 §5 chose `kube` + `k8s-openapi`. That stays, for two reasons that
@@ -331,7 +368,7 @@ Each ends green on the full gate and is releasable on its own.
 | # | What |
 |---|---|
 | 1 | `DataTable` scrolls (§10.4, fixing S3 and SFTP too); `podman`/`wincontainer` kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring |
-| 2 | `hs-container` Docker/Podman driver on `bollard` (socket, pipe, TCP, over SSH), with live tests behind an env var as the DB and Redis drivers have |
+| 2 | `hs-container` Docker/Podman driver: the CLI across all four transports (§10.3a), with live tests behind an env var as the DB and Redis drivers have. `bollard` deferred to phase 4, where streaming is actually needed |
 | 3 | The activity, rail entry, dashboard, two-section sidebar, one tab per host |
 | 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs |
 | 5 | Compose and Swarm (`docker compose`, `docker stack` — CLI-only surfaces) |

@@ -13,6 +13,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Container activity, phase 2**: the Docker and Podman driver in
+  `hs-container`. It reads containers, images, volumes and networks from
+  a local socket, a TCP host, an engine inside a WSL distribution or one
+  on another machine over SSH, tells an unreachable daemon from a
+  refusal (the remedies differ), and hands the Logs tool a follow
+  command and `hs-term` an exec line rather than rebuilding either.
+  Verified against a real Docker 29.5.0 engine, with the live tests
+  behind `HS_DOCKER`/`HS_PODMAN` as the SQL and Redis driver tests are.
+  Still no activity and no panes: phase 3.
+
+  The driver is the **CLI rather than `bollard`**, which is a change
+  from the plan and is argued in `docs/tools/containers.md` §10.3a:
+  `bollard` reaches a socket and a TCP host but cannot reach an engine
+  in WSL - where it usually is on Windows - or over SSH without first
+  exposing or forwarding a socket, while prefixing reaches all four, and
+  one `--format` parser serves both engines. `bollard` is deferred to
+  phase 4, where streaming `/events` and `/stats` is the one thing the
+  CLI genuinely cannot do.
 - **Container activity, phase 1** (`docs/tools/containers.md` §10,
   ADR-026): `podman` and `wincontainer` join `docker` and `k8s` as
   connection kinds, a new `hs-container` crate owns the `[container]`

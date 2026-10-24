@@ -743,10 +743,17 @@ pane, and for every credential to live in the vault.
   exists on disk, and break the `exec` credential plugins that resolve
   relative to the real file. Tokens, passwords and TLS keys are
   vault-bound unconditionally.
-- **The driver choices in the existing spec stand**: `bollard` for the
-  Docker/Podman Engine API (socket, Windows named pipe, TCP with TLS,
-  and over SSH through `Tunnels`), and `kube` + `k8s-openapi` for
-  Kubernetes. Typed watches are what make a live pane possible, and
+- **The Docker/Podman driver is the CLI** (`docs/tools/containers.md`
+  §10.3a, revised 2026-10-24 while phase 2 was built). `bollard` reaches
+  a local socket and a TCP host; it cannot reach an engine inside a WSL
+  distribution - where it usually is on Windows - nor one over SSH,
+  without first exposing or forwarding a socket. The CLI reaches all
+  four transports by prefixing, and `docker` and `podman` accept the
+  same `--format '{{json .}}'`, so one parser serves both. `bollard` is
+  **deferred, not rejected**: streaming `/events` and `/stats` is the
+  one thing the CLI cannot do, so it arrives in phase 4 for the Local
+  and Tcp transports, behind the same `Engine` interface. Kubernetes
+  stays `kube` + `k8s-openapi`. Typed watches are what make a live pane possible, and
   needing no external binary matches the portable promise. A profile
   may be marked **Use kubectl** as an explicit escape hatch where a
   cluster's auth cannot be satisfied in-process. **Compose and Swarm

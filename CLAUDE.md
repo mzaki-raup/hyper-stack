@@ -1430,6 +1430,32 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   (`ir-conflict`, `lsp-demo`, `debug-demo`) had been cleaned away too;
   `make_fixtures.py` in the session scratchpad rebuilds them.
 
+### Containers (hs-container)
+- **`docker ps --format '{{json .}}'` is line-delimited JSON whose
+  `Labels`, `Ports` and `Mounts` are *human strings*, not arrays**:
+  `"a=1,b=2"` and `"8000/tcp, 0.0.0.0:9443->9443/tcp"`. `podman ps
+  --format json` is a JSON *array* with `Id` not `ID`, `Names` as an
+  array, `Labels` as an object and `Ports` as objects. A parser written
+  against one engine's output silently returns nothing for the other;
+  accept both shapes for each field.
+- A label **value** routinely contains `=` and commas of its own (a URL,
+  a JSON blob), so split each pair at the **first** `=` only.
+- An IPv6 port mapping is `[::]:9443->9443/tcp`: the colons are inside
+  the brackets, so the host address cannot be split off at the last
+  colon. Respect the bracket or every IPv6 mapping is mangled.
+- The engine CLI accepts `-H` and the TLS flags **only before the
+  subcommand**, and the WSL prefix goes before the program with a `--`
+  after the distro, or `wsl.exe` reads the engine's flags as its own.
+  Both mistakes fail in ways that read as something else entirely, which
+  is why the argv building is a pure, tested function.
+- `--tls` and `--tlsverify` are not the same: without `--tlsverify` the
+  certificates are ignored, which looks exactly like TLS working.
+- Treat "could not reach a daemon" and "understood and refused" as
+  different errors. Returning the empty stdout of a failed command is
+  how a tool reports "no containers" for "no permission on the socket".
+- `DOCKER_API_VERSION` is an environment variable, not a flag; it cannot
+  be smuggled into the argv.
+
 ### Cross-tool search (hs-core::search)
 - **A searcher registered for the life of the app must not capture a
   workspace path.** `<workspace>/api/history.jsonl` is resolved at

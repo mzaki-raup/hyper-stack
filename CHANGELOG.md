@@ -11,39 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Edit This Connection…**, first in the context menu of every
-  connection row in every activity's sidebar — SSH, S3, Database, Redis,
-  NoSQL and now the Container hosts. It opens Settings → Connections
-  (Settings → Containers for a host, where it reads **Edit This Host…**)
-  with that profile already selected in the form. The menu is built once
-  in `hs_ui::form::row_menu`, so no list can be left without it.
-- **Connect**, after Test Connection in both connection forms: it saves
-  the draft and then opens the profile in its own activity, focusing the
-  tab that already shows it or opening a new one. Save and Connect share
-  one `save_draft`, so what opens is what reached disk — and a draft
-  whose secrets could not be stored is not opened, because it was not
-  saved.
-- **The connection form is one column again.** Its sections were drawn
-  straight into the page's horizontal split, so Details and the kind's
-  own fields laid out side by side instead of stacked.
-- The Container activity's host list gained the **drag grip** its spec
-  always called for, and **Pin to Home**, by using the same
-  `connection_row` every other activity's list does.
-- The Container activity has a **rail colour** of its own when
-  Settings → Appearance → Coloured Activity Icons is on; it was falling
-  back to the grey default.
-- **Detail views for every Docker list**: images, volumes, networks,
-  stacks, Swarm services and nodes now show their own facts in full
-  under the table, with Copy Details, instead of "there is no detail
-  view for this list yet". An image also lists the containers running
-  it.
-- **Fixed: one tab per container host.** The sidebar asked for a host
-  with a `Text` request, which the shell has no reuse rule for, so every
-  click opened another tab. It asks for it as the connection it is.
-- **The S3 buckets moved out of the sidebar and into the pane.** The
-  sidebar lists profiles only; the work pane is two columns — buckets
-  (and the folders inside the open one) on the left, the object table on
-  the right.
+- (nothing yet)
+
+## 0.86.0 — 2026-10-24
+
+### Added
+
+- Edit This Connection, Connect, and detail views for every Docker list (d7900892)
 
 ## 0.85.0 — 2026-10-24
 

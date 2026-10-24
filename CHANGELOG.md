@@ -22,7 +22,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   the uri the shell matches, so clicking a host focuses the tab that
   already shows it. A host tab reads the engine off the UI thread and
   shows its version, running/stopped/images/volumes/networks and the
-  container table; the inventory pane proper is phase 4. A Kubernetes
+  container table; the inventory pane proper is phase 4. The dashboard
+  carries the shared **Open Here** grid of thumbnails, as every other
+  activity's does. A Kubernetes
   host says plainly that clusters are not readable yet rather than
   running `docker` at one.
 - **Container activity, phase 2**: the Docker and Podman driver in

@@ -341,6 +341,20 @@ impl ContainersTool {
                 if let Some(id) = open {
                     open_host(cx, &id);
                 }
+                // The shared Open Here grid, as every other activity's
+                // dashboard shows it: the question "what have I got open
+                // here, and take me to it" is the same everywhere, and an
+                // activity that answered it differently would be the odd
+                // one out (owner's rule on one UI language, 2026-10-20).
+                let tabs = s.open_tabs.of("containers");
+                let labels = hs_ui::dashboard::DashboardLabels {
+                    open_heading: &s.t("dash-open"),
+                    nothing_open: &s.t("dash-nothing-open"),
+                    no_preview: &s.t("dash-no-preview"),
+                };
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions.push(Action::FocusTab { tab_id: id });
+                }
             });
     }
 

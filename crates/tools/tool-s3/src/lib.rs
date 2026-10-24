@@ -13,8 +13,12 @@ use std::sync::Arc;
 use hs_core::Services;
 use hs_core::events::Event;
 use hs_core::jobs::Progress;
+use hs_core::objstore::http_profile::{NexusFields, WebdavFields};
+use hs_core::objstore::nexus::NexusClient;
 use hs_core::objstore::profile::{AwsProfile, ProfileError, S3Fields, load_aws_profiles};
 use hs_core::objstore::s3::{Bucket, Object, S3Client, Versioning};
+use hs_core::objstore::store::{Backend, Caps, ObjectStore};
+use hs_core::objstore::webdav::WebdavClient;
 use hs_core::tool::{
     Accept, Action, CommandDescriptor, OpenRequest, ToastLevel, Tool, ToolCategory, ToolContext,
     ToolDescriptor, ToolFactory,
@@ -117,7 +121,10 @@ enum DialogState {
 pub struct S3Tool {
     state: State,
     shared: Arc<Mutex<Shared>>,
-    client: Option<Arc<S3Client>>,
+    /// Whatever store this profile opens: a bucket, a DAV share or a
+    /// Nexus repository. The pane is the same browser for all three and
+    /// asks `caps()` before offering anything they do not share.
+    client: Option<Arc<dyn ObjectStore>>,
     client_error: Option<String>,
     waiting_for_vault: bool,
     table: TableState,
@@ -133,7 +140,7 @@ impl S3Tool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let count = s.connections.read().of_kind("s3").count();
+        let count = s.connections.read().of_object_kinds().count();
         let tabs = s.open_tabs.of("s3");
         hs_ui::form::page_title(ui, &theme, &s.t("tool-s3"), Some(&s.t("s3-dashboard-sub")));
         ui.horizontal(|ui| {
@@ -181,6 +188,31 @@ impl S3Tool {
         Some((c.name.clone(), S3Fields::from_table(&c.fields)))
     }
 
+    /// The connection's kind, which decides which store is built.
+    fn kind(&self, services: &Services) -> String {
+        self.state
+            .conn_id
+            .as_ref()
+            .and_then(|id| {
+                services
+                    .connections
+                    .read()
+                    .by_id(id)
+                    .map(|c| c.kind.clone())
+            })
+            .unwrap_or_else(|| "s3".into())
+    }
+
+    /// What this store can do. A profile that is not open yet claims
+    /// nothing, so the pane offers nothing it cannot deliver.
+    fn caps(&self) -> Caps {
+        self.client.as_ref().map(|c| c.caps()).unwrap_or(Caps::NONE)
+    }
+
+    fn backend(&self) -> Option<Backend> {
+        self.client.as_ref().map(|c| c.backend())
+    }
+
     /// Build the client for the selected profile and list its buckets (or
     /// open the remembered / default bucket).
     fn connect(&mut self, services: &Services) {
@@ -192,24 +224,56 @@ impl S3Tool {
             self.client_error = Some(services.t("s3-no-profile"));
             return;
         };
-        let config = match f.config(services.secrets.as_ref()) {
-            Ok(c) => c,
-            Err(e) => {
-                self.waiting_for_vault = e == ProfileError::VaultLocked;
-                self.client_error = Some(match e {
-                    ProfileError::VaultLocked => services.t("s3-vault-locked"),
-                    ProfileError::NoKeys => services.t("s3-no-keys"),
-                    ProfileError::Secret(e) => e,
-                });
-                return;
+        // Each kind resolves its own fields and builds its own client;
+        // what comes back is the same trait either way.
+        let kind = self.kind(services);
+        let built: Result<Arc<dyn ObjectStore>, String> = match kind.as_str() {
+            "webdav" => {
+                let wf = self.webdav_fields(services);
+                match wf.config(services.secrets.as_ref()) {
+                    Ok(c) => WebdavClient::new(c)
+                        .map(|c| Arc::new(c) as Arc<dyn ObjectStore>)
+                        .map_err(|e| e.to_string()),
+                    Err(e) => {
+                        self.waiting_for_vault = e == ProfileError::VaultLocked;
+                        Err(self.profile_error(services, e))
+                    }
+                }
             }
+            "nexus" => {
+                let nf = self.nexus_fields(services);
+                match nf.config(services.secrets.as_ref()) {
+                    Ok(c) => NexusClient::new(c)
+                        .map(|c| Arc::new(c) as Arc<dyn ObjectStore>)
+                        .map_err(|e| e.to_string()),
+                    Err(e) => {
+                        self.waiting_for_vault = e == ProfileError::VaultLocked;
+                        Err(self.profile_error(services, e))
+                    }
+                }
+            }
+            _ => match f.config(services.secrets.as_ref()) {
+                Ok(c) => S3Client::new(c)
+                    .map(|c| Arc::new(c) as Arc<dyn ObjectStore>)
+                    .map_err(|e| e.to_string()),
+                Err(e) => {
+                    self.waiting_for_vault = e == ProfileError::VaultLocked;
+                    Err(self.profile_error(services, e))
+                }
+            },
         };
-        match S3Client::new(config) {
-            Ok(c) => self.client = Some(Arc::new(c)),
+        match built {
+            Ok(c) => self.client = Some(c),
             Err(e) => {
-                self.client_error = Some(e.to_string());
+                self.client_error = Some(e);
                 return;
             }
+        }
+        // WebDAV has no bucket level, so the pane opens its one
+        // pseudo-container directly rather than showing a list of one.
+        if self.state.bucket.is_none() && self.client.as_ref().is_some_and(|c| !c.caps().containers)
+        {
+            self.state.bucket = Some(hs_core::objstore::webdav::ROOT.to_string());
         }
         if self.state.bucket.is_none() && !f.default_bucket.is_empty() {
             self.state.bucket = Some(f.default_bucket.clone());
@@ -220,6 +284,43 @@ impl S3Tool {
         }
     }
 
+    /// A profile error in the words the pane shows.
+    fn profile_error(&self, services: &Services, e: ProfileError) -> String {
+        match e {
+            ProfileError::VaultLocked => services.t("s3-vault-locked"),
+            ProfileError::NoKeys => services.t("s3-no-keys"),
+            ProfileError::Secret(e) => e,
+        }
+    }
+
+    fn webdav_fields(&self, services: &Services) -> WebdavFields {
+        self.state
+            .conn_id
+            .as_ref()
+            .and_then(|id| {
+                services
+                    .connections
+                    .read()
+                    .by_id(id)
+                    .map(|c| WebdavFields::from_table(&c.fields))
+            })
+            .unwrap_or_default()
+    }
+
+    fn nexus_fields(&self, services: &Services) -> NexusFields {
+        self.state
+            .conn_id
+            .as_ref()
+            .and_then(|id| {
+                services
+                    .connections
+                    .read()
+                    .by_id(id)
+                    .map(|c| NexusFields::from_table(&c.fields))
+            })
+            .unwrap_or_default()
+    }
+
     fn load_buckets(&mut self, services: &Services) {
         let Some(client) = self.client.clone() else {
             return;
@@ -227,7 +328,7 @@ impl S3Tool {
         self.shared.lock().buckets = Load::Loading;
         let shared = self.shared.clone();
         services.runtime.spawn(async move {
-            let r = client.list_buckets().await;
+            let r = client.containers().await;
             shared.lock().buckets = match r {
                 Ok(mut b) => {
                     b.sort_by(|x, y| x.name.cmp(&y.name));
@@ -359,7 +460,7 @@ impl S3Tool {
     /// Spawn a Job; `done` messages land as toasts and trigger a refresh.
     fn job<F, Fut>(&self, services: &Services, title: String, f: F)
     where
-        F: FnOnce(Arc<S3Client>, hs_core::jobs::JobHandle) -> Fut + Send + 'static,
+        F: FnOnce(Arc<dyn ObjectStore>, hs_core::jobs::JobHandle) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<String, String>> + Send + 'static,
     {
         let Some(client) = self.client.clone() else {
@@ -1039,9 +1140,14 @@ impl Tool for S3Tool {
     }
 
     fn title(&self) -> Cow<'_, str> {
-        match &self.state.bucket {
-            Some(b) => Cow::Owned(format!("s3://{b}")),
-            None => Cow::Borrowed("S3"),
+        // The scheme follows the store: a WebDAV share titled `s3:///`
+        // says the wrong thing twice over.
+        match (&self.state.bucket, self.backend()) {
+            (_, Some(Backend::Webdav)) => Cow::Borrowed("WebDAV"),
+            (Some(b), Some(Backend::Nexus)) => Cow::Owned(format!("nexus://{b}")),
+            (None, Some(Backend::Nexus)) => Cow::Borrowed("Nexus"),
+            (Some(b), _) => Cow::Owned(format!("s3://{b}")),
+            (None, _) => Cow::Borrowed("S3"),
         }
     }
 
@@ -1086,10 +1192,19 @@ impl Tool for S3Tool {
         {
             self.open_in_editor(s, o);
         }
-        if btn(ui, in_bucket && is_object, ph::LINK, "s3-presign") {
+        // A signature over the request is an S3 idea: WebDAV and Nexus
+        // authorise every request with the credentials, so there is
+        // nothing to pre-sign and the control is not offered.
+        let caps = self.caps();
+        if caps.presign && btn(ui, in_bucket && is_object, ph::LINK, "s3-presign") {
             self.ask_presign();
         }
-        if btn(ui, in_bucket && selected.is_some(), ph::TRASH, "s3-delete") {
+        if btn(
+            ui,
+            caps.delete && in_bucket && selected.is_some(),
+            ph::TRASH,
+            "s3-delete",
+        ) {
             self.ask_delete(s);
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
@@ -1130,12 +1245,15 @@ impl Tool for S3Tool {
         let profiles: Vec<(String, String, String, bool)> = s
             .connections
             .read()
-            .of_kind("s3")
+            .of_object_kinds()
             .map(|c| {
                 (
                     c.id.clone(),
                     c.name.clone(),
-                    S3Fields::from_table(&c.fields).label(),
+                    // Each kind describes itself: a WebDAV share that
+                    // read "Amazon S3 · us-east-1" would be the S3
+                    // defaults showing through, not its own settings.
+                    subtitle_for(c),
                     c.pinned,
                 )
             })
@@ -1211,7 +1329,11 @@ impl Tool for S3Tool {
                     cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-                    if let Err(e) = s.connections.write().reorder(&["s3"], from, to) {
+                    if let Err(e) =
+                        s.connections
+                            .write()
+                            .reorder(hs_core::connections::OBJECT_KINDS, from, to)
+                    {
                         cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                     }
                     ui.ctx().request_repaint();
@@ -1302,7 +1424,15 @@ impl Tool for S3Tool {
                     form::note(ui, &theme, ph::INFO, &s.t("s3-no-buckets"));
                 }
                 Some(b) => {
-                    ui.label(egui::RichText::new(s.t("s3-pick-bucket")).weak());
+                    // "Buckets" is an S3 word. A Nexus server has
+                    // repositories, and calling them buckets in the one
+                    // place the user picks between them is exactly where
+                    // it would read as a mistake.
+                    let heading = self
+                        .backend()
+                        .map(|b| b.container_key())
+                        .unwrap_or("s3-pick-bucket");
+                    ui.label(egui::RichText::new(s.t(heading)).weak());
                     ui.add_space(4.0);
                     let mut open = None;
                     for bucket in b {
@@ -1535,6 +1665,15 @@ fn short_time(iso: &str) -> String {
         format!("{} {}", &iso[..10], &iso[11..16])
     } else {
         iso.to_string()
+    }
+}
+
+/// The sidebar subtitle for one profile, from its own kind's fields.
+fn subtitle_for(c: &hs_core::connections::ConnectionProfile) -> String {
+    match c.kind.as_str() {
+        "webdav" => WebdavFields::from_table(&c.fields).label(),
+        "nexus" => NexusFields::from_table(&c.fields).label(),
+        _ => S3Fields::from_table(&c.fields).label(),
     }
 }
 

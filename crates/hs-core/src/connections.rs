@@ -28,6 +28,8 @@ pub const KINDS: &[&str] = &[
     "elasticsearch",
     "dynamodb",
     "cassandra",
+    "webdav",
+    "nexus",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -38,6 +40,20 @@ pub const KINDS: &[&str] = &[
 /// one store, which is why it can never disagree with Settings →
 /// Connections about the same host.
 pub const CONTAINER_KINDS: &[&str] = &["docker", "podman", "k8s", "wincontainer"];
+
+/// The kinds the **S3** tool opens.
+///
+/// All three are file-shaped stores the one browser can show, behind
+/// `hs_core::objstore::ObjectStore`: S3 buckets, a WebDAV share and a
+/// Nexus Repository's assets. What each can actually do differs, and
+/// the store's `caps()` is what the pane asks before it offers a
+/// control (`docs/tools/s3.md` §11).
+pub const OBJECT_KINDS: &[&str] = &["s3", "webdav", "nexus"];
+
+/// Whether a kind is opened by the S3 (object browser) tool.
+pub fn is_object_kind(kind: &str) -> bool {
+    OBJECT_KINDS.contains(&kind)
+}
 
 /// The kinds the **Redis** tool opens.
 ///
@@ -84,6 +100,8 @@ pub fn kind_label(kind: &str) -> &str {
         "elasticsearch" => "Elasticsearch",
         "dynamodb" => "DynamoDB",
         "cassandra" => "Cassandra",
+        "webdav" => "WebDAV",
+        "nexus" => "Nexus",
         other => other,
     }
 }
@@ -186,6 +204,11 @@ impl Connections {
         kind: &'a str,
     ) -> impl Iterator<Item = &'a ConnectionProfile> + 'a {
         self.profiles.iter().filter(move |c| c.kind == kind)
+    }
+
+    /// Every profile the object browser opens, in order.
+    pub fn of_object_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_object_kind(&c.kind))
     }
 
     /// Every profile the Redis tool opens, in order. A helper rather

@@ -85,7 +85,7 @@ the fixtures behind them.
 | [Git](#git) | Tree, Source Control, history, tags, prefixes, conflict editor, interactive rebase |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
-| [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards |
+| [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, info; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents |
@@ -443,6 +443,30 @@ HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop c
 On Linux, `cargo clippy --workspace` also needs `libwayland-dev`,
 `libxkbcommon-dev` and `pkg-config` (the UI test harness builds the Wayland
 backend).
+
+### Running on a Mac via Parallels (beta testing)
+
+There is no macOS build yet, but the Windows build runs in a Windows VM on
+a Mac and that is enough to try the product. The UI renders through
+**wgpu**, so it uses Direct3D, which Parallels accelerates properly — an
+OpenGL-only app would be the awkward case here and this is not one.
+
+- **Intel Mac**: Parallels runs x64 Windows natively. Nothing special.
+- **Apple Silicon**: Parallels can only run **Windows 11 ARM**, so
+  `HyperStack.exe` (x86-64) runs under Windows' x64 emulation. That works,
+  with one caveat worth knowing before you report it as a bug: the
+  **Browser activity needs the x64 Edge WebView2 Runtime**. ARM Windows
+  ships the ARM64 one, which an emulated x64 process will not load, so the
+  browser tab comes up blank until the x64 runtime is installed. Every
+  other activity is pure Rust and emulates without help. Expect perhaps
+  20–40% less CPU speed, which is invisible in the UI.
+
+**This tests the Windows build on Mac hardware, not the Mac port.** None of
+the platform code a port needs — `hs-core::secrets` (Keychain rather than
+DPAPI), `storage::paths`, `clipboard_files` (`CF_HDROP` has no macOS
+equivalent), `env_path`, `hs-term::pty` — is exercised by running the
+Windows binary in a VM. Use it to find UX and feature bugs, not to judge
+whether the port will work.
 
 ## Repository layout
 

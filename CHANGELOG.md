@@ -13,6 +13,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **WebDAV and Nexus Repository** open in the object browser, beside S3.
+  `hs_core::objstore::ObjectStore` is the interface the pane uses and
+  the three backends implement; a `Caps` travels with it, so a control
+  a store cannot support is not offered rather than failing when
+  pressed — Presign appears only for S3, which is the only one of the
+  three where a signature over the request means anything. WebDAV has
+  no bucket level (one share, opened directly) and **real** directories,
+  so an upload creates the parents with MKCOL rather than getting a 409;
+  listing is PROPFIND, and the recursive case walks levels because many
+  servers refuse `Depth: infinity`. Nexus repositories are typed: a
+  proxy holds someone else's content and npm, NuGet and Docker publish
+  with their own tooling, so uploads are refused there with the reason
+  rather than a bare 400. The wording follows the backend — Buckets,
+  Share or Repositories — and so does the tab title.
+
 - **Valkey** is a connection kind of its own (`kind = "valkey"`), opened
   by the Redis tool. Valkey is a fork of Redis and speaks the same
   protocol, so one driver serves both; the kind exists so that someone

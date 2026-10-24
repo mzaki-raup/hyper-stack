@@ -23,7 +23,7 @@ pub struct LauncherResponse {
 pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
     match kind {
         "ssh" => Some("ssh"),
-        "s3" => Some("s3"),
+        "s3" | "webdav" | "nexus" => Some("s3"),
         "db" => Some("db"),
         "redis" | "valkey" => Some("redis"),
         "mongodb" | "couchdb" => Some("nosql"),
@@ -316,6 +316,10 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
         "valkey" => egui::Color32::from_rgb(0x17, 0xA2, 0xB8),
         "mongodb" | "couchdb" => egui::Color32::from_rgb(0x10, 0xA3, 0x7B),
         "s3" => egui::Color32::from_rgb(0xF5, 0x9E, 0x0B),
+        // The object browser's other two stores, each its own colour:
+        // the pill exists to be told apart at a glance.
+        "webdav" => egui::Color32::from_rgb(0x64, 0x74, 0x8B),
+        "nexus" => egui::Color32::from_rgb(0x1B, 0xA0, 0xE1),
         "api" => egui::Color32::from_rgb(0xEC, 0x48, 0x99),
         _ => theme.secondary,
     };

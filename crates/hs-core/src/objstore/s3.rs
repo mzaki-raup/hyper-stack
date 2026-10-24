@@ -911,6 +911,10 @@ impl super::store::ObjectStore for S3Client {
     async fn versioning(&self, container: &str) -> Result<Versioning> {
         S3Client::versioning(self, container).await
     }
+
+    fn presign(&self, method: &str, container: &str, key: &str, expires_secs: u64) -> String {
+        S3Client::presign(self, method, container, key, expires_secs)
+    }
 }
 
 #[cfg(test)]

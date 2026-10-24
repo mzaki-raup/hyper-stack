@@ -50,9 +50,9 @@ impl Backend {
     /// pseudo-container the driver reports is its root.
     pub fn container_key(self) -> &'static str {
         match self {
-            Backend::S3 => "s3-bucket",
-            Backend::Webdav => "s3-share",
-            Backend::Nexus => "s3-repository",
+            Backend::S3 => "s3-pick-bucket",
+            Backend::Webdav => "s3-pick-share",
+            Backend::Nexus => "s3-pick-repository",
         }
     }
 }
@@ -163,6 +163,17 @@ pub trait ObjectStore: Send + Sync {
         Ok(Versioning::Never)
     }
 
+    /// A URL that carries its own authorisation, for handing a file to
+    /// something that is not this app.
+    ///
+    /// S3 only: a signature over the request is an S3 idea. WebDAV and
+    /// Nexus authorise with the credentials on every request, so there
+    /// is nothing to pre-sign and the empty string says so. The pane
+    /// reads `caps().presign` and does not offer the control at all.
+    fn presign(&self, _method: &str, _container: &str, _key: &str, _expires_secs: u64) -> String {
+        String::new()
+    }
+
     /// Make a folder. Only meaningful where `caps().needs_directories`.
     async fn create_directory(&self, _container: &str, _prefix: &str) -> Result<()> {
         Ok(())
@@ -189,7 +200,7 @@ mod tests {
         assert_eq!(keys.len(), all.len(), "each has its own word for a bucket");
         for b in all {
             assert!(
-                b.container_key().starts_with("s3-"),
+                b.container_key().starts_with("s3-pick-"),
                 "{b:?} is a locale key"
             );
         }

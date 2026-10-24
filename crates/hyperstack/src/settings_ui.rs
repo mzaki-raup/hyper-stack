@@ -2822,6 +2822,10 @@ fn conn_detail(
         db_form(ui, theme, s, draft, fields_text);
     } else if is_redis {
         redis_form(ui, theme, s, draft, fields_text);
+    } else if draft.kind == "webdav" {
+        webdav_form(ui, theme, s, draft, fields_text);
+    } else if draft.kind == "nexus" {
+        nexus_form(ui, theme, s, draft, fields_text);
     } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb") {
         nosql_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_container_kind(&draft.kind) {
@@ -2837,7 +2841,8 @@ fn conn_detail(
     let mut start_test = false;
     ui.horizontal(|ui| {
         if form::primary_button(ui, theme, &s.t("save")).clicked() {
-            let parsed = if is_ssh || is_s3 || is_db || is_container {
+            let is_http_store = matches!(draft.kind.as_str(), "webdav" | "nexus");
+            let parsed = if is_ssh || is_s3 || is_db || is_container || is_http_store {
                 // These forms write into `draft.fields` directly,
                 // so the text box is a view rather than the truth.
                 Ok(draft.fields.clone())
@@ -2875,6 +2880,28 @@ fn conn_detail(
                         draft.fields = table.clone();
                     } else if is_db {
                         let mut f = DbFields::from_table(&table);
+                        secrets_ok = store_typed_secrets(
+                            s,
+                            &draft.name,
+                            [("password", &mut f.password)],
+                            effects,
+                        );
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    } else if draft.kind == "webdav" {
+                        let mut f =
+                            hs_core::objstore::http_profile::WebdavFields::from_table(&table);
+                        secrets_ok = store_typed_secrets(
+                            s,
+                            &draft.name,
+                            [("password", &mut f.password)],
+                            effects,
+                        );
+                        f.write_into(&mut table);
+                        draft.fields = table.clone();
+                    } else if draft.kind == "nexus" {
+                        let mut f =
+                            hs_core::objstore::http_profile::NexusFields::from_table(&table);
                         secrets_ok = store_typed_secrets(
                             s,
                             &draft.name,
@@ -5205,6 +5232,85 @@ fn s3_form(
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The WebDAV form. One URL, a user and a password: a DAV share has no
+/// bucket level and nothing else to configure.
+fn webdav_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use hs_core::objstore::http_profile::WebdavFields;
+    let mut f = WebdavFields::from_table(&draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-webdav-section"), |ui| {
+        form::field_grid(ui, "webdav-fields", |ui| {
+            form::label(ui, &s.t("conn-webdav-url"));
+            changed |= form::text_field(ui, &mut f.url, &s.t("conn-webdav-url-hint")).changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-user"));
+            changed |= form::text_field(ui, &mut f.user, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-password"));
+            changed |= secret_field(ui, theme, s, "webdav-pw", &mut f.password, scratch, 0);
+            ui.end_row();
+            form::label(ui, "");
+            changed |= ui
+                .checkbox(&mut f.insecure_tls, s.t("conn-insecure-tls"))
+                .on_hover_text(s.t("conn-insecure-tls-hint"))
+                .changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-webdav-url-help"));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The Nexus form: the **server**, not a repository - the tool lists
+/// them. One repository can be named to narrow the list for an account
+/// that cannot see them all.
+fn nexus_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use hs_core::objstore::http_profile::NexusFields;
+    let mut f = NexusFields::from_table(&draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-nexus-section"), |ui| {
+        form::field_grid(ui, "nexus-fields", |ui| {
+            form::label(ui, &s.t("conn-nexus-url"));
+            changed |= form::text_field(ui, &mut f.url, "https://nexus.example.com").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-user"));
+            changed |= form::text_field(ui, &mut f.user, "").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-nexus-token"));
+            changed |= secret_field(ui, theme, s, "nexus-pw", &mut f.password, scratch, 0);
+            ui.end_row();
+            form::label(ui, &s.t("conn-nexus-repository"));
+            changed |= form::text_field(ui, &mut f.repository, &s.t("conn-nexus-repository-hint"))
+                .changed();
+            ui.end_row();
+            form::label(ui, "");
+            changed |= ui
+                .checkbox(&mut f.insecure_tls, s.t("conn-insecure-tls"))
+                .on_hover_text(s.t("conn-insecure-tls-hint"))
+                .changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("conn-nexus-help"));
     });
     if changed {
         f.write_into(&mut draft.fields);

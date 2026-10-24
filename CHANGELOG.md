@@ -45,41 +45,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   (and the folders inside the open one) on the left, the object table on
   the right.
 
-- **Container activity, phase 8**, which completes it: the AI
-  assistant, its prompt buttons, action blocks and the Problems feed.
-  The assistant sits at the hard right of the toolbar like every other
-  activity's and is told only what is on screen — the host, the open
-  list, the selected object with its facts, the recent events and the
-  YAML in the pane. Twelve prompt buttons ship with it (Explain This
-  Object, Why Is This Pod Unhealthy?, Explain This Event, Review and
-  Fix This YAML, Right-Size Requests and Limits, and manifests for a
-  Deployment, Service, Ingress, ConfigMap, PVC and Compose file), each
-  renameable, re-orderable and switchable in **Settings → AI Assistant
-  → Prompt Buttons**. A **`yaml`** block goes into the YAML pane, where
-  Dry Run and Apply already are — nothing reaches a cluster that the
-  server has not described first — and an **`hs-container`** block is
-  an *action* (scale, restart, set image) that is read, confirmed and
-  then carried out through the same paths and guards a click uses. On a
-  read-only host or a protected environment the assistant is told it
-  cannot change anything, so it suggests rather than offers.
-  **Unhealthy objects reach the Problems inbox**: a pod that is not
-  well, a workload short of replicas, a node that is not ready, a
-  container that stopped or whose health check is failing — one row per
-  object with the host's name on it, posted once per read rather than
-  once per frame.
+## 0.85.0 — 2026-10-24
 
-- **Exec into a pod**, which completes the Container activity's phase 7.
-  A pod's detail block offers **Exec ↗** and the shell opens in the
-  **Terminal activity**, exactly as a container's does — but with no
-  `kubectl` and no local command: the API server's `exec` subresource
-  is wrapped as a terminal transport the same way an SSH channel is, so
-  the Terminal activity runs a pod's shell without knowing it is
-  Kubernetes. Which shell runs is **Settings → Containers → Shell for
-  Exec**. A cluster Exec is **guarded** on a read-only host or a
-  protected environment, because a shell inside a pod is unbounded
-  write access; the Docker pane's Exec is not, and aligning the two
-  belongs with a change to that side. Verified against k3s 1.34: an
-  interactive, colouring TTY in an nginx pod.
+### Added
+
+- An assistant, action blocks and a Problems feed for containers (484c5796)
+- Open a shell inside a pod from the Container activity (6e200ec9)
 
 ## 0.84.0 — 2026-10-24
 

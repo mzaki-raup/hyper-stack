@@ -15,6 +15,9 @@ use async_trait::async_trait;
 pub enum StoreKind {
     Mongo,
     Couch,
+    /// Qdrant: collections of points. A vector database, but the shapes
+    /// line up - a point is a document with an id (2026-10-24).
+    Qdrant,
 }
 
 impl StoreKind {
@@ -23,6 +26,7 @@ impl StoreKind {
         match self {
             StoreKind::Mongo => "mongodb",
             StoreKind::Couch => "couchdb",
+            StoreKind::Qdrant => "qdrant",
         }
     }
 
@@ -30,6 +34,7 @@ impl StoreKind {
         match self {
             StoreKind::Mongo => "MongoDB",
             StoreKind::Couch => "CouchDB",
+            StoreKind::Qdrant => "Qdrant",
         }
     }
 
@@ -38,7 +43,28 @@ impl StoreKind {
         match self {
             StoreKind::Mongo => "filter",
             StoreKind::Couch => "selector",
+            // Qdrant's own word, and it is a different shape from the
+            // other two: `{"must":[{"key":..,"match":{..}}]}`.
+            StoreKind::Qdrant => "filter",
         }
+    }
+
+    /// An example of what the filter box takes, which is **not** the
+    /// same language in each store: a Mongo filter shown over a Qdrant
+    /// box is an instruction that does not work.
+    pub fn filter_example(self) -> &'static str {
+        match self {
+            StoreKind::Mongo => r#"{"status": "failed"}"#,
+            StoreKind::Couch => r#"{"status": {"$eq": "failed"}}"#,
+            StoreKind::Qdrant => r#"{"must": [{"key": "author", "match": {"value": "ada"}}]}"#,
+        }
+    }
+
+    /// Qdrant has neither a projection nor a sort: its scroll returns
+    /// whole points in id order. Showing those boxes with Mongo
+    /// examples would invite input the store ignores.
+    pub fn has_projection_and_sort(self) -> bool {
+        !matches!(self, StoreKind::Qdrant)
     }
 }
 

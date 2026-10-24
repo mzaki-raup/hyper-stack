@@ -137,6 +137,10 @@ pub struct SettingsState {
     pub ws_name: Option<(String, String)>,
     /// Workspace page: the other workspace whose environments are compared.
     pub ws_compare: String,
+    /// Settings → Containers: the text being typed into a registry or
+    /// chart-repository password before it is saved to the vault. One
+    /// buffer, as the connection forms use.
+    pub registry_scratch: String,
     /// Appearance page: (tool id, title) of every tool, for the rail order.
     pub rail_tools: Vec<(String, String)>,
     /// Appearance page: the workspace whose rail is being edited (`None`
@@ -238,6 +242,11 @@ pub enum SettingsEffect {
     /// Write the environment being edited to a file in this format.
     ExportEnvironment(tool_api::env_export::Format),
     ConnectionsChanged,
+    /// Sign in to the registry at this index of
+    /// `settings.containers.registries` (owner's request, 2026-10-24).
+    RegistrySignIn(usize),
+    /// Run `helm repo add` for the chart repository at this index.
+    ChartRepoAdd(usize),
     /// Rename the open workspace (the shell owns the registry).
     RenameWorkspace(String),
     /// Delete the open workspace after the shell's confirmation.
@@ -2373,6 +2382,7 @@ fn containers(
     );
     container_list(ui, theme, s, state, effects);
     container_defaults(ui, theme, s, effects);
+    container_registries(ui, theme, s, effects, state);
     container_tools(ui, theme, s);
 }
 
@@ -2605,6 +2615,169 @@ fn container_defaults(
     }
 }
 
+/// Settings → Containers → Registries and Chart Repositories (owner's
+/// request, 2026-10-24).
+///
+/// Credentials go to the vault on save like every other secret here,
+/// and **Sign In** hands the password to `docker login` on stdin: an
+/// argument list is readable by anything that can see the process
+/// table, which is why `--password` is never used.
+fn container_registries(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    effects: &mut Vec<SettingsEffect>,
+    state: &mut SettingsState,
+) {
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-container-registries"), |ui| {
+        form::hint(ui, theme, &s.t("settings-container-registries-hint"));
+        ui.add_space(6.0);
+        let mut remove: Option<usize> = None;
+        let mut sign_in: Option<usize> = None;
+        {
+            let mut st = s.settings.write();
+            let list = &mut st.containers.registries;
+            for (i, r) in list.iter_mut().enumerate() {
+                ui.push_id(("registry", i), |ui| {
+                    form::field_grid(ui, "registry-row", |ui| {
+                        form::label(ui, &s.t("settings-container-registry-name"));
+                        changed |= form::text_field(ui, &mut r.name, "Docker Hub").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-container-registry-host"));
+                        changed |= form::text_field(
+                            ui,
+                            &mut r.url,
+                            &s.t("settings-container-registry-host-hint"),
+                        )
+                        .changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("conn-user"));
+                        changed |= form::text_field(ui, &mut r.user, "").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("conn-password"));
+                        changed |= secret_field(
+                            ui,
+                            theme,
+                            s,
+                            "registry-pw",
+                            &mut r.password,
+                            &mut state.registry_scratch,
+                            i,
+                        );
+                        ui.end_row();
+                    });
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(
+                                r.is_usable(),
+                                egui::Button::new(s.t("settings-container-sign-in")),
+                            )
+                            .on_disabled_hover_text(s.t("settings-container-sign-in-needs-user"))
+                            .clicked()
+                        {
+                            sign_in = Some(i);
+                        }
+                        if ui.button(s.t("remove")).clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                    ui.add_space(4.0);
+                    ui.separator();
+                });
+            }
+        }
+        if let Some(i) = remove {
+            s.settings.write().containers.registries.remove(i);
+            changed = true;
+        }
+        if let Some(i) = sign_in {
+            effects.push(SettingsEffect::RegistrySignIn(i));
+        }
+        if ui.button(s.t("settings-container-add-registry")).clicked() {
+            s.settings
+                .write()
+                .containers
+                .registries
+                .push(hs_core::settings::Registry::default());
+            changed = true;
+        }
+    });
+
+    form::section(ui, theme, &s.t("settings-container-charts"), |ui| {
+        form::hint(ui, theme, &s.t("settings-container-charts-hint"));
+        ui.add_space(6.0);
+        let mut remove: Option<usize> = None;
+        let mut add_repo: Option<usize> = None;
+        {
+            let mut st = s.settings.write();
+            let list = &mut st.containers.chart_repos;
+            for (i, r) in list.iter_mut().enumerate() {
+                ui.push_id(("chart", i), |ui| {
+                    form::field_grid(ui, "chart-row", |ui| {
+                        form::label(ui, &s.t("settings-container-chart-name"));
+                        changed |= form::text_field(ui, &mut r.name, "bitnami").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-container-chart-url"));
+                        changed |= form::text_field(ui, &mut r.url, "https://charts.example.com")
+                            .changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("conn-user"));
+                        changed |= form::text_field(ui, &mut r.user, "").changed();
+                        ui.end_row();
+                        form::label(ui, &s.t("conn-password"));
+                        changed |= secret_field(
+                            ui,
+                            theme,
+                            s,
+                            "chart-pw",
+                            &mut r.password,
+                            &mut state.registry_scratch,
+                            100 + i,
+                        );
+                        ui.end_row();
+                    });
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(
+                                !r.name.trim().is_empty() && !r.url.trim().is_empty(),
+                                egui::Button::new(s.t("settings-container-add-repo")),
+                            )
+                            .on_disabled_hover_text(s.t("settings-container-add-repo-needs"))
+                            .clicked()
+                        {
+                            add_repo = Some(i);
+                        }
+                        if ui.button(s.t("remove")).clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                    ui.add_space(4.0);
+                    ui.separator();
+                });
+            }
+        }
+        if let Some(i) = remove {
+            s.settings.write().containers.chart_repos.remove(i);
+            changed = true;
+        }
+        if let Some(i) = add_repo {
+            effects.push(SettingsEffect::ChartRepoAdd(i));
+        }
+        if ui.button(s.t("settings-container-add-chart")).clicked() {
+            s.settings
+                .write()
+                .containers
+                .chart_repos
+                .push(hs_core::settings::ChartRepo::default());
+            changed = true;
+        }
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 /// The command-line tools the activity can use, and whether they are
 /// here. The same shape the Editor page uses for language servers,
 /// including its note that a tool installed while the app is open is not
@@ -2826,7 +2999,7 @@ fn conn_detail(
         webdav_form(ui, theme, s, draft, fields_text);
     } else if draft.kind == "nexus" {
         nexus_form(ui, theme, s, draft, fields_text);
-    } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb") {
+    } else if matches!(draft.kind.as_str(), "mongodb" | "couchdb" | "qdrant") {
         nosql_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_container_kind(&draft.kind) {
         container_form(ui, theme, s, draft, fields_text);
@@ -3760,7 +3933,7 @@ fn apply_secret_edit(
             f.write_into(&mut table);
             ok
         }
-        "mongodb" | "couchdb" => {
+        "mongodb" | "couchdb" | "qdrant" => {
             let mut f = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, &table);
             f.password = std::mem::take(password);
             let ok =

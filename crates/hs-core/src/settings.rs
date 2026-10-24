@@ -25,6 +25,58 @@ pub struct Settings {
     pub containers: Containers,
 }
 
+/// A container registry and how to sign in to it.
+///
+/// The password is a `secret:<ulid>` like every other credential here,
+/// so it lives in the vault and never in `settings.toml` - and it
+/// reaches `docker login` on **stdin**, never as an argument, because
+/// an argument is visible to anything that can list processes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct Registry {
+    /// What to call it in the list ("Docker Hub", "Harbour").
+    pub name: String,
+    /// The registry host `docker login` takes: `docker.io`, `ghcr.io`,
+    /// `nexus.example.com:8082`. Empty means Docker Hub, which is what
+    /// the CLI assumes when given no host at all.
+    pub url: String,
+    pub user: String,
+    /// `secret:<ulid>`, or typed text until the form saves it.
+    pub password: String,
+}
+
+impl Registry {
+    /// The host `docker login` is given. Empty stays empty: that is
+    /// Docker Hub's own default, and guessing a hostname for it would
+    /// sign in to the wrong place.
+    pub fn host(&self) -> &str {
+        self.url.trim()
+    }
+
+    /// A sign-in with no user cannot be attempted.
+    pub fn is_usable(&self) -> bool {
+        !self.user.trim().is_empty()
+    }
+}
+
+/// A Helm chart repository, with credentials where it needs them.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ChartRepo {
+    /// The name `helm repo add` registers it under.
+    pub name: String,
+    pub url: String,
+    /// Optional: a public chart repository needs neither of these.
+    pub user: String,
+    pub password: String,
+}
+
+impl ChartRepo {
+    pub fn needs_auth(&self) -> bool {
+        !self.user.trim().is_empty()
+    }
+}
+
 /// Settings → Containers: the guards and limits that apply to every
 /// container host (`docs/tools/containers.md` §10.7, ADR-026). The hosts
 /// themselves are connection profiles, not settings.
@@ -59,6 +111,12 @@ pub struct Containers {
     /// Where Save to Manifests writes, relative to the workspace when
     /// it is not absolute. Empty means `manifests/`.
     pub manifest_dir: String,
+    /// Registries this workspace can sign in to, so pulling a private
+    /// image does not need a `docker login` in a terminal first
+    /// (owner's request, 2026-10-24).
+    pub registries: Vec<Registry>,
+    /// Helm chart repositories, with credentials where needed.
+    pub chart_repos: Vec<ChartRepo>,
     /// What Shell runs inside a container.
     ///
     /// No single answer is right: a minimal image has no bash, and a
@@ -83,6 +141,8 @@ impl Default for Containers {
             log_tail_lines: 2000,
             apply_dry_run_first: true,
             manifest_dir: String::new(),
+            registries: Vec::new(),
+            chart_repos: Vec::new(),
             exec_shell: "/bin/sh".into(),
         }
     }

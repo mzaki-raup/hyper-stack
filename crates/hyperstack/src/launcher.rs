@@ -26,7 +26,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "s3" | "webdav" | "nexus" => Some("s3"),
         "db" => Some("db"),
         "redis" | "valkey" => Some("redis"),
-        "mongodb" | "couchdb" => Some("nosql"),
+        "mongodb" | "couchdb" | "qdrant" => Some("nosql"),
         // Every container kind opens in the Container activity, so a
         // host pinned to Home or saved from Settings has somewhere to
         // go and its rail entry is un-hidden on save (ADR-026).
@@ -315,6 +315,7 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
         // Valkey" is exactly the question someone running both asks.
         "valkey" => egui::Color32::from_rgb(0x17, 0xA2, 0xB8),
         "mongodb" | "couchdb" => egui::Color32::from_rgb(0x10, 0xA3, 0x7B),
+        "qdrant" => egui::Color32::from_rgb(0xD8, 0x3A, 0x7D),
         "s3" => egui::Color32::from_rgb(0xF5, 0x9E, 0x0B),
         // The object browser's other two stores, each its own colour:
         // the pill exists to be told apart at a glance.

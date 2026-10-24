@@ -287,3 +287,49 @@ column and behind the same hard-right button as everywhere else.
 - Quick actions: Write a Filter, Explain This Query, Suggest an Index.
 - `nosql.ai` in the palette toggles it, and Read Aloud can read its last
   answer.
+
+## 13. Qdrant (2026-10-24)
+
+`kind = "qdrant"` opens in this activity: a **collection** is a
+container and a **point** is a document with an id, so the tree, Find,
+the table/tree/JSON views, paging and the guards all serve it
+unchanged.
+
+Two things do not line up, and both change what the pane may do.
+
+**There are no databases.** One pseudo-scope, `qdrant`, stands in so the
+tree has a root.
+
+**A point is `{id, payload, vector}`**, and a vector can be hundreds of
+floats. Listing them would make the viewer unreadable and the response
+large, so a scroll asks for payloads **with `with_vector: false`**.
+
+That decides how writing works, and it is the one real hazard. Qdrant's
+upsert *requires* a vector: sending back a point that was read without
+one would be refused, or — worse — replace a real vector with nothing.
+So a save whose document carries no vector goes to `/points/payload`,
+which sets the payload and leaves the vector alone; only a document
+that actually carries a vector is upserted whole. **Editing what you
+can see cannot destroy what you cannot.**
+
+Smaller things the driver is careful about:
+
+- **Id types.** `1` and `"1"` are different points. A numeric id goes
+  back as a number and a UUID as a string, including for a document
+  typed by hand where only the display id is available.
+- **The filter language is Qdrant's own**, not Mongo's:
+  `{"must": [{"key": "author", "match": {"value": "ada"}}]}`. Each
+  store now shows its own example, because a Mongo filter over a Qdrant
+  box is an instruction that does not work.
+- **No projection and no sort.** A scroll returns whole points in id
+  order, so those two boxes are hidden rather than left to be typed
+  into and ignored.
+- **Indexes** are the collection's `payload_schema`. A payload index is
+  not a uniqueness constraint, so `unique` is never claimed.
+- **Delete Matching** counts first and always; a dry run touches
+  nothing.
+
+Verified against Qdrant 1.20.0: both seeded collections listed with
+their point counts, all five points of `articles` returned with their
+payload columns flattened, and the toolbar reporting the server
+version.

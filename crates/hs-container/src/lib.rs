@@ -13,6 +13,7 @@ pub mod cli;
 pub mod compose;
 pub mod model;
 pub mod profile;
+pub mod registry;
 pub mod run;
 pub mod scan;
 pub mod swarm;

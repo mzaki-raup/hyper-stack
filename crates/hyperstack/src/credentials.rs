@@ -116,7 +116,7 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.user;
             r.password = Password::read(&v.password);
         }
-        "mongodb" | "couchdb" => {
+        "mongodb" | "couchdb" | "qdrant" => {
             let v = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, f);
             // A URI wins over host and port in the driver, so it is what
             // this profile actually points at.

@@ -9,6 +9,7 @@ pub mod couch;
 pub mod flatten;
 pub mod mongo;
 pub mod profile;
+pub mod qdrant;
 pub mod runner;
 pub mod store;
 pub mod ui;

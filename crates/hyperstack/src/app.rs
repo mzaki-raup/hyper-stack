@@ -227,6 +227,11 @@ pub struct HyperStackApp {
     launcher: LauncherState,
     palette: PaletteState,
     toasts: Toasts,
+    /// What a background command (a registry sign-in, a `helm repo
+    /// add`) said. Filled on a worker and drained into `toasts` at
+    /// frame start, because a toast may only be pushed from the UI
+    /// thread (ADR-013).
+    background_said: std::sync::Arc<parking_lot::Mutex<Vec<(ToastLevel, String)>>>,
     settings_ui: SharedSettings,
     dock: DockState,
     dock_open: bool,
@@ -355,6 +360,7 @@ impl HyperStackApp {
             launcher: LauncherState::default(),
             palette: PaletteState::default(),
             toasts: Toasts::default(),
+            background_said: Default::default(),
             settings_ui: settings_hub,
             dock: DockState::default(),
             status: String::new(),
@@ -1415,6 +1421,128 @@ impl HyperStackApp {
         }
     }
 
+    /// Sign in to a saved registry with `docker login`.
+    ///
+    /// The password is read from the vault here and written to the
+    /// command's **stdin**; it is never an argument, because an
+    /// argument list is readable by anything that can see the process
+    /// table.
+    fn registry_sign_in(&mut self, index: usize) {
+        let Some(reg) = self
+            .services
+            .settings
+            .read()
+            .containers
+            .registries
+            .get(index)
+            .cloned()
+        else {
+            return;
+        };
+        let password = match self.reveal_secret(&reg.password) {
+            Ok(p) => p,
+            Err(e) => {
+                self.toasts.push(ToastLevel::Error, e);
+                return;
+            }
+        };
+        // The local engine: signing in is a credential store on this
+        // machine, not something done to a particular host.
+        let engine = hs_container::Engine::new("docker", Default::default());
+        let inv = hs_container::registry::login(&engine, reg.host(), &reg.user);
+        let env = engine.env();
+        let name = if reg.name.trim().is_empty() {
+            reg.host().to_string()
+        } else {
+            reg.name.clone()
+        };
+        let name = if name.is_empty() {
+            "Docker Hub".to_string()
+        } else {
+            name
+        };
+        let waker = self.services.runtime.waker();
+        let said_to = self.background_said.clone();
+        self.services.runtime.spawn_blocking(move || {
+            let said = hs_container::registry::run_with_secret(&inv, &env, &password);
+            let row = match said {
+                Ok(text) if text.trim().is_empty() => {
+                    (ToastLevel::Success, format!("{name}: signed in"))
+                }
+                Ok(text) => (ToastLevel::Success, format!("{name}: {}", text.trim())),
+                Err(e) => (ToastLevel::Error, format!("{name}: {e}")),
+            };
+            said_to.lock().push(row);
+            waker.request_repaint();
+        });
+    }
+
+    /// `helm repo add`, with the password on stdin when there is one.
+    fn chart_repo_add(&mut self, index: usize) {
+        let Some(repo) = self
+            .services
+            .settings
+            .read()
+            .containers
+            .chart_repos
+            .get(index)
+            .cloned()
+        else {
+            return;
+        };
+        let password = if repo.needs_auth() {
+            match self.reveal_secret(&repo.password) {
+                Ok(p) => p,
+                Err(e) => {
+                    self.toasts.push(ToastLevel::Error, e);
+                    return;
+                }
+            }
+        } else {
+            String::new()
+        };
+        let inv = hs_container::registry::helm_repo_add(&repo.name, &repo.url, &repo.user);
+        let name = repo.name.clone();
+        let waker = self.services.runtime.waker();
+        let said_to = self.background_said.clone();
+        self.services.runtime.spawn_blocking(move || {
+            let said = hs_container::registry::run_with_secret(&inv, &[], &password);
+            let row = match said {
+                Ok(text) if text.trim().is_empty() => {
+                    (ToastLevel::Success, format!("{name}: added"))
+                }
+                Ok(text) => (ToastLevel::Success, format!("{name}: {}", text.trim())),
+                Err(e) => (ToastLevel::Error, format!("{name}: {e}")),
+            };
+            said_to.lock().push(row);
+            waker.request_repaint();
+        });
+    }
+
+    /// Resolve a `secret:<ulid>` for a command that is about to run.
+    fn reveal_secret(&self, value: &str) -> Result<String, String> {
+        if value.is_empty() {
+            return Ok(String::new());
+        }
+        match hs_core::secrets::SecretRef::parse(value) {
+            Some(r) => {
+                if self.services.secrets.is_locked() {
+                    return Err(self.services.t("s3-vault-locked"));
+                }
+                self.services
+                    .secrets
+                    .get(&r)
+                    .map(|s| {
+                        use secrecy::ExposeSecret;
+                        s.expose_secret().to_string()
+                    })
+                    .map_err(|e| e.to_string())
+            }
+            // Text the form has not saved to the vault yet.
+            None => Ok(value.to_string()),
+        }
+    }
+
     fn apply_settings_effects(&mut self, effects: Vec<SettingsEffect>, ctx: &egui::Context) {
         for e in effects {
             match e {
@@ -1426,6 +1554,11 @@ impl HyperStackApp {
                     self.logging.set_filter(&level);
                     self.dock.min_level = crate::dock::level_from_name(&level);
                 }
+                // Signing in and adding a chart repository both run a
+                // command that is handed a secret on stdin, so both go
+                // to a worker: the UI thread never blocks (ADR-013).
+                SettingsEffect::RegistrySignIn(i) => self.registry_sign_in(i),
+                SettingsEffect::ChartRepoAdd(i) => self.chart_repo_add(i),
                 SettingsEffect::ThemeChanged => {
                     let (appearance, zoom) = {
                         let s = self.services.settings.read();
@@ -3444,6 +3577,10 @@ impl eframe::App for HyperStackApp {
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         let ctx = &ctx;
+        // What background commands said, into toasts on the UI thread.
+        for (level, text) in std::mem::take(&mut *self.background_said.lock()) {
+            self.toasts.push(level, text);
+        }
         if !self.first_frame_done {
             self.first_frame_done = true;
             if let Some(st) = self.services.updater.mark_started_ok() {

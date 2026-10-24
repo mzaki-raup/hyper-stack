@@ -77,6 +77,7 @@ impl NoSqlFields {
         match self.kind.as_str() {
             "mongodb" => Some(StoreKind::Mongo),
             "couchdb" => Some(StoreKind::Couch),
+            "qdrant" => Some(StoreKind::Qdrant),
             _ => None,
         }
     }
@@ -85,6 +86,7 @@ impl NoSqlFields {
     pub fn default_port(kind: &str) -> u16 {
         match kind {
             "couchdb" => 5984,
+            "qdrant" => 6333,
             _ => 27017,
         }
     }
@@ -269,6 +271,30 @@ impl NoSqlFields {
             user: r.user,
             password: r.password,
             database: r.database,
+            read_only,
+            connect_timeout: Duration::from_secs(10),
+        })
+    }
+
+    /// Qdrant takes a URL and an **api-key**; it has no user name, so
+    /// the password field carries the key and the user is ignored.
+    pub fn resolve_qdrant(
+        &self,
+        read_only: bool,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<crate::qdrant::ConnectConfig, ProfileError> {
+        let r = self.resolve_common(secrets, lookup)?;
+        let url = if r.uri.is_empty() {
+            let scheme = if self.tls { "https" } else { "http" };
+            format!("{scheme}://{}:{}", r.host, self.port)
+        } else {
+            r.uri
+        };
+        Ok(crate::qdrant::ConnectConfig {
+            url,
+            api_key: r.password.filter(|k| !k.is_empty()),
+            collection: r.database,
             read_only,
             connect_timeout: Duration::from_secs(10),
         })

@@ -13,6 +13,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Qdrant** opens in the NoSQL activity (`kind = "qdrant"`): a
+  collection is a container and a point is a document, so the tree,
+  Find, the views, paging and the guards all serve it unchanged. Two
+  differences are handled rather than papered over. There are no
+  databases, so one pseudo-scope stands in. And a point's **vector** is
+  not fetched when listing — hundreds of floats would make the viewer
+  unreadable — which means a save of a point read that way writes the
+  **payload only**, through `/points/payload`: Qdrant's upsert requires
+  a vector, and sending one back without it would replace a real vector
+  with nothing. Editing what you can see cannot destroy what you
+  cannot. Id types survive the round trip (`1` and `"1"` are different
+  points), the filter box shows Qdrant's own language rather than
+  Mongo's, and the projection and sort boxes are hidden because a
+  scroll ignores them.
+
+- **Settings → Containers → Registries and Helm Chart Repositories**:
+  saved credentials for pulling private images and adding chart
+  repositories. The password lives in the vault and reaches
+  `docker login` and `helm repo add` on **standard input, never as an
+  argument** — an argument list is readable by anything that can see
+  the process table, which is why `--password` is not used.
+
 - **WebDAV and Nexus Repository** open in the object browser, beside S3.
   `hs_core::objstore::ObjectStore` is the interface the pane uses and
   the three backends implement; a `Caps` travels with it, so a control

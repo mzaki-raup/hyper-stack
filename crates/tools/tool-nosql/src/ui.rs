@@ -32,7 +32,10 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
 };
 
 /// The connection kinds this tool opens.
-pub const KINDS: &[&str] = &["mongodb", "couchdb"];
+/// The kinds this activity opens. Qdrant joined on 2026-10-24: a
+/// collection is a container and a point is a document, so the whole
+/// pane serves it unchanged.
+pub const KINDS: &[&str] = &["mongodb", "couchdb", "qdrant"];
 
 /// How wide the container tree is beside the documents.
 const TREE_WIDTH: f32 = 230.0;
@@ -281,6 +284,22 @@ impl NoSqlTool {
                 };
                 Box::pin(async move {
                     crate::couch::CouchStore::connect(&cfg)
+                        .await
+                        .map(|s| Box::new(s) as Box<dyn DocStore>)
+                        .map_err(|e| e.to_string())
+                })
+            }
+            StoreKind::Qdrant => {
+                let cfg = match fields.resolve_qdrant(read_only_now, s.secrets.as_ref(), &lookup) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        self.waiting_for_vault = e == ProfileError::VaultLocked;
+                        self.conn_error = Some(say(e));
+                        return;
+                    }
+                };
+                Box::pin(async move {
+                    crate::qdrant::QdrantStore::connect(&cfg)
                         .await
                         .map(|s| Box::new(s) as Box<dyn DocStore>)
                         .map_err(|e| e.to_string())
@@ -937,6 +956,14 @@ impl NoSqlTool {
             .map(|k| k.query_label())
             .unwrap_or("filter")
             .to_string();
+        // Each store's filter box takes its own language, so the
+        // example follows the store rather than showing Mongo's to
+        // everyone.
+        let example = self
+            .kind
+            .map(|k| k.filter_example())
+            .unwrap_or(r#"{"status": "failed"}"#);
+        let extras = self.kind.is_none_or(|k| k.has_projection_and_sort());
         egui::Grid::new("nosql-query")
             .num_columns(2)
             .spacing([8.0, 4.0])
@@ -944,27 +971,32 @@ impl NoSqlTool {
                 ui.label(label);
                 ui.add(
                     egui::TextEdit::singleline(&mut self.state.filter)
-                        .hint_text(r#"{"status": "failed"}"#)
+                        .hint_text(example)
                         .desired_width(f32::INFINITY)
                         .font(egui::TextStyle::Monospace),
                 );
                 ui.end_row();
-                ui.label(s.t("nosql-projection"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.state.projection)
-                        .hint_text(r#"{"total": 1}"#)
-                        .desired_width(f32::INFINITY)
-                        .font(egui::TextStyle::Monospace),
-                );
-                ui.end_row();
-                ui.label(s.t("nosql-sort"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.state.sort)
-                        .hint_text(r#"{"createdAt": -1}"#)
-                        .desired_width(f32::INFINITY)
-                        .font(egui::TextStyle::Monospace),
-                );
-                ui.end_row();
+                // Qdrant has neither: its scroll returns whole points
+                // in id order, and a box the store ignores is an
+                // invitation to type something that does nothing.
+                if extras {
+                    ui.label(s.t("nosql-projection"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.state.projection)
+                            .hint_text(r#"{"total": 1}"#)
+                            .desired_width(f32::INFINITY)
+                            .font(egui::TextStyle::Monospace),
+                    );
+                    ui.end_row();
+                    ui.label(s.t("nosql-sort"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.state.sort)
+                            .hint_text(r#"{"createdAt": -1}"#)
+                            .desired_width(f32::INFINITY)
+                            .font(egui::TextStyle::Monospace),
+                    );
+                    ui.end_row();
+                }
             });
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {
@@ -1450,10 +1482,43 @@ impl NoSqlTool {
 mod tests {
     use super::*;
 
+    /// Every kind this activity claims must map to a store it can
+    /// actually open, or the sidebar lists a connection that goes
+    /// nowhere when clicked.
     #[test]
-    fn the_tool_opens_both_document_store_kinds() {
-        assert_eq!(KINDS, &["mongodb", "couchdb"]);
+    fn every_kind_the_tool_lists_is_one_it_can_open() {
+        assert_eq!(KINDS, &["mongodb", "couchdb", "qdrant"]);
         assert_eq!(DESCRIPTOR.id, "nosql");
+        for k in KINDS {
+            let f = crate::profile::NoSqlFields {
+                kind: (*k).to_string(),
+                ..Default::default()
+            };
+            let store = f.store_kind().unwrap_or_else(|| panic!("{k} has no store"));
+            assert_eq!(
+                store.connection_kind(),
+                *k,
+                "the kind and the store must agree about the name"
+            );
+        }
+    }
+
+    /// Each store's filter box takes its own language; showing Mongo's
+    /// example over a Qdrant box is an instruction that does not work.
+    #[test]
+    fn each_store_shows_its_own_filter_example() {
+        use crate::store::StoreKind;
+        let mut seen: Vec<&str> = [StoreKind::Mongo, StoreKind::Couch, StoreKind::Qdrant]
+            .iter()
+            .map(|k| k.filter_example())
+            .collect();
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(seen.len(), 3, "no two stores share an example");
+        assert!(StoreKind::Qdrant.filter_example().contains("must"));
+        // Qdrant has neither a projection nor a sort.
+        assert!(!StoreKind::Qdrant.has_projection_and_sort());
+        assert!(StoreKind::Mongo.has_projection_and_sort());
     }
 
     #[test]

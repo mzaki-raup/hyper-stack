@@ -11,6 +11,7 @@
 //! and ordering is inherited.
 
 pub mod configs;
+pub mod docker;
 
 use std::borrow::Cow;
 
@@ -34,6 +35,12 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     category: ToolCategory::Infra,
     accepts: &[Accept::Connection],
 };
+
+/// How wide a Scan Local finding's row is drawn. Bounded so its Add
+/// button sits in a column beside the finding; left to the pane, the
+/// row would be the full width of the window and the action would float
+/// at the far edge, which the house rule on row actions forbids.
+const SCAN_ROW_WIDTH: f32 = 620.0;
 
 /// A host travels to a new tab under this, carrying only its profile id:
 /// the profile itself is in the store, and copying it into a tab would
@@ -66,6 +73,9 @@ pub struct State {
     /// moment it landed - the name has to live here.
     #[serde(default)]
     pub host_name: String,
+    /// Which list the pane is showing.
+    #[serde(default)]
+    pub resource: docker::Resource,
 }
 
 pub struct ContainersTool {
@@ -82,7 +92,25 @@ pub struct ContainersTool {
     /// Where the worker leaves its answer. `None` when nothing is in
     /// flight.
     pending: Option<Pending>,
+    /// The row the detail block is showing, by container id. An id
+    /// rather than an index: the list is re-read on every refresh, and
+    /// an index would then point at a different container.
+    selected: Option<String>,
+    /// The table's own filter and sort.
+    table: hs_ui::table::TableState,
+    /// A destructive verb waiting to be confirmed: what, to which id,
+    /// and the name to put in the question.
+    confirm: Option<(hs_container::Verb, String, String)>,
+    /// What Scan Local found, once it has run. `None` before that, so
+    /// the dashboard can tell "not asked" from "asked, found nothing".
+    scan: Option<Vec<hs_container::scan::Found>>,
+    /// Where the scan worker leaves its answer.
+    scan_pending: Option<ScanPending>,
 }
+
+/// A slot the scan worker fills. The scan stats files and runs
+/// `wsl.exe`, so it never runs on the UI thread (ADR-013).
+type ScanPending = std::sync::Arc<parking_lot::Mutex<Option<Vec<hs_container::scan::Found>>>>;
 
 /// A slot a worker thread fills with one host's inventory. The UI drains
 /// it at frame start, as every other background result here arrives
@@ -153,6 +181,11 @@ impl ContainersTool {
             inventory: None,
             loading: false,
             pending: None,
+            selected: None,
+            table: hs_ui::table::TableState::default(),
+            confirm: None,
+            scan: None,
+            scan_pending: None,
         }
     }
 
@@ -202,6 +235,63 @@ impl ContainersTool {
         });
     }
 
+    /// Start Scan Local, off the UI thread.
+    fn start_scan(&mut self, s: &Services) {
+        if self.scan_pending.is_some() {
+            return;
+        }
+        let waker = s.runtime.waker();
+        let slot: ScanPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.scan_pending = Some(slot);
+        s.runtime.spawn_blocking(move || {
+            *out.lock() = Some(hs_container::scan::scan());
+            waker.request_repaint();
+        });
+    }
+
+    /// Take the scan's answer when the worker has it.
+    fn drain_scan(&mut self) {
+        let Some(slot) = &self.scan_pending else {
+            return;
+        };
+        let Some(found) = slot.lock().take() else {
+            return;
+        };
+        self.scan = Some(found);
+        self.scan_pending = None;
+    }
+
+    /// Save one finding as a host. It goes in as an ordinary profile,
+    /// which is the whole point of hosts being profiles (§10.1): nothing
+    /// here is a second store, and the user edits it in Settings like
+    /// any other.
+    fn add_found(&self, s: &Services, found: &hs_container::scan::Found) -> bool {
+        let mut profile = ConnectionProfile {
+            name: found.name.clone(),
+            kind: found.kind.to_string(),
+            ..Default::default()
+        };
+        found.fields().write_into(&mut profile.fields);
+        let mut conns = s.connections.write();
+        match conns.upsert(profile) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!("could not save the scanned host: {e}");
+                false
+            }
+        }
+    }
+
+    /// The keys of every container host already saved, so a scan offers
+    /// what is missing rather than what is there.
+    fn saved_keys(s: &Services) -> std::collections::HashSet<String> {
+        hosts(s)
+            .iter()
+            .map(|p| hs_container::scan::key_of(&p.kind, &ContainerFields::from_table(&p.fields)))
+            .collect()
+    }
+
     /// Take the answer when the worker has it.
     fn drain(&mut self) {
         let Some(slot) = &self.pending else { return };
@@ -247,6 +337,7 @@ impl ContainersTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.sync_configs(&s);
+        self.drain_scan();
         form::page_title(
             ui,
             &theme,
@@ -305,7 +396,32 @@ impl ContainersTool {
                             id: "settings:containers".into(),
                         });
                     }
+                    // Scan Local finds what is on this machine rather
+                    // than asking the user to describe it.
+                    let scanning = self.scan_pending.is_some();
+                    if ui
+                        .add_enabled(
+                            !scanning,
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::MAGNIFYING_GLASS,
+                                s.t("container-scan")
+                            )),
+                        )
+                        .clicked()
+                    {
+                        self.start_scan(&s);
+                    }
+                    if scanning {
+                        ui.spinner();
+                        ui.label(
+                            egui::RichText::new(s.t("container-scan-running"))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    }
                 });
+                self.scan_findings(ui, &theme, &s);
                 ui.add_space(12.0);
                 ui.label(
                     egui::RichText::new(s.t("container-dash-hosts"))
@@ -356,6 +472,64 @@ impl ContainersTool {
                     cx.actions.push(Action::FocusTab { tab_id: id });
                 }
             });
+    }
+
+    /// What Scan Local found, each offered as a host to add.
+    fn scan_findings(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some(found) = self.scan.clone() else {
+            return;
+        };
+        ui.add_space(6.0);
+        if found.is_empty() {
+            form::hint(ui, theme, &s.t("container-scan-none"));
+            return;
+        }
+        form::hint(
+            ui,
+            theme,
+            &s.i18n.t_args(
+                "container-scan-found",
+                &[("count", &found.len().to_string())],
+            ),
+        );
+        let saved = Self::saved_keys(s);
+        let mut added = false;
+        // A bounded width, so Add sits in a column beside the finding
+        // rather than floating at the far edge of the window (the house
+        // rule on row actions, 2026-10-20).
+        ui.scope(|ui| {
+            ui.set_max_width(SCAN_ROW_WIDTH);
+            for f in &found {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(kind_icon(f.kind)).size(16.0));
+                    ui.label(&f.name);
+                    ui.label(
+                        egui::RichText::new(&f.detail)
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                    hs_ui::toolbar::hard_right(ui, |ui| {
+                        if saved.contains(&f.key()) {
+                            ui.label(
+                                egui::RichText::new(s.t("container-scan-have"))
+                                    .small()
+                                    .color(theme.text_muted),
+                            );
+                        } else if ui.small_button(s.t("container-scan-add")).clicked()
+                            && self.add_found(s, f)
+                        {
+                            added = true;
+                        }
+                    });
+                });
+                ui.add_space(2.0);
+            }
+        });
+        // The list is re-read from the store next frame, so a host just
+        // added shows as added rather than being offered twice.
+        if added {
+            ui.ctx().request_repaint();
+        }
     }
 
     /// One host's tab. Phase 3 proves the path end to end and says what
@@ -440,47 +614,74 @@ impl ContainersTool {
                         .t_args("container-engine-version", &[("version", &inv.version)]),
                 );
                 ui.add_space(8.0);
-                self.container_table(ui, &theme, &s, &inv.containers.clone());
+                let inv = inv.clone();
+                self.inventory(ui, &theme, &s, cx.actions, &profile, &inv);
             }
         }
+        self.confirm_dialog(ui, &theme, &s);
     }
 
-    /// The containers, in the shared table so it scrolls both ways
-    /// (§10.4). Phase 4 adds the verbs and the detail block.
-    fn container_table(
+    /// The Portainer-shaped pane (§10.6): a resource rail on the left,
+    /// the chosen list beside it, and the detail block underneath.
+    fn inventory(
         &mut self,
         ui: &mut egui::Ui,
         theme: &Theme,
         s: &Services,
-        containers: &[hs_container::Container],
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        inv: &Inventory,
     ) {
-        if containers.is_empty() {
+        let counts = [inv.containers.len(), inv.images, inv.volumes, inv.networks];
+        // The detail block takes its share off the top of the list, so
+        // the two scroll independently rather than the list pushing the
+        // detail off the bottom.
+        let detail_h = if self.selected.is_some() { 230.0 } else { 0.0 };
+        ui.horizontal_top(|ui| {
+            if let Some(r) = docker::resource_rail(ui, theme, s, self.state.resource, counts) {
+                self.state.resource = r;
+                // The filter belonged to the list that is going away.
+                self.table = hs_ui::table::TableState::default();
+            }
+            ui.separator();
+            ui.vertical(|ui| {
+                let full = ui.available_height();
+                egui::ScrollArea::vertical()
+                    .id_salt("container-list")
+                    .max_height((full - detail_h).max(120.0))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        self.resource_table(ui, theme, s, inv);
+                    });
+                if self.selected.is_some() {
+                    ui.separator();
+                    egui::ScrollArea::vertical()
+                        .id_salt("container-detail")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            self.detail(ui, theme, s, cx_actions, profile, inv);
+                        });
+                }
+            });
+        });
+    }
+
+    /// The chosen resource, in the shared table so it scrolls both ways
+    /// (§10.4).
+    fn resource_table(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services, inv: &Inventory) {
+        // Only containers are carried in full: the driver counts the
+        // other three for the header but does not list them yet, and an
+        // empty table would read as "none" rather than "not yet".
+        if self.state.resource != docker::Resource::Containers {
+            form::hint(ui, theme, &s.t("container-res-not-yet"));
+            return;
+        }
+        if inv.containers.is_empty() {
             form::hint(ui, theme, &s.t("container-no-containers"));
             return;
         }
-        let columns = [
-            hs_ui::table::ColumnSpec::new(s.t("container-col-name"), 220.0),
-            hs_ui::table::ColumnSpec::new(s.t("container-col-image"), 240.0),
-            hs_ui::table::ColumnSpec::new(s.t("container-col-state"), 110.0),
-            hs_ui::table::ColumnSpec::new(s.t("container-col-status"), 180.0),
-            hs_ui::table::ColumnSpec::new(s.t("container-col-ports"), 220.0),
-        ];
-        let rows: Vec<Vec<String>> = containers
-            .iter()
-            .map(|c| {
-                vec![
-                    c.name.clone(),
-                    c.image.clone(),
-                    s.t(c.state.key()),
-                    c.status.clone(),
-                    c.ports
-                        .iter()
-                        .map(|p| p.describe())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                ]
-            })
-            .collect();
+        let (columns, rows) =
+            docker::table_data(self.state.resource, s, &inv.containers, &[], &[], &[]);
         let table = hs_ui::table::DataTable {
             theme,
             columns: &columns,
@@ -491,9 +692,316 @@ impl ContainersTool {
             built_in_menu: true,
             row_icons: None,
         };
-        let mut state = hs_ui::table::TableState::default();
-        table.show(ui, &mut state);
+        let resp = table.show(ui, &mut self.table);
+        // The table reports the index into the data it was given, not
+        // into what the filter left showing.
+        if let Some(i) = resp.clicked.or(resp.double_clicked)
+            && let Some(c) = inv.containers.get(i)
+        {
+            self.selected = Some(c.id.clone());
+        }
     }
+
+    /// The detail block: what this container is, where its ports go, and
+    /// the verbs.
+    fn detail(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        inv: &Inventory,
+    ) {
+        let Some(id) = self.selected.clone() else {
+            return;
+        };
+        let Some(c) = inv.containers.iter().find(|c| c.id == id).cloned() else {
+            // It has gone since the last read, which is information.
+            form::hint(ui, theme, &s.t("container-gone"));
+            return;
+        };
+        let refusal = docker::guard(s, profile);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&c.name).strong());
+            ui.label(
+                egui::RichText::new(&c.image)
+                    .small()
+                    .color(theme.text_muted),
+            );
+            ui.label(
+                egui::RichText::new(&c.status)
+                    .small()
+                    .color(if c.state.is_trouble() {
+                        theme.error
+                    } else {
+                        theme.text_muted
+                    }),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui.small_button(s.t("close")).clicked() {
+                    self.selected = None;
+                }
+            });
+        });
+        ui.add_space(4.0);
+
+        self.port_links(ui, theme, s, cx_actions, profile, &c);
+
+        ui.horizontal_wrapped(|ui| {
+            // Logs and a shell are handed to the tools that already do
+            // them (§10.1); neither is rebuilt here, so the Logs tool's
+            // filters, levels and assistant all come free.
+            if ui
+                .button(format!("{} {}", ph::SCROLL, s.t("container-view-logs")))
+                .clicked()
+            {
+                self.open_logs(s, cx_actions, profile, &c);
+            }
+            if ui
+                .button(format!("{} {}", ph::TERMINAL_WINDOW, s.t("container-exec")))
+                .clicked()
+            {
+                self.open_exec(s, cx_actions, profile, &c);
+            }
+            ui.separator();
+            for verb in docker::verbs_for(c.state) {
+                let label = s.t(verb.key());
+                // A refused verb is disabled and says why, not hidden:
+                // hiding it reads as the tool lacking the feature rather
+                // than the host being protected.
+                let blocked = verb.destructive() && refusal.is_some();
+                let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
+                let r = match (&refusal, blocked) {
+                    (Some(docker::Refusal::Protected(env)), true) => r.on_disabled_hover_text(
+                        s.i18n
+                            .t_args("container-refused-protected", &[("env", env)]),
+                    ),
+                    (Some(docker::Refusal::ReadOnly), true) => {
+                        r.on_disabled_hover_text(s.t("container-refused-read-only"))
+                    }
+                    _ => r,
+                };
+                if r.clicked() {
+                    if verb.destructive() && s.settings.read().containers.confirm_stop {
+                        self.confirm = Some((verb, c.id.clone(), c.name.clone()));
+                    } else {
+                        self.act(s, verb, &c.id);
+                    }
+                }
+            }
+        });
+    }
+
+    /// The published ports, as links into the built-in browser (owner's
+    /// request, 2026-10-24).
+    ///
+    /// A port that cannot be reached is still shown, but as plain text:
+    /// a link that goes nowhere is worse than no link.
+    fn port_links(
+        &self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        c: &hs_container::Container,
+    ) {
+        if c.ports.is_empty() {
+            return;
+        }
+        let fields = ContainerFields::from_table(&profile.fields);
+        let reach = hs_container::Reachable::of(&fields, self.ssh_host(s, profile).as_deref());
+        ui.horizontal_wrapped(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("container-ports"))
+                    .small()
+                    .color(theme.text_muted),
+            );
+            for p in &c.ports {
+                let Some(url) = hs_container::port_url(p, &reach) else {
+                    ui.label(
+                        egui::RichText::new(p.describe())
+                            .small()
+                            .color(theme.text_muted),
+                    )
+                    .on_hover_text(s.t("container-port-not-open"));
+                    continue;
+                };
+                let r = ui
+                    .small_button(egui::RichText::new(p.describe()).color(theme.accent))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .on_hover_text(s.i18n.t_args("container-open-url", &[("url", &url)]));
+                if r.clicked() {
+                    open_url(cx_actions, &url);
+                }
+                // Right-click offers the same thing by name, and the
+                // address itself for anything outside this app.
+                let open_label = s.t("container-open-in-browser");
+                let copy_label = s.t("container-copy-url");
+                let menu_url = url.clone();
+                r.context_menu(|ui| {
+                    if ui.button(&open_label).clicked() {
+                        open_url(cx_actions, &menu_url);
+                        ui.close();
+                    }
+                    if ui.button(&copy_label).clicked() {
+                        ui.ctx().copy_text(menu_url.clone());
+                        ui.close();
+                    }
+                });
+            }
+        });
+        ui.add_space(4.0);
+    }
+
+    /// The hostname of the SSH profile this host is reached through, so
+    /// a published port is addressed on the right machine.
+    ///
+    /// `hs-container` cannot look this up itself: it must not depend on
+    /// another tool's crate (ADR-004), so the tool resolves it and hands
+    /// it over.
+    fn ssh_host(&self, s: &Services, profile: &ConnectionProfile) -> Option<String> {
+        let fields = ContainerFields::from_table(&profile.fields);
+        if fields.tunnel_ssh.is_empty() {
+            return None;
+        }
+        let conns = s.connections.read();
+        let ssh = conns.by_id(&fields.tunnel_ssh)?;
+        ssh.fields
+            .get("ssh")
+            .and_then(|v| v.as_table())
+            .and_then(|t| t.get("host"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    }
+
+    /// Follow this container's log in a Logs tab.
+    fn open_logs(
+        &self,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        c: &hs_container::Container,
+    ) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let tail = s.settings.read().containers.log_tail_lines;
+        let engine = hs_container::Engine::new(&profile.kind, fields.clone());
+        let line = engine.follow_logs_line(&c.id, tail);
+        // A remote engine's log is followed on that connection, which is
+        // what the Logs tool's own command source does.
+        let conn_id = (!fields.tunnel_ssh.is_empty()).then(|| fields.tunnel_ssh.clone());
+        let source = serde_json::json!({
+            "schema": 1,
+            "name": format!("{} \u{b7} {}", profile.name, c.name),
+            // `SourceSpec` is internally tagged: the variant is a `kind`
+            // field beside the rest, not a wrapper around them.
+            "spec": { "kind": "command", "conn_id": conn_id, "command": line },
+            "format": "auto",
+            "tail_lines": tail,
+            "order": 0,
+        });
+        cx_actions.push(Action::OpenTool {
+            factory_id: "logs".into(),
+            request: Some(OpenRequest::Text {
+                mime: LOG_SOURCE_MIME.to_string(),
+                body: source.to_string(),
+            }),
+        });
+    }
+
+    /// Open a shell inside this container, in the Terminal activity.
+    fn open_exec(
+        &self,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        c: &hs_container::Container,
+    ) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let engine = hs_container::Engine::new(&profile.kind, fields);
+        // Which shell is the user's to choose (Settings → Containers):
+        // a minimal image has no bash, and a distroless one has no
+        // shell at all. The command is typed into a terminal they own,
+        // so a wrong answer is visible and editable rather than silent.
+        let shell = s.settings.read().containers.exec_shell.clone();
+        let line = engine.exec_shell_line(&c.id, &shell);
+        cx_actions.push(Action::OpenTool {
+            factory_id: "terminal".into(),
+            request: Some(OpenRequest::Terminal {
+                cwd: None,
+                host: None,
+                profile: None,
+                command: Some(line),
+            }),
+        });
+    }
+
+    /// Carry out a verb off the UI thread, then re-read the host.
+    fn act(&mut self, s: &Services, verb: hs_container::Verb, id: &str) {
+        let Some(profile) = self.host(s) else { return };
+        let fields = ContainerFields::from_table(&profile.fields);
+        let engine = hs_container::Engine::new(&profile.kind, fields);
+        let id = id.to_string();
+        let waker = s.runtime.waker();
+        let slot: Pending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.pending = Some(slot);
+        self.loading = true;
+        s.runtime.spawn_blocking(move || {
+            // The verb and the re-read on one thread, so what comes back
+            // is the list *after* the verb rather than before it.
+            let result = match hs_container::run::act(&engine, verb, &id) {
+                Ok(()) => read_inventory(&engine),
+                Err(e) => Err(e.to_string()),
+            };
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
+    /// The question a destructive verb asks first.
+    fn confirm_dialog(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some((verb, id, name)) = self.confirm.clone() else {
+            return;
+        };
+        let label = s.t(verb.key());
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "container-verb",
+            &label,
+            &s.i18n.t_args(
+                "container-confirm-verb",
+                &[("verb", &label), ("name", &name)],
+            ),
+            &label,
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                self.confirm = None;
+                self.act(s, verb, &id);
+            }
+            hs_ui::dialog::DialogResult::Cancel => self.confirm = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
+}
+
+/// The Logs tool's source MIME. Named here rather than depended on: a
+/// tool may not depend on another tool's crate (ADR-004), and this
+/// string is the published contract between the two.
+const LOG_SOURCE_MIME: &str = "application/x-hyperstack-log-source+json";
+
+/// Open an address in the built-in Browser activity, in its own tab.
+fn open_url(actions: &mut Vec<Action>, url: &str) {
+    actions.push(Action::OpenTool {
+        factory_id: "browser".into(),
+        request: Some(OpenRequest::Url {
+            url: url.to_string(),
+        }),
+    });
 }
 
 /// Open a host, or focus the tab that already shows it. One tab per

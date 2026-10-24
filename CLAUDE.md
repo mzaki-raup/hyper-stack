@@ -1122,6 +1122,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   only one hangs rules out the body shape and points at the payload.
 
 ### Shell (2026-10-15)
+- **The first tab of an activity becomes its home tab** (`TabSpace::open`
+  asks before pushing), and a dashboard home draws the dashboard
+  whatever it was handed - so an `OpenTool` request into an activity the
+  user has **never opened** was swallowed in silence: View Logs on a
+  container switched to Logs and showed the Logs dashboard, with the
+  source gone. `open_tool_in` now lets that first tab be the dashboard
+  it wants to be and opens a working tab beside it. Any new cross-tool
+  handoff hits this the moment it is tested against a fresh workspace
+  rather than one where the target activity happens to be open.
 - `Theme::apply` used to call `ctx.set_visuals`, which writes only the
   visuals slot of egui's *current* theme; with `ThemePreference::System`
   Windows 10 reported its theme after the first frame and egui switched to
@@ -1448,6 +1457,24 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   **sub-directory per kind** — a fixture written straight into
   `connections/` is silently never loaded, which looks exactly like the
   tool failing to list anything.
+- **`docker logs` writes the container's stderr to its own stderr**, and
+  a Logs command source reads stdout. Most images log to stderr -
+  portainer, nginx, and most Go and Java applications - so a tab that
+  follows a live, chatty container shows **0 lines** and looks like a
+  broken follower. `follow_logs_line` ends with `2>&1`; the same applies
+  to anything else here that pipes a container's output.
+- **A container may have no shell at all.** `/bin/sh` is a reasonable
+  default and still wrong for a distroless image: portainer answers
+  `OCI runtime exec failed: exec: "/bin/sh": stat /bin/sh: no such file
+  or directory`. The shell is **Settings → Containers → Shell for Exec**
+  rather than a constant, and because the line is typed into a Terminal
+  tab the user owns, a wrong answer is visible and editable instead of
+  silent.
+- A port published on `0.0.0.0` or `::` is reachable on **localhost from
+  Windows even when the engine is in WSL** (WSL forwards it), which is
+  why `Reachable` is derived from the transport rather than guessed -
+  and why a *remote* engine must never be given `localhost`, the one
+  wrong answer that may well respond with someone else's service.
 
 ### Containers (hs-container)
 - **`docker ps --format '{{json .}}'` is line-delimited JSON whose

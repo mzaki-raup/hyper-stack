@@ -13,7 +13,10 @@ pub mod cli;
 pub mod model;
 pub mod profile;
 pub mod run;
+pub mod scan;
+pub mod web;
 
 pub use cli::{Engine, Invocation, Verb};
 pub use model::{Container, Health, Image, Network, Port, State, Summary, Volume};
 pub use profile::{ContainerFields, Transport};
+pub use web::{Reachable, port_url};

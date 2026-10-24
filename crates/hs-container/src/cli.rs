@@ -230,15 +230,23 @@ impl Engine {
         // The same line either way: a Logs source for a remote host
         // runs on that connection, so the line must not name the host
         // again. `Invocation::remote_ssh` is what says where to run it.
-        self.invoke([
-            "logs",
-            "--follow",
-            "--tail",
-            &tail.to_string(),
-            "--timestamps",
-            id,
-        ])
-        .to_line()
+        let line = self
+            .invoke([
+                "logs",
+                "--follow",
+                "--tail",
+                &tail.to_string(),
+                "--timestamps",
+                id,
+            ])
+            .to_line();
+        // `docker logs` writes the container's stdout to its stdout and
+        // the container's **stderr to its own stderr**, and a Logs
+        // command source reads stdout. Most images log to stderr -
+        // portainer, nginx, and most Go and Java applications do - so
+        // without this the tab follows a live container and shows
+        // nothing at all (measured against portainer, 2026-10-24).
+        format!("{line} 2>&1")
     }
 
     /// An interactive shell inside a container, for `hs-term` to run.
@@ -519,6 +527,11 @@ mod tests {
         assert!(line.contains("--follow"));
         assert!(line.contains("--tail 2000"));
         assert!(line.contains("af48259fe8da"));
+        // A container that logs to stderr - portainer, nginx, most Go
+        // and Java images - produces nothing on stdout, and a Logs
+        // command source reads stdout. Without the redirect the tab
+        // follows a live container and stays empty.
+        assert!(line.ends_with(" 2>&1"), "stderr has to be carried too");
     }
 
     /// A minimal image has no bash, so the fallback has to be `sh`.

@@ -252,6 +252,12 @@ too.
   Add Container, Open Compose File…, Open Manifest…, **Scan Local**
   (finds a Docker or Podman socket, WSL distributions and a kubeconfig
   without being told where — read-only, and it never starts anything).
+  Each finding is a row with **Add**, which saves it as an ordinary
+  `ConnectionProfile` — nothing here is a second store. A finding the
+  workspace already has reads **Already added** instead: both sides
+  answer `hs_container::scan::key_of`, one definition on purpose,
+  because two functions that must agree about identity are two
+  functions that will stop agreeing.
   Rows: each saved host, recent manifests, and anything unhealthy as a
   direct link. Counts come from a Job with a short per-host cache; the
   Logs service scan learned the cost of a probe per tab the hard way.
@@ -289,6 +295,34 @@ with a floor, or three stacked minimums leave the middle column at
 zero, which is what the diagram editor had to learn.
 
 Both panes scroll vertically and horizontally per §10.4.
+
+**A published port is a link (owner's request, 2026-10-24).** Every port
+in a pane that can actually be reached is a button that opens the
+address in the Browser activity, with a right-click menu offering the
+same by name and Copy Address. The arithmetic is `hs_container::web`,
+and each part of it has a wrong answer that looks right: `0.0.0.0` and
+`::` mean *every* interface rather than an address, so they become the
+engine's own machine — `localhost` for a local or **WSL** engine
+(Windows forwards a published port to the Windows localhost), the SSH
+profile's hostname for a tunnelled one, which only the tool can resolve
+because `hs-container` must not depend on `hs-ssh`. An IPv6 literal is
+bracketed exactly once. The conventional TLS ports (443, 8443, 9443,
+4443, 10443) get `https`, the rest `http`: a wrong guess costs one
+redirect, while refusing to guess costs every HTTPS service a broken
+link. A port that is exposed but not published, one that is not TCP,
+and one on a host that cannot be named are shown as plain text with a
+tooltip saying why — a link that goes nowhere is worse than no link.
+
+**Logs and Exec are handed to the tools that already do them** (§10.1).
+View Logs opens a Logs tab following `<engine> logs --follow --tail
+<n> --timestamps <id> 2>&1`; the redirect is not cosmetic — `docker
+logs` writes the container's **stderr to its own stderr** and a Logs
+command source reads stdout, so without it a tab following portainer,
+nginx or any of the many images that log to stderr stays empty
+(measured, 2026-10-24). Exec types `<engine> exec -it <id> <shell>` into
+a Terminal tab, where the shell is **Settings → Containers → Shell for
+Exec**: no single answer suits every image — a minimal one has no bash,
+and a distroless one (portainer) has no shell at all and says so.
 
 **Windows containers** use the Docker pane against a Windows engine,
 showing `isolation` (process or hyperv), with `cmd`/`powershell` for
@@ -370,7 +404,7 @@ Each ends green on the full gate and is releasable on its own.
 | 1 | `DataTable` scrolls (§10.4, fixing S3 and SFTP too); `podman`/`wincontainer` kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring |
 | 2 | `hs-container` Docker/Podman driver: the CLI across all four transports (§10.3a), with live tests behind an env var as the DB and Redis drivers have. `bollard` deferred to phase 4, where streaming is actually needed |
 | 3 | The activity, rail entry, dashboard, two-section sidebar, one tab per host |
-| 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs |
+| 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs; clickable published ports; **Scan Local** on the dashboard |
 | 5 | Compose and Swarm (`docker compose`, `docker stack` — CLI-only surfaces) |
 | 6 | Kubernetes driver and the Lens-shaped pane: namespaces, workloads, events, YAML |
 | 7 | Apply with the dry-run diff, port-forward through `Tunnels`, CRD discovery |

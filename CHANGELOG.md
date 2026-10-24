@@ -13,6 +13,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Container activity, phase 4**: the Portainer-shaped Docker pane. A
+  resource rail (Containers, Images, Volumes, Networks with their
+  counts), the filterable table beside it, and a detail block
+  underneath carrying the container's identity, its ports and the
+  verbs. Start, Stop, Restart, Kill and Remove follow the state - a
+  button that cannot do anything is worse than no button - run off the
+  UI thread and re-read the host on the same worker, so the list that
+  comes back is the one *after* the verb. A destructive verb against a
+  protected environment or a read-only host is disabled and says which,
+  rather than hidden.
+- **A published port is a link** (owner's request). Every reachable port
+  in the Docker pane opens in the built-in Browser activity on click,
+  with a right-click menu offering Open in Browser and Copy Address.
+  `0.0.0.0` and `::` become the engine's own machine - localhost for a
+  local or WSL engine, the SSH profile's hostname for a tunnelled one -
+  an IPv6 literal is bracketed exactly once, and the conventional TLS
+  ports get `https`. A port that is exposed but not published, not TCP,
+  or on a host that cannot be named stays plain text with a tooltip
+  saying why.
+- **Logs and Exec hand off to the tools that already do them.** View
+  Logs opens a Logs tab following the container; Exec types the shell
+  command into a Terminal tab. Which shell is now **Settings →
+  Containers → Shell for Exec**: no single answer suits every image - a
+  minimal one has no bash and a distroless one has no shell at all.
+- **Scan Local** on the Container dashboard: a Job that finds the Docker
+  and Podman sockets, the WSL distributions that carry an engine and the
+  kubeconfig contexts on this machine, and offers each as a host to add.
+  A finding the workspace already has reads "Already added" - both sides
+  answer one key function, so they cannot drift apart.
+
 - **Container activity, phase 3**: the activity itself. A **Containers**
   entry in the rail between S3 and Database, a permanent dashboard home
   tab (engines, clusters, saved configs, open tabs; Add Container; the
@@ -121,6 +151,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   than silently ignored.
 
 ### Fixed
+
+- **A cross-tool request into an activity never opened was silently
+  lost.** The first tab of an activity becomes its home tab, and a
+  dashboard home draws the dashboard whatever it was handed - so View
+  Logs on a container switched to the Logs activity and showed its
+  dashboard with the source gone. The shell now lets that first tab be
+  the dashboard and opens a working tab beside it.
+- **A Logs tab following a container showed nothing.** `docker logs`
+  writes the container's stderr to its own stderr, and a Logs command
+  source reads stdout; most images log to stderr, so following
+  portainer, nginx or any Go or Java container produced 0 lines from a
+  live, chatty service. The follow line carries stderr too.
 
 - The title bar's **workspace switcher** is clickable along the whole
   row. Each entry was a logo beside a `selectable_label`, so only the

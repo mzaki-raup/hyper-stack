@@ -59,6 +59,14 @@ pub struct Containers {
     /// Where Save to Manifests writes, relative to the workspace when
     /// it is not absolute. Empty means `manifests/`.
     pub manifest_dir: String,
+    /// What Shell runs inside a container.
+    ///
+    /// No single answer is right: a minimal image has no bash, and a
+    /// distroless one (portainer, measured 2026-10-24) has no shell at
+    /// all and answers `stat /bin/sh: no such file or directory`. The
+    /// default suits most images and this is where someone whose images
+    /// differ says so once. Empty falls back to `/bin/sh`.
+    pub exec_shell: String,
 }
 
 impl Default for Containers {
@@ -75,6 +83,7 @@ impl Default for Containers {
             log_tail_lines: 2000,
             apply_dry_run_first: true,
             manifest_dir: String::new(),
+            exec_shell: "/bin/sh".into(),
         }
     }
 }

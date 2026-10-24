@@ -958,6 +958,26 @@ impl HyperStackApp {
         let id = self
             .tabs
             .open(self.factories[i].as_ref(), &self.services, None);
+        // The **first** tab of an activity becomes its home tab, and a
+        // dashboard home draws the dashboard whatever it was handed - so
+        // a request into an activity the user has never opened used to
+        // be swallowed in silence (View Logs on a container, with the
+        // Logs activity never visited, landed on the Logs dashboard).
+        // Let that first tab be the dashboard it wants to be, and open a
+        // working tab beside it for the request.
+        let id = if request.is_some()
+            && self
+                .tabs
+                .tabs
+                .iter()
+                .find(|t| t.id == id)
+                .is_some_and(|t| t.home && t.tool.home_is_dashboard())
+        {
+            self.tabs
+                .open(self.factories[i].as_ref(), &self.services, None)
+        } else {
+            id
+        };
         self.group = Some(group_of(factory_id).to_string());
         if let Some(req) = request {
             let mut actions = Vec::new();

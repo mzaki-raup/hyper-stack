@@ -2591,7 +2591,13 @@ fn container_defaults(
             form::label(ui, &s.t("settings-container-manifest-dir"));
             changed |= form::text_field(ui, &mut c.manifest_dir, "").changed();
             ui.end_row();
+            form::label(ui, &s.t("settings-container-exec-shell"));
+            changed |= form::text_field(ui, &mut c.exec_shell, "/bin/sh")
+                .on_hover_text(s.t("settings-container-exec-shell-hint"))
+                .changed();
+            ui.end_row();
         });
+        form::hint(ui, theme, &s.t("settings-container-exec-shell-hint"));
         form::hint(ui, theme, &s.t("settings-container-dry-run-first-hint"));
     });
     if changed {

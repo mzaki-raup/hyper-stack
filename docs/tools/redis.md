@@ -117,6 +117,37 @@ the last 5 minutes.
 { nodes }`, SSH tunnel, read-only flag, protected via environment. Import from
 a `redis://` / `rediss://` URI.
 
+### 9a. Valkey (2026-10-24)
+
+`kind = "valkey"` is the same tool. Valkey is a fork of Redis that speaks
+the same protocol, so one driver serves both and
+`connections::REDIS_KINDS` is the list every call site asks rather than
+keeping its own. The kind exists for **discoverability**: someone
+running Valkey should find it by name when adding a connection instead
+of having to know it is "a Redis".
+
+A Valkey profile carries the same `[redis]` table rather than one of its
+own — the fields are identical, so a second table would be the same
+reader twice, and switching a profile between the kinds keeps its
+settings instead of silently losing them.
+
+Two places the difference is real and is honoured:
+
+- **The version.** Valkey reports *both* `valkey_version` (what it is)
+  and `redis_version` (what it claims compatibility with): 8.1.10
+  reports 7.2.4. Showing the compatibility number beside the name
+  "Valkey" states a version the server does not have, so the flavour
+  decides which field is read.
+- **The name.** `RedisFields::label_for(kind)` writes "Valkey ·
+  host:port/db", because a Valkey connection describing itself as a
+  Redis defeats the point of the kind.
+
+Import also accepts `valkey://` and `valkeys://`, which Valkey's own
+tooling writes.
+
+Verified against Valkey 8.1.10: the whole `tests/live.rs` suite — every
+type round-tripping and SCAN paging — passes against it unchanged.
+
 ## 10. Implementation notes
 
 - `redis` crate with `tokio-comp`, `tls-rustls`, `cluster-async`, `sentinel`

@@ -121,7 +121,10 @@ impl Test {
 
 /// Whether the button should be offered at all.
 pub fn testable(kind: &str) -> bool {
-    matches!(kind, "ssh" | "s3" | "db" | "redis" | "mongodb" | "couchdb")
+    matches!(
+        kind,
+        "ssh" | "s3" | "db" | "redis" | "valkey" | "mongodb" | "couchdb"
+    )
 }
 
 type Probe = Pin<Box<dyn Future<Output = Outcome> + Send>>;
@@ -174,7 +177,7 @@ fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
                 }
             }))
         }
-        "redis" => {
+        "redis" | "valkey" => {
             let cfg = tool_redis::profile::RedisFields::from_table(fields)
                 .resolve(read_only, secrets, &lookup)
                 .map_err(redis_error)?;
@@ -279,7 +282,7 @@ mod tests {
 
     #[test]
     fn only_kinds_with_a_driver_are_offered_a_test() {
-        for k in ["ssh", "s3", "db", "redis", "mongodb", "couchdb"] {
+        for k in ["ssh", "s3", "db", "redis", "valkey", "mongodb", "couchdb"] {
             assert!(testable(k), "{k}");
         }
         for k in ["api", "browser", "", "sftp"] {

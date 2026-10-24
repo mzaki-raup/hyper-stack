@@ -278,8 +278,14 @@ impl Session {
                 .map(|v| v.trim().to_string())
                 .unwrap_or_default()
         };
+        // Valkey reports **both**: `valkey_version` is what it is, and
+        // `redis_version` is the Redis it claims compatibility with
+        // (8.1.10 reports 7.2.4). Showing the compatibility number
+        // beside the name "Valkey" states a version the server does not
+        // have, so the flavour decides which field is the version.
         let mut flavour = String::from("redis");
-        if !field("valkey_version").is_empty() {
+        let valkey = field("valkey_version");
+        if !valkey.is_empty() {
             flavour = "valkey".into();
         }
         let databases: i64 = redis::cmd("CONFIG")
@@ -291,7 +297,11 @@ impl Session {
             .and_then(|v| v.get(1)?.parse().ok())
             .unwrap_or(16);
         ServerInfo {
-            version: field("redis_version"),
+            version: if valkey.is_empty() {
+                field("redis_version")
+            } else {
+                valkey
+            },
             flavour,
             databases,
         }

@@ -25,7 +25,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "ssh" => Some("ssh"),
         "s3" => Some("s3"),
         "db" => Some("db"),
-        "redis" => Some("redis"),
+        "redis" | "valkey" => Some("redis"),
         "mongodb" | "couchdb" => Some("nosql"),
         // Every container kind opens in the Container activity, so a
         // host pinned to Home or saved from Settings has somewhere to
@@ -310,6 +310,10 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
         "ssh" => egui::Color32::from_rgb(0x4A, 0x90, 0xD9),
         "db" => egui::Color32::from_rgb(0x8B, 0x5C, 0xF6),
         "redis" => egui::Color32::from_rgb(0xDC, 0x38, 0x2D),
+        // Its own colour rather than Redis's: the pill exists to be
+        // told apart at a glance, and "which of these two is the
+        // Valkey" is exactly the question someone running both asks.
+        "valkey" => egui::Color32::from_rgb(0x17, 0xA2, 0xB8),
         "mongodb" | "couchdb" => egui::Color32::from_rgb(0x10, 0xA3, 0x7B),
         "s3" => egui::Color32::from_rgb(0xF5, 0x9E, 0x0B),
         "api" => egui::Color32::from_rgb(0xEC, 0x48, 0x99),

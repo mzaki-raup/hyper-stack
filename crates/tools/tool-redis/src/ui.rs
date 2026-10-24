@@ -557,12 +557,12 @@ impl Tool for RedisTool {
         let profiles: Vec<(String, String, String, bool)> = {
             let conns = s.connections.read();
             conns
-                .of_kind("redis")
+                .of_redis_kinds()
                 .map(|c| {
                     (
                         c.id.clone(),
                         c.name.clone(),
-                        RedisFields::from_table(&c.fields).label(),
+                        RedisFields::from_table(&c.fields).label_for(&c.kind),
                         c.pinned,
                     )
                 })
@@ -608,7 +608,11 @@ impl Tool for RedisTool {
                     cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
-                    if let Err(e) = s.connections.write().reorder(&["redis"], from, to) {
+                    if let Err(e) =
+                        s.connections
+                            .write()
+                            .reorder(hs_core::connections::REDIS_KINDS, from, to)
+                    {
                         cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
                     }
                     ui.ctx().request_repaint();
@@ -705,7 +709,7 @@ impl RedisTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let count = s.connections.read().of_kind("redis").count();
+        let count = s.connections.read().of_redis_kinds().count();
         let tabs = s.open_tabs.of("redis");
         hs_ui::form::page_title(
             ui,

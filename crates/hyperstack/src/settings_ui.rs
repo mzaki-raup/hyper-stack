@@ -2812,7 +2812,7 @@ fn conn_detail(
     let is_ssh = draft.kind == "ssh";
     let is_s3 = draft.kind == "s3";
     let is_db = draft.kind == "db";
-    let is_redis = draft.kind == "redis";
+    let is_redis = hs_core::connections::is_redis_kind(&draft.kind);
     let is_container = hs_core::connections::is_container_kind(&draft.kind);
     if is_ssh {
         ssh_form(ui, theme, s, draft, fields_text, effects);

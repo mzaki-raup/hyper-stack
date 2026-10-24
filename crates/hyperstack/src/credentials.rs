@@ -109,7 +109,7 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.user;
             r.password = Password::read(&v.password);
         }
-        "redis" => {
+        "redis" | "valkey" => {
             let v = tool_redis::profile::RedisFields::from_table(f);
             r.host = v.host;
             r.port = port(v.port);

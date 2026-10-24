@@ -87,7 +87,7 @@ the fixtures behind them.
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
-| [Redis](#redis) | Key tree, type viewers, console, info |
+| [Redis](#redis) | Key tree, type viewers, console, info; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents |
 | [Logs](#logs) | Local, SSH, command and pasted sources; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |

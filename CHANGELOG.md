@@ -13,6 +13,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Valkey** is a connection kind of its own (`kind = "valkey"`), opened
+  by the Redis tool. Valkey is a fork of Redis and speaks the same
+  protocol, so one driver serves both; the kind exists so that someone
+  running Valkey finds it by name when adding a connection. Two places
+  the difference is real and now honoured: the toolbar shows
+  `valkey_version` rather than the Redis version Valkey claims
+  compatibility with (8.1.10 reports 7.2.4, which is not a version it
+  has), and the sidebar says "Valkey · host:port/db". Import accepts
+  `valkey://` and `valkeys://`. Verified against Valkey 8.1.10 — the
+  whole Redis live suite passes against it unchanged.
+
 - **Container activity, phase 5**: Compose and Swarm. The rail gains
   **Projects**, and a **Swarm** group — Stacks, Services, Nodes. A
   Compose project is rebuilt from the containers' own labels, so

@@ -22,6 +22,7 @@ pub const KINDS: &[&str] = &[
     "k8s",
     "wincontainer",
     "redis",
+    "valkey",
     "mongodb",
     "couchdb",
     "elasticsearch",
@@ -37,6 +38,20 @@ pub const KINDS: &[&str] = &[
 /// one store, which is why it can never disagree with Settings →
 /// Connections about the same host.
 pub const CONTAINER_KINDS: &[&str] = &["docker", "podman", "k8s", "wincontainer"];
+
+/// The kinds the **Redis** tool opens.
+///
+/// Valkey is a fork of Redis that speaks the same protocol, so the one
+/// driver serves both and the client already tells them apart from
+/// `INFO` (it reports `valkey_version` instead). The kind exists so
+/// that someone running Valkey finds it by name when adding a
+/// connection, rather than having to know it is "a Redis".
+pub const REDIS_KINDS: &[&str] = &["redis", "valkey"];
+
+/// Whether a kind is opened by the Redis tool.
+pub fn is_redis_kind(kind: &str) -> bool {
+    REDIS_KINDS.contains(&kind)
+}
 
 /// Whether a kind belongs to the Container activity.
 pub fn is_container_kind(kind: &str) -> bool {
@@ -63,6 +78,7 @@ pub fn kind_label(kind: &str) -> &str {
         "k8s" => "Kubernetes",
         "wincontainer" => "Windows Container",
         "redis" => "Redis",
+        "valkey" => "Valkey",
         "mongodb" => "MongoDB",
         "couchdb" => "CouchDB",
         "elasticsearch" => "Elasticsearch",
@@ -170,6 +186,13 @@ impl Connections {
         kind: &'a str,
     ) -> impl Iterator<Item = &'a ConnectionProfile> + 'a {
         self.profiles.iter().filter(move |c| c.kind == kind)
+    }
+
+    /// Every profile the Redis tool opens, in order. A helper rather
+    /// than two `of_kind` calls at each site, so adding a third
+    /// Redis-compatible server later is one list and not a hunt.
+    pub fn of_redis_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_redis_kind(&c.kind))
     }
 
     fn file_for(&self, c: &ConnectionProfile) -> PathBuf {
@@ -281,6 +304,22 @@ impl Connections {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every kind a tool claims has to be offered when adding a
+    /// connection, or the tool opens something nobody can create.
+    #[test]
+    fn every_claimed_kind_is_one_a_user_can_add() {
+        for k in REDIS_KINDS.iter().chain(CONTAINER_KINDS) {
+            assert!(KINDS.contains(k), "{k} is claimed but not offered");
+            assert_ne!(kind_label(k), *k, "{k} has no label of its own");
+        }
+        assert!(
+            is_redis_kind("valkey"),
+            "Valkey is opened by the Redis tool"
+        );
+        assert!(is_redis_kind("redis"));
+        assert!(!is_redis_kind("mongodb"));
+    }
 
     #[test]
     fn profiles_persist_one_file_per_kind_and_survive_rename() {

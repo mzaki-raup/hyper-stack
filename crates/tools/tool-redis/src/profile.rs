@@ -2,6 +2,13 @@
 //! (docs/tools/redis.md §9), `redis://` URL import, and the resolution of a
 //! profile into a [`ConnectConfig`]: `{{variables}}` from the profile's
 //! environment, the password from the vault.
+//!
+//! A **Valkey** profile (`kind = "valkey"`) carries the same `[redis]`
+//! table rather than one of its own. Valkey is a fork of Redis and the
+//! fields are identical, so a second table would be the same reader
+//! twice - and switching a profile between the two kinds keeps its
+//! settings instead of silently losing them. The client tells the two
+//! servers apart where it matters, from `INFO`.
 
 use std::time::Duration;
 
@@ -155,9 +162,23 @@ impl RedisFields {
     }
 
     /// Sidebar subtitle: "Redis · cache.example.com:6379/0".
-    pub fn label(&self) -> String {
-        let scheme = if self.tls { "Rediss" } else { "Redis" };
+    ///
+    /// `kind` decides the name, so a Valkey connection does not
+    /// describe itself as a Redis - which is the whole reason the kind
+    /// exists.
+    pub fn label_for(&self, kind: &str) -> String {
+        let scheme = match (kind, self.tls) {
+            ("valkey", false) => "Valkey",
+            ("valkey", true) => "Valkeys",
+            (_, true) => "Rediss",
+            _ => "Redis",
+        };
         format!("{scheme} · {}:{}/{}", self.host, self.port, self.db)
+    }
+
+    /// The same, for a plain Redis connection.
+    pub fn label(&self) -> String {
+        self.label_for("redis")
     }
 
     /// Resolve variables and secrets. `lookup` substitutes `{{names}}` from
@@ -228,8 +249,11 @@ pub fn parse_url(url: &str) -> Option<RedisFields> {
     let url = url.trim();
     let (scheme, rest) = url.split_once("://")?;
     let tls = match scheme.to_ascii_lowercase().as_str() {
-        "redis" => false,
-        "rediss" => true,
+        // Valkey's own tooling writes `valkey://`, and a Valkey server
+        // is reached by a `redis://` URI just the same; Import should
+        // take whichever one was copied.
+        "redis" | "valkey" => false,
+        "rediss" | "valkeys" => true,
         _ => return None,
     };
     let mut f = RedisFields {
@@ -349,6 +373,15 @@ mod tests {
         assert_eq!(f.password, "secret");
         assert_eq!(parse_url("postgres://h/db"), None);
         assert_eq!(parse_url("not a url"), None);
+        // Valkey's own tooling writes `valkey://`, and the server is
+        // reached the same way either URI is spelled. Import takes
+        // whichever one was copied.
+        let v = parse_url("valkey://cache:6380/2").unwrap();
+        assert_eq!(
+            (v.host.as_str(), v.port, v.db, v.tls),
+            ("cache", 6380, 2, false)
+        );
+        assert!(parse_url("valkeys://h").unwrap().tls, "valkeys is TLS");
     }
 
     #[test]
@@ -384,9 +417,12 @@ mod tests {
     fn the_label_says_scheme_host_and_database() {
         let mut f = RedisFields::default();
         assert_eq!(f.label(), "Redis · 127.0.0.1:6379/0");
+        // A Valkey connection must not describe itself as a Redis.
+        assert_eq!(f.label_for("valkey"), "Valkey · 127.0.0.1:6379/0");
         f.tls = true;
         f.db = 4;
         assert_eq!(f.label(), "Rediss · 127.0.0.1:6379/4");
+        assert_eq!(f.label_for("valkey"), "Valkeys · 127.0.0.1:6379/4");
     }
 
     #[test]

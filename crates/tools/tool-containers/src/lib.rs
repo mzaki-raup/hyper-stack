@@ -15,6 +15,7 @@ pub mod docker;
 
 use std::borrow::Cow;
 
+use hs_container::Project;
 use hs_container::profile::ContainerFields;
 use hs_core::Services;
 use hs_core::connections::ConnectionProfile;
@@ -92,10 +93,32 @@ pub struct ContainersTool {
     /// Where the worker leaves its answer. `None` when nothing is in
     /// flight.
     pending: Option<Pending>,
-    /// The row the detail block is showing, by container id. An id
-    /// rather than an index: the list is re-read on every refresh, and
-    /// an index would then point at a different container.
-    selected: Option<String>,
+    /// The row the detail block is showing, by **identity** rather than
+    /// index: the list is re-read on every refresh, and an index would
+    /// then point at a different thing. Which list it belongs to is
+    /// part of the selection, or switching the rail would show the
+    /// detail of something that is no longer on screen.
+    selected: Option<(docker::Resource, String)>,
+    /// `ui.input(|i| i.time)` of the frame the selection last changed.
+    ///
+    /// egui lays a frame out **twice** when a panel's size changes
+    /// (`request_discard`), and `Response::clicked()` is pointer state
+    /// rather than an event, so the second pass sees the same click
+    /// still held. The detail block does not exist during the first
+    /// pass - selecting a row is what creates it - so in the second its
+    /// freshly-made buttons are laid out under a pointer that is still
+    /// "clicking", and one of them fires. Selecting a project ran
+    /// `config`; on the container list the same click would have
+    /// reached **Remove**. Both passes of one frame share a `time`, so
+    /// comparing against it is exactly the guard needed (observed
+    /// 2026-10-24).
+    selected_at: f64,
+    /// A Compose verb waiting to be confirmed, and which project.
+    confirm_compose: Option<(hs_container::ComposeVerb, String)>,
+    /// What the last Compose or Swarm verb printed, kept until the next
+    /// one: `up` and `deploy` say what they did, and throwing that away
+    /// would leave the user guessing whether anything happened.
+    last_output: Option<String>,
     /// The table's own filter and sort.
     table: hs_ui::table::TableState,
     /// A destructive verb waiting to be confirmed: what, to which id,
@@ -106,7 +129,15 @@ pub struct ContainersTool {
     scan: Option<Vec<hs_container::scan::Found>>,
     /// Where the scan worker leaves its answer.
     scan_pending: Option<ScanPending>,
+    /// Where a Compose verb leaves what it said and the re-read that
+    /// followed it.
+    compose_pending: Option<ComposePending>,
 }
+
+/// A slot a Compose worker fills: what the verb printed (or why it
+/// failed), and the inventory as it stands afterwards.
+type ComposePending =
+    std::sync::Arc<parking_lot::Mutex<Option<(Result<String, String>, Result<Inventory, String>)>>>;
 
 /// A slot the scan worker fills. The scan stats files and runs
 /// `wsl.exe`, so it never runs on the UI thread (ADR-013).
@@ -118,13 +149,41 @@ type ScanPending = std::sync::Arc<parking_lot::Mutex<Option<Vec<hs_container::sc
 type Pending = std::sync::Arc<parking_lot::Mutex<Option<Result<Inventory, String>>>>;
 
 /// What one read of a host returned.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Inventory {
     pub version: String,
     pub containers: Vec<hs_container::Container>,
-    pub images: usize,
-    pub volumes: usize,
-    pub networks: usize,
+    pub image_list: Vec<hs_container::Image>,
+    pub volume_list: Vec<hs_container::Volume>,
+    pub network_list: Vec<hs_container::Network>,
+    /// Compose projects, grouped from the labels and corrected by
+    /// `docker compose ls` (phase 5).
+    pub projects: Vec<hs_container::Project>,
+    /// Where this engine stands in a swarm. Most are in none, and that
+    /// is a state the pane shows rather than an error.
+    pub swarm: hs_container::swarm::SwarmState,
+    pub stacks: Vec<hs_container::swarm::Stack>,
+    pub services: Vec<hs_container::swarm::Service>,
+    pub nodes: Vec<hs_container::swarm::Node>,
+}
+
+impl Inventory {
+    /// The counts beside each rail entry, in `Resource::ALL` order.
+    fn counts(&self) -> Vec<usize> {
+        docker::Resource::ALL
+            .iter()
+            .map(|r| match r {
+                docker::Resource::Containers => self.containers.len(),
+                docker::Resource::Projects => self.projects.len(),
+                docker::Resource::Images => self.image_list.len(),
+                docker::Resource::Volumes => self.volume_list.len(),
+                docker::Resource::Networks => self.network_list.len(),
+                docker::Resource::Stacks => self.stacks.len(),
+                docker::Resource::Services => self.services.len(),
+                docker::Resource::Nodes => self.nodes.len(),
+            })
+            .collect()
+    }
 }
 
 /// Bumped whenever a tab writes the saved configs, so every other tab
@@ -182,10 +241,14 @@ impl ContainersTool {
             loading: false,
             pending: None,
             selected: None,
+            selected_at: f64::NEG_INFINITY,
+            confirm_compose: None,
+            last_output: None,
             table: hs_ui::table::TableState::default(),
             confirm: None,
             scan: None,
             scan_pending: None,
+            compose_pending: None,
         }
     }
 
@@ -294,32 +357,70 @@ impl ContainersTool {
 
     /// Take the answer when the worker has it.
     fn drain(&mut self) {
-        let Some(slot) = &self.pending else { return };
-        let Some(result) = slot.lock().take() else {
-            return;
-        };
-        self.inventory = Some(result);
-        self.loading = false;
-        self.pending = None;
+        // The guard is taken in its own scope: a `let` chain holds the
+        // borrow of `self.pending` across the body, and the body has to
+        // clear it.
+        let read = self.pending.as_ref().and_then(|s| s.lock().take());
+        if let Some(result) = read {
+            self.inventory = Some(result);
+            self.loading = false;
+            self.pending = None;
+        }
+        let ran = self.compose_pending.as_ref().and_then(|s| s.lock().take());
+        if let Some((said, inv)) = ran {
+            // A failure is shown in the same block as a success: the
+            // engine's own words are what the reader needs either way.
+            self.last_output = Some(match said {
+                Ok(text) if text.trim().is_empty() => String::new(),
+                Ok(text) => text,
+                Err(e) => e,
+            })
+            .filter(|t| !t.trim().is_empty());
+            self.inventory = Some(inv);
+            self.loading = false;
+            self.compose_pending = None;
+        }
     }
 }
 
 /// One read of a host, off the UI thread.
+///
+/// Only the version and the containers are allowed to fail the whole
+/// read: everything else is extra, and losing the containers because
+/// an engine cannot list volumes would be the wrong trade.
 fn read_inventory(engine: &hs_container::Engine) -> Result<Inventory, String> {
     use hs_container::run;
     let version = run::probe(engine).map_err(|e| e.to_string())?;
     let containers = run::containers(engine).map_err(|e| e.to_string())?;
-    // The counts are cheap and the dashboard wants them; a failure here
-    // is not worth losing the containers over, so they default to zero.
-    let images = run::images(engine).map(|v| v.len()).unwrap_or(0);
-    let volumes = run::volumes(engine).map(|v| v.len()).unwrap_or(0);
-    let networks = run::networks(engine).map(|v| v.len()).unwrap_or(0);
+    let image_list = run::images(engine).unwrap_or_default();
+    let volume_list = run::volumes(engine).unwrap_or_default();
+    let network_list = run::networks(engine).unwrap_or_default();
+    let projects = run::projects(engine).unwrap_or_default();
+    // Swarm is read first, and the three listings are asked for **only**
+    // if this engine is a manager: off a swarm they fail with "this node
+    // is not a swarm manager", and three failed processes per refresh to
+    // learn what `info` already said is waste.
+    let swarm = run::swarm_state(engine).unwrap_or_default();
+    let (stacks, services, nodes) = if swarm.can_manage() {
+        (
+            run::stacks(engine).unwrap_or_default(),
+            run::services(engine).unwrap_or_default(),
+            run::nodes(engine).unwrap_or_default(),
+        )
+    } else {
+        Default::default()
+    };
     Ok(Inventory {
         version,
         containers,
-        images,
-        volumes,
-        networks,
+        image_list,
+        volume_list,
+        network_list,
+        projects,
+        swarm,
+        stacks,
+        services,
+        nodes,
     })
 }
 
@@ -591,21 +692,29 @@ impl ContainersTool {
                     hs_ui::dashboard::stat(
                         ui,
                         &theme,
-                        &inv.images.to_string(),
+                        &inv.image_list.len().to_string(),
                         &s.t("container-dash-images"),
                     );
                     hs_ui::dashboard::stat(
                         ui,
                         &theme,
-                        &inv.volumes.to_string(),
+                        &inv.volume_list.len().to_string(),
                         &s.t("container-dash-volumes"),
                     );
                     hs_ui::dashboard::stat(
                         ui,
                         &theme,
-                        &inv.networks.to_string(),
+                        &inv.network_list.len().to_string(),
                         &s.t("container-dash-networks"),
                     );
+                    if !inv.projects.is_empty() {
+                        hs_ui::dashboard::stat(
+                            ui,
+                            &theme,
+                            &inv.projects.len().to_string(),
+                            &s.t("container-dash-projects"),
+                        );
+                    }
                 });
                 form::hint(
                     ui,
@@ -619,6 +728,7 @@ impl ContainersTool {
             }
         }
         self.confirm_dialog(ui, &theme, &s);
+        self.confirm_compose_dialog(ui, &theme, &s);
     }
 
     /// The Portainer-shaped pane (§10.6): a resource rail on the left,
@@ -632,13 +742,15 @@ impl ContainersTool {
         profile: &ConnectionProfile,
         inv: &Inventory,
     ) {
-        let counts = [inv.containers.len(), inv.images, inv.volumes, inv.networks];
+        let counts = inv.counts();
         // The detail block takes its share off the top of the list, so
         // the two scroll independently rather than the list pushing the
         // detail off the bottom.
         let detail_h = if self.selected.is_some() { 230.0 } else { 0.0 };
         ui.horizontal_top(|ui| {
-            if let Some(r) = docker::resource_rail(ui, theme, s, self.state.resource, counts) {
+            if let Some(r) =
+                docker::resource_rail(ui, theme, s, self.state.resource, &counts, inv.swarm)
+            {
                 self.state.resource = r;
                 // The filter belonged to the list that is going away.
                 self.table = hs_ui::table::TableState::default();
@@ -669,19 +781,18 @@ impl ContainersTool {
     /// The chosen resource, in the shared table so it scrolls both ways
     /// (§10.4).
     fn resource_table(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services, inv: &Inventory) {
-        // Only containers are carried in full: the driver counts the
-        // other three for the header but does not list them yet, and an
-        // empty table would read as "none" rather than "not yet".
-        if self.state.resource != docker::Resource::Containers {
-            form::hint(ui, theme, &s.t("container-res-not-yet"));
+        let res = self.state.resource;
+        // A Swarm list off a swarm is not empty, it is unavailable, and
+        // the two want different words.
+        if res.is_swarm() && !inv.swarm.can_manage() {
+            form::hint(ui, theme, &s.t(inv.swarm.key()));
             return;
         }
-        if inv.containers.is_empty() {
-            form::hint(ui, theme, &s.t("container-no-containers"));
+        let (columns, rows) = docker::table_data(res, s, inv);
+        if rows.is_empty() {
+            form::hint(ui, theme, &s.t(empty_key(res)));
             return;
         }
-        let (columns, rows) =
-            docker::table_data(self.state.resource, s, &inv.containers, &[], &[], &[]);
         let table = hs_ui::table::DataTable {
             theme,
             columns: &columns,
@@ -696,9 +807,20 @@ impl ContainersTool {
         // The table reports the index into the data it was given, not
         // into what the filter left showing.
         if let Some(i) = resp.clicked.or(resp.double_clicked)
-            && let Some(c) = inv.containers.get(i)
+            && let Some(id) = row_identity(res, inv, i)
         {
-            self.selected = Some(c.id.clone());
+            let changed = self.selected.as_ref() != Some(&(res, id.clone()));
+            self.selected = Some((res, id));
+            // Read first, then store: taking the input lock inside a
+            // `data_mut` is the other way to deadlock egui.
+            self.selected_at = ui.input(|i| i.time);
+            // What the last verb printed belongs to what it was run
+            // against. Left standing, a project's `config` would appear
+            // under the next project someone clicked, which reads as
+            // that project's own output.
+            if changed {
+                self.last_output = None;
+            }
         }
     }
 
@@ -713,15 +835,33 @@ impl ContainersTool {
         profile: &ConnectionProfile,
         inv: &Inventory,
     ) {
-        let Some(id) = self.selected.clone() else {
+        let Some((res, id)) = self.selected.clone() else {
             return;
         };
+        if res != self.state.resource {
+            // The rail moved on; the detail belongs to the list it came
+            // from, not to this one.
+            return;
+        }
+        if res == docker::Resource::Projects {
+            self.project_detail(ui, theme, s, cx_actions, profile, inv, &id);
+            return;
+        }
+        if res != docker::Resource::Containers {
+            // Images, volumes, networks and the Swarm lists have no
+            // detail block yet; saying so beats an empty panel.
+            form::hint(ui, theme, &s.t("container-detail-not-yet"));
+            return;
+        }
         let Some(c) = inv.containers.iter().find(|c| c.id == id).cloned() else {
             // It has gone since the last read, which is information.
             form::hint(ui, theme, &s.t("container-gone"));
             return;
         };
         let refusal = docker::guard(s, profile);
+        // This block came into existence on the click that is still
+        // being held; its buttons must not act on it.
+        let fresh = ui.input(|i| i.time) == self.selected_at;
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(&c.name).strong());
             ui.label(
@@ -755,12 +895,14 @@ impl ContainersTool {
             if ui
                 .button(format!("{} {}", ph::SCROLL, s.t("container-view-logs")))
                 .clicked()
+                && !fresh
             {
                 self.open_logs(s, cx_actions, profile, &c);
             }
             if ui
                 .button(format!("{} {}", ph::TERMINAL_WINDOW, s.t("container-exec")))
                 .clicked()
+                && !fresh
             {
                 self.open_exec(s, cx_actions, profile, &c);
             }
@@ -782,7 +924,7 @@ impl ContainersTool {
                     }
                     _ => r,
                 };
-                if r.clicked() {
+                if r.clicked() && !fresh {
                     if verb.destructive() && s.settings.read().containers.confirm_stop {
                         self.confirm = Some((verb, c.id.clone(), c.name.clone()));
                     } else {
@@ -960,6 +1102,229 @@ impl ContainersTool {
         });
     }
 
+    /// A Compose project's detail: what it is made of, where it came
+    /// from, and the verbs.
+    #[allow(clippy::too_many_arguments)]
+    fn project_detail(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        inv: &Inventory,
+        name: &str,
+    ) {
+        let Some(p) = inv.projects.iter().find(|p| p.name == name).cloned() else {
+            form::hint(ui, theme, &s.t("container-gone"));
+            return;
+        };
+        let refusal = docker::guard(s, profile);
+        // Same guard as the container block: this one is created by the
+        // very click its buttons would otherwise answer.
+        let fresh = ui.input(|i| i.time) == self.selected_at;
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&p.name).strong());
+            ui.label(
+                egui::RichText::new(s.i18n.t_args(
+                    "container-compose-count",
+                    &[
+                        ("running", &p.running().to_string()),
+                        ("total", &p.services.len().to_string()),
+                    ],
+                ))
+                .small()
+                .color(theme.text_muted),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui.small_button(s.t("close")).clicked() {
+                    self.selected = None;
+                }
+            });
+        });
+        // Where it came from. Worth showing: a project is only as
+        // reproducible as the file it was brought up from, and a
+        // project with no file is one this pane cannot bring back up.
+        if p.has_files() {
+            ui.label(
+                egui::RichText::new(p.config_files.join("  ·  "))
+                    .small()
+                    .color(theme.text_muted),
+            );
+        } else {
+            form::hint(ui, theme, &s.t("container-compose-no-file"));
+        }
+        ui.add_space(4.0);
+
+        ui.horizontal_wrapped(|ui| {
+            for v in docker::compose_verbs_for(&p) {
+                let label = s.t(v.key());
+                let blocked = v.destructive() && refusal.is_some();
+                let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
+                let r = match (&refusal, blocked) {
+                    (Some(docker::Refusal::Protected(env)), true) => r.on_disabled_hover_text(
+                        s.i18n
+                            .t_args("container-refused-protected", &[("env", env)]),
+                    ),
+                    (Some(docker::Refusal::ReadOnly), true) => {
+                        r.on_disabled_hover_text(s.t("container-refused-read-only"))
+                    }
+                    _ => r,
+                };
+                if r.clicked() && !fresh {
+                    // `down` removes containers and the network, so it
+                    // asks first under the same setting that guards a
+                    // container's own destructive verbs.
+                    if v.destructive() && s.settings.read().containers.confirm_stop {
+                        self.confirm_compose = Some((v, p.name.clone()));
+                    } else {
+                        self.run_compose(s, v, &p);
+                    }
+                }
+            }
+            ui.separator();
+            // The services of a project are containers, and their logs
+            // belong in the Logs tool like any other.
+            if ui
+                .button(format!("{} {}", ph::SCROLL, s.t("container-view-logs")))
+                .clicked()
+                && !fresh
+                && let Some(first) = p.services.first()
+                && let Some(c) = inv.containers.iter().find(|c| c.id == first.id)
+            {
+                self.open_logs(s, cx_actions, profile, c);
+            }
+        });
+
+        if !p.services.is_empty() {
+            ui.add_space(6.0);
+            for sv in &p.services {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(if sv.state.is_running() {
+                            hs_ui::icons::ph::CHECK_CIRCLE
+                        } else {
+                            hs_ui::icons::ph::X_CIRCLE
+                        })
+                        .color(if sv.state.is_running() {
+                            theme.accent
+                        } else {
+                            theme.text_muted
+                        }),
+                    );
+                    ui.label(&sv.name);
+                    ui.label(
+                        egui::RichText::new(&sv.container)
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                    ui.label(egui::RichText::new(&sv.status).small().color(
+                        if sv.state.is_trouble() {
+                            theme.error
+                        } else {
+                            theme.text_muted
+                        },
+                    ));
+                });
+            }
+        }
+        self.output_block(ui, theme, s);
+    }
+
+    /// What the last Compose or Swarm verb printed.
+    ///
+    /// Compose says what it did - "Container shop-web-1  Started" - on
+    /// stderr, and dropping that would leave someone who pressed Up
+    /// with no way to tell whether anything happened.
+    fn output_block(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some(text) = self.last_output.clone() else {
+            return;
+        };
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("container-output"))
+                    .small()
+                    .strong()
+                    .color(theme.text_muted),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui.small_button(s.t("close")).clicked() {
+                    self.last_output = None;
+                }
+                if ui.small_button(s.t("container-copy-output")).clicked() {
+                    ui.ctx().copy_text(text.clone());
+                }
+            });
+        });
+        egui::ScrollArea::vertical()
+            .id_salt("container-output")
+            .max_height(120.0)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                ui.add(
+                    egui::Label::new(egui::RichText::new(text.trim()).monospace().small()).wrap(),
+                );
+            });
+    }
+
+    /// Run a Compose verb off the UI thread, then re-read the host.
+    fn run_compose(&mut self, s: &Services, verb: hs_container::ComposeVerb, p: &Project) {
+        let Some(profile) = self.host(s) else { return };
+        let fields = ContainerFields::from_table(&profile.fields);
+        let engine = hs_container::Engine::new(&profile.kind, fields);
+        let name = p.name.clone();
+        let files = p.config_files.clone();
+        let waker = s.runtime.waker();
+        let slot: ComposePending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.compose_pending = Some(slot);
+        self.loading = true;
+        s.runtime.spawn_blocking(move || {
+            // The verb and the re-read on one thread, so what comes
+            // back is the state *after* it rather than before.
+            let said = hs_container::run::compose(&engine, &name, &files, verb);
+            let inv = read_inventory(&engine);
+            *out.lock() = Some((said.map_err(|e| e.to_string()), inv));
+            waker.request_repaint();
+        });
+    }
+
+    /// The question `down` asks first.
+    fn confirm_compose_dialog(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some((verb, name)) = self.confirm_compose.clone() else {
+            return;
+        };
+        let label = s.t(verb.key());
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "container-compose-verb",
+            &label,
+            &s.i18n
+                .t_args("container-compose-confirm", &[("name", &name)]),
+            &label,
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                self.confirm_compose = None;
+                // Read the project again: the inventory may have been
+                // refreshed while the question was on screen.
+                let p = self
+                    .inventory
+                    .as_ref()
+                    .and_then(|r| r.as_ref().ok())
+                    .and_then(|inv| inv.projects.iter().find(|p| p.name == name).cloned());
+                if let Some(p) = p {
+                    self.run_compose(s, verb, &p);
+                }
+            }
+            hs_ui::dialog::DialogResult::Cancel => self.confirm_compose = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
+
     /// The question a destructive verb asks first.
     fn confirm_dialog(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         let Some((verb, id, name)) = self.confirm.clone() else {
@@ -993,6 +1358,39 @@ impl ContainersTool {
 /// tool may not depend on another tool's crate (ADR-004), and this
 /// string is the published contract between the two.
 const LOG_SOURCE_MIME: &str = "application/x-hyperstack-log-source+json";
+
+/// What an empty list of each resource should say. "None" and "not
+/// built yet" are different answers and must not share a message.
+fn empty_key(r: docker::Resource) -> &'static str {
+    match r {
+        docker::Resource::Containers => "container-no-containers",
+        docker::Resource::Projects => "container-no-projects",
+        docker::Resource::Images => "container-no-images",
+        docker::Resource::Volumes => "container-no-volumes",
+        docker::Resource::Networks => "container-no-networks",
+        docker::Resource::Stacks => "container-no-stacks",
+        docker::Resource::Services => "container-no-services",
+        docker::Resource::Nodes => "container-no-nodes",
+    }
+}
+
+/// What identifies the row the user clicked, for the list it is in.
+///
+/// An id or a name rather than the row index: every list here is
+/// re-read on each refresh, and an index would point at a different
+/// thing a moment later.
+fn row_identity(r: docker::Resource, inv: &Inventory, i: usize) -> Option<String> {
+    match r {
+        docker::Resource::Containers => inv.containers.get(i).map(|c| c.id.clone()),
+        docker::Resource::Projects => inv.projects.get(i).map(|p| p.name.clone()),
+        docker::Resource::Images => inv.image_list.get(i).map(|x| x.id.clone()),
+        docker::Resource::Volumes => inv.volume_list.get(i).map(|v| v.name.clone()),
+        docker::Resource::Networks => inv.network_list.get(i).map(|n| n.id.clone()),
+        docker::Resource::Stacks => inv.stacks.get(i).map(|x| x.name.clone()),
+        docker::Resource::Services => inv.services.get(i).map(|x| x.name.clone()),
+        docker::Resource::Nodes => inv.nodes.get(i).map(|n| n.hostname.clone()),
+    }
+}
 
 /// Open an address in the built-in Browser activity, in its own tab.
 fn open_url(actions: &mut Vec<Action>, url: &str) {

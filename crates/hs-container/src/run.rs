@@ -86,6 +86,58 @@ pub fn output(inv: &Invocation, env: &[(String, String)]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// Run an invocation whose **useful output is on stderr**, and return
+/// both streams.
+///
+/// `docker compose` and `docker stack deploy` write their progress -
+/// "Container shop-db-1  Created", "Creating service shop_web" - to
+/// stderr, keeping stdout for machine-readable output they mostly do
+/// not produce. A caller that read only stdout would report a
+/// successful deploy as an empty string and look like it had done
+/// nothing. The listings keep using [`output`], because they parse
+/// stdout as JSON and must not have progress text mixed into it.
+pub fn output_with_stderr(inv: &Invocation, env: &[(String, String)]) -> Result<String> {
+    if let Some(conn) = &inv.remote_ssh {
+        return Err(Error::Remote(conn.clone()));
+    }
+    let mut cmd = hs_core::paths::background_command(&inv.program);
+    cmd.args(&inv.args);
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    cmd.stdin(std::process::Stdio::null());
+    let out = cmd.output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            Error::NotInstalled(inv.program.clone())
+        } else {
+            Error::Unreachable(e.to_string())
+        }
+    })?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        let message = if stderr.trim().is_empty() {
+            format!("{} exited with {}", inv.program, out.status)
+        } else {
+            stderr.trim().to_string()
+        };
+        let lower = message.to_ascii_lowercase();
+        return Err(if looks_unreachable(&lower) {
+            Error::Unreachable(message)
+        } else {
+            Error::Refused(message)
+        });
+    }
+    let mut text = stdout.into_owned();
+    if !stderr.trim().is_empty() {
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&stderr);
+    }
+    Ok(text)
+}
+
 /// Whether the engine's complaint means "I could not talk to a daemon"
 /// rather than "I understood and refused".
 fn looks_unreachable(lower: &str) -> bool {
@@ -149,6 +201,89 @@ pub fn probe(engine: &Engine) -> Result<String> {
 pub fn act(engine: &Engine, verb: crate::cli::Verb, id: &str) -> Result<()> {
     output(&engine.verb(verb, id), &engine.env())?;
     Ok(())
+}
+
+// --- Swarm (phase 5) -------------------------------------------------
+
+/// Where this engine stands in a swarm.
+///
+/// An engine that cannot be reached at all is an error; one that
+/// answers "not in a swarm" is not, and that distinction is the whole
+/// reason this returns a `Result<SwarmState>` rather than swallowing
+/// the failure into `Inactive`.
+pub fn swarm_state(engine: &Engine) -> Result<crate::swarm::SwarmState> {
+    let text = output(&crate::swarm::info(engine), &engine.env())?;
+    Ok(crate::swarm::SwarmState::parse(&text))
+}
+
+pub fn stacks(engine: &Engine) -> Result<Vec<crate::swarm::Stack>> {
+    let text = output(&crate::swarm::list_stacks(engine), &engine.env())?;
+    Ok(crate::swarm::parse_stacks(&text))
+}
+
+pub fn services(engine: &Engine) -> Result<Vec<crate::swarm::Service>> {
+    let text = output(&crate::swarm::list_services(engine), &engine.env())?;
+    Ok(crate::swarm::parse_services(&text))
+}
+
+pub fn nodes(engine: &Engine) -> Result<Vec<crate::swarm::Node>> {
+    let text = output(&crate::swarm::list_nodes(engine), &engine.env())?;
+    Ok(crate::swarm::parse_nodes(&text))
+}
+
+/// The Compose projects on a host.
+///
+/// Two sources, because neither is enough on its own: `docker compose
+/// ls` knows which projects exist and which files they came from, the
+/// containers' labels know what is inside them. An engine too old for
+/// `compose ls` still gets the projects from the labels alone, which
+/// is why its failure is not an error here.
+pub fn projects(engine: &Engine) -> Result<Vec<crate::compose::Project>> {
+    let containers = containers(engine)?;
+    let listed = match output(&crate::compose::list(engine), &engine.env()) {
+        Ok(text) => crate::compose::parse_list(&text),
+        Err(e) => {
+            tracing::debug!("compose ls did not answer ({e}); reading the labels alone");
+            Vec::new()
+        }
+    };
+    Ok(crate::compose::merge(&listed, &containers))
+}
+
+/// Run one Compose verb for a project, returning what it printed.
+///
+/// `output_with_stderr`, because Compose's progress is on stderr and
+/// stdout is usually empty - except for `config`, whose rendered YAML
+/// *is* on stdout and which therefore comes back with any warnings
+/// appended, which is what someone reading it wants anyway.
+pub fn compose(
+    engine: &Engine,
+    project: &str,
+    files: &[String],
+    verb: crate::compose::ComposeVerb,
+) -> Result<String> {
+    output_with_stderr(
+        &crate::compose::invocation(engine, project, files, verb),
+        &engine.env(),
+    )
+}
+
+/// Deploy a stack from its file(s).
+pub fn deploy_stack(engine: &Engine, files: &[String], stack: &str) -> Result<String> {
+    output_with_stderr(&crate::swarm::deploy(engine, files, stack), &engine.env())
+}
+
+/// Remove a stack and every service in it.
+pub fn remove_stack(engine: &Engine, stack: &str) -> Result<String> {
+    output_with_stderr(&crate::swarm::remove_stack(engine, stack), &engine.env())
+}
+
+/// Scale a Swarm service.
+pub fn scale_service(engine: &Engine, service: &str, replicas: u32) -> Result<String> {
+    output_with_stderr(
+        &crate::swarm::scale(engine, service, replicas),
+        &engine.env(),
+    )
 }
 
 #[cfg(test)]

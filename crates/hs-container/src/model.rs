@@ -143,15 +143,24 @@ pub struct Container {
     pub command: String,
 }
 
+/// The labels Compose writes on everything it creates. One definition,
+/// used by the accessors below and by `compose`: a typo in a second
+/// copy would be a project that silently never groups.
+pub(crate) const L_PROJECT: &str = "com.docker.compose.project";
+pub(crate) const L_SERVICE: &str = "com.docker.compose.service";
+pub(crate) const L_CONFIG_FILES: &str = "com.docker.compose.project.config_files";
+pub(crate) const L_WORKING_DIR: &str = "com.docker.compose.project.working_dir";
+pub(crate) const L_NUMBER: &str = "com.docker.compose.container-number";
+
 impl Container {
     /// The Compose project this belongs to, from the label Compose sets.
     /// Stacks in the pane are grouped by this.
     pub fn compose_project(&self) -> Option<&str> {
-        self.label("com.docker.compose.project")
+        self.label(L_PROJECT)
     }
 
     pub fn compose_service(&self) -> Option<&str> {
-        self.label("com.docker.compose.service")
+        self.label(L_SERVICE)
     }
 
     pub fn label(&self, key: &str) -> Option<&str> {
@@ -244,7 +253,7 @@ impl Summary {
 /// line-delimited objects (Docker). A line that cannot be parsed is
 /// skipped rather than failing the whole list - one odd container must
 /// not hide the other twenty.
-fn records(text: &str) -> Vec<serde_json::Value> {
+pub(crate) fn records(text: &str) -> Vec<serde_json::Value> {
     let trimmed = text.trim_start();
     if trimmed.starts_with('[') {
         return serde_json::from_str::<Vec<serde_json::Value>>(trimmed).unwrap_or_default();
@@ -258,7 +267,7 @@ fn records(text: &str) -> Vec<serde_json::Value> {
 
 /// A string field under any of several spellings, because the two
 /// engines disagree about capitalisation (`ID` and `Id`).
-fn text_of(v: &serde_json::Value, keys: &[&str]) -> String {
+pub(crate) fn text_of(v: &serde_json::Value, keys: &[&str]) -> String {
     for k in keys {
         if let Some(s) = v.get(k).and_then(|x| x.as_str()) {
             return s.to_string();

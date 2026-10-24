@@ -9,7 +9,8 @@
 //! assistant all come free.
 
 use hs_container::cli::Verb;
-use hs_container::{Container, Image, Network, State, Volume};
+use hs_container::compose::ComposeVerb;
+use hs_container::{Container, Image, Network, Project, State, Volume};
 use hs_core::Services;
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
@@ -21,34 +22,64 @@ use serde::{Deserialize, Serialize};
 pub enum Resource {
     #[default]
     Containers,
+    /// Compose projects, grouped from the containers' own labels.
+    Projects,
     Images,
     Volumes,
     Networks,
+    /// Swarm, listed only where the engine is a manager.
+    Stacks,
+    Services,
+    Nodes,
 }
 
 impl Resource {
-    pub const ALL: [Resource; 4] = [
+    /// Everything a Docker host can show. The Swarm three are kept in
+    /// the list and *disabled* off a swarm rather than hidden: a rail
+    /// that changes length as hosts are switched is harder to use, and
+    /// "not a swarm" is information.
+    pub const ALL: [Resource; 8] = [
         Resource::Containers,
+        Resource::Projects,
         Resource::Images,
         Resource::Volumes,
         Resource::Networks,
+        Resource::Stacks,
+        Resource::Services,
+        Resource::Nodes,
     ];
+
+    /// Whether this is a Swarm surface, which only a manager answers.
+    pub fn is_swarm(self) -> bool {
+        matches!(
+            self,
+            Resource::Stacks | Resource::Services | Resource::Nodes
+        )
+    }
 
     pub fn key(self) -> &'static str {
         match self {
             Resource::Containers => "container-res-containers",
+            Resource::Projects => "container-res-projects",
             Resource::Images => "container-res-images",
             Resource::Volumes => "container-res-volumes",
             Resource::Networks => "container-res-networks",
+            Resource::Stacks => "container-res-stacks",
+            Resource::Services => "container-res-services",
+            Resource::Nodes => "container-res-nodes",
         }
     }
 
     pub fn icon(self) -> &'static str {
         match self {
             Resource::Containers => ph::SHIPPING_CONTAINER,
+            Resource::Projects => ph::SQUARES_FOUR,
             Resource::Images => ph::STACK,
             Resource::Volumes => ph::HARD_DRIVES,
             Resource::Networks => ph::TREE_STRUCTURE,
+            Resource::Stacks => ph::CUBE,
+            Resource::Services => ph::GEAR_SIX,
+            Resource::Nodes => ph::DESKTOP,
         }
     }
 }
@@ -103,17 +134,32 @@ pub struct Selection {
 }
 
 /// Draw the resource rail. Returns the resource clicked, if any.
+///
+/// `swarm` says whether the engine is a swarm manager: the three Swarm
+/// rows are **disabled and explained** off a swarm rather than hidden,
+/// because a rail that changes length between hosts is harder to use
+/// and "this engine is not in a swarm" is information someone wants.
 pub fn resource_rail(
     ui: &mut egui::Ui,
     theme: &Theme,
     s: &Services,
     current: Resource,
-    counts: [usize; 4],
+    counts: &[usize],
+    swarm: hs_container::swarm::SwarmState,
 ) -> Option<Resource> {
     let mut picked = None;
     ui.vertical(|ui| {
         ui.set_width(150.0);
         for (i, r) in Resource::ALL.into_iter().enumerate() {
+            if r == Resource::Stacks {
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(s.t("container-res-swarm"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+                ui.add_space(2.0);
+            }
             // The count is the quieter half of the row: it changes on
             // every refresh, and the name is what is being chosen.
             let mut label = egui::text::LayoutJob::default();
@@ -123,15 +169,24 @@ pub fn resource_rail(
                 0.0,
                 egui::TextFormat::simple(font.clone(), theme.text),
             );
-            label.append(
-                &counts[i].to_string(),
-                0.0,
-                egui::TextFormat::simple(font, theme.text_muted),
+            if let Some(n) = counts.get(i) {
+                label.append(
+                    &n.to_string(),
+                    0.0,
+                    egui::TextFormat::simple(font, theme.text_muted),
+                );
+            }
+            let usable = !r.is_swarm() || swarm.can_manage();
+            let resp = ui.add_enabled(
+                usable,
+                egui::Button::selectable(current == r, label).min_size(egui::vec2(140.0, 0.0)),
             );
-            if ui
-                .add(egui::Button::selectable(current == r, label).min_size(egui::vec2(140.0, 0.0)))
-                .clicked()
-            {
+            let resp = if usable {
+                resp
+            } else {
+                resp.on_disabled_hover_text(s.t(swarm.key()))
+            };
+            if resp.clicked() {
                 picked = Some(r);
             }
             ui.add_space(2.0);
@@ -145,12 +200,13 @@ pub fn resource_rail(
 pub fn table_data(
     resource: Resource,
     s: &Services,
-    containers: &[Container],
-    images: &[Image],
-    volumes: &[Volume],
-    networks: &[Network],
+    inv: &crate::Inventory,
 ) -> (Vec<hs_ui::table::ColumnSpec>, Vec<Vec<String>>) {
     use hs_ui::table::ColumnSpec;
+    let containers: &[Container] = &inv.containers;
+    let images: &[Image] = &inv.image_list;
+    let volumes: &[Volume] = &inv.volume_list;
+    let networks: &[Network] = &inv.network_list;
     match resource {
         Resource::Containers => (
             vec![
@@ -228,7 +284,108 @@ pub fn table_data(
                 })
                 .collect(),
         ),
+        Resource::Projects => (
+            vec![
+                ColumnSpec::new(s.t("container-col-name"), 220.0),
+                ColumnSpec::new(s.t("container-col-services"), 110.0),
+                ColumnSpec::new(s.t("container-col-state"), 120.0),
+                ColumnSpec::new(s.t("container-col-files"), 420.0),
+            ],
+            inv.projects
+                .iter()
+                .map(|p| {
+                    vec![
+                        p.name.clone(),
+                        p.services.len().to_string(),
+                        // Running out of total, which is the whole
+                        // story of a project that is half up.
+                        format!("{}/{}", p.running(), p.services.len()),
+                        p.config_files.join(", "),
+                    ]
+                })
+                .collect(),
+        ),
+        Resource::Stacks => (
+            vec![
+                ColumnSpec::new(s.t("container-col-name"), 240.0),
+                ColumnSpec::new(s.t("container-col-services"), 110.0),
+                ColumnSpec::new(s.t("container-col-orchestrator"), 140.0),
+            ],
+            inv.stacks
+                .iter()
+                .map(|st| {
+                    vec![
+                        st.name.clone(),
+                        st.services.to_string(),
+                        st.orchestrator.clone(),
+                    ]
+                })
+                .collect(),
+        ),
+        Resource::Services => (
+            vec![
+                ColumnSpec::new(s.t("container-col-name"), 240.0),
+                ColumnSpec::new(s.t("container-col-mode"), 120.0),
+                ColumnSpec::new(s.t("container-col-replicas"), 110.0),
+                ColumnSpec::new(s.t("container-col-image"), 260.0),
+                ColumnSpec::new(s.t("container-col-ports"), 200.0),
+            ],
+            inv.services
+                .iter()
+                .map(|sv| {
+                    vec![
+                        sv.name.clone(),
+                        sv.mode.clone(),
+                        sv.replicas(),
+                        sv.image.clone(),
+                        sv.ports.clone(),
+                    ]
+                })
+                .collect(),
+        ),
+        Resource::Nodes => (
+            vec![
+                ColumnSpec::new(s.t("container-col-hostname"), 220.0),
+                ColumnSpec::new(s.t("container-col-status"), 120.0),
+                ColumnSpec::new(s.t("container-col-availability"), 140.0),
+                ColumnSpec::new(s.t("container-col-manager"), 140.0),
+                ColumnSpec::new(s.t("container-col-engine"), 120.0),
+            ],
+            inv.nodes
+                .iter()
+                .map(|n| {
+                    vec![
+                        n.hostname.clone(),
+                        n.status.clone(),
+                        n.availability.clone(),
+                        n.manager_status.clone(),
+                        n.engine_version.clone(),
+                    ]
+                })
+                .collect(),
+        ),
     }
+}
+
+/// The Compose verbs offered for a project, in the order shown.
+///
+/// A project with no compose file can only be acted on through the
+/// labels the engine already holds: `up` there would be run against
+/// whatever is in the current directory, which is how a project gets
+/// recreated as something else entirely.
+pub fn compose_verbs_for(p: &Project) -> Vec<ComposeVerb> {
+    let all = [
+        ComposeVerb::Up,
+        ComposeVerb::Restart,
+        ComposeVerb::Stop,
+        ComposeVerb::Start,
+        ComposeVerb::Pull,
+        ComposeVerb::Config,
+        ComposeVerb::Down,
+    ];
+    all.into_iter()
+        .filter(|v| p.has_files() || !v.needs_files())
+        .collect()
 }
 
 /// An id as every container tool shows it, without panicking on a short

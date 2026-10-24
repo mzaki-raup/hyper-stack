@@ -1462,6 +1462,20 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `Action::SetTitle` is overwritten the moment it lands. A tab whose
   label comes from a stored profile has to keep the *name* in its own
   saved state, not look it up.
+- **A detail block that appears on a click answers that same click.**
+  egui lays a frame out twice when a panel's size changes
+  (`request_discard`) and `clicked()` is pointer *state*, so the second
+  pass sees the click still held - and the detail block, which did not
+  exist in the first pass, now has buttons under that pointer. Selecting
+  a Compose project ran `config`; the identical path on the container
+  list would have reached **Remove**. Both passes share
+  `ui.input(|i| i.time)`, so storing it when the selection changes and
+  refusing verb clicks while it matches is the exact guard. Any pane
+  where picking a row reveals buttons needs it.
+- **Output from a verb belongs to what it was run against.** The
+  Compose output block survived a selection change, so one project's
+  `config` appeared under the next project someone clicked and read as
+  that project's own. Clear it when the selection changes.
 - A connection profile lives in `connections/<kind>/<slug>.toml`, in a
   **sub-directory per kind** — a fixture written straight into
   `connections/` is silently never loaded, which looks exactly like the

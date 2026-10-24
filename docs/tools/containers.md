@@ -324,6 +324,55 @@ a Terminal tab, where the shell is **Settings → Containers → Shell for
 Exec**: no single answer suits every image — a minimal one has no bash,
 and a distroless one (portainer) has no shell at all and says so.
 
+**Compose and Swarm (phase 5).** The rail gains **Projects** above the
+images, and a **Swarm** group — Stacks, Services, Nodes — below them.
+
+A Compose project is not something the engine stores: it is a set of
+containers wearing `com.docker.compose.project`, so the pane rebuilds
+projects from a plain `ps` and never keeps a registry of its own that
+would go stale the moment someone ran `docker compose` in a terminal.
+The *files* a project came from cannot be read from those labels
+reliably, though: Compose joins several with a comma and `docker ps
+--format '{{json .}}'` joins the whole **label set** with a comma too,
+so the second file arrives looking like a label with no `=` and is
+dropped. `docker compose ls -a --format json` reports them as their own
+field and wins where the two disagree; the label is the fallback for an
+engine too old to have it, where one file — the common case — is still
+right. `-a`, or a project brought down vanishes from the pane and looks
+deleted.
+
+The verbs shell out to `docker compose` rather than being reimplemented
+against the engine API: dependency order, profiles, `depends_on`
+conditions and build contexts are Compose's job. `up` is always `-d`,
+or the command tails the logs and the Job waits for a process that will
+not end. **A project with no known compose file is offered only the
+verbs that work from the project label** (Start, Stop, Restart, Down)
+and told why: `up` without a file is run against whatever is in the
+current directory, which is how a project gets recreated as something
+else entirely. `down` is destructive — it removes the containers and
+the network — so it asks first under the same setting that guards a
+container's own destructive verbs, and the question says that volumes
+are kept.
+
+Swarm is the one surface that may simply not be there, and "not in a
+swarm" is a **state to show, not an error to report**: the remedy is
+`docker swarm init`, which is a decision for the person. `docker info`
+is read first and the three Swarm rows are disabled with that answer as
+their tooltip — disabled rather than hidden, because a rail that
+changes length between hosts is harder to use. A **worker** is told
+apart from "not a swarm": it is in one but cannot be asked about
+stacks, and the words differ. Off a swarm the three listings are not
+run at all; three failing processes per refresh to learn what `info`
+already said is waste.
+
+Compose and `stack deploy` write their progress to **stderr** and keep
+stdout for machine-readable output they mostly do not produce, so these
+verbs go through `run::output_with_stderr` and the pane shows what came
+back. A caller reading stdout alone would report a successful deploy as
+an empty string and look like it had done nothing. (The listings keep
+using `run::output`: they parse stdout as JSON and must not have
+progress text mixed in.)
+
 **Windows containers** use the Docker pane against a Windows engine,
 showing `isolation` (process or hyperv), with `cmd`/`powershell` for
 Exec. Honest scope: no Hyper-V VM management, and no Windows networking

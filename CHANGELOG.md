@@ -13,6 +13,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Container activity, phase 5**: Compose and Swarm. The rail gains
+  **Projects**, and a **Swarm** group — Stacks, Services, Nodes. A
+  Compose project is rebuilt from the containers' own labels, so
+  nothing goes stale when someone runs `docker compose` in a terminal,
+  and `docker compose ls -a` supplies the config files, which the label
+  string cannot express unambiguously. Up, Start, Stop, Restart, Pull,
+  Config and Down run through `docker compose` itself for fidelity, off
+  the UI thread, re-reading the host on the same worker; `up` is always
+  detached, and a project whose compose file is unknown is offered only
+  the verbs that work from the label and told why. Down asks first and
+  says that volumes are kept. Swarm reads `docker info` first and shows
+  "not in a swarm" as a **state** rather than an error, telling a
+  worker apart from an engine in no swarm, and does not run the three
+  listings at all where they cannot answer. What Compose and
+  `stack deploy` print — which is on stderr — is shown in the pane.
+- **Settings → Containers → Shell for Exec**: which shell Exec opens
+  inside a container. No single answer suits every image: a minimal one
+  has no bash, a distroless one has no shell at all.
+
 - **Container activity, phase 4**: the Portainer-shaped Docker pane. A
   resource rail (Containers, Images, Volumes, Networks with their
   counts), the filterable table beside it, and a detail block
@@ -163,6 +182,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- **Selecting a row could fire one of the buttons it revealed.** egui
+  lays a frame out twice when a panel's size changes and `clicked()` is
+  pointer state, so the second pass saw the same click still held — and
+  the detail block, which had not existed a moment earlier, now had
+  buttons under that pointer. Selecting a Compose project ran `config`;
+  the same path on the container list would have reached Remove. Found
+  by running it, not by a test.
+- **A verb's output outlived what it was run against**, so one
+  project's output appeared under the next project selected.
 - **A cross-tool request into an activity never opened was silently
   lost.** The first tab of an activity becomes its home tab, and a
   dashboard home draws the dashboard whatever it was handed - so View

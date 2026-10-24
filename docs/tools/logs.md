@@ -762,3 +762,40 @@ driver `tool-redis` owns. The registry is the hard part and it is done -
 adding Redis is now a `Searcher` impl in that crate and one line in
 `bootstrap`, with the open question being which connection to use, since
 searching every configured Redis unasked would be a surprise.
+
+## 20. Terminal escapes are stripped at ingest (2026-10-24)
+
+A great many programs colour their output when they think a terminal is
+watching, and a container keeps those bytes in its log for ever.
+portainer writes its level as `ESC[32mINF ESC[0m`, which the viewer
+showed literally as `[32mINF`.
+
+This is not only ugly. **The escapes sit between the timestamp and the
+level, which is exactly where every parser looks**, so a coloured line
+was an unparsed line too: the Level column was empty for a log that
+names its level on every row. Stripping fixed the display and the
+parsing in one move, which is how it was found.
+
+`ansi::strip` runs in `Shared::push_line` — the one choke point every
+source passes through, pasted text, local file, SSH and command alike —
+and again over the sample `pick_format` detects from, because a JSON
+line behind a colour code does not start with `{` and the whole log
+would be read as plain. It handles CSI (colour, cursor movement, erase),
+OSC strings ended by either BEL or ST, and the charset selectors, and
+consumes an escape that a tail cut in half rather than printing its
+innards.
+
+Two deliberate limits:
+
+- **It strips rather than renders.** Showing the colour would be a
+  different feature; the records carry text.
+- **It never guesses.** A line that merely contains the *text* `[90m`
+  with no escape byte in front of it is data and is left exactly as it
+  is — a test holds that. A clean line is borrowed, not copied, so the
+  cost on the overwhelming majority of lines is one scan for a byte
+  that is not there.
+
+One consequence worth stating: a record's `raw` is now the line with its
+escapes removed, so the §17 reassembly invariant reads "the records put
+back together are the file again, as the file would be without its
+terminal escapes".

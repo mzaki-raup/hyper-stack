@@ -1567,6 +1567,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `parse::absorb_continuation` reads them as the engine folds each
   continuation line in; any future format whose fields arrive after its
   header needs the same hook.
+- **A coloured line is an unparsed line.** Terminal escapes do not just
+  look wrong in a log viewer: they sit between the timestamp and the
+  level, which is where every parser looks, so portainer's lines showed
+  `[32mINF` *and* left the Level column empty. `ansi::strip` runs in
+  `Shared::push_line` (the one choke point every source passes through)
+  and over the sample `pick_format` detects from - a JSON line behind a
+  colour code does not start with `{`, so a coloured sample detects as
+  plain and every field is lost. Strip, never render, and never guess:
+  text containing `[90m` with no escape byte is data.
 - Assert "nothing was lost" by **reassembling**: joining every record's
   `raw` with newlines must equal the input file. Counting
   `raw.lines()` instead silently miscounts, because `"a\n".lines()` is 1

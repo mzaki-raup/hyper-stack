@@ -70,6 +70,13 @@ pub struct Shared {
 
 impl Shared {
     fn push_line(&mut self, format: Format, line: &str) {
+        // Every source arrives here, so this is the one place the
+        // terminal escapes have to come off. They are not only ugly:
+        // they sit between the timestamp and the level, where every
+        // parser looks, so a coloured line is also an unparsed one
+        // (portainer, measured 2026-10-24). A clean line is borrowed,
+        // which is almost every line of almost every log.
+        let line: &str = &crate::ansi::strip(line);
         self.lines += 1;
         if let Some(last) = self.records.last_mut()
             && parse::is_continuation(format, line)
@@ -300,7 +307,14 @@ fn pick_format(saved: Format, sample: &[String]) -> Format {
     if saved != Format::Auto {
         return saved;
     }
-    let refs: Vec<&str> = sample.iter().map(String::as_str).collect();
+    // Detection reads the same text the records will hold, escapes
+    // already gone: a JSON line behind a colour code does not start
+    // with `{`, and the sample would be read as plain.
+    let clean: Vec<String> = sample
+        .iter()
+        .map(|l| crate::ansi::strip(l).into_owned())
+        .collect();
+    let refs: Vec<&str> = clean.iter().map(String::as_str).collect();
     parse::detect(&refs)
 }
 
@@ -749,6 +763,55 @@ fn start_remote(
         }
         client.disconnect().await;
     });
+}
+
+#[cfg(test)]
+mod colour_tests {
+    use super::*;
+
+    /// The escapes have to come off **before** the parser reads the
+    /// line, not on the way to the screen: they sit between the
+    /// timestamp and the level, so a coloured line that still carries
+    /// them is an unparsed line as well as an unreadable one.
+    #[test]
+    fn a_coloured_line_is_parsed_and_stored_clean() {
+        let mut sh = Shared::default();
+        sh.push_line(
+            Format::Logfmt,
+            "\u{1b}[90m2026-10-23T10:28:11Z\u{1b}[0m \u{1b}[32mlevel=info\u{1b}[0m \
+             msg=\"starting HTTPS server\"",
+        );
+        let rec = sh.records.last().expect("one record");
+        assert!(
+            !rec.raw.contains('\u{1b}'),
+            "no escape survives into a record: {:?}",
+            rec.raw
+        );
+        assert!(
+            rec.raw.starts_with("2026-10-23T10:28:11Z"),
+            "the line begins with its timestamp again: {:?}",
+            rec.raw
+        );
+        assert_eq!(
+            rec.level,
+            Some(parse::Level::Info),
+            "and the level behind the colour code is read"
+        );
+    }
+
+    /// Detection reads what the records will hold. A JSON line behind a
+    /// colour code does not start with `{`, so a sample left coloured
+    /// would be detected as plain and every field lost.
+    #[test]
+    fn a_coloured_sample_still_detects_its_format() {
+        let sample = vec![
+            "\u{1b}[2m{\"ts\":\"2026-10-23T10:28:11Z\",\"level\":\"info\",\"msg\":\"a\"}\u{1b}[0m"
+                .to_string(),
+            "\u{1b}[2m{\"ts\":\"2026-10-23T10:28:12Z\",\"level\":\"warn\",\"msg\":\"b\"}\u{1b}[0m"
+                .to_string(),
+        ];
+        assert_eq!(pick_format(Format::Auto, &sample), Format::Json);
+    }
 }
 
 #[cfg(test)]

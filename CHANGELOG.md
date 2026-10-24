@@ -158,6 +158,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   Logs on a container switched to the Logs activity and showed its
   dashboard with the source gone. The shell now lets that first tab be
   the dashboard and opens a working tab beside it.
+- **A coloured log showed its escape codes and lost its level.** Many
+  programs colour their output when they think a terminal is watching,
+  and a container keeps those bytes for ever: portainer's lines read
+  `[90m2026/10/23 10:28AM[0m [32mINF[0m` in the viewer. The escapes
+  also sit between the timestamp and the level, where every parser
+  looks, so the Level column was empty for a log that names its level on
+  every row. `ansi::strip` now runs at ingest - one choke point every
+  source passes through - and over the sample the format is detected
+  from, since a JSON line behind a colour code does not start with `{`.
+  It strips rather than renders, and never guesses: a line containing
+  the text `[90m` with no escape byte is data and is left alone.
 - **A Logs tab following a container showed nothing.** `docker logs`
   writes the container's stderr to its own stderr, and a Logs command
   source reads stdout; most images log to stderr, so following

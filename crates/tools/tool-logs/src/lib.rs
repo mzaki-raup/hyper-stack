@@ -7,6 +7,7 @@
 //! All reading happens on the runtime ([`engine`]); the UI only touches
 //! the record window under a short lock.
 
+pub mod ansi;
 pub mod chart;
 pub mod engine;
 pub mod filter;

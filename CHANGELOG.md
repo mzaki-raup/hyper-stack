@@ -122,6 +122,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- The title bar's **workspace switcher** is clickable along the whole
+  row. Each entry was a logo beside a `selectable_label`, so only the
+  few pixels of the name itself switched workspace and the logo and the
+  space around it were dead; the row is now one target, with the Delete
+  button in a fixed column at its right that is interacted with after
+  the row and therefore sits on top of it. The menu's width is measured
+  from the longest name plus the logo, the padding and that column
+  (capped at 420 px) rather than grown by egui from a Delete button that
+  claimed every pixel going, which had left most of the menu empty.
+
 - `hs_ui::table::DataTable` scrolls instead of clipping. It divided the
   width it was handed and then cut the columns off, so in a narrow pane
   the ones past the edge could not be reached at all and there was

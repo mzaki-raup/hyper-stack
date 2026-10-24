@@ -316,6 +316,17 @@ folder glyph when none is set) and a trash icon on every row while more
 than one workspace exists; the same logo appears on the Home cards and
 beside the Compare With list in Settings → Workspace.
 
+Each entry is **one row, clickable along its whole length** — the logo,
+the name and the space between them all switch workspace, rather than
+only the few pixels of the name (owner's request, 2026-10-24). The Delete
+button owns a fixed column at the right end and is interacted with after
+the row, so it sits on top of it and the two never take each other's
+clicks. The menu's width is **measured** from the longest workspace name
+plus the logo, the padding each end and that Delete column
+(`app::ws_menu_width`, capped at 420 px), so it is as wide as it needs to
+be and no wider; egui's own sizing grew it from a row whose Delete button
+claimed every pixel going and left most of the menu empty.
+
 Every control on the right of the title bar is the same 38 px square
 (`hs_ui::form::icon_button`; the two menus use `icon_menu`, which opens an
 `egui::Popup::menu` on that same square), so the row keeps one rhythm

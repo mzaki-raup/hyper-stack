@@ -89,6 +89,60 @@ pub(crate) const WS_MARK_ROW: f32 = 20.0;
 /// The Workspaces list, where the logo is the point of the row.
 pub(crate) const WS_MARK_LIST: f32 = 34.0;
 
+/// What a click on a workspace row in the switcher menu asked for.
+enum WsRow {
+    Switch,
+    Delete,
+}
+
+/// A workspace row in the switcher menu. Tall enough to be a comfortable
+/// target along its whole length, which is the point of it being one row
+/// rather than a label beside an icon.
+const WS_MENU_ROW_H: f32 = 26.0;
+/// The slice of a row the Delete button owns.
+const WS_MENU_TRASH_W: f32 = 24.0;
+/// The gap each end of a row, and between the logo and the name.
+const WS_MENU_PAD: f32 = 8.0;
+/// A ceiling on the measured width, so one pathological name cannot
+/// stretch the menu across the window.
+const WS_MENU_MAX: f32 = 420.0;
+
+/// How wide the switcher menu has to be: the longest name laid out in
+/// full, plus the logo, the padding each end and the room the Delete
+/// button needs on the right (owner's request, 2026-10-24).
+///
+/// Measured rather than left to egui, which sized the popup from a row
+/// whose Delete button claimed every pixel going and left most of the
+/// menu empty.
+fn ws_menu_width(ui: &egui::Ui, names: &[String], can_delete: bool, new_label: &str) -> f32 {
+    let font = egui::FontId::proportional(14.0);
+    let text_w = |t: &str, f: egui::FontId| {
+        ui.fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(t.to_string(), f, egui::Color32::WHITE)
+                .size()
+                .x
+        })
+    };
+    let widest = names
+        .iter()
+        .map(|n| text_w(n, font.clone()))
+        .fold(0.0_f32, f32::max);
+    let rows = WS_MENU_PAD
+        + WS_MARK_ROW
+        + WS_MENU_PAD
+        + widest
+        + if can_delete {
+            WS_MENU_PAD + WS_MENU_TRASH_W
+        } else {
+            WS_MENU_PAD
+        };
+    // New Workspace… is a plain menu item and must not be the thing that
+    // wraps, so it is part of the measurement.
+    let new_item = text_w(&format!("x {new_label}"), font) + 2.0 * WS_MENU_PAD;
+    rows.max(new_item).min(WS_MENU_MAX)
+}
+
 /// A workspace's logo at `size`, or the folder glyph scaled to match.
 /// Inside a horizontal row egui centres both on the text beside them.
 pub(crate) fn ws_mark(ui: &mut egui::Ui, logo: Option<egui::Image<'static>>, size: f32) {
@@ -1643,6 +1697,132 @@ impl HyperStackApp {
     }
 
     /// New Workspace and Delete Workspace modals.
+    /// One workspace in the switcher menu: the logo, the name and the
+    /// Delete button, drawn as **one** row that is clickable along its
+    /// whole length.
+    ///
+    /// It used to be a logo beside a `selectable_label`, so only the few
+    /// pixels of the name itself switched workspace and everything
+    /// around it was dead (owner's report, 2026-10-24). The Delete
+    /// button is interacted with after the row and therefore sits on top
+    /// of it, which is what keeps the two apart.
+    fn ws_menu_row(
+        &self,
+        ui: &mut egui::Ui,
+        name: &str,
+        root: &std::path::Path,
+        current: bool,
+        can_delete: bool,
+    ) -> Option<WsRow> {
+        let width = ui.available_width();
+        let (rect, resp) =
+            ui.allocate_exact_size(egui::vec2(width, WS_MENU_ROW_H), egui::Sense::click());
+        let trash = can_delete.then(|| {
+            let r = egui::Rect::from_min_size(
+                egui::pos2(
+                    rect.right() - WS_MENU_TRASH_W - WS_MENU_PAD / 2.0,
+                    rect.top(),
+                ),
+                egui::vec2(WS_MENU_TRASH_W, rect.height()),
+            );
+            let resp = ui
+                .interact(r, ui.id().with(("ws-delete", name)), egui::Sense::click())
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
+            (r, resp)
+        });
+        let over_trash = trash.as_ref().is_some_and(|(_, r)| r.hovered());
+
+        let theme = &self.theme;
+        let fill = if current {
+            theme.accent.linear_multiply(0.30)
+        } else if resp.hovered() {
+            theme.surface_hover
+        } else {
+            egui::Color32::TRANSPARENT
+        };
+        if fill != egui::Color32::TRANSPARENT {
+            ui.painter()
+                .rect_filled(rect, egui::CornerRadius::same(4), fill);
+        }
+
+        let mark = egui::Rect::from_min_size(
+            egui::pos2(
+                rect.left() + WS_MENU_PAD,
+                rect.center().y - WS_MARK_ROW / 2.0,
+            ),
+            egui::vec2(WS_MARK_ROW, WS_MARK_ROW),
+        );
+        match ws_logo_image(root) {
+            Some(img) => img.corner_radius(3.0).paint_at(ui, mark),
+            None => {
+                ui.painter().text(
+                    mark.center(),
+                    egui::Align2::CENTER_CENTER,
+                    hs_ui::icons::WORKSPACE,
+                    egui::FontId::proportional(WS_MARK_ROW * 0.82),
+                    if current {
+                        theme.accent
+                    } else {
+                        theme.text_muted
+                    },
+                );
+            }
+        }
+
+        // The name stops where the Delete button starts, so the two
+        // never overlap however long the name is.
+        let text_left = mark.right() + WS_MENU_PAD;
+        let text_right = rect.right()
+            - if can_delete {
+                WS_MENU_PAD + WS_MENU_TRASH_W
+            } else {
+                WS_MENU_PAD
+            };
+        let mut job = egui::text::LayoutJob::single_section(
+            name.to_string(),
+            egui::TextFormat::simple(
+                egui::FontId::proportional(14.0),
+                if current { theme.accent } else { theme.text },
+            ),
+        );
+        job.wrap = egui::text::TextWrapping::truncate_at_width((text_right - text_left).max(1.0));
+        let galley = ui.painter().layout_job(job);
+        let elided = galley.elided;
+        ui.painter().galley(
+            egui::pos2(text_left, rect.center().y - galley.size().y / 2.0),
+            galley,
+            theme.text,
+        );
+        // A name the row could not show in full is worth a tooltip; one
+        // that fits would only repeat itself.
+        if elided {
+            resp.clone().on_hover_text(name);
+        }
+
+        if let Some((trash_rect, trash_resp)) = trash {
+            ui.painter().text(
+                trash_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                hs_ui::icons::TRASH,
+                egui::FontId::proportional(14.0),
+                if trash_resp.hovered() {
+                    theme.error
+                } else {
+                    theme.text_muted
+                },
+            );
+            if trash_resp.clicked() {
+                return Some(WsRow::Delete);
+            }
+        }
+        // `over_trash` is belt and braces: the Delete button is on top,
+        // so the row should not see that click at all.
+        if resp.clicked() && !over_trash && !current {
+            return Some(WsRow::Switch);
+        }
+        None
+    }
+
     fn workspace_dialogs(&mut self, ctx: &egui::Context) {
         let s = self.services.clone();
         let theme = self.theme.clone();
@@ -1999,63 +2179,53 @@ impl HyperStackApp {
                         None => egui::Button::new(ws_glyph_text(ui, &ws_name, WS_MARK_TITLE)),
                     }
                     .right_text(hs_ui::icons::CARET_DOWN);
-                    egui::containers::menu::MenuButton::from_button(workspace_button).ui(
-                        ui,
-                        |ui| {
-                            let rows: Vec<(String, std::path::PathBuf)> = self
-                                .registry
-                                .workspaces
-                                .iter()
-                                .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
-                                .collect();
-                            // One workspace must always remain.
-                            let can_delete = rows.len() > 1;
-                            for (n, root) in rows {
-                                ui.horizontal(|ui| {
-                                    ws_mark(ui, ws_logo_image(&root), WS_MARK_ROW);
-                                    if ui.selectable_label(n == ws_name, &n).clicked()
-                                        && n != ws_name
-                                    {
-                                        self.pending_actions.push(Action::RunCommand {
-                                            id: format!("ws:{n}"),
-                                        });
-                                    }
-                                    if can_delete {
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                if ui
-                                                    .add(
-                                                        egui::Button::new(hs_ui::icons::TRASH)
-                                                            .frame(false),
-                                                    )
-                                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                                    .clicked()
-                                                {
-                                                    self.pending_actions.push(Action::RunCommand {
-                                                        id: format!("ws.delete:{n}"),
-                                                    });
-                                                    ui.close();
-                                                }
-                                            },
-                                        );
-                                    }
-                                });
+                    let rows: Vec<(String, std::path::PathBuf)> = self
+                        .registry
+                        .workspaces
+                        .iter()
+                        .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
+                        .collect();
+                    // One workspace must always remain.
+                    let can_delete = rows.len() > 1;
+                    let new_label = s.t("workspace-new");
+                    let names: Vec<String> = rows.iter().map(|(n, _)| n.clone()).collect();
+                    let menu_w = ws_menu_width(ui, &names, can_delete, &new_label);
+                    // `Popup::menu` rather than `MenuButton`, because this
+                    // menu is not in a menu bar and the width has to be
+                    // ours to set.
+                    let ws_response = ui.add(workspace_button);
+                    egui::Popup::menu(&ws_response).width(menu_w).show(|ui| {
+                        ui.set_width(menu_w);
+                        for (n, root) in rows {
+                            match self.ws_menu_row(ui, &n, &root, n == ws_name, can_delete) {
+                                Some(WsRow::Switch) => {
+                                    self.pending_actions.push(Action::RunCommand {
+                                        id: format!("ws:{n}"),
+                                    });
+                                    ui.close();
+                                }
+                                Some(WsRow::Delete) => {
+                                    self.pending_actions.push(Action::RunCommand {
+                                        id: format!("ws.delete:{n}"),
+                                    });
+                                    ui.close();
+                                }
+                                None => {}
                             }
-                            ui.separator();
-                            if ui
-                                .selectable_label(
-                                    false,
-                                    format!("{} {}", hs_ui::icons::TAB_NEW, s.t("workspace-new")),
-                                )
-                                .clicked()
-                            {
-                                self.pending_actions.push(Action::RunCommand {
-                                    id: "ws.new".into(),
-                                });
-                            }
-                        },
-                    );
+                        }
+                        ui.separator();
+                        if ui
+                            .selectable_label(
+                                false,
+                                format!("{} {new_label}", hs_ui::icons::TAB_NEW),
+                            )
+                            .clicked()
+                        {
+                            self.pending_actions.push(Action::RunCommand {
+                                id: "ws.new".into(),
+                            });
+                        }
+                    });
                     // Environment switcher
                     let (active_name, active_col, active_protected) = {
                         let envs = s.environments.read();

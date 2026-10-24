@@ -61,6 +61,29 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   `valkey://` and `valkeys://`. Verified against Valkey 8.1.10 — the
   whole Redis live suite passes against it unchanged.
 
+- **Container activity, phase 6**: the Kubernetes driver and the
+  Lens-shaped cluster pane. A `k8s` host reads its cluster in process
+  through `kube` — no `kubectl` on the machine, and kubeconfig `exec`
+  credential plugins (the cloud CLIs) work because `kube` runs them —
+  and shows Pods, Workloads, Services, Config, Volumes, Nodes and
+  Events, with the **namespace above the rail** because it narrows
+  every list below it. The header counts nodes, pods, workloads, what
+  needs attention and the warnings among the events. A pod's **Status**
+  is the sentence Kubernetes never sends (`Running`,
+  `ImagePullBackOff`, `CrashLoopBackOff`, `Terminating`, `Completed`),
+  derived from the container statuses the way `kubectl` derives it. An
+  account that may list pods but not nodes still sees its pods: each
+  listing that is refused contributes nothing rather than losing the
+  whole read. Selecting a row opens a detail block with its facts in
+  full — a pod's containers, a workload's images, an event's whole
+  message — and **YAML** on request, fetched one object at a time.
+  A **secret's values never reach that view**: they are replaced before
+  it is rendered, keys kept — and the
+  `kubectl.kubernetes.io/last-applied-configuration` annotation is
+  dropped for every kind, because for an applied secret it is a
+  verbatim copy of the values that redacting `data` would otherwise
+  leave standing (found on the bench). `managedFields` goes with it.
+  Verified against k3s 1.34 in WSL.
 - **Container activity, phase 5**: Compose and Swarm. The rail gains
   **Projects**, and a **Swarm** group — Stacks, Services, Nodes. A
   Compose project is rebuilt from the containers' own labels, so

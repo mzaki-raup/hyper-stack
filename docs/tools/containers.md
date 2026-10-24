@@ -1,6 +1,6 @@
 # Tool spec — Containers (Docker / Podman / Kubernetes)
 
-**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); not built
+**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-6 built
 
 ## 1. Purpose
 
@@ -286,13 +286,34 @@ Swarm: Services, Nodes), a filterable table, and a detail block with
 tabs (Overview, Env, Mounts, Networks, Stats) over a fixed row of verbs
 (Start, Stop, Restart, Logs, Exec, Inspect).
 
-**Kubernetes, Lens-shaped:** three columns at full width — a resource
-tree, a namespace-scoped list, and a detail column (Summary, labels and
-annotations, containers, events, editable YAML, then Logs / Exec /
-Scale / Restart). It collapses to two columns and then one as the pane
-narrows: the `size_range` upper bound is tied to `available_width()`
-with a floor, or three stacked minimums leave the middle column at
-zero, which is what the diagram editor had to learn.
+**Kubernetes, Lens-shaped:** a resource rail, a namespace-scoped list,
+and a detail block (Summary, containers, YAML; Logs / Exec / Scale /
+Restart arrive with phase 7, which is where the actions live).
+
+Built as **two columns with the detail under the list** rather than as
+three columns (phase 6): at this window's 1720 px minimum a third
+column leaves the list too narrow for a pod name and a status, the
+Docker pane next door already puts its detail underneath, and "one
+UI/UX language across every activity" settles the rest. The namespace
+picker sits **above the rail**, not in the list's toolbar, because it
+narrows every list rather than the one on screen — and changing it is a
+**re-read**, not a filter over what is already held, since a widened
+namespace has rows nothing fetched.
+
+**A secret's values never reach the YAML view.** They are replaced with
+a marker before the object is rendered and its keys are kept — which
+keys exist is the question a reader has. Redacting `data` alone is not
+enough: `kubectl apply` leaves a
+`kubectl.kubernetes.io/last-applied-configuration` annotation holding
+the object **as applied, values in the clear**, and a bench secret duly
+showed `"DB_PASSWORD":"hunter2"` under a redacted `data` block
+(2026-10-24). That annotation is therefore dropped for **every** kind,
+not for secrets alone — one rule with no hole for the next kind that
+turns out to carry something. `managedFields` is dropped with it, as
+server-side-apply bookkeeping nobody opened the view to read.
+
+YAML is fetched **per object, on request**. Carrying it with the list
+would make scrolling a list of pods a conversation with the API server.
 
 Both panes scroll vertically and horizontally per §10.4.
 
@@ -456,7 +477,7 @@ Each ends green on the full gate and is releasable on its own.
 | 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs; clickable published ports; **Scan Local** on the dashboard |
 | 5 | Compose and Swarm (`docker compose`, `docker stack` — CLI-only surfaces) |
 | 6 | Kubernetes driver and the Lens-shaped pane: namespaces, workloads, events, YAML |
-| 7 | Apply with the dry-run diff, port-forward through `Tunnels`, CRD discovery |
+| 7 | Apply with the dry-run diff, port-forward through `Tunnels`, CRD discovery, and a pod's Logs / Exec / Scale / Restart — all four need a write or a stream rather than a reader, so they sit with the other actions |
 | 8 | AI assistant, prompt buttons, action blocks, the Problems feed |
 
 ### 10.11 Still out of scope

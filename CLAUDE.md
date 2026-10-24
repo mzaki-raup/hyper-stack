@@ -1534,6 +1534,20 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   how a tool reports "no containers" for "no permission on the socket".
 - `DOCKER_API_VERSION` is an environment variable, not a flag; it cannot
   be smuggled into the argv.
+- **Redacting a Kubernetes secret's `data` is not enough.** `kubectl
+  apply` leaves `kubectl.kubernetes.io/last-applied-configuration` on
+  the object: the whole applied document, values in the clear. The YAML
+  view showed `"DB_PASSWORD":"hunter2"` in that annotation while `data`
+  above it read `<redacted>` (bench k3s, 2026-10-24). `k8s::render`
+  drops the annotation for **every** kind rather than for secrets
+  alone - a kind-specific rule only waits for the next kind that
+  carries something. Assume any field whose job is to hold a copy of
+  the object is a second place the same secret lives.
+- rustls refuses to pick a provider when more than one is compiled in,
+  and the **first TLS handshake panics** rather than failing: `k8s`
+  connects over TLS, so `k8s::connect` installs ring through a `Once`
+  exactly as the MySQL driver does. A new crate that opens its own TLS
+  connection needs the same call before the first handshake, not after.
 
 ### Cross-tool search (hs-core::search)
 - **A searcher registered for the life of the app must not capture a

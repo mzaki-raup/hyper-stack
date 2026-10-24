@@ -10,6 +10,7 @@
 //! of its own (§10.1), so everything about credentials, environments
 //! and ordering is inherited.
 
+pub mod cluster;
 pub mod configs;
 pub mod docker;
 
@@ -77,6 +78,15 @@ pub struct State {
     /// Which list the pane is showing.
     #[serde(default)]
     pub resource: docker::Resource,
+    /// Which list a **cluster** tab is showing. Its own field: the two
+    /// panes have different resources, and sharing one would mean a
+    /// cluster tab restoring onto "Volumes".
+    #[serde(default)]
+    pub cluster_resource: cluster::Resource,
+    /// The namespace a cluster tab is narrowed to. Empty is every
+    /// namespace, which is what a cluster-wide search wants.
+    #[serde(default)]
+    pub namespace: String,
 }
 
 pub struct ContainersTool {
@@ -132,7 +142,37 @@ pub struct ContainersTool {
     /// Where a Compose verb leaves what it said and the re-read that
     /// followed it.
     compose_pending: Option<ComposePending>,
+    /// What the cluster driver last said, for a `k8s` host.
+    cluster: Option<Result<cluster::Inventory, String>>,
+    /// Where the cluster worker leaves its answer.
+    cluster_pending: Option<ClusterPending>,
+    /// The cluster row the detail block is showing, as a **position**
+    /// in the inventory on screen rather than an identity.
+    ///
+    /// The Docker pane keeps an identity because it re-reads after
+    /// every verb and the row must survive that; a cluster read happens
+    /// only when the reader asks for one, and every read clears this.
+    /// An event has no identity to keep anyway - no name, no object
+    /// that need still exist - and it is exactly the row whose full
+    /// message someone wants to see.
+    cluster_selected: Option<(cluster::Resource, usize)>,
+    /// `ui.input(|i| i.time)` of the frame that selection changed, for
+    /// the same double-pass reason as `selected_at`.
+    cluster_selected_at: f64,
+    /// The YAML of the selected object, once asked for.
+    yaml: Option<Result<String, String>>,
+    /// Where the YAML worker leaves its answer.
+    yaml_pending: Option<YamlPending>,
 }
+
+/// A slot the YAML worker fills.
+type YamlPending = std::sync::Arc<parking_lot::Mutex<Option<Result<String, String>>>>;
+
+/// A slot the cluster worker fills. `kube` is async rather than
+/// blocking, so this is spawned on the runtime rather than on a
+/// blocking thread - but it reaches the UI the same way (ADR-013).
+type ClusterPending =
+    std::sync::Arc<parking_lot::Mutex<Option<Result<cluster::Inventory, String>>>>;
 
 /// A slot a Compose worker fills: what the verb printed (or why it
 /// failed), and the inventory as it stands afterwards.
@@ -249,6 +289,12 @@ impl ContainersTool {
             scan: None,
             scan_pending: None,
             compose_pending: None,
+            cluster: None,
+            cluster_pending: None,
+            cluster_selected: None,
+            cluster_selected_at: 0.0,
+            yaml: None,
+            yaml_pending: None,
         }
     }
 
@@ -277,11 +323,10 @@ impl ContainersTool {
         if self.loading {
             return;
         }
-        // A Kubernetes cluster has no engine driver yet; say so rather
-        // than running `docker` against it and reporting a confusing
-        // failure.
+        // A cluster is read by the Kubernetes driver, not by running
+        // `docker` at it.
         if hs_core::connections::is_cluster_kind(&profile.kind) {
-            self.inventory = Some(Err(s.t("container-cluster-not-yet")));
+            self.reload_cluster(s, &profile);
             return;
         }
         let fields = ContainerFields::from_table(&profile.fields);
@@ -355,6 +400,49 @@ impl ContainersTool {
             .collect()
     }
 
+    /// Read a cluster through `kube`, off the UI thread.
+    ///
+    /// On the runtime rather than a blocking thread: `kube` is async,
+    /// and a blocking thread would need its own reactor to drive it.
+    fn reload_cluster(&mut self, s: &Services, profile: &ConnectionProfile) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        // The profile's namespace is the starting point; the picker
+        // then narrows or widens it for this tab only.
+        if self.state.namespace.is_empty() && !fields.namespace.is_empty() {
+            self.state.namespace = fields.namespace.clone();
+        }
+        let namespace = self.state.namespace.clone();
+        // The detail block points into the inventory being replaced.
+        self.cluster_selected = None;
+        self.yaml = None;
+        self.yaml_pending = None;
+        self.loading = true;
+        let waker = s.runtime.waker();
+        let slot: ClusterPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.cluster_pending = Some(slot);
+        s.runtime.spawn(async move {
+            let result = cluster::read(&fields, &namespace).await;
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
+    /// Fetch the selected object's YAML, off the UI thread.
+    fn reload_yaml(&mut self, s: &Services, profile: &ConnectionProfile, target: cluster::Target) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        self.yaml = None;
+        let waker = s.runtime.waker();
+        let slot: YamlPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.yaml_pending = Some(slot);
+        s.runtime.spawn(async move {
+            let result = cluster::yaml(&fields, &target).await;
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
     /// Take the answer when the worker has it.
     fn drain(&mut self) {
         // The guard is taken in its own scope: a `let` chain holds the
@@ -365,6 +453,16 @@ impl ContainersTool {
             self.inventory = Some(result);
             self.loading = false;
             self.pending = None;
+        }
+        if let Some(result) = self.yaml_pending.as_ref().and_then(|s| s.lock().take()) {
+            self.yaml = Some(result);
+            self.yaml_pending = None;
+        }
+        let cluster = self.cluster_pending.as_ref().and_then(|s| s.lock().take());
+        if let Some(result) = cluster {
+            self.cluster = Some(result);
+            self.loading = false;
+            self.cluster_pending = None;
         }
         let ran = self.compose_pending.as_ref().and_then(|s| s.lock().take());
         if let Some((said, inv)) = ran {
@@ -644,10 +742,16 @@ impl ContainersTool {
             form::hint(ui, &theme, &s.t("container-host-gone"));
             return;
         };
+        let is_cluster = hs_core::connections::is_cluster_kind(&profile.kind);
         // The first read happens when the tab is first drawn, not when it
         // is created: a workspace that restores ten tabs must not probe
         // ten engines at start-up.
-        if self.inventory.is_none() && !self.loading {
+        let unread = if is_cluster {
+            self.cluster.is_none()
+        } else {
+            self.inventory.is_none()
+        };
+        if unread && !self.loading {
             self.reload(&s);
         }
         let f = ContainerFields::from_table(&profile.fields);
@@ -664,6 +768,10 @@ impl ContainersTool {
             }
         });
         ui.separator();
+        if is_cluster {
+            self.cluster_pane(ui, &theme, &s, &profile);
+            return;
+        }
         match &self.inventory {
             None => {
                 form::hint(ui, &theme, &s.t("container-reading"));
@@ -729,6 +837,308 @@ impl ContainersTool {
         }
         self.confirm_dialog(ui, &theme, &s);
         self.confirm_compose_dialog(ui, &theme, &s);
+    }
+
+    /// The Lens-shaped cluster pane (§10.6): the namespace above a
+    /// resource rail, the chosen list beside it.
+    ///
+    /// The namespace sits **above** the rail rather than beside the
+    /// table, because it narrows every list below it: putting it in the
+    /// table's own toolbar would read as filtering that one list.
+    fn cluster_pane(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+    ) {
+        let inv = match &self.cluster {
+            None => {
+                form::hint(ui, theme, &s.t("container-reading"));
+                return;
+            }
+            Some(Err(e)) => {
+                // The driver's own words: it tells a kubeconfig that
+                // cannot be read from a cluster that refused the
+                // credentials, and the remedies differ.
+                form::note(ui, theme, hs_ui::icons::WARNING, e);
+                return;
+            }
+            Some(Ok(inv)) => inv.clone(),
+        };
+
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &inv.nodes.len().to_string(),
+                &s.t("cluster-dash-nodes"),
+            );
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &inv.pods.len().to_string(),
+                &s.t("cluster-dash-pods"),
+            );
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &inv.workloads.len().to_string(),
+                &s.t("cluster-dash-workloads"),
+            );
+            // The number that decides whether this pane was worth
+            // opening, so it is a stat rather than a colour in a table
+            // somebody has to scroll.
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &inv.trouble().to_string(),
+                &s.t("cluster-dash-trouble"),
+            );
+            hs_ui::dashboard::stat(
+                ui,
+                theme,
+                &inv.warnings().to_string(),
+                &s.t("cluster-dash-warnings"),
+            );
+        });
+        form::hint(
+            ui,
+            theme,
+            &s.i18n
+                .t_args("cluster-version", &[("version", &inv.version)]),
+        );
+        ui.add_space(6.0);
+
+        // The namespace picker, above everything it narrows.
+        let namespaced = self.state.cluster_resource.namespaced();
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(s.t("cluster-namespace"))
+                    .small()
+                    .color(theme.text_muted),
+            );
+            let current = if self.state.namespace.is_empty() {
+                s.t("cluster-all-namespaces")
+            } else {
+                self.state.namespace.clone()
+            };
+            let before = self.state.namespace.clone();
+            ui.add_enabled_ui(namespaced, |ui| {
+                egui::ComboBox::from_id_salt("cluster-namespace")
+                    .selected_text(current)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.state.namespace,
+                            String::new(),
+                            s.t("cluster-all-namespaces"),
+                        );
+                        for n in &inv.namespaces {
+                            ui.selectable_value(&mut self.state.namespace, n.clone(), n);
+                        }
+                    });
+            });
+            if !namespaced {
+                ui.label(
+                    egui::RichText::new(s.t("cluster-not-namespaced"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+            if before != self.state.namespace {
+                // Narrowing changes every list, so it is a re-read
+                // rather than a filter over what is already here.
+                self.cluster = None;
+                self.reload_cluster(s, profile);
+            }
+        });
+        ui.add_space(4.0);
+
+        let counts = inv.counts();
+        // The detail block takes its share off the top of the list, so
+        // the two scroll independently.
+        // A YAML document is why the block was opened at all, so it
+        // takes the larger share once it is there; the facts above it
+        // need a fraction of that.
+        let detail_h = match (&self.cluster_selected, &self.yaml) {
+            (None, _) => 0.0,
+            (Some(_), Some(Ok(_))) => (ui.available_height() * 0.55).clamp(260.0, 520.0),
+            (Some(_), _) => 260.0,
+        };
+        ui.horizontal_top(|ui| {
+            if let Some(r) =
+                cluster::resource_rail(ui, theme, s, self.state.cluster_resource, &counts)
+            {
+                self.state.cluster_resource = r;
+                self.table = hs_ui::table::TableState::default();
+                // The detail belonged to the list that is going away.
+                self.cluster_selected = None;
+                self.yaml = None;
+            }
+            ui.separator();
+            ui.vertical(|ui| {
+                let full = ui.available_height();
+                egui::ScrollArea::vertical()
+                    .id_salt("cluster-list")
+                    .max_height((full - detail_h).max(120.0))
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        self.cluster_table(ui, theme, s, &inv);
+                    });
+                if self.cluster_selected.is_some() {
+                    ui.separator();
+                    egui::ScrollArea::vertical()
+                        .id_salt("cluster-detail")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            self.cluster_detail(ui, theme, s, profile, &inv);
+                        });
+                }
+            });
+        });
+    }
+
+    /// The chosen cluster resource, in the shared table.
+    fn cluster_table(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        inv: &cluster::Inventory,
+    ) {
+        let res = self.state.cluster_resource;
+        let (columns, rows) = cluster::table_data(res, s, inv);
+        if rows.is_empty() {
+            form::hint(ui, theme, &s.t(res.empty_key()));
+            return;
+        }
+        let table = hs_ui::table::DataTable {
+            theme,
+            columns: &columns,
+            rows: &rows,
+            row_height: 20.0,
+            show_filter: true,
+            copy_row_label: &s.t("table-copy-row"),
+            built_in_menu: true,
+            row_icons: None,
+        };
+        let resp = table.show(ui, &mut self.table);
+        // The table reports the index into the data it was given, not
+        // into what the filter left showing.
+        if let Some(i) = resp.clicked.or(resp.double_clicked) {
+            let changed = self.cluster_selected != Some((res, i));
+            self.cluster_selected = Some((res, i));
+            self.cluster_selected_at = ui.input(|i| i.time);
+            if changed {
+                // What was fetched belongs to what it was fetched for.
+                self.yaml = None;
+                self.yaml_pending = None;
+            }
+        }
+    }
+
+    /// The detail block for a cluster row: what it is, and its YAML on
+    /// request.
+    ///
+    /// On request rather than with the list: one object's YAML is
+    /// another round trip, and fetching every row's would make scrolling
+    /// a list of pods a conversation with the API server.
+    fn cluster_detail(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+        inv: &cluster::Inventory,
+    ) {
+        let Some((res, i)) = self.cluster_selected else {
+            return;
+        };
+        if res != self.state.cluster_resource {
+            return;
+        }
+        let title = cluster::row_title(res, inv, i);
+        if title.is_empty() {
+            // The row went away with the last read.
+            self.cluster_selected = None;
+            return;
+        }
+        ui.add_space(4.0);
+        // A `hard_right` item anchors to the Ui's own right edge, which
+        // here is under the scroll bar; narrowing the row is what moves
+        // it clear, not a space before it.
+        let row_w = (ui.available_width() - 14.0).max(80.0);
+        ui.scope(|ui| {
+            ui.set_max_width(row_w);
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(&title).strong());
+                hs_ui::toolbar::hard_right(ui, |ui| {
+                    if ui.button(s.t("cluster-detail-close")).clicked() {
+                        self.cluster_selected = None;
+                        self.yaml = None;
+                    }
+                });
+            });
+        });
+        ui.add_space(2.0);
+        egui::Grid::new(("cluster-detail-grid", res as u8, i))
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                for (label, value) in cluster::summary(res, s, inv, i) {
+                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
+                    ui.add(egui::Label::new(value).selectable(true).truncate());
+                    ui.end_row();
+                }
+            });
+
+        let Some(target) = cluster::row_target(res, inv, i) else {
+            // An event has nothing to fetch; its row above is all of it.
+            return;
+        };
+        ui.add_space(6.0);
+        // The same guard the Docker detail needs: this block did not
+        // exist during the frame's first pass, so its buttons are laid
+        // out under a pointer egui still reports as clicking.
+        let fresh = ui.input(|i| i.time) <= self.cluster_selected_at;
+        ui.horizontal(|ui| {
+            let asked = self.yaml.is_some() || self.yaml_pending.is_some();
+            if ui
+                .add_enabled(!fresh && !asked, egui::Button::new(s.t("cluster-yaml")))
+                .clicked()
+            {
+                self.reload_yaml(s, profile, target.clone());
+            }
+            if asked
+                && ui
+                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-yaml-hide")))
+                    .clicked()
+            {
+                self.yaml = None;
+                self.yaml_pending = None;
+            }
+            if let Some(Ok(yaml)) = &self.yaml
+                && ui
+                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-yaml-copy")))
+                    .clicked()
+            {
+                ui.ctx().copy_text(yaml.clone());
+            }
+        });
+        match &self.yaml {
+            None if self.yaml_pending.is_some() => {
+                form::hint(ui, theme, &s.t("container-reading"));
+            }
+            None => {}
+            Some(Err(e)) => form::note(ui, theme, hs_ui::icons::WARNING, e),
+            Some(Ok(yaml)) => {
+                ui.add_space(4.0);
+                ui.add(
+                    egui::Label::new(egui::RichText::new(yaml).monospace().size(12.0))
+                        .selectable(true),
+                );
+            }
+        }
     }
 
     /// The Portainer-shaped pane (§10.6): a resource rail on the left,

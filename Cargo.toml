@@ -141,6 +141,24 @@ ttf-parser = "0.25"
 reqwest = { version = "0.13", features = ["stream", "json", "gzip"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 async-trait = "0.1"
+# Kubernetes. `kube` defaults to rustls with the **ring** provider, which
+# is the same stack the SQL, Redis and Mongo drivers use - a second
+# provider in one process makes `ClientConfig::builder()` panic
+# (CLAUDE.md). `k8s-openapi` must be pinned to one API version; v1_34
+# matches the k3s the bench runs, and the API is compatible either way.
+kube = { version = "4", default-features = false, features = [
+    "client",
+    "config",
+    "rustls-tls",
+    "ring",
+] }
+k8s-openapi = { version = "0.28", features = ["v1_34"] }
+# YAML for the Describe view and, later, editing a manifest.
+# `serde_norway` rather than `serde_yaml`, which is unmaintained and
+# would be flagged by `cargo deny`; this is the maintained fork with
+# the same API.
+serde_norway = "0.9"
+
 # Database drivers. TLS through rustls with the ring provider (no NASM/CMake on Windows).
 tokio-postgres = "0.7"
 tokio-postgres-rustls = { version = "0.14", default-features = false, features = ["ring"] }

@@ -10,6 +10,7 @@
 //! of its own (§10.1), so everything about credentials, environments
 //! and ordering is inherited.
 
+pub mod action;
 pub mod cluster;
 pub mod configs;
 pub mod docker;
@@ -202,6 +203,17 @@ pub struct ContainersTool {
     forwards: Vec<Forwarding>,
     /// Where the forward worker leaves its answer.
     forward_pending: Option<ForwardPending>,
+    /// An assistant action waiting to be confirmed (§10.8).
+    confirm_action: Option<action::Action>,
+    /// Whether what the last read found has been posted to the Problems
+    /// inbox. Cleared by every read, so a pane posts once per read
+    /// rather than once per frame (§10.9).
+    posted: bool,
+    /// The review-only assistant (ADR-019, §10.8). It is told what is on
+    /// screen - the host, the list, the selected object and its YAML -
+    /// and nothing it writes reaches the cluster without the same
+    /// buttons a person would press.
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 /// One port forward this tab is holding open.
@@ -383,6 +395,9 @@ impl ContainersTool {
             forward_port: String::new(),
             forwards: Vec::new(),
             forward_pending: None,
+            confirm_action: None,
+            posted: false,
+            assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         }
     }
 
@@ -677,6 +692,7 @@ impl ContainersTool {
             self.inventory = Some(result);
             self.loading = false;
             self.pending = None;
+            self.posted = false;
         }
         if let Some(result) = self.yaml_pending.as_ref().and_then(|s| s.lock().take()) {
             self.yaml = Some(result);
@@ -741,6 +757,7 @@ impl ContainersTool {
             self.cluster = Some(result);
             self.loading = false;
             self.cluster_pending = None;
+            self.posted = false;
         }
         let ran = self.compose_pending.as_ref().and_then(|s| s.lock().take());
         if let Some((said, inv)) = ran {
@@ -1032,6 +1049,13 @@ impl ContainersTool {
         if unread && !self.loading {
             self.reload(&s);
         }
+        // Once per read, not once per frame: what the read found goes
+        // to the Problems inbox so a pod in CrashLoopBackOff is visible
+        // in the dock without anybody watching this pane (§10.9).
+        if !self.posted && !self.loading {
+            self.posted = true;
+            self.post_problems(&s, &profile);
+        }
         let f = ContainerFields::from_table(&profile.fields);
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(kind_icon(&profile.kind)).size(16.0));
@@ -1237,6 +1261,7 @@ impl ContainersTool {
 
         self.output_block(ui, theme, s);
         self.confirm_cluster_dialog(ui, theme, s, profile);
+        self.confirm_action_dialog(ui, theme, s, profile);
         let counts = inv.counts();
         // The detail block takes its share off the top of the list, so
         // the two scroll independently.
@@ -1885,6 +1910,386 @@ impl ContainersTool {
                 body: source.to_string(),
             }),
         });
+    }
+
+    /// What the assistant is told, and the column it is drawn in
+    /// (§10.8).
+    ///
+    /// Only what is on screen: the host, which list is open, the
+    /// selected object and - when it has been fetched - its YAML. A
+    /// pane that quietly read more than the user can see would be
+    /// answering about things they cannot check.
+    fn assistant_column(
+        &mut self,
+        outer: &mut egui::Ui,
+        panel: Option<egui::Rect>,
+        cx: &mut ToolContext,
+    ) {
+        if !self.assistant.open {
+            return;
+        }
+        let s = cx.services.clone();
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let profile = self.host(&s);
+        self.assistant
+            .set_context(s.t("container-assistant-context"), self.assistant_text(&s));
+        if self.assistant.quick_actions.is_empty() {
+            self.assistant.quick_actions =
+                hs_ui::ai_assistant::QuickAction::for_activity(&s, "container");
+        }
+        // The action language, so an `hs-container` block is offered
+        // **Apply** rather than Insert (the API client's arrangement).
+        self.assistant.action_lang = Some(action::LANG.to_string());
+        self.assistant.extra_system = action::system_prompt(&s, profile.as_ref());
+        // Insert puts a manifest in the YAML pane, where Dry Run and
+        // Apply already live: nothing reaches a cluster without the
+        // same two presses a hand-written manifest needs.
+        self.assistant.can_insert = true;
+        // And nothing at all may be applied against a host that is
+        // read-only or protected: the button is absent rather than
+        // present and refusing (ADR-019).
+        let allowed = profile
+            .as_ref()
+            .is_some_and(|p| docker::guard(&s, p).is_none());
+        self.assistant.can_run = false;
+        let Some(panel) = panel else {
+            // Too narrow to split: the toggle stays on and the column
+            // comes back when there is room for it.
+            return;
+        };
+        let mut child = outer.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(outer.clip_rect()));
+        let mut applied: Option<(String, String)> = None;
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                let out = self.assistant.ui(ui, &s, &theme, "Containers");
+                if let Some(code) = out.use_block {
+                    applied = Some((out.use_block_lang, code));
+                }
+            });
+        if let Some((lang, code)) = applied {
+            self.apply_block(&s, &lang, &code, allowed);
+        }
+    }
+
+    /// Post what is unhealthy to the Problems inbox (§10.9).
+    ///
+    /// Called after a read, never per frame: a pane that posted on
+    /// every repaint would fill the inbox with the same row sixty
+    /// times a second, and the cooldown would be doing the work the
+    /// caller should.
+    ///
+    /// **What counts as a problem is the same judgement the pane's own
+    /// "needs attention" makes**, so a row in the inbox and a number in
+    /// the header never disagree. The shape is the object rather than
+    /// the message: a pod that flaps between `CrashLoopBackOff` and
+    /// `Error` is one row that climbs, not two that interleave.
+    fn post_problems(&self, s: &Services, profile: &ConnectionProfile) {
+        let uri = format!("container://{}", profile.id);
+        let post = |severity: hs_core::problems::Severity, message: String, shape: String| {
+            s.problems.post(hs_core::problems::Report {
+                severity,
+                message: message.chars().take(300).collect(),
+                shape,
+                origin: hs_core::problems::Origin {
+                    tool: "containers".into(),
+                    uri: uri.clone(),
+                    label: profile.name.clone(),
+                    line: None,
+                },
+            });
+        };
+        if let Some(Ok(inv)) = &self.cluster {
+            for p in inv.pods.iter().filter(|p| p.trouble) {
+                post(
+                    hs_core::problems::Severity::Error,
+                    s.i18n.t_args(
+                        "container-problem-pod",
+                        &[
+                            ("pod", &format!("{}/{}", p.namespace, p.name)),
+                            ("status", &p.status),
+                        ],
+                    ),
+                    format!("pod:{}/{}", p.namespace, p.name),
+                );
+            }
+            for w in inv.workloads.iter().filter(|w| w.trouble) {
+                post(
+                    hs_core::problems::Severity::Warning,
+                    s.i18n.t_args(
+                        "container-problem-workload",
+                        &[
+                            ("what", &format!("{}/{}", w.kind, w.name)),
+                            ("ready", &w.ready),
+                        ],
+                    ),
+                    format!("workload:{}/{}", w.namespace, w.name),
+                );
+            }
+            for n in inv.nodes.iter().filter(|n| !n.ready) {
+                post(
+                    hs_core::problems::Severity::Error,
+                    s.i18n.t_args(
+                        "container-problem-node",
+                        &[("node", &n.name), ("status", &n.status)],
+                    ),
+                    format!("node:{}", n.name),
+                );
+            }
+            return;
+        }
+        if let Some(Ok(inv)) = &self.inventory {
+            for c in inv.containers.iter().filter(|c| c.state.is_trouble()) {
+                post(
+                    hs_core::problems::Severity::Error,
+                    s.i18n.t_args(
+                        "container-problem-container",
+                        &[("name", &c.name), ("status", &c.status)],
+                    ),
+                    format!("container:{}", c.name),
+                );
+            }
+            // An unhealthy container is still running, so it is not in
+            // the list above - and it is exactly the case a pane is
+            // opened for.
+            for c in inv
+                .containers
+                .iter()
+                .filter(|c| c.health == hs_container::Health::Unhealthy)
+            {
+                post(
+                    hs_core::problems::Severity::Warning,
+                    s.i18n
+                        .t_args("container-problem-unhealthy", &[("name", &c.name)]),
+                    format!("health:{}", c.name),
+                );
+            }
+        }
+    }
+
+    /// Carry out what the user pressed on one of the assistant's code
+    /// blocks (§10.8).
+    ///
+    /// Two languages do something here, and both end up where a
+    /// hand-written one would:
+    ///
+    /// - **`yaml`** goes into the YAML pane, which is where Dry Run and
+    ///   Apply already are. Nothing reaches the cluster that the server
+    ///   has not described first, exactly as for a manifest the user
+    ///   typed themselves.
+    /// - **`hs-container`** is an action: it is read, and then **asked
+    ///   about** before it runs, through the same confirmation a click
+    ///   on the verb would raise.
+    ///
+    /// Anything else is copied by the panel and ignored here.
+    fn apply_block(&mut self, s: &Services, lang: &str, code: &str, allowed: bool) {
+        if lang.eq_ignore_ascii_case(action::LANG) {
+            if !allowed {
+                // Belt as well as braces: the block is not offered on a
+                // protected host, and would be refused if it were.
+                self.last_output = Some(s.t("container-action-not-allowed"));
+                return;
+            }
+            match action::parse(code, s) {
+                Ok(what) => self.confirm_action = Some(what),
+                Err(why) => self.last_output = Some(why),
+            }
+            return;
+        }
+        if lang.eq_ignore_ascii_case("yaml") || lang.eq_ignore_ascii_case("yml") {
+            // The pane shows the editor only once a YAML has been
+            // fetched; a manifest the assistant wrote is a document in
+            // its own right, so it opens the editor on itself.
+            self.yaml = Some(Ok(code.to_string()));
+            self.yaml_edit = Some(code.to_string());
+            self.apply = None;
+            self.last_output = Some(s.t("container-action-yaml-inserted"));
+        }
+    }
+
+    /// The question an assistant action asks before it runs, and the
+    /// run itself.
+    fn confirm_action_dialog(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+    ) {
+        let Some(what) = self.confirm_action.clone() else {
+            return;
+        };
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "container-action",
+            &s.t("container-action-title"),
+            &what.question(s),
+            &s.t("container-action-run"),
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                self.confirm_action = None;
+                self.run_action(s, profile, what);
+            }
+            hs_ui::dialog::DialogResult::Cancel => self.confirm_action = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
+
+    /// Carry out a confirmed action through the ordinary paths.
+    fn run_action(&mut self, s: &Services, profile: &ConnectionProfile, what: action::Action) {
+        // The namespace the block named, or the one the tab is on: an
+        // answer about the open list need not repeat it.
+        let namespace = if what.namespace().is_empty() {
+            self.state.namespace.clone()
+        } else {
+            what.namespace().to_string()
+        };
+        match what {
+            action::Action::Scale {
+                kind,
+                name,
+                replicas,
+                ..
+            } => {
+                let target = cluster::Target {
+                    kind,
+                    namespace,
+                    name,
+                };
+                self.act_cluster(s, profile, target, cluster::Verb::Scale(replicas));
+            }
+            action::Action::Restart { kind, name, .. } => {
+                let target = cluster::Target {
+                    kind,
+                    namespace,
+                    name,
+                };
+                self.act_cluster(s, profile, target, cluster::Verb::Restart);
+            }
+            action::Action::SetImage {
+                kind,
+                name,
+                container,
+                image,
+                ..
+            } => {
+                // An image change is an apply, not a verb: it is a
+                // change to the pod template, and going through apply
+                // means the server describes it first like any other.
+                let manifest =
+                    action::set_image_patch(&kind, &namespace, &name, &container, &image);
+                self.run_apply(s, profile, manifest, true);
+                self.last_output = Some(s.t("container-action-image-dry-run"));
+            }
+        }
+    }
+
+    /// Everything the assistant is told about this tab.
+    fn assistant_text(&self, s: &Services) -> String {
+        let Some(profile) = self.host(s) else {
+            return s.t("container-assistant-no-host");
+        };
+        let kind = hs_core::connections::kind_label(&profile.kind);
+        let mut out = format!("Host: {} ({kind})\n", profile.name);
+        if hs_core::connections::is_cluster_kind(&profile.kind) {
+            let namespace = if self.state.namespace.is_empty() {
+                "all namespaces".to_string()
+            } else {
+                self.state.namespace.clone()
+            };
+            out.push_str(&format!("Namespace: {namespace}\n"));
+            match &self.cluster {
+                Some(Ok(inv)) => {
+                    out.push_str(&format!(
+                        "Kubernetes {}\nNodes: {}, pods: {}, workloads: {}, needing attention: {}\n",
+                        inv.version,
+                        inv.nodes.len(),
+                        inv.pods.len(),
+                        inv.workloads.len(),
+                        inv.trouble(),
+                    ));
+                    out.push_str(&format!(
+                        "Open list: {}\n",
+                        s.t(self.state.cluster_resource.key())
+                    ));
+                    if let Some((res, i)) = self.cluster_selected {
+                        out.push_str(&format!(
+                            "\nSelected: {}\n",
+                            cluster::row_title(res, inv, i)
+                        ));
+                        for (label, value) in cluster::summary(res, s, inv, i) {
+                            out.push_str(&format!("{label}: {value}\n"));
+                        }
+                        // The events are what an unhealthy pod is
+                        // explained by, so they travel with it.
+                        if !inv.events.is_empty() {
+                            out.push_str("\nRecent events:\n");
+                            for e in inv.events.iter().take(12) {
+                                out.push_str(&format!(
+                                    "{} {} {}: {}\n",
+                                    e.kind, e.object, e.reason, e.message
+                                ));
+                            }
+                        }
+                    }
+                }
+                Some(Err(e)) => out.push_str(&format!("The cluster could not be read: {e}\n")),
+                None => out.push_str("The cluster has not been read yet.\n"),
+            }
+            if let Some(Ok(yaml)) = &self.yaml {
+                let shown = self.yaml_edit.as_deref().unwrap_or(yaml);
+                out.push_str("\nYAML on screen:\n");
+                out.push_str(shown);
+                out.push('\n');
+            }
+        } else {
+            match &self.inventory {
+                Some(Ok(inv)) => {
+                    out.push_str(&format!(
+                        "Engine {}\nContainers: {} ({} running), images: {}, volumes: {}, networks: {}\n",
+                        inv.version,
+                        inv.containers.len(),
+                        inv.containers.iter().filter(|c| c.state.is_running()).count(),
+                        inv.image_list.len(),
+                        inv.volume_list.len(),
+                        inv.network_list.len(),
+                    ));
+                    out.push_str(&format!("Open list: {}\n", s.t(self.state.resource.key())));
+                    if let Some((_, id)) = &self.selected
+                        && let Some(c) = inv.containers.iter().find(|c| &c.id == id)
+                    {
+                        out.push_str(&format!(
+                            "\nSelected container: {}\nImage: {}\nState: {}\nStatus: {}\nPorts: {}\n",
+                            c.name,
+                            c.image,
+                            s.t(c.state.key()),
+                            c.status,
+                            c.ports
+                                .iter()
+                                .map(|p| p.describe())
+                                .collect::<Vec<_>>()
+                                .join(", "),
+                        ));
+                    }
+                }
+                Some(Err(e)) => out.push_str(&format!("The engine could not be read: {e}\n")),
+                None => out.push_str("The host has not been read yet.\n"),
+            }
+        }
+        if let Some(output) = &self.last_output {
+            out.push_str(&format!("\nLast command output:\n{output}\n"));
+        }
+        out
     }
 
     /// The Portainer-shaped pane (§10.6): a resource rail on the left,
@@ -2751,6 +3156,18 @@ impl Tool for ContainersTool {
         {
             self.run_command("containers.refresh", cx);
         }
+        // The assistant control is the hard right item of every tool
+        // toolbar, through `hard_right` rather than a bare right-to-left
+        // scope: that scope only gets the width left on the current row,
+        // so in a narrow window the control is the first thing to vanish.
+        hs_ui::toolbar::hard_right(ui, |ui| {
+            if ui
+                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                .clicked()
+            {
+                self.assistant.toggle("Containers");
+            }
+        });
     }
 
     /// The sidebar: hosts above, saved commands and configs below, each
@@ -2865,8 +3282,13 @@ impl Tool for ContainersTool {
         // a tab that had simply never been given one.
         if self.is_home || self.state.host_id.is_empty() {
             self.dashboard(ui, cx);
-        } else {
-            self.host_pane(ui, cx);
+            return;
         }
+        // The assistant takes its column first, so the pane is narrower
+        // while it is open rather than partly hidden behind it.
+        let (mut content, panel) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        self.host_pane(&mut content, cx);
+        self.assistant_column(ui, panel, cx);
     }
 }

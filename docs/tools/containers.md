@@ -1,6 +1,6 @@
 # Tool spec — Containers (Docker / Podman / Kubernetes)
 
-**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-7 built
+**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); all eight phases built
 
 ## 1. Purpose
 
@@ -539,6 +539,26 @@ This Event.
 | `hs-container` | Apply — a structured action the tool carries out itself (scale, restart, set image) |
 | `sh`, `powershell` | Insert, and **Insert and Run** into the container's shell |
 
+**As built (phase 8).** The `yaml` block lands in the **YAML pane**
+rather than being applied from the answer: Dry Run and Apply already
+live there, so a manifest the assistant wrote reaches a cluster by
+exactly the route a typed one does - the server describes it first, and
+a person presses Apply. An `hs-container` block is one JSON object with
+an `action` of `scale`, `restart` or `set_image`; it is parsed, shown
+back in a **confirmation naming the object**, and then carried out
+through the same verb and apply paths a click uses, guards included. An
+action this pane does not know is refused in words - the one thing
+worse than "I cannot do that" is doing something else. **Set Image is
+an apply, not a verb**: the manifest names the workload and the single
+container being changed, so server-side apply changes that image and
+claims ownership of nothing else.
+
+The `sh` and `powershell` blocks are Insert-only for now: the Docker
+pane's Exec types a command into a terminal the user owns, and running
+one from an answer would be a second path to the same place with
+weaker provenance. The `can_run` route stays available for when that
+is wanted.
+
 `can_run` is **false on a protected environment**, so the button is
 absent rather than present and refusing (ADR-019).
 
@@ -548,6 +568,16 @@ absent rather than present and refusing (ADR-019).
 that exits non-zero, a pod in `CrashLoopBackOff`, a failing readiness
 probe: one row per shape with a climbing count, cleared when the tab
 closes, visible in the dock without watching the pane.
+
+**As built (phase 8).** The shape is the **object**, not the message,
+so a pod that flaps between `CrashLoopBackOff` and `Error` is one row
+that climbs rather than two that interleave. What counts as a problem
+is the same judgement the header's "needs attention" makes - a pod or
+workload the driver marked as trouble, a node that is not ready, a
+container that stopped or whose health check is failing - so a row in
+the inbox and a number in the pane never disagree. Posting happens
+**once per read**, not once per frame: a pane that posted every repaint
+would be leaning on the cooldown to do the caller's job.
 
 ### 10.10 Phases
 

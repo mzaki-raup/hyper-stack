@@ -41,6 +41,7 @@ pub const ACTIVITIES: &[(&str, &str)] = &[
     ("api", "tool-api"),
     ("logs", "tool-logs"),
     ("graphics", "tool-graphics"),
+    ("container", "tool-containers"),
     ("diagram", "gfx-fn-diagram"),
     ("generator", "gfx-fn-generator"),
 ];
@@ -89,6 +90,23 @@ pub const DEFAULTS: &[Default_] = &[
     qa!("api", "ai-qa-save-vars"),
     qa!("api", "ai-qa-tests"),
     qa!("api", "ai-qa-docs"),
+    // The Container activity asks about two different things with one
+    // set of buttons: an object that is on screen (explain it, say why
+    // it is unhealthy) and one the user wants written (a manifest). The
+    // writing ones answer with a YAML block, which the pane can put
+    // straight into its editor.
+    qa!("container", "ai-qa-container-explain"),
+    qa!("container", "ai-qa-container-unhealthy"),
+    qa!("container", "ai-qa-container-event"),
+    qa!("container", "ai-qa-container-review-yaml"),
+    qa!("container", "ai-qa-container-fix-yaml"),
+    qa!("container", "ai-qa-container-right-size"),
+    qa!("container", "ai-qa-container-deployment"),
+    qa!("container", "ai-qa-container-service"),
+    qa!("container", "ai-qa-container-ingress"),
+    qa!("container", "ai-qa-container-configmap"),
+    qa!("container", "ai-qa-container-pvc"),
+    qa!("container", "ai-qa-container-compose"),
     qa!("logs", "ai-qa-logs-explain"),
     qa!("logs", "ai-qa-logs-trace"),
     qa!("logs", "ai-qa-logs-why"),

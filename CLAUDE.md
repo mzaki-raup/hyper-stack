@@ -444,6 +444,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   and a re-run would have planned nothing. The publish step now retries
   fetch-or-create, and the plan step passes an unpublished newest tag to
   `next-release.ps1 -Republish` so the next push to `main` publishes it.
+- **Do not build locally while a job is running: the runner is this
+  machine.** A push starts CI here, and a `cargo clippy`/`cargo test`
+  started in the same minutes competes for the same cores, RAM and
+  build lock - run 378 and run 381 both died this way, minutes into a
+  job whose commit had passed the identical gate locally. The tell is
+  a job that fails after a few minutes with nothing useful in the
+  forge UI while the same commit is green on the desk. **Check for a
+  running job before any local `cargo` command after a push**
+  (`/actions/tasks?limit=4`), and if one is running, do reading or
+  writing work until it finishes. Re-running the job on a quiet
+  machine is the fix; "it failed, so something must be wrong with the
+  code" is the wrong conclusion to reach first.
 - The release job can die in `cargo test` with `rustc-LLVM ERROR: out of
   memory` / `STATUS_ILLEGAL_INSTRUCTION` (run 79, 2026-10-15) when the
   development machine is busy: the runner is this machine, and the test

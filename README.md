@@ -420,7 +420,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | S3 browser | [tools/s3.md](docs/tools/s3.md) | Yes |
 | Git | [tools/git.md](docs/tools/git.md) | Yes |
 | Terminal | [tools/terminal.md](docs/tools/terminal.md) | Yes |
-| Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Yes (Docker/Podman with Compose and Swarm; Kubernetes: pods, workloads, services, config, nodes, events, custom resources, YAML, pod logs, restart/scale/delete, apply with a server-side dry-run diff, port forward) |
+| Containers (Docker / Podman / Kubernetes) | [tools/containers.md](docs/tools/containers.md) | Yes (Docker/Podman with Compose and Swarm; Kubernetes: pods, workloads, services, config, nodes, events, custom resources, YAML, pod logs, restart/scale/delete, apply with a server-side dry-run diff, port forward); an AI assistant with twelve prompt buttons, manifest and action blocks, and unhealthy objects in the Problems inbox |
 | Devtools drawer (JSON, JWT, regex, cron, diff, …) | [tools/devtools.md](docs/tools/devtools.md) | Completed (core set; JSON query and the P1 extras remain) |
 | Graphics | [tools/graphics.md](docs/tools/graphics.md) | Yes |
 | Graphics diagrams (editor and generator) | [tools/diagrams.md](docs/tools/diagrams.md) | Planned (R1: flowchart, architecture) |

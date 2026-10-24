@@ -451,6 +451,28 @@ cluster-yaml-hide = Hide YAML
 cluster-yaml-copy = Copy YAML
 cluster-logs = Logs ↗
 cluster-logs-of = Logs ↗ { $container }
+container-assistant-context = Container host
+container-problem-pod = Pod { $pod } is { $status }.
+container-problem-workload = { $what } has { $ready } replicas ready.
+container-problem-node = Node { $node } is { $status }.
+container-problem-container = Container { $name } is not running: { $status }
+container-problem-unhealthy = Container { $name } reports its health check failing.
+container-assistant-no-host = No host is open.
+container-action-title = Apply This Action
+container-action-run = Apply
+container-action-bad = That action block could not be read: { $why }
+container-action-not-allowed = This host is read-only, so an action cannot be applied to it.
+container-action-yaml-inserted = The manifest is in the YAML pane. Dry Run shows what applying it would change.
+container-action-image-dry-run = Dry run of the image change — Apply sends it.
+container-action-confirm-image = Set { $container } in { $what } to { $image }?
+container-action-system =
+    You may offer one action at a time as a code block in the language hs-container, containing a single JSON object. The user always confirms it before anything happens.
+    {"{"}"action":"scale","kind":"Deployment","namespace":"shop","name":"web","replicas":3{"}"}
+    {"{"}"action":"restart","kind":"StatefulSet","name":"db"{"}"}
+    {"{"}"action":"set_image","kind":"Deployment","name":"web","container":"nginx","image":"nginx:1.29"{"}"}
+    kind is the object's own kind, and namespace may be left out for the namespace on screen. Offer an action only when it is what was asked for; otherwise answer in prose, or with a yaml block the user can review.
+container-action-system-read-only =
+    This host is read-only, so nothing can be applied to it from here. Answer with what you would change and why — in prose, or as a yaml manifest the user can review — and never offer to carry it out.
 cluster-exec = Exec ↗
 cluster-exec-hint = Opens a shell inside this pod in the Terminal activity. Which shell is Settings → Containers → Shell for Exec.
 cluster-replicas = Replicas
@@ -1681,6 +1703,30 @@ ai-qa-nosql-explain = Explain This Query
 ai-qa-nosql-explain-prompt = Explain what the filter, projection and sort on screen do, what they return, and anything in them that would scan more than it needs to.
 ai-qa-nosql-index = Suggest an Index
 ai-qa-nosql-index-prompt = Say which index would serve this query, give the command that creates it, and say what it costs on writes.
+ai-qa-container-explain = Explain This Object
+ai-qa-container-explain-prompt = Explain the selected object: what it is for, what its fields mean, and what it is doing right now.
+ai-qa-container-unhealthy = Why Is This Pod Unhealthy?
+ai-qa-container-unhealthy-prompt = This pod is not healthy. From its status, its containers and the events, say what is wrong, what most likely caused it, and what to check or change next. Name the evidence you used.
+ai-qa-container-event = Explain This Event
+ai-qa-container-event-prompt = Explain the selected event: which component wrote it, what it means, whether it needs attention, and what usually causes it.
+ai-qa-container-review-yaml = Review This YAML
+ai-qa-container-review-yaml-prompt = Review the YAML on screen for mistakes, missing fields and risky settings, worst first. Say what each would do in practice. Do not rewrite it unless I ask.
+ai-qa-container-fix-yaml = Fix This YAML
+ai-qa-container-fix-yaml-prompt = Fix the problems in the YAML on screen and answer with the whole corrected manifest in one yaml code block, then one short line per change.
+ai-qa-container-right-size = Right-Size Requests and Limits
+ai-qa-container-right-size-prompt = Suggest CPU and memory requests and limits for this workload, and say what you based each on. Answer with the patched manifest in one yaml code block, then the reasoning.
+ai-qa-container-deployment = Write a Deployment
+ai-qa-container-deployment-prompt = Write a Deployment manifest for what I describe, with sensible labels, probes, resources and a rolling update strategy. Answer with one yaml code block, then a short note on the choices.
+ai-qa-container-service = Write a Service
+ai-qa-container-service-prompt = Write a Service manifest for what I describe, with the right type and selector for this namespace. Answer with one yaml code block, then a short note.
+ai-qa-container-ingress = Write an Ingress
+ai-qa-container-ingress-prompt = Write an Ingress manifest for what I describe, with host, paths and TLS where it belongs. Answer with one yaml code block, then a short note.
+ai-qa-container-configmap = Write a ConfigMap
+ai-qa-container-configmap-prompt = Write a ConfigMap manifest for the configuration I describe. Answer with one yaml code block, then a short note. Never put a password, token or key in it.
+ai-qa-container-pvc = Write a PVC
+ai-qa-container-pvc-prompt = Write a PersistentVolumeClaim manifest for what I describe, with a size and an access mode that suit it. Answer with one yaml code block, then a short note.
+ai-qa-container-compose = Write a Compose File
+ai-qa-container-compose-prompt = Write a Docker Compose file for what I describe, with named volumes, a network and health checks where they help. Answer with one yaml code block, then a short note.
 ai-qa-logs-explain = Explain This Record
 ai-qa-logs-explain-prompt = Explain the selected record: what the component was doing, what the fields mean, and what the records around it suggest led to it.
 ai-qa-logs-trace = Explain This Stack Trace

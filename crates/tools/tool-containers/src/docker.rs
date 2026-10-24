@@ -379,6 +379,135 @@ pub fn table_data(
     }
 }
 
+/// The facts about one row of a list, for the detail block under it:
+/// label and value, in reading order.
+///
+/// The table says what fits in a column; this says everything the read
+/// actually returned, in full — a truncated image id or mount point in
+/// a cell is exactly what someone opens a detail view to see whole.
+/// `id` is what [`crate::row_identity`] reported for the row.
+pub fn summary(
+    resource: Resource,
+    s: &Services,
+    inv: &crate::Inventory,
+    id: &str,
+) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut put = |k: &str, v: &str| {
+        if !v.is_empty() {
+            out.push((s.t(k), v.to_string()));
+        }
+    };
+    match resource {
+        Resource::Images => {
+            let Some(i) = inv.image_list.iter().find(|x| x.id == id) else {
+                return out;
+            };
+            put("container-col-image", &i.reference());
+            put("container-fact-repository", &i.repository);
+            put("container-fact-tag", &i.tag);
+            put("container-col-size", &i.size);
+            put("container-col-created", &i.created);
+            // The whole id, not the twelve characters the column had
+            // room for: it is what every `docker` command takes.
+            put("container-col-id", &i.id);
+            // What it is actually running, which is the question an
+            // image row is usually opened to answer.
+            let users = containers_of_image(inv, i);
+            if users.is_empty() {
+                put("container-detail-used-by", &s.t("container-detail-unused"));
+            } else {
+                put("container-detail-used-by", &users.join(", "));
+            }
+        }
+        Resource::Volumes => {
+            let Some(v) = inv.volume_list.iter().find(|x| x.name == id) else {
+                return out;
+            };
+            put("container-col-name", &v.name);
+            put("container-col-driver", &v.driver);
+            put("container-col-mountpoint", &v.mountpoint);
+        }
+        Resource::Networks => {
+            let Some(n) = inv.network_list.iter().find(|x| x.id == id) else {
+                return out;
+            };
+            put("container-col-name", &n.name);
+            put("container-col-driver", &n.driver);
+            put("container-col-scope", &n.scope);
+            put("container-col-id", &n.id);
+        }
+        Resource::Stacks => {
+            let Some(st) = inv.stacks.iter().find(|x| x.name == id) else {
+                return out;
+            };
+            put("container-col-name", &st.name);
+            put("container-col-services", &st.services.to_string());
+            put("container-col-orchestrator", &st.orchestrator);
+            // Swarm names a stack's services `<stack>_<service>`, so the
+            // list is derivable without a second read.
+            let prefix = format!("{}_", st.name);
+            let names: Vec<&str> = inv
+                .services
+                .iter()
+                .filter(|sv| sv.name.starts_with(&prefix))
+                .map(|sv| sv.name.as_str())
+                .collect();
+            put("container-res-services", &names.join(", "));
+        }
+        Resource::Services => {
+            let Some(sv) = inv.services.iter().find(|x| x.name == id) else {
+                return out;
+            };
+            put("container-col-name", &sv.name);
+            put("container-col-mode", &sv.mode);
+            put("container-col-replicas", &sv.replicas());
+            put("container-col-image", &sv.image);
+            put("container-col-ports", &sv.ports);
+            put("container-col-id", &sv.id);
+        }
+        Resource::Nodes => {
+            let Some(n) = inv.nodes.iter().find(|x| x.hostname == id) else {
+                return out;
+            };
+            put("container-col-hostname", &n.hostname);
+            put("container-col-status", &n.status);
+            put("container-col-availability", &n.availability);
+            put("container-col-manager", &n.manager_status);
+            put("container-col-engine", &n.engine_version);
+            put("container-col-id", &n.id);
+        }
+        // Both have a detail block of their own, with verbs on it.
+        Resource::Containers | Resource::Projects => {}
+    }
+    out
+}
+
+/// The containers running an image, by name.
+///
+/// A container reports whatever reference it was started from, which may
+/// be the tag or the id, so both are matched — and an id is matched by
+/// prefix, because the engine abbreviates it in some outputs.
+fn containers_of_image(inv: &crate::Inventory, image: &Image) -> Vec<String> {
+    let reference = image.reference();
+    // The id without its `sha256:` prefix, which is the form the engine
+    // abbreviates: comparing against the prefixed id makes every short
+    // reference miss.
+    let bare = image.id.strip_prefix("sha256:").unwrap_or(&image.id);
+    inv.containers
+        .iter()
+        .filter(|c| {
+            c.image == reference
+                || c.image == image.id
+                // Eight characters is the floor: a bare repository name
+                // ("alpine") must not be read as an id prefix and claim
+                // half the image list.
+                || (c.image.len() >= 8 && bare.starts_with(c.image.as_str()))
+        })
+        .map(|c| c.name.clone())
+        .collect()
+}
+
 /// The Compose verbs offered for a project, in the order shown.
 ///
 /// A project with no compose file can only be acted on through the
@@ -423,6 +552,57 @@ pub fn verbs_for(state: State) -> Vec<Verb> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn image(id: &str, repo: &str, tag: &str) -> Image {
+        Image {
+            id: id.into(),
+            repository: repo.into(),
+            tag: tag.into(),
+            ..Default::default()
+        }
+    }
+
+    fn container(name: &str, image: &str) -> Container {
+        Container {
+            id: format!("id-{name}"),
+            name: name.into(),
+            image: image.into(),
+            ..Default::default()
+        }
+    }
+
+    /// A container reports whatever reference it was started from, and
+    /// the engine abbreviates an id in some outputs — so an image's
+    /// "used by" has to match the tag, the full id and a short one, or
+    /// a running container reads as nothing using the image.
+    #[test]
+    fn an_image_finds_the_containers_running_it() {
+        let inv = crate::Inventory {
+            containers: vec![
+                container("by-tag", "nginx:1.27"),
+                container("by-full-id", "sha256:abcdef0123456789"),
+                container("by-short-id", "abcdef012345"),
+                container("someone-else", "redis:7"),
+            ],
+            ..Default::default()
+        };
+        let img = image("sha256:abcdef0123456789", "nginx", "1.27");
+        let used = containers_of_image(&inv, &img);
+        assert_eq!(used, ["by-tag", "by-full-id", "by-short-id"]);
+    }
+
+    /// A reference of six characters must not match every id that
+    /// starts with it: the prefix rule needs a floor, or a container
+    /// started from `alpine` claims half the image list.
+    #[test]
+    fn a_short_reference_is_not_treated_as_an_id_prefix() {
+        let inv = crate::Inventory {
+            containers: vec![container("alpine-one", "alpine")],
+            ..Default::default()
+        };
+        let img = image("alpine0123456789", "something", "else");
+        assert!(containers_of_image(&inv, &img).is_empty());
+    }
 
     #[test]
     fn a_short_id_drops_the_digest_prefix_and_never_splits_a_character() {

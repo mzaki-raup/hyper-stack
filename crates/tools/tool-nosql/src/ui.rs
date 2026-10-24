@@ -519,6 +519,10 @@ impl Tool for NoSqlTool {
                 let mut reorder = hs_ui::reorder::Reorder::new("nosql-profiles");
                 let mut open_profile: Option<(String, bool)> = None;
                 let mut pin: Option<(String, bool)> = None;
+                // Edit This Connection takes the user to the profile's own
+                // form in Settings, selected and ready: one place manages a
+                // connection, and the sidebar is where they are looking.
+                let mut edit: Option<String> = None;
                 for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
@@ -530,14 +534,20 @@ impl Tool for NoSqlTool {
                             name,
                             Some(label),
                             *is_pinned,
-                            &s.t("conn-pin-home"),
-                            &s.t("conn-unpin-home"),
+                            form::RowMenuLabels {
+                                pin: &s.t("conn-pin-home"),
+                                unpin: &s.t("conn-unpin-home"),
+                                edit: &s.t("conn-edit"),
+                            },
                         );
                         if row.response.tip(s.t("nosql-open-profile")).clicked() {
                             open_profile = Some((id.clone(), selected));
                         }
                         if let Some(p) = row.pin {
                             pin = Some((id.clone(), p));
+                        }
+                        if row.edit {
+                            edit = Some(id.clone());
                         }
                     });
                     ui.add_space(2.0);
@@ -546,6 +556,11 @@ impl Tool for NoSqlTool {
                     && let Err(e) = s.connections.write().set_pinned(&id, p)
                 {
                     cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                }
+                if let Some(id) = edit {
+                    cx.actions.push(hs_core::tool::Action::RunCommand {
+                        id: format!("settings:connection:{id}"),
+                    });
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
                     if let Err(e) = s.connections.write().reorder(KINDS, from, to) {

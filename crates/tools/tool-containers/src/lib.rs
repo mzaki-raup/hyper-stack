@@ -2409,9 +2409,10 @@ impl ContainersTool {
             return;
         }
         if res != docker::Resource::Containers {
-            // Images, volumes, networks and the Swarm lists have no
-            // detail block yet; saying so beats an empty panel.
-            form::hint(ui, theme, &s.t("container-detail-not-yet"));
+            // Images, volumes, networks and the Swarm lists have no verbs
+            // of their own yet, but they have facts, and the facts are
+            // what the column widths cut off.
+            self.facts_detail(ui, theme, s, inv, res, &id);
             return;
         }
         let Some(c) = inv.containers.iter().find(|c| c.id == id).cloned() else {
@@ -2655,6 +2656,65 @@ impl ContainersTool {
             *out.lock() = Some(result);
             waker.request_repaint();
         });
+    }
+
+    /// The detail block for a list with no verbs of its own: the row's
+    /// own facts, in full, under a header that names it.
+    ///
+    /// One function for images, volumes, networks, stacks, services and
+    /// nodes rather than six: what differs between them is the list of
+    /// facts, and that lives in `docker::summary` beside the columns it
+    /// is the long form of.
+    fn facts_detail(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        inv: &Inventory,
+        res: docker::Resource,
+        id: &str,
+    ) {
+        let facts = docker::summary(res, s, inv, id);
+        if facts.is_empty() {
+            // It has gone since the last read, which is information.
+            form::hint(ui, theme, &s.t("container-detail-gone"));
+            return;
+        }
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(&facts[0].1).strong());
+            ui.label(
+                egui::RichText::new(s.t(res.key()))
+                    .small()
+                    .color(theme.text_muted),
+            );
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui.small_button(s.t("close")).clicked() {
+                    self.selected = None;
+                }
+            });
+        });
+        ui.add_space(4.0);
+        // Keyed by the row it shows, so a grid never keeps the tallest
+        // height a previous selection gave it (the Logs lesson).
+        egui::Grid::new(("container-facts", res as u8, id))
+            .num_columns(2)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                for (label, value) in &facts {
+                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
+                    ui.add(egui::Label::new(value.as_str()).selectable(true).truncate());
+                    ui.end_row();
+                }
+            });
+        ui.add_space(4.0);
+        if ui.small_button(s.t("container-detail-copy")).clicked() {
+            let text = facts
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            ui.ctx().copy_text(text);
+        }
     }
 
     /// A Compose project's detail: what it is made of, where it came
@@ -3000,14 +3060,19 @@ fn open_url(actions: &mut Vec<Action>, url: &str) {
     });
 }
 
-/// Open a host, or focus the tab that already shows it. One tab per
-/// host: `current_uri` is what the shell matches on (§10.9).
+/// Open a host, or focus the tab that already shows it.
+///
+/// **One tab per host**, and that is the shell's doing: it reuses a tab
+/// for an `OpenRequest::Connection` whose `current_connection` matches,
+/// and for an `OpenRequest::File` whose uri matches - but a
+/// `Text` request has no such rule, so every click opened another tab
+/// (owner's report, 2026-10-25). A container host *is* a saved
+/// connection profile, so this asks for it as one.
 fn open_host(cx: &mut ToolContext, host_id: &str) {
     cx.actions.push(Action::OpenTool {
         factory_id: "containers".into(),
-        request: Some(OpenRequest::Text {
-            mime: HOST_MIME.into(),
-            body: host_id.to_string(),
+        request: Some(OpenRequest::Connection {
+            id: host_id.to_string(),
         }),
     });
 }
@@ -3037,6 +3102,17 @@ impl Tool for ContainersTool {
             return None;
         }
         Some(format!("container://{}", self.state.host_id))
+    }
+
+    /// Which host this tab holds. The shell reuses a tab bound to the
+    /// same connection rather than opening a second one
+    /// (`tabs_per_connection` is 1 for every activity but SSH), so
+    /// leaving this at its default `None` is what let a host open twice.
+    fn current_connection(&self) -> Option<&str> {
+        if self.is_home || self.state.host_id.is_empty() {
+            return None;
+        }
+        Some(&self.state.host_id)
     }
 
     /// The activity has a permanent home tab, and that home is a
@@ -3210,6 +3286,11 @@ impl Tool for ContainersTool {
         let all = hosts(&s);
         let current = self.current_uri();
         let mut open: Option<String> = None;
+        let mut pin: Option<(String, bool)> = None;
+        // Edit This Host goes to Settings -> Containers with the host
+        // already selected: one place manages a host, and the sidebar is
+        // where the user is looking when they want to change one.
+        let mut edit: Option<String> = None;
         egui::ScrollArea::vertical()
             .id_salt("container-hosts")
             .max_height(hosts_height)
@@ -3218,24 +3299,60 @@ impl Tool for ContainersTool {
                 if all.is_empty() {
                     form::hint(ui, &theme, &s.t("container-none"));
                 }
-                for p in &all {
+                // The order is the user's own, as in every other activity's
+                // connection list: a row is dragged by the grip on its left.
+                let mut reorder = hs_ui::reorder::Reorder::new("container-hosts");
+                for (i, p) in all.iter().enumerate() {
                     let f = ContainerFields::from_table(&p.fields);
                     let live = current.as_deref() == Some(&format!("container://{}", p.id));
-                    if form::list_row(
-                        ui,
-                        &theme,
-                        live,
-                        kind_icon(&p.kind),
-                        &p.name,
-                        Some(&f.describe(&p.kind)),
-                    )
-                    .clicked()
-                    {
-                        open = Some(p.id.clone());
-                    }
+                    reorder.row(ui, i, |ui| {
+                        let row = form::connection_row(
+                            ui,
+                            &theme,
+                            live,
+                            kind_icon(&p.kind),
+                            &p.name,
+                            Some(&f.describe(&p.kind)),
+                            p.pinned,
+                            form::RowMenuLabels {
+                                pin: &s.t("conn-pin-home"),
+                                unpin: &s.t("conn-unpin-home"),
+                                edit: &s.t("container-edit-host"),
+                            },
+                        );
+                        if row.response.clicked() {
+                            open = Some(p.id.clone());
+                        }
+                        if let Some(v) = row.pin {
+                            pin = Some((p.id.clone(), v));
+                        }
+                        if row.edit {
+                            edit = Some(p.id.clone());
+                        }
+                    });
                     ui.add_space(2.0);
                 }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent) {
+                    if let Err(e) = s.connections.write().reorder(
+                        hs_core::connections::CONTAINER_KINDS,
+                        from,
+                        to,
+                    ) {
+                        cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                    }
+                    ui.ctx().request_repaint();
+                }
             });
+        if let Some((id, v)) = pin
+            && let Err(e) = s.connections.write().set_pinned(&id, v)
+        {
+            cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+        }
+        if let Some(id) = edit {
+            cx.actions.push(Action::RunCommand {
+                id: format!("settings:container:{id}"),
+            });
+        }
         if let Some(id) = open {
             open_host(cx, &id);
         }

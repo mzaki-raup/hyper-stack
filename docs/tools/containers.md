@@ -274,6 +274,9 @@ too.
   commands live in `<workspace>/containers/*.toml`, each file named
   `slug(name)` — a file under any other name is duplicated the first
   time anything saves it (the connection-profile gotcha).
+  Each host row carries the shared connection-row context menu
+  (`hs_ui::form::row_menu`): **Edit This Host…**, which opens Settings →
+  Containers with that host selected, and Pin to Home.
 - **One tab per host.** `current_uri` is `container://<profile-id>`, so
   clicking a host focuses the tab that already shows it rather than
   opening a second (`TabInfo::uri`, as the Logs sidebar uses).
@@ -285,6 +288,26 @@ resource rail (Containers, Stacks, Images, Volumes, Networks, and under
 Swarm: Services, Nodes), a filterable table, and a detail block with
 tabs (Overview, Env, Mounts, Networks, Stats) over a fixed row of verbs
 (Start, Stop, Restart, Logs, Exec, Inspect).
+
+**Every list has a detail block (2026-10-25).** Containers and Compose
+projects have verbs of their own; images, volumes, networks, stacks,
+services and nodes have facts, and the facts are exactly what a column
+width cuts off — a twelve-character image id, a mount point, a port map.
+They share one `facts_detail` block fed by `docker::summary`, which lives
+beside `docker::table_data` because it is the long form of the same
+columns. An image also says **which containers are running it**, matched
+on the reference or on the id (by prefix: the engine abbreviates it in
+some outputs), since that is the question an image row is opened to ask.
+
+**One tab per host, through the connection and not a mime type.** The
+shell reuses a tab for an `OpenRequest::Connection` whose
+`current_connection` matches and for an `OpenRequest::File` whose uri
+matches — a `Text` request has no such rule, so clicking a host in the
+sidebar opened another tab every time (owner's report, 2026-10-25). A
+container host *is* a saved connection profile, so `open_host` asks for
+it as one and the tool answers `current_connection`; `current_uri` stays
+for the Logs and search handoffs. The `Text` route still opens a host, so
+nothing that already sends one breaks.
 
 **Kubernetes, Lens-shaped:** a resource rail, a namespace-scoped list,
 and a detail block (Summary, containers, YAML; Logs / Exec / Scale /
@@ -491,7 +514,11 @@ A page between `Connections` and `Editor` in `Page::all()`. Cards:
    sharing the row component with Settings → Connections: drag grip,
    kind icon, name, subtitle, environment and read-only badges; Add,
    Duplicate, Test, Delete. One store, so the two lists can never show
-   different orders for the same host.
+   different orders for the same host. The four **Add** buttons (Docker,
+   Podman, Kubernetes, Windows containers) are one row across the whole
+   card, at a readable size: inside the 260 px list column they wrapped
+   over three lines and read as a list of their own (owner's
+   requirement, 2026-10-25).
 2. **Connection form**, per kind. Docker/Podman: socket, named pipe or
    TCP, TLS (CA, cert, key — vault), over SSH through a saved `ssh`
    profile, WSL distribution, registry credentials (vault), API version

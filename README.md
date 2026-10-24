@@ -190,7 +190,7 @@ directly after the permanent one.
 | | |
 |---|---|
 | ![S3 browser](docs/screenshots/s3-browser.png) | ![S3 profile](docs/screenshots/connection-s3-form.png) |
-| **Browser** — profiles and buckets in the sidebar, breadcrumb, size / modified / class / ETag, Load More | **Profile** — provider presets (AWS, MinIO, R2, B2, Spaces, Wasabi), keys stored in the vault |
+| **Browser** — profiles in the sidebar; buckets and the open bucket's folders in the pane's left column, breadcrumb, size / modified / class / ETag, Load More | **Profile** — provider presets (AWS, MinIO, R2, B2, Spaces, Wasabi), keys stored in the vault |
 | ![Import AWS profiles](docs/screenshots/s3-import-aws.png) | ![Presigned URL](docs/screenshots/s3-presign.png) |
 | **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
@@ -350,7 +350,7 @@ each removable; the AI assistant is review-only.
 | ![Environments](docs/screenshots/settings-environments.png) | ![Security](docs/screenshots/settings-security.png) |
 | **Environments** — colour, inheritance, protected flag; variables edited in place; **Import…** merges Postman/Insomnia/Bruno JSON and **Export…** writes Postman, Insomnia, Bruno or Flat JSON (secrets omitted) | **Security** — unlocked vault, relock and clipboard timers, and the credentials table: masked passwords, **Reveal Secret** and **Edit Secret** in the Action column |
 | ![Edit Secret](docs/screenshots/settings-credential-edit.png) | ![Connections](docs/screenshots/settings-connections.png) |
-| **Edit Secret** — after the master password, the password and key are editable; typed values move into the vault, an empty field clears the secret | **Connections** — every profile by kind, folder and tags, drag to reorder, Edit and Test Connection |
+| **Edit Secret** — after the master password, the password and key are editable; typed values move into the vault, an empty field clears the secret | **Connections** — every profile by kind, folder and tags, drag to reorder, Test Connection and **Connect**, which saves and opens the profile in its own activity. Right-click a connection in any activity sidebar for **Edit This Connection…**, which opens its form here |
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
 | **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload, language servers and debug adapters |
 | ![Terminal List](docs/screenshots/settings-terminal-list.png) | |

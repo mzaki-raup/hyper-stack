@@ -1003,6 +1003,164 @@ impl S3Tool {
         }
     }
 
+    /// The work pane: where things are on the left, what is in them on
+    /// the right.
+    ///
+    /// The buckets used to hang off the profile's row in the activity
+    /// sidebar, which put a store's contents in the column that lists the
+    /// *stores* and left the pane empty until one was chosen. They are a
+    /// column of this pane now, as every other two-pane browser in the
+    /// app has (owner's requirement, 2026-10-25).
+    fn explorer(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let full = ui.available_size();
+        // A real width, not `available_width`: inside a horizontal layout
+        // that is unbounded, and the column would grow every frame.
+        let left = (full.x * 0.26).clamp(170.0, 280.0);
+        ui.horizontal_top(|ui| {
+            // `allocate_ui` inherits the **parent's** layout, which here is
+            // horizontal: the column's rows would run across the pane
+            // instead of down it. Say top-down explicitly.
+            ui.allocate_ui_with_layout(
+                egui::vec2(left, full.y),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_width(left);
+                    ui.set_max_width(left);
+                    self.container_column(ui, cx, theme);
+                },
+            );
+            ui.separator();
+            ui.vertical(|ui| {
+                if self.state.bucket.is_none() {
+                    ui.add_space(24.0);
+                    form::note(
+                        ui,
+                        theme,
+                        ph::INFO,
+                        &cx.services.t("s3-pick-container-hint"),
+                    );
+                    return;
+                }
+                self.browser(ui, cx, theme);
+            });
+        });
+    }
+
+    /// The left column: the buckets, and the folders inside the open one.
+    ///
+    /// The folders are the prefixes the last listing already reported, so
+    /// the column follows the pane rather than reading the store a second
+    /// time to say the same thing.
+    fn container_column(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        // "Buckets" is an S3 word. A Nexus server has repositories, and
+        // calling them buckets in the one place the user picks between
+        // them is exactly where it would read as a mistake.
+        let heading = self
+            .backend()
+            .map(|b| b.container_key())
+            .unwrap_or("s3-pick-bucket");
+        ui.label(
+            egui::RichText::new(s.t(heading))
+                .small()
+                .strong()
+                .color(theme.text_muted),
+        );
+        ui.add_space(4.0);
+        let (buckets, failed) = match &self.shared.lock().buckets {
+            Load::Ready(b) => (Some(b.clone()), None),
+            Load::Failed(e) => (None, Some(e.clone())),
+            _ => (None, None),
+        };
+        if let Some(e) = failed {
+            ui.colored_label(theme.error, e);
+            if ui.button(s.t("s3-retry")).clicked() {
+                self.connect(s);
+            }
+            return;
+        }
+        let Some(buckets) = buckets else {
+            ui.label(egui::RichText::new(s.t("s3-loading")).weak());
+            return;
+        };
+        if buckets.is_empty() {
+            form::note(ui, theme, ph::INFO, &s.t("s3-no-buckets"));
+            return;
+        }
+        let folders: Vec<String> = match &self.shared.lock().objects {
+            Load::Ready((_, prefixes, _)) => prefixes.clone(),
+            _ => Vec::new(),
+        };
+        let mut open: Option<String> = None;
+        let mut go: Option<String> = None;
+        let mut up = false;
+        egui::ScrollArea::vertical()
+            .id_salt("s3-container-column")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let w = ui.available_width();
+                for b in &buckets {
+                    let on = self.state.bucket.as_deref() == Some(b.name.as_str());
+                    if ui
+                        .add(
+                            egui::Button::selectable(on, format!("{} {}", ph::ARCHIVE, b.name))
+                                .min_size(egui::vec2(w, 0.0)),
+                        )
+                        .clicked()
+                        && !on
+                    {
+                        open = Some(b.name.clone());
+                    }
+                    if !on {
+                        continue;
+                    }
+                    // Inside the open bucket: a way back up, then what is
+                    // below where the pane currently is.
+                    if !self.state.prefix.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.add_space(12.0);
+                            if ui
+                                .add(
+                                    egui::Button::new(format!("{} {}", ph::ARROW_UP, s.t("s3-up")))
+                                        .frame(false),
+                                )
+                                .clicked()
+                            {
+                                up = true;
+                            }
+                        });
+                    }
+                    for p in &folders {
+                        let name = p
+                            .strip_prefix(&self.state.prefix)
+                            .unwrap_or(p)
+                            .trim_end_matches('/')
+                            .to_string();
+                        ui.horizontal(|ui| {
+                            ui.add_space(12.0);
+                            if ui
+                                .add(
+                                    egui::Button::new(format!("{} {name}", ph::FOLDER_SIMPLE))
+                                        .frame(false),
+                                )
+                                .clicked()
+                            {
+                                go = Some(p.clone());
+                            }
+                        });
+                    }
+                    ui.add_space(4.0);
+                }
+            });
+        if let Some(b) = open {
+            self.open_bucket(s, b);
+        } else if up {
+            self.up(s);
+        } else if let Some(p) = go {
+            self.navigate(s, p);
+        }
+    }
+
     fn browser(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
         let bucket = self.state.bucket.clone().unwrap_or_default();
@@ -1269,6 +1427,10 @@ impl Tool for S3Tool {
                 let mut reorder = hs_ui::reorder::Reorder::new("s3-profiles");
                 let mut open_profile: Option<(String, bool)> = None;
                 let mut pin: Option<(String, bool)> = None;
+                // Edit This Connection takes the user to the profile's own
+                // form in Settings, selected and ready: one place manages a
+                // connection, and the sidebar is where they are looking.
+                let mut edit: Option<String> = None;
                 for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
@@ -1280,8 +1442,11 @@ impl Tool for S3Tool {
                             name,
                             Some(label),
                             *is_pinned,
-                            &s.t("conn-pin-home"),
-                            &s.t("conn-unpin-home"),
+                            form::RowMenuLabels {
+                                pin: &s.t("conn-pin-home"),
+                                unpin: &s.t("conn-unpin-home"),
+                                edit: &s.t("conn-edit"),
+                            },
                         );
                         if row.response.tip(s.t("s3-open-profile")).clicked() {
                             open_profile = Some((id.clone(), selected));
@@ -1289,44 +1454,21 @@ impl Tool for S3Tool {
                         if let Some(p) = row.pin {
                             pin = Some((id.clone(), p));
                         }
+                        if row.edit {
+                            edit = Some(id.clone());
+                        }
                     });
                     ui.add_space(2.0);
-                    if selected {
-                        let buckets: Vec<String> = match &self.shared.lock().buckets {
-                            Load::Ready(b) => b.iter().map(|b| b.name.clone()).collect(),
-                            Load::Loading => {
-                                ui.label(egui::RichText::new(s.t("s3-loading")).weak());
-                                Vec::new()
-                            }
-                            Load::Failed(e) => {
-                                ui.colored_label(theme.error, e);
-                                Vec::new()
-                            }
-                            Load::Idle => Vec::new(),
-                        };
-                        let mut open: Option<String> = None;
-                        for b in buckets {
-                            let on = self.state.bucket.as_deref() == Some(&b);
-                            ui.horizontal(|ui| {
-                                ui.add_space(14.0);
-                                if ui
-                                    .selectable_label(on, format!("{} {b}", ph::ARCHIVE))
-                                    .clicked()
-                                {
-                                    open = Some(b.clone());
-                                }
-                            });
-                        }
-                        if let Some(b) = open {
-                            self.open_bucket(s, b);
-                        }
-                        ui.add_space(6.0);
-                    }
                 }
                 if let Some((id, p)) = pin
                     && let Err(e) = s.connections.write().set_pinned(&id, p)
                 {
                     cx.toast(hs_core::tool::ToastLevel::Error, e.to_string());
+                }
+                if let Some(id) = edit {
+                    cx.actions.push(hs_core::tool::Action::RunCommand {
+                        id: format!("settings:connection:{id}"),
+                    });
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
                     if let Err(e) =
@@ -1404,63 +1546,8 @@ impl Tool for S3Tool {
                 ui.add_space(30.0);
                 ui.label(egui::RichText::new(s.t("s3-pick-profile")).weak());
             });
-        } else if self.state.bucket.is_none() {
-            let (buckets, failed) = match &self.shared.lock().buckets {
-                Load::Ready(b) => (Some(b.clone()), None),
-                Load::Failed(e) => (None, Some(e.clone())),
-                _ => (None, None),
-            };
-            ui.add_space(6.0);
-            if let Some(e) = failed {
-                ui.colored_label(theme.error, e);
-                if ui.button(s.t("s3-retry")).clicked() {
-                    self.connect(s);
-                }
-                self.dialogs(ui, cx, &theme);
-                return;
-            }
-            match buckets {
-                Some(b) if b.is_empty() => {
-                    form::note(ui, &theme, ph::INFO, &s.t("s3-no-buckets"));
-                }
-                Some(b) => {
-                    // "Buckets" is an S3 word. A Nexus server has
-                    // repositories, and calling them buckets in the one
-                    // place the user picks between them is exactly where
-                    // it would read as a mistake.
-                    let heading = self
-                        .backend()
-                        .map(|b| b.container_key())
-                        .unwrap_or("s3-pick-bucket");
-                    ui.label(egui::RichText::new(s.t(heading)).weak());
-                    ui.add_space(4.0);
-                    let mut open = None;
-                    for bucket in b {
-                        let created = short_time(&bucket.created);
-                        if form::list_row(
-                            ui,
-                            &theme,
-                            false,
-                            ph::ARCHIVE,
-                            &bucket.name,
-                            Some(&created),
-                        )
-                        .clicked()
-                        {
-                            open = Some(bucket.name.clone());
-                        }
-                        ui.add_space(2.0);
-                    }
-                    if let Some(b) = open {
-                        self.open_bucket(s, b);
-                    }
-                }
-                None => {
-                    ui.label(egui::RichText::new(s.t("s3-loading")).weak());
-                }
-            }
         } else {
-            self.browser(ui, cx, &theme);
+            self.explorer(ui, cx, &theme);
         }
         self.dialogs(ui, cx, &theme);
         if self.assistant.open {

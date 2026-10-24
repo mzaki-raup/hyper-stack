@@ -760,6 +760,18 @@ impl HyperStackApp {
         }
     }
 
+    /// Select a saved profile in the Settings form, so Edit This
+    /// Connection lands on the profile itself rather than on the page.
+    fn select_connection_in_settings(&mut self, id: &str) {
+        let Some(c) = self.services.connections.read().by_id(id).cloned() else {
+            return;
+        };
+        let fields = toml::to_string_pretty(&c.fields).unwrap_or_default();
+        let mut ui = self.settings_ui.lock();
+        ui.state.conn_selected = Some(c.id.clone());
+        ui.state.conn_draft = Some((c, fields));
+    }
+
     /// Put a tool's rail entry back when something opens one of its tabs.
     /// Hiding an entry is a tidying choice, not a ban: a link Ctrl+clicked
     /// in the editor, a remote file opened from SFTP or a connection saved
@@ -1126,6 +1138,21 @@ impl HyperStackApp {
             "print.tab" => self.print_active(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
+            // Edit This Connection, from any activity's sidebar: the page
+            // opens with that profile already selected in its form, so the
+            // user is not left to find it in the list again.
+            _ if action.starts_with("settings:connection:") => {
+                let id = action
+                    .trim_start_matches("settings:connection:")
+                    .to_string();
+                self.open_settings(Some(settings_ui::Page::Connections));
+                self.select_connection_in_settings(&id);
+            }
+            _ if action.starts_with("settings:container:") => {
+                let id = action.trim_start_matches("settings:container:").to_string();
+                self.open_settings(Some(settings_ui::Page::Containers));
+                self.select_connection_in_settings(&id);
+            }
             "settings:ai" => self.open_settings(Some(settings_ui::Page::Ai)),
             "ws.new" => {
                 self.workspace_dialog = WorkspaceDialog::New {
@@ -1616,6 +1643,14 @@ impl HyperStackApp {
                     self.services.events.publish(Event::ConnectionsChanged);
                     self.toasts
                         .push(ToastLevel::Success, self.services.t("toast-saved"));
+                }
+                SettingsEffect::OpenConnection { tool, id } => {
+                    // Settings saved it a moment ago, so the activity reads
+                    // the profile the user is looking at. `open_tool` focuses
+                    // the tab that already has it, or opens a new one.
+                    self.services.events.publish(Event::ConnectionsChanged);
+                    self.reveal_rail(&tool);
+                    self.open_tool(&tool, Some(OpenRequest::Connection { id }));
                 }
                 SettingsEffect::DeleteWorkspace => {
                     let name = self.services.workspace.read().meta.name.clone();
@@ -4237,6 +4272,9 @@ fn activity_colour(id: &str) -> egui::Color32 {
         "browser" => egui::Color32::from_rgb(0x22, 0xd3, 0xee),
         "graphics" => egui::Color32::from_rgb(0xf4, 0x72, 0xb6),
         "devtools" => egui::Color32::from_rgb(0xc0, 0x84, 0xfc),
+        // Docker's blue, which is what a container reads as everywhere
+        // else; distinct from the editor's and the database's blues.
+        "containers" => egui::Color32::from_rgb(0x81, 0x9a, 0xff),
         "scratchpad" => egui::Color32::from_rgb(0xfa, 0xcc, 0x15),
         "settings" => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
         _ => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),

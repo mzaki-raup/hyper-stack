@@ -307,6 +307,9 @@ pub struct ConnectionRow {
     pub response: egui::Response,
     /// `Some(true)` to pin the connection to Home, `Some(false)` to unpin.
     pub pin: Option<bool>,
+    /// Edit This Connection was chosen: take the user to the profile's
+    /// own form in Settings.
+    pub edit: bool,
 }
 
 /// A row in a tool's connection sidebar: the row itself, plus the
@@ -326,28 +329,54 @@ pub fn connection_row(
     name: &str,
     subtitle: Option<&str>,
     pinned: bool,
-    pin_label: &str,
-    unpin_label: &str,
+    labels: RowMenuLabels<'_>,
 ) -> ConnectionRow {
     let response = list_row(ui, theme, selected, icon, name, subtitle);
-    let pin = pin_menu(&response, pinned, pin_label, unpin_label);
-    ConnectionRow { response, pin }
+    let menu = row_menu(&response, pinned, labels);
+    ConnectionRow {
+        response,
+        pin: menu.pin,
+        edit: menu.edit,
+    }
 }
 
-pub fn pin_menu(row: &egui::Response, pinned: bool, pin: &str, unpin: &str) -> Option<bool> {
-    let mut choice = None;
+/// What the row's context menu calls its items, in the caller's locale.
+#[derive(Clone, Copy)]
+pub struct RowMenuLabels<'a> {
+    pub pin: &'a str,
+    pub unpin: &'a str,
+    pub edit: &'a str,
+}
+
+/// What was chosen in a connection row's context menu.
+#[derive(Default)]
+pub struct RowMenu {
+    pub pin: Option<bool>,
+    pub edit: bool,
+}
+
+/// The context menu every connection row carries: pin to Home, and edit
+/// the profile where it is kept. Both live here so no list can be left
+/// without them.
+pub fn row_menu(row: &egui::Response, pinned: bool, labels: RowMenuLabels<'_>) -> RowMenu {
+    let mut out = RowMenu::default();
     row.context_menu(|ui| {
+        if ui.button(labels.edit).clicked() {
+            out.edit = true;
+            ui.close();
+        }
+        ui.separator();
         if pinned {
-            if ui.button(unpin).clicked() {
-                choice = Some(false);
+            if ui.button(labels.unpin).clicked() {
+                out.pin = Some(false);
                 ui.close();
             }
-        } else if ui.button(pin).clicked() {
-            choice = Some(true);
+        } else if ui.button(labels.pin).clicked() {
+            out.pin = Some(true);
             ui.close();
         }
     });
-    choice
+    out
 }
 
 pub fn list_row(

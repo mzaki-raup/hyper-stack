@@ -242,6 +242,12 @@ pub enum SettingsEffect {
     /// Write the environment being edited to a file in this format.
     ExportEnvironment(tool_api::env_export::Format),
     ConnectionsChanged,
+    /// Settings -> Connections -> Connect: open this saved profile in its
+    /// own activity, in the tab it already has or in a new one.
+    OpenConnection {
+        tool: String,
+        id: String,
+    },
     /// Sign in to the registry at this index of
     /// `settings.containers.registries` (owner's request, 2026-10-24).
     RegistrySignIn(usize),
@@ -2403,37 +2409,42 @@ fn container_list(
         // never wrap.
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        // The four kinds are one row across the **section**, not a
+        // wrapped block inside the 260 px list column, where they broke
+        // over three lines and read as a list of their own. Owner's
+        // requirement, 2026-10-25.
+        ui.horizontal(|ui| {
+            for kind in CONTAINER_KINDS {
+                let label = egui::RichText::new(format!(
+                    "{} {}",
+                    container_kind_icon(kind),
+                    kind_label(kind)
+                ))
+                .size(14.0);
+                if ui
+                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
+                    .on_hover_text(s.t("settings-container-add-hint"))
+                    .clicked()
+                {
+                    let mut draft = hs_core::connections::ConnectionProfile {
+                        name: format!("New {}", kind_label(kind)),
+                        kind: (*kind).to_string(),
+                        ..Default::default()
+                    };
+                    // The defaults for the kind, so the form opens on
+                    // something that would work rather than on empty
+                    // fields.
+                    hs_container::profile::ContainerFields::default().write_into(&mut draft.fields);
+                    state.conn_selected = Some(draft.id.clone());
+                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+                    state.conn_draft = Some((draft, text));
+                }
+            }
+        });
+        ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_width);
-                ui.horizontal_wrapped(|ui| {
-                    for kind in CONTAINER_KINDS {
-                        if ui
-                            .button(format!(
-                                "{} {}",
-                                container_kind_icon(kind),
-                                kind_label(kind)
-                            ))
-                            .on_hover_text(s.t("settings-container-add-hint"))
-                            .clicked()
-                        {
-                            let mut draft = hs_core::connections::ConnectionProfile {
-                                name: format!("New {}", kind_label(kind)),
-                                kind: (*kind).to_string(),
-                                ..Default::default()
-                            };
-                            // The defaults for the kind, so the form opens
-                            // on something that would work rather than on
-                            // empty fields.
-                            hs_container::profile::ContainerFields::default()
-                                .write_into(&mut draft.fields);
-                            state.conn_selected = Some(draft.id.clone());
-                            let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
-                            state.conn_draft = Some((draft, text));
-                        }
-                    }
-                });
-                ui.add_space(8.0);
                 let hosts: Vec<(String, String, String)> = s
                     .connections
                     .read()
@@ -2821,9 +2832,15 @@ fn connections(
         &s.t("settings-connections"),
         Some(&s.t("settings-connections-sub")),
     );
+    // The list on the left and the whole form on the right. The form's
+    // sections must be stacked inside a vertical of their own: drawn
+    // straight into this horizontal layout, Details and the kind-specific
+    // section became two columns side by side.
+    let list_width = 260.0;
+    let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
     ui.horizontal_top(|ui| {
         ui.vertical(|ui| {
-            ui.set_width(260.0);
+            ui.set_width(list_width);
             form::section(ui, theme, &s.t("settings-connections"), |ui| {
                 if form::primary_button(
                     ui,
@@ -2890,7 +2907,11 @@ fn connections(
                 }
             });
         });
-        conn_detail(ui, theme, s, state, effects);
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            ui.set_width(right_width);
+            conn_detail(ui, theme, s, state, effects);
+        });
     });
 }
 
@@ -2901,6 +2922,128 @@ fn connections(
 /// same form for a container host (ADR-026). Duplicating a form that
 /// moves secrets into the vault would be the worst thing in this file to
 /// have two copies of.
+/// Save the open draft: move its typed secrets into the vault, write the
+/// profile, and un-hide the activity it belongs to.
+///
+/// A function rather than the body of the Save button, because Connect
+/// saves too: what it opens has to be what is on disk, not a draft the
+/// user never wrote. `false` means nothing was saved and the caller must
+/// not act as though it was.
+fn save_draft(
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    fields_text: &str,
+    effects: &mut Vec<SettingsEffect>,
+) -> bool {
+    let is_ssh = draft.kind == "ssh";
+    let is_s3 = draft.kind == "s3";
+    let is_db = draft.kind == "db";
+    let is_container = hs_core::connections::is_container_kind(&draft.kind);
+    let mut saved = false;
+    let is_http_store = matches!(draft.kind.as_str(), "webdav" | "nexus");
+    let parsed = if is_ssh || is_s3 || is_db || is_container || is_http_store {
+        // These forms write into `draft.fields` directly,
+        // so the text box is a view rather than the truth.
+        Ok(draft.fields.clone())
+    } else {
+        toml::from_str::<toml::Table>(fields_text)
+    };
+    match parsed {
+        Ok(mut table) => {
+            let mut secrets_ok = true;
+            if is_ssh {
+                let mut f = hs_ssh::SshFields::from_table(&table);
+                secrets_ok = store_typed_secrets(
+                    s,
+                    &draft.name,
+                    [
+                        ("password", &mut f.password),
+                        ("key passphrase", &mut f.key_passphrase),
+                    ],
+                    effects,
+                );
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_s3 {
+                let mut f = S3Fields::from_table(&table);
+                secrets_ok = store_typed_secrets(
+                    s,
+                    &draft.name,
+                    [
+                        ("secret key", &mut f.secret_key),
+                        ("session token", &mut f.session_token),
+                    ],
+                    effects,
+                );
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_db {
+                let mut f = DbFields::from_table(&table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if draft.kind == "webdav" {
+                let mut f = hs_core::objstore::http_profile::WebdavFields::from_table(&table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if draft.kind == "nexus" {
+                let mut f = hs_core::objstore::http_profile::NexusFields::from_table(&table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_container {
+                // Every sensitive field at once, from the
+                // one list that knows which they are, so a
+                // field added later cannot be forgotten
+                // here and written in the clear.
+                let mut f = hs_container::profile::ContainerFields::from_table(&table);
+                secrets_ok = store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            }
+            if !secrets_ok {
+                // Never write a typed secret to disk.
+                return false;
+            }
+            let mut c = draft.clone();
+            c.fields = table;
+            // A connection for a tool whose rail entry is
+            // hidden would otherwise have nowhere to open.
+            let tool = crate::launcher::tool_for_kind(&c.kind);
+            match s.connections.write().upsert(c) {
+                Ok(()) => {
+                    if let Some(tool) = tool {
+                        let appearance = s.settings.read().appearance.clone();
+                        let mut ws = s.workspace.write();
+                        let prefs = ws.meta.rail_prefs_mut(&appearance);
+                        let before = prefs.hidden.len();
+                        prefs.hidden.retain(|h| h != tool);
+                        if prefs.hidden.len() != before {
+                            let _ = ws.save_meta();
+                        }
+                    }
+                    saved = true;
+                    effects.push(SettingsEffect::ConnectionsChanged);
+                }
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                )),
+            }
+        }
+        Err(e) => effects.push(SettingsEffect::Toast(
+            hs_core::tool::ToastLevel::Error,
+            s.i18n
+                .t_args("conn-toml-error", &[("error", &e.to_string())]),
+        )),
+    }
+    saved
+}
+
 fn conn_detail(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -2986,7 +3129,6 @@ fn conn_detail(
     let is_s3 = draft.kind == "s3";
     let is_db = draft.kind == "db";
     let is_redis = hs_core::connections::is_redis_kind(&draft.kind);
-    let is_container = hs_core::connections::is_container_kind(&draft.kind);
     if is_ssh {
         ssh_form(ui, theme, s, draft, fields_text, effects);
     } else if is_s3 {
@@ -3012,124 +3154,13 @@ fn conn_detail(
     // Testing is offered between Save and Delete: try it, read the
     // answer, then decide whether to keep the profile.
     let mut start_test = false;
+    let mut do_save = false;
+    let mut do_connect = false;
     ui.horizontal(|ui| {
         if form::primary_button(ui, theme, &s.t("save")).clicked() {
-            let is_http_store = matches!(draft.kind.as_str(), "webdav" | "nexus");
-            let parsed = if is_ssh || is_s3 || is_db || is_container || is_http_store {
-                // These forms write into `draft.fields` directly,
-                // so the text box is a view rather than the truth.
-                Ok(draft.fields.clone())
-            } else {
-                toml::from_str::<toml::Table>(fields_text)
-            };
-            match parsed {
-                Ok(mut table) => {
-                    let mut secrets_ok = true;
-                    if is_ssh {
-                        let mut f = hs_ssh::SshFields::from_table(&table);
-                        secrets_ok = store_typed_secrets(
-                            s,
-                            &draft.name,
-                            [
-                                ("password", &mut f.password),
-                                ("key passphrase", &mut f.key_passphrase),
-                            ],
-                            effects,
-                        );
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    } else if is_s3 {
-                        let mut f = S3Fields::from_table(&table);
-                        secrets_ok = store_typed_secrets(
-                            s,
-                            &draft.name,
-                            [
-                                ("secret key", &mut f.secret_key),
-                                ("session token", &mut f.session_token),
-                            ],
-                            effects,
-                        );
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    } else if is_db {
-                        let mut f = DbFields::from_table(&table);
-                        secrets_ok = store_typed_secrets(
-                            s,
-                            &draft.name,
-                            [("password", &mut f.password)],
-                            effects,
-                        );
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    } else if draft.kind == "webdav" {
-                        let mut f =
-                            hs_core::objstore::http_profile::WebdavFields::from_table(&table);
-                        secrets_ok = store_typed_secrets(
-                            s,
-                            &draft.name,
-                            [("password", &mut f.password)],
-                            effects,
-                        );
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    } else if draft.kind == "nexus" {
-                        let mut f =
-                            hs_core::objstore::http_profile::NexusFields::from_table(&table);
-                        secrets_ok = store_typed_secrets(
-                            s,
-                            &draft.name,
-                            [("password", &mut f.password)],
-                            effects,
-                        );
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    } else if is_container {
-                        // Every sensitive field at once, from the
-                        // one list that knows which they are, so a
-                        // field added later cannot be forgotten
-                        // here and written in the clear.
-                        let mut f = hs_container::profile::ContainerFields::from_table(&table);
-                        secrets_ok =
-                            store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
-                        f.write_into(&mut table);
-                        draft.fields = table.clone();
-                    }
-                    if !secrets_ok {
-                        // Never write a typed secret to disk.
-                        return;
-                    }
-                    let mut c = draft.clone();
-                    c.fields = table;
-                    // A connection for a tool whose rail entry is
-                    // hidden would otherwise have nowhere to open.
-                    let tool = crate::launcher::tool_for_kind(&c.kind);
-                    match s.connections.write().upsert(c) {
-                        Ok(()) => {
-                            if let Some(tool) = tool {
-                                let appearance = s.settings.read().appearance.clone();
-                                let mut ws = s.workspace.write();
-                                let prefs = ws.meta.rail_prefs_mut(&appearance);
-                                let before = prefs.hidden.len();
-                                prefs.hidden.retain(|h| h != tool);
-                                if prefs.hidden.len() != before {
-                                    let _ = ws.save_meta();
-                                }
-                            }
-                            effects.push(SettingsEffect::ConnectionsChanged)
-                        }
-                        Err(e) => effects.push(SettingsEffect::Toast(
-                            hs_core::tool::ToastLevel::Error,
-                            e.to_string(),
-                        )),
-                    }
-                }
-                Err(e) => effects.push(SettingsEffect::Toast(
-                    hs_core::tool::ToastLevel::Error,
-                    s.i18n
-                        .t_args("conn-toml-error", &[("error", &e.to_string())]),
-                )),
-            }
+            do_save = true;
         }
+
         // A kind with no driver has nothing to open, so the button
         // is there but says why it cannot do anything.
         let can_test = crate::conn_test::testable(&draft.kind);
@@ -3153,10 +3184,33 @@ fn conn_detail(
         {
             start_test = true;
         }
+        // Connect saves first and then opens the activity's tab, so what
+        // opens is the profile on the form rather than a stale copy of it.
+        let can_open = crate::launcher::tool_for_kind(&draft.kind).is_some();
+        if ui
+            .add_enabled(can_open, egui::Button::new(s.t("conn-connect")))
+            .on_hover_text(s.t("conn-connect-tip"))
+            .on_disabled_hover_text(s.t("conn-connect-not-openable"))
+            .clicked()
+        {
+            do_connect = true;
+        }
         if form::danger_button(ui, theme, &s.t("delete")).clicked() {
             state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), false));
         }
     });
+    if do_save || do_connect {
+        let saved = save_draft(s, draft, fields_text, effects);
+        if do_connect
+            && saved
+            && let Some(tool) = crate::launcher::tool_for_kind(&draft.kind)
+        {
+            effects.push(SettingsEffect::OpenConnection {
+                tool: tool.to_string(),
+                id: draft.id.clone(),
+            });
+        }
+    }
     if let Some(test) = &state.conn_test
         && test.profile_id == draft.id
     {

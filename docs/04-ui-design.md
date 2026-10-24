@@ -635,6 +635,34 @@ so a profile can be proved before it is kept. Owner's requirement,
 - A kind with no driver (an API collection) leaves the button disabled and
   says why, rather than passing a test it never ran.
 
+## Addendum (2026-10-25): Edit This Connection, and Connect
+
+Three changes that close the loop between the sidebar a connection is used
+from and the Settings form it is kept in. Owner's requirements, 2026-10-25.
+
+- **Every connection row's context menu opens with Edit This Connection…**,
+  above Pin to Home. It takes the user to Settings → Connections with that
+  profile already selected in the form; the Container activity's hosts say
+  **Edit This Host…** and land on Settings → Containers the same way. The
+  menu is built once in `hs_ui::form::row_menu`, so no list can be left
+  without it — the reason Pin to Home lives there too.
+- The shell reaches the form through the commands `settings:connection:<id>`
+  and `settings:container:<id>`, which open the page and then select the
+  profile (`app::select_connection_in_settings`). Selecting it is the point:
+  opening the page alone leaves the user to find in a list the row they had
+  just right-clicked.
+- **Connect sits after Test Connection** in both forms. It saves the draft
+  and then opens the profile in its own activity, focusing the tab that
+  already shows it or opening a new one. Save and Connect share
+  `settings_ui::save_draft`, so what opens is what reached disk — and a
+  draft whose secrets could not be stored (a locked vault) is not opened,
+  because it was not saved. A kind no activity handles leaves the button
+  disabled and says so, as Test Connection does.
+- The form is **one column**. Its sections — Details, then the kind's own —
+  are stacked in a `vertical` of their own inside the page's horizontal
+  split; drawn straight into that split they became two columns side by
+  side, with the kind's fields beside Details instead of under it.
+
 ## Addendum (2026-10-17): the assistant sits hard right
 
 Every tool's **AI Assistant** button is the last thing on its toolbar, in a

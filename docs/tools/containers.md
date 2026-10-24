@@ -1,6 +1,6 @@
 # Tool spec — Containers (Docker / Podman / Kubernetes)
 
-**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-6 built
+**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-6 built, phase 7 all but pod Exec
 
 ## 1. Purpose
 
@@ -315,6 +315,72 @@ server-side-apply bookkeeping nobody opened the view to read.
 YAML is fetched **per object, on request**. Carrying it with the list
 would make scrolling a list of pods a conversation with the API server.
 
+**Writing to a cluster (phase 7).** A pod offers Logs; a workload
+offers Restart, Scale and Delete; everything else offers Delete. Three
+rules decide how they behave, and each was learned next door:
+
+- **Restart is a rollout, not a delete.** The API has no restart verb -
+  a controller only reacts to a change in its pod template - so the
+  `kubectl.kubernetes.io/restartedAt` annotation *is* the restart.
+  Deleting the pods or scaling to zero and back would lose the surge
+  and availability guarantees that make a rollout safe.
+- **Scale asks first**, with Delete rather than with Restart: scaling
+  to zero takes a service down as surely as deleting it, and scaling up
+  costs money on a cluster that autoscales its nodes. The question
+  shows the number back before it is sent.
+- A refused verb is **disabled and says why**, never hidden, and a
+  write **re-reads the cluster on the same worker** so the list that
+  comes back is the one after it.
+
+**Apply goes through the server, never through a guess.** The YAML view
+is editable; **Dry Run** sends it as a server-side apply with
+`dryRun=All` and the preview is the difference between what the cluster
+holds now and what the server says it would hold - defaulting,
+admission webhooks and other controllers' fields included. **Apply
+stays disabled until a dry run has come back**, so nothing reaches a
+cluster that the server has not already described. The field manager is
+`hyperstack`: what this app owns is recorded, and a later `kubectl
+apply` conflicts loudly instead of silently reverting someone's work.
+A manifest of several documents is split and applied one at a time, so
+a failure names *which* document failed rather than leaving the rest in
+doubt. The one exception to server-side apply is **Scale**, which sends
+a merge patch to the `scale` subresource exactly as `kubectl scale`
+does - applying the replica count would make this app the owner of a
+field the deployment's own manifest sets.
+
+**Custom resources are a rail entry, not a special case.** The
+definitions are read from `apiextensions.k8s.io` rather than by walking
+discovery over every group - a dozen round trips to answer a question
+about the handful of kinds somebody installed - and the list shows
+kind, group, version and scope. A definition is itself an object, so
+its YAML is its schema; **List Objects** then lists the objects of that
+kind by name, namespace and age, and no further columns, because a
+custom resource's fields are whatever its author chose and the YAML
+view is where they are read. The storage version is the one listed: a
+CRD may serve several and only one is what the cluster keeps.
+
+**Port forward** opens `127.0.0.1:<free port>` onto a pod's port
+through the API server's `portforward` subresource, shows the address
+as a link, and stops on request. It does **not** go through the
+`Tunnels` service: that interface is SSH-shaped - its `ForwardSpec`
+carries an `ssh_id` and its implementation is `hs_ssh`'s tunnel
+manager - and routing a Kubernetes forward through it would mean
+inventing an SSH connection that does not exist. The local port is
+always chosen by the OS, which is the only answer that cannot collide
+with something already listening; the pod's first **declared**
+container port fills the field as a starting point, and the field
+stays editable because a pod may listen on a port it never declared.
+A forward survives a change of selection - it is a connection someone
+is using, not part of the detail block - and is closed by Stop or by
+closing the tab.
+
+**"All namespaces" is a choice, not an absence.** The profile's
+namespace seeds the picker until the reader picks one; without
+distinguishing "not yet chosen" from "chosen: all", selecting All
+namespaces empties the field, and the read that follows puts the
+profile's namespace straight back - the option is then unreachable on
+every profile that names one (found on the bench, 2026-10-24).
+
 Both panes scroll vertically and horizontally per §10.4.
 
 **A published port is a link (owner's request, 2026-10-24).** Every port
@@ -477,7 +543,7 @@ Each ends green on the full gate and is releasable on its own.
 | 4 | Docker pane: containers, images, volumes, networks; start/stop/restart; the Logs and Exec handoffs; clickable published ports; **Scan Local** on the dashboard |
 | 5 | Compose and Swarm (`docker compose`, `docker stack` — CLI-only surfaces) |
 | 6 | Kubernetes driver and the Lens-shaped pane: namespaces, workloads, events, YAML |
-| 7 | Apply with the dry-run diff, port-forward through `Tunnels`, CRD discovery, and a pod's Logs / Exec / Scale / Restart — all four need a write or a stream rather than a reader, so they sit with the other actions |
+| 7 | Apply with the dry-run diff, port-forward, CRD discovery, and a pod's Logs / Exec / Scale / Restart. The forward is **not** routed through `Tunnels`: that service is SSH-shaped (`ForwardSpec.ssh_id`) and a Kubernetes forward has no SSH connection to name |
 | 8 | AI assistant, prompt buttons, action blocks, the Problems feed |
 
 ### 10.11 Still out of scope

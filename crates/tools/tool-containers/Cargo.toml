@@ -18,6 +18,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 parking_lot = { workspace = true }
+# The apply preview's diff: `similar` is already the workspace's line
+# differ (the devtools Diff tool and the editor's Git view use it).
+similar = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

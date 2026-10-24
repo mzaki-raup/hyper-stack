@@ -13,6 +13,11 @@ publish.workspace = true
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-ssh = { workspace = true }
+# A pod's log is streamed from the Kubernetes API, not from a
+# `kubectl` subprocess: `hs-container` is a driver library, not a tool
+# crate, so this is the same arrangement as `hs-ssh` above (ADR-004).
+hs-container = { workspace = true }
+futures-util = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

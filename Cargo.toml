@@ -151,6 +151,9 @@ kube = { version = "4", default-features = false, features = [
     "config",
     "rustls-tls",
     "ring",
+    # Port-forward and exec go over the API server's WebSocket
+    # subresources; without this the methods are not compiled in.
+    "ws",
 ] }
 k8s-openapi = { version = "0.28", features = ["v1_34"] }
 # YAML for the Describe view and, later, editing a manifest.

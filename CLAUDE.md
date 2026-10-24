@@ -1452,6 +1452,23 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   (`(4294967296 + d) % 4294967296`).
 - A WebView2 page holding native focus swallows the first click on the
   rail; click a different rail entry first, or use `rail <k>` twice.
+- **A screenshot must verify the foreground window, not only the
+  click.** `click` has checked `WindowFromPoint` against the dev pid
+  since the two-HyperStack mix-up, but `shot` captured a screen
+  *rectangle* with no such check: with the editor window in front, the
+  capture was of the editor, and the next three clicks were aimed from
+  a picture of the wrong application (2026-10-24). A capture can also
+  be of the **right** window in a stale state. Both end the same way -
+  a click that lands on a real button nobody meant to press, which
+  against a cluster pane means a real pod. `shot` now refuses to
+  capture unless the dev window is in front; after any action that can
+  change which window is in front, `focus` then `shot`, and re-read the
+  fresh capture before aiming anything.
+- Verbs in a pane under test are **real writes against real
+  infrastructure**. Before clicking at coordinates in a pane that can
+  scale, restart or delete, take a fresh capture in the same
+  invocation, and prefer the harmless control (a list row) to a verb
+  when confirming layout.
 - moto keeps its buckets in memory, so a restarted `moto_server` has no
   buckets and the S3 tool shows "NoSuchBucket"; re-run
   `D:\Temp\opencode\seed_s3.py`. The fixture projects under `D:\Temp`
@@ -1543,6 +1560,31 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   alone - a kind-specific rule only waits for the next kind that
   carries something. Assume any field whose job is to hold a copy of
   the object is a second place the same secret lives.
+- **`PatchParams::force()` is only valid with `Patch::Apply`.** Pairing
+  it with `Patch::Merge` - which is what `kubectl scale` sends - fails
+  *before the request leaves the process*: "Failed to validate request:
+  PatchParams::force only works with Patch::Apply". Scale therefore
+  uses `PatchParams::default()` with a merge patch on the `scale`
+  subresource, which is also the right ownership answer (server-side
+  apply would make this app the owner of a field the deployment's own
+  manifest sets).
+- A `kube::Error` that never reached the network must not be reported
+  as "could not reach the cluster": `BuildRequest` and `SerdeError` are
+  local faults with local remedies, and `classify` names them as such.
+  The default arm of an error mapper is where lies like this hide.
+- **An empty string can be a real choice, and a flag is the only way to
+  say so.** The cluster pane seeds its namespace picker from the
+  profile "when the namespace is empty", which made **All namespaces**
+  unreachable: choosing it emptied the field, and the re-read that
+  followed read empty as "not set yet" and put the profile's namespace
+  straight back. `State::namespace_set` now separates "chosen: all"
+  from "not chosen yet". Any field whose default is applied on a
+  falsy-empty test has this bug waiting in it.
+- The `Tunnels` service is **SSH-shaped** - `ForwardSpec` carries an
+  `ssh_id` and the implementation is `hs_ssh::tunnels::TunnelManager` -
+  so a Kubernetes port-forward does not go through it; routing one
+  through would mean inventing an SSH connection. It lives in
+  `k8s::forward` instead, and the spec records why.
 - rustls refuses to pick a provider when more than one is compiled in,
   and the **first TLS handshake panics** rather than failing: `k8s`
   connects over TLS, so `k8s::connect` installs ring through a `Once`

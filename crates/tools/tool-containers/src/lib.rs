@@ -87,6 +87,16 @@ pub struct State {
     /// namespace, which is what a cluster-wide search wants.
     #[serde(default)]
     pub namespace: String,
+    /// Whether the reader has chosen a namespace in this tab.
+    ///
+    /// Without this, "All namespaces" is unreachable on any profile
+    /// that names a default one: choosing it empties `namespace`, and
+    /// the read that follows treats empty as "not set yet" and puts the
+    /// profile's namespace straight back (seen on the bench,
+    /// 2026-10-24). An empty string is a real choice, not a missing
+    /// one, and only this flag can tell the two apart.
+    #[serde(default)]
+    pub namespace_set: bool,
 }
 
 pub struct ContainersTool {
@@ -163,10 +173,77 @@ pub struct ContainersTool {
     yaml: Option<Result<String, String>>,
     /// Where the YAML worker leaves its answer.
     yaml_pending: Option<YamlPending>,
+    /// The YAML as the user is editing it, once they have started.
+    ///
+    /// Separate from `yaml`: Reset has to have something to go back to,
+    /// and a re-read while an edit is open must not silently take the
+    /// edit away.
+    yaml_edit: Option<String>,
+    /// What the dry run said the apply would do, and whether it has
+    /// been carried out for real yet.
+    apply: Option<Result<Vec<hs_container::k8s::Applied>, String>>,
+    /// Where the apply worker leaves its answer.
+    apply_pending: Option<ApplyPending>,
+    /// A cluster verb waiting to be confirmed, against which object.
+    confirm_cluster: Option<(cluster::Verb, cluster::Target)>,
+    /// The replica count typed into the Scale field, as text: a
+    /// half-typed number is not an integer, and clearing the box must
+    /// not become a zero.
+    scale_to: String,
+    /// Where a cluster verb leaves what it did and the re-read after it.
+    cluster_act_pending: Option<ClusterActPending>,
+    /// The objects of the selected custom resource, once asked for.
+    custom: Option<Result<Vec<hs_container::k8s::CustomRow>, String>>,
+    /// Where the custom-objects worker leaves its answer.
+    custom_pending: Option<CustomPending>,
+    /// The port typed into the Port Forward field.
+    forward_port: String,
+    /// The forwards this tab is holding open, newest first.
+    forwards: Vec<Forwarding>,
+    /// Where the forward worker leaves its answer.
+    forward_pending: Option<ForwardPending>,
 }
+
+/// One port forward this tab is holding open.
+struct Forwarding {
+    /// `<namespace>/<pod>:<port>`, for the row.
+    target: String,
+    url: String,
+    handle: hs_container::k8s::Forward,
+}
+
+/// A slot the custom-objects worker fills.
+type CustomPending =
+    std::sync::Arc<parking_lot::Mutex<Option<Result<Vec<hs_container::k8s::CustomRow>, String>>>>;
+
+/// A slot the port-forward worker fills: the forward, or why not, and
+/// what it was opened against.
+type ForwardPending = std::sync::Arc<
+    parking_lot::Mutex<Option<(String, Result<hs_container::k8s::Forward, String>)>>,
+>;
 
 /// A slot the YAML worker fills.
 type YamlPending = std::sync::Arc<parking_lot::Mutex<Option<Result<String, String>>>>;
+
+/// A slot the apply worker fills.
+type ApplyPending =
+    std::sync::Arc<parking_lot::Mutex<Option<Result<Vec<hs_container::k8s::Applied>, String>>>>;
+
+/// A slot a cluster write fills: what it did, and the cluster as it
+/// stands afterwards.
+///
+/// The `bool` says whether the write was an **apply** rather than a
+/// verb, because the two report differently - "applied" names a
+/// manifest that reached the cluster, "done" names an object a verb was
+/// run against.
+type ClusterActPending = std::sync::Arc<
+    parking_lot::Mutex<
+        Option<(
+            Result<(String, bool), String>,
+            Result<cluster::Inventory, String>,
+        )>,
+    >,
+>;
 
 /// A slot the cluster worker fills. `kube` is async rather than
 /// blocking, so this is spawned on the runtime rather than on a
@@ -295,6 +372,17 @@ impl ContainersTool {
             cluster_selected_at: 0.0,
             yaml: None,
             yaml_pending: None,
+            yaml_edit: None,
+            apply: None,
+            apply_pending: None,
+            confirm_cluster: None,
+            scale_to: String::new(),
+            cluster_act_pending: None,
+            custom: None,
+            custom_pending: None,
+            forward_port: String::new(),
+            forwards: Vec::new(),
+            forward_pending: None,
         }
     }
 
@@ -406,16 +494,16 @@ impl ContainersTool {
     /// and a blocking thread would need its own reactor to drive it.
     fn reload_cluster(&mut self, s: &Services, profile: &ConnectionProfile) {
         let fields = ContainerFields::from_table(&profile.fields);
-        // The profile's namespace is the starting point; the picker
-        // then narrows or widens it for this tab only.
-        if self.state.namespace.is_empty() && !fields.namespace.is_empty() {
+        // The profile's namespace is the starting point - until the
+        // reader picks one, which includes picking "All namespaces".
+        if !self.state.namespace_set && !fields.namespace.is_empty() {
             self.state.namespace = fields.namespace.clone();
+            self.state.namespace_set = true;
         }
         let namespace = self.state.namespace.clone();
         // The detail block points into the inventory being replaced.
         self.cluster_selected = None;
-        self.yaml = None;
-        self.yaml_pending = None;
+        self.clear_detail();
         self.loading = true;
         let waker = s.runtime.waker();
         let slot: ClusterPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
@@ -443,8 +531,144 @@ impl ContainersTool {
         });
     }
 
+    /// Forget everything the detail block was showing.
+    ///
+    /// One place, because there are now four things to forget and a
+    /// path that forgets three of them leaves an apply preview standing
+    /// over an object nobody selected.
+    fn clear_detail(&mut self) {
+        self.yaml = None;
+        self.yaml_pending = None;
+        self.yaml_edit = None;
+        self.apply = None;
+        self.apply_pending = None;
+        self.scale_to.clear();
+        self.custom = None;
+        self.custom_pending = None;
+        self.forward_port.clear();
+        // The forwards are **not** closed here: a selection change is
+        // not a reason to drop a connection somebody is using. They
+        // live until stopped, or until the tab goes.
+    }
+
+    /// List the objects of the selected custom resource.
+    fn reload_custom(
+        &mut self,
+        s: &Services,
+        profile: &ConnectionProfile,
+        crd: hs_container::k8s::CrdRow,
+    ) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let namespace = self.state.namespace.clone();
+        self.custom = None;
+        let waker = s.runtime.waker();
+        let slot: CustomPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.custom_pending = Some(slot);
+        s.runtime.spawn(async move {
+            let result = cluster::custom_objects(&fields, &crd, &namespace).await;
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
+    /// Open a port forward to the selected pod.
+    fn start_forward(
+        &mut self,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: cluster::Target,
+        port: u16,
+    ) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let label = format!("{}/{}:{port}", target.namespace, target.name);
+        let waker = s.runtime.waker();
+        let slot: ForwardPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.forward_pending = Some(slot);
+        s.runtime.spawn(async move {
+            // Local port 0: the OS picks a free one, which is the only
+            // answer that cannot collide with something already
+            // listening on this machine.
+            let result = cluster::forward(&fields, &target, port, 0).await;
+            *out.lock() = Some((label, result));
+            waker.request_repaint();
+        });
+    }
+
+    /// Run a cluster verb and re-read the cluster, off the UI thread.
+    fn act_cluster(
+        &mut self,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: cluster::Target,
+        verb: cluster::Verb,
+    ) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let namespace = self.state.namespace.clone();
+        self.loading = true;
+        let waker = s.runtime.waker();
+        let slot: ClusterActPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.cluster_act_pending = Some(slot);
+        s.runtime.spawn(async move {
+            // The verb and the re-read in one task, so what comes back
+            // is the cluster *after* the verb rather than before it.
+            let did = cluster::act(&fields, &target, verb)
+                .await
+                .map(|what| (what, false));
+            let inv = cluster::read(&fields, &namespace).await;
+            *out.lock() = Some((did, inv));
+            waker.request_repaint();
+        });
+    }
+
+    /// Dry-run or carry out an apply, off the UI thread.
+    ///
+    /// A dry run only fills the preview. A **real** apply goes through
+    /// the same path as every other write in this pane: it re-reads the
+    /// cluster on the same task and reports in the Output block, or the
+    /// object just created would be missing from the list underneath it
+    /// (seen on the bench, 2026-10-24).
+    fn run_apply(&mut self, s: &Services, profile: &ConnectionProfile, yaml: String, dry: bool) {
+        let fields = ContainerFields::from_table(&profile.fields);
+        let namespace = self.state.namespace.clone();
+        let waker = s.runtime.waker();
+        if dry {
+            self.apply = None;
+            let slot: ApplyPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+            let out = slot.clone();
+            self.apply_pending = Some(slot);
+            s.runtime.spawn(async move {
+                let result = cluster::apply(&fields, &yaml, &namespace, true).await;
+                *out.lock() = Some(result);
+                waker.request_repaint();
+            });
+            return;
+        }
+        self.loading = true;
+        let slot: ClusterActPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.cluster_act_pending = Some(slot);
+        s.runtime.spawn(async move {
+            let did = cluster::apply(&fields, &yaml, &namespace, false)
+                .await
+                .map(|applied| {
+                    let what = applied
+                        .iter()
+                        .map(|a| a.what.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    (what, true)
+                });
+            let inv = cluster::read(&fields, &namespace).await;
+            *out.lock() = Some((did, inv));
+            waker.request_repaint();
+        });
+    }
+
     /// Take the answer when the worker has it.
-    fn drain(&mut self) {
+    fn drain(&mut self, s: &Services) {
         // The guard is taken in its own scope: a `let` chain holds the
         // borrow of `self.pending` across the body, and the body has to
         // clear it.
@@ -457,6 +681,60 @@ impl ContainersTool {
         if let Some(result) = self.yaml_pending.as_ref().and_then(|s| s.lock().take()) {
             self.yaml = Some(result);
             self.yaml_pending = None;
+        }
+        if let Some(result) = self.apply_pending.as_ref().and_then(|s| s.lock().take()) {
+            self.apply = Some(result);
+            self.apply_pending = None;
+        }
+        if let Some(result) = self.custom_pending.as_ref().and_then(|s| s.lock().take()) {
+            self.custom = Some(result);
+            self.custom_pending = None;
+        }
+        if let Some((target, result)) = self.forward_pending.as_ref().and_then(|s| s.lock().take())
+        {
+            match result {
+                Ok(handle) => {
+                    let url = format!("http://127.0.0.1:{}", handle.local_port);
+                    self.last_output = Some(
+                        s.i18n
+                            .t_args("cluster-forward-on", &[("target", &target), ("url", &url)]),
+                    );
+                    self.forwards.insert(
+                        0,
+                        Forwarding {
+                            target,
+                            url,
+                            handle,
+                        },
+                    );
+                }
+                Err(e) => self.last_output = Some(e),
+            }
+            self.forward_pending = None;
+        }
+        let acted = self
+            .cluster_act_pending
+            .as_ref()
+            .and_then(|s| s.lock().take());
+        if let Some((did, inv)) = acted {
+            self.last_output = Some(match did {
+                Ok((what, applied)) => {
+                    let key = if applied {
+                        "cluster-applied"
+                    } else {
+                        "cluster-verb-done"
+                    };
+                    s.i18n.t_args(key, &[("what", &what)])
+                }
+                Err(e) => e,
+            });
+            self.cluster = Some(inv);
+            // The row the detail was showing may be gone, and the rest
+            // have moved up: the only honest thing is to start again.
+            self.cluster_selected = None;
+            self.clear_detail();
+            self.loading = false;
+            self.cluster_act_pending = None;
         }
         let cluster = self.cluster_pending.as_ref().and_then(|s| s.lock().take());
         if let Some(result) = cluster {
@@ -737,7 +1015,7 @@ impl ContainersTool {
     fn host_pane(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        self.drain();
+        self.drain(&s);
         let Some(profile) = self.host(&s) else {
             form::hint(ui, &theme, &s.t("container-host-gone"));
             return;
@@ -769,7 +1047,7 @@ impl ContainersTool {
         });
         ui.separator();
         if is_cluster {
-            self.cluster_pane(ui, &theme, &s, &profile);
+            self.cluster_pane(ui, &theme, &s, cx.actions, &profile);
             return;
         }
         match &self.inventory {
@@ -845,11 +1123,13 @@ impl ContainersTool {
     /// The namespace sits **above** the rail rather than beside the
     /// table, because it narrows every list below it: putting it in the
     /// table's own toolbar would read as filtering that one list.
+    #[allow(clippy::too_many_arguments)]
     fn cluster_pane(
         &mut self,
         ui: &mut egui::Ui,
         theme: &Theme,
         s: &Services,
+        cx_actions: &mut Vec<Action>,
         profile: &ConnectionProfile,
     ) {
         let inv = match &self.cluster {
@@ -948,12 +1228,15 @@ impl ContainersTool {
             if before != self.state.namespace {
                 // Narrowing changes every list, so it is a re-read
                 // rather than a filter over what is already here.
+                self.state.namespace_set = true;
                 self.cluster = None;
                 self.reload_cluster(s, profile);
             }
         });
         ui.add_space(4.0);
 
+        self.output_block(ui, theme, s);
+        self.confirm_cluster_dialog(ui, theme, s, profile);
         let counts = inv.counts();
         // The detail block takes its share off the top of the list, so
         // the two scroll independently.
@@ -991,7 +1274,7 @@ impl ContainersTool {
                         .id_salt("cluster-detail")
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
-                            self.cluster_detail(ui, theme, s, profile, &inv);
+                            self.cluster_detail(ui, theme, s, cx_actions, profile, &inv);
                         });
                 }
             });
@@ -1033,6 +1316,15 @@ impl ContainersTool {
                 // What was fetched belongs to what it was fetched for.
                 self.yaml = None;
                 self.yaml_pending = None;
+                // The forward field opens on the pod's first declared
+                // port - **here**, once, rather than whenever the field
+                // happens to be empty: re-filling an empty field every
+                // frame means it cannot be cleared, which is the same
+                // trap the namespace picker fell into.
+                self.forward_port = cluster::pod_ports(inv, i)
+                    .first()
+                    .map(u16::to_string)
+                    .unwrap_or_default();
             }
         }
     }
@@ -1043,11 +1335,13 @@ impl ContainersTool {
     /// On request rather than with the list: one object's YAML is
     /// another round trip, and fetching every row's would make scrolling
     /// a list of pods a conversation with the API server.
+    #[allow(clippy::too_many_arguments)]
     fn cluster_detail(
         &mut self,
         ui: &mut egui::Ui,
         theme: &Theme,
         s: &Services,
+        cx_actions: &mut Vec<Action>,
         profile: &ConnectionProfile,
         inv: &cluster::Inventory,
     ) {
@@ -1075,7 +1369,7 @@ impl ContainersTool {
                 hs_ui::toolbar::hard_right(ui, |ui| {
                     if ui.button(s.t("cluster-detail-close")).clicked() {
                         self.cluster_selected = None;
-                        self.yaml = None;
+                        self.clear_detail();
                     }
                 });
             });
@@ -1101,7 +1395,8 @@ impl ContainersTool {
         // exist during the frame's first pass, so its buttons are laid
         // out under a pointer egui still reports as clicking.
         let fresh = ui.input(|i| i.time) <= self.cluster_selected_at;
-        ui.horizontal(|ui| {
+        let refusal = docker::guard(s, profile);
+        ui.horizontal_wrapped(|ui| {
             let asked = self.yaml.is_some() || self.yaml_pending.is_some();
             if ui
                 .add_enabled(!fresh && !asked, egui::Button::new(s.t("cluster-yaml")))
@@ -1115,7 +1410,9 @@ impl ContainersTool {
                     .clicked()
             {
                 self.yaml = None;
+                self.yaml_edit = None;
                 self.yaml_pending = None;
+                self.apply = None;
             }
             if let Some(Ok(yaml)) = &self.yaml
                 && ui
@@ -1124,21 +1421,430 @@ impl ContainersTool {
             {
                 ui.ctx().copy_text(yaml.clone());
             }
+            if res == cluster::Resource::Pods {
+                // One button per container when there are several: a
+                // sidecar's log is a different log, and picking the
+                // first silently would hide that there is a choice.
+                let containers = inv
+                    .pods
+                    .get(i)
+                    .map(|p| p.containers.clone())
+                    .unwrap_or_default();
+                if containers.len() < 2 {
+                    if ui
+                        .add_enabled(!fresh, egui::Button::new(s.t("cluster-logs")))
+                        .clicked()
+                    {
+                        self.open_pod_logs(s, cx_actions, profile, inv, i, "");
+                    }
+                } else {
+                    for c in &containers {
+                        let label = s.i18n.t_args("cluster-logs-of", &[("container", c)]);
+                        if ui.add_enabled(!fresh, egui::Button::new(label)).clicked() {
+                            self.open_pod_logs(s, cx_actions, profile, inv, i, c);
+                        }
+                    }
+                }
+            }
+            if res == cluster::Resource::Custom
+                && ui
+                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-custom-list")))
+                    .clicked()
+                && let Some(crd) = inv.crds.get(i).cloned()
+            {
+                self.reload_custom(s, profile, crd);
+            }
+            if res == cluster::Resource::Pods {
+                self.forward_controls(ui, s, profile, &target, fresh);
+            }
+            self.cluster_verbs(ui, s, profile, &target, fresh, refusal.as_ref());
         });
-        match &self.yaml {
-            None if self.yaml_pending.is_some() => {
+        self.custom_block(ui, theme, s, inv, i);
+        self.forward_block(ui, theme, s, cx_actions);
+        self.yaml_block(ui, theme, s, profile, &target, fresh);
+    }
+
+    /// The Port Forward field and button, for a pod.
+    ///
+    /// The field is filled in when the pod is selected, not here: see
+    /// `cluster_table`.
+    fn forward_controls(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: &cluster::Target,
+        fresh: bool,
+    ) {
+        ui.add(
+            egui::TextEdit::singleline(&mut self.forward_port)
+                .desired_width(72.0)
+                .hint_text(s.t("cluster-forward-port")),
+        );
+        let port: Option<u16> = self.forward_port.trim().parse().ok().filter(|p| *p > 0);
+        let starting = self.forward_pending.is_some();
+        if ui
+            .add_enabled(
+                !fresh && port.is_some() && !starting,
+                egui::Button::new(s.t("cluster-forward")),
+            )
+            .on_hover_text(s.t("cluster-forward-hint"))
+            .clicked()
+            && let Some(port) = port
+        {
+            self.start_forward(s, profile, target.clone(), port);
+        }
+    }
+
+    /// The forwards this tab is holding open.
+    fn forward_block(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+    ) {
+        // A forward whose task has ended is not a forward any more.
+        self.forwards.retain(|f| f.handle.running());
+        if self.forwards.is_empty() {
+            return;
+        }
+        ui.add_space(4.0);
+        let mut stop: Option<usize> = None;
+        for (i, f) in self.forwards.iter().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(&f.target)
+                        .small()
+                        .color(theme.text_muted),
+                );
+                if ui
+                    .small_button(egui::RichText::new(&f.url).color(theme.accent))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .clicked()
+                {
+                    open_url(cx_actions, &f.url);
+                }
+                if ui.small_button(s.t("cluster-forward-stop")).clicked() {
+                    stop = Some(i);
+                }
+            });
+        }
+        if let Some(i) = stop {
+            // Stop first, then forget: the task reads the flag.
+            self.forwards[i].handle.stop();
+            self.forwards.remove(i);
+        }
+    }
+
+    /// The objects of the selected custom resource, once asked for.
+    fn custom_block(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        inv: &cluster::Inventory,
+        i: usize,
+    ) {
+        if self.state.cluster_resource != cluster::Resource::Custom {
+            return;
+        }
+        match &self.custom {
+            None if self.custom_pending.is_some() => {
                 form::hint(ui, theme, &s.t("container-reading"));
             }
             None => {}
             Some(Err(e)) => form::note(ui, theme, hs_ui::icons::WARNING, e),
-            Some(Ok(yaml)) => {
+            Some(Ok(rows)) if rows.is_empty() => {
+                form::hint(ui, theme, &s.t("cluster-no-objects"));
+            }
+            Some(Ok(rows)) => {
                 ui.add_space(4.0);
-                ui.add(
-                    egui::Label::new(egui::RichText::new(yaml).monospace().size(12.0))
-                        .selectable(true),
+                let kind = inv.crds.get(i).map(|c| c.kind.clone()).unwrap_or_default();
+                ui.label(
+                    egui::RichText::new(
+                        s.i18n.t_args("cluster-custom-objects", &[("kind", &kind)]),
+                    )
+                    .small()
+                    .color(theme.text_muted),
+                );
+                for r in rows {
+                    let line = if r.namespace.is_empty() {
+                        format!("{}  ·  {}", r.name, r.age)
+                    } else {
+                        format!("{}/{}  ·  {}", r.namespace, r.name, r.age)
+                    };
+                    ui.add(egui::Label::new(line).selectable(true).truncate());
+                }
+            }
+        }
+    }
+
+    /// The verbs a cluster object offers, and the Scale field.
+    ///
+    /// A refused verb is **disabled and says why**, never hidden - the
+    /// same rule the Docker pane follows next door, because a hidden
+    /// button reads as a tool that cannot do the thing rather than a
+    /// host that will not allow it.
+    fn cluster_verbs(
+        &mut self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: &cluster::Target,
+        fresh: bool,
+        refusal: Option<&docker::Refusal>,
+    ) {
+        let blocked = refusal.is_some();
+        let explain = |r: egui::Response| match refusal {
+            Some(why) if blocked => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+            _ => r,
+        };
+        // A rollout restart is the one verb here that takes nothing
+        // away: it replaces pods under the workload's own surge and
+        // availability rules. It is still a write, so a read-only host
+        // refuses it.
+        if cluster::Verb::Restart.applies_to(&target.kind) {
+            let r = explain(ui.add_enabled(
+                !fresh && !blocked,
+                egui::Button::new(s.t("cluster-verb-restart")),
+            ));
+            if r.on_hover_text(s.t("cluster-verb-restart-hint")).clicked() {
+                self.act_cluster(s, profile, target.clone(), cluster::Verb::Restart);
+            }
+        }
+        if cluster::Verb::Scale(0).applies_to(&target.kind) {
+            ui.add_enabled(
+                !blocked,
+                egui::TextEdit::singleline(&mut self.scale_to)
+                    // Wide enough for the word, not for a number: the
+                    // hint is what tells a reader what the box is for,
+                    // and at 48 px it clipped to "Rep…".
+                    .desired_width(72.0)
+                    .hint_text(s.t("cluster-replicas")),
+            );
+            let wanted: Option<i32> = self.scale_to.trim().parse().ok();
+            let r = explain(ui.add_enabled(
+                !fresh && !blocked && wanted.is_some(),
+                egui::Button::new(s.t("cluster-verb-scale")),
+            ));
+            if r.on_hover_text(s.t("cluster-verb-scale-hint")).clicked()
+                && let Some(n) = wanted
+            {
+                self.confirm_cluster = Some((cluster::Verb::Scale(n), target.clone()));
+            }
+        }
+        let r = explain(ui.add_enabled(
+            !fresh && !blocked,
+            egui::Button::new(s.t("cluster-verb-delete")),
+        ));
+        if r.clicked() {
+            self.confirm_cluster = Some((cluster::Verb::Delete, target.clone()));
+        }
+    }
+
+    /// The YAML, editable, and what applying it would do.
+    fn yaml_block(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: &cluster::Target,
+        fresh: bool,
+    ) {
+        match &self.yaml {
+            None if self.yaml_pending.is_some() => {
+                form::hint(ui, theme, &s.t("container-reading"));
+                return;
+            }
+            None => return,
+            Some(Err(e)) => {
+                form::note(ui, theme, hs_ui::icons::WARNING, e);
+                return;
+            }
+            Some(Ok(_)) => {}
+        }
+        let editable = docker::guard(s, profile).is_none();
+        ui.add_space(4.0);
+        if editable {
+            // Edited in place rather than handed to the editor: the
+            // round trip through a file would lose which cluster and
+            // namespace the object came from, which is exactly what
+            // Apply needs. The editor keeps the manifest workflow
+            // (§10.7 item 6); this is the one-object case.
+            let text = self.yaml_edit.get_or_insert_with(|| match &self.yaml {
+                Some(Ok(y)) => y.clone(),
+                _ => String::new(),
+            });
+            let before = text.clone();
+            ui.add(
+                egui::TextEdit::multiline(text)
+                    .code_editor()
+                    .desired_width(f32::INFINITY)
+                    .desired_rows(12),
+            );
+            if *text != before {
+                // The preview belongs to the text it was computed from.
+                self.apply = None;
+            }
+            self.apply_row(ui, theme, s, profile, target, fresh);
+        } else {
+            let Some(Ok(yaml)) = &self.yaml else { return };
+            ui.add(
+                egui::Label::new(egui::RichText::new(yaml).monospace().size(12.0)).selectable(true),
+            );
+        }
+    }
+
+    /// Dry Run, Apply and what the server said they would do.
+    fn apply_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+        target: &cluster::Target,
+        fresh: bool,
+    ) {
+        let edited = match (&self.yaml, &self.yaml_edit) {
+            (Some(Ok(original)), Some(text)) => original != text,
+            _ => false,
+        };
+        let running = self.apply_pending.is_some();
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .add_enabled(
+                    !fresh && edited && !running,
+                    egui::Button::new(s.t("cluster-dry-run")),
+                )
+                .on_hover_text(s.t("cluster-dry-run-hint"))
+                .clicked()
+                && let Some(text) = self.yaml_edit.clone()
+            {
+                self.run_apply(s, profile, text, true);
+            }
+            // Apply is offered only **after** a dry run that came back
+            // clean, which is the spec's rule (§5) and the reason the
+            // preview exists: nothing reaches the cluster that the
+            // server has not already described.
+            let previewed = matches!(&self.apply, Some(Ok(a)) if a.iter().all(|x| x.dry_run));
+            if ui
+                .add_enabled(
+                    !fresh && previewed && !running,
+                    egui::Button::new(s.t("cluster-apply")),
+                )
+                .clicked()
+                && let Some(text) = self.yaml_edit.clone()
+            {
+                self.run_apply(s, profile, text, false);
+            }
+            if ui
+                .add_enabled(
+                    !fresh && edited && !running,
+                    egui::Button::new(s.t("cluster-reset")),
+                )
+                .clicked()
+            {
+                self.yaml_edit = None;
+                self.apply = None;
+            }
+            if running {
+                ui.label(
+                    egui::RichText::new(s.t("container-reading"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+            }
+        });
+        let _ = target;
+        self.apply_preview(ui, theme, s);
+    }
+
+    /// What the dry run said, as a diff; or what the apply did.
+    fn apply_preview(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some(result) = &self.apply else { return };
+        ui.add_space(4.0);
+        let applied = match result {
+            Err(e) => {
+                form::note(ui, theme, hs_ui::icons::WARNING, e);
+                return;
+            }
+            Ok(a) => a,
+        };
+        for a in applied {
+            let headline = if !a.dry_run {
+                s.i18n.t_args("cluster-applied", &[("what", &a.what)])
+            } else if a.creates() {
+                s.i18n.t_args("cluster-would-create", &[("what", &a.what)])
+            } else if a.changes() {
+                s.i18n.t_args("cluster-would-change", &[("what", &a.what)])
+            } else {
+                s.i18n.t_args("cluster-no-change", &[("what", &a.what)])
+            };
+            ui.label(egui::RichText::new(headline).strong());
+            if !a.dry_run || !a.changes() {
+                continue;
+            }
+            for (sign, line) in cluster::diff(&a.before, &a.after) {
+                let colour = match sign {
+                    '+' => theme.success,
+                    '-' => theme.error,
+                    _ => theme.text_muted,
+                };
+                ui.label(
+                    egui::RichText::new(format!("{sign} {line}"))
+                        .monospace()
+                        .size(12.0)
+                        .color(colour),
                 );
             }
         }
+    }
+
+    /// Follow one pod's log in a Logs tab.
+    #[allow(clippy::too_many_arguments)]
+    fn open_pod_logs(
+        &self,
+        s: &Services,
+        cx_actions: &mut Vec<Action>,
+        profile: &ConnectionProfile,
+        inv: &cluster::Inventory,
+        i: usize,
+        container: &str,
+    ) {
+        let Some(pod) = inv.pods.get(i) else { return };
+        let tail = s.settings.read().containers.log_tail_lines;
+        // Empty for a single-container pod: naming it would be noise
+        // the API does not need, and the caller passes the name only
+        // where there was a choice to make.
+        let container = container.to_string();
+        let source = serde_json::json!({
+            "schema": 1,
+            "name": if container.is_empty() {
+                format!("{} · {}", profile.name, pod.name)
+            } else {
+                format!("{} · {}/{container}", profile.name, pod.name)
+            },
+            "spec": {
+                "kind": "k8s_pod",
+                "conn_id": profile.id,
+                "namespace": pod.namespace,
+                "pod": pod.name,
+                "container": container,
+            },
+            "format": "auto",
+            "tail_lines": tail,
+            "order": 0,
+        });
+        cx_actions.push(Action::OpenTool {
+            factory_id: "logs".into(),
+            request: Some(OpenRequest::Text {
+                mime: LOG_SOURCE_MIME.to_string(),
+                body: source.to_string(),
+            }),
+        });
     }
 
     /// The Portainer-shaped pane (§10.6): a resource rail on the left,
@@ -1325,13 +2031,7 @@ impl ContainersTool {
                 let blocked = verb.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(docker::Refusal::Protected(env)), true) => r.on_disabled_hover_text(
-                        s.i18n
-                            .t_args("container-refused-protected", &[("env", env)]),
-                    ),
-                    (Some(docker::Refusal::ReadOnly), true) => {
-                        r.on_disabled_hover_text(s.t("container-refused-read-only"))
-                    }
+                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {
@@ -1572,13 +2272,7 @@ impl ContainersTool {
                 let blocked = v.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(docker::Refusal::Protected(env)), true) => r.on_disabled_hover_text(
-                        s.i18n
-                            .t_args("container-refused-protected", &[("env", env)]),
-                    ),
-                    (Some(docker::Refusal::ReadOnly), true) => {
-                        r.on_disabled_hover_text(s.t("container-refused-read-only"))
-                    }
+                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {
@@ -1731,6 +2425,55 @@ impl ContainersTool {
                 }
             }
             hs_ui::dialog::DialogResult::Cancel => self.confirm_compose = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
+
+    /// The question a destructive cluster verb asks first.
+    ///
+    /// Scale asks as well as Delete: scaling to zero takes a service
+    /// down as surely as deleting it, and the question is the only
+    /// place the number is shown back before it is sent.
+    fn confirm_cluster_dialog(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        profile: &ConnectionProfile,
+    ) {
+        let Some((verb, target)) = self.confirm_cluster.clone() else {
+            return;
+        };
+        if !verb.destructive() {
+            self.confirm_cluster = None;
+            return;
+        }
+        let what = format!("{}/{}", target.kind, target.name);
+        let label = s.t(verb.key());
+        let question = match &verb {
+            cluster::Verb::Scale(n) => s.i18n.t_args(
+                "cluster-confirm-scale",
+                &[("what", &what), ("replicas", &n.to_string())],
+            ),
+            _ => s
+                .i18n
+                .t_args("cluster-confirm-verb", &[("verb", &label), ("what", &what)]),
+        };
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "cluster-verb",
+            &label,
+            &question,
+            &label,
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                self.confirm_cluster = None;
+                self.act_cluster(s, profile, target, verb);
+            }
+            hs_ui::dialog::DialogResult::Cancel => self.confirm_cluster = None,
             hs_ui::dialog::DialogResult::Open => {}
         }
     }

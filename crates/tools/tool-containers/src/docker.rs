@@ -104,6 +104,18 @@ impl Refusal {
     }
 }
 
+/// The sentence a refusal is explained with, wherever it is shown.
+///
+/// One place rather than the same `match` at every verb row: the
+/// protected form takes an argument and the read-only form does not, so
+/// a copy of this is a copy of that difference too.
+pub fn refusal_text(s: &Services, r: &Refusal) -> String {
+    match r {
+        Refusal::ReadOnly => s.t(r.key()),
+        Refusal::Protected(env) => s.i18n.t_args(r.key(), &[("env", env)]),
+    }
+}
+
 /// Whether a destructive verb may run against this host.
 ///
 /// A protected environment wins over the profile: a production cluster

@@ -406,6 +406,25 @@ pub fn start(
                 wake,
             );
         }
+        SourceSpec::K8sPod {
+            conn_id,
+            namespace,
+            pod,
+            container,
+        } => {
+            start_pod(
+                services,
+                conn_id,
+                namespace.clone(),
+                pod.clone(),
+                container.clone(),
+                saved_format,
+                tail_lines,
+                shared,
+                stop,
+                wake,
+            );
+        }
         SourceSpec::Command {
             conn_id: None,
             command,
@@ -640,6 +659,106 @@ fn settle(
     drop(sh);
     *format = Some(f);
     sample.clear();
+}
+
+/// Follow one pod's log through the Kubernetes API.
+///
+/// The same shape as an SSH tail - a saved connection profile, a
+/// stream, lines fed in as they arrive - and for the same reason this
+/// crate already depends on `hs-ssh`: a *driver* library is not another
+/// tool, so ADR-004 is satisfied and the Logs activity stays the one
+/// place logs are read.
+///
+/// A pod's log ends when the pod does, and that is not a failure: the
+/// stream simply stops, which is `Done` rather than an error nobody can
+/// act on.
+#[allow(clippy::too_many_arguments)]
+fn start_pod(
+    services: &Services,
+    conn_id: &str,
+    namespace: String,
+    pod: String,
+    container: String,
+    saved_format: Format,
+    tail_lines: u32,
+    shared: Arc<Mutex<Shared>>,
+    stop: Arc<AtomicBool>,
+    wake: Arc<dyn Fn() + Send + Sync>,
+) {
+    let profile = services.connections.read().by_id(conn_id).cloned();
+    let Some(profile) = profile else {
+        set_status(&shared, Status::Failed(services.t("logs-no-profile")));
+        wake();
+        return;
+    };
+    let fields = hs_container::ContainerFields::from_table(&profile.fields);
+    services.runtime.spawn(async move {
+        use futures_util::{AsyncBufReadExt, StreamExt};
+        let client = match hs_container::k8s::connect(&fields).await {
+            Ok(c) => c,
+            Err(e) => {
+                set_status(&shared, Status::Failed(e.to_string()));
+                wake();
+                return;
+            }
+        };
+        let stream = hs_container::k8s::log_stream(
+            &client,
+            &namespace,
+            &pod,
+            &container,
+            tail_lines as i64,
+            true,
+        )
+        .await;
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                set_status(&shared, Status::Failed(e.to_string()));
+                wake();
+                return;
+            }
+        };
+        set_status(&shared, Status::Following);
+        wake();
+        let mut lines = stream.lines();
+        let mut format: Option<Format> = None;
+        let mut sample: Vec<String> = Vec::new();
+        loop {
+            if stop.load(Ordering::Relaxed) {
+                break;
+            }
+            // A timeout rather than a bare await: a quiet pod would
+            // otherwise hold this task past a Stop the user has already
+            // pressed, and the tab would keep saying "Following".
+            let next = tokio::time::timeout(Duration::from_millis(250), lines.next()).await;
+            let line = match next {
+                Err(_) => continue,
+                Ok(None) => break,
+                Ok(Some(Err(e))) => {
+                    set_status(&shared, Status::Failed(e.to_string()));
+                    wake();
+                    return;
+                }
+                Ok(Some(Ok(l))) => l,
+            };
+            let bytes = line.len() as u64 + 1;
+            ingest(
+                &mut format,
+                &mut sample,
+                saved_format,
+                &shared,
+                &[line],
+                bytes,
+            );
+            wake();
+        }
+        settle(&mut format, &mut sample, saved_format, &shared);
+        if !stop.load(Ordering::Relaxed) {
+            set_status(&shared, Status::Done);
+        }
+        wake();
+    });
 }
 
 #[allow(clippy::too_many_arguments)]

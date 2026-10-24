@@ -11,6 +11,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Container activity, phase 7**: the cluster pane can write. A pod
+  hands its log to the **Logs activity** — streamed from the API
+  server, with no `kubectl` anywhere — and a workload offers **Restart**
+  (a rollout, under the workload's own surge and availability rules,
+  not a delete), **Scale** and **Delete**. Every destructive verb asks
+  first and names what it is about to do, Scale among them because
+  scaling to zero takes a service down as surely as deleting it; a
+  read-only host or a protected environment disables them and says
+  which, as the Docker pane does. A write re-reads the cluster on the
+  same worker, so the list that comes back is the one *after* it.
+  The YAML view is **editable**, and applying it goes through the
+  server itself: **Dry Run** first — Apply stays disabled until a dry
+  run comes back — and the preview is the **server's own diff**, which
+  takes defaulting, admission and other controllers into account
+  instead of guessing. Apply is server-side apply under the field
+  manager `hyperstack`, so a later `kubectl apply` conflicts loudly
+  rather than silently reverting the change. A manifest of several
+  documents is applied one at a time and a failure names which.
+  The rail gains **Custom** — what this cluster defines beyond the
+  built-in kinds, with kind, group, version and scope, each
+  definition's schema as YAML, and **List Objects** for the objects of
+  that kind. A pod also offers **Port Forward…**, which opens a port on
+  this machine onto the pod through the API server, shows it as a link
+  and stops on request; the port the OS gives is the only one that
+  cannot collide with something already listening, and the pod's first
+  declared port fills the field as a starting point. Fixed on the way:
+  **"All namespaces" could not be selected** on any profile with a
+  default namespace — choosing it emptied the field and the read that
+  followed treated empty as "not set yet" and put the profile's
+  namespace back.
+
 - **Qdrant** opens in the NoSQL activity (`kind = "qdrant"`): a
   collection is a container and a point is a document, so the tree,
   Find, the views, paging and the guards all serve it unchanged. Two

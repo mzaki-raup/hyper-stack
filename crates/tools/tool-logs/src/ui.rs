@@ -214,21 +214,29 @@ impl AddSource {
     }
 
     /// The form filled in from a saved source.
-    fn editing(src: &SavedSource) -> Self {
+    ///
+    /// `None` for a source this form cannot express - a pod's log,
+    /// which belongs to a cluster, a namespace and a container rather
+    /// than to a path or a command. Opening the form on it anyway would
+    /// turn it into something else the moment it was saved.
+    fn editing(src: &SavedSource) -> Option<Self> {
         let (kind, path, conn_id, command) = match &src.spec {
             SourceSpec::LocalFile { path } => (0, path.clone(), String::new(), String::new()),
             SourceSpec::SshFile { conn_id, path } => {
                 (1, path.clone(), conn_id.clone(), String::new())
             }
+            // 2 is a local command, 3 a remote one: the difference is
+            // the connection, not another field.
             SourceSpec::Command { conn_id, command } => (
-                2,
+                if conn_id.is_some() { 3 } else { 2 },
                 String::new(),
                 conn_id.clone().unwrap_or_default(),
                 command.clone(),
             ),
-            SourceSpec::Text { .. } => (3, String::new(), String::new(), String::new()),
+            SourceSpec::K8sPod { .. } => return None,
+            SourceSpec::Text { .. } => (4, String::new(), String::new(), String::new()),
         };
-        Self {
+        Some(Self {
             kind,
             name: src.name.clone(),
             path,
@@ -240,7 +248,7 @@ impl AddSource {
             save: true,
             editing: Some(src.name.clone()),
             order: src.order,
-        }
+        })
     }
 }
 
@@ -1020,6 +1028,7 @@ fn saved_icon(src: &SavedSource) -> &'static str {
     let text = match &src.spec {
         SourceSpec::LocalFile { path } | SourceSpec::SshFile { path, .. } => path.as_str(),
         SourceSpec::Command { command, .. } => command.as_str(),
+        SourceSpec::K8sPod { pod, .. } => pod.as_str(),
         SourceSpec::Text { title } => title.as_str(),
     };
     crate::services::classify(text)
@@ -1501,7 +1510,7 @@ impl Tool for LogsTool {
             self.reorder_saved(&name, before.as_deref(), cx);
         }
         if let Some(src) = edit {
-            self.add = Some(AddSource::editing(&src));
+            self.add = AddSource::editing(&src);
         }
         if let Some(src) = open {
             // One tab per saved log (owner's request, 2026-10-23): a log

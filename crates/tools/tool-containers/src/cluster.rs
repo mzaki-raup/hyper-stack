@@ -33,10 +33,12 @@ pub enum Resource {
     Claims,
     Nodes,
     Events,
+    /// What this cluster defines beyond the built-in kinds.
+    Custom,
 }
 
 impl Resource {
-    pub const ALL: [Resource; 7] = [
+    pub const ALL: [Resource; 8] = [
         Resource::Pods,
         Resource::Workloads,
         Resource::Services,
@@ -44,6 +46,7 @@ impl Resource {
         Resource::Claims,
         Resource::Nodes,
         Resource::Events,
+        Resource::Custom,
     ];
 
     pub fn key(self) -> &'static str {
@@ -55,6 +58,7 @@ impl Resource {
             Resource::Claims => "cluster-res-claims",
             Resource::Nodes => "cluster-res-nodes",
             Resource::Events => "cluster-res-events",
+            Resource::Custom => "cluster-res-custom",
         }
     }
 
@@ -67,6 +71,7 @@ impl Resource {
             Resource::Claims => ph::HARD_DRIVES,
             Resource::Nodes => ph::DESKTOP,
             Resource::Events => ph::BELL,
+            Resource::Custom => ph::PUZZLE_PIECE,
         }
     }
 
@@ -74,7 +79,9 @@ impl Resource {
     /// namespace picker is irrelevant to them and saying otherwise
     /// would imply a filter that does nothing.
     pub fn namespaced(self) -> bool {
-        !matches!(self, Resource::Nodes)
+        // A definition is cluster-wide; its *objects* may be
+        // namespaced, which the list below handles per definition.
+        !matches!(self, Resource::Nodes | Resource::Custom)
     }
 
     /// What an empty list should say. "None" and "not allowed" are
@@ -89,6 +96,7 @@ impl Resource {
             Resource::Claims => "cluster-no-claims",
             Resource::Nodes => "cluster-no-nodes",
             Resource::Events => "cluster-no-events",
+            Resource::Custom => "cluster-no-custom",
         }
     }
 }
@@ -105,6 +113,8 @@ pub struct Inventory {
     pub claims: Vec<k8s::ConfigRow>,
     pub nodes: Vec<k8s::NodeRow>,
     pub events: Vec<k8s::EventRow>,
+    /// The custom resources this cluster defines (phase 7).
+    pub crds: Vec<k8s::CrdRow>,
 }
 
 impl Inventory {
@@ -120,6 +130,7 @@ impl Inventory {
                 Resource::Claims => self.claims.len(),
                 Resource::Nodes => self.nodes.len(),
                 Resource::Events => self.events.len(),
+                Resource::Custom => self.crds.len(),
             })
             .collect()
     }
@@ -165,6 +176,10 @@ pub async fn read(
         claims: k8s::claims(&client, namespace).await.unwrap_or_default(),
         nodes: k8s::nodes(&client).await.unwrap_or_default(),
         events: k8s::events(&client, namespace).await.unwrap_or_default(),
+        // A cluster with none, and an account that may not list the
+        // definitions, both answer with an empty rail entry rather
+        // than failing the whole read.
+        crds: k8s::crds(&client).await.unwrap_or_default(),
     })
 }
 
@@ -296,6 +311,33 @@ pub fn table_data(
                 })
                 .collect(),
         ),
+        Resource::Custom => (
+            vec![
+                ColumnSpec::new(s.t("cluster-col-kind"), 160.0),
+                ColumnSpec::new(s.t("cluster-col-name"), 300.0),
+                ColumnSpec::new(s.t("cluster-col-group"), 220.0),
+                ColumnSpec::new(s.t("cluster-col-version"), 100.0),
+                ColumnSpec::new(s.t("cluster-col-scope"), 120.0),
+                ColumnSpec::new(s.t("cluster-col-age"), 80.0),
+            ],
+            inv.crds
+                .iter()
+                .map(|c| {
+                    vec![
+                        c.kind.clone(),
+                        c.name.clone(),
+                        c.group.clone(),
+                        c.version.clone(),
+                        s.t(if c.namespaced {
+                            "cluster-scope-namespaced"
+                        } else {
+                            "cluster-scope-cluster"
+                        }),
+                        c.age.clone(),
+                    ]
+                })
+                .collect(),
+        ),
         Resource::Events => (
             vec![
                 ColumnSpec::new(s.t("cluster-col-type"), 100.0),
@@ -371,6 +413,13 @@ pub fn row_target(resource: Resource, inv: &Inventory, i: usize) -> Option<Targe
             .get(i)
             .map(|c| target("PersistentVolumeClaim", &c.namespace, &c.name)),
         Resource::Nodes => inv.nodes.get(i).map(|n| target("Node", "", &n.name)),
+        // A definition is itself an object - of kind
+        // `CustomResourceDefinition` - so its YAML is the schema, which
+        // is exactly what someone selecting one wants to read.
+        Resource::Custom => inv
+            .crds
+            .get(i)
+            .map(|c| target("CustomResourceDefinition", "", &c.name)),
         Resource::Events => None,
     }
 }
@@ -455,6 +504,24 @@ pub fn summary(
             add(s.t("cluster-col-version"), n.version.clone());
             add(s.t("cluster-col-age"), n.age.clone());
         }
+        Resource::Custom => {
+            let Some(c) = inv.crds.get(i) else {
+                return Vec::new();
+            };
+            add(s.t("cluster-col-kind"), c.kind.clone());
+            add(s.t("cluster-col-group"), c.group.clone());
+            add(s.t("cluster-col-version"), c.version.clone());
+            add(s.t("cluster-detail-plural"), c.plural.clone());
+            add(
+                s.t("cluster-col-scope"),
+                s.t(if c.namespaced {
+                    "cluster-scope-namespaced"
+                } else {
+                    "cluster-scope-cluster"
+                }),
+            );
+            add(s.t("cluster-col-age"), c.age.clone());
+        }
         Resource::Events => {
             let Some(e) = inv.events.get(i) else {
                 return Vec::new();
@@ -483,6 +550,160 @@ pub fn row_title(resource: Resource, inv: &Inventory, i: usize) -> String {
         .get(i)
         .map(|e| format!("{} · {}", e.reason, e.object))
         .unwrap_or_default()
+}
+
+/// A write the cluster pane can ask for (phase 7).
+///
+/// Scale carries its number rather than reading it back from the pane
+/// when the answer arrives: the field is editable while the request is
+/// in flight, and a verb must do what was confirmed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verb {
+    Restart,
+    Scale(i32),
+    Delete,
+}
+
+impl Verb {
+    pub fn key(&self) -> &'static str {
+        match self {
+            Verb::Restart => "cluster-verb-restart",
+            Verb::Scale(_) => "cluster-verb-scale",
+            Verb::Delete => "cluster-verb-delete",
+        }
+    }
+
+    /// Whether this needs to be confirmed first.
+    ///
+    /// Scale is in here with Delete on purpose: scaling to zero takes a
+    /// service down as surely as deleting it, and scaling *up* can cost
+    /// real money on a cluster that autoscales its nodes.
+    pub fn destructive(&self) -> bool {
+        !matches!(self, Verb::Restart)
+    }
+
+    /// Which kinds this verb means anything for.
+    pub fn applies_to(&self, kind: &str) -> bool {
+        match self {
+            // A daemon set runs one pod per node; there is no count to
+            // set, and the API would refuse with its own words.
+            Verb::Scale(_) => matches!(kind, "Deployment" | "StatefulSet"),
+            Verb::Restart => matches!(kind, "Deployment" | "StatefulSet" | "DaemonSet"),
+            Verb::Delete => true,
+        }
+    }
+}
+
+/// Carry out a verb, off the UI thread.
+pub async fn act(
+    fields: &hs_container::ContainerFields,
+    target: &Target,
+    verb: Verb,
+) -> Result<String, String> {
+    let client = k8s::connect(fields).await.map_err(|e| e.to_string())?;
+    let (kind, ns, name) = (&target.kind, &target.namespace, &target.name);
+    match verb {
+        Verb::Restart => k8s::restart(&client, kind, ns, name).await,
+        Verb::Scale(n) => k8s::scale(&client, kind, ns, name, n).await,
+        Verb::Delete => k8s::delete(&client, kind, ns, name).await,
+    }
+    .map_err(|e| e.to_string())?;
+    Ok(format!("{kind}/{name}"))
+}
+
+/// Apply a manifest, dry run or for real, off the UI thread.
+pub async fn apply(
+    fields: &hs_container::ContainerFields,
+    yaml: &str,
+    namespace: &str,
+    dry_run: bool,
+) -> Result<Vec<k8s::Applied>, String> {
+    let client = k8s::connect(fields).await.map_err(|e| e.to_string())?;
+    let docs = k8s::documents(yaml);
+    if docs.is_empty() {
+        return Err("there is nothing to apply".into());
+    }
+    let mut out = Vec::new();
+    for (i, doc) in docs.iter().enumerate() {
+        // Which document failed, rather than "the apply failed": a
+        // manifest of six objects is the normal case.
+        let applied = k8s::apply(&client, doc, namespace, dry_run)
+            .await
+            .map_err(|e| format!("document {}: {e}", i + 1))?;
+        out.push(applied);
+    }
+    Ok(out)
+}
+
+/// The line-by-line difference between two YAML documents, as the
+/// confirmation shows it.
+///
+/// Only the changed lines with a little context: a pod's YAML is two
+/// hundred lines and an apply usually touches three of them, so a full
+/// side-by-side would bury the answer the reader came for.
+pub fn diff(before: &str, after: &str) -> Vec<(char, String)> {
+    use similar::{ChangeTag, TextDiff};
+    const CONTEXT: usize = 2;
+    let diff = TextDiff::from_lines(before, after);
+    let mut out = Vec::new();
+    for (i, group) in diff.grouped_ops(CONTEXT).iter().enumerate() {
+        if i > 0 {
+            out.push(('@', "…".to_string()));
+        }
+        for op in group {
+            for change in diff.iter_changes(op) {
+                let sign = match change.tag() {
+                    ChangeTag::Delete => '-',
+                    ChangeTag::Insert => '+',
+                    ChangeTag::Equal => ' ',
+                };
+                out.push((sign, change.value().trim_end().to_string()));
+            }
+        }
+    }
+    out
+}
+
+/// List the objects of one custom resource, off the UI thread.
+pub async fn custom_objects(
+    fields: &hs_container::ContainerFields,
+    crd: &k8s::CrdRow,
+    namespace: &str,
+) -> Result<Vec<k8s::CustomRow>, String> {
+    let client = k8s::connect(fields).await.map_err(|e| e.to_string())?;
+    k8s::custom(&client, crd, namespace)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Open a port forward to a pod, off the UI thread.
+pub async fn forward(
+    fields: &hs_container::ContainerFields,
+    target: &Target,
+    remote_port: u16,
+    local_port: u16,
+) -> Result<k8s::Forward, String> {
+    let client = k8s::connect(fields).await.map_err(|e| e.to_string())?;
+    k8s::forward(
+        &client,
+        &target.namespace,
+        &target.name,
+        remote_port,
+        local_port,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// The ports a pod declares, so the forward field opens on a useful
+/// number instead of an empty box.
+///
+/// A container port is **declared**, not published: it is documentation
+/// the image's author wrote, and a pod that listens on a port it never
+/// declared still forwards fine. So this is a starting point, never a
+/// restriction.
+pub fn pod_ports(inv: &Inventory, i: usize) -> Vec<u16> {
+    inv.pods.get(i).map(|p| p.ports.clone()).unwrap_or_default()
 }
 
 /// Fetch one object's YAML, off the UI thread.
@@ -607,15 +828,32 @@ mod tests {
         assert_eq!(c.len(), Resource::ALL.len());
         assert_eq!(c[0], 2, "pods first");
         assert_eq!(c[1], 1, "then workloads");
-        assert_eq!(c[Resource::ALL.len() - 1], 2, "events last");
+        let events = Resource::ALL
+            .iter()
+            .position(|r| *r == Resource::Events)
+            .expect("events are on the rail");
+        assert_eq!(c[events], 2, "beside Events, not beside its neighbour");
+        let custom = Resource::ALL
+            .iter()
+            .position(|r| *r == Resource::Custom)
+            .expect("custom resources are on the rail");
+        assert_eq!(c[custom], 0, "this cluster defines none");
     }
 
-    /// Nodes are not in a namespace, so narrowing by one would be a
-    /// filter that does nothing.
+    /// A node and a custom-resource **definition** are cluster-wide, so
+    /// narrowing by namespace would be a filter that does nothing. (The
+    /// *objects* of a custom resource may well be namespaced; that is
+    /// the definition's own business, not the rail's.)
     #[test]
     fn only_the_namespaced_resources_are_narrowed() {
-        assert!(!Resource::Nodes.namespaced());
-        for r in Resource::ALL.into_iter().filter(|r| *r != Resource::Nodes) {
+        let cluster_wide = [Resource::Nodes, Resource::Custom];
+        for r in cluster_wide {
+            assert!(!r.namespaced(), "{r:?} is cluster-wide");
+        }
+        for r in Resource::ALL
+            .into_iter()
+            .filter(|r| !cluster_wide.contains(r))
+        {
             assert!(r.namespaced(), "{r:?} lives in a namespace");
         }
     }
@@ -670,6 +908,50 @@ mod tests {
             row_target(Resource::Pods, &i, 99),
             None,
             "a row that is no longer there"
+        );
+    }
+
+    /// Which verbs a kind offers, and which of them ask first.
+    #[test]
+    fn a_verb_is_offered_only_where_it_means_something() {
+        assert!(Verb::Scale(1).applies_to("Deployment"));
+        assert!(Verb::Scale(1).applies_to("StatefulSet"));
+        assert!(
+            !Verb::Scale(1).applies_to("DaemonSet"),
+            "one pod per node is what a daemon set means"
+        );
+        assert!(!Verb::Scale(1).applies_to("Pod"));
+        assert!(Verb::Restart.applies_to("DaemonSet"));
+        assert!(!Verb::Restart.applies_to("Pod"), "a pod has no template");
+        assert!(Verb::Delete.applies_to("ConfigMap"));
+
+        // Scaling to zero takes a service down as surely as deleting
+        // it, so it asks first; a rollout restart takes nothing away.
+        assert!(Verb::Scale(0).destructive());
+        assert!(Verb::Delete.destructive());
+        assert!(!Verb::Restart.destructive());
+    }
+
+    /// The preview shows the changed lines with a little context: a
+    /// pod's YAML is two hundred lines and an apply touches three.
+    #[test]
+    fn the_diff_shows_what_changed_and_not_the_rest() {
+        let before = (1..=20)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let after = before.replace("line 10", "line ten");
+        let d = diff(&before, &after);
+        assert!(d.iter().any(|(s, l)| *s == '-' && l == "line 10"), "{d:?}");
+        assert!(d.iter().any(|(s, l)| *s == '+' && l == "line ten"), "{d:?}");
+        assert!(
+            d.len() < 10,
+            "only the neighbourhood of the change: {}",
+            d.len()
+        );
+        assert!(
+            diff(&before, &before).is_empty(),
+            "nothing changed, nothing shown"
         );
     }
 

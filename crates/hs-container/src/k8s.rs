@@ -18,6 +18,7 @@
 //! healthy test cluster will not produce them on demand.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
@@ -62,6 +63,17 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// "this account may not list pods" and "nothing is listening" have
 /// three different remedies, and the API says which.
 fn classify(e: kube::Error) -> Error {
+    // A request that could not even be built never left this process,
+    // so "could not reach the cluster" would be a lie - and a confusing
+    // one, because the remedy is in the code or the arguments rather
+    // than in the network. A bad `PatchParams` combination surfaced
+    // exactly this way (2026-10-24).
+    if let kube::Error::BuildRequest(inner) = &e {
+        return Error::Refused(format!("the request could not be built: {inner}"));
+    }
+    if let kube::Error::SerdeError(inner) = &e {
+        return Error::Refused(format!("the cluster's answer could not be read: {inner}"));
+    }
     if let kube::Error::Api(resp) = &e {
         return match resp.code {
             401 => Error::Refused(format!(
@@ -156,6 +168,11 @@ pub struct PodRow {
     /// Whether this is worth drawing attention to.
     pub trouble: bool,
     pub containers: Vec<String>,
+    /// The container ports this pod declares, for the port forward to
+    /// open on. Declared, not published - a pod may listen on a port it
+    /// never mentioned - so these are a starting point, not a list of
+    /// what is forwardable.
+    pub ports: Vec<u16>,
 }
 
 /// A workload (deployment, statefulset, daemonset) as the list shows it.
@@ -419,6 +436,7 @@ pub async fn pods(client: &Client, ns: &str) -> Result<Vec<PodRow>> {
                     .as_ref()
                     .map(|s| s.containers.iter().map(|c| c.name.clone()).collect())
                     .unwrap_or_default(),
+                ports: pod_ports(p),
             }
         })
         .collect();
@@ -789,10 +807,7 @@ where
 ///   fields and leaving their duplicate is no redaction at all, so the
 ///   annotation goes for every kind rather than for secrets alone: one
 ///   rule has no hole for the next kind to fall through.
-fn render<K: kube::Resource + serde::Serialize>(mut object: K) -> Result<String>
-where
-    <K as kube::Resource>::DynamicType: Default,
-{
+fn render<K: kube::Resource + serde::Serialize>(mut object: K) -> Result<String> {
     let meta = object.meta_mut();
     meta.managed_fields = None;
     if let Some(annotations) = meta.annotations.as_mut() {
@@ -808,6 +823,463 @@ where
 /// was applied, values and all.
 const LAST_APPLIED: &str = "kubectl.kubernetes.io/last-applied-configuration";
 
+/// Follow one pod's log, as a stream of chunks (phase 7).
+///
+/// The Logs activity drives this rather than the pane: a log viewer
+/// inside this activity would be a worse copy of the one next door
+/// (§10.1). There is no `kubectl logs` subprocess behind it - the API
+/// server streams it, which is also why a pod that restarts mid-follow
+/// ends the stream rather than silently tailing the old container.
+///
+/// `container` may be empty for a single-container pod; naming it is
+/// required the moment there are two, and the API says so itself.
+pub async fn log_stream(
+    client: &Client,
+    ns: &str,
+    pod: &str,
+    container: &str,
+    tail: i64,
+    follow: bool,
+) -> Result<impl futures_util::AsyncBufRead> {
+    let api: Api<Pod> = scoped(client, ns);
+    let params = kube::api::LogParams {
+        container: Some(container.to_string()).filter(|c| !c.trim().is_empty()),
+        follow,
+        tail_lines: Some(tail.max(0)),
+        // Timestamps on, because a log line that carries none leaves
+        // the Logs tool's time strip and Jump to Time with nothing to
+        // work from, and the API server knows the time for certain.
+        timestamps: true,
+        ..Default::default()
+    };
+    api.log_stream(pod, &params).await.map_err(classify)
+}
+
+/// Scale a workload. `kind` is the row's own kind.
+///
+/// A daemon set has no replicas - one pod per node is what it means -
+/// so scaling one is refused in its own words rather than failing with
+/// the API's.
+pub async fn scale(client: &Client, kind: &str, ns: &str, name: &str, replicas: i32) -> Result<()> {
+    let patch = serde_json::json!({ "spec": { "replicas": replicas.max(0) } });
+    // A **merge** patch on the `scale` subresource, exactly as
+    // `kubectl scale` does it: the replica count is the only field
+    // being set, and server-side apply would make this app the owner of
+    // a field the deployment's own manifest also sets. `force()` is
+    // refused outright here - "PatchParams::force only works with
+    // Patch::Apply" - and the request never leaves the process
+    // (measured against k3s 1.34, 2026-10-24).
+    let params = kube::api::PatchParams::default();
+    match kind {
+        "Deployment" => {
+            let api: Api<Deployment> = scoped(client, ns);
+            api.patch_scale(name, &params, &kube::api::Patch::Merge(&patch))
+                .await
+                .map_err(classify)?;
+        }
+        "StatefulSet" => {
+            let api: Api<StatefulSet> = scoped(client, ns);
+            api.patch_scale(name, &params, &kube::api::Patch::Merge(&patch))
+                .await
+                .map_err(classify)?;
+        }
+        other => return Err(Error::Refused(format!("{other} has no replica count"))),
+    }
+    Ok(())
+}
+
+/// Roll a workload's pods, the way `kubectl rollout restart` does it.
+///
+/// There is no "restart" verb in the API: the controller only reacts to
+/// a change in the pod template, so the annotation **is** the restart.
+/// Writing anything else (deleting the pods, scaling to zero and back)
+/// loses the rollout's own surge and availability guarantees.
+pub async fn restart(client: &Client, kind: &str, ns: &str, name: &str) -> Result<()> {
+    let now = k8s_openapi::jiff::Timestamp::now().to_string();
+    let patch = serde_json::json!({
+        "spec": { "template": { "metadata": { "annotations": {
+            "kubectl.kubernetes.io/restartedAt": now
+        } } } }
+    });
+    let params = kube::api::PatchParams::default();
+    let patch = kube::api::Patch::Merge(&patch);
+    match kind {
+        "Deployment" => {
+            let api: Api<Deployment> = scoped(client, ns);
+            api.patch(name, &params, &patch).await.map_err(classify)?;
+        }
+        "StatefulSet" => {
+            let api: Api<StatefulSet> = scoped(client, ns);
+            api.patch(name, &params, &patch).await.map_err(classify)?;
+        }
+        "DaemonSet" => {
+            let api: Api<DaemonSet> = scoped(client, ns);
+            api.patch(name, &params, &patch).await.map_err(classify)?;
+        }
+        other => {
+            return Err(Error::Refused(format!(
+                "{other} has no pod template to roll"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Delete one object. Guarded by the caller, never here: the driver
+/// does what it is told and the pane decides whether to ask.
+pub async fn delete(client: &Client, kind: &str, ns: &str, name: &str) -> Result<()> {
+    match kind {
+        "Pod" => delete_one::<Pod>(client, ns, name).await,
+        "Deployment" => delete_one::<Deployment>(client, ns, name).await,
+        "StatefulSet" => delete_one::<StatefulSet>(client, ns, name).await,
+        "DaemonSet" => delete_one::<DaemonSet>(client, ns, name).await,
+        "Job" => delete_one::<Job>(client, ns, name).await,
+        "CronJob" => delete_one::<CronJob>(client, ns, name).await,
+        "Service" => delete_one::<Service>(client, ns, name).await,
+        "ConfigMap" => delete_one::<ConfigMap>(client, ns, name).await,
+        "Secret" => delete_one::<Secret>(client, ns, name).await,
+        "PersistentVolumeClaim" => delete_one::<PersistentVolumeClaim>(client, ns, name).await,
+        other => Err(Error::Refused(format!("{other} cannot be deleted here"))),
+    }
+}
+
+/// Delete one namespaced object of a known type.
+async fn delete_one<K>(client: &Client, ns: &str, name: &str) -> Result<()>
+where
+    K: kube::Resource<Scope = k8s_openapi::NamespaceResourceScope>
+        + Clone
+        + std::fmt::Debug
+        + serde::de::DeserializeOwned,
+    <K as kube::Resource>::DynamicType: Default,
+{
+    let api: Api<K> = scoped(client, ns);
+    // The API answers either the object or a Status, and which it is
+    // says only whether the delete finished or was accepted - both mean
+    // "taken", and the pane re-reads either way.
+    api.delete(name, &kube::api::DeleteParams::default())
+        .await
+        .map_err(classify)?;
+    Ok(())
+}
+
+/// A custom resource this cluster defines (phase 7).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CrdRow {
+    /// `widgets.example.com`, which is what a reader recognises.
+    pub name: String,
+    pub group: String,
+    /// The version the cluster serves as storage.
+    pub version: String,
+    pub kind: String,
+    pub plural: String,
+    pub namespaced: bool,
+    pub age: String,
+}
+
+/// One object of a custom resource, as the list shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CustomRow {
+    pub name: String,
+    pub namespace: String,
+    pub age: String,
+}
+
+/// The custom resources this cluster defines.
+///
+/// Read from the definitions rather than from a full discovery sweep:
+/// discovery walks **every** group including the built-ins, which is a
+/// dozen round trips to answer a question about the handful of kinds
+/// somebody installed. A cluster with no CRDs answers with an empty
+/// list rather than an error.
+pub async fn crds(client: &Client) -> Result<Vec<CrdRow>> {
+    use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+    let api: Api<CustomResourceDefinition> = Api::all(client.clone());
+    let list = api.list(&ListParams::default()).await.map_err(classify)?;
+    let mut out: Vec<CrdRow> = list
+        .iter()
+        .map(|c| {
+            // The storage version is the one to list objects at: a CRD
+            // may serve several, and only one is what the cluster keeps.
+            let version = c
+                .spec
+                .versions
+                .iter()
+                .find(|v| v.storage)
+                .or_else(|| c.spec.versions.first())
+                .map(|v| v.name.clone())
+                .unwrap_or_default();
+            CrdRow {
+                name: c.name_any(),
+                group: c.spec.group.clone(),
+                version,
+                kind: c.spec.names.kind.clone(),
+                plural: c.spec.names.plural.clone(),
+                namespaced: c.spec.scope == "Namespaced",
+                age: age_of(c.metadata.creation_timestamp.as_ref()),
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
+}
+
+/// The objects of one custom resource.
+///
+/// Name, namespace and age only: a custom resource's own fields are
+/// whatever its author chose, so there is no column set this can know -
+/// the YAML view is where the content is read.
+pub async fn custom(client: &Client, crd: &CrdRow, ns: &str) -> Result<Vec<CustomRow>> {
+    let resource = kube::api::ApiResource::from_gvk(&kube::api::GroupVersionKind::gvk(
+        &crd.group,
+        &crd.version,
+        &crd.kind,
+    ));
+    let api: Api<kube::api::DynamicObject> = if crd.namespaced && !ns.trim().is_empty() {
+        Api::namespaced_with(client.clone(), ns.trim(), &resource)
+    } else {
+        Api::all_with(client.clone(), &resource)
+    };
+    let list = api.list(&ListParams::default()).await.map_err(classify)?;
+    let mut out: Vec<CustomRow> = list
+        .iter()
+        .map(|o| CustomRow {
+            name: o.name_any(),
+            namespace: o.namespace().unwrap_or_default(),
+            age: age_of(o.metadata.creation_timestamp.as_ref()),
+        })
+        .collect();
+    out.sort_by(|a, b| a.namespace.cmp(&b.namespace).then(a.name.cmp(&b.name)));
+    Ok(out)
+}
+
+/// What an apply would do, and then what it did.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Applied {
+    /// `<kind>/<name>` as the server names it back.
+    pub what: String,
+    /// The object as it is now, empty when it does not exist yet.
+    pub before: String,
+    /// The object as the server says it would be.
+    pub after: String,
+    /// Whether this was the dry run or the real thing.
+    pub dry_run: bool,
+}
+
+impl Applied {
+    /// Whether the apply would change anything at all.
+    pub fn changes(&self) -> bool {
+        self.before != self.after
+    }
+
+    /// Whether the object is being created rather than changed.
+    pub fn creates(&self) -> bool {
+        self.before.is_empty()
+    }
+}
+
+/// Apply a manifest, through **server-side apply**.
+///
+/// Dry run first is the spec's rule (§5, §10.1) and the reason this
+/// returns `before` beside `after`: a diff the server itself computed
+/// beats one this app guesses at, because defaulting, admission
+/// webhooks and other controllers' fields all land in the answer. The
+/// field manager is `hyperstack`, so what this app owns is recorded and
+/// a later apply from `kubectl` conflicts loudly rather than silently
+/// reverting someone's work.
+///
+/// One document, not a stream: a manifest with several objects is split
+/// by the caller, so a failure names which document failed instead of
+/// leaving the rest in doubt.
+pub async fn apply(
+    client: &Client,
+    yaml: &str,
+    default_ns: &str,
+    dry_run: bool,
+) -> Result<Applied> {
+    let object: kube::api::DynamicObject = serde_norway::from_str(yaml)
+        .map_err(|e| Error::Config(format!("this is not a Kubernetes manifest: {e}")))?;
+    let types = object
+        .types
+        .clone()
+        .ok_or_else(|| Error::Config("the manifest has no apiVersion and kind".into()))?;
+    let gvk = kube::api::GroupVersionKind::try_from(&types)
+        .map_err(|e| Error::Config(format!("{} is not a known kind: {e}", types.kind)))?;
+    // Discovery rather than a hard-coded table: this is the path a CRD
+    // reaches the cluster by, and a built-in kind costs the same lookup.
+    let (resource, caps) = kube::discovery::pinned_kind(client, &gvk)
+        .await
+        .map_err(classify)?;
+    let name = object
+        .metadata
+        .name
+        .clone()
+        .ok_or_else(|| Error::Config("the manifest has no metadata.name".into()))?;
+    let namespaced = caps.scope == kube::discovery::Scope::Namespaced;
+    let ns = object
+        .metadata
+        .namespace
+        .clone()
+        .unwrap_or_else(|| default_ns.trim().to_string());
+    let api: Api<kube::api::DynamicObject> = if !namespaced {
+        Api::all_with(client.clone(), &resource)
+    } else if ns.is_empty() {
+        return Err(Error::Config(format!(
+            "{} is namespaced and the manifest names no namespace",
+            types.kind
+        )));
+    } else {
+        Api::namespaced_with(client.clone(), &ns, &resource)
+    };
+
+    // "Not there yet" is a normal answer here, not a failure: it is
+    // what makes this apply a creation.
+    let before = match api.get_opt(&name).await.map_err(classify)? {
+        Some(current) => render(current)?,
+        None => String::new(),
+    };
+    let mut params = kube::api::PatchParams::apply("hyperstack");
+    if dry_run {
+        params = params.dry_run();
+    }
+    let result = api
+        .patch(&name, &params, &kube::api::Patch::Apply(&object))
+        .await
+        .map_err(classify)?;
+    Ok(Applied {
+        what: format!("{}/{name}", types.kind),
+        before,
+        after: render(result)?,
+        dry_run,
+    })
+}
+
+/// Split a manifest into its documents, dropping the empty ones.
+///
+/// A file of several objects separated by `---` is the normal shape of
+/// a manifest, and applying it as one document fails with a parse error
+/// that says nothing useful.
+pub fn documents(yaml: &str) -> Vec<String> {
+    yaml.split("\n---")
+        .map(|d| d.trim_start_matches("---").trim().to_string())
+        .filter(|d| {
+            !d.is_empty()
+                && d.lines()
+                    .any(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
+        })
+        .collect()
+}
+
+/// A port forward the pane is holding open (phase 7).
+///
+/// **Not** a `Tunnels` forward: that service is SSH-shaped - its
+/// `ForwardSpec` carries an `ssh_id` and its implementation is
+/// `hs_ssh::tunnels::TunnelManager` - and a Kubernetes forward goes
+/// through the API server's `portforward` subresource instead. Putting
+/// one in there would mean inventing an SSH connection that does not
+/// exist (`docs/tools/containers.md` §10.6).
+pub struct Forward {
+    /// The port on this machine, known once the listener is bound.
+    pub local_port: u16,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Forward {
+    /// Stop accepting and drop the connections.
+    pub fn stop(&self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn running(&self) -> bool {
+        !self.stop.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+/// Closing the tab closes its forwards.
+///
+/// The listener lives in a spawned task that only ends when the flag is
+/// set, so without this a closed tab would leave a port on this machine
+/// listening - and forwarding - for the rest of the session, with
+/// nothing on screen to stop it.
+impl Drop for Forward {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+/// Forward `127.0.0.1:<local>` to `<pod>:<remote>` through the API
+/// server.
+///
+/// The listener is bound **before** this returns, so the caller is told
+/// the real port (0 asks the OS for a free one) and a failure to bind
+/// is reported where the user asked for it rather than later in a task
+/// nobody is watching. Each accepted connection opens its own
+/// portforward stream: the API multiplexes them and a browser opens
+/// several at once.
+pub async fn forward(
+    client: &Client,
+    ns: &str,
+    pod: &str,
+    remote_port: u16,
+    local_port: u16,
+) -> Result<Forward> {
+    use tokio::io::AsyncWriteExt;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", local_port))
+        .await
+        .map_err(|e| Error::Refused(format!("could not listen on port {local_port}: {e}")))?;
+    let bound = listener
+        .local_addr()
+        .map_err(|e| Error::Refused(e.to_string()))?
+        .port();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let api: Api<Pod> = scoped(client, ns);
+    let (pod, flag) = (pod.to_string(), stop.clone());
+    tokio::spawn(async move {
+        loop {
+            if flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            // A timeout rather than a bare accept: a forward nobody
+            // connects to must still notice that it has been stopped.
+            let accepted =
+                tokio::time::timeout(Duration::from_millis(500), listener.accept()).await;
+            let Ok(accepted) = accepted else { continue };
+            let Ok((mut socket, _)) = accepted else { break };
+            let (api, pod, flag) = (api.clone(), pod.clone(), flag.clone());
+            tokio::spawn(async move {
+                let mut pf = match api.portforward(&pod, &[remote_port]).await {
+                    Ok(pf) => pf,
+                    Err(e) => {
+                        tracing::warn!("port forward to {pod}:{remote_port} failed: {e}");
+                        let _ = socket.shutdown().await;
+                        return;
+                    }
+                };
+                let Some(mut upstream) = pf.take_stream(remote_port) else {
+                    let _ = socket.shutdown().await;
+                    return;
+                };
+                // Both directions until either end closes, or until the
+                // forward is stopped from the pane.
+                let copy = tokio::io::copy_bidirectional(&mut socket, &mut upstream);
+                tokio::select! {
+                    _ = copy => {}
+                    _ = async {
+                        while !flag.load(std::sync::atomic::Ordering::Relaxed) {
+                            tokio::time::sleep(Duration::from_millis(250)).await;
+                        }
+                    } => {}
+                }
+                let _ = socket.shutdown().await;
+                let _ = pf.join().await;
+            });
+        }
+    });
+    Ok(Forward {
+        local_port: bound,
+        stop,
+    })
+}
+
 /// Scoped to one namespace, or across all of them when `ns` is empty.
 fn scoped<K>(client: &Client, ns: &str) -> Api<K>
 where
@@ -819,6 +1291,22 @@ where
     } else {
         Api::namespaced(client.clone(), ns.trim())
     }
+}
+
+/// The container ports a pod declares, de-duplicated and in order.
+///
+/// Init containers are left out: they have finished by the time anyone
+/// forwards a port, and their ports are never what is wanted.
+fn pod_ports(pod: &Pod) -> Vec<u16> {
+    let mut out: Vec<u16> = pod
+        .spec
+        .iter()
+        .flat_map(|s| s.containers.iter())
+        .flat_map(|c| c.ports.iter().flatten())
+        .map(|p| p.container_port as u16)
+        .collect();
+    out.dedup();
+    out
 }
 
 /// Every image a pod template runs, init containers included: "which
@@ -1176,6 +1664,75 @@ mod tests {
         let out = render(pod).expect("renders");
         assert!(!out.contains("last-applied-configuration"), "{out}");
         assert!(out.contains("team: shop"), "the others stay: {out}");
+    }
+
+    /// A manifest of several objects is the normal shape, and applying
+    /// it as one document fails with a parse error that says nothing.
+    #[test]
+    fn a_manifest_is_split_into_its_documents() {
+        let manifest = "\
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+";
+        let docs = documents(manifest);
+        assert_eq!(docs.len(), 2);
+        assert!(docs[0].starts_with("apiVersion: v1"));
+        assert!(docs[1].contains("kind: Deployment"));
+        assert!(!docs[1].starts_with("---"), "the separator is not content");
+    }
+
+    /// A leading separator, a trailing one and a comment-only document
+    /// are all things `kubectl` accepts and none of them is an object.
+    #[test]
+    fn empty_and_comment_only_documents_are_not_applied() {
+        let manifest = "\
+---
+# nothing here yet
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shop
+---
+";
+        let docs = documents(manifest);
+        assert_eq!(docs.len(), 1, "{docs:?}");
+        assert!(docs[0].contains("ConfigMap"));
+        assert!(documents("").is_empty());
+        assert!(documents("\n\n---\n\n").is_empty());
+    }
+
+    /// `changes` and `creates` are what the preview's wording turns on,
+    /// and "nothing to do" must not read as "created".
+    #[test]
+    fn an_apply_knows_whether_it_creates_changes_or_does_nothing() {
+        let created = Applied {
+            before: String::new(),
+            after: "a: 1".into(),
+            ..Default::default()
+        };
+        assert!(created.creates() && created.changes());
+
+        let changed = Applied {
+            before: "a: 1".into(),
+            after: "a: 2".into(),
+            ..Default::default()
+        };
+        assert!(!changed.creates() && changed.changes());
+
+        let same = Applied {
+            before: "a: 1".into(),
+            after: "a: 1".into(),
+            ..Default::default()
+        };
+        assert!(!same.creates() && !same.changes());
     }
 
     /// `managedFields` is server-side-apply bookkeeping, routinely

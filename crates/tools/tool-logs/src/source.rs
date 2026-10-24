@@ -24,6 +24,19 @@ pub enum SourceSpec {
         conn_id: Option<String>,
         command: String,
     },
+    /// One pod's log, streamed from the Kubernetes API through a
+    /// saved `k8s` connection profile.
+    ///
+    /// Not a `Command`: there is no `kubectl` to run - the API server
+    /// streams it, which is what keeps the portable promise (§10.3).
+    /// `container` is empty for a single-container pod.
+    K8sPod {
+        conn_id: String,
+        namespace: String,
+        pod: String,
+        #[serde(default)]
+        container: String,
+    },
     /// Text pasted from the clipboard, kept with the tab.
     Text { title: String },
 }
@@ -45,6 +58,7 @@ impl SourceSpec {
                 .take(3)
                 .collect::<Vec<_>>()
                 .join(" "),
+            SourceSpec::K8sPod { pod, .. } => pod.clone(),
             SourceSpec::Text { title } => title.clone(),
         }
     }
@@ -55,6 +69,18 @@ impl SourceSpec {
             SourceSpec::LocalFile { path } => path.clone(),
             SourceSpec::SshFile { path, .. } => path.clone(),
             SourceSpec::Command { command, .. } => command.clone(),
+            SourceSpec::K8sPod {
+                namespace,
+                pod,
+                container,
+                ..
+            } => {
+                if container.is_empty() {
+                    format!("{namespace}/{pod}")
+                } else {
+                    format!("{namespace}/{pod} [{container}]")
+                }
+            }
             SourceSpec::Text { title } => title.clone(),
         }
     }
@@ -67,6 +93,7 @@ impl SourceSpec {
             SourceSpec::LocalFile { .. } => ph::FILE_TEXT,
             SourceSpec::SshFile { .. } => ph::HARD_DRIVES,
             SourceSpec::Command { .. } => ph::TERMINAL,
+            SourceSpec::K8sPod { .. } => ph::SHIPPING_CONTAINER,
             SourceSpec::Text { .. } => ph::CLIPBOARD_TEXT,
         }
     }
@@ -75,6 +102,7 @@ impl SourceSpec {
         match self {
             SourceSpec::SshFile { conn_id, .. } => Some(conn_id),
             SourceSpec::Command { conn_id, .. } => conn_id.as_deref(),
+            SourceSpec::K8sPod { conn_id, .. } => Some(conn_id),
             _ => None,
         }
     }
@@ -91,6 +119,12 @@ impl SourceSpec {
                     conn_id.as_deref().unwrap_or("local")
                 )
             }
+            SourceSpec::K8sPod {
+                conn_id,
+                namespace,
+                pod,
+                container,
+            } => format!("logs://k8s/{conn_id}/{namespace}/{pod}/{container}"),
             SourceSpec::Text { title } => format!("logs://text/{title}"),
         }
     }
@@ -197,5 +231,59 @@ mod tests {
         assert_eq!(s.spec.uri(), "logs://ssh/c1/var/log/app/app.log");
         s.delete(dir.path()).unwrap();
         assert!(SavedSource::load_all(dir.path()).is_empty());
+    }
+
+    /// **The contract with the Containers activity.** It writes this
+    /// JSON and hands it over as a MIME body (ADR-004: no crate
+    /// dependency either way), so the tag and the field names here are
+    /// published, not private. A rename on one side and not the other
+    /// shows up as View Logs doing nothing at all.
+    #[test]
+    fn a_pod_source_is_read_from_the_json_the_container_pane_writes() {
+        let body = serde_json::json!({
+            "schema": 1,
+            "name": "Local k3s · web-cc75c7c74-bsdq4",
+            "spec": {
+                "kind": "k8s_pod",
+                "conn_id": "k3s-1",
+                "namespace": "shop",
+                "pod": "web-cc75c7c74-bsdq4",
+                "container": "",
+            },
+            "format": "auto",
+            "tail_lines": 2000,
+            "order": 0,
+        });
+        let saved: SavedSource = serde_json::from_value(body).expect("the published shape");
+        assert_eq!(
+            saved.spec,
+            SourceSpec::K8sPod {
+                conn_id: "k3s-1".into(),
+                namespace: "shop".into(),
+                pod: "web-cc75c7c74-bsdq4".into(),
+                container: String::new(),
+            }
+        );
+        assert_eq!(saved.spec.label(), "web-cc75c7c74-bsdq4");
+        assert_eq!(saved.spec.describe(), "shop/web-cc75c7c74-bsdq4");
+        assert_eq!(saved.spec.conn_id(), Some("k3s-1"));
+
+        // Two tabs following two containers of one pod are two
+        // different sources, or opening the second would focus the
+        // first.
+        let one = SourceSpec::K8sPod {
+            conn_id: "k3s-1".into(),
+            namespace: "shop".into(),
+            pod: "web".into(),
+            container: "app".into(),
+        };
+        let two = SourceSpec::K8sPod {
+            conn_id: "k3s-1".into(),
+            namespace: "shop".into(),
+            pod: "web".into(),
+            container: "sidecar".into(),
+        };
+        assert_ne!(one.uri(), two.uri());
+        assert_eq!(one.describe(), "shop/web [app]");
     }
 }

@@ -13,6 +13,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- **Container activity, phase 3**: the activity itself. A **Containers**
+  entry in the rail between S3 and Database, a permanent dashboard home
+  tab (engines, clusters, saved configs, open tabs; Add Container; the
+  hosts as rows that open them), and a two-section sidebar - Containers
+  at about 40% of the height, Saved Commands and Configs below it, each
+  scrolling on its own. One tab per host: `container://<profile-id>` is
+  the uri the shell matches, so clicking a host focuses the tab that
+  already shows it. A host tab reads the engine off the UI thread and
+  shows its version, running/stopped/images/volumes/networks and the
+  container table; the inventory pane proper is phase 4. A Kubernetes
+  host says plainly that clusters are not readable yet rather than
+  running `docker` at one.
 - **Container activity, phase 2**: the Docker and Podman driver in
   `hs-container`. It reads containers, images, volumes and networks from
   a local socket, a TCP host, an engine inside a WSL distribution or one

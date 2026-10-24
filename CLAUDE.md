@@ -1430,6 +1430,25 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   (`ir-conflict`, `lsp-demo`, `debug-demo`) had been cleaned away too;
   `make_fixtures.py` in the session scratchpad rebuilds them.
 
+### Containers (tool-containers)
+- **`wants_dashboard_home` alone creates no home tab.** The shell needs
+  `wants_home_tab() == true` *and* `home_is_dashboard() == true` as
+  well; with only the third, the activity opened a working tab with no
+  item in it and drew its "this has been deleted" empty state on the
+  first run. All three, or none of them.
+- Draw the dashboard whenever the tab has **no item**, not only when
+  `is_home` is set: the flag arrives from the shell a beat later, and
+  keying on it alone shows an empty state in a tab that has simply not
+  been given anything yet.
+- **`title()` is asked every frame and is handed no `Services`**, so an
+  `Action::SetTitle` is overwritten the moment it lands. A tab whose
+  label comes from a stored profile has to keep the *name* in its own
+  saved state, not look it up.
+- A connection profile lives in `connections/<kind>/<slug>.toml`, in a
+  **sub-directory per kind** — a fixture written straight into
+  `connections/` is silently never loaded, which looks exactly like the
+  tool failing to list anything.
+
 ### Containers (hs-container)
 - **`docker ps --format '{{json .}}'` is line-delimited JSON whose
   `Labels`, `Ports` and `Mounts` are *human strings*, not arrays**:

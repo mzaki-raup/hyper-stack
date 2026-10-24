@@ -27,6 +27,10 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "db" => Some("db"),
         "redis" => Some("redis"),
         "mongodb" | "couchdb" => Some("nosql"),
+        // Every container kind opens in the Container activity, so a
+        // host pinned to Home or saved from Settings has somewhere to
+        // go and its rail entry is un-hidden on save (ADR-026).
+        "docker" | "podman" | "k8s" | "wincontainer" => Some("containers"),
         _ => None,
     }
 }

@@ -1045,6 +1045,7 @@ impl HyperStackApp {
             "snip.tab" | "snip.window" => self.request_snip(action == "snip.window"),
             "print.tab" => self.print_active(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
+            "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
             "settings:ai" => self.open_settings(Some(settings_ui::Page::Ai)),
             "ws.new" => {
                 self.workspace_dialog = WorkspaceDialog::New {

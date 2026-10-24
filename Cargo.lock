@@ -3723,6 +3723,7 @@ dependencies = [
  "toml 0.8.23",
  "tool-api",
  "tool-browser",
+ "tool-containers",
  "tool-db",
  "tool-devtools",
  "tool-editor",
@@ -8331,6 +8332,22 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "tool-containers"
+version = "0.82.1"
+dependencies = [
+ "egui",
+ "hs-container",
+ "hs-core",
+ "hs-ui",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml 0.8.23",
+ "tracing",
 ]
 
 [[package]]

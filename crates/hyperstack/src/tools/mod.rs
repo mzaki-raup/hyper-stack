@@ -23,6 +23,10 @@ pub fn factories(
         Box::new(tool_terminal::TerminalFactory),
         Box::new(tool_ssh::SshFactory),
         Box::new(tool_s3::S3Factory),
+        // Between S3 and Database, which is "between SSH and Database"
+        // as the owner described it. The rail is per workspace and
+        // user-ordered, so this is only the default (ADR-026).
+        Box::new(tool_containers::ContainersFactory),
         Box::new(tool_db::DbFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),

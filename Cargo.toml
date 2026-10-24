@@ -24,6 +24,7 @@ members = [
   "crates/tools/tool-redis",
   "crates/tools/tool-nosql",
   "crates/tools/tool-logs",
+  "crates/tools/tool-containers",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -47,6 +48,7 @@ hs-editor = { path = "crates/hs-editor" }
 tool-editor = { path = "crates/tools/tool-editor" }
 hs-ssh = { path = "crates/hs-ssh" }
 hs-container = { path = "crates/hs-container" }
+tool-containers = { path = "crates/tools/tool-containers" }
 hs-git = { path = "crates/hs-git" }
 hs-lsp = { path = "crates/hs-lsp" }
 hs-dap = { path = "crates/hs-dap" }

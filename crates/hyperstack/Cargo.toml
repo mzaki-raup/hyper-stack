@@ -35,6 +35,7 @@ tool-graphics = { workspace = true }
 tool-browser = { workspace = true }
 hs-ssh = { workspace = true }
 hs-container = { workspace = true }
+tool-containers = { workspace = true }
 rfd = { workspace = true }
 eframe = { workspace = true }
 egui = { workspace = true }

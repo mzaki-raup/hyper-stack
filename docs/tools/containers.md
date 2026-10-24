@@ -1,6 +1,6 @@
 # Tool spec — Containers (Docker / Podman / Kubernetes)
 
-**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-6 built, phase 7 all but pod Exec
+**Crates:** `hs-container` (drivers, no UI) + `tool-containers` (UI) · **Priority:** owner's request 2026-10-24, pulled forward from Phase 2 ahead of M6 · **Status:** §1-§9 draft, §10 specified and planned in eight phases (ADR-026); phases 1-7 built
 
 ## 1. Purpose
 
@@ -373,6 +373,24 @@ stays editable because a pod may listen on a port it never declared.
 A forward survives a change of selection - it is a connection someone
 is using, not part of the detail block - and is closed by Stop or by
 closing the tab.
+
+**Exec opens the pod's shell in the Terminal activity** (§10.1), with
+no `kubectl` and no local command: the API server's `exec` subresource
+is a WebSocket, `hs_container::exec` wraps it as an `hs_term`
+transport exactly as `hs-ssh` wraps a shell channel, and the Terminal
+activity runs it without knowing which kind it has. The hand-over
+travels in `OpenRequest::Terminal`'s existing `host` field as
+`k8s://<conn id>/<namespace>/<pod>/<container>`, so no new request
+variant is needed. Which shell runs is **Settings → Containers → Shell
+for Exec**, the same setting the Docker pane uses, because a minimal
+image has no bash and a distroless one has no shell at all.
+
+A cluster Exec is **guarded like a verb**: a shell inside a pod is
+unbounded write access, and protected environments default to
+read-only in every tool. The Docker pane's Exec is not guarded today -
+it types a command into a terminal the user owns - so the two panes
+differ; aligning them belongs with a change to the Docker side rather
+than with this one.
 
 **"All namespaces" is a choice, not an absence.** The profile's
 namespace seeds the picker until the reader picks one; without

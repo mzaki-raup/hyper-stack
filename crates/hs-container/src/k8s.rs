@@ -62,7 +62,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The distinction matters to the reader: "your token is wrong",
 /// "this account may not list pods" and "nothing is listening" have
 /// three different remedies, and the API says which.
-fn classify(e: kube::Error) -> Error {
+pub(crate) fn classify(e: kube::Error) -> Error {
     // A request that could not even be built never left this process,
     // so "could not reach the cluster" would be a lie - and a confusing
     // one, because the remedy is in the code or the arguments rather

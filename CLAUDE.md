@@ -1572,6 +1572,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   as "could not reach the cluster": `BuildRequest` and `SerdeError` are
   local faults with local remedies, and `classify` names them as such.
   The default arm of an error mapper is where lies like this hide.
+- **`kube`'s `AttachedProcess` owns the connection: keep it alive.**
+  Taking `stdin`/`stdout`/`terminal_size`/`take_status` out of it and
+  then letting the value drop at the end of the function ends the
+  session immediately - the streams answer EOF, the pump stops, and
+  the terminal reads "the shell exited with code 0" with nothing in
+  it. Move it into the task that pumps it and `join()` it at the end.
+  The same shape of bug hides in any handle whose `Drop` cancels work
+  you have already taken the pieces of.
+- **A status of `None` is not an exit.** `take_status()` on a TTY exec
+  can resolve with no `Status` at all; treating that as "finished"
+  closed the shell the instant it opened. Only a real `Status` carries
+  an exit code; otherwise end-of-output is end-of-session.
 - **An empty string can be a real choice, and a flag is the only way to
   say so.** The cluster pane seeds its namespace picker from the
   profile "when the namespace is empty", which made **All namespaces**

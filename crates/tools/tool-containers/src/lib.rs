@@ -1445,6 +1445,46 @@ impl ContainersTool {
                         }
                     }
                 }
+                // Exec goes to the Terminal activity, as it does for a
+                // container (§10.1). There is no command line to type
+                // here - the API server's `exec` subresource is the
+                // shell - so the address says which pod and the
+                // Terminal tool builds the transport.
+                // Guarded like a verb, unlike the Docker pane's Exec:
+                // a shell inside a pod is unbounded write access, and
+                // "protected environments default to read-only in
+                // every tool" is the rule it has to answer to. The two
+                // panes differing is noted in the spec; aligning the
+                // Docker side belongs with its own change.
+                let shell_blocked = refusal.is_some();
+                let exec = ui.add_enabled(
+                    !fresh && !shell_blocked,
+                    egui::Button::new(s.t("cluster-exec")),
+                );
+                let exec = match &refusal {
+                    Some(why) => exec.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    None => exec,
+                };
+                if exec.on_hover_text(s.t("cluster-exec-hint")).clicked() {
+                    // Name the container only where there is a
+                    // choice: with one, the API does not need it.
+                    let container = match containers.len() {
+                        0 | 1 => String::new(),
+                        _ => containers.first().cloned().unwrap_or_default(),
+                    };
+                    cx_actions.push(Action::OpenTool {
+                        factory_id: "terminal".into(),
+                        request: Some(OpenRequest::Terminal {
+                            cwd: None,
+                            host: Some(format!(
+                                "k8s://{}/{}/{}/{}",
+                                profile.id, target.namespace, target.name, container
+                            )),
+                            profile: None,
+                            command: None,
+                        }),
+                    });
+                }
             }
             if res == cluster::Resource::Custom
                 && ui

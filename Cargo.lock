@@ -3471,6 +3471,7 @@ version = "0.83.0"
 dependencies = [
  "futures-util",
  "hs-core",
+ "hs-term",
  "k8s-openapi",
  "kube",
  "rustls",
@@ -8926,10 +8927,12 @@ name = "tool-terminal"
 version = "0.83.0"
 dependencies = [
  "egui",
+ "hs-container",
  "hs-core",
  "hs-editor",
  "hs-term",
  "hs-ui",
+ "parking_lot",
  "serde",
  "serde_json",
  "tracing",

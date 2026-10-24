@@ -11,6 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Exec into a pod**, which completes the Container activity's phase 7.
+  A pod's detail block offers **Exec ↗** and the shell opens in the
+  **Terminal activity**, exactly as a container's does — but with no
+  `kubectl` and no local command: the API server's `exec` subresource
+  is wrapped as a terminal transport the same way an SSH channel is, so
+  the Terminal activity runs a pod's shell without knowing it is
+  Kubernetes. Which shell runs is **Settings → Containers → Shell for
+  Exec**. A cluster Exec is **guarded** on a read-only host or a
+  protected environment, because a shell inside a pod is unbounded
+  write access; the Docker pane's Exec is not, and aligning the two
+  belongs with a change to that side. Verified against k3s 1.34: an
+  interactive, colouring TTY in an nginx pod.
+
 - **Container activity, phase 7**: the cluster pane can write. A pod
   hands its log to the **Logs activity** — streamed from the API
   server, with no `kubectl` anywhere — and a workload offers **Restart**

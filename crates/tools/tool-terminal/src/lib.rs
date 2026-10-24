@@ -46,7 +46,75 @@ impl ToolFactory for TerminalFactory {
 struct State {
     profile: Option<String>,
     cwd: Option<PathBuf>,
+    /// Set when this tab runs a shell **inside a pod** rather than on
+    /// this machine (phase 7). Saved with the tab, so a restored tab
+    /// reconnects to the pod instead of silently opening PowerShell.
+    #[serde(default)]
+    cluster: Option<ClusterExec>,
 }
+
+/// Which container a cluster tab runs its shell in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+struct ClusterExec {
+    /// The `k8s` connection profile.
+    conn_id: String,
+    namespace: String,
+    pod: String,
+    /// Empty for a single-container pod.
+    container: String,
+}
+
+impl ClusterExec {
+    /// The handover address the Containers activity sends:
+    /// `k8s://<conn id>/<namespace>/<pod>/<container>`.
+    ///
+    /// It travels in `OpenRequest::Terminal`'s existing `host` field -
+    /// a pod's shell *is* the host this tab is on - so no new variant
+    /// is needed and every other tool's match arms are untouched.
+    fn parse(host: &str) -> Option<Self> {
+        let rest = host.strip_prefix("k8s://")?;
+        let mut parts = rest.splitn(4, '/');
+        let conn_id = parts.next()?.to_string();
+        let namespace = parts.next()?.to_string();
+        let pod = parts.next()?.to_string();
+        let container = parts.next().unwrap_or_default().to_string();
+        if conn_id.is_empty() || pod.is_empty() {
+            return None;
+        }
+        Some(Self {
+            conn_id,
+            namespace,
+            pod,
+            container,
+        })
+    }
+
+    /// What the tab is called: the pod, and the container when the pod
+    /// has more than one and the caller said which.
+    fn label(&self) -> String {
+        if self.container.is_empty() {
+            self.pod.clone()
+        } else {
+            format!("{}/{}", self.pod, self.container)
+        }
+    }
+}
+
+/// A slot the cluster exec worker fills: the transport and reader for
+/// a pod's shell, or why it could not be opened.
+type ClusterPending = std::sync::Arc<
+    parking_lot::Mutex<
+        Option<
+            Result<
+                (
+                    hs_container::exec::ExecTransport,
+                    hs_container::exec::ExecReader,
+                ),
+                String,
+            >,
+        >,
+    >,
+>;
 
 pub struct TerminalTool {
     state: State,
@@ -57,6 +125,10 @@ pub struct TerminalTool {
     home_title: Option<String>,
     /// A command handed over with the open request, typed when the shell is up.
     pending_command: Option<String>,
+    /// Where the cluster exec worker leaves its answer: connecting to a
+    /// cluster and opening the stream are async, and the UI thread
+    /// never waits (ADR-013).
+    cluster_pending: Option<ClusterPending>,
     profiles: Arc<Vec<ShellProfile>>,
     session: Option<Session>,
     view: TerminalView,
@@ -95,6 +167,7 @@ impl TerminalTool {
             state,
             home_title: None,
             pending_command: None,
+            cluster_pending: None,
             profiles,
             session: None,
             view: TerminalView::new(egui::Id::new(("hs-terminal", hs_core::new_id())), font_size),
@@ -433,9 +506,108 @@ impl TerminalTool {
             });
     }
 
+    /// Start a shell **inside a pod**, through the cluster's API
+    /// server.
+    ///
+    /// The Containers activity hands this over exactly as it hands a
+    /// Docker exec over (§10.1): the difference is that there is no
+    /// local command to run, so the transport is built here instead of
+    /// being typed into a shell. `hs-container` is a driver library
+    /// rather than a tool crate, so depending on it is the same
+    /// arrangement the Logs activity already has (ADR-004).
+    fn start_cluster(&mut self, services: &Services, target: ClusterExec) {
+        self.error = None;
+        self.exit_code = None;
+        self.session = None;
+        let Some(profile) = services.connections.read().by_id(&target.conn_id).cloned() else {
+            self.error = Some(services.t("terminal-no-cluster"));
+            return;
+        };
+        let fields = hs_container::ContainerFields::from_table(&profile.fields);
+        let shell = services.settings.read().containers.exec_shell.clone();
+        // The shell is the user's to choose: a minimal image has no
+        // bash and a distroless one has no shell at all, so a failure
+        // here has to be visible and editable rather than guessed at.
+        let line: Vec<String> = shell
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        let line = if line.is_empty() {
+            vec!["/bin/sh".to_string()]
+        } else {
+            line
+        };
+        let waker = services.runtime.waker();
+        let slot: ClusterPending = std::sync::Arc::new(parking_lot::Mutex::new(None));
+        let out = slot.clone();
+        self.cluster_pending = Some(slot);
+        services.runtime.spawn(async move {
+            let result = async {
+                let client = hs_container::k8s::connect(&fields)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                hs_container::exec::exec(
+                    &client,
+                    &target.namespace,
+                    &target.pod,
+                    &target.container,
+                    &line,
+                )
+                .await
+                .map_err(|e| e.to_string())
+            }
+            .await;
+            *out.lock() = Some(result);
+            waker.request_repaint();
+        });
+    }
+
+    /// Build the session once the cluster has answered.
+    fn drain_cluster(&mut self, services: &Services) {
+        let Some(result) = self.cluster_pending.as_ref().and_then(|s| s.lock().take()) else {
+            return;
+        };
+        self.cluster_pending = None;
+        let (transport, reader) = match result {
+            Ok(pair) => pair,
+            Err(e) => {
+                self.error = Some(e);
+                return;
+            }
+        };
+        let waker = services.runtime.waker();
+        let waker: Arc<dyn Fn() + Send + Sync> = Arc::new(move || waker.request_repaint());
+        let scrollback = services.settings.read().terminal.scrollback;
+        let name = self
+            .state
+            .cluster
+            .as_ref()
+            .map(|c| c.pod.clone())
+            .unwrap_or_default();
+        let profile = ShellProfile::new(&format!("k8s:{name}"), &name, "", "k8s", &[]);
+        match Session::with_transport(
+            profile,
+            Box::new(transport),
+            reader,
+            100,
+            30,
+            scrollback,
+            waker,
+        ) {
+            Ok(sess) => self.session = Some(sess),
+            Err(e) => self.error = Some(e),
+        }
+    }
+
     fn start(&mut self, services: &Services) {
         self.error = None;
         self.exit_code = None;
+        // A tab opened against a pod runs that pod's shell, not a local
+        // one: `profile` would otherwise start a PowerShell beside it.
+        if let Some(target) = self.state.cluster.clone() {
+            self.start_cluster(services, target);
+            return;
+        }
         let Some(profile) = self.profile(services) else {
             self.error = Some(services.t("terminal-no-shell"));
             return;
@@ -483,6 +655,12 @@ impl Tool for TerminalTool {
         // The home tab is the activity's; it has no shell of its own.
         if let Some(name) = &self.home_title {
             return Cow::Borrowed(name);
+        }
+        // A pod's shell is named after the pod: the shell inside it
+        // sets a title of its own ("sh") that says nothing about where
+        // it is running.
+        if let Some(c) = &self.state.cluster {
+            return Cow::Owned(c.label());
         }
         // The profile name until the shell sets a real title (a bare exe path
         // or an empty string is not one).
@@ -750,10 +928,13 @@ impl Tool for TerminalTool {
             self.dashboard(ui, cx);
             return;
         }
+        // A cluster shell is opened on the runtime; take the answer at
+        // frame start, as every background result arrives (ADR-013).
+        self.drain_cluster(cx.services);
         // First draw of a real terminal tab: this is where the shell comes
         // up, since the tool is created before anyone knows which tab it
         // is.
-        if self.session.is_none() && self.error.is_none() {
+        if self.session.is_none() && self.error.is_none() && self.cluster_pending.is_none() {
             self.start(cx.services);
         }
         // The assistant takes its column first, so the terminal is narrower
@@ -1002,10 +1183,13 @@ impl Tool for TerminalTool {
         match item {
             OpenRequest::Terminal {
                 cwd,
+                host,
                 profile,
                 command,
-                ..
             } => {
+                // A `k8s://` host means this tab runs a shell inside a
+                // pod; anything else is a shell on this machine.
+                self.state.cluster = host.as_deref().and_then(ClusterExec::parse);
                 if let Some(p) = profile {
                     self.state.profile = Some(p);
                 }

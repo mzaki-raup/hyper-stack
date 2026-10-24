@@ -14,6 +14,11 @@ hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-term = { workspace = true }
 hs-editor = { workspace = true }
+# A pod's shell: the driver builds the transport, this tool runs it
+# like any other. A driver library is not a tool crate (ADR-004),
+# which is the same reason the Logs activity depends on it.
+hs-container = { workspace = true }
+parking_lot = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

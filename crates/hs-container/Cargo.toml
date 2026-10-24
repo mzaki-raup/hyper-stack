@@ -12,6 +12,9 @@ publish.workspace = true
 [dependencies]
 futures-util = { workspace = true }
 hs-core = { workspace = true }
+# A pod's shell is an `hs_term` transport, exactly as an SSH channel
+# is: the Terminal activity runs one without knowing which it has.
+hs-term = { workspace = true }
 k8s-openapi = { workspace = true }
 kube = { workspace = true }
 rustls = { workspace = true }

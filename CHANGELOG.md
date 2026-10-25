@@ -44,6 +44,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   separator — no labels, the name on hover, and the rail's own colours
   when Coloured Activity Icons is on. A click opens that activity's
   dashboard; Settings opens on the page it was last left on.
+- **Fixed: New Note did nothing**, and nor did the tab strip's `+` in an
+  activity with a dashboard. Both asked for a new tab; the shell answered
+  by focusing the dashboard that was already in front, because the
+  "opening this activity goes to its dashboard" shortcut did not tell an
+  explicit new-tab request apart from a plain open. It does now, and the
+  `+` asks for a new tab of the activity rather than for the activity,
+  so it works the same in the API client, Graphics and Containers.
 - **Fixed: an S3 tab was titled after the bucket**, not the connection
   (`s3://shop-backups` rather than the profile's name), which left two
   profiles on one bucket indistinguishable. Every connection activity

@@ -629,6 +629,16 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   volume copy rather than a rename) would need the grace period
   revisited.
 
+- **"Open this activity" and "give me a new tab" are different
+  requests**, and `open_tool_in`'s dashboard shortcut has to tell them
+  apart: an activity with a dashboard home answers a request with no
+  item by focusing that dashboard, which for New Note in the Scratchpad
+  sidebar - and for the strip's `+` - was the tab already in front, so
+  the button read as dead (owner's report, 2026-10-25). The shortcut is
+  gated on `reuse`, and the `+` asks for a new tab of the activity
+  rather than for the activity. Any new "New …" button must go through
+  `open_new_tab`, never `open`.
+
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so

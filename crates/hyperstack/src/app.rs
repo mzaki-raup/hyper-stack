@@ -849,7 +849,14 @@ impl HyperStackApp {
         // An activity with a dashboard home (Graphics) opened with no
         // particular request goes to that dashboard, where the user picks
         // what to do, rather than straight into a blank working tab.
-        if request.is_none()
+        //
+        // `reuse` is what tells the two apart. Without it this branch also
+        // answered an explicit **new tab** - New Note in the Scratchpad
+        // sidebar, and the strip's `+` - by focusing the dashboard that
+        // was already in front, which reads as a dead button (owner's
+        // report, 2026-10-25).
+        if reuse
+            && request.is_none()
             && let Some(id) = self
                 .tabs
                 .tabs
@@ -989,7 +996,7 @@ impl HyperStackApp {
         // Logs activity never visited, landed on the Logs dashboard).
         // Let that first tab be the dashboard it wants to be, and open a
         // working tab beside it for the request.
-        let id = if request.is_some()
+        let id = if (request.is_some() || !reuse)
             && self
                 .tabs
                 .tabs
@@ -2605,7 +2612,11 @@ impl HyperStackApp {
         }
         if r.new_tab {
             match self.group.clone() {
-                Some(g) => self.open_tool(&g, None),
+                // A new tab of this activity, not "open this activity":
+                // for one with a dashboard home those are different
+                // things, and the second does nothing when the dashboard
+                // is what the `+` was clicked from.
+                Some(g) => self.open_tool_in(&g, None, false),
                 None => self.open_launcher_tab(),
             }
         }

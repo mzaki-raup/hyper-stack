@@ -102,7 +102,7 @@ the fixtures behind them.
 | | |
 |---|---|
 | ![Home tab](docs/screenshots/home.png) | ![Launcher](docs/screenshots/launcher.png) |
-| **Home** — the pinned first tab of every workspace: Get Started cards, the workspace switcher and the What do you want to do? tool grid; recent and pinned items live in the sidebar | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
+| **Home** — the pinned first tab of every workspace: a toolbar of activity icons across the top, Get Started cards, the workspace switcher and the What do you want to do? tool grid; recent and pinned items live in the sidebar | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
 | **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
 | ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |

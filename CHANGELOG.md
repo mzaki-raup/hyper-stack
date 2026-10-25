@@ -50,7 +50,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   "opening this activity goes to its dashboard" shortcut did not tell an
   explicit new-tab request apart from a plain open. It does now, and the
   `+` asks for a new tab of the activity rather than for the activity,
-  so it works the same in the API client, Graphics and Containers.
+  so it works the same in the API client and Graphics. **Containers
+  hides the `+`** instead, as Terminal, SSH and the database activities
+  do: a tab there is a host picked from the sidebar, not a document
+  somebody makes.
 - **Fixed: an S3 tab was titled after the bucket**, not the connection
   (`s3://shop-backups` rather than the profile's name), which left two
   profiles on one bucket indistinguishable. Every connection activity

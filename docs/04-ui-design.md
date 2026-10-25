@@ -244,6 +244,17 @@ The launcher content is also what an empty tab space shows:
 
 Shown by `+`, Ctrl+T, and when the last tab is closed.
 
+The strip's **`+` means "a new tab of this activity"**, not "open this
+activity" — for an activity whose home is a dashboard those are different
+things, and the second does nothing when the dashboard is what the `+` was
+clicked from. It appears only where a tab is a **document somebody makes**
+(the editor, the API client, Graphics, the Scratchpad); an activity whose
+tab is a connection, a shell or a host — Terminal, SSH, the database
+activities, S3, the browser, Logs, Devtools and **Containers** — hides it,
+because those tabs are opened from the sidebar and an empty one would hold
+nothing (`shows_new_tab`, owner's decision 2026-10-25). With no activity in
+front, `+` opens the launcher instead.
+
 ```
 ┌─ What do you want to do? ──────────────────────────────────── 🔍 type to search ─┐
 │  Code              Data               Network             Infra        Utilities   │

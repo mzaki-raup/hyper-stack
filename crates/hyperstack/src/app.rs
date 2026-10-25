@@ -4166,6 +4166,11 @@ fn shows_new_tab(group: Option<&str>) -> bool {
                 | "home"
                 | "devtools"
                 | "logs"
+                // A container tab is a host, picked on the dashboard or
+                // in the sidebar; a tab with no host in it is not a new
+                // document, it is the dashboard in a closable tab
+                // (owner's decision, 2026-10-25).
+                | "containers"
         )
     )
 }
@@ -4441,7 +4446,17 @@ mod tests {
         // A tab here is a connection, a shell or the workspace's browser,
         // opened from the sidebar.
         for g in [
-            "terminal", "ssh", "db", "nosql", "redis", "s3", "browser", "home", "devtools", "logs",
+            "terminal",
+            "ssh",
+            "db",
+            "nosql",
+            "redis",
+            "s3",
+            "browser",
+            "home",
+            "devtools",
+            "logs",
+            "containers",
         ] {
             assert!(
                 !shows_new_tab(Some(g)),

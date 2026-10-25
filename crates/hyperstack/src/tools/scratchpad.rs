@@ -432,10 +432,6 @@ impl Tool for Scratchpad {
     fn dirty(&self) -> bool {
         self.state.text != self.saved
     }
-    fn environment(&self) -> Option<String> {
-        self.state.environment.clone()
-    }
-
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);

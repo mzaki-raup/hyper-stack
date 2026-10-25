@@ -1704,10 +1704,6 @@ impl Tool for SshTool {
 
     /// The profile's environment: the shell paints the banner and, for a
     /// protected one, the red frame around the tab.
-    fn environment(&self) -> Option<String> {
-        self.env_id.clone()
-    }
-
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -2228,6 +2224,20 @@ impl Tool for SshTool {
 
     fn on_event(&mut self, ev: &Event, cx: &mut ToolContext) {
         match ev {
+            // A renamed profile renames its tab. The name is the only
+            // thing taken: a rename must not disturb a live session.
+            Event::ConnectionsChanged => {
+                if let Some(id) = self.state.conn_id.clone()
+                    && let Some(name) = cx
+                        .services
+                        .connections
+                        .read()
+                        .by_id(&id)
+                        .map(|c| c.name.clone())
+                {
+                    self.conn_name = name;
+                }
+            }
             Event::FileSaved { uri } => {
                 let local = PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
                 let remote = self.shared.lock().edits.get(&local).cloned();

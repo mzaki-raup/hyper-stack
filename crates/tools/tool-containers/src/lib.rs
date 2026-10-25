@@ -3108,6 +3108,22 @@ impl Tool for ContainersTool {
     /// same connection rather than opening a second one
     /// (`tabs_per_connection` is 1 for every activity but SSH), so
     /// leaving this at its default `None` is what let a host open twice.
+    /// A renamed profile renames its tab. The name is the only thing
+    /// taken: a rename must not disturb a live session.
+    fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
+        if matches!(ev, hs_core::events::Event::ConnectionsChanged)
+            && !self.state.host_id.is_empty()
+            && let Some(name) = cx
+                .services
+                .connections
+                .read()
+                .by_id(&self.state.host_id)
+                .map(|c| c.name.clone())
+        {
+            self.state.host_name = name;
+        }
+    }
+
     fn current_connection(&self) -> Option<&str> {
         if self.is_home || self.state.host_id.is_empty() {
             return None;

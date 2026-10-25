@@ -2407,10 +2407,6 @@ impl Tool for DbTool {
         self.shared.lock().in_tx || (self.state.query_file.is_some() && self.doc().buf.dirty())
     }
 
-    fn environment(&self) -> Option<String> {
-        self.env_id.clone()
-    }
-
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);

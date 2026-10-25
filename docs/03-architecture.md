@@ -2,6 +2,30 @@
 
 **Status:** draft · **Last updated:** 2026-10-10
 
+## Shutting down (2026-10-25)
+
+The process leaves through `std::process::exit`, not by returning from
+`main`. Returning drops `Services`, and with it the single
+`tokio::runtime::Runtime`, whose `Drop` **waits for every blocking
+task**: a follower parked in a blocking read never returns, so the
+window vanished and the process stayed, which is what forced Task
+Manager. By the time the event loop ends, the layout and window state
+are saved (the frame the close was requested) and `App::on_exit` has
+dropped the tools, which is what ends the sessions and flushes the log;
+what is left is memory the OS reclaims.
+
+A watchdog backs it up: the first time a close is requested the shell
+arms a thread that exits the process a few seconds later whatever is
+still running, so a driver, a `Drop` that waits on a child or a WebView2
+teardown can delay the close but never prevent it.
+
+Separately, anything that follows a child process must be able to
+**end** that child from outside the reading thread: a stop flag is not
+enough when the reader is parked in `read`, and on Windows killing a
+`cmd /C …` leaves its grandchild holding the pipe, so the kill has to
+take the tree.
+
+
 ## 1. Overview
 
 HyperStack is a single Rust binary built on **eframe/egui**. The UI runs on the

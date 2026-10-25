@@ -321,12 +321,43 @@ fn pick_format(saved: Format, sample: &[String]) -> Format {
 /// A running source. Dropping it stops the task.
 pub struct Runner {
     stop: Arc<AtomicBool>,
+    /// The child of a followed command, so closing the tab **ends** it.
+    ///
+    /// The flag alone does not: the follower is parked in a blocking
+    /// `read` on the child's pipe and looks at the flag again only when
+    /// a line arrives, which for a quiet source is never. A
+    /// `docker logs --follow` on an idle container therefore outlived
+    /// its tab, and kept the process alive at exit (owner's report,
+    /// 2026-10-25). Killing the child closes the pipe, which is what
+    /// the read is waiting for.
+    child: Arc<Mutex<Option<std::process::Child>>>,
 }
 
 impl Drop for Runner {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
+        if let Some(c) = self.child.lock().take() {
+            kill_tree(c);
+        }
     }
+}
+
+/// End a followed command and everything it started.
+///
+/// On Windows the child is a `cmd /C …`, and killing it leaves whatever
+/// it launched - `wsl.exe`, `docker` - holding the write end of the
+/// pipe, so the follower stays parked exactly as before. `taskkill /T`
+/// takes the tree; the direct kill is the fallback and the only route
+/// anywhere else.
+fn kill_tree(mut child: std::process::Child) {
+    #[cfg(windows)]
+    {
+        let _ = hs_core::paths::background_command("taskkill")
+            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .output();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 fn feed(shared: &Mutex<Shared>, format: Format, lines: &[String], bytes: u64) {
@@ -361,7 +392,11 @@ pub fn start(
         *sh = Shared::default();
         sh.status = Status::Connecting;
     }
-    let runner = Runner { stop: stop.clone() };
+    let child_slot: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let runner = Runner {
+        stop: stop.clone(),
+        child: child_slot.clone(),
+    };
     match spec {
         SourceSpec::Text { .. } => {
             let text = text.unwrap_or_default();
@@ -432,7 +467,7 @@ pub fn start(
             let command = command.clone();
             services.runtime.spawn(async move {
                 let r = tokio::task::spawn_blocking(move || {
-                    run_local_command(&command, saved_format, &shared, &stop, &wake)
+                    run_local_command(&command, saved_format, &shared, &stop, &wake, &child_slot)
                 })
                 .await;
                 if let Err(e) = r {
@@ -504,6 +539,7 @@ fn run_local_command(
     shared: &Mutex<Shared>,
     stop: &AtomicBool,
     wake: &Arc<dyn Fn() + Send + Sync>,
+    child_slot: &Mutex<Option<std::process::Child>>,
 ) {
     use std::process::Stdio;
     // `background_command`, not `Command::new`: a GUI app that spawns a
@@ -536,6 +572,9 @@ fn run_local_command(
     set_status(shared, Status::Following);
     let mut out = child.stdout.take().expect("piped");
     let mut err = child.stderr.take().expect("piped");
+    // The reader owns the pipes; the Runner owns the child, so closing
+    // the tab can kill it while this thread is parked in `read`.
+    *child_slot.lock() = Some(child);
     // Stderr on its own thread, so a chatty command cannot block stdout.
     let shared_err: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let err_sink = shared_err.clone();
@@ -555,7 +594,6 @@ fn run_local_command(
     let mut buf = [0u8; 16384];
     loop {
         if stop.load(Ordering::Relaxed) {
-            let _ = child.kill();
             break;
         }
         match out.read(&mut buf) {
@@ -586,7 +624,9 @@ fn run_local_command(
     if !errs.is_empty() {
         shared.lock().stderr.extend(errs);
     }
-    let _ = child.wait();
+    if let Some(c) = child_slot.lock().take() {
+        kill_tree(c);
+    }
     if !stop.load(Ordering::Relaxed) {
         set_status(shared, Status::Done);
     }
@@ -984,6 +1024,64 @@ mod open_error_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Dropping a `Runner` must **end the read** its follower is parked
+    /// in, not merely ask it to stop.
+    ///
+    /// The follower blocks in `read` on the child's pipe and looks at
+    /// the stop flag again only when a line arrives, which for a quiet
+    /// source is never: before the child was killed on drop, a
+    /// `docker logs --follow` on an idle container outlived its tab and
+    /// then held the whole process open at exit. The read ending is the
+    /// observable form of the fix, so that is what is asserted - with a
+    /// timeout, because the failure mode is a hang and a hung test
+    /// tells nobody anything.
+    #[test]
+    fn dropping_a_runner_ends_the_read_its_follower_is_parked_in() {
+        use std::io::Read;
+        use std::process::Stdio;
+
+        // A child that lives a while and writes nothing: exactly the
+        // shape a follower waits on for ever.
+        let mut cmd = if cfg!(windows) {
+            let mut c = hs_core::paths::background_command("cmd");
+            c.args(["/C", "ping -n 60 127.0.0.1 >nul"]);
+            c
+        } else {
+            let mut c = hs_core::paths::background_command("sh");
+            c.args(["-c", "sleep 60"]);
+            c
+        };
+        let mut child = cmd
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .stdin(Stdio::null())
+            .spawn()
+            .expect("spawn");
+        let mut out = child.stdout.take().expect("piped");
+        let runner = Runner {
+            stop: Arc::new(AtomicBool::new(false)),
+            child: Arc::new(Mutex::new(Some(child))),
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 64];
+            let n = out.read(&mut buf).unwrap_or(0);
+            let _ = tx.send(n);
+        });
+        // Parked by now, with nothing coming.
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(
+            rx.try_recv().is_err(),
+            "the child was supposed to say nothing"
+        );
+        drop(runner);
+        let n = rx
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the read never ended: the follower would hold the process open");
+        assert_eq!(n, 0, "the pipe should be at end of file");
+    }
+
     use std::io::Write;
 
     #[test]

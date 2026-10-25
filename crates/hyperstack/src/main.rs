@@ -158,6 +158,21 @@ fn main() {
         tracing::error!("window failed: {e}");
         std::process::exit(1);
     }
+    // **Do not fall out of `main` here.** Returning drops `Services`, and
+    // with it the one `tokio::runtime::Runtime`, whose `Drop` waits for
+    // every *blocking* task to finish. A follower parked in a blocking
+    // read - `docker logs --follow` on a quiet container, a `tail -F`
+    // over SSH, a driver mid-query - never returns, so the window
+    // vanished and the process stayed alive for ever, which is what
+    // forced Task Manager (owner's report, 2026-10-25). It also made the
+    // updater look broken: the new version waits 30 seconds for the old
+    // pid and then opens anyway, beside a process that never went.
+    //
+    // Everything that must be written already is: the layout and the
+    // window state are saved the frame the close is requested, and
+    // `App::on_exit` has dropped the tools, which is what ends the
+    // sessions. What is left is memory the OS reclaims.
+    std::process::exit(0);
 }
 
 fn load_icon() -> egui::IconData {

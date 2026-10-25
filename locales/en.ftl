@@ -71,7 +71,6 @@ status-jobs = { $n ->
 env-none = No Environment
 env-switch = Switch Environment
 env-protected = Protected
-env-banner-pinned = This tab is pinned to { $name }
 workspace-switch = Workspace
 workspace-open = Open Workspace…
 workspace-new = New Workspace…

@@ -109,6 +109,18 @@ pub struct Logging {
 }
 
 impl Logging {
+    /// Write out whatever the file appender still holds.
+    ///
+    /// The appender writes on its own thread and its guard flushes when
+    /// dropped - which at exit never happens, because the process now
+    /// leaves through `std::process::exit` rather than by unwinding out
+    /// of `main` (that is what stopped the tokio runtime's `Drop` from
+    /// hanging the close). Dropping the guard here keeps the last lines
+    /// of the log.
+    pub fn flush(&mut self) {
+        self._guard.take();
+    }
+
     /// Replace the level filter: `error`, `warn`, `info`, `debug`, `trace`,
     /// or a full `EnvFilter` directive.
     pub fn set_filter(&self, filter: &str) -> bool {

@@ -507,7 +507,13 @@ impl HyperStackApp {
         if let UpdateStatus::Ready { version, path } = self.services.updater.status() {
             self.save_layout();
             match self.services.updater.install(&path, &version) {
-                Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                // The new version is already up and waiting for this pid:
+                // a slow exit here is what made it give up and open
+                // beside us (owner's report, 2026-10-25).
+                Ok(()) => {
+                    arm_shutdown_watchdog();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close)
+                }
                 Err(e) => self.toasts.push(ToastLevel::Error, e),
             }
         }
@@ -2553,14 +2559,6 @@ impl HyperStackApp {
             duplicate_blocked: s.t("tab-duplicate-blocked"),
             copy_path: s.t("editor-copy-path"),
         };
-        let theme = self.theme.clone();
-        let env_colour = |env: Option<String>| -> Option<Color32> {
-            let envs = s.environments.read();
-            env.and_then(|id| {
-                envs.by_id(&id)
-                    .map(|e| theme.env_colour(&e.name, e.colour.as_deref()))
-            })
-        };
         let activity_title = |id: &str| -> String {
             self.factories
                 .iter()
@@ -2568,7 +2566,7 @@ impl HyperStackApp {
                 .map(|f| self.services.t(f.descriptor().title_key))
                 .unwrap_or_else(|| id.to_string())
         };
-        let all = self.tabs.views(&env_colour, &activity_title);
+        let all = self.tabs.views(&activity_title);
         // Index map from the strip's slice back into the full tab list, so
         // reorder and close-left/right keep working on the filtered strip.
         let group = self.group.clone();
@@ -2676,22 +2674,20 @@ impl HyperStackApp {
         }
     }
 
+    /// The environment stripe: **the open workspace's** active
+    /// environment, the same for every tab.
+    ///
+    /// A tab used to be able to pin itself to a different one - whatever
+    /// environment the connection it was opened from named - and the
+    /// banner then read "This tab is pinned to …". An environment is a
+    /// property of the workspace, not of a tab, and two tabs claiming
+    /// different ones is a reading of the window nobody asked for
+    /// (owner's requirement, 2026-10-25). `Tool::environment` went with
+    /// it, so no tool can re-introduce the tie.
     fn env_banner(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
         let envs = s.environments.read();
-        let active = envs.active_env();
-        let tab_env = self
-            .tabs
-            .active
-            .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
-            .and_then(|t| t.tool.environment());
-        let shown = tab_env.as_deref().and_then(|id| envs.by_id(id)).or(active);
-        let pinned_note = match (tab_env.as_deref(), envs.active.as_deref()) {
-            (Some(t), a) if Some(t) != a => {
-                shown.map(|e| s.i18n.t_args("env-banner-pinned", &[("name", &e.name)]))
-            }
-            _ => None,
-        };
+        let shown = envs.active_env();
         let banner = EnvBanner {
             theme: &self.theme,
             name: shown.map(|e| e.name.as_str()),
@@ -2699,11 +2695,20 @@ impl HyperStackApp {
                 .map(|e| self.theme.env_colour(&e.name, e.colour.as_deref()))
                 .unwrap_or(self.theme.border),
             protected: shown.is_some_and(|e| e.protected),
-            pinned_note: pinned_note.as_deref(),
             none_label: &s.t("env-none"),
             protected_label: &s.t("env-protected"),
         };
         banner.show(ui);
+    }
+
+    /// Whether the active tab draws a toolbar at all, so the panel can
+    /// be left out rather than drawn empty. The two cases are the ones
+    /// `toolbar` itself returns early on.
+    fn has_toolbar(&self) -> bool {
+        self.tabs
+            .active
+            .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+            .is_some_and(|t| !(t.home && t.tool.home_is_dashboard()))
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui) {
@@ -3607,6 +3612,9 @@ impl eframe::App for HyperStackApp {
     /// out.
     fn on_exit(&mut self) {
         self.tabs.tabs.clear();
+        // The process leaves through `std::process::exit`, which runs no
+        // destructors: flush the log here or its last lines are lost.
+        self.logging.flush();
     }
 
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -3717,12 +3725,15 @@ impl eframe::App for HyperStackApp {
                 ui.add_space(4.0);
                 self.tab_strip(ui);
             });
+        // The banner is the window's, so it stays full width. The
+        // toolbar belongs to the **tab**, so it is declared after the
+        // rail and the sidebar and takes only what they leave - the work
+        // pane's own column, which is where the buttons that act on the
+        // pane belong, and which lets the rail and the sidebar start a
+        // row higher (owner's requirement, 2026-10-25).
         egui::Panel::top("hs-banner")
             .resizable(false)
-            .show(root, |ui| {
-                self.env_banner(ui);
-                self.toolbar(ui);
-            });
+            .show(root, |ui| self.env_banner(ui));
         let rail_w = if self.services.settings.read().appearance.rail_labels {
             RAIL_WIDTH_LABELS
         } else {
@@ -3779,6 +3790,15 @@ impl eframe::App for HyperStackApp {
                 self.layout_dirty_since.get_or_insert(Instant::now());
                 self.tabs.dirty = true;
             }
+        }
+        // After the two left panels, so its width is the work pane's -
+        // and skipped entirely when the tab has no toolbar, or an empty
+        // strip would sit above a dashboard. The status bar below has
+        // been the work pane's width for the same reason.
+        if self.has_toolbar() {
+            egui::Panel::top("hs-toolbar")
+                .resizable(false)
+                .show(root, |ui| self.toolbar(ui));
         }
         egui::Panel::bottom("hs-status")
             .exact_size(32.0)
@@ -3982,7 +4002,10 @@ impl eframe::App for HyperStackApp {
                     self.confirm_revert = false;
                     self.save_layout();
                     match s.updater.revert() {
-                        Ok(_) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                        Ok(_) => {
+                            arm_shutdown_watchdog();
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close)
+                        }
                         Err(e) => self.toasts.push(ToastLevel::Error, e),
                     }
                 }
@@ -4031,6 +4054,9 @@ impl eframe::App for HyperStackApp {
         {
             self.save_layout();
             self.save_window_state(ctx);
+        }
+        if close_requested {
+            arm_shutdown_watchdog();
         }
         // Tool inputs change without touching the strip (a devtools field,
         // an API draft): every few seconds compare the saved states with
@@ -4220,6 +4246,41 @@ const RAIL_CHROME_WORST: f32 = 227.0;
 /// gets up to three, each its own session. Everywhere else a second tab on
 /// the same connection is a duplicate nobody asked for, and clicking the
 /// connection again should land on the tab that is already there.
+/// Leave, whatever a driver is doing.
+///
+/// The close path is: save the layout, drop the tools (`App::on_exit`),
+/// leave the event loop, exit the process. Each step is quick in
+/// principle, and each one calls into libraries that can block - a
+/// WebView2 teardown, a child that will not die, a `Drop` that waits on
+/// a process. A desktop application that needs Task Manager to close is
+/// broken however good the reason, so this is the floor: once a close
+/// has been asked for, the process is gone within a few seconds
+/// whatever is holding it up.
+///
+/// Armed once. By the time it fires the layout and window state are on
+/// disk, so nothing is lost but the last lines of the log.
+///
+/// It assumes a requested close always happens: nothing here answers
+/// `close_requested` with `ViewportCommand::CancelClose`. **If a veto is
+/// ever added** - an unsaved-changes dialog that keeps the window open -
+/// this must be armed where the close is confirmed instead, or it will
+/// shut the window a few seconds after the user said no.
+fn arm_shutdown_watchdog() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static ARMED: AtomicBool = AtomicBool::new(false);
+    if ARMED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::Builder::new()
+        .name("hs-shutdown".into())
+        .spawn(|| {
+            std::thread::sleep(Duration::from_secs(5));
+            tracing::warn!("shutdown is taking too long; leaving now");
+            std::process::exit(0);
+        })
+        .ok();
+}
+
 pub(crate) fn tabs_per_connection(factory_id: &str) -> usize {
     match group_of(factory_id) {
         "ssh" => 3,
@@ -4257,7 +4318,7 @@ fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
 /// Each activity's own colour in the rail, so the column reads at a
 /// glance rather than as a row of same-coloured glyphs. Muted while
 /// inactive, full while active or hovered.
-fn activity_colour(id: &str) -> egui::Color32 {
+pub(crate) fn activity_colour(id: &str) -> egui::Color32 {
     match id {
         "home" => egui::Color32::from_rgb(0xa7, 0x8b, 0xfa),
         "editor" => egui::Color32::from_rgb(0x60, 0xa5, 0xfa),

@@ -1133,10 +1133,6 @@ impl Tool for LogsTool {
         })
     }
 
-    fn environment(&self) -> Option<String> {
-        self.env_id.clone()
-    }
-
     fn current_uri(&self) -> Option<String> {
         if self.is_home {
             return None;

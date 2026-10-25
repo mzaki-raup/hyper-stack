@@ -9,7 +9,6 @@ pub struct EnvBanner<'a> {
     pub name: Option<&'a str>,
     pub colour: Color32,
     pub protected: bool,
-    pub pinned_note: Option<&'a str>,
     pub none_label: &'a str,
     pub protected_label: &'a str,
 }
@@ -45,9 +44,6 @@ impl EnvBanner<'_> {
                 text,
                 self.protected_label
             );
-        }
-        if let Some(note) = self.pinned_note {
-            text = format!("{text}  ·  {note}");
         }
         p.text(
             egui::pos2(rect.left() + 12.0, rect.center().y),

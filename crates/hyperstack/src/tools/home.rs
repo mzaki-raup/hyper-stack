@@ -88,6 +88,73 @@ impl Tool for HomeTool {
         Cow::Borrowed("Home")
     }
 
+    /// A row of activity icons: the quickest way from Home to anywhere.
+    ///
+    /// The same entries the rail shows for this workspace and in the same
+    /// order (Settings → Appearance → Activity Rail is per workspace, so a
+    /// hidden activity is hidden here too), minus Home itself — you are
+    /// on it — and the sidebar toggle, which is a view switch rather than
+    /// an activity. **Settings** joins them at the end, after a
+    /// separator, as it does at the foot of the rail.
+    ///
+    /// Icons only, with the activity's name on hover: the names are right
+    /// there under the rail's icons, and a second row of labels would be
+    /// a worse version of the launcher further down the page. The colour
+    /// follows Settings → Appearance → Sidebar → Coloured Activity Icons,
+    /// so the two columns of icons never disagree. Owner's requirement,
+    /// 2026-10-25.
+    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        let (coloured, order, hidden) = {
+            let st = s.settings.read();
+            let prefs = s.workspace.read().meta.rail_prefs(&st.appearance);
+            (st.appearance.rail_coloured, prefs.order, prefs.hidden)
+        };
+        let mut hub = self.hub.lock();
+        let hub = &mut *hub;
+        let ids: Vec<&'static str> = hub.tools.iter().map(|t| t.id).collect();
+        let ordered: Vec<&'static str> = crate::app::rail_order(&ids, &order)
+            .into_iter()
+            .filter(|id| !hidden.iter().any(|h| h == id))
+            .collect();
+        let mut open: Option<String> = None;
+        let mut icon_button = |ui: &mut egui::Ui, id: &str| {
+            let Some(d) = hub.tools.iter().find(|t| t.id == id) else {
+                return;
+            };
+            let colour = if coloured {
+                crate::app::activity_colour(id)
+            } else {
+                theme.text
+            };
+            let label = s.t(d.title_key);
+            if ui
+                .add(
+                    egui::Button::new(egui::RichText::new(d.icon).size(18.0).color(colour))
+                        .frame(false),
+                )
+                .on_hover_text(&label)
+                .clicked()
+            {
+                open = Some(id.to_string());
+            }
+        };
+        for id in &ordered {
+            icon_button(ui, id);
+        }
+        // Settings is not in the rail's own order (it is pinned to the
+        // foot of the rail), so it is added here rather than filtered in.
+        ui.separator();
+        icon_button(ui, "settings");
+        if let Some(id) = open {
+            // No request with it: `open_tool` then focuses the activity's
+            // dashboard home tab, which is where this is meant to land -
+            // and for Settings, the page it was last left on.
+            hub.requests.push(HomeRequest::OpenTool(id));
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);

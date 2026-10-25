@@ -11,6 +11,46 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fixed: closing the window hung the process.** The one tokio runtime
+  is dropped when `main` returns, and that `Drop` waits for every
+  *blocking* task; a follower parked in a blocking read — a
+  `docker logs --follow` on a quiet container, a `tail -F` over SSH —
+  never returns, so the window vanished and the process stayed until
+  Task Manager killed it. The process now leaves through
+  `std::process::exit` once the layout is saved and the tools are
+  dropped, and a watchdog armed on the first close request exits anyway
+  after a few seconds, so no driver can hold the window open.
+- **Fixed: Restart and Install left two copies running.** The same hang:
+  the new version waits 30 seconds for the old process and then opens
+  beside it. With the old one leaving in about two seconds, the hand-over
+  works; the updater's own close arms the watchdog too.
+- **Fixed: a followed command outlived its tab.** Closing a Logs tab set
+  a stop flag the follower never saw, because it was parked in a read.
+  The tab now kills the child — on Windows the whole tree, since killing
+  a `cmd /C …` leaves `wsl.exe` holding the pipe.
+- **The activity toolbar is the work pane's width**, not the window's.
+  The rail and the sidebar start a row higher, directly under the
+  environment banner, and the toolbar sits over the pane it acts on —
+  where the status bar already was. An activity with no toolbar (a
+  dashboard home tab) gets no empty strip.
+- **No tab is bound to an environment.** The "This tab is pinned to
+  *prod*" note is gone from the banner, which now shows the open
+  workspace's active environment and nothing else, and a tab's colour is
+  only the one the user gave it. `Tool::environment` is removed. A
+  connection profile keeps its Environment field — that is what makes a
+  production profile read-only, a guard rather than a label on a tab.
+- **Home has an activity toolbar**: a row of icons for the activities
+  this workspace shows in its rail, in rail order, with Settings after a
+  separator — no labels, the name on hover, and the rail's own colours
+  when Coloured Activity Icons is on. A click opens that activity's
+  dashboard; Settings opens on the page it was last left on.
+- **Fixed: an S3 tab was titled after the bucket**, not the connection
+  (`s3://shop-backups` rather than the profile's name), which left two
+  profiles on one bucket indistinguishable. Every connection activity
+  now titles its tab after the connection, and a profile renamed in
+  Settings renames its open tabs — SSH, S3, Redis, NoSQL and Containers
+  take the new name without disturbing the session.
+
 - **Edit This Connection…**, first in the context menu of every
   connection row in every activity's sidebar — SSH, S3, Database, Redis,
   NoSQL and now the Container hosts. It opens Settings → Connections

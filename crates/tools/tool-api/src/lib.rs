@@ -1446,10 +1446,6 @@ impl Tool for ApiTool {
         self.is_dirty()
     }
 
-    fn environment(&self) -> Option<String> {
-        None
-    }
-
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         self.poll(cx);
         let theme = Theme::from_settings(&cx.services.settings.read().appearance);

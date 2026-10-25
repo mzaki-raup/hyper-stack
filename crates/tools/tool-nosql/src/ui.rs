@@ -372,12 +372,24 @@ impl Tool for NoSqlTool {
         }
     }
 
-    fn environment(&self) -> Option<String> {
-        self.env_id.clone()
-    }
-
     fn current_connection(&self) -> Option<&str> {
         self.state.conn_id.as_deref()
+    }
+
+    /// A renamed profile renames its tab. The name is the only thing
+    /// taken: a rename must not disturb a live session.
+    fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
+        if matches!(ev, hs_core::events::Event::ConnectionsChanged)
+            && let Some(id) = self.state.conn_id.clone()
+            && let Some(name) = cx
+                .services
+                .connections
+                .read()
+                .by_id(&id)
+                .map(|c| c.name.clone())
+        {
+            self.conn_name = name;
+        }
     }
 
     fn save_state(&self) -> serde_json::Value {

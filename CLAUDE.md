@@ -604,6 +604,31 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   lock fix, and remember the release job may already have tagged `main`
   before the merge.
 
+### Shutting down
+- **Dropping the tokio `Runtime` waits for every blocking task**, and
+  `main` returning is what drops it. A `spawn_blocking` follower parked
+  in a blocking `read` never returns, so the window closed and the
+  process stayed alive for ever - Task Manager was the only way out, and
+  the updater's "Restart and Install" looked broken because the new
+  version waits 30 s for the old pid and then opens beside it (owner's
+  report, 2026-10-25). `main` ends with `std::process::exit(0)`: by then
+  the layout is saved and `on_exit` has dropped the tools. Never let
+  process exit depend on a blocking task finishing, and never add a
+  `Drop` that waits unbounded on a child.
+- **A stop flag does not reach a thread parked in `read`.** Anything
+  that follows a child must be able to *end* that child from outside
+  the reading thread - the flag is only read between reads, and for a
+  quiet source there is no next read. On Windows killing a `cmd /C …`
+  is not enough either: its grandchild (`wsl.exe`, `docker`) inherited
+  the pipe and keeps it open, so the kill has to take the tree
+  (`taskkill /T /F /PID`).
+- The shell arms a **watchdog** on the first close request that exits
+  the process a few seconds later whatever is still running. It is the
+  floor, not a licence: a hang it covers is still a bug. It fires after
+  any update install, so an install that ever became slow (a cross-
+  volume copy rather than a rename) would need the grace period
+  revisited.
+
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so

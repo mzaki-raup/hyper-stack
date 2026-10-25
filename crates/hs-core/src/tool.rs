@@ -244,11 +244,6 @@ pub trait Tool: Send {
         Vec::new()
     }
 
-    /// Environment this tab is bound to (drives the banner colour).
-    fn environment(&self) -> Option<String> {
-        None
-    }
-
     /// Main area. Called every frame the tab is visible.
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext);
 

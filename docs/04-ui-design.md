@@ -10,9 +10,11 @@
 ├──────────────────────────────────────────────────────────────────────────────────────┤
 │ 📌 main.rs │ 🗄 orders — staging │ 🌐 POST /checkout │ 🖥 web-01 │ ☁ assets-bucket │ ⌥ git │ + │ tab row 1
 │ 📝 docker-compose.yml │ 🗄 users — prod 🔒 │ 💻 pwsh │ 🧰 JWT │                           │ tab row 2 (wraps)
-├────┬─────────────────────────────────────────────────────────────────────────────────┤
-│ ▤  │ ▌ staging ▐  toolbar of the active tool (Run ▶  Explain  Commit  Format …)        │ env banner + toolbar
-│ 📝 │─────────────────────────────┬───────────────────────────────────────────────────│
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│ ▌ staging ▐                                                                          │ env banner (window)
+├────┬─────────────────────────────┬───────────────────────────────────────────────────┤
+│ ▤  │                             │ toolbar of the active tab (Run ▶  Explain  …)     │ toolbar (pane)
+│ 📝 │                             │───────────────────────────────────────────────────│
 │ 🗄 │                             │                                                   │
 │ 🌐 │   sidebar of active tool    │   main area of the active tab                     │
 │ 🖥 │   (schema tree, project     │                                                   │
@@ -223,6 +225,21 @@ category, recently closed tabs, pinned connections) and the keys worth
 knowing. It replaced the Welcome tab and Settings → Welcome. Like Settings,
 it cannot be closed or unpinned and is not part of the saved layout.
 
+Home is the one dashboard with a **toolbar**: a row of activity icons, the
+quickest way from Home to anywhere (owner's requirement, 2026-10-25). It is
+the same set the rail shows for this workspace, in the same order — Settings
+→ Appearance → Activity Rail is per workspace, so an activity hidden there
+is hidden here — minus Home itself and the sidebar toggle, which is a view
+switch rather than an activity, plus **Settings** after a separator, as at
+the foot of the rail. Icons only, with the activity's name on hover: the
+names are already under the rail's icons, and a row of labels would be a
+worse version of the launcher further down the page. Their colour follows
+Settings → Appearance → Sidebar → Coloured Activity Icons, so the two
+columns of icons never disagree. A click opens the activity's **dashboard**
+— the request carries no item, which is what makes `open_tool` focus the
+dashboard home tab — and Settings opens on the page it was last left on,
+General the first time.
+
 The launcher content is also what an empty tab space shows:
 
 Shown by `+`, Ctrl+T, and when the last tab is closed.
@@ -265,15 +282,38 @@ MongoDB, …) are drawn muted, are not clickable, and say so in their tooltip.
   bonuses for word starts, camel humps and recency) and one renderer, with a
   provider trait so tools register their own item sources.
 
+### 1.1 Panel order (2026-10-25)
+
+The shell declares its egui panels in this order, and the order *is* the
+layout: top bar, tab strip, environment banner — each the width of the
+window — then the activity rail, then the sidebar, and only then the
+**toolbar**, the status bar and the dock, each of which therefore spans
+what the two left panels leave: the work pane's own column.
+
+The toolbar used to sit in the banner's panel, full width, which pushed
+the rail and the sidebar a row down and put the buttons that act on the
+pane above the sidebar as well. It is the *tab's* toolbar, so it belongs
+over the tab's pane — where the status bar already was. The panel is
+skipped entirely when the active tab has no toolbar (a dashboard home
+tab), rather than drawn empty. Owner's requirement.
+
 ## 5. Environments in the UI
 
 - The title-bar **environment switcher** shows the active environment with its
-  colour. Switching emits an event; tools whose current tab is bound to a
-  different environment show a "This tab is pinned to *prod*" badge rather than
-  switching silently.
-- The **environment banner** under the tab strip shows the environment name of
-  the active tab. Production (or any environment flagged `protected`) also gets
-  a 2 px coloured frame around the whole main area.
+  colour. Switching emits an event.
+- The **environment banner** under the tab strip shows **the open workspace's**
+  active environment — the same for every tab. Production (or any environment
+  flagged `protected`) also gets a 2 px coloured frame around the whole main
+  area.
+- **No tab is bound to an environment** (2026-10-25). A tab used to pin itself
+  to whatever environment the connection it was opened from named: the banner
+  then read "This tab is pinned to *prod*", and the tab's colour stripe came
+  from that environment too. An environment is a property of the workspace, and
+  two tabs in one window claiming different ones is a reading nobody asked for.
+  `Tool::environment` is gone, so no tool can re-introduce the tie, and a tab's
+  colour is now only the one the user gave it. The **connection profile** keeps
+  its Environment field: that is what makes a production profile read-only
+  everywhere, which is a guard, not a label on a tab. Owner's requirement.
 - Protected environments: database connections default to read-only, API
   requests with non-GET methods ask for confirmation, SFTP/S3 deletes ask with
   the environment named, `git push --force` is disabled.

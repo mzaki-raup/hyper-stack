@@ -60,6 +60,11 @@ impl ToolFactory for S3Factory {
 #[serde(default)]
 struct State {
     conn_id: Option<String>,
+    /// The profile's name, kept here rather than looked up: `title` is
+    /// asked every frame and is handed no `Services`, and a restored tab
+    /// must read as its connection before anything has connected - with
+    /// a locked vault, that is for as long as the vault stays locked.
+    conn_name: String,
     bucket: Option<String>,
     prefix: String,
 }
@@ -220,6 +225,7 @@ impl S3Tool {
         self.client_error = None;
         self.waiting_for_vault = false;
         self.env_id = self.environment_of(services);
+        self.refresh_conn_name(services);
         let Some((_, f)) = self.fields(services) else {
             self.client_error = Some(services.t("s3-no-profile"));
             return;
@@ -446,6 +452,23 @@ impl S3Tool {
         env_id
             .and_then(|id| services.environments.read().by_id(&id).map(|e| e.protected))
             .unwrap_or(false)
+    }
+
+    /// Take the profile's name for the tab label, and notice a rename.
+    fn refresh_conn_name(&mut self, services: &Services) {
+        let name = self
+            .state
+            .conn_id
+            .as_deref()
+            .and_then(|id| {
+                services
+                    .connections
+                    .read()
+                    .by_id(id)
+                    .map(|c| c.name.clone())
+            })
+            .unwrap_or_default();
+        self.state.conn_name = name;
     }
 
     fn environment_of(&self, services: &Services) -> Option<String> {
@@ -1297,20 +1320,24 @@ impl Tool for S3Tool {
         &DESCRIPTOR
     }
 
+    /// The connection's own name, as every other connection activity
+    /// titles its tabs.
+    ///
+    /// It used to be the bucket's address (`s3://shop-backups`), which
+    /// names the *place* rather than the profile and left two profiles
+    /// open on the same bucket indistinguishable; the breadcrumb in the
+    /// pane says where you are (owner's report, 2026-10-25). With no
+    /// profile yet, the backend's own word, since "S3" is wrong for a
+    /// WebDAV share.
     fn title(&self) -> Cow<'_, str> {
-        // The scheme follows the store: a WebDAV share titled `s3:///`
-        // says the wrong thing twice over.
-        match (&self.state.bucket, self.backend()) {
-            (_, Some(Backend::Webdav)) => Cow::Borrowed("WebDAV"),
-            (Some(b), Some(Backend::Nexus)) => Cow::Owned(format!("nexus://{b}")),
-            (None, Some(Backend::Nexus)) => Cow::Borrowed("Nexus"),
-            (Some(b), _) => Cow::Owned(format!("s3://{b}")),
-            (None, _) => Cow::Borrowed("S3"),
+        if !self.state.conn_name.is_empty() {
+            return Cow::Borrowed(&self.state.conn_name);
         }
-    }
-
-    fn environment(&self) -> Option<String> {
-        self.env_id.clone()
+        match self.backend() {
+            Some(Backend::Webdav) => Cow::Borrowed("WebDAV"),
+            Some(Backend::Nexus) => Cow::Borrowed("Nexus"),
+            _ => Cow::Borrowed("S3"),
+        }
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -1710,6 +1737,7 @@ impl Tool for S3Tool {
                     }
                 } else if self.state.conn_id.is_none() {
                     self.state.conn_id = Some(id);
+                    self.refresh_conn_name(cx.services);
                     self.connect(cx.services);
                 } else {
                     cx.open("s3", Some(OpenRequest::Connection { id }));
@@ -1721,12 +1749,18 @@ impl Tool for S3Tool {
     }
 
     fn on_event(&mut self, ev: &Event, cx: &mut ToolContext) {
-        if let Event::FileSaved { uri } = ev {
-            let local = PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
-            let target = self.shared.lock().edits.get(&local).cloned();
-            if let Some((bucket, key)) = target {
-                self.put_back(cx.services, local, bucket, key);
+        match ev {
+            Event::FileSaved { uri } => {
+                let local = PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
+                let target = self.shared.lock().edits.get(&local).cloned();
+                if let Some((bucket, key)) = target {
+                    self.put_back(cx.services, local, bucket, key);
+                }
             }
+            // A renamed profile renames its tab; no reconnect, the
+            // session is unaffected by what it is called.
+            Event::ConnectionsChanged => self.refresh_conn_name(cx.services),
+            _ => {}
         }
     }
 }

@@ -1561,6 +1561,21 @@ fn appearance(
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-rail-coloured-hint"));
+        ui.add_space(6.0);
+        // Only meaningful with the colours on, so it says so rather than
+        // sitting there doing nothing.
+        let coloured = settings.appearance.rail_coloured;
+        changed |= ui
+            .add_enabled(
+                coloured,
+                egui::Checkbox::new(
+                    &mut settings.appearance.rail_icon_outline,
+                    s.t("settings-rail-icon-outline"),
+                ),
+            )
+            .on_disabled_hover_text(s.t("settings-rail-icon-outline-needs-colour"))
+            .changed();
+        form::hint(ui, theme, &s.t("settings-rail-icon-outline-hint"));
     });
 
     form::section(ui, theme, &s.t("settings-section-tabs"), |ui| {

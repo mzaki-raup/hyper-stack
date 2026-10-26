@@ -99,6 +99,18 @@ pub struct Theme {
 }
 
 impl Theme {
+    /// What an icon's outline is drawn in: light on a dark theme, dark
+    /// on a light one, so the ring always separates the glyph from the
+    /// panel behind it rather than blending into it. Slightly
+    /// translucent, so it reads as an edge and not as a second icon.
+    pub fn icon_outline(&self) -> Color32 {
+        if self.dark {
+            Color32::from_rgba_unmultiplied(255, 255, 255, 205)
+        } else {
+            Color32::from_rgba_unmultiplied(0, 0, 0, 190)
+        }
+    }
+
     pub fn dark() -> Self {
         Self {
             name: "HyperStack Dark".into(),

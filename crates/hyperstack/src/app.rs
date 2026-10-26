@@ -2771,12 +2771,13 @@ impl HyperStackApp {
         let s = self.services.clone();
         // Order and visibility belong to the open workspace (seeded from
         // the global settings the first time); labels and colour are global.
-        let (labels, coloured, order, hidden) = {
+        let (labels, coloured, outlined, order, hidden) = {
             let st = s.settings.read();
             let prefs = s.workspace.read().meta.rail_prefs(&st.appearance);
             (
                 st.appearance.rail_labels,
                 st.appearance.rail_coloured,
+                st.appearance.rail_icon_outline,
                 prefs.order,
                 prefs.hidden,
             )
@@ -2836,9 +2837,11 @@ impl HyperStackApp {
             } else {
                 title.clone()
             };
-            if rail_item(ui, &theme, id, icon, title, active, coloured, label_h)
-                .tip(tip)
-                .clicked()
+            if rail_item(
+                ui, &theme, id, icon, title, active, coloured, outlined, label_h,
+            )
+            .tip(tip)
+            .clicked()
             {
                 this.select_group(id);
                 // The strip and main area change next frame; make sure it comes.
@@ -2874,6 +2877,7 @@ impl HyperStackApp {
                     &s.t("sidebar"),
                     self.sidebar_open,
                     coloured,
+                    outlined,
                     label_h,
                 )
                 .tip(s.t("sidebar-toggle"))
@@ -4331,6 +4335,12 @@ fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
     h.finish()
 }
 
+/// How far the ring around an activity icon reaches, in points. Enough
+/// to separate a coloured glyph from the panel behind it without
+/// closing up the glyph's own detail at 18 px (owner's requirement,
+/// 2026-10-26).
+pub(crate) const ICON_OUTLINE_WIDTH: f32 = 1.5;
+
 /// Each activity's own colour in the rail, so the column reads at a
 /// glance rather than as a row of same-coloured glyphs. Muted while
 /// inactive, full while active or hovered.
@@ -4367,6 +4377,7 @@ fn rail_item(
     label: &str,
     active: bool,
     coloured: bool,
+    outlined: bool,
     label_h: Option<f32>,
 ) -> egui::Response {
     let size = match label_h {
@@ -4394,13 +4405,25 @@ fn rail_item(
         (false, true) => theme.text,
         (false, false) => theme.text_muted,
     };
+    // Only a **coloured** icon gets the ring. A plain one is already the
+    // theme's text colour, so a contrasting outline would sit lighter
+    // than the glyph in dark mode and read as a glow around a blob
+    // rather than as an edge.
+    let outline = if coloured && outlined {
+        theme.icon_outline()
+    } else {
+        egui::Color32::TRANSPARENT
+    };
     let Some(h) = label_h else {
-        ui.painter().text(
+        hs_ui::icons::outlined_text(
+            ui.painter(),
             rect.center(),
             egui::Align2::CENTER_CENTER,
             icon,
             egui::FontId::proportional(24.0),
             col,
+            outline,
+            ICON_OUTLINE_WIDTH,
         );
         r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, label));
         return r.on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -4414,12 +4437,15 @@ fn rail_item(
     } else {
         (22.0, 17.0)
     };
-    ui.painter().text(
+    hs_ui::icons::outlined_text(
+        ui.painter(),
         egui::pos2(rect.center().x, rect.top() + icon_y),
         egui::Align2::CENTER_CENTER,
         icon,
         egui::FontId::proportional(icon_size),
         col,
+        outline,
+        ICON_OUTLINE_WIDTH,
     );
     let galley = ui.painter().layout(
         label.to_string(),

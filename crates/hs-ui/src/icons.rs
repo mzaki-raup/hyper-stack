@@ -42,3 +42,53 @@ pub const EDIT: &str = ph::PENCIL_SIMPLE;
 pub const ARROW_UP: &str = ph::ARROW_CIRCLE_UP;
 pub const EYE: &str = ph::EYE;
 pub const EYE_SLASH: &str = ph::EYE_SLASH;
+
+/// Paint a glyph with a contrasting outline around it, and return the
+/// rectangle it covered.
+///
+/// epaint has no stroke for text - `TextShape` carries an `underline`
+/// and nothing else - so the ring is the glyph itself, drawn eight
+/// times at small offsets under the real one. `width` is that offset in
+/// points: about 1 reads as a hairline, 1.5 to 2 as a drawn edge. The
+/// diagonals are pulled in by √½ so the ring is round rather than
+/// square.
+///
+/// Nine text shapes per icon is nothing for a rail of sixteen and would
+/// be worth thinking about for a tree of hundreds, which is why this is
+/// a helper the caller opts into rather than something `painter.text`
+/// does everywhere.
+#[allow(clippy::too_many_arguments)]
+pub fn outlined_text(
+    painter: &egui::Painter,
+    pos: egui::Pos2,
+    anchor: egui::Align2,
+    text: impl ToString,
+    font: egui::FontId,
+    fill: egui::Color32,
+    outline: egui::Color32,
+    width: f32,
+) -> egui::Rect {
+    let text = text.to_string();
+    if width > 0.0 && outline.a() > 0 {
+        let d = width * std::f32::consts::FRAC_1_SQRT_2;
+        for (dx, dy) in [
+            (-width, 0.0),
+            (width, 0.0),
+            (0.0, -width),
+            (0.0, width),
+            (-d, -d),
+            (d, -d),
+            (-d, d),
+            (d, d),
+        ] {
+            painter.text(
+                pos + egui::vec2(dx, dy),
+                anchor,
+                &text,
+                font.clone(),
+                outline,
+            );
+        }
+    }
+    painter.text(pos, anchor, &text, font, fill)
+}

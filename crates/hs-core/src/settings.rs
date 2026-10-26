@@ -295,6 +295,12 @@ pub struct Appearance {
     /// theme's text colour (the default). Owner's rule, 2026-10-23.
     #[serde(default)]
     pub rail_coloured: bool,
+    /// A contrasting ring around each **coloured** activity icon - light
+    /// on a dark theme, dark on a light one - so the glyph separates
+    /// from the panel behind it. Does nothing while `rail_coloured` is
+    /// off: a plain icon is the theme's text colour already, and a ring
+    /// round that reads as a glow. Owner's requirement, 2026-10-26.
+    pub rail_icon_outline: bool,
     /// Tool ids in the order the rail shows them; ids missing here follow
     /// in their default order. Home is always first and Settings last.
     /// Since 2026-10-23 only the seed for a workspace that has no `[rail]`
@@ -661,6 +667,13 @@ impl Default for Appearance {
             ui_zoom: 1.0,
             rail_labels: true,
             rail_coloured: false,
+            // On, so turning the colours on gives the contrast this was
+            // asked for without a second trip to Settings. The field
+            // default comes from here, not from `bool`: the `default` on
+            // the *container* is what fills a missing field, and a
+            // `#[serde(default)]` on the field itself would quietly make
+            // it `false` for everyone who already has a settings file.
+            rail_icon_outline: true,
             rail_order: Vec::new(),
             rail_hidden: Vec::new(),
         }
@@ -725,6 +738,34 @@ mod tests {
         assert_eq!(s2.appearance.min_file_tab_width, 160.0);
         assert_eq!(s2.appearance.tab_gap, 4.0);
         assert_eq!(s2.general.startup_workspace, "default");
+    }
+
+    /// A settings file written before the outline existed must come back
+    /// with it **on**, not with `bool`'s own default.
+    ///
+    /// The `#[serde(default)]` that fills a missing field is the one on
+    /// the *container*, so the value comes from `Appearance::default()`.
+    /// Putting the attribute on the field instead would silently hand
+    /// everyone `false` - the trap a new `f32` fell into once already.
+    #[test]
+    fn an_older_settings_file_gains_the_icon_outline_switched_on() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.toml");
+        std::fs::write(
+            &p,
+            "schema = 1
+[appearance]
+rail_labels = true
+rail_coloured = true
+",
+        )
+        .unwrap();
+        let s = Settings::load(&p).unwrap();
+        assert!(s.appearance.rail_coloured, "the file said so");
+        assert!(
+            s.appearance.rail_icon_outline,
+            "a file written before the field existed must take the struct's default"
+        );
     }
     #[test]
     fn a_cli_profile_builds_its_command_line() {

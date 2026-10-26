@@ -106,11 +106,19 @@ impl Tool for HomeTool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let (coloured, order, hidden) = {
+        let (coloured, outlined, order, hidden) = {
             let st = s.settings.read();
             let prefs = s.workspace.read().meta.rail_prefs(&st.appearance);
-            (st.appearance.rail_coloured, prefs.order, prefs.hidden)
+            (
+                st.appearance.rail_coloured,
+                st.appearance.rail_icon_outline,
+                prefs.order,
+                prefs.hidden,
+            )
         };
+        // Room to breathe between the icons; the row is a set of targets,
+        // not a word.
+        ui.spacing_mut().item_spacing.x = 8.0;
         let mut hub = self.hub.lock();
         let hub = &mut *hub;
         let ids: Vec<&'static str> = hub.tools.iter().map(|t| t.id).collect();
@@ -129,11 +137,44 @@ impl Tool for HomeTool {
                 theme.text
             };
             let label = s.t(d.title_key);
-            if ui
-                .add(
-                    egui::Button::new(egui::RichText::new(d.icon).size(18.0).color(colour))
-                        .frame(false),
-                )
+            // Painted rather than a `Button` with a `RichText` label:
+            // the outline is eight offset copies of the glyph under the
+            // real one, and egui lays a button's text out itself.
+            let (rect, r) = ui.allocate_exact_size(egui::vec2(34.0, 34.0), egui::Sense::click());
+            // Hovering says "this is the one you are about to open": a
+            // filled plate and an accent edge, which a bare colour change
+            // on a coloured glyph could not say (owner's requirement,
+            // 2026-10-26).
+            if r.hovered() {
+                let radius = egui::CornerRadius::same(8);
+                ui.painter().rect_filled(rect, radius, theme.surface_hover);
+                ui.painter().rect_stroke(
+                    rect,
+                    radius,
+                    egui::Stroke::new(1.0, theme.accent),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            hs_ui::icons::outlined_text(
+                ui.painter(),
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                d.icon,
+                egui::FontId::proportional(22.0),
+                colour,
+                // As in the rail: the ring is for a coloured glyph. A
+                // plain one is the theme's text colour already.
+                if coloured && outlined {
+                    theme.icon_outline()
+                } else {
+                    egui::Color32::TRANSPARENT
+                },
+                crate::app::ICON_OUTLINE_WIDTH,
+            );
+            // A painted control has no AccessKit node of its own, so a
+            // screen reader and `egui_kittest` would both miss it.
+            r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+            if r.on_hover_cursor(egui::CursorIcon::PointingHand)
                 .on_hover_text(&label)
                 .clicked()
             {

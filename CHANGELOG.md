@@ -11,6 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fixed: Remove From List left the project's tabs open.** The shell
+  matched an open tab against the file it had open, which a project tab
+  with no file does not have, so removing a project from either the
+  Editor's sidebar or Settings closed nothing (owner's report). A tool
+  now publishes its project roots for that match as well. The folder on
+  disk is still never touched.
+- **Open Folder As Project goes to the same form.** Home -> Get Started
+  now opens Settings -> Editor with a blank project form and the folder
+  chooser, exactly as the Editor sidebar's + does.
 - **Settings -> Editor -> Project List works like Connections.** Add
   Project Folder leads the card and opens an empty form in the detail
   column rather than a file dialog - the folder is one field of

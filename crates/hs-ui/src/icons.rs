@@ -247,3 +247,37 @@ pub fn language_icon(id: &str) -> &'static str {
         _ => ph::FOLDER,
     }
 }
+
+/// The glyph for a saved connection **profile**, reading whatever the
+/// profile itself knows.
+///
+/// [`connection_icon`] answers from the kind alone, which is all most
+/// kinds have. Two kinds know more about themselves and keep it on the
+/// profile:
+///
+/// * `db` carries the engine, so PostgreSQL gets the elephant.
+/// * `ssh` carries the operating system found by the probe on connect,
+///   so a host wears its distribution's logo.
+///
+/// Every list that shows profiles goes through this, because the SSH
+/// sidebar read `os_id` and Settings -> Connections did not: the same
+/// host had two different icons depending on where you looked at it
+/// (owner's report, 2026-10-26).
+pub fn profile_icon(profile: &hs_core::connections::ConnectionProfile) -> &'static str {
+    let field = |section: &str, key: &str| -> &str {
+        profile
+            .fields
+            .get(section)
+            .and_then(|v| v.as_table())
+            .and_then(|t| t.get(key))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+    };
+    if profile.kind == "ssh" {
+        let os = field("ssh", "os_id");
+        if !os.is_empty() {
+            return os_icon(os);
+        }
+    }
+    connection_icon(&profile.kind, field("db", "engine"))
+}

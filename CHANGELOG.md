@@ -11,6 +11,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Settings -> Editor opens with a Project List.** The folders the
+  Editor activity offers, each with its language's own logo, dragged
+  into the order its sidebar will show them. Add a folder, rename a
+  project, point it somewhere else, or set the Git name and e-mail its
+  commits carry - written into that repository's own config, never your
+  global one, so an identity cannot leak between projects.
+- **Remove From List forgets a folder; it never deletes one.** The
+  confirmation says so outright, and a test in `hs_core::projects`
+  asserts the folder and its files are still there afterwards.
+- **Deleting a connection now closes its tabs.** A tab pointed at a
+  profile that no longer exists had nothing to show and a name that
+  lied; it goes with the profile, as a removed project's tab does.
+- **An SSH host wears its operating system in Settings too.** Settings ->
+  Connections worked its icon out from the kind alone, so the same host
+  was a plain tower there and an Ubuntu or Apple logo in the SSH
+  sidebar. One `profile_icon` answers for both now.
+- **Fixed: the Go gopher was drawing the SoundCloud logo.** egui ships a
+  legacy icon font that claims 58 Private Use Area codepoints, three of
+  which collided with Go, C++ and Elixir. The bundled Nerd Font now
+  answers that range first; real emoji are unaffected.
+
 - **Every toolbar button says what it is.** Across the Scratchpad, the
   Editor and its debugger, SSH, Containers, Logs and all four Graphics
   tools, a control that was a bare glyph now carries its name beside it,

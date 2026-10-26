@@ -129,6 +129,16 @@ impl Projects {
             }
             Err(_) => Vec::new(),
         };
+        // An entry with no cached language gets one now: a list written
+        // by an older build, or by hand, would otherwise draw plain
+        // folders for ever. Only the blanks are detected, so this is a
+        // few `stat`s on the first open and nothing afterwards; Save in
+        // Settings re-detects a project whose manifest has changed.
+        for p in &mut items {
+            if p.language.is_empty() {
+                p.language = detect_language(&p.root).to_string();
+            }
+        }
         items.sort_by_key(|p| (p.order, p.name.to_lowercase()));
         Self {
             path: path.to_path_buf(),
@@ -204,7 +214,11 @@ impl Projects {
 
 /// Compare paths without caring about a trailing separator or the
 /// `\\?\` prefix `canonicalize` adds on Windows.
-fn normalise(p: &Path) -> String {
+///
+/// Public because the shell compares a tab's open file against a project
+/// root with it, and two different spellings of one path are how "close
+/// the tabs of this project" quietly misses half of them.
+pub fn normalise(p: &Path) -> String {
     let s = p.to_string_lossy().replace('\\', "/");
     let s = s.strip_prefix("//?/").unwrap_or(&s).to_string();
     s.trim_end_matches('/').to_lowercase()
@@ -310,6 +324,40 @@ mod tests {
         assert!(projects.all().is_empty(), "the entry is gone from the list");
         assert!(root.is_dir(), "the folder is untouched");
         assert!(root.join("main.rs").is_file(), "its files are untouched");
+    }
+
+    /// A list written before the language was ever detected - or by
+    /// hand - still draws the right icons.
+    #[test]
+    fn a_blank_language_is_worked_out_when_the_list_is_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("svc");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::write(
+            root.join("go.mod"),
+            "module svc
+",
+        )
+        .unwrap();
+        let path = tmp.path().join("projects.toml");
+        std::fs::write(
+            &path,
+            format!(
+                "schema = 1
+
+[[project]]
+id = \"a\"
+name = \"Svc\"
+root = '{}'
+language = \"\"
+order = 1
+",
+                root.display()
+            ),
+        )
+        .unwrap();
+        let projects = Projects::load(&path);
+        assert_eq!(projects.all()[0].language, "go");
     }
 
     #[test]

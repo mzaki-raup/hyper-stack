@@ -241,6 +241,10 @@ pub struct HyperStackApp {
     vault_dialog: VaultDialog,
     password: PasswordDialogState,
     confirm_close: Option<u64>,
+    /// Settings -> Editor -> Project List -> Remove From List: the
+    /// project waiting on a yes, as (id, name). The folder is never
+    /// touched - see the dialog body.
+    confirm_remove_project: Option<(String, String)>,
     last_input: Instant,
     /// When a secret copied from Settings → Security leaves the clipboard.
     clear_clipboard_at: Option<Instant>,
@@ -368,6 +372,7 @@ impl HyperStackApp {
             vault_dialog: VaultDialog::None,
             password: PasswordDialogState::default(),
             confirm_close: None,
+            confirm_remove_project: None,
             last_input: Instant::now(),
             clear_clipboard_at: None,
             last_layout_save: Instant::now(),
@@ -1083,6 +1088,61 @@ impl HyperStackApp {
         self.launcher.query.clear();
     }
 
+    /// Close every tab that was showing the connection, host or
+    /// container `id`.
+    ///
+    /// Removing a saved profile used to leave its tabs open: the tool
+    /// then drew its "this has been deleted" empty state for ever, with
+    /// the deleted thing's name still on the tab. Closing is the honest
+    /// answer, and the owner asked for it in every activity
+    /// (2026-10-26). `force`, because the thing the tab would ask about
+    /// saving is the thing that has just been removed.
+    fn close_tabs_for_connection(&mut self, id: &str) {
+        let doomed: Vec<u64> = self
+            .tabs
+            .tabs
+            .iter()
+            .filter(|t| t.tool.current_connection() == Some(id))
+            .map(|t| t.id)
+            .collect();
+        for t in doomed {
+            self.close_tab(t, true);
+        }
+    }
+
+    /// Close every tab whose document or folder lives under `root`.
+    ///
+    /// The Editor's answer to the same question: a project removed from
+    /// the list takes its tab with it. Matched on the path rather than
+    /// on an id, because a tab reports the file it has open, which is
+    /// inside the project rather than the project itself.
+    fn close_tabs_under(&mut self, root: &std::path::Path) {
+        let want = hs_core::projects::normalise(root);
+        if want.is_empty() {
+            return;
+        }
+        let doomed: Vec<u64> = self
+            .tabs
+            .tabs
+            .iter()
+            .filter(|t| {
+                t.tool
+                    .current_uri()
+                    .map(|u| {
+                        let u = hs_core::projects::normalise(std::path::Path::new(
+                            u.strip_prefix("file://").unwrap_or(&u),
+                        ));
+                        u == want || u.starts_with(&format!("{want}/"))
+                    })
+                    .unwrap_or(false)
+            })
+            .map(|t| t.id)
+            .collect();
+        for t in doomed {
+            self.close_tab(t, true);
+        }
+    }
+
     fn close_tab(&mut self, id: u64, force: bool) {
         // Mandatory shell tabs and an activity's permanent home tab both
         // stay. Checking here covers Close Others and Close to the Right
@@ -1656,6 +1716,9 @@ impl HyperStackApp {
                     self.services.events.publish(Event::ConnectionsChanged);
                     self.toasts
                         .push(ToastLevel::Success, self.services.t("toast-saved"));
+                }
+                SettingsEffect::ConfirmRemoveProject(id, name) => {
+                    self.confirm_remove_project = Some((id, name));
                 }
                 SettingsEffect::OpenConnection { tool, id } => {
                     // Settings saved it a moment ago, so the activity reads
@@ -3940,7 +4003,8 @@ impl eframe::App for HyperStackApp {
             || self.confirm_revert
             || self.notifications_open
             || self.fallback_notice_open
-            || self.settings_ui.lock().state.confirm_delete.is_some();
+            || self.settings_ui.lock().state.confirm_delete.is_some()
+            || self.confirm_remove_project.is_some();
         let (blocklist, devtools_panel) = {
             let st = self.services.settings.read();
             (st.browser.blocklist.clone(), st.browser.devtools_panel)
@@ -4008,13 +4072,21 @@ impl eframe::App for HyperStackApp {
                     };
                     match res {
                         Ok(()) => {
-                            let mut hub = self.settings_ui.lock();
-                            if is_env {
-                                hub.state.env_draft = None;
-                                hub.state.env_selected = None;
-                            } else {
-                                hub.state.conn_draft = None;
-                                hub.state.conn_selected = None;
+                            {
+                                let mut hub = self.settings_ui.lock();
+                                if is_env {
+                                    hub.state.env_draft = None;
+                                    hub.state.env_selected = None;
+                                } else {
+                                    hub.state.conn_draft = None;
+                                    hub.state.conn_selected = None;
+                                }
+                            }
+                            // A tab pointed at a profile that no longer
+                            // exists has nothing to show and a name that
+                            // lies; it goes with the profile.
+                            if !is_env {
+                                self.close_tabs_for_connection(&id);
                             }
                         }
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
@@ -4022,6 +4094,45 @@ impl eframe::App for HyperStackApp {
                     self.settings_ui.lock().state.confirm_delete = None;
                 }
                 DialogResult::Cancel => self.settings_ui.lock().state.confirm_delete = None,
+                DialogResult::Open => {}
+            }
+        }
+        let confirm_project = self.confirm_remove_project.clone();
+        if let Some((id, name)) = confirm_project {
+            let s = self.services.clone();
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "remove-project",
+                &s.t("settings-project-remove"),
+                // The body says plainly that the folder stays. "Remove"
+                // next to a folder path reads as something much worse
+                // than it is (owner's requirement, 2026-10-26).
+                &s.i18n
+                    .t_args("settings-project-remove-confirm", &[("name", &name)]),
+                &s.t("settings-project-remove"),
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    let root = s.projects.read().by_id(&id).map(|p| p.root.clone());
+                    match s.projects.write().remove(&id) {
+                        Ok(()) => {
+                            {
+                                let mut hub = self.settings_ui.lock();
+                                hub.state.project_draft = None;
+                                hub.state.project_selected = None;
+                            }
+                            // The tab that had it open goes with it.
+                            if let Some(r) = root {
+                                self.close_tabs_under(&r);
+                            }
+                        }
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                    self.confirm_remove_project = None;
+                }
+                DialogResult::Cancel => self.confirm_remove_project = None,
                 DialogResult::Open => {}
             }
         }

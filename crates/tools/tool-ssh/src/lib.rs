@@ -1929,11 +1929,10 @@ impl Tool for SshTool {
             .of_kind("ssh")
             .map(|c| {
                 let f = SshFields::from_table(&c.fields);
-                let icon = if f.os_id.is_empty() {
-                    ph::COMPUTER_TOWER
-                } else {
-                    hs_ui::icons::os_icon(&f.os_id)
-                };
+                // One table for every list that shows a profile, so this
+                // sidebar and Settings -> Connections cannot disagree
+                // about what a host looks like.
+                let icon = hs_ui::icons::profile_icon(c);
                 (c.id.clone(), c.name.clone(), f.label(), c.pinned, icon)
             })
             .collect();

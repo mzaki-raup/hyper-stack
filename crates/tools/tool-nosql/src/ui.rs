@@ -806,6 +806,22 @@ impl NoSqlTool {
             ui.separator();
             ui.vertical(|ui| {
                 ui.set_width(main_width);
+                // Which container the right column is showing, over the
+                // column rather than in the toolbar: the toolbar belongs
+                // to the whole tab, this belongs to this pane (owner's
+                // requirement, 2026-10-27).
+                if let Some(c) = self.container() {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(format!("{} {}", ph::TABLE, c.display()))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    });
+                    ui.add_space(2.0);
+                    ui.separator();
+                    ui.add_space(2.0);
+                }
                 match self.state.tab {
                     Tab::Find => self.find_tab(ui, &theme, cx),
                     Tab::Aggregate => self.aggregate_tab(ui, &theme, cx),
@@ -896,21 +912,26 @@ impl NoSqlTool {
             let sh = self.shared.lock();
             (sh.databases.clone(), sh.containers.clone())
         };
-        ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new(s.t("nosql-containers"))
-                    .small()
-                    .color(theme.text_muted),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::icon_button(ui, theme, ph::ARROWS_CLOCKWISE, 14.0, false)
-                    .tip(s.t("nosql-refresh"))
-                    .clicked()
-                {
-                    self.send(Cmd::Databases);
-                }
-            });
-        });
+        ui.label(
+            egui::RichText::new(s.t("nosql-containers"))
+                .small()
+                .color(theme.text_muted),
+        );
+        // The label and the icon together, on their own row: this column
+        // is 230 px wide and the caption beside the button left no room
+        // for the words (owner's requirement, 2026-10-27).
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::ARROWS_CLOCKWISE,
+                s.t("nosql-reload-databases")
+            ))
+            .on_hover_text(s.t("nosql-refresh"))
+            .clicked()
+        {
+            self.send(Cmd::Databases);
+        }
+        ui.add_space(4.0);
         let dbs = match &databases {
             Load::Ready(d) => d.clone(),
             Load::Failed(e) => {

@@ -339,6 +339,15 @@ fn tool_button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egu
     r.tip(label)
 }
 
+/// The same button with its label beside the icon, for the value pane
+/// and the Info tab: those rows have the width for words, and a row of
+/// bare glyphs made the reader guess which one deletes a key (owner's
+/// requirement, 2026-10-27). The key list's own filter row keeps the
+/// icons, because 300 px is not enough for them.
+fn named_button(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
+    ui.button(format!("{icon} {label}"))
+}
+
 /// How wide the key list is beside the value pane.
 const KEY_LIST_WIDTH: f32 = 300.0;
 
@@ -1246,24 +1255,24 @@ impl RedisTool {
             }
         });
         ui.horizontal_wrapped(|ui| {
-            if tool_button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("redis-reload")).clicked() {
+            if named_button(ui, ph::ARROWS_CLOCKWISE, &s.t("redis-reload")).clicked() {
                 let k = info.key.clone();
                 self.open_key(&k);
             }
-            if tool_button(ui, &theme, ph::PENCIL, &s.t("redis-rename")).clicked() {
+            if named_button(ui, ph::PENCIL, &s.t("redis-rename")).clicked() {
                 self.popup = Some(Popup::Rename {
                     key: info.key.clone(),
                     to: info.key.clone(),
                 });
             }
-            if tool_button(ui, &theme, ph::TIMER, &s.t("redis-set-ttl")).clicked() {
+            if named_button(ui, ph::TIMER, &s.t("redis-set-ttl")).clicked() {
                 self.popup = Some(Popup::Ttl {
                     key: info.key.clone(),
                     text: String::new(),
                 });
             }
             if info.ttl_ms.is_some()
-                && tool_button(ui, &theme, ph::INFINITY, &s.t("redis-persist")).clicked()
+                && named_button(ui, ph::INFINITY, &s.t("redis-persist")).clicked()
             {
                 let w = Write::Ttl {
                     key: info.key.clone(),
@@ -1271,7 +1280,7 @@ impl RedisTool {
                 };
                 self.guarded_write(w, cx);
             }
-            if tool_button(ui, &theme, ph::TRASH, &s.t("redis-delete")).clicked() {
+            if named_button(ui, ph::TRASH, &s.t("redis-delete")).clicked() {
                 self.popup = Some(Popup::Delete {
                     keys: vec![info.key.clone()],
                     prefix: None,
@@ -1279,7 +1288,7 @@ impl RedisTool {
                 });
             }
             if kind.is_collection()
-                && tool_button(ui, &theme, ph::PLUS, &s.t("redis-add-member")).clicked()
+                && named_button(ui, ph::PLUS, &s.t("redis-add-member")).clicked()
             {
                 self.popup = Some(Popup::AddMember {
                     key: info.key.clone(),
@@ -1596,7 +1605,7 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         ui.horizontal(|ui| {
-            if tool_button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("redis-reload")).clicked() {
+            if named_button(ui, ph::ARROWS_CLOCKWISE, &s.t("redis-reload")).clicked() {
                 self.send(Cmd::RefreshInfo);
             }
         });

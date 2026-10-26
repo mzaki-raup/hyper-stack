@@ -331,5 +331,7 @@ Smaller things the driver is careful about:
 
 Verified against Qdrant 1.20.0: both seeded collections listed with
 their point counts, all five points of `articles` returned with their
-payload columns flattened, and the toolbar reporting the server
-version.
+payload columns flattened, and the header band reporting the server
+version (it moved out of the toolbar on 2026-10-26, with the container
+path following it over the right column on 2026-10-27; the container
+tree's reload button carries its label rather than a bare glyph).

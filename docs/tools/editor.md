@@ -552,3 +552,47 @@ project is not "a folder with .java files in it".
   project's own: a Python helper inside a Maven project runs as a script.
   The project's build file (pom.xml, build.gradle, package.json, …)
   counts as the project, so Run is offered while it is open.
+
+## 15. The project list (2026-10-26, language picker 2026-10-27)
+
+The activity is a list of **projects**, not of folders that happen to be
+open: the sidebar shows every saved project, the work pane gives each one
+a single tab, and the list itself is owned by `hs_core::projects`
+(`HyperStackData/projects.toml`, one `ProjectEntry` per row: id, name,
+root, language, order and the repository identity).
+
+- **One tab per project.** Clicking a project that is already open
+  focuses its tab rather than opening a second one. The activity also
+  keeps a permanent workspace tab and a dashboard.
+- **The sidebar** lists the projects in their saved order, draggable by
+  the grip (never by the row — `hs_ui::reorder`, and see the Gotcha about
+  `dnd_drag_source` swallowing clicks). `+` opens the add-project form in
+  Settings with the folder chooser; Home → Get Started → Open Folder As
+  Project goes to the same place.
+- **Right-click** a row for *Edit This Project Settings*, which jumps
+  into Settings → Editor the way a connection's menu does, and *Remove
+  From List*, which closes every tab under that root and **never touches
+  the folder on disk**. The confirmation says so in those words, because
+  "Remove" beside a path reads as something much worse than it is.
+- **Settings → Editor → Project List** is the same list as a
+  master/detail card, Connections-shaped: Add Project Folder leads the
+  card and opens an empty form in the detail column, and Save returns to
+  the list.
+- **Per-project settings** are Name, Project Folder, Language, and six
+  repository-local Git keys (name, email, signing key, a three-state Sign
+  Commits, default branch and remote URL) written to the repository's own
+  `.git/config`. An empty field *unsets* the key rather than writing a
+  blank one, so the global identity is inherited again.
+- **Language.** `projects::detect_language` reads the folder's manifest
+  (`Cargo.toml` → Rust, `go.mod` → Go, a `package.json` beside a
+  `tsconfig.json` → TypeScript, …), which is right for most folders and
+  wrong for one that carries none or carries two. The Language field
+  lists the 26 ids `hs_ui::icons::language_icon` draws, pre-selected from
+  detection and overridable; **Detect from the folder** is the empty
+  value and puts it back. Whatever it says reaches the tab icon, the
+  sidebar row and the header band's `Version : Rust 1.89.0` fact
+  (`tool-editor::langver`, which asks the toolchain once per session on
+  the blocking pool).
+- **The dashboard** carries the project count, the number of tabs open
+  here, Add Project Folder and Manage Projects, the project list itself,
+  and then the shared **Open Here** grid every other activity shows.

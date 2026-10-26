@@ -37,36 +37,11 @@ fn probe(language: &str) -> Option<(&'static str, &'static [&'static str])> {
 }
 
 /// The human name a version is prefixed with, so the fact reads
-/// "Rust 1.89.0" rather than "1.89.0".
+/// "Rust 1.89.0" rather than "1.89.0". The list itself lives in
+/// `hs_core::projects`, because Settings offers the same names when a
+/// project's language is chosen by hand.
 pub fn display_name(language: &str) -> &'static str {
-    match language {
-        "rust" => "Rust",
-        "go" => "Go",
-        "python" => "Python",
-        "java" => "Java",
-        "kotlin" => "Kotlin",
-        "scala" => "Scala",
-        "javascript" => "JavaScript",
-        "typescript" => "TypeScript",
-        "node" => "Node.js",
-        "dart" => "Dart",
-        "php" => "PHP",
-        "ruby" => "Ruby",
-        "csharp" => "C#",
-        "cpp" => "C++",
-        "c" => "C",
-        "elixir" => "Elixir",
-        "haskell" => "Haskell",
-        "perl" => "Perl",
-        "zig" => "Zig",
-        "lua" => "Lua",
-        "css" => "CSS",
-        "html" => "HTML",
-        "markdown" => "Markdown",
-        "shell" => "Shell",
-        "terraform" => "Terraform",
-        _ => "",
-    }
+    hs_core::projects::language_name(language)
 }
 
 /// The cached answer for `language`, if one has been worked out.

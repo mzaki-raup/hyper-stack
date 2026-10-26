@@ -1121,12 +1121,14 @@ impl HyperStackApp {
         }
     }
 
-    /// Close every tab whose document or folder lives under `root`.
+    /// Close every tab that belongs to the project at `root`.
     ///
-    /// The Editor's answer to the same question: a project removed from
-    /// the list takes its tab with it. Matched on the path rather than
-    /// on an id, because a tab reports the file it has open, which is
-    /// inside the project rather than the project itself.
+    /// Two signals, because one is not enough: a tab's `current_uri` is
+    /// the **file** it has open, which is `None` for a project tab that
+    /// has opened nothing yet - so matching on that alone left exactly
+    /// the tabs a removal is most likely to mean (owner's report,
+    /// 2026-10-27). `project_roots` is what a tool says about the
+    /// folders it holds, which is the question actually being asked.
     fn close_tabs_under(&mut self, root: &std::path::Path) {
         let want = hs_core::projects::normalise(root);
         if want.is_empty() {
@@ -1137,13 +1139,22 @@ impl HyperStackApp {
             .tabs
             .iter()
             .filter(|t| {
+                let under = |p: &str| p == want || p.starts_with(&format!("{want}/"));
+                // The folders the tool says it holds...
+                if t.tool
+                    .project_roots()
+                    .iter()
+                    .any(|r| under(&hs_core::projects::normalise(r)))
+                {
+                    return true;
+                }
+                // ...or a file it has open inside the project.
                 t.tool
                     .current_uri()
                     .map(|u| {
-                        let u = hs_core::projects::normalise(std::path::Path::new(
+                        under(&hs_core::projects::normalise(std::path::Path::new(
                             u.strip_prefix("file://").unwrap_or(&u),
-                        ));
-                        u == want || u.starts_with(&format!("{want}/"))
+                        )))
                     })
                     .unwrap_or(false)
             })
@@ -1223,6 +1234,23 @@ impl HyperStackApp {
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
+            // Add a project: Settings -> Editor with an empty form in
+            // the detail column. `:pick` also opens the folder chooser,
+            // which is what the Editor sidebar's + means by "add a
+            // folder" (owner's requirement, 2026-10-27).
+            "settings:project:new" | "settings:project:new:pick" => {
+                self.open_settings(Some(settings_ui::Page::Editor));
+                let mut draft = settings_ui::ProjectDraft::blank();
+                if action.ends_with(":pick")
+                    && let Some(root) = rfd::FileDialog::new().pick_folder()
+                {
+                    draft.entry = hs_core::projects::ProjectEntry::for_root(root);
+                    draft.is_repo = draft.entry.root.join(".git").exists();
+                }
+                let mut ui = self.settings_ui.lock();
+                ui.state.project_selected = None;
+                ui.state.project_draft = Some(draft);
+            }
             // Edit This Connection, from any activity's sidebar: the page
             // opens with that profile already selected in its form, so the
             // user is not left to find it in the list again.
@@ -2766,6 +2794,13 @@ impl HyperStackApp {
         }
         if r.new_tab {
             match self.group.clone() {
+                // The Editor's tabs are projects, and a project is added
+                // in one place: the `+` takes the user to the form in
+                // Settings rather than opening an untitled buffer that
+                // belongs to nothing (owner's requirement, 2026-10-27).
+                Some(g) if g == "editor" => {
+                    self.run_action("settings:project:new");
+                }
                 // A new tab of this activity, not "open this activity":
                 // for one with a dashboard home those are different
                 // things, and the second does nothing when the dashboard
@@ -3254,8 +3289,10 @@ impl HyperStackApp {
                 self.open_tool(&tool, Some(OpenRequest::Connection { id }))
             }
             HomeRequest::OpenFolderAsProject => {
-                self.open_tool("editor", None);
-                self.run_action("file.open_folder");
+                // The same road as the Editor's own + buttons: a project
+                // is added in one place, and that place is the form in
+                // Settings (owner's requirement, 2026-10-27).
+                self.run_action("settings:project:new:pick");
             }
             HomeRequest::NewConnection => {
                 self.open_settings(Some(settings_ui::Page::Connections));

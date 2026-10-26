@@ -4504,6 +4504,19 @@ pub struct ProjectDraft {
 }
 
 impl ProjectDraft {
+    /// A draft for a project being **added**: an empty form in the
+    /// detail column, exactly as New Connection gives one.
+    ///
+    /// Nothing is written until Save, so a folder picked and then
+    /// thought better of leaves no entry behind.
+    pub fn blank() -> Self {
+        Self {
+            entry: hs_core::projects::ProjectEntry::default(),
+            git: hs_git::write::RepoConfig::default(),
+            is_repo: false,
+        }
+    }
+
     /// Public so the shell can open this form from the Editor's sidebar
     /// (Edit This Project Settings).
     pub fn open(entry: hs_core::projects::ProjectEntry) -> Self {
@@ -4538,6 +4551,22 @@ fn project_list(
     effects: &mut Vec<SettingsEffect>,
 ) {
     form::section(ui, theme, &s.t("settings-section-project-list"), |ui| {
+        // Add leads the card, as New Connection leads the connections
+        // list, and opens an empty form in the detail column rather than
+        // a file dialog: the folder is one field of several, and picking
+        // it first put the cart before the horse (owner's requirement,
+        // 2026-10-27).
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("settings-project-add")),
+        )
+        .clicked()
+        {
+            state.project_selected = None;
+            state.project_draft = Some(ProjectDraft::blank());
+        }
+        ui.add_space(8.0);
         form::hint(ui, theme, &s.t("settings-project-list-hint"));
         let rows: Vec<(String, String, String, &'static str)> = s
             .projects
@@ -4579,43 +4608,6 @@ fn project_list(
             state.project_selected = Some(id.clone());
             if let Some(p) = s.projects.read().by_id(&id) {
                 state.project_draft = Some(ProjectDraft::open(p.clone()));
-            }
-        }
-        ui.add_space(6.0);
-        if form::primary_button(
-            ui,
-            theme,
-            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("settings-project-add")),
-        )
-        .clicked()
-            && let Some(root) = rfd::FileDialog::new().pick_folder()
-        {
-            // A folder already in the list opens rather than doubling:
-            // two rows for one folder is never what the click meant.
-            let existing = s.projects.read().by_root(&root).map(|p| p.id.clone());
-            let entry = match existing {
-                Some(id) => s.projects.read().by_id(&id).cloned(),
-                None => {
-                    let e = hs_core::projects::ProjectEntry::for_root(&root);
-                    match s.projects.write().upsert(e.clone()) {
-                        Ok(()) => Some(e),
-                        Err(err) => {
-                            effects.push(SettingsEffect::Toast(
-                                hs_core::tool::ToastLevel::Error,
-                                err.to_string(),
-                            ));
-                            None
-                        }
-                    }
-                }
-            };
-            if let Some(e) = entry {
-                state.project_selected = Some(e.id.clone());
-                state.project_draft = Some(ProjectDraft::open(e.clone()));
-                // Adding a folder here opens it, as adding one from the
-                // activity does: the two gestures mean the same thing
-                // (owner's requirement, 2026-10-26).
-                effects.push(SettingsEffect::OpenProject(e.root));
             }
         }
     });
@@ -4676,6 +4668,45 @@ fn project_detail(
                     draft.is_repo = re.is_repo;
                 }
             });
+            ui.end_row();
+
+            // Detection reads the manifest, which is right most of the
+            // time and wrong for a folder that carries none or carries
+            // two. The picker starts on whatever was detected and the
+            // choice sticks: it is what the tab icon, the sidebar row
+            // and the header band all read (owner's requirement,
+            // 2026-10-27). "Detect" puts it back.
+            form::label(ui, &s.t("settings-project-language"));
+            let current = if draft.entry.language.is_empty() {
+                s.t("settings-project-language-auto")
+            } else {
+                let name = hs_core::projects::language_name(&draft.entry.language);
+                if name.is_empty() {
+                    draft.entry.language.clone()
+                } else {
+                    name.to_string()
+                }
+            };
+            egui::ComboBox::from_id_salt("project-language")
+                .selected_text(format!(
+                    "{} {current}",
+                    hs_ui::icons::language_icon(&draft.entry.language)
+                ))
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut draft.entry.language,
+                        String::new(),
+                        s.t("settings-project-language-auto"),
+                    );
+                    for (id, name) in hs_core::projects::LANGUAGES {
+                        ui.selectable_value(
+                            &mut draft.entry.language,
+                            (*id).to_string(),
+                            format!("{} {name}", hs_ui::icons::language_icon(id)),
+                        );
+                    }
+                });
             ui.end_row();
         });
         ui.add_space(8.0);
@@ -4769,7 +4800,31 @@ fn project_detail(
 
     if save && let Some(draft) = state.project_draft.clone() {
         let mut entry = draft.entry.clone();
-        entry.language = hs_core::projects::detect_language(&entry.root).to_string();
+        // A project with no folder is not a project: saving one would
+        // put a row in the list that points at nothing.
+        if entry.root.as_os_str().is_empty() {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                s.t("settings-project-needs-folder"),
+            ));
+            return;
+        }
+        // Name it after the folder when the user did not, so a row is
+        // never blank.
+        if entry.name.trim().is_empty() {
+            entry.name = entry
+                .root
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+        }
+        // The language the user chose wins; detection only fills a blank.
+        if entry.language.trim().is_empty() {
+            entry.language = hs_core::projects::detect_language(&entry.root).to_string();
+        }
+        // Whether this is a project being added rather than edited,
+        // decided before the upsert puts it in the list.
+        let is_new = s.projects.read().by_id(&entry.id).is_none();
         let mut failed = None;
         if draft.is_repo {
             if let Err(e) = hs_git::write::set_repo_config(&entry.root, &draft.git) {
@@ -4795,6 +4850,11 @@ fn project_detail(
                         hs_core::tool::ToastLevel::Success,
                         s.t("toast-saved"),
                     ));
+                    // A project added here opens, as one added from the
+                    // activity does.
+                    if is_new {
+                        effects.push(SettingsEffect::OpenProject(entry.root.clone()));
+                    }
                 }
                 Err(e) => effects.push(SettingsEffect::Toast(
                     hs_core::tool::ToastLevel::Error,

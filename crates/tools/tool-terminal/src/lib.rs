@@ -677,6 +677,48 @@ impl Tool for TerminalTool {
         self.state.profile.as_deref().map(shell_icon)
     }
 
+    /// The shell this tab is running, what version of it is installed,
+    /// the profile it was opened from and where the executable lives.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.home_title.is_some() {
+            return None;
+        }
+        // A pod's shell belongs to the pod, not to a local executable:
+        // the name says where it is and the rest would be about the
+        // wrong machine.
+        if let Some(c) = &self.state.cluster {
+            return Some(hs_core::tool::ToolHeader::new(
+                hs_ui::icons::ph::POLYGON,
+                c.label(),
+            ));
+        }
+        let id = self.state.profile.clone().unwrap_or_default();
+        let profile = self.profiles.iter().find(|p| p.id == id);
+        let name = profile
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| self.title().to_string());
+        Some(
+            hs_core::tool::ToolHeader::new(
+                self.tab_icon().unwrap_or(hs_ui::icons::ph::TERMINAL),
+                name.clone(),
+            )
+            .fact(
+                "Version",
+                hs_core::versions::cached(&format!("shell:{id}")).unwrap_or_default(),
+            )
+            // The profile is only worth saying when it is not simply
+            // the shell's own name repeated.
+            .fact(
+                "Profile",
+                profile
+                    .map(|p| p.name.clone())
+                    .filter(|p| *p != name)
+                    .unwrap_or_default(),
+            )
+            .plain(profile.map(|p| p.exe.clone()).unwrap_or_default()),
+        )
+    }
+
     fn title(&self) -> Cow<'_, str> {
         // The home tab is the activity's; it has no shell of its own.
         if let Some(name) = &self.home_title {
@@ -926,6 +968,19 @@ impl Tool for TerminalTool {
         if cx.is_home {
             self.dashboard(ui, cx);
             return;
+        }
+        // What version of this shell is installed, asked once on the
+        // blocking pool and cached for the session.
+        if let Some(id) = self.state.profile.clone()
+            && let Some(p) = self.profiles.iter().find(|p| p.id == id)
+        {
+            let args: &[&str] = match id.as_str() {
+                // `cmd` has no version flag; its banner carries one.
+                "cmd" => &["/c", "ver"],
+                _ => &["--version"],
+            };
+            let exe = p.exe.clone();
+            hs_core::versions::ensure(&cx.services.runtime, &format!("shell:{id}"), &exe, args);
         }
         // A cluster shell is opened on the runtime; take the answer at
         // frame start, as every background result arrives (ADR-013).

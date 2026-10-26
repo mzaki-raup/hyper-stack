@@ -134,6 +134,13 @@ pub struct SshTool {
     /// frame and is handed no `Services`, so it cannot look the profile
     /// up; this is taken when the tab opens and when a probe lands.
     os_id: String,
+    /// The full OS name the probe reported ("Ubuntu 24.04.1 LTS"), for
+    /// the header band. Kept on the tool because `header()` is asked
+    /// every frame and handed no services.
+    os_label: String,
+    /// `user@host:port`, likewise. Named apart from `session`, which is
+    /// the live connection.
+    session_label: String,
     state: State,
     status: Status,
     shared: Arc<Mutex<Shared>>,
@@ -225,6 +232,8 @@ impl SshTool {
         let known_hosts = Arc::new(KnownHosts::load(&services.paths.known_hosts_file()));
         let mut t = Self {
             os_id: String::new(),
+            os_label: String::new(),
+            session_label: String::new(),
             state,
             status: Status::Idle,
             shared: Arc::new(Mutex::new(Shared::default())),
@@ -253,6 +262,8 @@ impl SshTool {
         // host's logo before any probe runs.
         if let Some((_, _, f)) = t.fields(services) {
             t.os_id = f.os_id;
+            t.os_label = f.os_label;
+            t.session_label = format!("{}@{}:{}", f.user, f.host, f.port);
         }
         if t.state.conn_id.is_some() {
             t.connect(services);
@@ -1855,10 +1866,9 @@ impl Tool for SshTool {
             Status::Failed(_) => (theme.error, s.t("ssh-failed")),
             Status::Disconnected => (theme.text_muted, s.t("ssh-disconnected")),
         };
-        if !self.conn_name.is_empty() {
-            ui.label(egui::RichText::new(&self.conn_name).strong());
-            ui.separator();
-        }
+        // The host's name is in the header band above, so the toolbar
+        // starts with the light that says what the connection is doing
+        // (owner's requirement, 2026-10-26).
         ui.colored_label(dot, "●");
         ui.label(label);
         match self.status {
@@ -2045,6 +2055,7 @@ impl Tool for SshTool {
                     let mut conns = s.connections.write();
                     if let Some(p) = conns.by_id(&id).cloned() {
                         let mut f = SshFields::from_table(&p.fields);
+                        self.os_label = found.label.clone();
                         if f.os_id != found.os.id() || f.os_label != found.label {
                             f.os_id = found.os.id().to_string();
                             f.os_label = found.label.clone();
@@ -2340,6 +2351,27 @@ impl Tool for SshTool {
     /// Owner's requirement, 2026-10-17.
     fn tabs_per_connection(&self) -> usize {
         3
+    }
+
+    /// The host, what it turned out to be running, and the session.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        // The probe reports one string ("Ubuntu 24.04.1 LTS"); the name
+        // is everything before the first number, the version the rest,
+        // so the band can show them as two facts without the profile
+        // having to store them twice.
+        let (os_name, os_version) = split_os_label(&self.os_label);
+        Some(
+            hs_core::tool::ToolHeader::new(
+                hs_ui::icons::os_icon(&self.os_id),
+                self.conn_name.clone(),
+            )
+            .fact("OS Name", os_name)
+            .fact("OS Version", os_version)
+            .fact("Session", self.session_label.clone()),
+        )
     }
 
     fn current_connection(&self) -> Option<&str> {
@@ -2725,10 +2757,58 @@ fn human_size(n: u64) -> String {
     }
 }
 
+/// Split what the OS probe reported into a name and a version.
+///
+/// The probe gives one line - "Ubuntu 24.04.1 LTS", "Debian GNU/Linux
+/// 12 (bookworm)", "macOS 15.1" - and the band shows two facts. The
+/// version starts at the first word that begins with a digit; a label
+/// with no number at all is all name and no version, which is the
+/// honest reading of "Alpine Linux".
+fn split_os_label(label: &str) -> (String, String) {
+    let label = label.trim();
+    match label
+        .split_whitespace()
+        .position(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit()))
+    {
+        Some(i) => {
+            let words: Vec<&str> = label.split_whitespace().collect();
+            (words[..i].join(" "), words[i..].join(" "))
+        }
+        None => (label.to_string(), String::new()),
+    }
+}
+
 /// `~/x` → the user's home on this machine (for key paths).
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The probe reports one string; the band shows a name and a
+    /// version, and a label with no number is all name.
+    #[test]
+    fn an_os_label_splits_into_a_name_and_a_version() {
+        for (label, name, version) in [
+            ("Ubuntu 24.04.1 LTS", "Ubuntu", "24.04.1 LTS"),
+            (
+                "Debian GNU/Linux 12 (bookworm)",
+                "Debian GNU/Linux",
+                "12 (bookworm)",
+            ),
+            ("macOS 15.1", "macOS", "15.1"),
+            (
+                "Red Hat Enterprise Linux 9.4",
+                "Red Hat Enterprise Linux",
+                "9.4",
+            ),
+            ("Alpine Linux", "Alpine Linux", ""),
+            ("", "", ""),
+        ] {
+            assert_eq!(
+                split_os_label(label),
+                (name.to_string(), version.to_string())
+            );
+        }
+    }
 
     #[test]
     fn tunnel_form_validation() {

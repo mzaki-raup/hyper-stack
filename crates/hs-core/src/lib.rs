@@ -54,6 +54,7 @@ pub mod tunnels;
 pub mod update;
 pub mod updater;
 pub mod version;
+pub mod versions;
 pub mod workspace;
 
 pub use services::Services;

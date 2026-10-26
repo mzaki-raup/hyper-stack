@@ -11,6 +11,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Tooltips really are above the cursor now, everywhere.** The title
+  bar's own icons sit a few pixels from the top of the window, where
+  there is no room above - and the rule still allowed a fall back to
+  *below*, so those were the one row that kept getting it wrong
+  (owner's report). Below is no longer an option at all; with nothing
+  that fits, the tooltip is clamped into view and stays above the
+  pointer.
+- **Terminal and SSH work panes carry their header band:** the shell,
+  its installed version, the profile it came from and where its
+  executable lives; the host's operating system, its version and the
+  session. SSH's toolbar drops the connection name, which the band now
+  carries.
+- **The Logs sidebar can be resized again**, and remembers its width.
+  A row of four buttons and a filter field asking for infinite width
+  needed more than a narrow column had, so the panel grew back every
+  frame and the drag handle looked stuck.
+- **The Logs sidebar's four sections take a fixed share of the column** -
+  saved sources 30%, Running Services 30%, Investigations 20%, Filter
+  Presets 20% - and each scrolls on its own. Investigations and the
+  presets had no bound at all, so a long list pushed everything else
+  off the bottom.
+
 - **Fields are visible again.** A dropdown, checkbox, radio, slider rail
   or text box was painted in exactly the colour of the card it sits in,
   so on a dark theme a dropdown was a word with no box round it and a

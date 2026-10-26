@@ -4501,7 +4501,9 @@ pub struct ProjectDraft {
 }
 
 impl ProjectDraft {
-    fn open(entry: hs_core::projects::ProjectEntry) -> Self {
+    /// Public so the shell can open this form from the Editor's sidebar
+    /// (Edit This Project Settings).
+    pub fn open(entry: hs_core::projects::ProjectEntry) -> Self {
         let is_repo = entry.root.join(".git").exists();
         // Reading two config keys is two short `git` runs. That is fine
         // on a click; it would not be fine every frame, which is why it

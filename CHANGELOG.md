@@ -11,7 +11,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **The Editor activity is laid out around projects.** Its sidebar now
+  lists every project in the workspace - language logo, name and path,
+  dragged into whatever order you like - and right-clicking one offers
+  **Edit This Project Settings**, which opens Settings -> Editor with
+  that project already in its form, or **Remove From List**, which
+  forgets the folder without touching it. Clicking a project opens it,
+  or focuses the tab it already has: a project is worth exactly one tab.
+- **The work pane is two columns.** The file tree and Source Control sit
+  in their own resizable column beside the editor's tabs instead of in
+  the activity sidebar, so what you could open and what you have open
+  are visible at once. The toolbar spans both, and a **Folder** toggle
+  collapses the column when the editor wants the width.
+- **The Editor has a dashboard and a permanent tab.** The tab wears the
+  Workspace icon and the workspace's name; the dashboard counts the
+  projects and open folders and lists every project to open it. A
+  project's own tab wears its language's logo and the name you gave it,
+  which is not always the folder's.
 
 ## 0.88.0 — 2026-10-26
 

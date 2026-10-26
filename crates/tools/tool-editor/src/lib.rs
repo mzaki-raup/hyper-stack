@@ -905,6 +905,22 @@ pub struct EditorTool {
     lsp: lsp::Lsp,
     /// The debug session, breakpoints and the debug panel.
     debug: debug::Debugger,
+    /// Whether the work pane's left column (Project / Source Control) is
+    /// showing. A toolbar toggle, because an editor on a narrow screen
+    /// wants all the width it can get.
+    show_column: bool,
+    /// This tab is the activity's dashboard. The shell says so once, when
+    /// the tab is made; it cannot arrive through `ToolContext`, because a
+    /// tab nobody draws would never hear it.
+    is_home: bool,
+    /// The saved project's own name and language for the folder this tab
+    /// has open, refreshed each frame from the store. Cached because
+    /// `title()` and `tab_icon()` are asked every frame with no services
+    /// to look anything up in.
+    proj_name: String,
+    proj_lang: String,
+    /// The workspace's name, for the dashboard tab's label.
+    ws_name: String,
 }
 
 impl EditorTool {
@@ -933,6 +949,11 @@ impl EditorTool {
             confirm_delete: None,
             confirm_close: None,
             confirm_unsaved: None,
+            show_column: true,
+            is_home: false,
+            proj_name: String::new(),
+            proj_lang: String::new(),
+            ws_name: String::new(),
             id,
             tab_id: 0,
             ai: ai_panel::AiPanel::default(),
@@ -1086,60 +1107,6 @@ impl EditorTool {
                 })
                 .map(|di| (pi, di))
         })
-    }
-
-    /// Add `root` as a project (or find it) and make it the one new files go to.
-    fn add_project(&mut self, root: PathBuf) -> usize {
-        let root = normalize_path(std::fs::canonicalize(&root).unwrap_or(root));
-        if let Some(i) = self
-            .projects
-            .iter()
-            .position(|p| p.root.as_deref().is_some_and(|old| same_path(old, &root)))
-        {
-            return i;
-        }
-        let id = root.to_string_lossy().to_string();
-        let name = root
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| id.clone());
-        let icon = fileicons::for_folder(&name);
-        let mut node = TreeNode::branch(id.clone(), name, icon, load_children(&root));
-        node.leaf = false;
-        self.nodes.push(node);
-        self.tree.expanded.insert(id);
-        // Keep "Other Files" last.
-        let at = self
-            .projects
-            .iter()
-            .position(|p| p.root.is_none())
-            .unwrap_or(self.projects.len());
-        let before = self.projects.len();
-        self.projects.insert(at, Project::new(Some(root)));
-        if self.active < before && self.active >= at {
-            // The active project moved one place down.
-            self.active += 1;
-        }
-        // Files open in "Other Files" that belong to the new project move to it.
-        if let Some(li) = self.projects.iter().position(|p| p.root.is_none()) {
-            let mut moved = Vec::new();
-            let mut i = 0;
-            while i < self.projects[li].docs.len() {
-                let inside = self.projects[li].docs[i]
-                    .path
-                    .as_ref()
-                    .is_some_and(|p| self.projects[at].contains(p));
-                if inside {
-                    moved.push(self.projects[li].docs.remove(i));
-                } else {
-                    i += 1;
-                }
-            }
-            self.projects[at].docs.extend(moved);
-        }
-        self.projects[at].rebuild_index();
-        self.sync_watches();
-        at
     }
 
     fn close_project(&mut self, pi: usize, services: &Services) {
@@ -2605,174 +2572,202 @@ pub fn run_plan_with(
     Some((dir, cmd))
 }
 
-impl Tool for EditorTool {
-    fn descriptor(&self) -> &ToolDescriptor {
-        &DESCRIPTOR
-    }
-
-    fn title(&self) -> Cow<'_, str> {
-        if let Some(r) = self.root() {
-            return Cow::Owned(
-                r.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| r.to_string_lossy().to_string()),
-            );
-        }
-        let n = self.doc().file_name();
-        if n.is_empty() {
-            Cow::Borrowed("Untitled")
-        } else {
-            Cow::Owned(n)
-        }
-    }
-
-    fn dirty(&self) -> bool {
-        self.projects
-            .iter()
-            .any(|p| p.docs.iter().any(|d| d.buf.dirty()))
-    }
-
-    fn project_roots(&self) -> Vec<PathBuf> {
-        self.projects
-            .iter()
-            .filter_map(|p| p.root.clone())
-            .collect()
-    }
-
-    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+/// The project list, the dashboard and the work pane's left column.
+impl EditorTool {
+    /// Add `root` to the workspace's project list and open it.
+    ///
+    /// A folder already listed is opened rather than added twice: two
+    /// rows for one folder is never what the gesture meant.
+    fn add_project_folder(&mut self, root: &Path, cx: &mut ToolContext) {
         let s = cx.services;
-        self.tab_id = cx.tab_id;
-        if ui
-            .button(format!("{} {}", ph::FOLDER_OPEN, s.t("editor-open-folder")))
-            .tip(s.t("editor-open-folder-tip"))
-            .clicked()
-        {
-            self.open_folder_dialog(cx);
-        }
-        if ui
-            .button(format!("{} {}", ph::FILE, s.t("editor-open-file")))
-            .clicked()
-        {
-            self.open_file_dialog(cx);
-        }
-        let read_only = self.doc().view.read_only;
-        ui.add_enabled_ui(!read_only, |ui| {
-            if ui
-                .button(format!("{} {}", ph::FLOPPY_DISK, s.t("editor-save")))
-                .clicked()
-            {
-                self.save(cx);
-            }
-        });
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::FLOPPY_DISK_BACK,
-                s.t("editor-save-as")
-            ))
-            .clicked()
-        {
-            self.save_as(cx);
-        }
-        ui.separator();
-        if ui
-            .button(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("editor-find")))
-            .clicked()
-        {
-            let d = self.doc_mut();
-            let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
-            d.view.open_find(false, Some(sel));
-        }
-        if ui
-            .button(format!("{} {}", ph::SWAP, s.t("editor-replace")))
-            .clicked()
-        {
-            let d = self.doc_mut();
-            let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
-            d.view.open_find(true, Some(sel));
-        }
-        if ui
-            .button(format!("{} {}", ph::LIST_NUMBERS, s.t("editor-goto")))
-            .clicked()
-        {
-            let d = self.doc_mut();
-            d.view.goto_open = true;
-            d.view.goto_text.clear();
-        }
-        if let Some((_, cmd)) = self.run_plan(s) {
-            ui.separator();
-            if ui
-                .button(format!("{} {}", ph::PLAY, s.t("editor-run")))
-                .tip(s.i18n.t_args("editor-run-tip", &[("command", &cmd)]))
-                .clicked()
-            {
-                self.run_current(cx);
+        let existing = s.projects.read().by_root(root).map(|p| p.id.clone());
+        if existing.is_none() {
+            let entry = hs_core::projects::ProjectEntry::for_root(root);
+            if let Err(e) = s.projects.write().upsert(entry) {
+                cx.toast(ToastLevel::Error, e.to_string());
+                return;
             }
         }
-        // Build, for a folder that is a project: the command says which
-        // build tool was found. Owner's requirement, 2026-10-17.
-        if let Some(p) = self.project() {
-            let cmd = {
-                let st = s.settings.read();
-                project::build_command(&p, &st.editor)
-            };
-            if ui
-                .button(format!("{} {}", ph::HAMMER, s.t("editor-build")))
-                .tip(s.i18n.t_args(
-                    "editor-build-tip",
-                    &[("tool", p.kind.label()), ("command", &cmd)],
-                ))
-                .clicked()
-            {
-                self.build_now(cx);
-            }
-        }
-        {
-            let (theme, _) = Self::theme(s);
-            let root = self.projects[self.active].root.clone();
-            let file = self.doc().path.clone();
-            ui.separator();
-            self.debug
-                .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
-            ui.separator();
-            let mut open = self.terminal.open;
-            if ui
-                .toggle_value(
-                    &mut open,
-                    format!("{} {}", ph::TERMINAL_WINDOW, s.t("editor-terminal")),
-                )
-                .tip(s.t("editor-terminal-tip"))
-                .clicked()
-            {
-                self.terminal.toggle(s, root.as_deref());
-            }
-        }
-        if self.doc().view.language.is_markdown {
-            ui.separator();
-            let d = self.doc_mut();
-            ui.toggle_value(
-                &mut d.preview,
-                format!("{} {}", ph::EYE, s.t("editor-preview")),
-            );
-        }
-        hs_ui::toolbar::hard_right(ui, |ui| {
-            // The assistant is the same control in every tool, so it sits in
-            // the same place: hard right of the toolbar.
-            let mut ai_open = self.ai.open;
-            if ui
-                .toggle_value(
-                    &mut ai_open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
-                .tip(s.t("ai-toggle-tip"))
-                .clicked()
-            {
-                self.ai.toggle();
-            }
-        });
+        cx.open(
+            "editor",
+            Some(OpenRequest::File {
+                uri: root.to_string_lossy().to_string(),
+                line: None,
+            }),
+        );
     }
 
-    fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
+    /// Keep the cached project name, language and workspace name true.
+    ///
+    /// `title()` and `tab_icon()` are asked every frame and handed no
+    /// services, so what they show has to be sitting on the tool already.
+    /// One lock read a frame, and nothing is cloned unless it changed.
+    fn sync_project(&mut self, s: &Services) {
+        let ws = s.workspace.read().meta.name.clone();
+        if ws != self.ws_name {
+            self.ws_name = ws;
+        }
+        let Some(root) = self.root().map(|r| r.to_path_buf()) else {
+            self.proj_name.clear();
+            self.proj_lang.clear();
+            return;
+        };
+        let found = s
+            .projects
+            .read()
+            .by_root(&root)
+            .map(|p| (p.label(), p.language.clone()));
+        match found {
+            Some((name, lang)) => {
+                if name != self.proj_name {
+                    self.proj_name = name;
+                }
+                if lang != self.proj_lang {
+                    self.proj_lang = lang;
+                }
+            }
+            None => {
+                // A folder opened without being saved to the list: it is
+                // still a project as far as this tab is concerned, so it
+                // keeps the folder's name and a detected language rather
+                // than reading as nothing at all.
+                self.proj_name.clear();
+                let lang = hs_core::projects::detect_language(&root);
+                if lang != self.proj_lang {
+                    self.proj_lang = lang.to_string();
+                }
+            }
+        }
+    }
+
+    /// The activity's dashboard: what this workspace has, and a card per
+    /// project to open it.
+    fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        let (theme, _) = Self::theme(s);
+        let projects: Vec<(String, String, String, &'static str)> = s
+            .projects
+            .read()
+            .all()
+            .iter()
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    p.label(),
+                    p.root.display().to_string(),
+                    hs_ui::icons::language_icon(&p.language),
+                )
+            })
+            .collect();
+        let open_here = s.open_tabs.projects().len();
+        hs_ui::form::page_title(
+            ui,
+            &theme,
+            &s.t("tool-editor"),
+            Some(&s.t("editor-dash-sub")),
+        );
+        ui.horizontal(|ui| {
+            hs_ui::dashboard::stat(
+                ui,
+                &theme,
+                &projects.len().to_string(),
+                &s.t("editor-dash-projects"),
+            );
+            hs_ui::dashboard::stat(ui, &theme, &open_here.to_string(), &s.t("dash-open-tabs"));
+        });
+        egui::ScrollArea::vertical()
+            .id_salt(self.id.with("dashboard"))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if projects.is_empty() {
+                    hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("editor-no-projects"));
+                    return;
+                }
+                let mut open: Option<String> = None;
+                for (id, name, path, icon) in &projects {
+                    if hs_ui::form::list_row(ui, &theme, false, icon, name, Some(path)).clicked() {
+                        open = Some(id.clone());
+                    }
+                    ui.add_space(2.0);
+                }
+                if let Some(id) = open {
+                    let root = s.projects.read().by_id(&id).map(|p| p.root.clone());
+                    if let Some(root) = root {
+                        cx.open(
+                            "editor",
+                            Some(OpenRequest::File {
+                                uri: root.to_string_lossy().to_string(),
+                                line: None,
+                            }),
+                        );
+                    }
+                }
+            });
+    }
+
+    /// Add `root` as a project (or find it) and make it the one new files go to.
+    fn add_project(&mut self, root: PathBuf) -> usize {
+        let root = normalize_path(std::fs::canonicalize(&root).unwrap_or(root));
+        if let Some(i) = self
+            .projects
+            .iter()
+            .position(|p| p.root.as_deref().is_some_and(|old| same_path(old, &root)))
+        {
+            return i;
+        }
+        let id = root.to_string_lossy().to_string();
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| id.clone());
+        let icon = fileicons::for_folder(&name);
+        let mut node = TreeNode::branch(id.clone(), name, icon, load_children(&root));
+        node.leaf = false;
+        self.nodes.push(node);
+        self.tree.expanded.insert(id);
+        // Keep "Other Files" last.
+        let at = self
+            .projects
+            .iter()
+            .position(|p| p.root.is_none())
+            .unwrap_or(self.projects.len());
+        let before = self.projects.len();
+        self.projects.insert(at, Project::new(Some(root)));
+        if self.active < before && self.active >= at {
+            // The active project moved one place down.
+            self.active += 1;
+        }
+        // Files open in "Other Files" that belong to the new project move to it.
+        if let Some(li) = self.projects.iter().position(|p| p.root.is_none()) {
+            let mut moved = Vec::new();
+            let mut i = 0;
+            while i < self.projects[li].docs.len() {
+                let inside = self.projects[li].docs[i]
+                    .path
+                    .as_ref()
+                    .is_some_and(|p| self.projects[at].contains(p));
+                if inside {
+                    moved.push(self.projects[li].docs.remove(i));
+                } else {
+                    i += 1;
+                }
+            }
+            self.projects[at].docs.extend(moved);
+        }
+        self.projects[at].rebuild_index();
+        self.sync_watches();
+        at
+    }
+
+    /// The work pane's left column: Project (the file tree) and Source
+    /// Control, the two views of the folder this tab has open.
+    ///
+    /// This used to be the activity sidebar. The sidebar now lists every
+    /// project in the workspace, which is a different question - "what
+    /// could I open?" rather than "what is in the thing I have open?" -
+    /// and the two want to be visible at the same time (owner's
+    /// requirement, 2026-10-26).
+    fn workspace_column(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
         let changes = self.git.change_count();
@@ -2915,6 +2910,340 @@ impl Tool for EditorTool {
         self.context_menu(ui, cx);
         true
     }
+}
+
+impl Tool for EditorTool {
+    fn descriptor(&self) -> &ToolDescriptor {
+        &DESCRIPTOR
+    }
+
+    fn title(&self) -> Cow<'_, str> {
+        if self.is_home {
+            return Cow::Owned(self.ws_name.clone());
+        }
+        // The *project's* name, which the user chose, in preference to
+        // the folder's - they are often not the same thing.
+        if !self.proj_name.is_empty() {
+            return Cow::Owned(self.proj_name.clone());
+        }
+        if let Some(r) = self.root() {
+            return Cow::Owned(
+                r.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| r.to_string_lossy().to_string()),
+            );
+        }
+        let n = self.doc().file_name();
+        if n.is_empty() {
+            Cow::Borrowed("Untitled")
+        } else {
+            Cow::Owned(n)
+        }
+    }
+
+    /// The dashboard wears the workspace; a project tab wears its
+    /// language.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.is_home {
+            return Some(hs_ui::icons::WORKSPACE);
+        }
+        if self.proj_lang.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::language_icon(&self.proj_lang))
+    }
+
+    /// All three, or the activity opens a working tab with nothing in it
+    /// and draws its "this has been deleted" empty state (CLAUDE.md).
+    fn wants_home_tab(&self) -> bool {
+        true
+    }
+
+    fn home_is_dashboard(&self) -> bool {
+        true
+    }
+
+    fn wants_dashboard_home(&self) -> bool {
+        true
+    }
+
+    fn set_home_tab(&mut self, home: bool, services: &Services) {
+        self.is_home = home;
+        // The workspace's name is read *here*, not in `ui`: a tab nobody
+        // has drawn never runs `ui`, so the dashboard tab would sit in
+        // the strip with no label until the first time it was opened
+        // (CLAUDE.md - this is why the trait hands `set_home_tab` the
+        // services at all).
+        self.ws_name = services.workspace.read().meta.name.clone();
+    }
+
+    fn dirty(&self) -> bool {
+        self.projects
+            .iter()
+            .any(|p| p.docs.iter().any(|d| d.buf.dirty()))
+    }
+
+    fn project_roots(&self) -> Vec<PathBuf> {
+        self.projects
+            .iter()
+            .filter_map(|p| p.root.clone())
+            .collect()
+    }
+
+    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let s = cx.services;
+        self.tab_id = cx.tab_id;
+        // The column holding the file tree and Source Control: a toggle
+        // rather than a fixture, because an editor on a narrow screen
+        // wants all the width it can get.
+        if ui
+            .toggle_value(
+                &mut self.show_column,
+                format!("{} {}", ph::SIDEBAR_SIMPLE, s.t("editor-column")),
+            )
+            .tip(s.t("editor-column-tip"))
+            .clicked()
+        {
+            // nothing more: the flag is the state.
+        }
+        ui.separator();
+        if ui
+            .button(format!("{} {}", ph::FOLDER_OPEN, s.t("editor-open-folder")))
+            .tip(s.t("editor-open-folder-tip"))
+            .clicked()
+        {
+            self.open_folder_dialog(cx);
+        }
+        if ui
+            .button(format!("{} {}", ph::FILE, s.t("editor-open-file")))
+            .clicked()
+        {
+            self.open_file_dialog(cx);
+        }
+        let read_only = self.doc().view.read_only;
+        ui.add_enabled_ui(!read_only, |ui| {
+            if ui
+                .button(format!("{} {}", ph::FLOPPY_DISK, s.t("editor-save")))
+                .clicked()
+            {
+                self.save(cx);
+            }
+        });
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::FLOPPY_DISK_BACK,
+                s.t("editor-save-as")
+            ))
+            .clicked()
+        {
+            self.save_as(cx);
+        }
+        ui.separator();
+        if ui
+            .button(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("editor-find")))
+            .clicked()
+        {
+            let d = self.doc_mut();
+            let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
+            d.view.open_find(false, Some(sel));
+        }
+        if ui
+            .button(format!("{} {}", ph::SWAP, s.t("editor-replace")))
+            .clicked()
+        {
+            let d = self.doc_mut();
+            let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
+            d.view.open_find(true, Some(sel));
+        }
+        if ui
+            .button(format!("{} {}", ph::LIST_NUMBERS, s.t("editor-goto")))
+            .clicked()
+        {
+            let d = self.doc_mut();
+            d.view.goto_open = true;
+            d.view.goto_text.clear();
+        }
+        if let Some((_, cmd)) = self.run_plan(s) {
+            ui.separator();
+            if ui
+                .button(format!("{} {}", ph::PLAY, s.t("editor-run")))
+                .tip(s.i18n.t_args("editor-run-tip", &[("command", &cmd)]))
+                .clicked()
+            {
+                self.run_current(cx);
+            }
+        }
+        // Build, for a folder that is a project: the command says which
+        // build tool was found. Owner's requirement, 2026-10-17.
+        if let Some(p) = self.project() {
+            let cmd = {
+                let st = s.settings.read();
+                project::build_command(&p, &st.editor)
+            };
+            if ui
+                .button(format!("{} {}", ph::HAMMER, s.t("editor-build")))
+                .tip(s.i18n.t_args(
+                    "editor-build-tip",
+                    &[("tool", p.kind.label()), ("command", &cmd)],
+                ))
+                .clicked()
+            {
+                self.build_now(cx);
+            }
+        }
+        {
+            let (theme, _) = Self::theme(s);
+            let root = self.projects[self.active].root.clone();
+            let file = self.doc().path.clone();
+            ui.separator();
+            self.debug
+                .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
+            ui.separator();
+            let mut open = self.terminal.open;
+            if ui
+                .toggle_value(
+                    &mut open,
+                    format!("{} {}", ph::TERMINAL_WINDOW, s.t("editor-terminal")),
+                )
+                .tip(s.t("editor-terminal-tip"))
+                .clicked()
+            {
+                self.terminal.toggle(s, root.as_deref());
+            }
+        }
+        if self.doc().view.language.is_markdown {
+            ui.separator();
+            let d = self.doc_mut();
+            ui.toggle_value(
+                &mut d.preview,
+                format!("{} {}", ph::EYE, s.t("editor-preview")),
+            );
+        }
+        hs_ui::toolbar::hard_right(ui, |ui| {
+            // The assistant is the same control in every tool, so it sits in
+            // the same place: hard right of the toolbar.
+            let mut ai_open = self.ai.open;
+            if ui
+                .toggle_value(
+                    &mut ai_open,
+                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+                )
+                .tip(s.t("ai-toggle-tip"))
+                .clicked()
+            {
+                self.ai.toggle();
+            }
+        });
+    }
+
+    /// The activity sidebar: every project saved in this workspace, in
+    /// the order Settings -> Editor puts them in.
+    ///
+    /// Clicking one opens it, or focuses the tab it already has - a
+    /// project is worth exactly one tab (owner's requirement,
+    /// 2026-10-26), which the editor's `uri_affinity` already arranges
+    /// by claiming any request for a folder it has open.
+    fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
+        let s = cx.services;
+        let (theme, _) = Self::theme(s);
+        if hs_ui::form::sidebar_header(
+            ui,
+            &theme,
+            &s.t("editor-projects"),
+            &[(ph::FOLDER_PLUS, &s.t("editor-add-project"))],
+        )
+        .is_some()
+            && let Some(root) = rfd::FileDialog::new().pick_folder()
+        {
+            self.add_project_folder(&root, cx);
+        }
+        // (id, name, path, icon, is open here) - read once, because the
+        // store is behind a lock and this runs every frame.
+        let open_root = self.root().map(hs_core::projects::normalise);
+        let rows: Vec<(String, String, String, &'static str, bool)> = s
+            .projects
+            .read()
+            .all()
+            .iter()
+            .map(|p| {
+                let mine =
+                    open_root.as_deref() == Some(hs_core::projects::normalise(&p.root).as_str());
+                (
+                    p.id.clone(),
+                    p.label(),
+                    p.root.display().to_string(),
+                    hs_ui::icons::language_icon(&p.language),
+                    mine,
+                )
+            })
+            .collect();
+        if rows.is_empty() {
+            hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("editor-no-projects"));
+            return true;
+        }
+        let mut reorder = hs_ui::reorder::Reorder::new("editor-project-list");
+        let mut open: Option<String> = None;
+        let mut edit: Option<String> = None;
+        let mut remove: Option<String> = None;
+        egui::ScrollArea::vertical()
+            .id_salt(self.id.with("projects"))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (i, (id, name, path, icon, mine)) in rows.iter().enumerate() {
+                    reorder.row(ui, i, |ui| {
+                        let row = hs_ui::form::list_row(ui, &theme, *mine, icon, name, Some(path));
+                        if row.clicked() {
+                            open = Some(id.clone());
+                        }
+                        row.context_menu(|ui| {
+                            if ui.button(s.t("editor-project-edit")).clicked() {
+                                edit = Some(id.clone());
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui.button(s.t("settings-project-remove")).clicked() {
+                                remove = Some(id.clone());
+                                ui.close();
+                            }
+                        });
+                    });
+                    ui.add_space(2.0);
+                }
+            });
+        if let Some((from, to)) = reorder.finish(ui, theme.accent)
+            && let Err(e) = s.projects.write().reorder(from, to)
+        {
+            cx.toast(ToastLevel::Error, e.to_string());
+        }
+        if let Some(id) = open {
+            let root = s.projects.read().by_id(&id).map(|p| p.root.clone());
+            if let Some(root) = root {
+                // `open` rather than `open_new_tab`: the shell matches the
+                // folder against what every editor tab has open, so a
+                // project that is already open is focused instead of
+                // opened twice.
+                cx.open(
+                    "editor",
+                    Some(OpenRequest::File {
+                        uri: root.to_string_lossy().to_string(),
+                        line: None,
+                    }),
+                );
+            }
+        }
+        if let Some(id) = edit {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: format!("settings:project:{id}"),
+            });
+        }
+        if let Some(id) = remove {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: format!("project:remove:{id}"),
+            });
+        }
+        true
+    }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let zipped = self.zip_result.as_ref().and_then(|slot| slot.lock().take());
@@ -2968,7 +3297,42 @@ impl Tool for EditorTool {
         self.lsp_apply_actions(cx);
         self.debug.poll(s);
         self.debug_apply_actions(cx);
+        self.sync_project(s);
         let (theme, ed_theme) = Self::theme(s);
+        // Draw the dashboard whenever the tab has nothing open, not only
+        // when `is_home` is set: the flag arrives from the shell a beat
+        // later, and keying on it alone shows an empty state in a tab
+        // that has simply not been given anything yet (CLAUDE.md).
+        if self.is_home && self.root().is_none() && self.doc().path.is_none() {
+            self.dashboard(ui, cx);
+            return;
+        }
+        // The work pane is two columns: the folder on the left, the
+        // editor on the right. The left panel is declared first so the
+        // tab strip, the path row and the editor lay out in what is
+        // left - the toolbar above them spans both, because the shell
+        // draws it outside this pane (owner's requirement, 2026-10-26).
+        let mut column = egui::Panel::left(self.id.with("workspace-column"))
+            .default_size(260.0)
+            .size_range(180.0..=(ui.available_width() * 0.5).max(180.0))
+            .resizable(true);
+        if !self.show_column {
+            column = column.exact_size(0.0).resizable(false);
+        }
+        let mut column_actions = Vec::new();
+        column.show(ui, |ui| {
+            if self.show_column {
+                let mut inner = ToolContext {
+                    services: cx.services,
+                    tab_id: cx.tab_id,
+                    env_id: cx.env_id,
+                    actions: &mut column_actions,
+                    is_home: cx.is_home,
+                };
+                self.workspace_column(ui, &mut inner);
+            }
+        });
+        cx.actions.append(&mut column_actions);
         self.file_tabs(ui, s, &theme);
         if self.git.has_main() {
             let size = self.doc().view.font_size;

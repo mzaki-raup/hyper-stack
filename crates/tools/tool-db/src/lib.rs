@@ -2479,6 +2479,7 @@ impl Tool for DbTool {
         } else {
             s.t("db-tx-auto")
         };
+        ui.label(s.t("db-tx-label"));
         egui::ComboBox::from_id_salt(self.id.with("tx"))
             .selected_text(tx_label)
             .width(110.0)
@@ -2520,6 +2521,7 @@ impl Tool for DbTool {
                 s.i18n.t_args("db-limit-n", &[("n", &l.to_string())])
             }
         };
+        ui.label(s.t("db-limit-label"));
         egui::ComboBox::from_id_salt(self.id.with("limit"))
             .selected_text(limit_text(self.state.limit))
             .width(100.0)
@@ -2538,6 +2540,7 @@ impl Tool for DbTool {
                 s.i18n.t_args("db-timeout-sec", &[("n", &t.to_string())])
             }
         };
+        ui.label(s.t("db-timeout-label"));
         egui::ComboBox::from_id_salt(self.id.with("timeout"))
             .selected_text(timeout_text(self.state.timeout_secs))
             .width(100.0)

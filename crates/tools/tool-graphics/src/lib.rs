@@ -3083,9 +3083,12 @@ impl Tool for GraphicsTool {
         if ui
             .add_enabled(
                 !self.undo_stack.is_empty(),
-                egui::Button::new(ph::ARROW_COUNTER_CLOCKWISE),
+                egui::Button::new(format!(
+                    "{} {}",
+                    ph::ARROW_COUNTER_CLOCKWISE,
+                    s.t("gfx-undo")
+                )),
             )
-            .tip(s.t("gfx-undo"))
             .clicked()
         {
             self.undo_edit();
@@ -3093,9 +3096,8 @@ impl Tool for GraphicsTool {
         if ui
             .add_enabled(
                 !self.redo_stack.is_empty(),
-                egui::Button::new(ph::ARROW_CLOCKWISE),
+                egui::Button::new(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("gfx-redo"))),
             )
-            .tip(s.t("gfx-redo"))
             .clicked()
         {
             self.redo_edit();
@@ -3109,16 +3111,36 @@ impl Tool for GraphicsTool {
         {
             self.convert_to_icon(cx);
         }
-        if ui.button(s.t("gfx-zoom-fit")).clicked() {
+        if ui
+            .button(format!("{} {}", ph::FRAME_CORNERS, s.t("gfx-zoom-fit")))
+            .clicked()
+        {
             self.zoom = 0.0;
         }
-        if ui.button("100%").clicked() {
+        if ui
+            .button(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("gfx-zoom-100")))
+            .clicked()
+        {
             self.zoom = 1.0;
         }
-        if ui.button(ph::MAGNIFYING_GLASS_PLUS).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::MAGNIFYING_GLASS_PLUS,
+                s.t("gfx-zoom-in")
+            ))
+            .clicked()
+        {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } * 1.25).min(32.0);
         }
-        if ui.button(ph::MAGNIFYING_GLASS_MINUS).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::MAGNIFYING_GLASS_MINUS,
+                s.t("gfx-zoom-out")
+            ))
+            .clicked()
+        {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } / 1.25).max(0.05);
         }
         hs_ui::toolbar::hard_right(ui, |ui| {

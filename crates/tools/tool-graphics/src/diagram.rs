@@ -600,68 +600,121 @@ impl DiagramState {
     pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         if ui
-            .button(format!("{} New", hs_ui::icons::ph::FILE_PLUS))
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FILE_PLUS,
+                s.t("gfx-diagram-new")
+            ))
             .clicked()
         {
             self.replace(hs_diagram::template::flow());
         }
-        if ui.button(hs_ui::icons::ph::FOLDER_OPEN).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FOLDER_OPEN,
+                s.t("gfx-diagram-open")
+            ))
+            .clicked()
+        {
             self.open_dialog(cx);
         }
-        if ui.button(s.t("gfx-diagram-save")).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FLOPPY_DISK,
+                s.t("gfx-diagram-save")
+            ))
+            .clicked()
+        {
             self.save(cx);
         }
-        ui.menu_button(s.t("gfx-diagram-import-menu"), |ui| {
-            if ui.button(s.t("gfx-import-archify")).clicked() {
-                self.import(cx, ImportKind::Archify);
-                ui.close();
-            }
-            if ui.button(s.t("gfx-import-drawio")).clicked() {
-                self.import(cx, ImportKind::DrawIo);
-                ui.close();
-            }
-            if ui.button(s.t("gfx-import-mermaid")).clicked() {
-                self.import(cx, ImportKind::Mermaid);
-                ui.close();
-            }
-        });
-        if ui.button(s.t("gfx-diagram-save-project")).clicked() {
+        ui.menu_button(
+            format!(
+                "{} {}",
+                hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                s.t("gfx-diagram-import-menu")
+            ),
+            |ui| {
+                if ui.button(s.t("gfx-import-archify")).clicked() {
+                    self.import(cx, ImportKind::Archify);
+                    ui.close();
+                }
+                if ui.button(s.t("gfx-import-drawio")).clicked() {
+                    self.import(cx, ImportKind::DrawIo);
+                    ui.close();
+                }
+                if ui.button(s.t("gfx-import-mermaid")).clicked() {
+                    self.import(cx, ImportKind::Mermaid);
+                    ui.close();
+                }
+            },
+        );
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FOLDERS,
+                s.t("gfx-diagram-save-project")
+            ))
+            .clicked()
+        {
             self.save_name = crate::diagram::sanitise(&self.doc.title);
             self.save_error = None;
             self.save_overwrite = false;
             self.save_open = true;
         }
         ui.separator();
-        for (view, key) in [
-            (DiagramView::Preview, "gfx-view-preview"),
-            (DiagramView::Source, "gfx-view-source"),
-            (DiagramView::Split, "gfx-view-split"),
+        for (view, icon, key) in [
+            (
+                DiagramView::Preview,
+                hs_ui::icons::ph::EYE,
+                "gfx-view-preview",
+            ),
+            (
+                DiagramView::Source,
+                hs_ui::icons::ph::CODE,
+                "gfx-view-source",
+            ),
+            (
+                DiagramView::Split,
+                hs_ui::icons::ph::COLUMNS,
+                "gfx-view-split",
+            ),
         ] {
-            if ui.selectable_label(self.view == view, s.t(key)).clicked() {
+            if ui
+                .selectable_label(self.view == view, format!("{} {}", icon, s.t(key)))
+                .clicked()
+            {
                 self.view = view;
             }
         }
-        ui.menu_button(format!("{} Export", hs_ui::icons::ph::EXPORT), |ui| {
-            if ui.button("PNG (2×)").clicked() {
-                self.export(cx, ExportKind::Png);
-                ui.close();
-            }
-            if ui.button("SVG").clicked() {
-                self.export(cx, ExportKind::Svg);
-                ui.close();
-            }
-            if ui.button("PDF").clicked() {
-                self.export(cx, ExportKind::Pdf);
-                ui.close();
-            }
-        });
+        ui.menu_button(
+            format!("{} {}", hs_ui::icons::ph::EXPORT, s.t("gfx-diagram-export")),
+            |ui| {
+                if ui.button("PNG (2×)").clicked() {
+                    self.export(cx, ExportKind::Png);
+                    ui.close();
+                }
+                if ui.button("SVG").clicked() {
+                    self.export(cx, ExportKind::Svg);
+                    ui.close();
+                }
+                if ui.button("PDF").clicked() {
+                    self.export(cx, ExportKind::Pdf);
+                    ui.close();
+                }
+            },
+        );
         ui.separator();
         if ui
             .add_enabled(
                 !self.undo.is_empty(),
-                egui::Button::new(hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE),
+                egui::Button::new(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE,
+                    s.t("gfx-diagram-undo")
+                )),
             )
-            .tip(s.t("gfx-diagram-undo"))
             .clicked()
         {
             self.undo();
@@ -669,65 +722,103 @@ impl DiagramState {
         if ui
             .add_enabled(
                 !self.redo.is_empty(),
-                egui::Button::new(hs_ui::icons::ph::ARROW_CLOCKWISE),
+                egui::Button::new(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::ARROW_CLOCKWISE,
+                    s.t("gfx-diagram-redo")
+                )),
             )
-            .tip(s.t("gfx-diagram-redo"))
             .clicked()
         {
             self.redo();
         }
+        // Everything below draws on, or adds to, the canvas: in the
+        // Source view there is no canvas to act on, so the whole group
+        // goes rather than sitting there inert (owner's requirement,
+        // 2026-10-26).
+        if self.view == DiagramView::Source {
+            return;
+        }
         ui.separator();
-        if ui.button(s.t("gfx-zoom-fit")).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::FRAME_CORNERS,
+                s.t("gfx-zoom-fit")
+            ))
+            .clicked()
+        {
             self.zoom = 0.0;
             self.pan = egui::Vec2::ZERO;
         }
-        ui.checkbox(&mut self.show_grid, s.t("gfx-diagram-grid"));
+        ui.checkbox(
+            &mut self.show_grid,
+            format!(
+                "{} {}",
+                hs_ui::icons::ph::GRID_FOUR,
+                s.t("gfx-diagram-grid")
+            ),
+        );
         ui.separator();
         if ui
-            .selectable_label(self.tool == ToolMode::Select, hs_ui::icons::ph::CURSOR)
-            .tip(s.t("gfx-diagram-select"))
+            .selectable_label(
+                self.tool == ToolMode::Select,
+                format!("{} {}", hs_ui::icons::ph::CURSOR, s.t("gfx-diagram-select")),
+            )
             .clicked()
         {
             self.tool = ToolMode::Select;
             self.edge_from = None;
         }
         if ui
-            .button(hs_ui::icons::ph::RECTANGLE)
-            .tip(s.t("gfx-diagram-add-process"))
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::RECTANGLE,
+                s.t("gfx-diagram-add-process")
+            ))
             .clicked()
         {
             self.add_node_at(NodeKind::Process, self.last_center);
         }
         if ui
-            .button(hs_ui::icons::ph::DIAMOND)
-            .tip(s.t("gfx-diagram-add-decision"))
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::DIAMOND,
+                s.t("gfx-diagram-add-decision")
+            ))
             .clicked()
         {
             self.add_node_at(NodeKind::Decision, self.last_center);
         }
         if ui
-            .button(hs_ui::icons::ph::NOTE_PENCIL)
-            .tip(s.t("gfx-diagram-add-note"))
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::NOTE_PENCIL,
+                s.t("gfx-diagram-add-note")
+            ))
             .clicked()
         {
             self.add_node_at(NodeKind::Note, self.last_center);
         }
         if self.doc.kind == DiagramKind::Erd
             && ui
-                .button(hs_ui::icons::ph::TABLE)
-                .tip(s.t("gfx-diagram-add-entity"))
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::TABLE,
+                    s.t("gfx-diagram-add-entity")
+                ))
                 .clicked()
         {
             self.add_node_at(NodeKind::Entity, self.last_center);
         }
         if self.doc.kind == DiagramKind::Erd
             && ui
-                .button(hs_ui::icons::ph::DATABASE)
-                .tip(format!(
-                    "{}\n{}",
-                    s.t("gfx-diagram-import-ddl"),
-                    s.t("gfx-diagram-import-ddl-tip")
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::DATABASE,
+                    s.t("gfx-diagram-import-ddl")
                 ))
+                .tip(s.t("gfx-diagram-import-ddl-tip"))
                 .clicked()
             && let Some(path) = rfd::FileDialog::new()
                 .add_filter("SQL", &["sql", "ddl", "txt"])
@@ -743,59 +834,75 @@ impl DiagramState {
         }
         if self.doc.kind == DiagramKind::Sequence
             && ui
-                .button(hs_ui::icons::ph::USER)
-                .tip(s.t("gfx-diagram-add-participant"))
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::USER,
+                    s.t("gfx-diagram-add-participant")
+                ))
                 .clicked()
         {
             self.add_node_at(NodeKind::Frontend, self.last_center);
         }
         if ui
-            .button(hs_ui::icons::ph::SELECTION)
-            .tip(format!(
-                "{}\n{}",
-                s.t("gfx-diagram-add-frame"),
-                s.t("gfx-diagram-add-frame-tip")
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::SELECTION,
+                s.t("gfx-diagram-add-frame")
             ))
+            .tip(s.t("gfx-diagram-add-frame-tip"))
             .clicked()
         {
             self.add_frame();
         }
         if ui
-            .selectable_label(self.tool == ToolMode::Edge, hs_ui::icons::ph::ARROW_RIGHT)
-            .tip(s.t("gfx-diagram-add-edge"))
+            .selectable_label(
+                self.tool == ToolMode::Edge,
+                format!(
+                    "{} {}",
+                    hs_ui::icons::ph::ARROW_RIGHT,
+                    s.t("gfx-diagram-add-edge")
+                ),
+            )
             .clicked()
         {
             self.tool = ToolMode::Edge;
             self.edge_from = None;
         }
-        ui.menu_button(hs_ui::icons::ph::ALIGN_LEFT, |ui| {
-            let enough = self.selection().len() >= 2;
-            for (key, mode) in [
-                ("gfx-align-left", AlignMode::Left),
-                ("gfx-align-centre", AlignMode::CentreX),
-                ("gfx-align-right", AlignMode::Right),
-                ("gfx-align-top", AlignMode::Top),
-                ("gfx-align-middle", AlignMode::MiddleY),
-                ("gfx-align-bottom", AlignMode::Bottom),
-            ] {
-                let label = s.t(key);
-                if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
-                    self.align_selection(mode);
-                    ui.close();
+        ui.menu_button(
+            format!(
+                "{} {}",
+                hs_ui::icons::ph::ALIGN_LEFT,
+                s.t("gfx-diagram-align")
+            ),
+            |ui| {
+                let enough = self.selection().len() >= 2;
+                for (key, mode) in [
+                    ("gfx-align-left", AlignMode::Left),
+                    ("gfx-align-centre", AlignMode::CentreX),
+                    ("gfx-align-right", AlignMode::Right),
+                    ("gfx-align-top", AlignMode::Top),
+                    ("gfx-align-middle", AlignMode::MiddleY),
+                    ("gfx-align-bottom", AlignMode::Bottom),
+                ] {
+                    let label = s.t(key);
+                    if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
+                        self.align_selection(mode);
+                        ui.close();
+                    }
                 }
-            }
-            ui.separator();
-            for (key, mode) in [
-                ("gfx-distribute-h", AlignMode::DistributeX),
-                ("gfx-distribute-v", AlignMode::DistributeY),
-            ] {
-                let label = s.t(key);
-                if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
-                    self.align_selection(mode);
-                    ui.close();
+                ui.separator();
+                for (key, mode) in [
+                    ("gfx-distribute-h", AlignMode::DistributeX),
+                    ("gfx-distribute-v", AlignMode::DistributeY),
+                ] {
+                    let label = s.t(key);
+                    if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
+                        self.align_selection(mode);
+                        ui.close();
+                    }
                 }
-            }
-        })
+            },
+        )
         .response
         .tip(s.t("gfx-diagram-align-tip"));
     }

@@ -11,6 +11,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Every toolbar button says what it is.** Across the Scratchpad, the
+  Editor and its debugger, SSH, Containers, Logs and all four Graphics
+  tools, a control that was a bare glyph now carries its name beside it,
+  and one that was bare text now carries its icon - the idiom the
+  toolbars that already read well were using. The browser's address bar
+  keeps its unlabelled chrome, which is what a browser toolbar is.
+- **The Database toolbar says what its pickers choose:** Transaction,
+  Show Rows and Timeout, rather than three bare dropdowns.
+- **SSH shows the connection light where the decision is made** - after
+  the host's name and its separator, directly left of Connect or
+  Disconnect - and the terminal size readout is gone, as it went from
+  the Terminal toolbar.
+- **The diagram editor's canvas tools leave with the canvas.** Fit,
+  Grid, Select, the shape buttons, Connect and Align are hidden in the
+  Source view, where there is nothing for them to act on.
+
 - **A brand mark is now the same size as the icons beside it.** The
   bundled Nerd Font draws its logos to fit one monospace cell, Phosphor
   draws its icons to fill the em, so every connection, engine, shell and

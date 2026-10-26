@@ -2792,19 +2792,31 @@ impl HyperStackApp {
                 .show(ui, |ui| {
                     // Wrapped, so a narrow window moves buttons onto a
                     // second row instead of clipping them off the right
-                    // edge; tools end their hard-right group with
-                    // `hs_ui::toolbar::hard_right`, which starts a new row
-                    // when the current one is nearly full.
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
-                        let mut cx = ToolContext {
-                            services: &services,
-                            tab_id: a,
-                            env_id: env.as_deref(),
-                            actions: &mut actions,
-                            is_home,
-                        };
-                        t.tool.toolbar(ui, &mut cx);
+                    // edge. The hard-right group does not wrap with them:
+                    // its corner is held back from the row here and drawn
+                    // into by `hs_ui::toolbar::hard_right`, so the AI
+                    // Assistant control stays top right however many rows
+                    // the buttons take (owner's requirement, 2026-10-26).
+                    let outer = ui.available_rect_before_wrap();
+                    let salt = egui::Id::new("hs-toolbar").with(a);
+                    let reserve = hs_ui::toolbar::right_reserve(ui.ctx(), salt);
+                    hs_ui::toolbar::set_outer(ui, salt, outer);
+                    let row = egui::Rect::from_min_max(
+                        outer.min,
+                        egui::pos2((outer.right() - reserve).max(outer.left()), outer.bottom()),
+                    );
+                    ui.scope_builder(egui::UiBuilder::new().max_rect(row), |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            let mut cx = ToolContext {
+                                services: &services,
+                                tab_id: a,
+                                env_id: env.as_deref(),
+                                actions: &mut actions,
+                                is_home,
+                            };
+                            t.tool.toolbar(ui, &mut cx);
+                        });
                     });
                 });
         }

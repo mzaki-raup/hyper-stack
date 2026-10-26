@@ -892,49 +892,83 @@ impl Debugger {
                     }),
                 );
                 if ui
-                    .add_enabled(stopped, egui::Button::new(ph::PLAY))
+                    .add_enabled(
+                        stopped,
+                        egui::Button::new(format!("{} {}", ph::PLAY, s.t("debug-continue"))),
+                    )
                     .tip(s.t("debug-continue-tip"))
                     .clicked()
                 {
                     self.continue_();
                 }
                 if ui
-                    .add_enabled(running, egui::Button::new(ph::PAUSE))
+                    .add_enabled(
+                        running,
+                        egui::Button::new(format!("{} {}", ph::PAUSE, s.t("debug-pause"))),
+                    )
                     .tip(s.t("debug-pause-tip"))
                     .clicked()
                 {
                     self.pause();
                 }
                 if ui
-                    .add_enabled(stopped, egui::Button::new(ph::ARROW_BEND_DOWN_RIGHT))
+                    .add_enabled(
+                        stopped,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::ARROW_BEND_DOWN_RIGHT,
+                            s.t("debug-step-over")
+                        )),
+                    )
                     .tip(s.t("debug-step-over-tip"))
                     .clicked()
                 {
                     self.step_over();
                 }
                 if ui
-                    .add_enabled(stopped, egui::Button::new(ph::ARROW_LINE_DOWN))
+                    .add_enabled(
+                        stopped,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::ARROW_LINE_DOWN,
+                            s.t("debug-step-into")
+                        )),
+                    )
                     .tip(s.t("debug-step-into-tip"))
                     .clicked()
                 {
                     self.step_into();
                 }
                 if ui
-                    .add_enabled(stopped, egui::Button::new(ph::ARROW_LINE_UP))
+                    .add_enabled(
+                        stopped,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::ARROW_LINE_UP,
+                            s.t("debug-step-out")
+                        )),
+                    )
                     .tip(s.t("debug-step-out-tip"))
                     .clicked()
                 {
                     self.step_out();
                 }
                 if ui
-                    .button(ph::ARROW_COUNTER_CLOCKWISE)
+                    .button(format!(
+                        "{} {}",
+                        ph::ARROW_COUNTER_CLOCKWISE,
+                        s.t("debug-restart")
+                    ))
                     .tip(s.t("debug-restart-tip"))
                     .clicked()
                 {
                     self.restart();
                 }
                 if ui
-                    .button(egui::RichText::new(ph::STOP).color(theme.error))
+                    .button(
+                        egui::RichText::new(format!("{} {}", ph::STOP, s.t("debug-stop")))
+                            .color(theme.error),
+                    )
                     .tip(s.t("debug-stop-tip"))
                     .clicked()
                 {
@@ -947,7 +981,10 @@ impl Debugger {
             }
         }
         if ui
-            .add(egui::Button::new(ph::TERMINAL_WINDOW).selected(self.panel_open))
+            .add(
+                egui::Button::new(format!("{} {}", ph::TERMINAL_WINDOW, s.t("debug-panel")))
+                    .selected(self.panel_open),
+            )
             .tip(s.t("debug-panel-tip"))
             .clicked()
         {

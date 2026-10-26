@@ -1855,31 +1855,43 @@ impl Tool for SshTool {
             Status::Failed(_) => (theme.error, s.t("ssh-failed")),
             Status::Disconnected => (theme.text_muted, s.t("ssh-disconnected")),
         };
-        ui.colored_label(dot, "●");
-        ui.label(label);
         if !self.conn_name.is_empty() {
             ui.label(egui::RichText::new(&self.conn_name).strong());
+            ui.separator();
         }
-        ui.separator();
+        ui.colored_label(dot, "●");
+        ui.label(label);
         match self.status {
             Status::Connected | Status::Connecting => {
-                if ui.button(s.t("ssh-disconnect")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::PLUGS, s.t("ssh-disconnect")))
+                    .clicked()
+                {
                     self.disconnect();
                 }
             }
             _ => {
-                if self.state.conn_id.is_some() && ui.button(s.t("ssh-connect")).clicked() {
+                if self.state.conn_id.is_some()
+                    && ui
+                        .button(format!("{} {}", ph::PLUGS_CONNECTED, s.t("ssh-connect")))
+                        .clicked()
+                {
                     self.connect(s);
                 }
             }
         }
-        if ui.button(s.t("terminal-clear")).clicked()
+        if ui
+            .button(format!("{} {}", ph::ERASER, s.t("terminal-clear")))
+            .clicked()
             && let Some(sess) = &self.session
         {
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
         }
-        ui.toggle_value(&mut self.state.sync_cwd, s.t("ssh-sync-cwd"))
-            .tip(s.t("ssh-sync-cwd-hint"));
+        ui.toggle_value(
+            &mut self.state.sync_cwd,
+            format!("{} {}", ph::FOLDER_OPEN, s.t("ssh-sync-cwd")),
+        )
+        .tip(s.t("ssh-sync-cwd-hint"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away
@@ -1890,10 +1902,6 @@ impl Tool for SshTool {
                 .clicked()
             {
                 self.assistant.toggle("SSH");
-            }
-            if let Some(sess) = &self.session {
-                let (c, r) = sess.size();
-                ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
             }
         });
     }

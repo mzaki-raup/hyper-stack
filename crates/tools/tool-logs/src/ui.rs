@@ -1682,7 +1682,10 @@ impl Tool for LogsTool {
             }
             ui.separator();
             if ui
-                .selectable_label(self.state.local_time, ph::CLOCK)
+                .selectable_label(
+                    self.state.local_time,
+                    format!("{} {}", ph::CLOCK, s.t("logs-local-time")),
+                )
                 .tip(s.t("logs-local-time-tip"))
                 .clicked()
             {
@@ -1691,7 +1694,10 @@ impl Tool for LogsTool {
             // Mask Secrets governs the view and every export at once, so
             // what is on screen is what would leave the tab.
             if ui
-                .selectable_label(self.state.mask, ph::EYE_SLASH)
+                .selectable_label(
+                    self.state.mask,
+                    format!("{} {}", ph::EYE_SLASH, s.t("logs-mask")),
+                )
                 .tip(s.t("logs-mask-tip"))
                 .clicked()
             {
@@ -1700,29 +1706,39 @@ impl Tool for LogsTool {
             if ui
                 .add_enabled(
                     self.selected.is_some(),
-                    egui::Button::new(ph::MAGNIFYING_GLASS_PLUS),
+                    egui::Button::new(format!(
+                        "{} {}",
+                        ph::MAGNIFYING_GLASS_PLUS,
+                        s.t("logs-find-everywhere")
+                    )),
                 )
-                .tip(s.t("logs-find-everywhere"))
+                .tip(s.t("logs-find-everywhere-tip"))
                 .clicked()
             {
                 self.run_command("logs.find_everywhere", cx);
             }
             if ui
-                .button(ph::HIGHLIGHTER)
-                .tip(s.t("logs-highlights"))
+                .button(format!("{} {}", ph::HIGHLIGHTER, s.t("logs-highlights")))
+                .tip(s.t("logs-highlights-hint"))
                 .clicked()
             {
                 self.highlights_open = true;
             }
             if ui
-                .selectable_label(self.state.chart_open, ph::CHART_BAR)
+                .selectable_label(
+                    self.state.chart_open,
+                    format!("{} {}", ph::CHART_BAR, s.t("logs-chart")),
+                )
                 .tip(s.t("logs-chart-tip"))
                 .clicked()
             {
                 self.state.chart_open = !self.state.chart_open;
             }
             if ui
-                .selectable_label(self.state.collapse, ph::ARROWS_IN_LINE_VERTICAL)
+                .selectable_label(
+                    self.state.collapse,
+                    format!("{} {}", ph::ARROWS_IN_LINE_VERTICAL, s.t("logs-collapse")),
+                )
                 .tip(s.t("logs-collapse-tip"))
                 .clicked()
             {

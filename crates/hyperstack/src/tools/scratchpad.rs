@@ -618,8 +618,7 @@ impl Tool for Scratchpad {
             (View::Preview, ph::EYE, "scratchpad-view-preview"),
         ] {
             if ui
-                .selectable_label(self.state.view == view, icon)
-                .tip(s.t(key))
+                .selectable_label(self.state.view == view, format!("{} {}", icon, s.t(key)))
                 .clicked()
             {
                 self.state.view = view;
@@ -640,7 +639,10 @@ impl Tool for Scratchpad {
             } else {
                 (ph::PUSH_PIN, "scratchpad-pin")
             };
-            if ui.selectable_label(pinned, icon).tip(s.t(key)).clicked() {
+            if ui
+                .selectable_label(pinned, format!("{} {}", icon, s.t(key)))
+                .clicked()
+            {
                 self.toggle_pin(&id, cx);
             }
         }

@@ -1019,6 +1019,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `#[cfg(test)] mod tests`, which clippy refuses ("items after a test
   module"). Insert new code before the test module; `cat >>` is only safe
   for files without one.
+- **`hs_ui::toolbar::hard_right` only works inside a tool toolbar.** It
+  draws into a corner the shell reserves and leaves in `ui.data`, so
+  calling it anywhere else - a settings form right-aligning its Remove
+  button - makes it draw into the corner of whatever toolbar was drawn
+  last, and the page it was really in lays itself out around a widget
+  that is not there. The symptom was a **card rendered as an empty
+  rectangle**: the Project List's frame at full height with no rows in
+  it, which read as "the list disappears when I edit a project"
+  (owner's report, 2026-10-26). The shell now clears the marker after
+  each toolbar (`toolbar::clear_outer`) so a stray call falls back to an
+  inline layout, and a form that wants a right-aligned button uses a
+  plain `with_layout(right_to_left)`.
 - The shell draws tool toolbars with `horizontal_wrapped`; a tool's
   hard-right group must go through `hs_ui::toolbar::hard_right`, never a
   bare `with_layout(right_to_left)`: that scope only gets the width left on
@@ -1545,7 +1557,11 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   `<sc>`, `<sp>` and `<dl>` (for `$`, which both shells expand) are the
   escapes. A `^{SPACE}` SendKeys token does not exist: Ctrl+Space is `^ `.
 - `mouse_event` takes an unsigned delta: a negative wheel must be wrapped
-  (`(4294967296 + d) % 4294967296`).
+  (`(4294967296 + d) % 4294967296`), **and the unit is `WHEEL_DELTA` =
+  120 per notch**. Passing `-10` scrolls by about a pixel, which looks
+  exactly like a page pinned by a scroll target and sent me chasing a
+  `scroll_to_rect` that was innocent. `hs.ps1 wheel` multiplies by 120
+  now, so its argument is notches.
 - A WebView2 page holding native focus swallows the first click on the
   rail; click a different rail entry first, or use `rail <k>` twice.
 - **A screenshot must verify the foreground window, not only the

@@ -254,6 +254,9 @@ pub enum SettingsEffect {
     /// reference, not a delete (owner's requirement, 2026-10-26),
     /// which is why the confirmation says so in as many words.
     ConfirmRemoveProject(String, String),
+    /// Open this project folder in the Editor, in the tab it already has
+    /// or in a new one.
+    OpenProject(std::path::PathBuf),
     /// Settings -> Connections -> Connect: open this saved profile in its
     /// own activity, in the tab it already has or in a new one.
     OpenConnection {
@@ -4608,7 +4611,11 @@ fn project_list(
             };
             if let Some(e) = entry {
                 state.project_selected = Some(e.id.clone());
-                state.project_draft = Some(ProjectDraft::open(e));
+                state.project_draft = Some(ProjectDraft::open(e.clone()));
+                // Adding a folder here opens it, as adding one from the
+                // activity does: the two gestures mean the same thing
+                // (owner's requirement, 2026-10-26).
+                effects.push(SettingsEffect::OpenProject(e.root));
             }
         }
     });
@@ -4750,7 +4757,9 @@ fn project_detail(
             if ui.button(s.t("close")).clicked() {
                 state.project_selected = None;
             }
-            hs_ui::toolbar::hard_right(ui, |ui| {
+            // A plain right-aligned scope: `toolbar::hard_right` is for a
+            // tool's toolbar, where the shell reserves it a corner.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if form::danger_button(ui, theme, &s.t("settings-project-remove")).clicked() {
                     remove = true;
                 }
@@ -4777,7 +4786,11 @@ fn project_detail(
             Some(e) => effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e)),
             None => match s.projects.write().upsert(entry.clone()) {
                 Ok(()) => {
-                    state.project_draft = Some(ProjectDraft::open(entry));
+                    // Back to the list, so the next project is one click
+                    // away rather than behind a Close (owner's
+                    // requirement, 2026-10-26).
+                    state.project_draft = None;
+                    state.project_selected = None;
                     effects.push(SettingsEffect::Toast(
                         hs_core::tool::ToastLevel::Success,
                         s.t("toast-saved"),

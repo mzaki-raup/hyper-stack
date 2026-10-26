@@ -1222,6 +1222,7 @@ impl HyperStackApp {
             "print.tab" => self.print_active(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
+            "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
             // Edit This Connection, from any activity's sidebar: the page
             // opens with that profile already selected in its form, so the
             // user is not left to find it in the list again.
@@ -1754,6 +1755,16 @@ impl HyperStackApp {
                     self.services.events.publish(Event::ConnectionsChanged);
                     self.reveal_rail(&tool);
                     self.open_tool(&tool, Some(OpenRequest::Connection { id }));
+                }
+                SettingsEffect::OpenProject(root) => {
+                    self.reveal_rail("editor");
+                    self.open_tool(
+                        "editor",
+                        Some(OpenRequest::File {
+                            uri: root.to_string_lossy().to_string(),
+                            line: None,
+                        }),
+                    );
                 }
                 SettingsEffect::DeleteWorkspace => {
                     let name = self.services.workspace.read().meta.name.clone();
@@ -2907,6 +2918,7 @@ impl HyperStackApp {
                             };
                             t.tool.toolbar(ui, &mut cx);
                         });
+                        hs_ui::toolbar::clear_outer(ui);
                     });
                 });
         }

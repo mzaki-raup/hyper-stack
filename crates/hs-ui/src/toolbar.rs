@@ -31,6 +31,17 @@ pub fn set_outer(ui: &mut egui::Ui, tab: Id, rect: Rect) {
     ui.data_mut(|d| d.insert_temp(Id::new(OUTER), tab));
 }
 
+/// Forget the toolbar's rectangle once the toolbar has been drawn.
+///
+/// Without this the marker outlives the toolbar, and a `hard_right`
+/// called anywhere else - a settings form putting its Remove button on
+/// the right, say - would draw itself into the corner of whatever
+/// toolbar happened to be drawn last and leave the page it was actually
+/// in laid out around a widget that is not there (2026-10-26).
+pub fn clear_outer(ui: &mut egui::Ui) {
+    ui.data_mut(|d| d.remove::<Id>(Id::new(OUTER)));
+}
+
 /// The toolbar's hard-right group: the AI Assistant control and whatever
 /// status sits beside it.
 ///

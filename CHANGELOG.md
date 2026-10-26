@@ -11,75 +11,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **A brand mark is now the same size as the icons beside it.** The
-  bundled Nerd Font draws its logos to fit one monospace cell, Phosphor
-  draws its icons to fill the em, so every connection, engine, shell and
-  host OS logo came out noticeably smaller than its neighbours. The
-  interface now falls back to a scaled copy of that font - measured, not
-  guessed - which fixes every list, tab, button and card at once; the
-  terminal and the editor keep the font at its true size.
-- **Workspace and Environment are named properly in the toolbar.** Both
-  labels are bold and a little over body size in the full text colour -
-  they say what the window is pointed at, which is worth reading before
-  running anything - and the pair is fenced by a separator on each side
-  with room to breathe.
-- **Windsurf and Devin can be added as a chat provider.** Neither
-  publishes an API this app can call directly, so the entry sits in the
-  local group pre-filled for a bridge running beside them on this
-  machine, and says so.
+- (nothing yet)
 
-- **Every connection wears its own mark.** PostgreSQL's elephant,
-  MySQL's dolphin, a single file for SQLite, Redis' and CouchDB's own
-  logos, MongoDB's leaf, a cloud for S3, a folder for WebDAV, a package
-  for Nexus - in Settings, in each activity's sidebar and on the tab,
-  from one shared table. Qdrant, MinIO and Nexus have no logo anywhere,
-  so they take the nearest honest generic rather than a borrowed brand.
-- **Google, Azure and AWS keep their real marks** in the AI provider
-  gallery; the rest already had apt stand-ins (DeepSeek's whale,
-  Moonshot's moon, Mistral's wind) and keep them, since no logo for them
-  exists in the bundled font.
+## 0.87.0 — 2026-10-26
 
-- **An SSH host wears its operating system.** One read-only probe on
-  connect (`/etc/os-release`, `uname -sr`, `ver`) works out what the
-  other end is; the answer is kept on the profile, so the sidebar draws
-  the right logo without connecting and a restored tab wears it before
-  anything happens. Ubuntu, Debian, Fedora, Red Hat and its rebuilds,
-  Alpine, Arch, SUSE, macOS, FreeBSD, Windows and plain Linux have their
-  own glyph; WSL keeps its distribution's and says `· WSL` in the label.
-  The tab wears the same logo.
-- **Every shell has its own icon.** PowerShell 7 and Windows PowerShell
-  are told apart by two drawings of the one brand they share, Command
-  Prompt gets the cmd glyph, Git Bash keeps the branch mark, and a WSL
-  profile wears its distribution's logo - `wsl:Ubuntu-24.04` needs no
-  probe to say it is Ubuntu. Nushell has no logo in Nerd Fonts, so it
-  takes the windowed terminal rather than a borrowed brand.
-- **Docker, Podman and Kubernetes wear their own marks** - the whale,
-  a neutral package (Nerd Fonts has no Podman logo to borrow) and the
-  helm - everywhere a kind is shown: the dashboard, the add buttons, the
-  host lists in the activity and in Settings, and the tab. The
-  **activity's** icon stays the shipping container, which is the
-  category rather than an engine. One table in `hs-ui` now, because the
-  activity and Settings each had their own and they had already drifted.
-- **Workspace and Environment are labelled**, and sit together on the
-  right of the title bar, behind a separator from the actions: they say
-  *where you are*, which is a different kind of thing from the buttons
-  beside them.
+### Added
 
-- **Outlined activity icons**, switched in Settings → Appearance →
-  Sidebar. A ring around each coloured icon — light on a dark theme,
-  dark on a light one — so a glyph in its own hue separates from the
-  panel. On by default, and offered only with Coloured Activity Icons
-  on, since a plain icon is the theme's own colour and a ring round that
-  reads as a glow. epaint has no stroke for text, so the ring is the
-  glyph drawn eight times at small offsets underneath.
-- **Home's activity toolbar** got bigger icons (22 px), room between
-  them, and a hover plate with an accent edge, so the row says which
-  icon is under the pointer.
-- **A tab wears its own icon.** A Terminal tab shows its shell's glyph —
-  PowerShell, cmd, Git Bash, WSL — or its CLI's when it was opened from
-  one; a Container tab its host's kind; a Graphics tab its kind; a
-  Devtools tab its utility's. Each is the same glyph that item's row
-  wears in the sidebar.
+- Every connection kind and AI provider wears its own mark (e2d01101)
+- Hosts and shells wear their own logo, and the title bar says where you are (d69c7fae)
+- A tab wears its own item's icon, not its activity's (fb37cac7)
+- Outline the coloured activity icons, and a switch for it (ae9b5c08)
+
+### Fixed
+
+- Draw brand marks at the size of the icons beside them (9da33818)
+- Tooltips above the cursor, and four reports from the sidebar (d448cafe)
 
 ## 0.86.1 — 2026-10-25
 

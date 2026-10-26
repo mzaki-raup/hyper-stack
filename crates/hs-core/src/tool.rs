@@ -177,6 +177,57 @@ pub enum ToastLevel {
 
 /// Per-frame context: services, the tab's id, the active environment and the
 /// action queue.
+/// What a tab is looking at: the band above the toolbar.
+///
+/// `facts` are drawn in order as `Label : value`, each between rules. A
+/// fact whose value is empty is left out entirely - a terminal with no
+/// profile shows no "Profile :" gap - and a fact with an empty *label*
+/// is drawn as its value alone, which is what a path or a method wants.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ToolHeader {
+    /// The glyph that leads the band: the language, engine, OS or kind.
+    pub icon: String,
+    /// The name of the thing - the project, note, connection or file.
+    pub name: String,
+    pub facts: Vec<(String, String)>,
+}
+
+/// A file time as the header band shows it: local, to the minute.
+///
+/// Seconds are noise in a header - what matters is "this morning" or
+/// "last Tuesday" - and an unknown time is a dash rather than an
+/// invented one.
+pub fn stamp(t: Option<std::time::SystemTime>) -> String {
+    match t {
+        Some(t) => chrono::DateTime::<chrono::Local>::from(t)
+            .format("%Y-%m-%d %H:%M")
+            .to_string(),
+        None => "—".to_string(),
+    }
+}
+
+impl ToolHeader {
+    pub fn new(icon: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            icon: icon.into(),
+            name: name.into(),
+            facts: Vec::new(),
+        }
+    }
+
+    /// Add a fact. An empty value is kept here and skipped when drawn,
+    /// so callers need not branch.
+    pub fn fact(mut self, label: impl Into<String>, value: impl Into<String>) -> Self {
+        self.facts.push((label.into(), value.into()));
+        self
+    }
+
+    /// A fact with no label: a path, or a method and a request name.
+    pub fn plain(self, value: impl Into<String>) -> Self {
+        self.fact("", value)
+    }
+}
+
 pub struct ToolContext<'a> {
     pub services: &'a Services,
     pub tab_id: u64,
@@ -254,6 +305,29 @@ pub trait Tool: Send {
 
     /// Optional toolbar row under the environment banner.
     fn toolbar(&mut self, _ui: &mut egui::Ui, _cx: &mut ToolContext) {}
+
+    /// Whether this tool puts anything in the toolbar.
+    ///
+    /// Devtools, the Browser and Settings draw none, and the shell used
+    /// to reserve them an empty strip anyway - a bar of nothing above
+    /// the pane (owner's report, 2026-10-26). Saying so here lets the
+    /// shell leave the row out entirely.
+    fn draws_toolbar(&self) -> bool {
+        true
+    }
+
+    /// What this tab is looking at, for the band the shell draws above
+    /// the toolbar.
+    ///
+    /// Returned as data rather than drawn, so every activity's band has
+    /// the same spacing, rules and emphasis - these facts used to be
+    /// scattered through each toolbar in whatever corner had room
+    /// (owner's requirement, 2026-10-26). `None` means no band, which is
+    /// right for a dashboard: it is looking at the activity, not at a
+    /// thing.
+    fn header(&self) -> Option<ToolHeader> {
+        None
+    }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
         Vec::new()

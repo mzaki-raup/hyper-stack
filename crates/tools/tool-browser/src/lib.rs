@@ -684,6 +684,12 @@ impl BrowserTool {
 }
 
 impl Tool for BrowserTool {
+    /// Draws no toolbar: the shell leaves the strip out rather than
+    /// reserving an empty bar above the pane.
+    fn draws_toolbar(&self) -> bool {
+        false
+    }
+
     fn wants_home_tab(&self) -> bool {
         true
     }

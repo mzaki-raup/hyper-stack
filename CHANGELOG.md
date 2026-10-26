@@ -11,6 +11,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fields are visible again.** A dropdown, checkbox, radio, slider rail
+  or text box was painted in exactly the colour of the card it sits in,
+  so on a dark theme a dropdown was a word with no box round it and a
+  checkbox was a tick with no checkbox (owner's report, with a
+  screenshot). They are a well now - darker than the card on a dark
+  theme, a shade down on a light one - and carry an outline so the shape
+  reads even where the two colours are close. A test keeps every bundled
+  scheme honest about it.
+- **Every work pane says what it is looking at.** A band above the
+  toolbar carries the thing's own icon and name, then the facts that
+  matter for it, each between rules. The Scratchpad shows when its note
+  was written, last changed and whether it is saved; the Editor shows
+  the project's language and the version of the toolchain installed for
+  it. Facts with nothing to say are left out entirely rather than shown
+  empty. Tools return the band as data and the shell draws it, so the
+  spacing and emphasis cannot drift apart between activities.
+- **No more empty toolbar strips.** Devtools, the Browser and Settings
+  draw no toolbar, and the shell used to reserve them a bar of nothing
+  above the pane.
+- **The Workspace and Environment pickers are separated by a rule**, not
+  just a gap: they answer different questions.
+
 - **Fixed: the project list went blank while a project was being
   edited.** The detail form right-aligned its Remove button with the
   helper that pins a *tool toolbar's* corner, which drew it into the

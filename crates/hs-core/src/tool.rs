@@ -190,6 +190,16 @@ pub struct ToolHeader {
     /// The name of the thing - the project, note, connection or file.
     pub name: String,
     pub facts: Vec<(String, String)>,
+    /// Facts that carry their own colour, by index into `facts`, as
+    /// `#RRGGBB`.
+    ///
+    /// Almost everything in the band is one muted colour, which is what
+    /// makes thirteen activities look like one app. The exception is a
+    /// value whose colour *is* information - an HTTP method, where GET
+    /// being green and DELETE red is the same language the sidebar
+    /// already speaks (owner's requirement, 2026-10-27). Held as hex
+    /// rather than a `Color32` so `hs-core` need not know about egui.
+    pub colours: Vec<(usize, String)>,
 }
 
 /// A file time as the header band shows it: local, to the minute.
@@ -212,6 +222,7 @@ impl ToolHeader {
             icon: icon.into(),
             name: name.into(),
             facts: Vec::new(),
+            colours: Vec::new(),
         }
     }
 
@@ -225,6 +236,19 @@ impl ToolHeader {
     /// A fact with no label: a path, or a method and a request name.
     pub fn plain(self, value: impl Into<String>) -> Self {
         self.fact("", value)
+    }
+
+    /// A fact drawn in its own colour (`#RRGGBB`), for a value whose
+    /// colour is part of what it says.
+    pub fn tinted(
+        mut self,
+        label: impl Into<String>,
+        value: impl Into<String>,
+        hex: impl Into<String>,
+    ) -> Self {
+        self = self.fact(label, value);
+        self.colours.push((self.facts.len() - 1, hex.into()));
+        self
     }
 }
 

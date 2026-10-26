@@ -65,10 +65,18 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
                 );
                 ui.add_space(PAD);
                 rule(ui, theme);
-                for (label, value) in header.facts.iter() {
+                for (i, (label, value)) in header.facts.iter().enumerate() {
                     if value.trim().is_empty() {
                         continue;
                     }
+                    // A fact may carry its own colour when the colour is
+                    // part of what it says - an HTTP method, say.
+                    let tint = header
+                        .colours
+                        .iter()
+                        .find(|(at, _)| *at == i)
+                        .and_then(|(_, hex)| crate::theme::parse_hex(hex))
+                        .unwrap_or(theme.text_muted);
                     ui.add_space(PAD);
                     // A fact with no label is just its value - a path, or
                     // a method and a request name.
@@ -77,7 +85,7 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
                     } else {
                         format!("{label} : {value}")
                     };
-                    ui.label(RichText::new(text).size(FACT_SIZE).color(theme.text_muted));
+                    ui.label(RichText::new(text).size(FACT_SIZE).color(tint));
                     ui.add_space(PAD);
                     rule(ui, theme);
                 }

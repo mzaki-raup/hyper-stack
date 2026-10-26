@@ -11,6 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **The Container work pane carries its header band:** the host under
+  its engine's own mark, what kind of engine it is, the version it
+  reported ("Docker Engine 27.1.1", "Kubernetes v1.31.2") and where it
+  runs ("WSL Ubuntu 24.04"). The "Engine x.y" lines under the Docker and
+  cluster summaries go: the band says it once, above.
+- **The API Client's band** names the collection, the folders the
+  request sits in, and the request under its method - in the method's
+  own colour, the same green GET and red DELETE the sidebar uses, since
+  that colour is part of what it says.
+
 - **Redis, NoSQL and S3 work panes carry their header band** - the
   connection under its own mark, what the server turned out to be, its
   version and the session. Where a store needs no user, the band says

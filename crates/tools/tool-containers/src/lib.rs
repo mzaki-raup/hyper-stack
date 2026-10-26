@@ -82,6 +82,11 @@ pub struct State {
     /// glyph without keeping it here.
     #[serde(default)]
     pub host_kind: String,
+    /// Where the engine runs, as the band shows it ("WSL Ubuntu 24.04").
+    /// Kept with the tab for the same reason as the kind: `header()` is
+    /// asked every frame and handed no `Services`.
+    #[serde(default)]
+    pub host_os: String,
     /// Which list the pane is showing.
     #[serde(default)]
     pub resource: docker::Resource,
@@ -1044,6 +1049,23 @@ impl ContainersTool {
         if self.state.host_kind != profile.kind {
             self.state.host_kind = profile.kind.clone();
         }
+        // Where the engine runs, for the band: a WSL host names its
+        // distribution, a remote one its address, and a local engine is
+        // simply this machine.
+        {
+            let f = hs_container::profile::ContainerFields::from_table(&profile.fields);
+            let os = match f.transport {
+                hs_container::profile::Transport::Wsl if !f.distro.is_empty() => {
+                    format!("WSL {}", f.distro.replace('-', " "))
+                }
+                hs_container::profile::Transport::Ssh if !f.host.is_empty() => f.host.clone(),
+                hs_container::profile::Transport::Tcp if !f.host.is_empty() => f.host.clone(),
+                _ => "Local".to_string(),
+            };
+            if self.state.host_os != os {
+                self.state.host_os = os;
+            }
+        }
         let is_cluster = hs_core::connections::is_cluster_kind(&profile.kind);
         // The first read happens when the tab is first drawn, not when it
         // is created: a workspace that restores ten tabs must not probe
@@ -1133,12 +1155,6 @@ impl ContainersTool {
                         );
                     }
                 });
-                form::hint(
-                    ui,
-                    &theme,
-                    &s.i18n
-                        .t_args("container-engine-version", &[("version", &inv.version)]),
-                );
                 ui.add_space(8.0);
                 let inv = inv.clone();
                 self.inventory(ui, &theme, &s, cx.actions, &profile, &inv);
@@ -1213,12 +1229,6 @@ impl ContainersTool {
                 &s.t("cluster-dash-warnings"),
             );
         });
-        form::hint(
-            ui,
-            theme,
-            &s.i18n
-                .t_args("cluster-version", &[("version", &inv.version)]),
-        );
         ui.add_space(6.0);
 
         // The namespace picker, above everything it narrows.
@@ -3087,6 +3097,44 @@ fn open_host(cx: &mut ToolContext, host_id: &str) {
 impl Tool for ContainersTool {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
+    }
+
+    /// The host under its engine's own mark, what kind of engine it is
+    /// and what it is running on.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.is_home || self.state.host_name.is_empty() {
+            return None;
+        }
+        let kind = hs_core::connections::kind_label(&self.state.host_kind).to_string();
+        // Whichever inventory this tab has: an engine host reports its
+        // own version, a cluster reports the server's.
+        let reported = match (&self.inventory, &self.cluster) {
+            (Some(Ok(inv)), _) => inv.version.clone(),
+            (_, Some(Ok(inv))) => inv.version.clone(),
+            _ => String::new(),
+        };
+        let version = if reported.is_empty() {
+            String::new()
+        } else if self.state.host_kind == "docker" {
+            // Docker calls the daemon the Engine, and so does its own
+            // `docker version` output.
+            format!("Docker Engine {reported}")
+        } else {
+            format!("{kind} {reported}")
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(
+                kind_icon(&self.state.host_kind),
+                self.state.host_name.clone(),
+            )
+            .fact("Container Type", kind.clone())
+            // "Docker Engine 27.1.1", "Kubernetes v1.31.2": the engine's
+            // own name in front of the number it reported, so the fact
+            // reads as a product rather than a bare version string
+            // (owner's requirement, 2026-10-27).
+            .fact("Version", version)
+            .fact("OS Name And Version", self.state.host_os.clone()),
+        )
     }
 
     fn title(&self) -> Cow<'_, str> {

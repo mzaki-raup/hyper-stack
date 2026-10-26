@@ -104,7 +104,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - **Saving a project's settings returns to the list**, so the next
   project is one click away rather than behind a Close.
 
-
 ## 0.89.1 — 2026-10-26
 
 ### Fixed

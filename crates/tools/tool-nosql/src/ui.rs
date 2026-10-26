@@ -107,6 +107,10 @@ pub struct NoSqlTool {
     shared: Arc<Mutex<Shared>>,
     cmd: Option<mpsc::Sender<Cmd>>,
     conn_name: String,
+    /// `user@host:port`, or `host:port` when the store needs no user.
+    /// Kept here because `header()` runs every frame with no services.
+    session_label: String,
+    session_user: String,
     conn_error: Option<String>,
     waiting_for_vault: bool,
     read_only_profile: bool,
@@ -137,6 +141,8 @@ impl NoSqlTool {
             shared: Arc::new(Mutex::new(Shared::default())),
             cmd: None,
             conn_name: String::new(),
+            session_label: String::new(),
+            session_user: String::new(),
             conn_error: None,
             waiting_for_vault: false,
             read_only_profile: false,
@@ -207,6 +213,12 @@ impl NoSqlTool {
             )
         };
         self.conn_name = name;
+        self.session_user = fields.user.clone();
+        self.session_label = if fields.user.is_empty() {
+            format!("{}:{}", fields.host, fields.port)
+        } else {
+            format!("{}@{}:{}", fields.user, fields.host, fields.port)
+        };
         self.read_only_profile = read_only;
         self.env_id = env_id.clone();
         self.kind = fields.store_kind();
@@ -374,6 +386,35 @@ impl Tool for NoSqlTool {
 
     fn current_connection(&self) -> Option<&str> {
         self.state.conn_id.as_deref()
+    }
+
+    /// The connection, which store it is, its version and the session.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        let (store, version) = match self.shared.lock().status.clone() {
+            Some(Status::Ready { kind, version }) => (kind.label().to_string(), version),
+            _ => (String::new(), String::new()),
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(
+                hs_ui::icons::connection_icon(self.kind?.connection_kind(), ""),
+                self.conn_name.clone(),
+            )
+            .fact("Database", store)
+            .fact("Version", version)
+            .fact(
+                // CouchDB is usually reached with a user, MongoDB often
+                // without one; naming the host plainly beats "@host".
+                if self.session_user.is_empty() {
+                    "Host"
+                } else {
+                    "Session"
+                },
+                self.session_label.clone(),
+            ),
+        )
     }
 
     /// The store's own mark, so Mongo and Couch are told apart.
@@ -613,7 +654,6 @@ impl Tool for NoSqlTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::from_settings(&s.settings.read().appearance);
         for (tab, icon, key) in [
             (Tab::Find, ph::MAGNIFYING_GLASS, "nosql-tab-find"),
             (Tab::Aggregate, ph::FUNNEL, "nosql-tab-aggregate"),
@@ -632,14 +672,6 @@ impl Tool for NoSqlTool {
                 }
             }
         }
-        if let Some(c) = self.container() {
-            ui.separator();
-            ui.label(
-                egui::RichText::new(c.display())
-                    .small()
-                    .color(theme.text_muted),
-            );
-        }
         if self.protected && !self.writes_unlocked {
             ui.separator();
             let label = s.i18n.t_args("nosql-protected", &[("env", &self.env_name)]);
@@ -647,7 +679,6 @@ impl Tool for NoSqlTool {
                 self.writes_unlocked = true;
             }
         }
-        let status = self.shared.lock().status.clone();
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -657,13 +688,6 @@ impl Tool for NoSqlTool {
                 .clicked()
             {
                 self.assistant.toggle("NoSQL");
-            }
-            if let Some(Status::Ready { kind, version }) = status {
-                ui.label(
-                    egui::RichText::new(format!("{} {version}", kind.label()))
-                        .small()
-                        .color(theme.text_muted),
-                );
             }
         });
     }

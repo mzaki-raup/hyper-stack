@@ -16,15 +16,18 @@ use egui::{RectAlign, Response, Tooltip, WidgetText};
 const GAP: f32 = 16.0;
 
 /// The alignments to try, in order: above and to the right of the
-/// pointer first, then above and to the left when the window's right
-/// edge is close, and only then below - a tooltip off the top of the
-/// screen would be worse than one under the cursor.
-const ALIGNS: [RectAlign; 4] = [
-    RectAlign::TOP_START,
-    RectAlign::TOP_END,
-    RectAlign::BOTTOM_START,
-    RectAlign::BOTTOM_END,
-];
+/// pointer, then above and to the left when the window's right edge is
+/// close.
+///
+/// **Below is deliberately not an option.** It used to be the last
+/// resort, which meant the one row where there is no room above - the
+/// title bar's own icons, a few pixels from the top of the window -
+/// fell back to a tooltip under the cursor, the single place the rule
+/// was meant to fix (owner's report, 2026-10-26, after asking twice).
+/// With no alternative that fits, egui clamps the tooltip into view
+/// instead, which keeps it above the pointer and merely closer to the
+/// top edge.
+const ALIGNS: [RectAlign; 2] = [RectAlign::TOP_START, RectAlign::TOP_END];
 
 pub trait TipExt {
     /// Show `text` above the pointer.

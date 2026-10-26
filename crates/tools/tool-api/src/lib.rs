@@ -1378,6 +1378,45 @@ impl Tool for ApiTool {
         }
     }
 
+    /// The collection, the folders the request sits in, and the request
+    /// itself under its method.
+    ///
+    /// No version here: an API client has nothing to report a version
+    /// of (owner's decision, 2026-10-27).
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.is_home {
+            return None;
+        }
+        let cid = self.state.collection.as_ref()?;
+        let c = self.collections.iter().find(|c| &c.id == cid)?;
+        // `find` gives the folder chain from the collection down, which
+        // is exactly the path the band shows.
+        let folders = self
+            .state
+            .request_id
+            .as_ref()
+            .and_then(|rid| c.find(rid))
+            .map(|(_, fs)| {
+                fs.iter()
+                    .map(|f| f.name.clone())
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
+            .unwrap_or_default();
+        let r = self.request();
+        let method = r.method.to_uppercase();
+        let h = hs_core::tool::ToolHeader::new(hs_ui::icons::ph::FOLDERS, c.name.clone())
+            .plain(folders);
+        // The method keeps the colour the sidebar gives it - green GET,
+        // red DELETE - because that colour is part of what it says. A
+        // method with no colour of its own (HEAD, OPTIONS, TRACE) takes
+        // the band's ordinary one.
+        Some(match crate::ui::method_rgb(&method) {
+            Some(c) => h.tinted("", format!("{method} {}", r.name), hs_ui::theme::to_hex(c)),
+            None => h.plain(format!("{method} {}", r.name)),
+        })
+    }
+
     fn title(&self) -> Cow<'_, str> {
         // The home tab is the workspace's, not a request's.
         if self.is_home {

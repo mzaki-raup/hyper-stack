@@ -431,6 +431,24 @@ impl Theme {
         });
     }
 
+    /// The background of anything the user types into or picks from: a
+    /// text field, a dropdown, a checkbox, a radio, a slider's rail.
+    ///
+    /// These sit **inside** cards painted in `surface`, and the visuals
+    /// used to give them `surface` as well - so on a dark theme a
+    /// dropdown was a word floating on the card with no box around it,
+    /// and a checkbox was a tick with no checkbox (owner's report with a
+    /// screenshot, 2026-10-26). A field is a well: darker than the card
+    /// on a dark theme, and a shade down from it on a light one, where
+    /// going darker still would read as disabled.
+    pub fn field_bg(&self) -> Color32 {
+        if self.dark {
+            mix(self.surface, Color32::BLACK, 0.45)
+        } else {
+            mix(self.surface, Color32::BLACK, 0.06)
+        }
+    }
+
     /// egui visuals for this palette.
     pub fn visuals(&self) -> egui::Visuals {
         let mut v = if self.dark {
@@ -440,7 +458,8 @@ impl Theme {
         };
         v.window_fill = self.panel_bg;
         v.panel_fill = self.panel_bg;
-        v.extreme_bg_color = self.window_bg;
+        // What a `TextEdit` and a code block are painted on.
+        v.extreme_bg_color = self.field_bg();
         v.faint_bg_color = self.surface;
         v.override_text_color = Some(self.text);
         v.hyperlink_color = self.secondary;
@@ -448,8 +467,12 @@ impl Theme {
         v.selection.stroke = egui::Stroke::new(1.0, self.accent);
         v.widgets.noninteractive.bg_fill = self.panel_bg;
         v.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, self.border);
-        v.widgets.inactive.bg_fill = self.surface;
-        v.widgets.inactive.weak_bg_fill = self.surface;
+        // Fields are a well in the card, not the card itself, and they
+        // keep an outline so the shape is visible even where the two
+        // colours are close - which is most of the light themes.
+        v.widgets.inactive.bg_fill = self.field_bg();
+        v.widgets.inactive.weak_bg_fill = self.field_bg();
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, self.border);
         v.widgets.hovered.bg_fill = self.surface_hover;
         v.widgets.hovered.weak_bg_fill = self.surface_hover;
         v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, self.accent);
@@ -530,12 +553,42 @@ pub fn parse_hex(s: &str) -> Option<Color32> {
     }
 }
 
+/// Blend `a` towards `b` by `t` (0 = `a`, 1 = `b`), channel by channel.
+///
+/// `Color32::linear_multiply` is not this: it scales the alpha too, so
+/// it dims a colour rather than darkening it (CLAUDE.md).
+fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let f = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Color32::from_rgb(f(a.r(), b.r()), f(a.g(), b.g()), f(a.b(), b.b()))
+}
+
 pub fn to_hex(c: Color32) -> String {
     format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b())
 }
 
 #[cfg(test)]
 mod tests {
+    /// A field has to be distinguishable from the card it sits in, in
+    /// every bundled scheme - that is the whole point of `field_bg`, and
+    /// a scheme added later must not quietly lose it.
+    #[test]
+    fn every_scheme_separates_a_field_from_its_card() {
+        for (id, _, _) in Theme::schemes() {
+            let t = Theme::by_name(id);
+            let name = id;
+            let f = t.field_bg();
+            let d = (f.r() as i32 - t.surface.r() as i32).abs()
+                + (f.g() as i32 - t.surface.g() as i32).abs()
+                + (f.b() as i32 - t.surface.b() as i32).abs();
+            assert!(
+                d >= 12,
+                "{name}: field {f:?} is too close to surface {:?}",
+                t.surface
+            );
+        }
+    }
+
     use super::*;
 
     #[test]

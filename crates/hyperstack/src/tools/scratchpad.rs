@@ -53,6 +53,9 @@ impl ToolFactory for ScratchpadFactory {
         Box::new(Scratchpad {
             saved: state.text.clone(),
             state,
+            created: None,
+            modified: None,
+            stamped: None,
             home_title: None,
             notes: Vec::new(),
             pins: Vec::new(),
@@ -96,6 +99,12 @@ struct NoteMeta {
 
 pub struct Scratchpad {
     state: State,
+    /// When this note's file was created and last written, for the
+    /// header band. Re-read on a timer: `header()` runs every frame and
+    /// has no business touching the disk that often.
+    created: Option<std::time::SystemTime>,
+    modified: Option<std::time::SystemTime>,
+    stamped: Option<(String, std::time::Instant)>,
     /// Set when this tab is the activity's home tab: its name, which is the
     /// activity's rather than a note's. Owner's report, 2026-10-17.
     home_title: Option<String>,
@@ -404,6 +413,35 @@ impl Scratchpad {
     }
 }
 
+impl Scratchpad {
+    /// Re-read the note file's created and modified times for the header
+    /// band - at most twice a second, and only when the note changed.
+    ///
+    /// `header()` is asked every frame and is handed no services, so the
+    /// answer has to be sitting on the tool; statting the file sixty
+    /// times a second to keep it there would be worse than the problem.
+    fn refresh_stamps(&mut self, s: &Services) {
+        let Some(id) = self.state.id.clone() else {
+            self.created = None;
+            self.modified = None;
+            self.stamped = None;
+            return;
+        };
+        let fresh = matches!(
+            &self.stamped,
+            Some((seen, at)) if *seen == id && at.elapsed() < std::time::Duration::from_millis(500)
+        );
+        if fresh {
+            return;
+        }
+        let path = note_path(&notes_dir(s), &id);
+        let meta = std::fs::metadata(&path).ok();
+        self.created = meta.as_ref().and_then(|m| m.created().ok());
+        self.modified = meta.as_ref().and_then(|m| m.modified().ok());
+        self.stamped = Some((id, std::time::Instant::now()));
+    }
+}
+
 impl Tool for Scratchpad {
     fn wants_home_tab(&self) -> bool {
         true
@@ -430,6 +468,28 @@ impl Tool for Scratchpad {
             None => Cow::Borrowed("New Note"),
         }
     }
+    /// Note name, when it was written and last changed, and whether
+    /// what is on screen has been saved.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        // The dashboard is looking at the activity, not at a note.
+        if self.home_title.is_some() {
+            return None;
+        }
+        let status = if self.dirty() {
+            "Draft"
+        } else if self.state.id.is_some() {
+            "Saved"
+        } else {
+            "Draft"
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(ph::NOTE_PENCIL, self.title().to_string())
+                .fact("Date Created", hs_core::tool::stamp(self.created))
+                .fact("Date Modified", hs_core::tool::stamp(self.modified))
+                .fact("Note Status", status),
+        )
+    }
+
     fn dirty(&self) -> bool {
         self.state.text != self.saved
     }
@@ -667,13 +727,6 @@ impl Tool for Scratchpad {
                 Err(e) => cx.toast(ToastLevel::Error, e),
             }
         }
-        let status = if self.dirty() {
-            s.t("scratchpad-unsaved")
-        } else if self.state.id.is_some() {
-            s.t("scratchpad-saved")
-        } else {
-            s.t("tool-scratchpad-hint")
-        };
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -687,7 +740,6 @@ impl Tool for Scratchpad {
             {
                 self.assistant.toggle("Scratchpad");
             }
-            ui.label(egui::RichText::new(status).weak());
         });
         if self.state.environment.is_none()
             && let Some(env) = cx.env_id
@@ -701,6 +753,7 @@ impl Tool for Scratchpad {
             self.dashboard(ui, cx);
             return;
         }
+        self.refresh_stamps(cx.services);
         // Autosave a moment after typing stops. A brand-new empty note is
         // not written: it only becomes a file once it has content.
         if self.dirty()

@@ -2561,6 +2561,12 @@ impl HyperStackApp {
                         };
                         self.environment_switcher(ui);
                         ui.label(name(s.t("env-label")));
+                        // The two pickers are separate questions - which
+                        // project, and which environment of it - so a rule
+                        // divides them rather than a gap alone (owner's
+                        // requirement, 2026-10-26).
+                        ui.add_space(SWITCHER_GAP);
+                        ui.separator();
                         ui.add_space(SWITCHER_GAP);
                         self.workspace_switcher(ui);
                         ui.label(name(s.t("workspace-label")));
@@ -2863,11 +2869,17 @@ impl HyperStackApp {
     /// Whether the active tab draws a toolbar at all, so the panel can
     /// be left out rather than drawn empty. The two cases are the ones
     /// `toolbar` itself returns early on.
+    /// Whether the strip above the pane is worth any height at all: a
+    /// tool that draws no toolbar and offers no header gets none, rather
+    /// than an empty bar.
     fn has_toolbar(&self) -> bool {
         self.tabs
             .active
             .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
-            .is_some_and(|t| !(t.home && t.tool.home_is_dashboard()))
+            .is_some_and(|t| {
+                !(t.home && t.tool.home_is_dashboard())
+                    && (t.tool.draws_toolbar() || t.tool.header().is_some())
+            })
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui) {
@@ -2883,6 +2895,15 @@ impl HyperStackApp {
                 return;
             }
             let is_home = t.home;
+            // The band that says what this tab is looking at, above the
+            // toolbar and drawn the same way for every activity.
+            if let Some(h) = t.tool.header() {
+                hs_ui::header::work_header(ui, &self.theme, &h);
+            }
+            if !t.tool.draws_toolbar() {
+                self.pending_actions.extend(actions);
+                return;
+            }
             egui::Frame::new()
                 .inner_margin(egui::Margin {
                     left: 8,

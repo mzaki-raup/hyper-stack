@@ -1394,7 +1394,7 @@ impl Tool for LogsTool {
         form::header_bar(ui, &theme, |ui| {
             ui.label(egui::RichText::new(s.t("tool-logs")).strong().size(15.0));
         });
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if form::icon_button(ui, &theme, ph::FOLDER_OPEN, 16.0, false)
                 .tip(s.t("logs-open-file"))
                 .clicked()
@@ -1419,20 +1419,27 @@ impl Tool for LogsTool {
             {
                 self.run_command("logs.paste", cx);
             }
+            // Never wider than what is left, so the panel is not pushed
+            // out by its own filter box.
+            let room = (ui.available_width() - 8.0).max(60.0);
             ui.add(
                 egui::TextEdit::singleline(&mut self.sidebar_filter)
                     .hint_text(s.t("logs-filter-sources"))
-                    .desired_width(f32::INFINITY),
+                    .desired_width(room),
             );
         });
         ui.add_space(4.0);
-        // The column is three stacked sections (owner's request,
-        // 2026-10-23): the saved logs take about 40% of it, Running
-        // Service 30%, and the filter presets what is left. Each scrolls
-        // on its own, so a long list never pushes the others off.
+        // The column is four stacked sections, each taking a fixed share
+        // of it and scrolling on its own, so a long list never pushes the
+        // others off the bottom: saved logs 30%, Running Services 30%,
+        // Investigations 20%, Filter Presets 20% (owner's requirement,
+        // 2026-10-26). The floors keep each section usable in a short
+        // window even when that costs the percentages.
         let col_h = ui.available_height();
-        let saved_height = (col_h * 0.40).max(120.0);
-        let services_height = (col_h * 0.30).max(100.0);
+        let saved_height = (col_h * 0.30).max(90.0);
+        let services_height = (col_h * 0.30).max(90.0);
+        let views_height = (col_h * 0.20).max(70.0);
+        let presets_height = (col_h * 0.20).max(70.0);
         // A flat list the user arranges themselves. It used to be grouped
         // by the environment of each source's connection, which said the
         // same thing twice: the environment is chosen in the title bar and
@@ -1538,7 +1545,13 @@ impl Tool for LogsTool {
         ui.separator();
         self.running_services(ui, cx, &theme, services_height);
         ui.separator();
-        self.investigations_section(ui, cx, &theme);
+        egui::ScrollArea::vertical()
+            .id_salt("logs-investigations")
+            .auto_shrink([false, false])
+            .max_height(views_height)
+            .show(ui, |ui| {
+                self.investigations_section(ui, cx, &theme);
+            });
         ui.separator();
         ui.label(
             egui::RichText::new(s.t("logs-presets"))
@@ -1546,24 +1559,30 @@ impl Tool for LogsTool {
                 .strong()
                 .color(theme.text_muted),
         );
-        if self.presets.is_empty() {
-            form::hint(ui, &theme, &s.t("logs-no-presets"));
-        }
         let mut apply: Option<Vec<Chip>> = None;
         let mut remove: Option<usize> = None;
-        for (i, p) in self.presets.iter().enumerate() {
-            let r = ui.selectable_label(false, format!("{} {}", ph::FUNNEL, p.name));
-            if r.clicked() {
-                apply = Some(p.chips.clone());
-            }
-            let del = s.t("logs-delete-preset");
-            r.context_menu(|ui| {
-                if ui.button(&del).clicked() {
-                    remove = Some(i);
-                    ui.close();
+        egui::ScrollArea::vertical()
+            .id_salt("logs-presets")
+            .auto_shrink([false, false])
+            .max_height(presets_height)
+            .show(ui, |ui| {
+                if self.presets.is_empty() {
+                    form::hint(ui, &theme, &s.t("logs-no-presets"));
+                }
+                for (i, p) in self.presets.iter().enumerate() {
+                    let r = ui.selectable_label(false, format!("{} {}", ph::FUNNEL, p.name));
+                    if r.clicked() {
+                        apply = Some(p.chips.clone());
+                    }
+                    let del = s.t("logs-delete-preset");
+                    r.context_menu(|ui| {
+                        if ui.button(&del).clicked() {
+                            remove = Some(i);
+                            ui.close();
+                        }
+                    });
                 }
             });
-        }
         if let Some(chips) = apply {
             self.state.chips = chips;
             self.chips_changed();

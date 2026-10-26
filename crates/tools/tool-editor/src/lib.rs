@@ -32,6 +32,7 @@ mod ai_panel;
 mod debug;
 mod git_ops;
 mod git_view;
+mod langver;
 mod lsp;
 pub mod project;
 mod terminal;
@@ -2971,6 +2972,32 @@ impl Tool for EditorTool {
         }
     }
 
+    /// Project name, what language it is and which toolchain is
+    /// installed for it.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.is_home {
+            return None;
+        }
+        let name = if self.proj_name.is_empty() {
+            self.title().to_string()
+        } else {
+            self.proj_name.clone()
+        };
+        let language = langver::display_name(&self.proj_lang);
+        // "Rust 1.89.0", or nothing at all while the probe is still out
+        // or when the toolchain is not installed - an empty fact is left
+        // out of the band rather than shown as "unknown".
+        let version = match langver::cached(&self.proj_lang) {
+            Some(v) if !language.is_empty() => format!("{language} {v}"),
+            _ => String::new(),
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(hs_ui::icons::language_icon(&self.proj_lang), name)
+                .fact("Language", language)
+                .fact("Version", version),
+        )
+    }
+
     /// The dashboard wears the workspace; a project tab wears its
     /// language.
     fn tab_icon(&self) -> Option<&'static str> {
@@ -3328,6 +3355,9 @@ impl Tool for EditorTool {
         self.debug.poll(s);
         self.debug_apply_actions(cx);
         self.sync_project(s);
+        // Asks the toolchain once per language, on the blocking pool;
+        // every later frame reads the cached answer.
+        langver::ensure(&s.runtime, &self.proj_lang);
         let (theme, ed_theme) = Self::theme(s);
         // Draw the dashboard whenever the tab has nothing open, not only
         // when `is_home` is set: the flag arrives from the shell a beat

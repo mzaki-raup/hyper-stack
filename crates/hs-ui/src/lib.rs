@@ -8,6 +8,7 @@ pub mod env_banner;
 pub mod fileicons;
 pub mod fonts;
 pub mod form;
+pub mod header;
 pub mod icons;
 pub mod kv_editor;
 pub mod mic;

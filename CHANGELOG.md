@@ -11,7 +11,99 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **The Container work pane carries its header band:** the host under
+  its engine's own mark, what kind of engine it is, the version it
+  reported ("Docker Engine 27.1.1", "Kubernetes v1.31.2") and where it
+  runs ("WSL Ubuntu 24.04"). The "Engine x.y" lines under the Docker and
+  cluster summaries go: the band says it once, above.
+- **The API Client's band** names the collection, the folders the
+  request sits in, and the request under its method - in the method's
+  own colour, the same green GET and red DELETE the sidebar uses, since
+  that colour is part of what it says.
+
+- **Redis, NoSQL and S3 work panes carry their header band** - the
+  connection under its own mark, what the server turned out to be, its
+  version and the session. Where a store needs no user, the band says
+  `Host : host:port` rather than an `@host` with nothing before it.
+  Their toolbars drop the name and version the band now carries, and
+  NoSQL's drops the collection path, which belongs over the pane that
+  shows it rather than in the toolbar.
+- An object store reports no version of its own - S3 is an API, not a
+  server that can be asked - so that fact is left out rather than
+  invented.
+
+- **Fixed: opening New Tunnel made the saved SSH hosts vanish.** The
+  tunnels section, and the form it opens, were drawn inside the host
+  list's own scroll area; focus landing in the form's first field made
+  egui scroll that into view and took the list above the fold. They are
+  two sections now, each scrolling on its own, so the hosts stay put
+  whatever the form does.
+- **The Database work pane carries its header band:** the connection
+  with its engine's mark, which database it is, the version the server
+  itself reported, and the session. The left column stops repeating the
+  version, which was the same answer twice.
+
+- **Tooltips really are above the cursor now, everywhere.** The title
+  bar's own icons sit a few pixels from the top of the window, where
+  there is no room above - and the rule still allowed a fall back to
+  *below*, so those were the one row that kept getting it wrong
+  (owner's report). Below is no longer an option at all; with nothing
+  that fits, the tooltip is clamped into view and stays above the
+  pointer.
+- **Terminal and SSH work panes carry their header band:** the shell,
+  its installed version, the profile it came from and where its
+  executable lives; the host's operating system, its version and the
+  session. SSH's toolbar drops the connection name, which the band now
+  carries.
+- **The Logs sidebar can be resized again**, and remembers its width.
+  A row of four buttons and a filter field asking for infinite width
+  needed more than a narrow column had, so the panel grew back every
+  frame and the drag handle looked stuck.
+- **The Logs sidebar's four sections take a fixed share of the column** -
+  saved sources 30%, Running Services 30%, Investigations 20%, Filter
+  Presets 20% - and each scrolls on its own. Investigations and the
+  presets had no bound at all, so a long list pushed everything else
+  off the bottom.
+
+- **Fields are visible again.** A dropdown, checkbox, radio, slider rail
+  or text box was painted in exactly the colour of the card it sits in,
+  so on a dark theme a dropdown was a word with no box round it and a
+  checkbox was a tick with no checkbox (owner's report, with a
+  screenshot). They are a well now - darker than the card on a dark
+  theme, a shade down on a light one - and carry an outline so the shape
+  reads even where the two colours are close. A test keeps every bundled
+  scheme honest about it.
+- **Every work pane says what it is looking at.** A band above the
+  toolbar carries the thing's own icon and name, then the facts that
+  matter for it, each between rules. The Scratchpad shows when its note
+  was written, last changed and whether it is saved; the Editor shows
+  the project's language and the version of the toolchain installed for
+  it. Facts with nothing to say are left out entirely rather than shown
+  empty. Tools return the band as data and the shell draws it, so the
+  spacing and emphasis cannot drift apart between activities.
+- **No more empty toolbar strips.** Devtools, the Browser and Settings
+  draw no toolbar, and the shell used to reserve them a bar of nothing
+  above the pane.
+- **The Workspace and Environment pickers are separated by a rule**, not
+  just a gap: they answer different questions.
+
+- **Fixed: the project list went blank while a project was being
+  edited.** The detail form right-aligned its Remove button with the
+  helper that pins a *tool toolbar's* corner, which drew it into the
+  corner of whatever toolbar was last on screen and left the settings
+  page laid out around a widget that was not there - the list's card
+  rendered as an empty rectangle (owner's report). Forms use a plain
+  right-aligned layout now, and the shell clears the toolbar marker so a
+  stray call can only fall back to an inline layout.
+- **A project can be added from the Editor's dashboard**, not only from
+  the sidebar and Settings, with **Manage Projects** beside it for the
+  full list. An empty workspace now has somewhere obvious to start.
+- **Adding a folder in Settings opens it**, as adding one from the
+  activity does; the two gestures meant the same thing and behaved
+  differently.
+- **Saving a project's settings returns to the list**, so the next
+  project is one click away rather than behind a Close.
+
 
 ## 0.89.1 — 2026-10-26
 

@@ -219,6 +219,9 @@ pub struct DbTool {
     waiting_for_vault: bool,
     conn_name: String,
     engine: Engine,
+    /// `user@host:port` for the header band, or the file for SQLite.
+    /// Kept here because `header()` runs every frame with no services.
+    session_label: String,
     read_only_profile: bool,
     env_id: Option<String>,
     env_name: String,
@@ -436,6 +439,7 @@ impl DbTool {
             conn_error: None,
             waiting_for_vault: false,
             conn_name: String::new(),
+            session_label: String::new(),
             engine: Engine::Postgres,
             read_only_profile: false,
             env_id: None,
@@ -542,6 +546,15 @@ impl DbTool {
             )
         };
         self.conn_name = name;
+        // What the header band calls the session: a server is
+        // user@host:port, a SQLite database is simply its file.
+        self.session_label = if fields.engine == "sqlite" {
+            fields.path.clone()
+        } else if fields.user.is_empty() {
+            format!("{}:{}", fields.host, fields.port)
+        } else {
+            format!("{}@{}:{}", fields.user, fields.host, fields.port)
+        };
         self.read_only_profile = read_only;
         self.env_id = env_id.clone();
         {
@@ -2389,6 +2402,27 @@ impl Tool for DbTool {
         &DESCRIPTOR
     }
 
+    /// The connection, which engine it is, what the server reported and
+    /// the session it is on.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        let version = match self.shared.lock().status.clone() {
+            Some(Status::Ready(info)) => info.version,
+            _ => String::new(),
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(
+                hs_ui::icons::connection_icon("db", self.engine.id()),
+                self.conn_name.clone(),
+            )
+            .fact("Database", self.engine.label())
+            .fact("Version", version)
+            .fact("Session", self.session_label.clone()),
+        )
+    }
+
     fn title(&self) -> Cow<'_, str> {
         let file = self
             .state
@@ -2894,13 +2928,10 @@ impl DbTool {
             Some(Status::Connecting) => {
                 ui.label(egui::RichText::new(s.t("db-connecting")).weak());
             }
-            Some(Status::Ready(info)) => {
-                ui.label(
-                    egui::RichText::new(format!("{} · {}", info.version, info.database))
-                        .small()
-                        .color(theme.text_muted),
-                );
-            }
+            // The server's version and database are in the header band
+            // above; repeating them here was the same answer twice
+            // (owner's requirement, 2026-10-26).
+            Some(Status::Ready(_)) => {}
             Some(Status::Failed(e)) => {
                 ui.colored_label(theme.error, e);
             }

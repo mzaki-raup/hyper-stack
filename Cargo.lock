@@ -8930,6 +8930,7 @@ dependencies = [
  "hs-container",
  "hs-core",
  "hs-editor",
+ "hs-ssh",
  "hs-term",
  "hs-ui",
  "parking_lot",

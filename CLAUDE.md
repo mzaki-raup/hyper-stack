@@ -639,6 +639,21 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   rather than for the activity. Any new "New …" button must go through
   `open_new_tab`, never `open`.
 
+- **A nested layout does not reset the direction.** Inside a
+  `right_to_left` group, `ui.horizontal` keeps going right-to-left - so
+  a label added before its control lands on the *wrong side* - and
+  `ui.with_layout(left_to_right, ..)` takes **all** the width that is
+  left, so two of them overlap each other. To put "Label [control]"
+  pairs in a right-to-left group, add each control first and then its
+  label, and add the pairs in reverse order (2026-10-26, the title bar's
+  Workspace and Environment pickers).
+- **Check a Nerd Font glyph by looking at it.** The codepoint being in
+  the font says nothing about *which* picture it is: `U+EBCA`, listed as
+  the codicon terminal-bash, draws a cube in the bundled JetBrains Mono,
+  and shipped as Git Bash's icon it would have been simply wrong. The
+  distro logos (`U+F300..`) and the two PowerShell marks were each
+  confirmed on screen before being kept.
+
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so

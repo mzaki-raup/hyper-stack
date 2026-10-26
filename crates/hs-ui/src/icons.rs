@@ -92,3 +92,52 @@ pub fn outlined_text(
     }
     painter.text(pos, anchor, &text, font, fill)
 }
+
+/// The logo for an operating system id (`hs_ssh::os::HostOs::id`), from
+/// the bundled Nerd Font's Linux set - `fonts::install` adds it as the
+/// last fallback, so these render wherever the interface font has no
+/// glyph of its own. An id nothing recognises keeps the generic host
+/// glyph rather than drawing a box.
+pub fn os_icon(id: &str) -> &'static str {
+    match id {
+        "ubuntu" => "\u{f31b}",
+        "debian" => "\u{f306}",
+        "fedora" => "\u{f30a}",
+        "rhel" => "\u{f316}",
+        "centos" => "\u{f304}",
+        "alpine" => "\u{f300}",
+        "arch" => "\u{f303}",
+        "suse" => "\u{f314}",
+        "linux" => "\u{f17c}",
+        "macos" => "\u{f302}",
+        "windows" => "\u{f17a}",
+        "freebsd" => "\u{f30c}",
+        _ => ph::COMPUTER_TOWER,
+    }
+}
+
+/// The glyph for a container engine or cluster kind.
+///
+/// Brands where a brand exists, from the bundled Nerd Font: Docker's
+/// whale and Kubernetes' helm. Podman has no logo in Nerd Fonts at all,
+/// so it takes a neutral package rather than a borrowed one, and
+/// Windows containers take the Windows logo. The **activity's** own
+/// icon stays the shipping container - that is the category, not an
+/// engine (owner's requirement, 2026-10-26).
+///
+/// One table, used by the activity and by Settings alike: two copies of
+/// this drifted apart once already.
+pub fn container_kind_icon(kind: &str) -> &'static str {
+    match kind {
+        // nf-md-docker: the filled whale. The devicon one (U+E7B0) is
+        // drawn too fine to read at 14 px.
+        "docker" => "\u{f0868}",
+        // nf-dev-kubernetes: the helm. The Material one (U+F10FE) comes
+        // out as an indistinct dot at this size.
+        "k8s" => "\u{e81d}",
+        // nf-cod-package: no podman logo exists to use.
+        "podman" => "\u{eb29}",
+        "wincontainer" => ph::WINDOWS_LOGO,
+        _ => ph::SHIPPING_CONTAINER,
+    }
+}

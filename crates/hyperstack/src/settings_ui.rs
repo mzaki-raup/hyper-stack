@@ -2542,14 +2542,10 @@ fn container_subtitle(s: &Services, id: &str, kind: &str) -> String {
 
 /// The glyph for a container kind: what the thing **is**, as every other
 /// list in the app now does.
+/// The one table, shared with the Container activity so the two lists
+/// of hosts can never show different icons for the same kind.
 fn container_kind_icon(kind: &str) -> &'static str {
-    use hs_ui::icons::ph;
-    match kind {
-        "k8s" => ph::POLYGON,
-        "podman" => ph::HARD_DRIVES,
-        "wincontainer" => ph::WINDOWS_LOGO,
-        _ => ph::SHIPPING_CONTAINER,
-    }
+    hs_ui::icons::container_kind_icon(kind)
 }
 
 /// Defaults and Safety: the guards that apply to every container host.

@@ -13,8 +13,7 @@
 /// the first two are simply not commands.
 ///
 /// Each part is allowed to fail: the parser takes whatever arrives.
-pub const PROBE: &str =
-    "cat /etc/os-release 2>/dev/null; uname -sr 2>/dev/null; ver 2>nul || true";
+pub const PROBE: &str = "cat /etc/os-release 2>/dev/null; uname -sr 2>/dev/null; ver 2>nul || true";
 
 /// What the other end turned out to be.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -73,33 +72,33 @@ impl HostOs {
         }
     }
 
-    /// The logo, from the bundled Nerd Font's Linux set (`hs_ui::fonts`
-    /// installs it as the last fallback, so these render wherever the
-    /// interface font does not have them). A distribution with no logo
-    /// of its own falls back to Tux rather than to a box.
-    pub fn icon(self) -> &'static str {
-        match self {
-            Self::Ubuntu => "\u{f31b}",
-            Self::Debian => "\u{f306}",
-            Self::Fedora => "\u{f30a}",
-            Self::RedHat => "\u{f316}",
-            Self::CentOs => "\u{f304}",
-            Self::Alpine => "\u{f300}",
-            Self::Arch => "\u{f303}",
-            Self::SuSE => "\u{f314}",
-            Self::Linux => "\u{f17c}",
-            Self::MacOs => "\u{f302}",
-            Self::Windows => "\u{f17a}",
-            Self::FreeBsd => "\u{f30c}",
-            // Not detected yet: the generic host glyph, as before.
-            Self::Unknown => hs_ui_icon_fallback(),
+    /// Which distribution a **WSL** distro name or an image tag is, by
+    /// its name alone - no probe needed for something already named
+    /// `Ubuntu-24.04`.
+    pub fn from_name(name: &str) -> Self {
+        let n = name.to_ascii_lowercase();
+        for (needle, os) in [
+            ("ubuntu", Self::Ubuntu),
+            ("debian", Self::Debian),
+            ("fedora", Self::Fedora),
+            ("rhel", Self::RedHat),
+            ("redhat", Self::RedHat),
+            ("centos", Self::CentOs),
+            ("rocky", Self::CentOs),
+            ("alma", Self::CentOs),
+            ("alpine", Self::Alpine),
+            ("arch", Self::Arch),
+            ("suse", Self::SuSE),
+            ("kali", Self::Debian),
+            ("mint", Self::Ubuntu),
+            ("oracle", Self::RedHat),
+        ] {
+            if n.contains(needle) {
+                return os;
+            }
         }
+        Self::Linux
     }
-}
-
-/// `ph::COMPUTER_TOWER`, without `hs-ssh` depending on `hs-ui`.
-const fn hs_ui_icon_fallback() -> &'static str {
-    "\u{e4b6}"
 }
 
 /// What the probe found: the family, and a line fit to show a human.
@@ -272,6 +271,20 @@ mod tests {
     fn an_empty_or_odd_probe_is_unknown() {
         assert_eq!(parse("").os, HostOs::Unknown);
         assert_eq!(parse("   \n\n").os, HostOs::Unknown);
+    }
+
+    /// A WSL distro, a container image: the name alone places it, which
+    /// is what the Terminal activity has to go on.
+    #[test]
+    fn a_distro_is_recognised_by_name() {
+        assert_eq!(HostOs::from_name("Ubuntu-24.04"), HostOs::Ubuntu);
+        assert_eq!(HostOs::from_name("kali-linux"), HostOs::Debian);
+        assert_eq!(HostOs::from_name("openSUSE-Tumbleweed"), HostOs::SuSE);
+        assert_eq!(
+            HostOs::from_name("something-else"),
+            HostOs::Linux,
+            "a WSL distro is Linux even when its name says nothing"
+        );
     }
 
     /// The id is what goes on the profile, so it has to survive a round

@@ -125,9 +125,15 @@ struct Shared {
     edits: HashMap<PathBuf, String>,
     /// Local temp files to open in the editor once their download finished.
     open_in_editor: Vec<PathBuf>,
+    /// What the OS probe found, for the UI thread to store on the profile.
+    detected_os: Option<hs_ssh::os::Detected>,
 }
 
 pub struct SshTool {
+    /// The host's OS id, for the tab's icon. `tab_icon` is asked every
+    /// frame and is handed no `Services`, so it cannot look the profile
+    /// up; this is taken when the tab opens and when a probe lands.
+    os_id: String,
     state: State,
     status: Status,
     shared: Arc<Mutex<Shared>>,
@@ -218,6 +224,7 @@ impl SshTool {
         drop(st);
         let known_hosts = Arc::new(KnownHosts::load(&services.paths.known_hosts_file()));
         let mut t = Self {
+            os_id: String::new(),
             state,
             status: Status::Idle,
             shared: Arc::new(Mutex::new(Shared::default())),
@@ -242,6 +249,11 @@ impl SshTool {
             waiting_for_vault: false,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         };
+        // What the profile already learned, so a restored tab wears the
+        // host's logo before any probe runs.
+        if let Some((_, _, f)) = t.fields(services) {
+            t.os_id = f.os_id;
+        }
         if t.state.conn_id.is_some() {
             t.connect(services);
         }
@@ -363,6 +375,7 @@ impl SshTool {
                         .or_else(|| (!remote_dir.is_empty()).then(|| remote_dir.clone()))
                         .or_else(|| home.clone())
                         .unwrap_or_else(|| ".".into());
+                    let client_for_probe = client.clone();
                     {
                         let mut sh = shared.lock();
                         sh.client = Some(client);
@@ -372,6 +385,16 @@ impl SshTool {
                         sh.status = Some(Status::Connected);
                     }
                     wake();
+                    // One read-only probe, so the host's row and its tab
+                    // can wear the right logo (owner's requirement,
+                    // 2026-10-26). Its failure is not the connection's:
+                    // a host that refuses `exec` is still perfectly
+                    // usable, so nothing is reported if this comes back
+                    // empty.
+                    if let Some(found) = probe_os(&client_for_probe).await {
+                        shared.lock().detected_os = Some(found);
+                        wake();
+                    }
                     list_dir(shared.clone(), sftp, first, wake.clone()).await;
                 }
                 Err(e) => {
@@ -1710,6 +1733,40 @@ impl SshTool {
 }
 
 /// Validate the form; errors are Fluent keys.
+/// Ask the host what it is, and read the answer.
+///
+/// Bounded: a host that never answers must not leave a task waiting for
+/// ever, and the output is tiny, so a few seconds and a few kilobytes
+/// are plenty. `None` means "nothing useful came back", which is not an
+/// error worth showing anyone.
+async fn probe_os(client: &SshClient) -> Option<hs_ssh::os::Detected> {
+    use hs_ssh::exec::ExecChunk;
+    let mut stream = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        client.exec(hs_ssh::os::PROBE),
+    )
+    .await
+    .ok()?
+    .ok()?;
+    let mut out = Vec::new();
+    let read = async {
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                ExecChunk::Stdout(b) => out.extend_from_slice(&b),
+                ExecChunk::Exit(_) => break,
+                ExecChunk::Stderr(_) => {}
+            }
+            if out.len() > 8192 {
+                break;
+            }
+        }
+    };
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), read).await;
+    let text = String::from_utf8_lossy(&out);
+    let found = hs_ssh::os::parse(&text);
+    (found.os != hs_ssh::os::HostOs::Unknown).then_some(found)
+}
+
 fn parse_tunnel_form(f: &TunnelForm) -> Result<ForwardSpec, &'static str> {
     if f.ssh_id.is_empty() {
         return Err("ssh-tunnel-need-host");
@@ -1777,6 +1834,15 @@ impl Tool for SshTool {
         } else {
             Cow::Owned(self.conn_name.clone())
         }
+    }
+
+    /// The host's own OS logo once it is known, so a strip of SSH tabs
+    /// says which machine each one is (owner's requirement, 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.os_id.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::os_icon(&self.os_id))
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -1847,17 +1913,20 @@ impl Tool for SshTool {
                 id: "settings:connections".into(),
             });
         }
-        let hosts: Vec<(String, String, String, bool)> = s
+        // The fourth piece is the host's own OS logo, once a connect has
+        // found out what it is; until then the generic host glyph.
+        let hosts: Vec<(String, String, String, bool, &'static str)> = s
             .connections
             .read()
             .of_kind("ssh")
             .map(|c| {
-                (
-                    c.id.clone(),
-                    c.name.clone(),
-                    SshFields::from_table(&c.fields).label(),
-                    c.pinned,
-                )
+                let f = SshFields::from_table(&c.fields);
+                let icon = if f.os_id.is_empty() {
+                    ph::COMPUTER_TOWER
+                } else {
+                    hs_ui::icons::os_icon(&f.os_id)
+                };
+                (c.id.clone(), c.name.clone(), f.label(), c.pinned, icon)
             })
             .collect();
         if hosts.is_empty() {
@@ -1876,14 +1945,14 @@ impl Tool for SshTool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
-                for (i, (id, name, label, is_pinned)) in hosts.iter().enumerate() {
+                for (i, (id, name, label, is_pinned, icon)) in hosts.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         let row = form::connection_row(
                             ui,
                             &theme,
                             selected,
-                            ph::COMPUTER_TOWER,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -1959,6 +2028,25 @@ impl Tool for SshTool {
             let mut sh = self.shared.lock();
             if let Some(st) = sh.status.take() {
                 self.status = st;
+            }
+            // What the host turned out to be. Written back to the profile
+            // so every later session - and the sidebar, before any
+            // session - knows it without probing again.
+            if let Some(found) = sh.detected_os.take() {
+                self.os_id = found.os.id().to_string();
+                if let Some(id) = self.state.conn_id.clone() {
+                    let mut conns = s.connections.write();
+                    if let Some(p) = conns.by_id(&id).cloned() {
+                        let mut f = SshFields::from_table(&p.fields);
+                        if f.os_id != found.os.id() || f.os_label != found.label {
+                            f.os_id = found.os.id().to_string();
+                            f.os_label = found.label.clone();
+                            let mut p = p;
+                            f.write_into(&mut p.fields);
+                            let _ = conns.upsert(p);
+                        }
+                    }
+                }
             }
             for (level, text) in sh.toasts.drain(..) {
                 cx.toast(level, text);

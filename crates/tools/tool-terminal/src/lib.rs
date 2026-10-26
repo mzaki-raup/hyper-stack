@@ -1269,18 +1269,40 @@ fn cli_icon(key: &str) -> &'static str {
     }
 }
 
+/// The glyph for a shell profile, in its own brand where one exists.
+///
+/// The codepoints are the bundled Nerd Font's (`hs_ui::fonts` installs
+/// it as the last fallback). A **WSL** profile is named after its
+/// distribution - `wsl:Ubuntu-24.04` - so it wears that distribution's
+/// logo without anything having to be probed (owner's requirement,
+/// 2026-10-26).
+///
+/// PowerShell 7 and Windows PowerShell share one brand, so they are told
+/// apart by two different drawings of it: the terminal-and-chevron mark
+/// for the cross-platform `pwsh`, the solid logo for the one Windows
+/// ships. Nushell has no logo in Nerd Fonts at all, so it takes the
+/// windowed terminal rather than a borrowed brand.
 fn shell_icon(id: &str) -> &'static str {
     use hs_ui::icons::ph;
-    if id.starts_with("wsl:") {
-        ph::LINUX_LOGO
-    } else if id == "pwsh" || id == "powershell" {
-        ph::TERMINAL_WINDOW
-    } else if id == "cmd" {
-        ph::WINDOWS_LOGO
-    } else if id == "git-bash" {
-        ph::GIT_BRANCH
-    } else {
-        ph::TERMINAL
+    if let Some(distro) = id.strip_prefix("wsl:") {
+        return hs_ui::icons::os_icon(hs_ssh::os::HostOs::from_name(distro).id());
+    }
+    match id {
+        // nf-cod-terminal_powershell
+        "pwsh" => "\u{ebc7}",
+        // nf-seti-powershell
+        "powershell" => "\u{e683}",
+        // nf-cod-terminal_cmd
+        "cmd" => "\u{ebc4}",
+        // Git Bash keeps the branch mark: the codicon at U+EBCA draws a
+        // cube in this font, not a shell prompt, and a wrong glyph is
+        // worse than a plain one.
+        "git-bash" => ph::GIT_BRANCH,
+        // Nushell has no logo in Nerd Fonts, so it takes the windowed
+        // terminal - still its own glyph, and not the bare fallback an
+        // unrecognised shell gets.
+        "nu" | "nushell" => ph::TERMINAL_WINDOW,
+        _ => ph::TERMINAL,
     }
 }
 

@@ -345,12 +345,7 @@ fn configs_version() -> u64 {
 /// The glyph for a container kind: what the thing **is** before where it
 /// runs (§10.5).
 pub fn kind_icon(kind: &str) -> &'static str {
-    match kind {
-        "k8s" => ph::POLYGON,
-        "podman" => ph::HARD_DRIVES,
-        "wincontainer" => ph::WINDOWS_LOGO,
-        _ => ph::SHIPPING_CONTAINER,
-    }
+    hs_ui::icons::container_kind_icon(kind)
 }
 
 /// Every container host in this workspace, in the user's order.

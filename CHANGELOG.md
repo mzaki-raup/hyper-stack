@@ -11,6 +11,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **An SSH host wears its operating system.** One read-only probe on
+  connect (`/etc/os-release`, `uname -sr`, `ver`) works out what the
+  other end is; the answer is kept on the profile, so the sidebar draws
+  the right logo without connecting and a restored tab wears it before
+  anything happens. Ubuntu, Debian, Fedora, Red Hat and its rebuilds,
+  Alpine, Arch, SUSE, macOS, FreeBSD, Windows and plain Linux have their
+  own glyph; WSL keeps its distribution's and says `· WSL` in the label.
+  The tab wears the same logo.
+- **Every shell has its own icon.** PowerShell 7 and Windows PowerShell
+  are told apart by two drawings of the one brand they share, Command
+  Prompt gets the cmd glyph, Git Bash keeps the branch mark, and a WSL
+  profile wears its distribution's logo - `wsl:Ubuntu-24.04` needs no
+  probe to say it is Ubuntu. Nushell has no logo in Nerd Fonts, so it
+  takes the windowed terminal rather than a borrowed brand.
+- **Docker, Podman and Kubernetes wear their own marks** - the whale,
+  a neutral package (Nerd Fonts has no Podman logo to borrow) and the
+  helm - everywhere a kind is shown: the dashboard, the add buttons, the
+  host lists in the activity and in Settings, and the tab. The
+  **activity's** icon stays the shipping container, which is the
+  category rather than an engine. One table in `hs-ui` now, because the
+  activity and Settings each had their own and they had already drifted.
+- **Workspace and Environment are labelled**, and sit together on the
+  right of the title bar, behind a separator from the actions: they say
+  *where you are*, which is a different kind of thing from the buttons
+  beside them.
+
 - **Outlined activity icons**, switched in Settings → Appearance →
   Sidebar. A ring around each coloured icon — light on a dark theme,
   dark on a light one — so a glyph in its own hue separates from the

@@ -2365,128 +2365,6 @@ impl HyperStackApp {
                             .size(16.0)
                             .color(self.theme.accent),
                     );
-                    ui.add_space(8.0);
-                    // Workspace switcher.
-                    let ws_name = s.workspace.read().meta.name.clone();
-                    let ws_root = s.workspace.read().root().to_path_buf();
-                    let ws_logo = ws_logo_image(&ws_root);
-                    let workspace_button = match ws_logo {
-                        Some(image) => egui::Button::image_and_text(
-                            image
-                                .fit_to_exact_size(egui::vec2(WS_MARK_TITLE, WS_MARK_TITLE))
-                                .corner_radius(4.0),
-                            ws_name.clone(),
-                        ),
-                        None => egui::Button::new(ws_glyph_text(ui, &ws_name, WS_MARK_TITLE)),
-                    }
-                    .right_text(hs_ui::icons::CARET_DOWN);
-                    let rows: Vec<(String, std::path::PathBuf)> = self
-                        .registry
-                        .workspaces
-                        .iter()
-                        .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
-                        .collect();
-                    // One workspace must always remain.
-                    let can_delete = rows.len() > 1;
-                    let new_label = s.t("workspace-new");
-                    let names: Vec<String> = rows.iter().map(|(n, _)| n.clone()).collect();
-                    let menu_w = ws_menu_width(ui, &names, can_delete, &new_label);
-                    // `Popup::menu` rather than `MenuButton`, because this
-                    // menu is not in a menu bar and the width has to be
-                    // ours to set.
-                    let ws_response = ui.add(workspace_button);
-                    egui::Popup::menu(&ws_response).width(menu_w).show(|ui| {
-                        ui.set_width(menu_w);
-                        for (n, root) in rows {
-                            match self.ws_menu_row(ui, &n, &root, n == ws_name, can_delete) {
-                                Some(WsRow::Switch) => {
-                                    self.pending_actions.push(Action::RunCommand {
-                                        id: format!("ws:{n}"),
-                                    });
-                                    ui.close();
-                                }
-                                Some(WsRow::Delete) => {
-                                    self.pending_actions.push(Action::RunCommand {
-                                        id: format!("ws.delete:{n}"),
-                                    });
-                                    ui.close();
-                                }
-                                None => {}
-                            }
-                        }
-                        ui.separator();
-                        if ui
-                            .selectable_label(
-                                false,
-                                format!("{} {new_label}", hs_ui::icons::TAB_NEW),
-                            )
-                            .clicked()
-                        {
-                            self.pending_actions.push(Action::RunCommand {
-                                id: "ws.new".into(),
-                            });
-                        }
-                    });
-                    // Environment switcher
-                    let (active_name, active_col, active_protected) = {
-                        let envs = s.environments.read();
-                        match envs.active_env() {
-                            Some(e) => (
-                                e.name.clone(),
-                                self.theme.env_colour(&e.name, e.colour.as_deref()),
-                                e.protected,
-                            ),
-                            None => (s.t("env-none"), self.theme.text_muted, false),
-                        }
-                    };
-                    let label = egui::RichText::new(format!(
-                        "{} {}{}",
-                        hs_ui::icons::ENVIRONMENT,
-                        if active_protected { "🔒 " } else { "" },
-                        active_name
-                    ))
-                    .color(active_col);
-                    egui::ComboBox::from_id_salt("env")
-                        .selected_text(label)
-                        .show_ui(ui, |ui| {
-                            if ui
-                                .selectable_label(
-                                    s.environments.read().active.is_none(),
-                                    s.t("env-none"),
-                                )
-                                .clicked()
-                            {
-                                self.pending_actions
-                                    .push(Action::RunCommand { id: "env:".into() });
-                            }
-                            let list: Vec<(String, String, Option<String>, bool)> = s
-                                .environments
-                                .read()
-                                .all()
-                                .iter()
-                                .map(|e| {
-                                    (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected)
-                                })
-                                .collect();
-                            let active = s.environments.read().active.clone();
-                            for (id, name, colour, protected) in list {
-                                let col = self.theme.env_colour(&name, colour.as_deref());
-                                let txt = egui::RichText::new(format!(
-                                    "{}{}",
-                                    if protected { "🔒 " } else { "" },
-                                    name
-                                ))
-                                .color(col);
-                                if ui
-                                    .selectable_label(active.as_deref() == Some(&id), txt)
-                                    .clicked()
-                                {
-                                    self.pending_actions.push(Action::RunCommand {
-                                        id: format!("env:{id}"),
-                                    });
-                                }
-                            }
-                        });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         let theme = self.theme.clone();
@@ -2543,8 +2421,157 @@ impl HyperStackApp {
                         {
                             self.palette.open(PaletteMode::QuickOpen);
                         }
+                        // The two pickers sit here, left of Quick Open and
+                        // behind a separator: they say *where you are*,
+                        // which is a different kind of thing from the
+                        // actions beside them (owner's requirement,
+                        // 2026-10-26). Each is wrapped in its own
+                        // left-to-right group so its label stays on its
+                        // left; in this right-to-left layout the one added
+                        // first ends up rightmost, so Environment comes
+                        // before Workspace.
+                        ui.separator();
+                        // Still right-to-left here, so each item added
+                        // lands further left: the control first and its
+                        // label second puts the label on the control's
+                        // left, and the Environment pair before the
+                        // Workspace pair puts Workspace leftmost. A
+                        // nested `horizontal` inherits this direction
+                        // (labels on the wrong side) and a nested
+                        // `with_layout` takes all the width that is left,
+                        // so neither is the way to group a pair here.
+                        let small =
+                            |t: String| egui::RichText::new(t).small().color(theme.text_muted);
+                        self.environment_switcher(ui);
+                        ui.label(small(s.t("env-label")));
+                        self.workspace_switcher(ui);
+                        ui.label(small(s.t("workspace-label")));
                     });
                 });
+            });
+    }
+
+    /// The workspace picker: which set of connections, environments and
+    /// tabs is open.
+    fn workspace_switcher(&mut self, ui: &mut egui::Ui) {
+        let s = self.services.clone();
+        // Workspace switcher.
+        let ws_name = s.workspace.read().meta.name.clone();
+        let ws_root = s.workspace.read().root().to_path_buf();
+        let ws_logo = ws_logo_image(&ws_root);
+        let workspace_button = match ws_logo {
+            Some(image) => egui::Button::image_and_text(
+                image
+                    .fit_to_exact_size(egui::vec2(WS_MARK_TITLE, WS_MARK_TITLE))
+                    .corner_radius(4.0),
+                ws_name.clone(),
+            ),
+            None => egui::Button::new(ws_glyph_text(ui, &ws_name, WS_MARK_TITLE)),
+        }
+        .right_text(hs_ui::icons::CARET_DOWN);
+        let rows: Vec<(String, std::path::PathBuf)> = self
+            .registry
+            .workspaces
+            .iter()
+            .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
+            .collect();
+        // One workspace must always remain.
+        let can_delete = rows.len() > 1;
+        let new_label = s.t("workspace-new");
+        let names: Vec<String> = rows.iter().map(|(n, _)| n.clone()).collect();
+        let menu_w = ws_menu_width(ui, &names, can_delete, &new_label);
+        // `Popup::menu` rather than `MenuButton`, because this
+        // menu is not in a menu bar and the width has to be
+        // ours to set.
+        let ws_response = ui.add(workspace_button);
+        egui::Popup::menu(&ws_response).width(menu_w).show(|ui| {
+            ui.set_width(menu_w);
+            for (n, root) in rows {
+                match self.ws_menu_row(ui, &n, &root, n == ws_name, can_delete) {
+                    Some(WsRow::Switch) => {
+                        self.pending_actions.push(Action::RunCommand {
+                            id: format!("ws:{n}"),
+                        });
+                        ui.close();
+                    }
+                    Some(WsRow::Delete) => {
+                        self.pending_actions.push(Action::RunCommand {
+                            id: format!("ws.delete:{n}"),
+                        });
+                        ui.close();
+                    }
+                    None => {}
+                }
+            }
+            ui.separator();
+            if ui
+                .selectable_label(false, format!("{} {new_label}", hs_ui::icons::TAB_NEW))
+                .clicked()
+            {
+                self.pending_actions.push(Action::RunCommand {
+                    id: "ws.new".into(),
+                });
+            }
+        });
+    }
+
+    /// The environment picker: which set of variables and guards applies.
+    fn environment_switcher(&mut self, ui: &mut egui::Ui) {
+        let s = self.services.clone();
+        // Environment switcher
+        let (active_name, active_col, active_protected) = {
+            let envs = s.environments.read();
+            match envs.active_env() {
+                Some(e) => (
+                    e.name.clone(),
+                    self.theme.env_colour(&e.name, e.colour.as_deref()),
+                    e.protected,
+                ),
+                None => (s.t("env-none"), self.theme.text_muted, false),
+            }
+        };
+        let label = egui::RichText::new(format!(
+            "{} {}{}",
+            hs_ui::icons::ENVIRONMENT,
+            if active_protected { "🔒 " } else { "" },
+            active_name
+        ))
+        .color(active_col);
+        egui::ComboBox::from_id_salt("env")
+            .selected_text(label)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(s.environments.read().active.is_none(), s.t("env-none"))
+                    .clicked()
+                {
+                    self.pending_actions
+                        .push(Action::RunCommand { id: "env:".into() });
+                }
+                let list: Vec<(String, String, Option<String>, bool)> = s
+                    .environments
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|e| (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected))
+                    .collect();
+                let active = s.environments.read().active.clone();
+                for (id, name, colour, protected) in list {
+                    let col = self.theme.env_colour(&name, colour.as_deref());
+                    let txt = egui::RichText::new(format!(
+                        "{}{}",
+                        if protected { "🔒 " } else { "" },
+                        name
+                    ))
+                    .color(col);
+                    if ui
+                        .selectable_label(active.as_deref() == Some(&id), txt)
+                        .clicked()
+                    {
+                        self.pending_actions.push(Action::RunCommand {
+                            id: format!("env:{id}"),
+                        });
+                    }
+                }
             });
     }
 

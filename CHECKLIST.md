@@ -161,6 +161,22 @@ store that already exists.
 | A tab wears its own item's icon | Completed | `Tool::tab_icon` in Terminal (shell profile, CLI profile, pod), Containers (host kind), Graphics (kind) and Devtools (utility). The container kind and the CLI key live in the tab's saved state, because `tab_icon` is asked every frame with no `Services`; the container kind is re-taken on the first draw so an older tab heals. Verified on screen in all four: Git Bash's branch and WSL's penguin, a Kubernetes polygon beside a Docker container, image/icon/diagram, and five different Devtools utilities |
 
 
+### Icons, tooltips and the top bar (owner's review, 2026-10-26)
+
+| Item | State | Notes |
+|---|---|---|
+| Tooltips above the mouse cursor | Completed | `TipExt` anchors to the pointer with a 16 pt gap. egui has no global anchor - `on_hover_text` anchors to the widget - so all 156 call sites across 35 files were converted, and `tip_disabled` was added for the disabled case. Measured on screen: the tooltip's bottom edge lands ~19 px above the cursor; near the window top it falls back to below |
+| Devtools' sidebar highlighted and swallowed Base64 | Completed | The dashboard's `self.utility` is only its default, so the row read as selected and the `!=` guard refused the click on it. The row now asks what the **active tab** holds |
+| Both dashboards keep their activity's icon | Completed | A consequence of `tab_icon`: Graphics showed a house, Devtools whatever utility the field defaulted to |
+| Terminal toolbar: no picker, no size, Clear gets an icon | Completed | The tab is its shell now that it carries the shell's name and icon |
+| Graphics: Properties above Transparency | Completed | What the file *is* before what to do to it |
+| SSH tunnels: several forwards per host, tidily | Completed | The list groups by the host each forward goes through, with a count; the add card has a heading, the fields in the order they are thought about, and **Add Another**, which keeps the host and clears the ports |
+| Every shell has its own icon | Completed | Two drawings of the PowerShell brand tell 7 from Windows PowerShell; cmd, Git Bash and each WSL distribution have their own. Nushell has no Nerd Font logo and takes the windowed terminal. Verified on screen - the first glyph tried for Git Bash drew a cube, so it kept the branch mark |
+| An SSH host wears its OS | Completed, **probe unverified live** | `hs_ssh::os`: one read-only probe, parsed by a pure function with 9 unit tests (Ubuntu, a derivative via `ID_LIKE`, the Red Hat rebuilds, macOS/BSD, WSL, Windows, empty, name-only, id round-trip). The id is kept on the profile so the sidebar needs no connection. **The probe itself has not been run against a live SSH server**: the in-repo test server has no `exec` handler, and the containerised one was not reachable within the time spent. The glyph table is proven by the WSL rows in the Terminal list, which read from it |
+| Docker, Podman and Kubernetes get their own marks | Completed | The whale and the helm from the bundled Nerd Font; Podman has no logo there, so it takes a neutral package. Unified into one `hs_ui::icons::container_kind_icon` - the activity and Settings each had a copy. The activity's own icon stays the shipping container. Checked at 8x: Docker reads as the whale, Podman as a package; **Kubernetes' helm is soft at 14 px** and `ph::POLYGON` was arguably crisper, so that one is worth a second opinion |
+| Workspace and Environment labelled, moved right | Completed | Behind a separator from the actions. In a right-to-left layout the control is added before its label, and the pairs in reverse: a nested `horizontal` inherits the direction and a nested `with_layout` takes all the remaining width |
+
+
 ### M6 · Hardening and 1.0
 | Item | State | Notes |
 |---|---|---|

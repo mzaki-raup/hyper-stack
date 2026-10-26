@@ -783,6 +783,17 @@ impl HyperStackApp {
         ui.state.conn_draft = Some((c, fields));
     }
 
+    /// Open Settings -> Editor with `id` already selected, so Edit This
+    /// Project Settings lands on the project rather than on the list.
+    fn select_project_in_settings(&mut self, id: &str) {
+        let Some(p) = self.services.projects.read().by_id(id).cloned() else {
+            return;
+        };
+        let mut ui = self.settings_ui.lock();
+        ui.state.project_selected = Some(p.id.clone());
+        ui.state.project_draft = Some(settings_ui::ProjectDraft::open(p));
+    }
+
     /// Put a tool's rail entry back when something opens one of its tabs.
     /// Hiding an entry is a tidying choice, not a ban: a link Ctrl+clicked
     /// in the editor, a remote file opened from SFTP or a connection saved
@@ -1220,6 +1231,22 @@ impl HyperStackApp {
                     .to_string();
                 self.open_settings(Some(settings_ui::Page::Connections));
                 self.select_connection_in_settings(&id);
+            }
+            // Edit This Project Settings, from the Editor's sidebar: the
+            // same gesture as Edit This Connection, and the same promise -
+            // the page opens with that project already in its form.
+            // Remove From List, from the Editor's sidebar. It asks first,
+            // and the folder is never touched.
+            _ if action.starts_with("project:remove:") => {
+                let id = action.trim_start_matches("project:remove:").to_string();
+                if let Some(p) = self.services.projects.read().by_id(&id) {
+                    self.confirm_remove_project = Some((id.clone(), p.label()));
+                }
+            }
+            _ if action.starts_with("settings:project:") => {
+                let id = action.trim_start_matches("settings:project:").to_string();
+                self.open_settings(Some(settings_ui::Page::Editor));
+                self.select_project_in_settings(&id);
             }
             _ if action.starts_with("settings:container:") => {
                 let id = action.trim_start_matches("settings:container:").to_string();

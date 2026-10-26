@@ -4490,8 +4490,10 @@ fn terminal(
 #[derive(Debug, Clone)]
 pub struct ProjectDraft {
     pub entry: hs_core::projects::ProjectEntry,
-    pub git_name: String,
-    pub git_email: String,
+    /// The repository's own `--local` configuration, as it reads right
+    /// now. Saved back key by key; an empty field unsets rather than
+    /// blanks, so the repository inherits the global value again.
+    pub git: hs_git::write::RepoConfig,
     /// Whether the folder is a git repository at all; when it is not,
     /// the identity fields are shown disabled rather than hidden, so the
     /// reason is visible.
@@ -4504,15 +4506,14 @@ impl ProjectDraft {
         // Reading two config keys is two short `git` runs. That is fine
         // on a click; it would not be fine every frame, which is why it
         // happens here and not in the form.
-        let id = if is_repo {
-            hs_git::write::identity(&entry.root)
+        let git = if is_repo {
+            hs_git::write::repo_config(&entry.root)
         } else {
-            hs_git::write::Identity::default()
+            hs_git::write::RepoConfig::default()
         };
         Self {
             entry,
-            git_name: id.name,
-            git_email: id.email,
+            git,
             is_repo,
         }
     }
@@ -4662,8 +4663,7 @@ fn project_detail(
                     draft.entry.language =
                         hs_core::projects::detect_language(&draft.entry.root).to_string();
                     let re = ProjectDraft::open(draft.entry.clone());
-                    draft.git_name = re.git_name;
-                    draft.git_email = re.git_email;
+                    draft.git = re.git;
                     draft.is_repo = re.is_repo;
                 }
             });
@@ -4684,15 +4684,57 @@ fn project_detail(
                 form::label(ui, &s.t("settings-project-git-name"));
                 form::text_field(
                     ui,
-                    &mut draft.git_name,
-                    &s.t("settings-project-git-name-hint"),
+                    &mut draft.git.name,
+                    &s.t("settings-project-git-inherit-hint"),
                 );
                 ui.end_row();
                 form::label(ui, &s.t("settings-project-git-email"));
                 form::text_field(
                     ui,
-                    &mut draft.git_email,
-                    &s.t("settings-project-git-email-hint"),
+                    &mut draft.git.email,
+                    &s.t("settings-project-git-inherit-hint"),
+                );
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-signing-key"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.signing_key,
+                    &s.t("settings-project-git-inherit-hint"),
+                );
+                ui.end_row();
+                // Three states, because "not set here" is a real answer
+                // and a checkbox cannot say it: an unset key inherits,
+                // and saving `false` over it is a different instruction.
+                form::label(ui, &s.t("settings-project-git-sign"));
+                let label = match draft.git.sign_commits {
+                    None => s.t("settings-project-git-inherit"),
+                    Some(true) => s.t("yes"),
+                    Some(false) => s.t("no"),
+                };
+                egui::ComboBox::from_id_salt("project-git-sign")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut draft.git.sign_commits,
+                            None,
+                            s.t("settings-project-git-inherit"),
+                        );
+                        ui.selectable_value(&mut draft.git.sign_commits, Some(true), s.t("yes"));
+                        ui.selectable_value(&mut draft.git.sign_commits, Some(false), s.t("no"));
+                    });
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-branch"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.default_branch,
+                    &s.t("settings-project-git-branch-hint"),
+                );
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-remote"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.remote_url,
+                    &s.t("settings-project-git-remote-hint"),
                 );
                 ui.end_row();
             });
@@ -4719,15 +4761,14 @@ fn project_detail(
         entry.language = hs_core::projects::detect_language(&entry.root).to_string();
         let mut failed = None;
         if draft.is_repo {
-            let id = hs_git::write::Identity {
-                name: draft.git_name.clone(),
-                email: draft.git_email.clone(),
-            };
-            if let Err(e) = hs_git::write::set_identity(&entry.root, &id) {
+            if let Err(e) = hs_git::write::set_repo_config(&entry.root, &draft.git) {
                 failed = Some(e.to_string());
             } else {
-                entry.git_name = draft.git_name.clone();
-                entry.git_email = draft.git_email.clone();
+                // The entry keeps a copy of the identity only so a list
+                // can show it without running git; the repository is
+                // where it actually lives.
+                entry.git_name = draft.git.name.clone();
+                entry.git_email = draft.git.email.clone();
             }
         }
         match failed {

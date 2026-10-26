@@ -11,6 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **A saved AI provider wears its service's own mark.** The gallery
+  cards had the real logos; the saved list drew one glyph per capability,
+  so every chat provider was the same sparkle whatever it was (owner's
+  report). A saved provider is matched back to its gallery entry by kind
+  **and** endpoint, because everything OpenAI-shaped shares one kind and
+  differs only in where it lives.
+- **A project's Git settings go beyond a name and an e-mail:** signing
+  key, sign commits, default branch and the origin URL, all written to
+  that repository's own config. Sign Commits is Inherit / Yes / No
+  rather than a checkbox - "not set here" is a different instruction
+  from "set to false", and only one of the three leaves no key behind.
+
 - **Settings -> Editor opens with a Project List.** The folders the
   Editor activity offers, each with its language's own logo, dragged
   into the order its sidebar will show them. Add a folder, rename a

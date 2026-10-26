@@ -622,24 +622,50 @@ pub fn is_protected(patterns: &[String], url: &str, branch: &str) -> bool {
         .any(|p| url.contains(&p) || branch.contains(&p))
 }
 
-/// The identity commits in this repository are made with.
+/// What a project's own repository says about itself.
+///
+/// Every field here is a real `--local` git config key, so what the form
+/// shows is what `git config --local --list` shows, and what git itself
+/// will act on. A field left empty means **not set in this repository**,
+/// which is different from set-to-blank: git then falls back to the
+/// global value, and so does the form's wording.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Identity {
+pub struct RepoConfig {
+    /// `user.name`
     pub name: String,
+    /// `user.email`
     pub email: String,
+    /// `user.signingkey` - the key commits and tags are signed with.
+    pub signing_key: String,
+    /// `commit.gpgsign`. `None` is "not set here", which inherits.
+    pub sign_commits: Option<bool>,
+    /// `init.defaultBranch` - the branch `git init` starts with here.
+    pub default_branch: String,
+    /// `remote.origin.url` - where this project pushes and pulls.
+    pub remote_url: String,
 }
 
-/// Read the repository's **own** `user.name` and `user.email`.
+/// Every key the form reads and writes, in the order it shows them.
+const KEYS: &[&str] = &[
+    "user.name",
+    "user.email",
+    "user.signingkey",
+    "commit.gpgsign",
+    "init.defaultBranch",
+    "remote.origin.url",
+];
+
+/// Read the repository's **own** configuration.
 ///
 /// `--local` on purpose: the question the project settings ask is "what
-/// does this repository say", not "what would a commit here use". The
-/// global identity is the fallback git itself applies, and showing it in
-/// a per-project field would invite someone to save a copy of it into
-/// every project they open.
+/// does this repository say", not "what would a command here end up
+/// using". The global values are the fallback git itself applies, and
+/// showing them in a per-project field would invite someone to save a
+/// copy of them into every project they open.
 ///
 /// A folder that is not a repository, or one with nothing set, gives an
-/// empty `Identity` rather than an error: both are ordinary.
-pub fn identity(root: &Path) -> Identity {
+/// empty `RepoConfig` rather than an error: both are ordinary.
+pub fn repo_config(root: &Path) -> RepoConfig {
     let read = |key: &str| -> String {
         git(root, &["config", "--local", "--get", key])
             .ok()
@@ -647,22 +673,41 @@ pub fn identity(root: &Path) -> Identity {
             .map(|s| s.trim().to_string())
             .unwrap_or_default()
     };
-    Identity {
+    let sign = read("commit.gpgsign");
+    RepoConfig {
         name: read("user.name"),
         email: read("user.email"),
+        signing_key: read("user.signingkey"),
+        // git writes these as "true"/"false"; anything else is as good
+        // as unset, and unset is what inherits.
+        sign_commits: match sign.to_lowercase().as_str() {
+            "true" | "yes" | "on" | "1" => Some(true),
+            "false" | "no" | "off" | "0" => Some(false),
+            _ => None,
+        },
+        default_branch: read("init.defaultBranch"),
+        remote_url: read("remote.origin.url"),
     }
 }
 
-/// Write the repository's own `user.name` and `user.email`.
+/// Write the repository's own configuration.
 ///
-/// An empty field *unsets* that key rather than writing a blank one, so
-/// clearing the box in the project settings hands the repository back to
-/// the global identity instead of leaving it committing as "".
-/// Unsetting a key that was never set is not an error here, which is why
-/// its failure is dropped.
-pub fn set_identity(root: &Path, id: &Identity) -> Result<()> {
-    for (key, value) in [("user.name", &id.name), ("user.email", &id.email)] {
-        let value = value.trim();
+/// An empty field (or `None` for the switch) **unsets** that key rather
+/// than writing a blank one, so clearing a box in the project settings
+/// hands the repository back to the global value instead of leaving it,
+/// say, committing as "". Unsetting a key that was never set is not an
+/// error here, which is why that failure is dropped.
+pub fn set_repo_config(root: &Path, cfg: &RepoConfig) -> Result<()> {
+    let sign = cfg.sign_commits.map(|b| b.to_string()).unwrap_or_default();
+    let values: [&str; 6] = [
+        cfg.name.trim(),
+        cfg.email.trim(),
+        cfg.signing_key.trim(),
+        sign.as_str(),
+        cfg.default_branch.trim(),
+        cfg.remote_url.trim(),
+    ];
+    for (key, value) in KEYS.iter().zip(values) {
         if value.is_empty() {
             let _ = git(root, &["config", "--local", "--unset", key]);
         } else {
@@ -680,7 +725,7 @@ mod tests {
     /// field hands the repository back to the global one rather than
     /// committing as "".
     #[test]
-    fn a_project_identity_is_written_to_and_read_from_the_repository() {
+    fn a_projects_own_config_is_written_to_and_read_from_the_repository() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
@@ -689,20 +734,49 @@ mod tests {
         git(root, &["config", "commit.gpgsign", "false"]).unwrap();
         git(root, &["config", "tag.gpgSign", "false"]).unwrap();
 
-        assert_eq!(identity(root), Identity::default(), "nothing set yet");
+        // The fixture turns signing off so the test cannot hang on
+        // pinentry, and reading that back as `Some(false)` is the point:
+        // an explicit false is a real value, not an unset.
+        assert_eq!(
+            repo_config(root),
+            RepoConfig {
+                sign_commits: Some(false),
+                ..RepoConfig::default()
+            },
+            "nothing set yet but the fixture's own commit.gpgsign"
+        );
 
-        let want = Identity {
+        let want = RepoConfig {
             name: "Ada Lovelace".into(),
             email: "ada@example.invalid".into(),
+            signing_key: "ABCD1234".into(),
+            sign_commits: Some(true),
+            default_branch: "main".into(),
+            remote_url: "git@example.invalid:ada/engine.git".into(),
         };
-        set_identity(root, &want).unwrap();
-        assert_eq!(identity(root), want);
+        set_repo_config(root, &want).unwrap();
+        assert_eq!(repo_config(root), want);
 
-        // Cleared fields unset the keys instead of blanking them.
-        set_identity(root, &Identity::default()).unwrap();
-        assert_eq!(identity(root), Identity::default());
-        // Unsetting again is not an error.
-        set_identity(root, &Identity::default()).unwrap();
+        // Turning signing off is a real value, not an unset.
+        let off = RepoConfig {
+            sign_commits: Some(false),
+            ..want.clone()
+        };
+        set_repo_config(root, &off).unwrap();
+        assert_eq!(repo_config(root).sign_commits, Some(false));
+
+        // Cleared fields unset the keys instead of blanking them, so the
+        // repository inherits again rather than committing as "" - and
+        // `None` really does remove the key, which is what lets a project
+        // hand signing back to the global setting.
+        set_repo_config(root, &RepoConfig::default()).unwrap();
+        assert_eq!(repo_config(root), RepoConfig::default());
+        assert!(
+            git(root, &["config", "--local", "--get", "commit.gpgsign"]).is_err(),
+            "an inherited setting leaves no key behind"
+        );
+        // Unsetting what was never set is not an error.
+        set_repo_config(root, &RepoConfig::default()).unwrap();
     }
 
     #[test]

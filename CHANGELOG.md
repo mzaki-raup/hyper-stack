@@ -11,50 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **A project's language can be chosen by hand.** Settings -> Editor ->
-  Project List now has a Language field listing the 26 languages the app
-  draws an icon for, pre-selected from what the folder's manifest says
-  and overridable; "Detect from the folder" puts it back. The choice
-  reaches the tab icon, the sidebar row and the header band.
-- **The Editor dashboard says what is open here.** The shared Open Here
-  grid now follows the project list, as it does in every other activity.
-- **Labels on the NoSQL and Redis actions.** Reload Databases leads the
-  NoSQL container tree, and Reload, Rename, Set TTL, Never Expire,
-  Delete and Add Member carry their words in the Redis value pane and
-  the Info tab. The key list's filter row keeps bare icons - 300 px has
-  no room for words.
-- **The NoSQL container path sits over the pane it describes** rather
-  than in the toolbar, which belongs to the whole tab.
-- **Fixed: Remove From List left the project's tabs open.** The shell
-  matched an open tab against the file it had open, which a project tab
-  with no file does not have, so removing a project from either the
-  Editor's sidebar or Settings closed nothing (owner's report). A tool
-  now publishes its project roots for that match as well. The folder on
-  disk is still never touched.
-- **Open Folder As Project goes to the same form.** Home -> Get Started
-  now opens Settings -> Editor with a blank project form and the folder
-  chooser, exactly as the Editor sidebar's + does.
-- **Settings -> Editor -> Project List works like Connections.** Add
-  Project Folder leads the card and opens an empty form in the detail
-  column rather than a file dialog - the folder is one field of
-  several - and Save closes the form and returns to the list. Adding a
-  project here opens it, as adding one from the activity does.
-- **The Editor's + adds a project.** The tab strip's + and the sidebar's
-  + both go to that form; the sidebar's opens the folder chooser with
-  it, which is what "add a folder" means there.
-- **Fixed: a WebDAV or Nexus server reported itself as an AWS endpoint.**
-  The S3 activity serves three kinds, and each keeps its own fields:
-  only an S3-shaped profile has an endpoint and a region, while WebDAV
-  and Nexus are HTTP servers with a URL. Reading S3's fields for all
-  three left those two with an empty endpoint, which fell back to
-  Amazon's host (owner's report). A URL now reduces to its host and
-  port, and any credentials in it are dropped rather than painted
-  across the top of the pane.
-- **Fixed: the editor's terminal opened in the app's data folder.** It
-  took the active project's root, and a tab showing a loose file has
-  none; the fallback was the workspace root. All three ways into that
-  terminal now share one answer - the project's root, else any project
-  root in the tab, else the open file's own folder.
+- (nothing yet)
+
+## 0.92.0 — 2026-10-26
+
+### Added
+
+- Pick a project's language, Open Here in the Editor, and named actions (6c9e45e4)
+- Add a project the way a connection is added, and two fixes (e524ccc3)
+
+### Fixed
+
+- Removing a project closes its tabs, and Open Folder As Project finds the form (dd72d7db)
 
 ## 0.91.0 — 2026-10-26
 

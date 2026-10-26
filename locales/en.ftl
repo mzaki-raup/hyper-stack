@@ -237,6 +237,7 @@ settings-project-git-inherit-hint = Leave empty to inherit.
 settings-project-git-hint = Every field here is a setting in this repository's own .git/config, so it never leaks into your other projects. Clearing one removes it and hands the repository back to your global Git settings.
 settings-project-not-a-repo = This folder is not a Git repository, so there is nothing here to set.
 settings-project-remove = Remove From List
+settings-project-needs-folder = Choose a project folder before saving.
 settings-project-remove-confirm = Remove "{ $name }" from the project list and close its tab? The folder and everything in it stays exactly where it is on disk — only this list forgets it.
 browse = Browse…
 settings-section-editor-font = Font

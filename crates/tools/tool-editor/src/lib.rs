@@ -2575,6 +2575,28 @@ pub fn run_plan_with(
 
 /// The project list, the dashboard and the work pane's left column.
 impl EditorTool {
+    /// Where the editor's terminal should open.
+    ///
+    /// The project's own root, every time there is one. A tab showing a
+    /// loose file has no project root, and the fallback used to be the
+    /// *workspace* root - the app's own data folder, which is nobody's
+    /// idea of where to run a build (owner's report, 2026-10-27). The
+    /// file's own folder is the honest answer there.
+    fn terminal_cwd(&self) -> Option<PathBuf> {
+        if let Some(r) = self.projects[self.active].root.clone() {
+            return Some(r);
+        }
+        // A tab may hold several projects; any real root beats none.
+        if let Some(r) = self.projects.iter().find_map(|p| p.root.clone()) {
+            return Some(r);
+        }
+        self.doc()
+            .path
+            .as_ref()
+            .and_then(|p| p.parent())
+            .map(Path::to_path_buf)
+    }
+
     /// Add `root` to the workspace's project list and open it.
     ///
     /// A folder already listed is opened rather than added twice: two
@@ -3166,7 +3188,8 @@ impl Tool for EditorTool {
                 .tip(s.t("editor-terminal-tip"))
                 .clicked()
             {
-                self.terminal.toggle(s, root.as_deref());
+                let cwd = self.terminal_cwd();
+                self.terminal.toggle(s, cwd.as_deref());
             }
         }
         if self.doc().view.language.is_markdown {
@@ -3211,9 +3234,14 @@ impl Tool for EditorTool {
             &[(ph::FOLDER_PLUS, &s.t("editor-add-project"))],
         )
         .is_some()
-            && let Some(root) = rfd::FileDialog::new().pick_folder()
         {
-            self.add_project_folder(&root, cx);
+            // One place manages a project, as one place manages a
+            // connection: the sidebar's + takes the user to the form in
+            // Settings with the folder chooser already open (owner's
+            // requirement, 2026-10-27).
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: "settings:project:new:pick".into(),
+            });
         }
         // (id, name, path, icon, is open here) - read once, because the
         // store is behind a lock and this runs every frame.
@@ -3799,8 +3827,8 @@ impl Tool for EditorTool {
             }
             "debug.panel" => self.debug.panel_open = !self.debug.panel_open,
             "editor.terminal" => {
-                let root = self.projects[self.active].root.clone();
-                self.terminal.toggle(s, root.as_deref());
+                let cwd = self.terminal_cwd();
+                self.terminal.toggle(s, cwd.as_deref());
             }
             "editor.build" => self.build_now(cx),
             "git.source_control" => self.git.sidebar = !self.git.sidebar,
@@ -3844,7 +3872,10 @@ impl Tool for EditorTool {
                     .or(self.projects[self.active].root.clone());
                 match dir {
                     Some(d) => self.terminal.show_in(s, &d),
-                    None => self.terminal.toggle(s, None),
+                    None => {
+                        let cwd = self.terminal_cwd();
+                        self.terminal.toggle(s, cwd.as_deref());
+                    }
                 }
             }
             _ => return false,

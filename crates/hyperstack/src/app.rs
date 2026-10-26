@@ -1223,6 +1223,23 @@ impl HyperStackApp {
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
+            // Add a project: Settings -> Editor with an empty form in
+            // the detail column. `:pick` also opens the folder chooser,
+            // which is what the Editor sidebar's + means by "add a
+            // folder" (owner's requirement, 2026-10-27).
+            "settings:project:new" | "settings:project:new:pick" => {
+                self.open_settings(Some(settings_ui::Page::Editor));
+                let mut draft = settings_ui::ProjectDraft::blank();
+                if action.ends_with(":pick")
+                    && let Some(root) = rfd::FileDialog::new().pick_folder()
+                {
+                    draft.entry = hs_core::projects::ProjectEntry::for_root(root);
+                    draft.is_repo = draft.entry.root.join(".git").exists();
+                }
+                let mut ui = self.settings_ui.lock();
+                ui.state.project_selected = None;
+                ui.state.project_draft = Some(draft);
+            }
             // Edit This Connection, from any activity's sidebar: the page
             // opens with that profile already selected in its form, so the
             // user is not left to find it in the list again.
@@ -2766,6 +2783,13 @@ impl HyperStackApp {
         }
         if r.new_tab {
             match self.group.clone() {
+                // The Editor's tabs are projects, and a project is added
+                // in one place: the `+` takes the user to the form in
+                // Settings rather than opening an untitled buffer that
+                // belongs to nothing (owner's requirement, 2026-10-27).
+                Some(g) if g == "editor" => {
+                    self.run_action("settings:project:new");
+                }
                 // A new tab of this activity, not "open this activity":
                 // for one with a dashboard home those are different
                 // things, and the second does nothing when the dashboard

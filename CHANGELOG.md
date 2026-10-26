@@ -11,6 +11,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Settings -> Editor -> Project List works like Connections.** Add
+  Project Folder leads the card and opens an empty form in the detail
+  column rather than a file dialog - the folder is one field of
+  several - and Save closes the form and returns to the list. Adding a
+  project here opens it, as adding one from the activity does.
+- **The Editor's + adds a project.** The tab strip's + and the sidebar's
+  + both go to that form; the sidebar's opens the folder chooser with
+  it, which is what "add a folder" means there.
+- **Fixed: a WebDAV or Nexus server reported itself as an AWS endpoint.**
+  The S3 activity serves three kinds, and each keeps its own fields:
+  only an S3-shaped profile has an endpoint and a region, while WebDAV
+  and Nexus are HTTP servers with a URL. Reading S3's fields for all
+  three left those two with an empty endpoint, which fell back to
+  Amazon's host (owner's report). A URL now reduces to its host and
+  port, and any credentials in it are dropped rather than painted
+  across the top of the pane.
+- **Fixed: the editor's terminal opened in the app's data folder.** It
+  took the active project's root, and a tab showing a loose file has
+  none; the fallback was the workspace root. All three ways into that
+  terminal now share one answer - the project's root, else any project
+  root in the tab, else the open file's own folder.
+
 - **A Devtools result lines up with the cards around it.** The Result
   box and its Download and Copy buttons ran to the window edge while the
   cards above and below stopped at the readable width, which looked

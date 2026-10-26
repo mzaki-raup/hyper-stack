@@ -477,22 +477,52 @@ impl S3Tool {
             })
             .unwrap_or_default();
         self.state.conn_name = name;
-        // The store's own kind and where it lives, for the band. An
-        // object store is reached by an access key rather than a user,
-        // and an empty endpoint means AWS's own, derived from the region.
-        if let Some((_, f)) = self.fields(services) {
-            self.state.kind_label =
-                hs_core::connections::kind_label(&self.kind(services)).to_string();
-            self.state.session_user = f.access_key.clone();
-            let where_ = if f.endpoint.trim().is_empty() {
-                format!("s3.{}.amazonaws.com", f.region)
-            } else {
-                f.endpoint.clone()
-            };
-            self.state.session_label = if f.access_key.is_empty() {
+        // Where this store lives, for the band.
+        //
+        // **Each kind keeps its own fields.** WebDAV and Nexus are HTTP
+        // servers with a `url` and a `user`; only an S3-shaped profile
+        // has an endpoint and a region. Reading `S3Fields` for all three
+        // gave a WebDAV server an empty endpoint, which then fell back
+        // to AWS's own host - so a server on `127.0.0.1:8086` was
+        // reported as `s3.us-east-1.amazonaws.com` (owner's report,
+        // 2026-10-27).
+        let kind = self.kind(services);
+        self.state.kind_label = hs_core::connections::kind_label(&kind).to_string();
+        let found = {
+            let conns = services.connections.read();
+            self.state
+                .conn_id
+                .as_deref()
+                .and_then(|id| conns.by_id(id))
+                .map(|c| match kind.as_str() {
+                    "webdav" => {
+                        let f = WebdavFields::from_table(&c.fields);
+                        (f.user, host_of(&f.url))
+                    }
+                    "nexus" => {
+                        let f = NexusFields::from_table(&c.fields);
+                        (f.user, host_of(&f.url))
+                    }
+                    // An object store is reached by an access key rather
+                    // than a user, and an empty endpoint means AWS's own,
+                    // derived from the region.
+                    _ => {
+                        let f = S3Fields::from_table(&c.fields);
+                        let where_ = if f.endpoint.trim().is_empty() {
+                            format!("s3.{}.amazonaws.com", f.region)
+                        } else {
+                            host_of(&f.endpoint)
+                        };
+                        (f.access_key, where_)
+                    }
+                })
+        };
+        if let Some((user, where_)) = found {
+            self.state.session_user = user.clone();
+            self.state.session_label = if user.is_empty() {
                 where_
             } else {
-                format!("{}@{}", f.access_key, where_)
+                format!("{user}@{where_}")
             };
         }
     }
@@ -1850,9 +1880,41 @@ fn subtitle_for(c: &hs_core::connections::ConnectionProfile) -> String {
     }
 }
 
+/// The `host:port` out of a URL, for the header band.
+///
+/// A band wants where the server is, not how to talk to it: the scheme
+/// and the path are noise beside `127.0.0.1:8086`. Anything that is not
+/// a URL is returned unchanged, which is what an endpoint typed as a
+/// bare host already is.
+fn host_of(url: &str) -> String {
+    let rest = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+    let rest = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    // Credentials in a URL belong to the vault, not to a header.
+    rest.rsplit('@').next().unwrap_or(rest).to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A band shows where a server is. Every kind keeps its own fields,
+    /// and reading the wrong ones is what made a WebDAV server on
+    /// localhost report itself as an AWS endpoint.
+    #[test]
+    fn a_url_reduces_to_the_host_and_port() {
+        for (url, want) in [
+            (
+                "http://127.0.0.1:8086/remote.php/dav/files/alice",
+                "127.0.0.1:8086",
+            ),
+            ("https://nexus.example.com:8081/", "nexus.example.com:8081"),
+            ("https://user:pw@files.example.com/dav", "files.example.com"),
+            ("127.0.0.1:9000", "127.0.0.1:9000"),
+            ("", ""),
+        ] {
+            assert_eq!(host_of(url), want, "from {url:?}");
+        }
+    }
 
     #[test]
     fn times_and_sizes_read_well() {

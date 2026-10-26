@@ -65,6 +65,14 @@ struct State {
     /// must read as its connection before anything has connected - with
     /// a locked vault, that is for as long as the vault stays locked.
     conn_name: String,
+    /// The kind, endpoint and access key the band shows, taken when the
+    /// profile is read: `header()` runs every frame with no services.
+    #[serde(default)]
+    kind_label: String,
+    #[serde(default)]
+    session_label: String,
+    #[serde(default)]
+    session_user: String,
     bucket: Option<String>,
     prefix: String,
 }
@@ -469,6 +477,24 @@ impl S3Tool {
             })
             .unwrap_or_default();
         self.state.conn_name = name;
+        // The store's own kind and where it lives, for the band. An
+        // object store is reached by an access key rather than a user,
+        // and an empty endpoint means AWS's own, derived from the region.
+        if let Some((_, f)) = self.fields(services) {
+            self.state.kind_label =
+                hs_core::connections::kind_label(&self.kind(services)).to_string();
+            self.state.session_user = f.access_key.clone();
+            let where_ = if f.endpoint.trim().is_empty() {
+                format!("s3.{}.amazonaws.com", f.region)
+            } else {
+                f.endpoint.clone()
+            };
+            self.state.session_label = if f.access_key.is_empty() {
+                where_
+            } else {
+                format!("{}@{}", f.access_key, where_)
+            };
+        }
     }
 
     fn environment_of(&self, services: &Services) -> Option<String> {
@@ -1721,6 +1747,29 @@ impl Tool for S3Tool {
 
     fn save_state(&self) -> serde_json::Value {
         serde_json::to_value(&self.state).unwrap_or_default()
+    }
+
+    /// The connection, what kind of store it is and where it lives.
+    ///
+    /// An object store reports no version of its own - S3 is an API, not
+    /// a server you can ask - so that fact is left empty and the band
+    /// drops it rather than inventing one.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.state.conn_name.is_empty() {
+            return None;
+        }
+        Some(
+            hs_core::tool::ToolHeader::new(hs_ui::icons::ph::CLOUD, self.state.conn_name.clone())
+                .fact("Type", self.state.kind_label.clone())
+                .fact(
+                    if self.state.session_user.is_empty() {
+                        "Host"
+                    } else {
+                        "Session"
+                    },
+                    self.state.session_label.clone(),
+                ),
+        )
     }
 
     fn current_connection(&self) -> Option<&str> {

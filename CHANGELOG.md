@@ -11,6 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Redis, NoSQL and S3 work panes carry their header band** - the
+  connection under its own mark, what the server turned out to be, its
+  version and the session. Where a store needs no user, the band says
+  `Host : host:port` rather than an `@host` with nothing before it.
+  Their toolbars drop the name and version the band now carries, and
+  NoSQL's drops the collection path, which belongs over the pane that
+  shows it rather than in the toolbar.
+- An object store reports no version of its own - S3 is an API, not a
+  server that can be asked - so that fact is left out rather than
+  invented.
+
 - **Fixed: opening New Tunnel made the saved SSH hosts vanish.** The
   tunnels section, and the form it opens, were drawn inside the host
   list's own scroll area; focus landing in the form's first field made

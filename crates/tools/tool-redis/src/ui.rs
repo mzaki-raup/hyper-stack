@@ -115,6 +115,10 @@ pub struct RedisTool {
     cmd: Option<mpsc::Sender<Cmd>>,
     scan_flag: Option<ScanFlag>,
     conn_name: String,
+    /// `user@host:port`, or `host:port` when the server needs no user.
+    /// Kept here because `header()` runs every frame with no services.
+    session_label: String,
+    session_user: String,
     conn_error: Option<String>,
     waiting_for_vault: bool,
     read_only_profile: bool,
@@ -151,6 +155,8 @@ impl RedisTool {
             cmd: None,
             scan_flag: None,
             conn_name: String::new(),
+            session_label: String::new(),
+            session_user: String::new(),
             conn_error: None,
             waiting_for_vault: false,
             read_only_profile: false,
@@ -203,6 +209,15 @@ impl RedisTool {
             )
         };
         self.conn_name = name;
+        // What the band calls the session. Redis often has no user at
+        // all, and "Session : @host" would be a worse answer than
+        // naming the host plainly.
+        self.session_user = fields.user.clone();
+        self.session_label = if fields.user.is_empty() {
+            format!("{}:{}", fields.host, fields.port)
+        } else {
+            format!("{}@{}:{}", fields.user, fields.host, fields.port)
+        };
         self.read_only_profile = read_only;
         self.env_id = env_id.clone();
         self.fields = fields.clone();
@@ -436,6 +451,41 @@ impl Tool for RedisTool {
 
     fn current_connection(&self) -> Option<&str> {
         self.state.conn_id.as_deref()
+    }
+
+    /// The connection, which server it turned out to be, its version
+    /// and the session.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        let (flavour, version) = match self.shared.lock().status.clone() {
+            Some(Status::Ready(info)) => {
+                // "redis" is a name, so it is spelled like one.
+                let mut f = info.flavour.clone();
+                if let Some(first) = f.get_mut(0..1) {
+                    first.make_ascii_uppercase();
+                }
+                (f, info.version)
+            }
+            _ => (String::new(), String::new()),
+        };
+        Some(
+            hs_core::tool::ToolHeader::new(
+                hs_ui::icons::connection_icon("redis", ""),
+                self.conn_name.clone(),
+            )
+            .plain(flavour)
+            .fact("Version", version)
+            .fact(
+                if self.session_user.is_empty() {
+                    "Host"
+                } else {
+                    "Session"
+                },
+                self.session_label.clone(),
+            ),
+        )
     }
 
     /// Redis' own mark. Valkey is its fork and has none of its own, so
@@ -676,7 +726,6 @@ impl Tool for RedisTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let theme = Theme::from_settings(&s.settings.read().appearance);
         // Icon plus label, the way the other tools' toolbars read.
         for (tab, icon, key) in [
             (Tab::Keys, ph::KEY, "redis-tab-keys"),
@@ -701,7 +750,6 @@ impl Tool for RedisTool {
                 self.writes_unlocked = true;
             }
         }
-        let status = self.shared.lock().status.clone();
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -711,18 +759,6 @@ impl Tool for RedisTool {
                 .clicked()
             {
                 self.assistant.toggle("Redis");
-            }
-            if let Some(Status::Ready(info)) = status {
-                // "Redis 8.6.3": the server's name is a name.
-                let mut flavour = info.flavour.clone();
-                if let Some(first) = flavour.get_mut(0..1) {
-                    first.make_ascii_uppercase();
-                }
-                ui.label(
-                    egui::RichText::new(format!("{flavour} {}", info.version))
-                        .small()
-                        .color(theme.text_muted),
-                );
             }
         });
     }

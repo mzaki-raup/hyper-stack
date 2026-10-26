@@ -11,6 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fixed: opening New Tunnel made the saved SSH hosts vanish.** The
+  tunnels section, and the form it opens, were drawn inside the host
+  list's own scroll area; focus landing in the form's first field made
+  egui scroll that into view and took the list above the fold. They are
+  two sections now, each scrolling on its own, so the hosts stay put
+  whatever the form does.
+- **The Database work pane carries its header band:** the connection
+  with its engine's mark, which database it is, the version the server
+  itself reported, and the session. The left column stops repeating the
+  version, which was the same answer twice.
+
 - **Tooltips really are above the cursor now, everywhere.** The title
   bar's own icons sit a few pixels from the top of the window, where
   there is no room above - and the rule still allowed a fall back to

@@ -1950,10 +1950,22 @@ impl Tool for SshTool {
             form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-no-hosts"));
             return true;
         }
+        // The hosts and the tunnels are two sections of the column, each
+        // scrolling on its own.
+        //
+        // They used to share one scroll area, with the tunnels - and the
+        // New Tunnel form - *inside* it. Opening that form put focus in
+        // its first field, egui scrolled the focused widget into view,
+        // and the host list went above the fold: the saved hosts read as
+        // having vanished (owner's report, 2026-10-26). Two areas mean
+        // the list keeps its own space whatever the form does.
+        let col_h = ui.available_height();
+        let hosts_height = (col_h * 0.55).max(140.0);
         // The order is the user's own; a row can be dragged to a new place.
         egui::ScrollArea::vertical()
             .id_salt("ssh-hosts-list")
             .auto_shrink([false, false])
+            .max_height(hosts_height)
             .show(ui, |ui| {
                 let mut reorder = hs_ui::reorder::Reorder::new("ssh-hosts");
                 let mut open: Option<(String, bool)> = None;
@@ -2015,7 +2027,13 @@ impl Tool for SshTool {
                 {
                     cx.open("ssh", Some(OpenRequest::Connection { id }));
                 }
-                ui.add_space(10.0);
+            });
+        ui.add_space(8.0);
+        ui.separator();
+        egui::ScrollArea::vertical()
+            .id_salt("ssh-tunnels-section")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
                 self.tunnels_section(ui, cx, &theme);
                 ui.add_space(10.0);
                 form::note(ui, &theme, ph::LIGHTBULB, &s.t("ssh-hint"));

@@ -2640,7 +2640,7 @@ impl Tool for DbTool {
                             ui,
                             &theme,
                             selected,
-                            *icon,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,

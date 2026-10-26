@@ -224,6 +224,24 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         blurb: "ai-svc-vllm",
                         icon: ph::DESKTOP,
                     },
+                    // Neither Windsurf nor Devin publishes an API a
+                    // third-party client can call: Windsurf is an IDE and
+                    // Devin's own API is a session/agent one, not chat
+                    // completions. What does work is a bridge run beside
+                    // them on this machine, which re-exposes the models
+                    // their desktop app is signed in to on an
+                    // OpenAI-shaped endpoint - so this entry is in the
+                    // local group, pre-filled with that bridge's port,
+                    // and its blurb says what has to be running
+                    // (owner's request, 2026-10-26).
+                    Service {
+                        name: "Windsurf / Devin (Local Bridge)",
+                        kind: Provider::OpenAi,
+                        base: "http://localhost:3003/v1",
+                        model: "",
+                        blurb: "ai-svc-windsurf",
+                        icon: ph::SAILBOAT,
+                    },
                     Service {
                         name: "Other OpenAI-Compatible",
                         kind: Provider::OpenAi,

@@ -1587,6 +1587,7 @@ ai-svc-1min-openai = 1min.AI through its OpenAI-compatible adapter.
 ai-svc-lmstudio = A model running in LM Studio on this machine.
 ai-svc-ollama = A model running in Ollama on this machine.
 ai-svc-vllm = A vLLM server on this machine.
+ai-svc-windsurf = Windsurf's or Devin's models through a bridge running on this machine; neither publishes an API this app can call directly.
 ai-svc-other = Any other server that speaks OpenAI's API.
 ai-resource-url = Resource URL
 ai-region = Region

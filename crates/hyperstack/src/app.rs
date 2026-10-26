@@ -2430,7 +2430,13 @@ impl HyperStackApp {
                         // left; in this right-to-left layout the one added
                         // first ends up rightmost, so Environment comes
                         // before Workspace.
+                        // The pair is fenced on both sides, and each
+                        // separator keeps its own breathing room rather
+                        // than touching the control next to it (owner's
+                        // requirement, 2026-10-26).
+                        ui.add_space(SWITCHER_GAP);
                         ui.separator();
+                        ui.add_space(SWITCHER_GAP);
                         // Still right-to-left here, so each item added
                         // lands further left: the control first and its
                         // label second puts the label on the control's
@@ -2440,12 +2446,26 @@ impl HyperStackApp {
                         // (labels on the wrong side) and a nested
                         // `with_layout` takes all the width that is left,
                         // so neither is the way to group a pair here.
-                        let small =
-                            |t: String| egui::RichText::new(t).small().color(theme.text_muted);
+                        //
+                        // These two labels are not hints: they name what
+                        // the window is pointed at, which is the first
+                        // thing to check before running anything, so they
+                        // are bold, a little over body size and in the
+                        // full text colour rather than small and muted.
+                        let name = |t: String| {
+                            egui::RichText::new(t)
+                                .size(SWITCHER_LABEL_SIZE)
+                                .strong()
+                                .color(theme.text)
+                        };
                         self.environment_switcher(ui);
-                        ui.label(small(s.t("env-label")));
+                        ui.label(name(s.t("env-label")));
+                        ui.add_space(SWITCHER_GAP);
                         self.workspace_switcher(ui);
-                        ui.label(small(s.t("workspace-label")));
+                        ui.label(name(s.t("workspace-label")));
+                        ui.add_space(SWITCHER_GAP);
+                        ui.separator();
+                        ui.add_space(SWITCHER_GAP);
                     });
                 });
             });
@@ -4367,6 +4387,15 @@ fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
 /// closing up the glyph's own detail at 18 px (owner's requirement,
 /// 2026-10-26).
 pub(crate) const ICON_OUTLINE_WIDTH: f32 = 1.5;
+
+/// Breathing room on each side of the separators fencing the Workspace
+/// and Environment pickers, and between the two pairs.
+const SWITCHER_GAP: f32 = 8.0;
+
+/// Size of the "Workspace" and "Environment" labels. egui's body text is
+/// 12.5 here; a point over it with `strong()` reads as a heading for the
+/// pair without making the toolbar taller.
+const SWITCHER_LABEL_SIZE: f32 = 13.5;
 
 /// Each activity's own colour in the rail, so the column reads at a
 /// glance rather than as a row of same-coloured glyphs. Muted while

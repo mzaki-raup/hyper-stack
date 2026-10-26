@@ -11,6 +11,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **A brand mark is now the same size as the icons beside it.** The
+  bundled Nerd Font draws its logos to fit one monospace cell, Phosphor
+  draws its icons to fill the em, so every connection, engine, shell and
+  host OS logo came out noticeably smaller than its neighbours. The
+  interface now falls back to a scaled copy of that font - measured, not
+  guessed - which fixes every list, tab, button and card at once; the
+  terminal and the editor keep the font at its true size.
+- **Workspace and Environment are named properly in the toolbar.** Both
+  labels are bold and a little over body size in the full text colour -
+  they say what the window is pointed at, which is worth reading before
+  running anything - and the pair is fenced by a separator on each side
+  with room to breathe.
+- **Windsurf and Devin can be added as a chat provider.** Neither
+  publishes an API this app can call directly, so the entry sits in the
+  local group pre-filled for a bridge running beside them on this
+  machine, and says so.
+
 - **Every connection wears its own mark.** PostgreSQL's elephant,
   MySQL's dolphin, a single file for SQLite, Redis' and CouchDB's own
   logos, MongoDB's leaf, a cloud for S3, a folder for WebDAV, a package

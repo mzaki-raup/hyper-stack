@@ -1468,7 +1468,7 @@ impl Tool for S3Tool {
                             ui,
                             &theme,
                             selected,
-                            *icon,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,

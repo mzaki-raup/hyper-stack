@@ -647,6 +647,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   pairs in a right-to-left group, add each control first and then its
   label, and add the pairs in reverse order (2026-10-26, the title bar's
   Workspace and Environment pickers).
+- **A Nerd Font glyph is drawn smaller than a Phosphor one at the same
+  font size.** Phosphor's icons fill the em (mean height 0.722 em);
+  a Nerd Font's brand marks are drawn to fit one cell of a monospace
+  grid (0.559 em), so the Docker whale beside a Phosphor plug read as
+  a smaller icon. The fix is one number rather than a scale threaded
+  through every draw site: `fonts::install` registers the bundled Nerd
+  Font **twice** - plain, for the terminal and the editor families, and
+  again as `hs-icon-fallback` with `FontTweak::scale = 1.29` for the
+  interface's last glyph fallback. Measure before changing it
+  (`scratchpad/metrics.py`), and remember the scaled copy must stay
+  **last** in `Proportional`: ahead of a real text font it would draw
+  the letters too (2026-10-26).
 - **Phosphor is installed before the Nerd Font and wins where they
   overlap.** Both live in the Private Use Area, so a codepoint copied
   from a Nerd Fonts cheat sheet can quietly draw something else: `U+E76E`

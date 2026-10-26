@@ -41,6 +41,31 @@ pub const EMBEDDED: &[(&str, &str, &[u8])] = &[
 const TERMINAL_FAMILY: &str = "hs-terminal";
 const EDITOR_FAMILY: &str = "hs-editor";
 
+/// A second registration of the bundled Nerd Font, used only as the
+/// interface's last glyph fallback and scaled so the brand marks in it
+/// match the Phosphor icons beside them.
+const ICON_FALLBACK: &str = "hs-icon-fallback";
+
+/// How much bigger the Nerd Font has to be drawn to match Phosphor.
+///
+/// Phosphor's icons are drawn to fill the em - mean height 0.722 em over
+/// the 200 glyphs measured - while a Nerd Font's brand marks are drawn to
+/// fit one cell of a monospace grid and average 0.559 em. At one font
+/// size the whale therefore came out visibly smaller than the plug next
+/// to it (owner's report, 2026-10-26). 0.722 / 0.559 is this number; it
+/// is measured rather than chosen, and the horizontal ratio
+/// (0.761 / 0.600) agrees with it.
+///
+/// Scaling is about the baseline, and the two sets sit at nearly the same
+/// place on it (mean centre 0.434 em against 0.360 x 1.29 = 0.464), so no
+/// vertical offset goes with this - half a pixel at 16 px.
+///
+/// The cost is that the few *text* glyphs this fallback also answers for -
+/// the arrows the default interface font lacks - are drawn 29% larger
+/// too. That is the trade for one number fixing every list, tab, button
+/// and card at once instead of a scale threaded through each draw site.
+const ICON_SCALE: f32 = 1.29;
+
 /// The family the terminal draws with (`FontId::new(size, terminal_family())`).
 pub fn terminal_family() -> FontFamily {
     FontFamily::Name(TERMINAL_FAMILY.into())
@@ -107,6 +132,13 @@ pub fn label(id: &str, default_label: &str) -> String {
 /// Phosphor icons, the bundled fonts and whichever installed fonts are
 /// selected. Unknown or unreadable choices fall back silently.
 pub fn install(ctx: &egui::Context, choice: &FontChoice) {
+    ctx.set_fonts(definitions(choice));
+}
+
+/// The font definitions `install` applies, built without a context so the
+/// families and their fallback order can be asserted directly: a context
+/// has no fonts at all until its first frame has run.
+pub fn definitions(choice: &FontChoice) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Fill);
@@ -114,6 +146,15 @@ pub fn install(ctx: &egui::Context, choice: &FontChoice) {
         fonts
             .font_data
             .insert((*id).to_string(), Arc::new(FontData::from_static(bytes)));
+    }
+    // The same bytes again, scaled, for the interface fallback only: the
+    // terminal and the editor must keep this font at its true size.
+    if let Some((_, _, bytes)) = EMBEDDED.iter().find(|(i, _, _)| *i == DEFAULT_MONO) {
+        let mut data = FontData::from_static(bytes);
+        data.tweak.scale = ICON_SCALE;
+        fonts
+            .font_data
+            .insert(ICON_FALLBACK.to_string(), Arc::new(data));
     }
     let mut resolve = |id: &str, mono_default: bool| -> Option<String> {
         if id.is_empty() {
@@ -147,12 +188,14 @@ pub fn install(ctx: &egui::Context, choice: &FontChoice) {
     {
         list.insert(0, f);
     }
-    // egui's default UI font has no arrows (→ ↑ ↓) or box drawing; the
-    // bundled Nerd Font has them, so it is the last glyph fallback.
+    // egui's default UI font has no arrows (→ ↑ ↓) or box drawing, and
+    // neither it nor Phosphor has the brand marks every connection,
+    // container engine, shell and host OS wears; the bundled Nerd Font has
+    // all of them, so its scaled copy is the last glyph fallback.
     if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional)
-        && !list.iter().any(|f| f == DEFAULT_MONO)
+        && !list.iter().any(|f| f == ICON_FALLBACK)
     {
-        list.push(DEFAULT_MONO.to_string());
+        list.push(ICON_FALLBACK.to_string());
     }
     let mono_fallback = fonts
         .families
@@ -169,7 +212,7 @@ pub fn install(ctx: &egui::Context, choice: &FontChoice) {
     let mut editor_list = vec![editor_font];
     editor_list.extend(mono_fallback);
     fonts.families.insert(editor_family(), editor_list);
-    ctx.set_fonts(fonts);
+    fonts
 }
 
 fn font_dirs() -> Vec<PathBuf> {
@@ -299,6 +342,38 @@ mod tests {
         assert_eq!(label(JETBRAINS_MONO, "x"), "JetBrainsMono Nerd Font Mono");
         assert_eq!(label("system:Anthropic Sans", "x"), "Anthropic Sans");
         assert_eq!(label("", "Default"), "Default");
+    }
+
+    #[test]
+    fn the_interface_falls_back_to_a_scaled_copy_of_the_nerd_font() {
+        // The brand marks are drawn from this copy, so that it is scaled
+        // and the terminal's and editor's own copy is not is what keeps a
+        // connection's logo the same size as the Phosphor icons beside it.
+        let defs = definitions(&FontChoice::default());
+        let icon = defs
+            .font_data
+            .get(ICON_FALLBACK)
+            .expect("the icon fallback is registered");
+        assert!((icon.tweak.scale - ICON_SCALE).abs() < f32::EPSILON);
+        let plain = defs
+            .font_data
+            .get(DEFAULT_MONO)
+            .expect("the bundled mono is registered under its own id");
+        assert!((plain.tweak.scale - 1.0).abs() < f32::EPSILON);
+        assert_eq!(
+            defs.families[&FontFamily::Proportional]
+                .last()
+                .map(|s| s.as_str()),
+            Some(ICON_FALLBACK),
+            "the scaled copy is the last resort, never ahead of real text fonts"
+        );
+        // The terminal and the editor draw from the unscaled copy.
+        for family in [terminal_family(), editor_family()] {
+            assert!(
+                !defs.families[&family].iter().any(|f| f == ICON_FALLBACK),
+                "{family:?} must not inherit the interface's icon scale"
+            );
+        }
     }
 
     #[test]

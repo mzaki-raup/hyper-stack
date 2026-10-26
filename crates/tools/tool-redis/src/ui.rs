@@ -613,7 +613,7 @@ impl Tool for RedisTool {
                             ui,
                             &theme,
                             selected,
-                            *icon,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,

@@ -382,6 +382,12 @@ pub struct LogsTool {
     /// so it is computed when the log changes rather than every frame.
     threads: Option<ThreadSummary>,
     threads_at: u64,
+    /// `user@host:port` of the SSH host or cluster this tab reads from,
+    /// for the header band. Empty for a local file, which has no
+    /// session; kept here because `header()` runs every frame with no
+    /// services to look a profile up in.
+    session_label: String,
+    session_user: String,
     /// The `LISTS_VERSION` the saved sources and presets were read at,
     /// so another tab's save is picked up.
     lists_at: u64,
@@ -513,6 +519,8 @@ impl LogsTool {
             threads: None,
             threads_at: 0,
             lists_at: lists_version(),
+            session_label: String::new(),
+            session_user: String::new(),
             find_everywhere: None,
             highlights_open: false,
             reported_upto: 0,
@@ -559,6 +567,25 @@ impl LogsTool {
             return;
         };
         self.bind_connection(services);
+        // Where this source is read from, for the band. A local file
+        // has no session at all, and the band leaves that fact out.
+        self.session_label.clear();
+        self.session_user.clear();
+        if let Some(id) = spec.conn_id()
+            && let Some(c) = services.connections.read().by_id(id)
+        {
+            let f = hs_ssh::SshFields::from_table(&c.fields);
+            if !f.host.is_empty() {
+                self.session_user = f.user.clone();
+                self.session_label = if f.user.is_empty() {
+                    format!("{}:{}", f.host, f.port)
+                } else {
+                    format!("{}@{}:{}", f.user, f.host, f.port)
+                };
+            } else {
+                self.session_label = c.name.clone();
+            }
+        }
         self.runner = None;
         self.filtered.clear();
         self.filtered_upto = 0;
@@ -1025,7 +1052,13 @@ fn host_icon(host: crate::services::Host) -> &'static str {
 /// alike (owner's request, 2026-10-24). Failing that it falls back to
 /// what the source *is*, which is what the spec already answers.
 fn saved_icon(src: &SavedSource) -> &'static str {
-    let text = match &src.spec {
+    saved_icon_for(&src.spec)
+}
+
+/// The glyph for a source, from what it points at: a known service gets
+/// its own mark, anything else the kind's.
+fn saved_icon_for(spec: &SourceSpec) -> &'static str {
+    let text = match spec {
         SourceSpec::LocalFile { path } | SourceSpec::SshFile { path, .. } => path.as_str(),
         SourceSpec::Command { command, .. } => command.as_str(),
         SourceSpec::K8sPod { pod, .. } => pod.as_str(),
@@ -1033,7 +1066,7 @@ fn saved_icon(src: &SavedSource) -> &'static str {
     };
     crate::services::classify(text)
         .and_then(crate::services::icon_for)
-        .unwrap_or_else(|| src.spec.icon())
+        .unwrap_or_else(|| spec.icon())
 }
 
 fn level_colour(theme: &Theme, level: Level) -> egui::Color32 {
@@ -1387,6 +1420,49 @@ impl Tool for LogsTool {
         }
     }
 
+    /// What this tab is following: the source, the command behind it,
+    /// the file it reads and the host it reads from.
+    ///
+    /// Each kind of source answers a different subset - a local file has
+    /// a path and no session, a command has a command and maybe a host,
+    /// a pod has neither - and the band leaves out whatever is empty.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        let spec = self.state.spec.as_ref()?;
+        let mut command = String::new();
+        let mut path = String::new();
+        match spec {
+            SourceSpec::LocalFile { path: p } => path = p.clone(),
+            SourceSpec::SshFile { path: p, .. } => path = p.clone(),
+            SourceSpec::Command { command: c, .. } => command = c.clone(),
+            SourceSpec::K8sPod {
+                namespace,
+                pod,
+                container,
+                ..
+            } => {
+                command = if container.is_empty() {
+                    format!("{namespace}/{pod}")
+                } else {
+                    format!("{namespace}/{pod}/{container}")
+                };
+            }
+            SourceSpec::Text { .. } => {}
+        }
+        Some(
+            hs_core::tool::ToolHeader::new(saved_icon_for(spec), spec.label())
+                .fact("Command", command)
+                .fact("Path", path)
+                .fact(
+                    if self.session_user.is_empty() {
+                        "Host"
+                    } else {
+                        "Session"
+                    },
+                    self.session_label.clone(),
+                ),
+        )
+    }
+
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
@@ -1699,7 +1775,9 @@ impl Tool for LogsTool {
                 self.state.format = chosen;
                 self.start(s);
             }
-            ui.separator();
+            // Second row: what the list shows, rather than what it is
+            // following (owner's requirement, 2026-10-27).
+            hs_ui::toolbar::row_break(ui, &theme);
             if ui
                 .selectable_label(
                     self.state.local_time,
@@ -1768,6 +1846,8 @@ impl Tool for LogsTool {
                 self.rows_collapse = !self.state.collapse;
                 self.rebuild_rows();
             }
+            // Third row: what leaves the tab.
+            hs_ui::toolbar::row_break(ui, &theme);
             if ui
                 .button(format!("{} {}", ph::FLOPPY_DISK, s.t("logs-save-source")))
                 .tip(s.t("logs-save-source-tip"))

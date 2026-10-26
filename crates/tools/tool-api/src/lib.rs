@@ -1408,11 +1408,13 @@ impl Tool for ApiTool {
         let h = hs_core::tool::ToolHeader::new(hs_ui::icons::ph::FOLDERS, c.name.clone())
             .plain(folders);
         // The method keeps the colour the sidebar gives it - green GET,
-        // red DELETE - because that colour is part of what it says. A
-        // method with no colour of its own (HEAD, OPTIONS, TRACE) takes
-        // the band's ordinary one.
+        // red DELETE - because that colour is part of what it says. Only
+        // the method: the request's own name stays in the ordinary text
+        // colour, light on a dark theme and dark on a light one (owner's
+        // requirement, 2026-10-27). A method the sidebar does not colour
+        // (HEAD, OPTIONS, TRACE) takes the band's ordinary one.
         Some(match crate::ui::method_rgb(&method) {
-            Some(c) => h.tinted("", format!("{method} {}", r.name), hs_ui::theme::to_hex(c)),
+            Some(c) => h.tinted_prefix("", method, hs_ui::theme::to_hex(c), r.name.clone()),
             None => h.plain(format!("{method} {}", r.name)),
         })
     }

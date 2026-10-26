@@ -13,64 +13,69 @@ pub fn output(
     text: &str,
     rows: usize,
 ) {
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(label).strong().color(theme.text_muted));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .small_button(format!("{} {}", hs_ui::icons::COPY, s.t("dt-copy")))
-                .clicked()
-            {
-                ui.ctx().copy_text(text.to_string());
-            }
-            if ui
-                .small_button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::DOWNLOAD_SIMPLE,
-                    s.t("download")
-                ))
-                .tip(s.t("dt-download-tip"))
-                .clicked()
-            {
-                let ext = match label.to_ascii_lowercase().as_str() {
-                    "json" => "json",
-                    "xml" => "xml",
-                    _ => "txt",
-                };
-                let name = format!("{}.{ext}", hs_core::download::safe_name(label));
-                let msg = match hs_core::download::save_bytes(&name, text.as_bytes()) {
-                    Ok(Some(p)) => Some(
-                        s.i18n
-                            .t_args("download-saved", &[("path", &p.display().to_string())]),
-                    ),
-                    Ok(None) => None,
-                    Err(e) => Some(e),
-                };
-                if let Some(m) = msg {
-                    let id = ui.id().with("dt-download-flash");
-                    let now = ui.input(|i| i.time);
-                    ui.data_mut(|d| d.insert_temp(id, (m, now)));
+    // The result lines up with the cards above and below it rather than
+    // running to the window edge (owner's report, 2026-10-27).
+    ui.scope(|ui| {
+        ui.set_width(ui.available_width().min(hs_ui::form::CARD_MAX_WIDTH));
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(label).strong().color(theme.text_muted));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(format!("{} {}", hs_ui::icons::COPY, s.t("dt-copy")))
+                    .clicked()
+                {
+                    ui.ctx().copy_text(text.to_string());
+                }
+                if ui
+                    .small_button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                        s.t("download")
+                    ))
+                    .tip(s.t("dt-download-tip"))
+                    .clicked()
+                {
+                    let ext = match label.to_ascii_lowercase().as_str() {
+                        "json" => "json",
+                        "xml" => "xml",
+                        _ => "txt",
+                    };
+                    let name = format!("{}.{ext}", hs_core::download::safe_name(label));
+                    let msg = match hs_core::download::save_bytes(&name, text.as_bytes()) {
+                        Ok(Some(p)) => Some(
+                            s.i18n
+                                .t_args("download-saved", &[("path", &p.display().to_string())]),
+                        ),
+                        Ok(None) => None,
+                        Err(e) => Some(e),
+                    };
+                    if let Some(m) = msg {
+                        let id = ui.id().with("dt-download-flash");
+                        let now = ui.input(|i| i.time);
+                        ui.data_mut(|d| d.insert_temp(id, (m, now)));
+                    }
+                }
+            });
+        });
+        {
+            let id = ui.id().with("dt-download-flash");
+            let flash = ui.data(|d| d.get_temp::<(String, f64)>(id));
+            if let Some((m, at)) = flash {
+                if ui.input(|i| i.time) - at < 6.0 {
+                    ui.label(egui::RichText::new(m).small().color(theme.text_muted));
+                } else {
+                    ui.data_mut(|d| d.remove::<(String, f64)>(id));
                 }
             }
-        });
-    });
-    {
-        let id = ui.id().with("dt-download-flash");
-        let flash = ui.data(|d| d.get_temp::<(String, f64)>(id));
-        if let Some((m, at)) = flash {
-            if ui.input(|i| i.time) - at < 6.0 {
-                ui.label(egui::RichText::new(m).small().color(theme.text_muted));
-            } else {
-                ui.data_mut(|d| d.remove::<(String, f64)>(id));
-            }
         }
-    }
-    let mut shown = text.to_string();
-    ui.add(
-        egui::TextEdit::multiline(&mut shown)
-            .font(egui::TextStyle::Monospace)
-            .desired_width(f32::INFINITY)
-            .desired_rows(rows),
-    );
+        let mut shown = text.to_string();
+        ui.add(
+            egui::TextEdit::multiline(&mut shown)
+                .font(egui::TextStyle::Monospace)
+                .desired_width(f32::INFINITY)
+                .desired_rows(rows),
+        );
+    });
 }
 
 /// A multi-line input with a hint; `{{variables}}` in it get a peek button.

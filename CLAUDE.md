@@ -445,7 +445,10 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   fetch-or-create, and the plan step passes an unpublished newest tag to
   `next-release.ps1 -Republish` so the next push to `main` publishes it.
 - **Do not build locally while a job is running: the runner is this
-  machine.** A push starts CI here, and a `cargo clippy`/`cargo test`
+  machine.** This caught me a third time on 2026-10-27 (run 410): the
+  push, the monitor and then a local build of the *next* change, all in
+  the same minute. Starting the CI watch is not the end of the push -
+  the machine is busy until that watch reports. A push starts CI here, and a `cargo clippy`/`cargo test`
   started in the same minutes competes for the same cores, RAM and
   build lock - run 378 and run 381 both died this way, minutes into a
   job whose commit had passed the identical gate locally. The tell is

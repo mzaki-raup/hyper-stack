@@ -190,8 +190,7 @@ pub struct ToolHeader {
     /// The name of the thing - the project, note, connection or file.
     pub name: String,
     pub facts: Vec<(String, String)>,
-    /// Facts that carry their own colour, by index into `facts`, as
-    /// `#RRGGBB`.
+    /// Facts that carry their own colour.
     ///
     /// Almost everything in the band is one muted colour, which is what
     /// makes thirteen activities look like one app. The exception is a
@@ -199,7 +198,7 @@ pub struct ToolHeader {
     /// being green and DELETE red is the same language the sidebar
     /// already speaks (owner's requirement, 2026-10-27). Held as hex
     /// rather than a `Color32` so `hs-core` need not know about egui.
-    pub colours: Vec<(usize, String)>,
+    pub colours: Vec<FactTint>,
 }
 
 /// A file time as the header band shows it: local, to the minute.
@@ -214,6 +213,20 @@ pub fn stamp(t: Option<std::time::SystemTime>) -> String {
             .to_string(),
         None => "—".to_string(),
     }
+}
+
+/// A colour over part of a fact's value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FactTint {
+    /// Which fact, by index into `ToolHeader::facts`.
+    pub at: usize,
+    /// `#RRGGBB`.
+    pub hex: String,
+    /// How many **characters** of the value the colour covers. The rest
+    /// is drawn in the band's ordinary text colour, which is what lets
+    /// `GET /users` colour the method and leave the request's own name
+    /// plainly readable (owner's requirement, 2026-10-27).
+    pub prefix: usize,
 }
 
 impl ToolHeader {
@@ -238,16 +251,34 @@ impl ToolHeader {
         self.fact("", value)
     }
 
-    /// A fact drawn in its own colour (`#RRGGBB`), for a value whose
-    /// colour is part of what it says.
-    pub fn tinted(
+    /// A fact whose **first word** carries a colour of its own, with the
+    /// rest in the band's ordinary text colour.
+    ///
+    /// `prefix` and `rest` are joined with a space; only `prefix` is
+    /// coloured. This is how `GET /users` reads: the method coloured
+    /// because its colour means something, the request's name left
+    /// plainly legible.
+    pub fn tinted_prefix(
         mut self,
         label: impl Into<String>,
-        value: impl Into<String>,
+        prefix: impl Into<String>,
         hex: impl Into<String>,
+        rest: impl Into<String>,
     ) -> Self {
+        let prefix = prefix.into();
+        let rest = rest.into();
+        let chars = prefix.chars().count();
+        let value = if rest.is_empty() {
+            prefix
+        } else {
+            format!("{prefix} {rest}")
+        };
         self = self.fact(label, value);
-        self.colours.push((self.facts.len() - 1, hex.into()));
+        self.colours.push(FactTint {
+            at: self.facts.len() - 1,
+            hex: hex.into(),
+            prefix: chars,
+        });
         self
     }
 }

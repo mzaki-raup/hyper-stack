@@ -639,6 +639,42 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   rather than for the activity. Any new "New …" button must go through
   `open_new_tab`, never `open`.
 
+- **A nested layout does not reset the direction.** Inside a
+  `right_to_left` group, `ui.horizontal` keeps going right-to-left - so
+  a label added before its control lands on the *wrong side* - and
+  `ui.with_layout(left_to_right, ..)` takes **all** the width that is
+  left, so two of them overlap each other. To put "Label [control]"
+  pairs in a right-to-left group, add each control first and then its
+  label, and add the pairs in reverse order (2026-10-26, the title bar's
+  Workspace and Environment pickers).
+- **A Nerd Font glyph is drawn smaller than a Phosphor one at the same
+  font size.** Phosphor's icons fill the em (mean height 0.722 em);
+  a Nerd Font's brand marks are drawn to fit one cell of a monospace
+  grid (0.559 em), so the Docker whale beside a Phosphor plug read as
+  a smaller icon. The fix is one number rather than a scale threaded
+  through every draw site: `fonts::install` registers the bundled Nerd
+  Font **twice** - plain, for the terminal and the editor families, and
+  again as `hs-icon-fallback` with `FontTweak::scale = 1.29` for the
+  interface's last glyph fallback. Measure before changing it
+  (`scratchpad/metrics.py`), and remember the scaled copy must stay
+  **last** in `Proportional`: ahead of a real text font it would draw
+  the letters too (2026-10-26).
+- **Phosphor is installed before the Nerd Font and wins where they
+  overlap.** Both live in the Private Use Area, so a codepoint copied
+  from a Nerd Fonts cheat sheet can quietly draw something else: `U+E76E`
+  is PostgreSQL there and a **safe** in Phosphor, `U+E7B0` is Docker and
+  a thin unrelated mark, `U+EBCA` is a bash prompt and a cube. All three
+  were shipped-and-caught on screen before the cause was understood.
+  `scratchpad/collide.py` compares the two cmaps and says which
+  codepoints are unusable; run it before choosing a glyph, then still
+  look at the result (2026-10-26).
+- **Check a Nerd Font glyph by looking at it.** The codepoint being in
+  the font says nothing about *which* picture it is: `U+EBCA`, listed as
+  the codicon terminal-bash, draws a cube in the bundled JetBrains Mono,
+  and shipped as Git Bash's icon it would have been simply wrong. The
+  distro logos (`U+F300..`) and the two PowerShell marks were each
+  confirmed on screen before being kept.
+
 ### Windows
 - Renaming a running executable on the same volume is allowed; overwriting it
   is not. The updater relies on this (rename old → move new → relaunch), so

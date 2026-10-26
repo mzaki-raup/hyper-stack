@@ -2001,7 +2001,7 @@ impl DbTool {
                         if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref())
                             && ui
                                 .button(format!("{} {}", ph::FLOPPY_DISK, s.t("db-cell-save")))
-                                .on_hover_text(s.t("db-cell-save-tip"))
+                                .tip(s.t("db-cell-save-tip"))
                                 .clicked()
                             && let Some(path) = rfd::FileDialog::new()
                                 .set_file_name(format!("cell.{}", sn.ext))
@@ -2403,6 +2403,15 @@ impl Tool for DbTool {
         }
     }
 
+    /// The engine's own mark, so a strip of database tabs says which
+    /// server each one is.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::connection_icon("db", self.engine.id()))
+    }
+
     fn dirty(&self) -> bool {
         self.shared.lock().in_tx || (self.state.query_file.is_some() && self.doc().buf.dirty())
     }
@@ -2598,17 +2607,16 @@ impl Tool for DbTool {
             Some(1) => self.refresh_schema(s),
             _ => {}
         }
-        let profiles: Vec<(String, String, String, bool)> = s
+        // The engine's own mark, so PostgreSQL and MySQL are told apart
+        // in the list as well as in the subtitle.
+        let profiles: Vec<(String, String, String, bool, &'static str)> = s
             .connections
             .read()
             .of_kind("db")
             .map(|c| {
-                (
-                    c.id.clone(),
-                    c.name.clone(),
-                    DbFields::from_table(&c.fields).label(),
-                    c.pinned,
-                )
+                let f = DbFields::from_table(&c.fields);
+                let icon = hs_ui::icons::connection_icon("db", &f.engine);
+                (c.id.clone(), c.name.clone(), f.label(), c.pinned, icon)
             })
             .collect();
         if profiles.is_empty() {
@@ -2625,14 +2633,14 @@ impl Tool for DbTool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
-                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
+                for (i, (id, name, label, is_pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         let row = form::connection_row(
                             ui,
                             &theme,
                             selected,
-                            ph::DATABASE,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,

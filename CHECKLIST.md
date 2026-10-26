@@ -151,6 +151,37 @@ store that already exists.
 | A connection tab is named after its connection | Completed | S3 titled its tab after the *bucket*; it takes the profile's name now, kept in its own saved state so a restored tab reads right before anything connects. Every connection activity also follows a rename (`ConnectionsChanged`) without disturbing the session. Verified on screen |
 
 
+### Icon work from the owner's review (2026-10-26)
+
+| Item | State | Notes |
+|---|---|---|
+| Outline on activity icons, theme-aware, slightly thick | Completed | `hs_ui::icons::outlined_text`: epaint has no text stroke, so the ring is the glyph drawn eight times at 1.5 pt offsets (diagonals by √½) under the real one. `Theme::icon_outline` picks light on dark and dark on light. Gated to **coloured** icons - around a plain one, already the theme's text colour, the ring reads as a glow. Verified on screen in both modes |
+| A switch for it in Settings → Appearance → Sidebar | Completed | `appearance.rail_icon_outline`, on by default and disabled (with a reason on hover) while Coloured Activity Icons is off. A test parses a settings file written before the field existed and asserts it comes back **on**, since the container's `#[serde(default)]` is what fills it |
+| Home toolbar: bigger icons, gaps, hover indicator | Completed | 22 px glyphs, 8 px apart, and a hover plate with an accent edge. Verified on screen |
+| A tab wears its own item's icon | Completed | `Tool::tab_icon` in Terminal (shell profile, CLI profile, pod), Containers (host kind), Graphics (kind) and Devtools (utility). The container kind and the CLI key live in the tab's saved state, because `tab_icon` is asked every frame with no `Services`; the container kind is re-taken on the first draw so an older tab heals. Verified on screen in all four: Git Bash's branch and WSL's penguin, a Kubernetes polygon beside a Docker container, image/icon/diagram, and five different Devtools utilities |
+
+
+### Icons, tooltips and the top bar (owner's review, 2026-10-26)
+
+| Item | State | Notes |
+|---|---|---|
+| Tooltips above the mouse cursor | Completed | `TipExt` anchors to the pointer with a 16 pt gap. egui has no global anchor - `on_hover_text` anchors to the widget - so all 156 call sites across 35 files were converted, and `tip_disabled` was added for the disabled case. Measured on screen: the tooltip's bottom edge lands ~19 px above the cursor; near the window top it falls back to below |
+| Devtools' sidebar highlighted and swallowed Base64 | Completed | The dashboard's `self.utility` is only its default, so the row read as selected and the `!=` guard refused the click on it. The row now asks what the **active tab** holds |
+| Both dashboards keep their activity's icon | Completed | A consequence of `tab_icon`: Graphics showed a house, Devtools whatever utility the field defaulted to |
+| Terminal toolbar: no picker, no size, Clear gets an icon | Completed | The tab is its shell now that it carries the shell's name and icon |
+| Graphics: Properties above Transparency | Completed | What the file *is* before what to do to it |
+| SSH tunnels: several forwards per host, tidily | Completed | The list groups by the host each forward goes through, with a count; the add card has a heading, the fields in the order they are thought about, and **Add Another**, which keeps the host and clears the ports |
+| Every shell has its own icon | Completed | Two drawings of the PowerShell brand tell 7 from Windows PowerShell; cmd, Git Bash and each WSL distribution have their own. Nushell has no Nerd Font logo and takes the windowed terminal. Verified on screen - the first glyph tried for Git Bash drew a cube, so it kept the branch mark |
+| An SSH host wears its OS | Completed, **probe unverified live** | `hs_ssh::os`: one read-only probe, parsed by a pure function with 9 unit tests (Ubuntu, a derivative via `ID_LIKE`, the Red Hat rebuilds, macOS/BSD, WSL, Windows, empty, name-only, id round-trip). The id is kept on the profile so the sidebar needs no connection. **The probe itself has not been run against a live SSH server**: the in-repo test server has no `exec` handler, and the containerised one was not reachable within the time spent. The glyph table is proven by the WSL rows in the Terminal list, which read from it |
+| Brand marks match the icons beside them | Completed | Nerd Font logos are cell-sized (0.559 em) where Phosphor's are em-sized (0.722); the interface's glyph fallback is now a second, scaled registration of the bundled font (`hs-icon-fallback`, 1.29). The terminal and editor families keep the unscaled copy, and a test holds the scaled one last in `Proportional` so it can never draw the letters |
+| Workspace and Environment labelled in the toolbar | Completed | Bold, 13.5 px, full text colour, a separator each side with 8 px of room |
+| Windsurf / Devin in the provider gallery | Completed | In the local group: neither ships a callable API, so the entry is pre-filled for a bridge on `localhost:3003` and its blurb says what has to be running |
+| Every connection kind gets its own icon | Completed | One `hs_ui::icons::connection_icon(kind, engine)` behind Settings, the four activities' sidebars and their tabs. **Three of the first choices were wrong**: Phosphor is installed before the Nerd Font and shadows `U+E76E` (PostgreSQL → a safe), `U+E7B0` (Docker) and `U+EBCA` (bash → a cube). `scratchpad/collide.py` now compares the two cmaps; the shadowed ones were replaced with unshadowed mascots - the elephant, the dolphin, Mongo's leaf - and each was checked at 4-12x |
+| AI providers keep their real marks where one exists | Completed | Google, Azure and AWS from the Material and devicon sets. Everything else has no logo in the font, so the existing stand-ins stay - several of which are already apt (DeepSeek's whale, Moonshot's moon, Mistral's wind, Anthropic's asterisk) |
+| Docker, Podman and Kubernetes get their own marks | Completed | The whale and the helm from the bundled Nerd Font; Podman has no logo there, so it takes a neutral package. Unified into one `hs_ui::icons::container_kind_icon` - the activity and Settings each had a copy. The activity's own icon stays the shipping container. Checked at 8x: Docker reads as the whale, Podman as a package; **Kubernetes' helm is soft at 14 px** and `ph::POLYGON` was arguably crisper, so that one is worth a second opinion |
+| Workspace and Environment labelled, moved right | Completed | Behind a separator from the actions. In a right-to-left layout the control is added before its label, and the pairs in reverse: a nested `horizontal` inherits the direction and a nested `with_layout` takes all the remaining width |
+
+
 ### M6 · Hardening and 1.0
 | Item | State | Notes |
 |---|---|---|

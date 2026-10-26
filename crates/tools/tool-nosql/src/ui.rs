@@ -376,6 +376,15 @@ impl Tool for NoSqlTool {
         self.state.conn_id.as_deref()
     }
 
+    /// The store's own mark, so Mongo and Couch are told apart.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        let kind = self.kind?.connection_kind();
+        Some(hs_ui::icons::connection_icon(kind, ""))
+    }
+
     /// A renamed profile renames its tab. The name is the only thing
     /// taken: a rename must not disturb a live session.
     fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
@@ -504,7 +513,9 @@ impl Tool for NoSqlTool {
         }
         // One pass over the store, not one per kind, so the list is in the
         // store's own order - which is what a dragged row renumbers.
-        let profiles: Vec<(String, String, String, bool)> = {
+        // MongoDB's leaf and CouchDB's couch are their own; Qdrant has
+        // no logo anywhere, so it keeps the database glyph.
+        let profiles: Vec<(String, String, String, bool, &'static str)> = {
             let conns = s.connections.read();
             conns
                 .all()
@@ -516,6 +527,7 @@ impl Tool for NoSqlTool {
                         c.name.clone(),
                         NoSqlFields::from_table(&c.kind, &c.fields).label(),
                         c.pinned,
+                        hs_ui::icons::connection_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -535,14 +547,14 @@ impl Tool for NoSqlTool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
-                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
+                for (i, (id, name, label, is_pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         let row = form::connection_row(
                             ui,
                             &theme,
                             selected,
-                            ph::TREE_STRUCTURE,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -631,11 +643,7 @@ impl Tool for NoSqlTool {
         if self.protected && !self.writes_unlocked {
             ui.separator();
             let label = s.i18n.t_args("nosql-protected", &[("env", &self.env_name)]);
-            if ui
-                .button(label)
-                .on_hover_text(s.t("nosql-unlock-hint"))
-                .clicked()
-            {
+            if ui.button(label).tip(s.t("nosql-unlock-hint")).clicked() {
                 self.writes_unlocked = true;
             }
         }
@@ -645,7 +653,7 @@ impl Tool for NoSqlTool {
             // the same place: hard right of the toolbar.
             if ui
                 .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .on_hover_text(s.t("ai-shared-button-tip"))
+                .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
                 self.assistant.toggle("NoSQL");
@@ -1050,16 +1058,12 @@ impl NoSqlTool {
             {
                 self.state.limit = limit;
             }
-            if ui
-                .button("‹")
-                .on_hover_text(s.t("nosql-previous"))
-                .clicked()
-            {
+            if ui.button("‹").tip(s.t("nosql-previous")).clicked() {
                 self.state.skip = (self.state.skip - limit).max(0);
                 self.run_find();
             }
             ui.label(format!("{}", self.state.skip));
-            if ui.button("›").on_hover_text(s.t("nosql-next")).clicked() {
+            if ui.button("›").tip(s.t("nosql-next")).clicked() {
                 self.state.skip += limit;
                 self.run_find();
             }

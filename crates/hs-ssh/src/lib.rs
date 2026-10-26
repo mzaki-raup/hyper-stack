@@ -8,6 +8,7 @@
 pub mod config;
 pub mod exec;
 pub mod known_hosts;
+pub mod os;
 pub mod profile;
 pub mod shell;
 #[cfg(feature = "testserver")]

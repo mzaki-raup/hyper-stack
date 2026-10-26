@@ -9,6 +9,7 @@
 //! the other pane, which would be worse than showing nothing.
 
 use chrono::{DateTime, TimeZone, Utc};
+use hs_ui::tip::TipExt;
 
 // ---- time ---------------------------------------------------------------
 
@@ -570,7 +571,7 @@ fn time_pane(
             });
             if ui
                 .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .on_hover_text(s.t("dt-conv-swap"))
+                .tip(s.t("dt-conv-swap"))
                 .clicked()
             {
                 std::mem::swap(&mut st.time_from, &mut st.time_to);
@@ -637,7 +638,7 @@ fn data_pane(
             });
             if ui
                 .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .on_hover_text(s.t("dt-conv-swap"))
+                .tip(s.t("dt-conv-swap"))
                 .clicked()
             {
                 std::mem::swap(&mut st.data_from, &mut st.data_to);
@@ -813,7 +814,7 @@ fn bandwidth_pane(
             });
             if ui
                 .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .on_hover_text(s.t("dt-conv-swap"))
+                .tip(s.t("dt-conv-swap"))
                 .clicked()
             {
                 std::mem::swap(&mut st.rate_from, &mut st.rate_to);

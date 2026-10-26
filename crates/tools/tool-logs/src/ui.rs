@@ -1775,7 +1775,7 @@ impl Tool for LogsTool {
             hs_ui::toolbar::hard_right(ui, |ui| {
                 if ui
                     .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                    .on_hover_text(s.t("ai-shared-button-tip"))
+                    .tip(s.t("ai-shared-button-tip"))
                     .clicked()
                 {
                     self.assistant.toggle("Logs");
@@ -2261,7 +2261,7 @@ impl LogsTool {
                 };
                 if ui
                     .small_button(egui::RichText::new(format!("{state} {n}")).color(tint))
-                    .on_hover_text(s.t("logs-threads-filter-tip"))
+                    .tip(s.t("logs-threads-filter-tip"))
                     .clicked()
                 {
                     add = Some(Chip::new(ChipKind::Field("state".into(), state.clone())));
@@ -2291,7 +2291,7 @@ impl LogsTool {
                             // both ends open the thread they name.
                             if ui
                                 .small_button(&edge.waiter)
-                                .on_hover_text(s.t("logs-deadlock-thread-tip"))
+                                .tip(s.t("logs-deadlock-thread-tip"))
                                 .clicked()
                             {
                                 add = Some(Chip::new(ChipKind::Field(
@@ -2306,7 +2306,7 @@ impl LogsTool {
                             );
                             if ui
                                 .small_button(&edge.holder)
-                                .on_hover_text(s.t("logs-deadlock-thread-tip"))
+                                .tip(s.t("logs-deadlock-thread-tip"))
                                 .clicked()
                             {
                                 add = Some(Chip::new(ChipKind::Field(
@@ -2458,7 +2458,7 @@ impl LogsTool {
                                         .truncate()
                                         .sense(egui::Sense::click()),
                                     );
-                                    if r.on_hover_text(s.t("logs-diff-row-tip")).clicked() {
+                                    if r.tip(s.t("logs-diff-row-tip")).clicked() {
                                         // Filter to this shape in the
                                         // window it is interesting in.
                                         let range = if d.only_in_a() { a } else { b };
@@ -2822,7 +2822,7 @@ impl LogsTool {
                                                 .truncate()
                                                 .sense(egui::Sense::click()),
                                             );
-                                            let r = r.on_hover_text(&h.preview);
+                                            let r = r.tip(&h.preview);
                                             if h.open.is_some() {
                                                 if r.clicked() {
                                                     jump = h.open.clone();
@@ -2830,9 +2830,7 @@ impl LogsTool {
                                             } else {
                                                 // Honest about a hit
                                                 // with nowhere to go.
-                                                r.on_hover_text(
-                                                    s.t("logs-find-everywhere-no-jump"),
-                                                );
+                                                r.tip(s.t("logs-find-everywhere-no-jump"));
                                             }
                                         });
                                     }
@@ -2881,7 +2879,7 @@ impl LogsTool {
                         ui.horizontal(|ui| {
                             changed |= ui
                                 .checkbox(&mut h.enabled, "")
-                                .on_hover_text(s.t("logs-highlight-enabled"))
+                                .tip(s.t("logs-highlight-enabled"))
                                 .changed();
                             changed |= ui.color_edit_button_srgb(&mut h.colour).changed();
                             changed |= ui
@@ -2899,7 +2897,7 @@ impl LogsTool {
                                 .changed();
                             changed |= ui
                                 .checkbox(&mut h.report, s.t("logs-highlight-report"))
-                                .on_hover_text(s.t("logs-highlight-report-tip"))
+                                .tip(s.t("logs-highlight-report-tip"))
                                 .changed();
                             // Only meaningful for a reporting rule, so
                             // it is disabled rather than hidden: a
@@ -2911,7 +2909,7 @@ impl LogsTool {
                                             .range(0..=3600)
                                             .suffix("s"),
                                     )
-                                    .on_hover_text(s.t("logs-highlight-cooldown-tip"))
+                                    .tip(s.t("logs-highlight-cooldown-tip"))
                                     .changed();
                             });
                             if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
@@ -3214,11 +3212,9 @@ impl LogsTool {
             && let Some(bar) = h.bars.get(i)
         {
             let when = self.stamp(bar.start);
-            response.clone().on_hover_text(format!(
-                "{when} - {} ({})",
-                bar.total(),
-                h.bucket().label()
-            ));
+            response
+                .clone()
+                .tip(format!("{when} - {} ({})", bar.total(), h.bucket().label()));
         }
         self.strip_actions(ui, s, theme, &h);
     }
@@ -3277,7 +3273,7 @@ impl LogsTool {
                 let ready = self.window_a.is_some() && self.window_b.is_some();
                 if ui
                     .add_enabled(ready, egui::Button::new(s.t("logs-chart-compare")).small())
-                    .on_hover_text(s.t("logs-chart-compare-tip"))
+                    .tip(s.t("logs-chart-compare-tip"))
                     .clicked()
                 {
                     self.diff_open = true;
@@ -3895,7 +3891,7 @@ impl LogsTool {
                                         egui::Label::new(egui::RichText::new(v).monospace())
                                             .truncate(),
                                     )
-                                    .on_hover_text(v);
+                                    .tip(v);
                                 });
                                 ui.end_row();
                             }

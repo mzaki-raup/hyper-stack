@@ -16,6 +16,7 @@ use hs_core::tool::{
 use hs_ui::form;
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
+use hs_ui::tip::TipExt;
 use serde::{Deserialize, Serialize};
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
@@ -447,7 +448,7 @@ impl Tool for Scratchpad {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button(format!("{} {}", ph::PLUS, s.t("scratchpad-new")))
-                    .on_hover_text(s.t("scratchpad-new-tip"))
+                    .tip(s.t("scratchpad-new-tip"))
                     .clicked()
                 {
                     cx.open_new_tab("scratchpad", None);
@@ -618,7 +619,7 @@ impl Tool for Scratchpad {
         ] {
             if ui
                 .selectable_label(self.state.view == view, icon)
-                .on_hover_text(s.t(key))
+                .tip(s.t(key))
                 .clicked()
             {
                 self.state.view = view;
@@ -639,17 +640,13 @@ impl Tool for Scratchpad {
             } else {
                 (ph::PUSH_PIN, "scratchpad-pin")
             };
-            if ui
-                .selectable_label(pinned, icon)
-                .on_hover_text(s.t(key))
-                .clicked()
-            {
+            if ui.selectable_label(pinned, icon).tip(s.t(key)).clicked() {
                 self.toggle_pin(&id, cx);
             }
         }
         if ui
             .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
-            .on_hover_text(s.t("scratchpad-download-tip"))
+            .tip(s.t("scratchpad-download-tip"))
             .clicked()
         {
             let name = format!(
@@ -683,7 +680,7 @@ impl Tool for Scratchpad {
                     self.assistant.open,
                     format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
                 )
-                .on_hover_text(s.t("scratchpad-ai-tip"))
+                .tip(s.t("scratchpad-ai-tip"))
                 .clicked()
             {
                 self.assistant.toggle("Scratchpad");

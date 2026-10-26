@@ -628,7 +628,7 @@ impl TabStrip<'_> {
                 pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
             } else {
                 ui.add_enabled(false, egui::Button::new(&labels.duplicate))
-                    .on_disabled_hover_text(&labels.duplicate_blocked);
+                    .tip_disabled(&labels.duplicate_blocked);
             }
         });
     }

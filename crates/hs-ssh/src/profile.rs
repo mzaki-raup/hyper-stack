@@ -18,6 +18,13 @@ pub struct SshFields {
     pub startup_command: String,
     pub keepalive_secs: u64,
     pub connect_timeout_secs: u64,
+    /// What the host turned out to be, from one read-only probe on the
+    /// first connect (`os::PROBE`). Kept on the profile so the sidebar
+    /// can draw the right logo without connecting, and so a restored tab
+    /// wears it before anything has happened. Empty until detected.
+    pub os_id: String,
+    /// The human form of the same: `Ubuntu 24.04.1 LTS`, `· WSL` and all.
+    pub os_label: String,
 }
 
 impl Default for SshFields {
@@ -34,6 +41,8 @@ impl Default for SshFields {
             startup_command: String::new(),
             keepalive_secs: 30,
             connect_timeout_secs: 20,
+            os_id: String::new(),
+            os_label: String::new(),
         }
     }
 }
@@ -63,6 +72,8 @@ impl SshFields {
             startup_command: s("startup_command"),
             keepalive_secs: n("keepalive_secs", 30).max(0) as u64,
             connect_timeout_secs: n("connect_timeout_secs", 20).max(1) as u64,
+            os_id: s("os_id"),
+            os_label: s("os_label"),
         }
     }
 
@@ -99,6 +110,11 @@ impl SshFields {
         t.insert(
             "connect_timeout_secs".into(),
             toml::Value::Integer(self.connect_timeout_secs as i64),
+        );
+        t.insert("os_id".into(), toml::Value::String(self.os_id.clone()));
+        t.insert(
+            "os_label".into(),
+            toml::Value::String(self.os_label.clone()),
         );
         fields.insert("ssh".into(), toml::Value::Table(t));
     }

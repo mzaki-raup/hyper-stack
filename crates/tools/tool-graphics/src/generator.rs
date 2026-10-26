@@ -20,6 +20,7 @@ use hs_ui::theme::Theme;
 use parking_lot::Mutex;
 
 use crate::diagram::sanitise;
+use hs_ui::tip::TipExt;
 
 const SYSTEM: &str = r#"You design HyperStack diagrams. Return ONLY one JSON object, no Markdown fences, no prose.
 The object must use schema_version 1 and one of these shapes.
@@ -307,7 +308,7 @@ impl GeneratorState {
                                     hs_ui::icons::ph::TREE_STRUCTURE,
                                     s.t("gfx-gen-offline")
                                 ))
-                                .on_hover_text(s.t("gfx-gen-offline-tip"))
+                                .tip(s.t("gfx-gen-offline-tip"))
                                 .clicked()
                             {
                                 self.offline(&s);

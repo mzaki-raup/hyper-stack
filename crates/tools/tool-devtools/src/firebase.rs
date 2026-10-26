@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::crypto::b64url_encode;
 use crate::jwt::{self, Alg};
 use crate::util;
+use hs_ui::tip::TipExt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ServiceAccount {
@@ -343,7 +344,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     sa.is_some() && st.access_pending.is_none(),
                     egui::Button::new(s.t("dt-firebase-get-access")),
                 )
-                .on_hover_text(s.t("dt-firebase-network-tip"))
+                .tip(s.t("dt-firebase-network-tip"))
                 .clicked()
                 && let Some(sa) = &sa
             {
@@ -391,7 +392,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     custom.is_some() && !st.web_api_key.trim().is_empty() && st.id_pending.is_none(),
                     egui::Button::new(s.t("dt-firebase-get-id")),
                 )
-                .on_hover_text(s.t("dt-firebase-network-tip"))
+                .tip(s.t("dt-firebase-network-tip"))
                 .clicked()
                 && let Some(token) = custom
             {

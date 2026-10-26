@@ -19,6 +19,7 @@ use crate::model::{
     Auth, AuthKind, BodyKind, Collection, Folder, Item, Kv, LibraryKind, METHODS, Request,
 };
 use crate::send::Exchange;
+use hs_ui::tip::TipExt;
 
 pub struct SaveTo {
     pub collection: String,
@@ -414,7 +415,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
     ui.horizontal(|ui| {
         if ui
             .small_button(ph::FOLDER_PLUS)
-            .on_hover_text(s.t("api-new-collection"))
+            .tip(s.t("api-new-collection"))
             .clicked()
         {
             actions.push(SideAction::NewCollection);
@@ -425,7 +426,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 collection.is_some(),
                 egui::Button::new(ph::FOLDER_PLUS).small(),
             )
-            .on_hover_text(s.t("api-new-folder"))
+            .tip(s.t("api-new-folder"))
             .clicked()
             && let Some(c) = collection
         {
@@ -433,7 +434,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
         }
         if ui
             .small_button(ph::PLUS)
-            .on_hover_text(s.t("api-new-request"))
+            .tip(s.t("api-new-request"))
             .clicked()
         {
             match t.home_for_new_request() {
@@ -443,14 +444,14 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
         }
         if ui
             .small_button(ph::DOWNLOAD_SIMPLE)
-            .on_hover_text(s.t("api-import-tip"))
+            .tip(s.t("api-import-tip"))
             .clicked()
         {
             actions.push(SideAction::Import);
         }
         if ui
             .small_button(ph::CLOCK_COUNTER_CLOCKWISE)
-            .on_hover_text(s.t("api-history"))
+            .tip(s.t("api-history"))
             .clicked()
         {
             t.show_history = !t.show_history;
@@ -589,7 +590,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                                 .selectable(false)
                                 .sense(egui::Sense::click()),
                         )
-                        .on_hover_text(format!("{} · {} ms", h.at, h.millis))
+                        .tip(format!("{} · {} ms", h.at, h.millis))
                         .clicked()
                     {
                         actions.push(SideAction::LoadHistory(i));
@@ -622,7 +623,7 @@ fn libraries_section(
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if hs_ui::form::icon_button(ui, theme, ph::PLUS, 16.0, false)
-                .on_hover_text(s.t("api-new-library"))
+                .tip(s.t("api-new-library"))
                 .clicked()
             {
                 actions.push(SideAction::NewLibrary);
@@ -1546,7 +1547,7 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         if !matches!(t.request.body.kind, BodyKind::None | BodyKind::Binary)
             && ui
                 .small_button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
-                .on_hover_text(s.t("api-body-download-tip"))
+                .tip(s.t("api-body-download-tip"))
                 .clicked()
         {
             let ext = match t.request.body.kind {
@@ -1571,7 +1572,7 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         if matches!(t.request.body.kind, BodyKind::Json | BodyKind::Xml)
             && ui
                 .small_button(s.t("api-body-format"))
-                .on_hover_text(s.t("api-body-format-tip"))
+                .tip(s.t("api-body-format-tip"))
                 .clicked()
         {
             let text = t.body_view.text();
@@ -2640,7 +2641,7 @@ pub(crate) fn library_tab(
                     if !lib.source.is_empty() {
                         form::label(ui, &s.t("api-library-source"));
                         ui.add(egui::Label::new(&lib.source).truncate())
-                            .on_hover_text(&lib.source);
+                            .tip(&lib.source);
                         ui.end_row();
                     }
                     form::label(ui, &s.t("api-library-enabled"));

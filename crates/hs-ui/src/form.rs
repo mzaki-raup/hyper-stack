@@ -5,6 +5,7 @@
 use egui::{CornerRadius, Margin, RichText, Stroke, Vec2};
 
 use crate::theme::Theme;
+use crate::tip::TipExt;
 
 /// Minimum width of a text field; fields grow to the available width.
 pub const FIELD_MIN_WIDTH: f32 = 260.0;
@@ -282,7 +283,7 @@ fn sidebar_header_inner(
                     // the add button sits in the same place in every tool.
                     for (i, (icon, tip)) in actions.iter().enumerate() {
                         if icon_button(ui, theme, icon, 16.0, false)
-                            .on_hover_text(*tip)
+                            .tip(*tip)
                             .clicked()
                         {
                             clicked = Some(i);

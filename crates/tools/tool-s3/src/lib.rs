@@ -1427,7 +1427,9 @@ impl Tool for S3Tool {
             }
             _ => {}
         }
-        let profiles: Vec<(String, String, String, bool)> = s
+        // Each kind's own glyph: the cloud for S3, a folder for a WebDAV
+        // share, a package for a Nexus repository.
+        let profiles: Vec<(String, String, String, bool, &'static str)> = s
             .connections
             .read()
             .of_object_kinds()
@@ -1440,6 +1442,7 @@ impl Tool for S3Tool {
                     // defaults showing through, not its own settings.
                     subtitle_for(c),
                     c.pinned,
+                    hs_ui::icons::connection_icon(&c.kind, ""),
                 )
             })
             .collect();
@@ -1458,14 +1461,14 @@ impl Tool for S3Tool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
-                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
+                for (i, (id, name, label, is_pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         let row = form::connection_row(
                             ui,
                             &theme,
                             selected,
-                            ph::CLOUD,
+                            icon,
                             name,
                             Some(label),
                             *is_pinned,

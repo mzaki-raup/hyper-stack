@@ -51,6 +51,16 @@ struct State {
     /// reconnects to the pod instead of silently opening PowerShell.
     #[serde(default)]
     cluster: Option<ClusterExec>,
+    /// The icon key of the **CLI profile** this tab was opened for, when
+    /// it was opened from one.
+    ///
+    /// A CLI row opens an ordinary shell running the CLI's command line,
+    /// so the tab would otherwise wear the shell's glyph and three CLI
+    /// tabs would look alike. Resolved once, when the tab is opened, and
+    /// kept here because `tab_icon` is asked every frame and is handed
+    /// no `Services` (owner's requirement, 2026-10-26).
+    #[serde(default)]
+    icon: Option<String>,
 }
 
 /// Which container a cluster tab runs its shell in.
@@ -135,7 +145,6 @@ pub struct TerminalTool {
     error: Option<String>,
     exit_code: Option<u32>,
     bell: bool,
-    tab_id_hint: u64,
     find: Find,
     /// Give the terminal keyboard focus on the next frame.
     pending_focus: Option<egui::Id>,
@@ -174,7 +183,6 @@ impl TerminalTool {
             error: None,
             exit_code: None,
             bell: false,
-            tab_id_hint: 0,
             find: Find::default(),
             pending_focus: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
@@ -370,7 +378,7 @@ impl TerminalTool {
         };
         let label = ui.label(egui::RichText::new(status).weak());
         if let Some(e) = &self.find.error {
-            label.on_hover_text(e.clone());
+            label.tip(e.clone());
         }
         if ui
             .button(ph::ARROW_UP)
@@ -651,6 +659,24 @@ impl Tool for TerminalTool {
         self.home_title = home.then(|| services.t("tool-terminal"));
     }
 
+    /// The glyph this tab's own row wears in the sidebar: the CLI's when
+    /// it was opened from one, the pod's for a shell inside a pod, and
+    /// otherwise the shell profile's - so PowerShell, cmd, Git Bash and
+    /// WSL are told apart in the strip (owner's requirement,
+    /// 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.home_title.is_some() {
+            return None;
+        }
+        if self.state.cluster.is_some() {
+            return Some(hs_ui::icons::ph::POLYGON);
+        }
+        if let Some(key) = &self.state.icon {
+            return Some(cli_icon(key));
+        }
+        self.state.profile.as_deref().map(shell_icon)
+    }
+
     fn title(&self) -> Cow<'_, str> {
         // The home tab is the activity's; it has no shell of its own.
         if let Some(name) = &self.home_title {
@@ -689,40 +715,11 @@ impl Tool for TerminalTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let current = self.state.profile.clone().unwrap_or_default();
-        let current_name = self
-            .profiles
-            .iter()
-            .find(|p| p.id == current)
-            .map(|p| p.name.clone())
-            .unwrap_or_else(|| s.t("terminal-profile"));
-        let profiles = self.profiles.clone();
-        let mut picked: Option<String> = None;
-        egui::ComboBox::from_id_salt(("term-profile", self.tab_id_hint))
-            .selected_text(current_name)
-            .show_ui(ui, |ui| {
-                for p in profiles.iter() {
-                    if ui.selectable_label(p.id == current, &p.name).clicked() {
-                        picked = Some(p.id.clone());
-                    }
-                }
-            });
-        if let Some(id) = picked {
-            // A new profile opens a new tab; the current session stays.
-            cx.open(
-                "terminal",
-                Some(OpenRequest::Terminal {
-                    cwd: self
-                        .state
-                        .cwd
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().to_string()),
-                    host: None,
-                    profile: Some(id),
-                    command: None,
-                }),
-            );
-        }
+        // No profile picker and no size readout. The tab *is* its shell -
+        // its name and icon say which - and another one is opened from
+        // the sidebar, which is the only place that lists them; the
+        // columns and rows are a detail of the moment, not an action
+        // (owner's requirement, 2026-10-26).
         if ui
             .button(format!(
                 "{} {}",
@@ -734,15 +731,17 @@ impl Tool for TerminalTool {
             self.session = None;
             self.start(s);
         }
-        if ui.button(s.t("terminal-clear")).clicked()
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::ERASER,
+                s.t("terminal-clear")
+            ))
+            .clicked()
             && let Some(sess) = &self.session
         {
             // Clear screen and scrollback (xterm: ESC c would reset; use CSI 3J + 2J + H).
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
-        }
-        if let Some(sess) = &self.session {
-            let (c, r) = sess.size();
-            ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
         }
         if self.bell {
             ui.colored_label(
@@ -1196,6 +1195,19 @@ impl Tool for TerminalTool {
                 if let Some(c) = cwd {
                     self.state.cwd = Some(PathBuf::from(c));
                 }
+                // Which CLI, if this is one: the command line is what
+                // the sidebar's CLI rows are built from, so matching on
+                // it needs no new field in `OpenRequest::Terminal` and
+                // leaves every other tool's match arms alone.
+                if let Some(cmd) = command.as_deref() {
+                    let st = cx.services.settings.read();
+                    self.state.icon = st
+                        .terminal
+                        .cli
+                        .iter()
+                        .find(|c| c.command_line() == cmd)
+                        .map(|c| c.icon.clone());
+                }
                 self.session = None;
                 self.start(cx.services);
                 self.pending_command = command;
@@ -1257,18 +1269,40 @@ fn cli_icon(key: &str) -> &'static str {
     }
 }
 
+/// The glyph for a shell profile, in its own brand where one exists.
+///
+/// The codepoints are the bundled Nerd Font's (`hs_ui::fonts` installs
+/// it as the last fallback). A **WSL** profile is named after its
+/// distribution - `wsl:Ubuntu-24.04` - so it wears that distribution's
+/// logo without anything having to be probed (owner's requirement,
+/// 2026-10-26).
+///
+/// PowerShell 7 and Windows PowerShell share one brand, so they are told
+/// apart by two different drawings of it: the terminal-and-chevron mark
+/// for the cross-platform `pwsh`, the solid logo for the one Windows
+/// ships. Nushell has no logo in Nerd Fonts at all, so it takes the
+/// windowed terminal rather than a borrowed brand.
 fn shell_icon(id: &str) -> &'static str {
     use hs_ui::icons::ph;
-    if id.starts_with("wsl:") {
-        ph::LINUX_LOGO
-    } else if id == "pwsh" || id == "powershell" {
-        ph::TERMINAL_WINDOW
-    } else if id == "cmd" {
-        ph::WINDOWS_LOGO
-    } else if id == "git-bash" {
-        ph::GIT_BRANCH
-    } else {
-        ph::TERMINAL
+    if let Some(distro) = id.strip_prefix("wsl:") {
+        return hs_ui::icons::os_icon(hs_ssh::os::HostOs::from_name(distro).id());
+    }
+    match id {
+        // nf-cod-terminal_powershell
+        "pwsh" => "\u{ebc7}",
+        // nf-seti-powershell
+        "powershell" => "\u{e683}",
+        // nf-cod-terminal_cmd
+        "cmd" => "\u{ebc4}",
+        // Git Bash keeps the branch mark: the codicon at U+EBCA draws a
+        // cube in this font, not a shell prompt, and a wrong glyph is
+        // worse than a plain one.
+        "git-bash" => ph::GIT_BRANCH,
+        // Nushell has no logo in Nerd Fonts, so it takes the windowed
+        // terminal - still its own glyph, and not the bare fallback an
+        // unrecognised shell gets.
+        "nu" | "nushell" => ph::TERMINAL_WINDOW,
+        _ => ph::TERMINAL,
     }
 }
 

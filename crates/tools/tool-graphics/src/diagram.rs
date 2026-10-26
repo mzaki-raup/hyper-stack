@@ -15,6 +15,7 @@ use hs_diagram::model::{
 use hs_diagram::{Prim, Rect, Scene, layout_approx, validate};
 use hs_ui::form;
 use hs_ui::theme::Theme;
+use hs_ui::tip::TipExt;
 
 /// Frame id, press position and the nodes captured for a frame drag.
 type FrameDrag = (String, egui::Pos2, Vec<(String, Point)>);
@@ -660,7 +661,7 @@ impl DiagramState {
                 !self.undo.is_empty(),
                 egui::Button::new(hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE),
             )
-            .on_hover_text(s.t("gfx-diagram-undo"))
+            .tip(s.t("gfx-diagram-undo"))
             .clicked()
         {
             self.undo();
@@ -670,7 +671,7 @@ impl DiagramState {
                 !self.redo.is_empty(),
                 egui::Button::new(hs_ui::icons::ph::ARROW_CLOCKWISE),
             )
-            .on_hover_text(s.t("gfx-diagram-redo"))
+            .tip(s.t("gfx-diagram-redo"))
             .clicked()
         {
             self.redo();
@@ -684,7 +685,7 @@ impl DiagramState {
         ui.separator();
         if ui
             .selectable_label(self.tool == ToolMode::Select, hs_ui::icons::ph::CURSOR)
-            .on_hover_text(s.t("gfx-diagram-select"))
+            .tip(s.t("gfx-diagram-select"))
             .clicked()
         {
             self.tool = ToolMode::Select;
@@ -692,21 +693,21 @@ impl DiagramState {
         }
         if ui
             .button(hs_ui::icons::ph::RECTANGLE)
-            .on_hover_text(s.t("gfx-diagram-add-process"))
+            .tip(s.t("gfx-diagram-add-process"))
             .clicked()
         {
             self.add_node_at(NodeKind::Process, self.last_center);
         }
         if ui
             .button(hs_ui::icons::ph::DIAMOND)
-            .on_hover_text(s.t("gfx-diagram-add-decision"))
+            .tip(s.t("gfx-diagram-add-decision"))
             .clicked()
         {
             self.add_node_at(NodeKind::Decision, self.last_center);
         }
         if ui
             .button(hs_ui::icons::ph::NOTE_PENCIL)
-            .on_hover_text(s.t("gfx-diagram-add-note"))
+            .tip(s.t("gfx-diagram-add-note"))
             .clicked()
         {
             self.add_node_at(NodeKind::Note, self.last_center);
@@ -714,7 +715,7 @@ impl DiagramState {
         if self.doc.kind == DiagramKind::Erd
             && ui
                 .button(hs_ui::icons::ph::TABLE)
-                .on_hover_text(s.t("gfx-diagram-add-entity"))
+                .tip(s.t("gfx-diagram-add-entity"))
                 .clicked()
         {
             self.add_node_at(NodeKind::Entity, self.last_center);
@@ -722,7 +723,7 @@ impl DiagramState {
         if self.doc.kind == DiagramKind::Erd
             && ui
                 .button(hs_ui::icons::ph::DATABASE)
-                .on_hover_text(format!(
+                .tip(format!(
                     "{}\n{}",
                     s.t("gfx-diagram-import-ddl"),
                     s.t("gfx-diagram-import-ddl-tip")
@@ -743,14 +744,14 @@ impl DiagramState {
         if self.doc.kind == DiagramKind::Sequence
             && ui
                 .button(hs_ui::icons::ph::USER)
-                .on_hover_text(s.t("gfx-diagram-add-participant"))
+                .tip(s.t("gfx-diagram-add-participant"))
                 .clicked()
         {
             self.add_node_at(NodeKind::Frontend, self.last_center);
         }
         if ui
             .button(hs_ui::icons::ph::SELECTION)
-            .on_hover_text(format!(
+            .tip(format!(
                 "{}\n{}",
                 s.t("gfx-diagram-add-frame"),
                 s.t("gfx-diagram-add-frame-tip")
@@ -761,7 +762,7 @@ impl DiagramState {
         }
         if ui
             .selectable_label(self.tool == ToolMode::Edge, hs_ui::icons::ph::ARROW_RIGHT)
-            .on_hover_text(s.t("gfx-diagram-add-edge"))
+            .tip(s.t("gfx-diagram-add-edge"))
             .clicked()
         {
             self.tool = ToolMode::Edge;
@@ -796,7 +797,7 @@ impl DiagramState {
             }
         })
         .response
-        .on_hover_text(s.t("gfx-diagram-align-tip"));
+        .tip(s.t("gfx-diagram-align-tip"));
     }
 
     /// Where a project save lands: `<root>/<subfolder>/<sanitised title>.hdiag`.
@@ -921,7 +922,7 @@ impl DiagramState {
                 )
                 .truncate(),
             )
-            .on_hover_text(path.display().to_string());
+            .tip(path.display().to_string());
             if path.exists() {
                 ui.checkbox(&mut self.save_overwrite, s.t("gfx-diagram-overwrite"));
             }
@@ -1221,21 +1222,21 @@ impl DiagramState {
                                                         i > 0,
                                                         egui::Button::new("↑").small(),
                                                     )
-                                                    .on_hover_text(s.t("gfx-col-up"))
+                                                    .tip(s.t("gfx-col-up"))
                                                     .clicked()
                                                 {
                                                     move_up = Some(i);
                                                 }
                                                 if ui
                                                     .small_button("↓")
-                                                    .on_hover_text(s.t("gfx-col-down"))
+                                                    .tip(s.t("gfx-col-down"))
                                                     .clicked()
                                                 {
                                                     move_down = Some(i);
                                                 }
                                                 if ui
                                                     .small_button("−")
-                                                    .on_hover_text(s.t("gfx-col-remove"))
+                                                    .tip(s.t("gfx-col-remove"))
                                                     .clicked()
                                                 {
                                                     remove_column = Some(i);
@@ -1546,11 +1547,7 @@ impl DiagramState {
                                     fragment.to = fragment.to.max(fragment.from);
                                     fragment_changed = true;
                                 }
-                                if ui
-                                    .small_button("−")
-                                    .on_hover_text(s.t("gfx-frag-remove"))
-                                    .clicked()
-                                {
+                                if ui.small_button("−").tip(s.t("gfx-frag-remove")).clicked() {
                                     remove = Some(i);
                                 }
                                 ui.end_row();

@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::tip::TipExt;
 use hs_core::Services;
 use hs_core::ai::{self, Message, Role};
 use parking_lot::Mutex;
@@ -439,14 +440,14 @@ impl AssistantPanel {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button(crate::icons::ph::X)
-                    .on_hover_text(s.t("ai-close"))
+                    .tip(s.t("ai-close"))
                     .clicked()
                 {
                     self.open = false;
                 }
                 if ui
                     .small_button(crate::icons::ph::BROOM)
-                    .on_hover_text(s.t("ai-new-chat"))
+                    .tip(s.t("ai-new-chat"))
                     .clicked()
                 {
                     if let Some(r) = self.running.take() {
@@ -658,11 +659,7 @@ impl AssistantPanel {
                 ui.horizontal_wrapped(|ui| {
                     for a in &self.quick_actions {
                         let b = ui.small_button(&a.label);
-                        let b = if a.tip.is_empty() {
-                            b
-                        } else {
-                            b.on_hover_text(&a.tip)
-                        };
+                        let b = if a.tip.is_empty() { b } else { b.tip(&a.tip) };
                         if b.clicked() && fresh && !measuring {
                             self.last_quick_at = Some(now);
                             self.input = a.prompt.clone();
@@ -790,7 +787,7 @@ fn code_block(
                             theme,
                             &format!("{} {}", crate::icons::ph::PLAY, s.t("ai-insert-run-block")),
                         )
-                        .on_hover_text(s.t("ai-insert-run-block-tip"))
+                        .tip(s.t("ai-insert-run-block-tip"))
                         .clicked()
                     {
                         used = Some((body.to_string(), true));
@@ -814,7 +811,7 @@ fn code_block(
                         } else {
                             ui.small_button(format!("{icon} {label}"))
                         };
-                        if button.on_hover_text(tip).clicked() {
+                        if button.tip(tip).clicked() {
                             used = Some((body.to_string(), false));
                         }
                     }

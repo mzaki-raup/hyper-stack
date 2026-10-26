@@ -76,6 +76,12 @@ pub struct State {
     /// moment it landed - the name has to live here.
     #[serde(default)]
     pub host_name: String,
+    /// The host's kind (`docker`, `podman`, `k8s`, `wincontainer`), for
+    /// the same reason as the name: `tab_icon` is asked every frame and
+    /// is handed no `Services`, so a Docker tab could not wear Docker's
+    /// glyph without keeping it here.
+    #[serde(default)]
+    pub host_kind: String,
     /// Which list the pane is showing.
     #[serde(default)]
     pub resource: docker::Resource,
@@ -339,12 +345,7 @@ fn configs_version() -> u64 {
 /// The glyph for a container kind: what the thing **is** before where it
 /// runs (§10.5).
 pub fn kind_icon(kind: &str) -> &'static str {
-    match kind {
-        "k8s" => ph::POLYGON,
-        "podman" => ph::HARD_DRIVES,
-        "wincontainer" => ph::WINDOWS_LOGO,
-        _ => ph::SHIPPING_CONTAINER,
-    }
+    hs_ui::icons::container_kind_icon(kind)
 }
 
 /// Every container host in this workspace, in the user's order.
@@ -1037,6 +1038,12 @@ impl ContainersTool {
             form::hint(ui, &theme, &s.t("container-host-gone"));
             return;
         };
+        // A tab saved before the kind was kept here has none: take it on
+        // the first draw rather than leaving the tab wearing the
+        // activity's glyph until the host is opened again.
+        if self.state.host_kind != profile.kind {
+            self.state.host_kind = profile.kind.clone();
+        }
         let is_cluster = hs_core::connections::is_cluster_kind(&profile.kind);
         // The first read happens when the tab is first drawn, not when it
         // is created: a workspace that restores ten tabs must not probe
@@ -1487,10 +1494,10 @@ impl ContainersTool {
                     egui::Button::new(s.t("cluster-exec")),
                 );
                 let exec = match &refusal {
-                    Some(why) => exec.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    Some(why) => exec.tip_disabled(docker::refusal_text(s, why)),
                     None => exec,
                 };
-                if exec.on_hover_text(s.t("cluster-exec-hint")).clicked() {
+                if exec.tip(s.t("cluster-exec-hint")).clicked() {
                     // Name the container only where there is a
                     // choice: with one, the API does not need it.
                     let container = match containers.len() {
@@ -1553,7 +1560,7 @@ impl ContainersTool {
                 !fresh && port.is_some() && !starting,
                 egui::Button::new(s.t("cluster-forward")),
             )
-            .on_hover_text(s.t("cluster-forward-hint"))
+            .tip(s.t("cluster-forward-hint"))
             .clicked()
             && let Some(port) = port
         {
@@ -1662,7 +1669,7 @@ impl ContainersTool {
     ) {
         let blocked = refusal.is_some();
         let explain = |r: egui::Response| match refusal {
-            Some(why) if blocked => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+            Some(why) if blocked => r.tip_disabled(docker::refusal_text(s, why)),
             _ => r,
         };
         // A rollout restart is the one verb here that takes nothing
@@ -1674,7 +1681,7 @@ impl ContainersTool {
                 !fresh && !blocked,
                 egui::Button::new(s.t("cluster-verb-restart")),
             ));
-            if r.on_hover_text(s.t("cluster-verb-restart-hint")).clicked() {
+            if r.tip(s.t("cluster-verb-restart-hint")).clicked() {
                 self.act_cluster(s, profile, target.clone(), cluster::Verb::Restart);
             }
         }
@@ -1693,7 +1700,7 @@ impl ContainersTool {
                 !fresh && !blocked && wanted.is_some(),
                 egui::Button::new(s.t("cluster-verb-scale")),
             ));
-            if r.on_hover_text(s.t("cluster-verb-scale-hint")).clicked()
+            if r.tip(s.t("cluster-verb-scale-hint")).clicked()
                 && let Some(n) = wanted
             {
                 self.confirm_cluster = Some((cluster::Verb::Scale(n), target.clone()));
@@ -1784,7 +1791,7 @@ impl ContainersTool {
                     !fresh && edited && !running,
                     egui::Button::new(s.t("cluster-dry-run")),
                 )
-                .on_hover_text(s.t("cluster-dry-run-hint"))
+                .tip(s.t("cluster-dry-run-hint"))
                 .clicked()
                 && let Some(text) = self.yaml_edit.clone()
             {
@@ -2477,7 +2484,7 @@ impl ContainersTool {
                 let blocked = verb.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    (Some(why), true) => r.tip_disabled(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {
@@ -2523,13 +2530,13 @@ impl ContainersTool {
                             .small()
                             .color(theme.text_muted),
                     )
-                    .on_hover_text(s.t("container-port-not-open"));
+                    .tip(s.t("container-port-not-open"));
                     continue;
                 };
                 let r = ui
                     .small_button(egui::RichText::new(p.describe()).color(theme.accent))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .on_hover_text(s.i18n.t_args("container-open-url", &[("url", &url)]));
+                    .tip(s.i18n.t_args("container-open-url", &[("url", &url)]));
                 if r.clicked() {
                     open_url(cx_actions, &url);
                 }
@@ -2777,7 +2784,7 @@ impl ContainersTool {
                 let blocked = v.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    (Some(why), true) => r.tip_disabled(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {
@@ -3094,6 +3101,16 @@ impl Tool for ContainersTool {
         Cow::Borrowed(&self.state.host_name)
     }
 
+    /// The host's own kind glyph, the one its row wears in the sidebar;
+    /// the dashboard keeps the activity's (owner's requirement,
+    /// 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.is_home || self.state.host_kind.is_empty() {
+            return None;
+        }
+        Some(kind_icon(&self.state.host_kind))
+    }
+
     /// A dashboard reports **no** uri, or it takes every request for the
     /// activity and clicking a host in the sidebar reads as a dead
     /// click (the Devtools lesson, §10.5).
@@ -3187,6 +3204,7 @@ impl Tool for ContainersTool {
                 }
                 if let Some(p) = self.host(cx.services) {
                     self.state.host_name = p.name;
+                    self.state.host_kind = p.kind;
                 }
                 true
             }

@@ -297,7 +297,7 @@ pub fn show(
                                     .selectable(false)
                                     .sense(egui::Sense::click()),
                                 )
-                                .on_hover_text(services.t("problems-jump-tip"))
+                                .tip(services.t("problems-jump-tip"))
                                 .clicked()
                             {
                                 jump = Some(p.origin.clone());
@@ -309,7 +309,7 @@ pub fn show(
                                     .selectable(true)
                                     .truncate(),
                             )
-                            .on_hover_text(&p.message);
+                            .tip(&p.message);
                         });
                     }
                 });

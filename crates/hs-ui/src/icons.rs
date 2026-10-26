@@ -42,3 +42,158 @@ pub const EDIT: &str = ph::PENCIL_SIMPLE;
 pub const ARROW_UP: &str = ph::ARROW_CIRCLE_UP;
 pub const EYE: &str = ph::EYE;
 pub const EYE_SLASH: &str = ph::EYE_SLASH;
+
+/// Paint a glyph with a contrasting outline around it, and return the
+/// rectangle it covered.
+///
+/// epaint has no stroke for text - `TextShape` carries an `underline`
+/// and nothing else - so the ring is the glyph itself, drawn eight
+/// times at small offsets under the real one. `width` is that offset in
+/// points: about 1 reads as a hairline, 1.5 to 2 as a drawn edge. The
+/// diagonals are pulled in by √½ so the ring is round rather than
+/// square.
+///
+/// Nine text shapes per icon is nothing for a rail of sixteen and would
+/// be worth thinking about for a tree of hundreds, which is why this is
+/// a helper the caller opts into rather than something `painter.text`
+/// does everywhere.
+#[allow(clippy::too_many_arguments)]
+pub fn outlined_text(
+    painter: &egui::Painter,
+    pos: egui::Pos2,
+    anchor: egui::Align2,
+    text: impl ToString,
+    font: egui::FontId,
+    fill: egui::Color32,
+    outline: egui::Color32,
+    width: f32,
+) -> egui::Rect {
+    let text = text.to_string();
+    if width > 0.0 && outline.a() > 0 {
+        let d = width * std::f32::consts::FRAC_1_SQRT_2;
+        for (dx, dy) in [
+            (-width, 0.0),
+            (width, 0.0),
+            (0.0, -width),
+            (0.0, width),
+            (-d, -d),
+            (d, -d),
+            (-d, d),
+            (d, d),
+        ] {
+            painter.text(
+                pos + egui::vec2(dx, dy),
+                anchor,
+                &text,
+                font.clone(),
+                outline,
+            );
+        }
+    }
+    painter.text(pos, anchor, &text, font, fill)
+}
+
+/// The logo for an operating system id (`hs_ssh::os::HostOs::id`), from
+/// the bundled Nerd Font's Linux set - `fonts::install` adds it as the
+/// last fallback, so these render wherever the interface font has no
+/// glyph of its own. An id nothing recognises keeps the generic host
+/// glyph rather than drawing a box.
+pub fn os_icon(id: &str) -> &'static str {
+    match id {
+        "ubuntu" => "\u{f31b}",
+        "debian" => "\u{f306}",
+        "fedora" => "\u{f30a}",
+        "rhel" => "\u{f316}",
+        "centos" => "\u{f304}",
+        "alpine" => "\u{f300}",
+        "arch" => "\u{f303}",
+        "suse" => "\u{f314}",
+        "linux" => "\u{f17c}",
+        "macos" => "\u{f302}",
+        "windows" => "\u{f17a}",
+        "freebsd" => "\u{f30c}",
+        _ => ph::COMPUTER_TOWER,
+    }
+}
+
+/// The glyph for a container engine or cluster kind.
+///
+/// Brands where a brand exists, from the bundled Nerd Font: Docker's
+/// whale and Kubernetes' helm. Podman has no logo in Nerd Fonts at all,
+/// so it takes a neutral package rather than a borrowed one, and
+/// Windows containers take the Windows logo. The **activity's** own
+/// icon stays the shipping container - that is the category, not an
+/// engine (owner's requirement, 2026-10-26).
+///
+/// One table, used by the activity and by Settings alike: two copies of
+/// this drifted apart once already.
+pub fn container_kind_icon(kind: &str) -> &'static str {
+    match kind {
+        // nf-md-docker: the filled whale. The devicon one (U+E7B0) is
+        // drawn too fine to read at 14 px.
+        "docker" => "\u{f0868}",
+        // nf-dev-kubernetes: the helm. The Material one (U+F10FE) comes
+        // out as an indistinct dot at this size.
+        "k8s" => "\u{e81d}",
+        // nf-cod-package: no podman logo exists to use.
+        "podman" => "\u{eb29}",
+        "wincontainer" => ph::WINDOWS_LOGO,
+        _ => ph::SHIPPING_CONTAINER,
+    }
+}
+
+/// The glyph for a saved connection: its engine's own mark where one
+/// exists, and the kind's otherwise.
+///
+/// `engine` is the `db` kinds' sub-type (`postgres`, `mysql`, …) and is
+/// ignored for every other kind; pass `""` when there is none. Brands
+/// come from the bundled Nerd Font's devicon set, which is where
+/// PostgreSQL's elephant and MySQL's dolphin live. A store with no logo
+/// anywhere - MinIO, Qdrant, WebDAV, Nexus - takes the nearest honest
+/// generic rather than somebody else's brand.
+///
+/// One table, so the list in Settings, each activity's sidebar and the
+/// tabs cannot disagree about what a connection looks like (owner's
+/// requirement, 2026-10-26).
+///
+/// **Phosphor is installed before the Nerd Font and wins where the two
+/// overlap**, and both live in the Private Use Area. A codepoint taken
+/// from a Nerd Fonts cheat sheet may therefore draw something else
+/// entirely - `U+E76E` is PostgreSQL there and a *safe* in Phosphor -
+/// so every glyph below was checked on screen, and the shadowed ones
+/// were replaced rather than shipped.
+pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
+    match kind {
+        "db" => match engine {
+            // The devicon brands for these three sit at codepoints
+            // Phosphor already uses (see the note above), so these are
+            // the mascots from the Material range instead: the elephant
+            // and the dolphin are what PostgreSQL and MySQL put on their
+            // own pages, and SQLite is a database that is one file.
+            "postgres" | "postgresql" => "\u{f07c6}",
+            "mysql" | "mariadb" => "\u{f18b4}",
+            "sqlite" => "\u{f0b1d}",
+            _ => ph::DATABASE,
+        },
+        // nf-dev-redis, a real brand and not shadowed. Valkey is Redis'
+        // fork and has no mark of its own.
+        "redis" | "valkey" => "\u{e76d}",
+        // MongoDB's own logo is a leaf; the devicon one is shadowed.
+        "mongodb" => "\u{f032a}",
+        // nf-dev-couchdb, a real brand and not shadowed.
+        "couchdb" => "\u{e77c}",
+        // No Qdrant logo anywhere in Nerd Fonts: a vector store is still
+        // a database.
+        "qdrant" => ph::DATABASE,
+        "elasticsearch" => ph::MAGNIFYING_GLASS,
+        "dynamodb" | "cassandra" => ph::DATABASE,
+        // S3 and the other object stores keep the cloud and the folder:
+        // MinIO, WebDAV and Nexus have no glyph to use.
+        "s3" => ph::CLOUD,
+        "webdav" => ph::FOLDER_SIMPLE,
+        "nexus" => ph::PACKAGE,
+        "ssh" => ph::COMPUTER_TOWER,
+        "api" => ph::PAPER_PLANE_TILT,
+        _ => container_kind_icon(kind),
+    }
+}

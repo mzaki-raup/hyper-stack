@@ -105,7 +105,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "gemini-2.5-flash",
                         blurb: "ai-svc-gemini",
-                        icon: ph::DIAMOND,
+                        icon: // nf-md-google: the real G
+                        "\u{f02ad}",
                     },
                     Service {
                         name: "Azure OpenAI",
@@ -113,7 +114,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "",
                         blurb: "ai-svc-azure",
-                        icon: ph::CLOUD,
+                        icon: // nf-md-microsoft-azure
+                        "\u{f0805}",
                     },
                     Service {
                         name: "AWS Bedrock",
@@ -121,7 +123,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "",
                         blurb: "ai-svc-bedrock",
-                        icon: ph::CLOUD_ARROW_UP,
+                        icon: // nf-dev-aws
+                        "\u{e7ad}",
                     },
                     Service {
                         name: "Mistral",
@@ -220,6 +223,24 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         model: "",
                         blurb: "ai-svc-vllm",
                         icon: ph::DESKTOP,
+                    },
+                    // Neither Windsurf nor Devin publishes an API a
+                    // third-party client can call: Windsurf is an IDE and
+                    // Devin's own API is a session/agent one, not chat
+                    // completions. What does work is a bridge run beside
+                    // them on this machine, which re-exposes the models
+                    // their desktop app is signed in to on an
+                    // OpenAI-shaped endpoint - so this entry is in the
+                    // local group, pre-filled with that bridge's port,
+                    // and its blurb says what has to be running
+                    // (owner's request, 2026-10-26).
+                    Service {
+                        name: "Windsurf / Devin (Local Bridge)",
+                        kind: Provider::OpenAi,
+                        base: "http://localhost:3003/v1",
+                        model: "",
+                        blurb: "ai-svc-windsurf",
+                        icon: ph::SAILBOAT,
                     },
                     Service {
                         name: "Other OpenAI-Compatible",
@@ -585,7 +606,7 @@ fn prompt_buttons(
                     let open = state.prompt_editing.as_deref() == Some(b.id.as_str());
                     if ui
                         .add(egui::Button::selectable(open, &b.label))
-                        .on_hover_text(&b.prompt)
+                        .tip(&b.prompt)
                         .clicked()
                     {
                         state.prompt_editing = if open { None } else { Some(b.id.clone()) };
@@ -639,7 +660,7 @@ fn prompt_buttons(
             }
             if ui
                 .button(s.t("ai-prompts-reset"))
-                .on_hover_text(s.t("ai-prompts-reset-tip"))
+                .tip(s.t("ai-prompts-reset-tip"))
                 .clicked()
             {
                 s.settings.write().ai.prompts.reset(&activity);

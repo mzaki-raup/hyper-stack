@@ -784,7 +784,7 @@ impl GraphicsTool {
                                 .show_value(false)
                                 .trailing_fill(true),
                         )
-                        .on_hover_text(s.t("gfx-ai-edit-strength-hint"));
+                        .tip(s.t("gfx-ai-edit-strength-hint"));
                         ui.end_row();
                     }
                 });
@@ -1257,7 +1257,7 @@ impl GraphicsTool {
                             .selectable(true)
                             .truncate(),
                     )
-                    .on_hover_text(&p.value);
+                    .tip(&p.value);
                     ui.end_row();
                 }
             });
@@ -1269,12 +1269,15 @@ impl GraphicsTool {
 
     fn sidebar_sections(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
+        let has = self.original.is_some();
+        let apply = s.t("gfx-apply");
+        // Properties first: what the file *is* comes before what to do to
+        // it, and an Icon tab had Transparency above it (owner's
+        // requirement, 2026-10-26).
+        self.properties_section(ui, cx, theme);
         if self.kind == Kind::Icon {
             self.transparency_section(ui, cx, theme);
         }
-        let has = self.original.is_some();
-        let apply = s.t("gfx-apply");
-        self.properties_section(ui, cx, theme);
         // Transform
         form::section(ui, theme, &s.t("gfx-transform"), |ui| {
             ui.add_enabled_ui(has, |ui| {
@@ -1389,7 +1392,7 @@ impl GraphicsTool {
                                 self.crop_select,
                                 format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
                             )
-                            .on_hover_text(s.t("gfx-crop-on-canvas-tip"))
+                            .tip(s.t("gfx-crop-on-canvas-tip"))
                             .clicked()
                         {
                             self.crop_select = !self.crop_select;
@@ -1428,7 +1431,7 @@ impl GraphicsTool {
                             (ph::ARROW_COUNTER_CLOCKWISE, "gfx-rotate-ccw", Op::Rotate270),
                             (ph::ARROWS_CLOCKWISE, "gfx-rotate-180", Op::Rotate180),
                         ] {
-                            if ui.button(icon).on_hover_text(s.t(tip)).clicked() {
+                            if ui.button(icon).tip(s.t(tip)).clicked() {
                                 pushed = Some(op);
                             }
                         }
@@ -1438,7 +1441,7 @@ impl GraphicsTool {
                             (ph::ARROWS_HORIZONTAL, "gfx-flip-h", Op::FlipH),
                             (ph::ARROWS_VERTICAL, "gfx-flip-v", Op::FlipV),
                         ] {
-                            if ui.button(icon).on_hover_text(s.t(tip)).clicked() {
+                            if ui.button(icon).tip(s.t(tip)).clicked() {
                                 pushed = Some(op);
                             }
                         }
@@ -1595,7 +1598,7 @@ impl GraphicsTool {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .small_button(hs_ui::icons::TRASH)
-                            .on_hover_text(s.t("gfx-remove-op"))
+                            .tip(s.t("gfx-remove-op"))
                             .clicked()
                         {
                             remove = Some(i);
@@ -1847,7 +1850,7 @@ impl Rows<'_> {
             ui.set_min_width(LABEL_W);
             ui.set_max_width(LABEL_W);
             ui.add(egui::Label::new(egui::RichText::new(label).color(theme.text_muted)).truncate())
-                .on_hover_text(label);
+                .tip(label);
         });
         let controls_w = self.controls_width();
         self.ui.scope(|ui| {
@@ -2457,7 +2460,7 @@ impl GraphicsTool {
                     };
                     if ui
                         .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, label))
-                        .on_hover_text(s.t("gfx-ai-apply-tip"))
+                        .tip(s.t("gfx-ai-apply-tip"))
                         .clicked()
                     {
                         self.apply_assistant_text(&answer);
@@ -2486,7 +2489,7 @@ impl GraphicsTool {
                 form::list_row(ui, theme, self.kind == f.kind(), f.icon(), &title, None)
             })
             .inner
-            .on_hover_text(if enabled {
+            .tip(if enabled {
                 desc.clone()
             } else {
                 s.t("gfx-coming-soon")
@@ -2682,7 +2685,7 @@ impl GraphicsTool {
                             text_galley,
                             colour,
                         );
-                        if enabled && r.on_hover_text(s.t(desc_key)).clicked() {
+                        if enabled && r.tip(s.t(desc_key)).clicked() {
                             match f {
                                 Some(f) => self.pick_and_open(cx, f),
                                 None => new_image_clicked = true,
@@ -2846,6 +2849,21 @@ impl Tool for GraphicsTool {
         true
     }
 
+    /// The tab wears the icon its own kind wears in the sidebar - an
+    /// Image tab the picture glyph, a Diagram tab the tree, and so on -
+    /// rather than the activity's, which every tab would share
+    /// (owner's requirement, 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        // The dashboard is the activity, not a kind of picture: `None`
+        // falls back to the activity's own icon, the one in the rail.
+        // `Kind::Home`'s glyph is a house, which said nothing about
+        // Graphics (owner's report, 2026-10-26).
+        if self.kind == Kind::Home {
+            return None;
+        }
+        Some(self.kind.icon())
+    }
+
     fn home_is_dashboard(&self) -> bool {
         self.kind == Kind::Home
     }
@@ -3007,7 +3025,7 @@ impl Tool for GraphicsTool {
                         let Some(path) = r.path.clone() else { continue };
                         let row = ui
                             .selectable_label(false, format!("{}  {}", r.kind.icon(), r.title))
-                            .on_hover_text(path.clone());
+                            .tip(path.clone());
                         if row.clicked() {
                             open_recent(cx, &path, r.kind);
                         }
@@ -3067,7 +3085,7 @@ impl Tool for GraphicsTool {
                 !self.undo_stack.is_empty(),
                 egui::Button::new(ph::ARROW_COUNTER_CLOCKWISE),
             )
-            .on_hover_text(s.t("gfx-undo"))
+            .tip(s.t("gfx-undo"))
             .clicked()
         {
             self.undo_edit();
@@ -3077,7 +3095,7 @@ impl Tool for GraphicsTool {
                 !self.redo_stack.is_empty(),
                 egui::Button::new(ph::ARROW_CLOCKWISE),
             )
-            .on_hover_text(s.t("gfx-redo"))
+            .tip(s.t("gfx-redo"))
             .clicked()
         {
             self.redo_edit();

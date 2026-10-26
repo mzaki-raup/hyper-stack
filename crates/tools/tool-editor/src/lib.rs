@@ -2675,6 +2675,36 @@ impl EditorTool {
             );
             hs_ui::dashboard::stat(ui, &theme, &open_here.to_string(), &s.t("dash-open-tabs"));
         });
+        ui.add_space(6.0);
+        // Adding a folder has to be reachable from the dashboard too: it
+        // is the first thing someone sees in an empty workspace, and
+        // sending them to the sidebar or to Settings to get started
+        // would be the long way round.
+        let mut add = false;
+        ui.horizontal(|ui| {
+            if hs_ui::form::primary_button(
+                ui,
+                &theme,
+                &format!("{} {}", ph::FOLDER_PLUS, s.t("editor-add-project")),
+            )
+            .clicked()
+            {
+                add = true;
+            }
+            if ui
+                .button(format!("{} {}", ph::GEAR, s.t("editor-manage-projects")))
+                .clicked()
+            {
+                cx.actions.push(hs_core::tool::Action::RunCommand {
+                    id: "settings:editor".into(),
+                });
+            }
+        });
+        if add && let Some(root) = rfd::FileDialog::new().pick_folder() {
+            self.add_project_folder(&root, cx);
+            return;
+        }
+        ui.add_space(8.0);
         egui::ScrollArea::vertical()
             .id_salt(self.id.with("dashboard"))
             .auto_shrink([false, false])

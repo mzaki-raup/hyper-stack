@@ -11,7 +11,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Fixed: the project list went blank while a project was being
+  edited.** The detail form right-aligned its Remove button with the
+  helper that pins a *tool toolbar's* corner, which drew it into the
+  corner of whatever toolbar was last on screen and left the settings
+  page laid out around a widget that was not there - the list's card
+  rendered as an empty rectangle (owner's report). Forms use a plain
+  right-aligned layout now, and the shell clears the toolbar marker so a
+  stray call can only fall back to an inline layout.
+- **A project can be added from the Editor's dashboard**, not only from
+  the sidebar and Settings, with **Manage Projects** beside it for the
+  full list. An empty workspace now has somewhere obvious to start.
+- **Adding a folder in Settings opens it**, as adding one from the
+  activity does; the two gestures meant the same thing and behaved
+  differently.
+- **Saving a project's settings returns to the list**, so the next
+  project is one click away rather than behind a Close.
 
 ## 0.89.0 — 2026-10-26
 

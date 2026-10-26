@@ -622,9 +622,88 @@ pub fn is_protected(patterns: &[String], url: &str, branch: &str) -> bool {
         .any(|p| url.contains(&p) || branch.contains(&p))
 }
 
+/// The identity commits in this repository are made with.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Identity {
+    pub name: String,
+    pub email: String,
+}
+
+/// Read the repository's **own** `user.name` and `user.email`.
+///
+/// `--local` on purpose: the question the project settings ask is "what
+/// does this repository say", not "what would a commit here use". The
+/// global identity is the fallback git itself applies, and showing it in
+/// a per-project field would invite someone to save a copy of it into
+/// every project they open.
+///
+/// A folder that is not a repository, or one with nothing set, gives an
+/// empty `Identity` rather than an error: both are ordinary.
+pub fn identity(root: &Path) -> Identity {
+    let read = |key: &str| -> String {
+        git(root, &["config", "--local", "--get", key])
+            .ok()
+            .and_then(|out| String::from_utf8(out).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
+    };
+    Identity {
+        name: read("user.name"),
+        email: read("user.email"),
+    }
+}
+
+/// Write the repository's own `user.name` and `user.email`.
+///
+/// An empty field *unsets* that key rather than writing a blank one, so
+/// clearing the box in the project settings hands the repository back to
+/// the global identity instead of leaving it committing as "".
+/// Unsetting a key that was never set is not an error here, which is why
+/// its failure is dropped.
+pub fn set_identity(root: &Path, id: &Identity) -> Result<()> {
+    for (key, value) in [("user.name", &id.name), ("user.email", &id.email)] {
+        let value = value.trim();
+        if value.is_empty() {
+            let _ = git(root, &["config", "--local", "--unset", key]);
+        } else {
+            git(root, &["config", "--local", key, value])?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The per-project identity is the repository's own, and clearing a
+    /// field hands the repository back to the global one rather than
+    /// committing as "".
+    #[test]
+    fn a_project_identity_is_written_to_and_read_from_the_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        // A fixture repo inherits the owner's global signing settings and
+        // would then hang on pinentry (CLAUDE.md, Git and signing).
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+        git(root, &["config", "tag.gpgSign", "false"]).unwrap();
+
+        assert_eq!(identity(root), Identity::default(), "nothing set yet");
+
+        let want = Identity {
+            name: "Ada Lovelace".into(),
+            email: "ada@example.invalid".into(),
+        };
+        set_identity(root, &want).unwrap();
+        assert_eq!(identity(root), want);
+
+        // Cleared fields unset the keys instead of blanking them.
+        set_identity(root, &Identity::default()).unwrap();
+        assert_eq!(identity(root), Identity::default());
+        // Unsetting again is not an error.
+        set_identity(root, &Identity::default()).unwrap();
+    }
 
     #[test]
     fn remotes_keep_the_push_url() {

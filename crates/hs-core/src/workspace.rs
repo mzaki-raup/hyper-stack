@@ -176,6 +176,11 @@ impl Workspace {
     pub fn connections_dir(&self) -> PathBuf {
         self.root.join("connections")
     }
+    /// The saved project list the Editor activity shows
+    /// (`hs_core::projects`).
+    pub fn projects_file(&self) -> PathBuf {
+        self.root.join("projects.toml")
+    }
     pub fn layout_file(&self) -> PathBuf {
         self.root.join("layout.json")
     }

@@ -76,6 +76,12 @@ pub struct State {
     /// moment it landed - the name has to live here.
     #[serde(default)]
     pub host_name: String,
+    /// The host's kind (`docker`, `podman`, `k8s`, `wincontainer`), for
+    /// the same reason as the name: `tab_icon` is asked every frame and
+    /// is handed no `Services`, so a Docker tab could not wear Docker's
+    /// glyph without keeping it here.
+    #[serde(default)]
+    pub host_kind: String,
     /// Which list the pane is showing.
     #[serde(default)]
     pub resource: docker::Resource,
@@ -1037,6 +1043,12 @@ impl ContainersTool {
             form::hint(ui, &theme, &s.t("container-host-gone"));
             return;
         };
+        // A tab saved before the kind was kept here has none: take it on
+        // the first draw rather than leaving the tab wearing the
+        // activity's glyph until the host is opened again.
+        if self.state.host_kind != profile.kind {
+            self.state.host_kind = profile.kind.clone();
+        }
         let is_cluster = hs_core::connections::is_cluster_kind(&profile.kind);
         // The first read happens when the tab is first drawn, not when it
         // is created: a workspace that restores ten tabs must not probe
@@ -3094,6 +3106,16 @@ impl Tool for ContainersTool {
         Cow::Borrowed(&self.state.host_name)
     }
 
+    /// The host's own kind glyph, the one its row wears in the sidebar;
+    /// the dashboard keeps the activity's (owner's requirement,
+    /// 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.is_home || self.state.host_kind.is_empty() {
+            return None;
+        }
+        Some(kind_icon(&self.state.host_kind))
+    }
+
     /// A dashboard reports **no** uri, or it takes every request for the
     /// activity and clicking a host in the sidebar reads as a dead
     /// click (the Devtools lesson, §10.5).
@@ -3187,6 +3209,7 @@ impl Tool for ContainersTool {
                 }
                 if let Some(p) = self.host(cx.services) {
                     self.state.host_name = p.name;
+                    self.state.host_kind = p.kind;
                 }
                 true
             }

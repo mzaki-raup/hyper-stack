@@ -258,6 +258,15 @@ impl Tool for DevtoolsTool {
         true
     }
 
+    /// The icon of the utility this tab holds, from the one table the
+    /// sidebar lists from - so the two can never drift apart.
+    fn tab_icon(&self) -> Option<&'static str> {
+        Utility::ALL
+            .iter()
+            .find(|(u, _, _, _)| *u == self.utility)
+            .map(|(_, _, _, icon)| *icon)
+    }
+
     fn home_is_dashboard(&self) -> bool {
         true
     }

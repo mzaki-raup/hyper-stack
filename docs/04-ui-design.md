@@ -235,7 +235,10 @@ the foot of the rail. Icons only, with the activity's name on hover: the
 names are already under the rail's icons, and a row of labels would be a
 worse version of the launcher further down the page. Their colour follows
 Settings → Appearance → Sidebar → Coloured Activity Icons, so the two
-columns of icons never disagree. A click opens the activity's **dashboard**
+columns of icons never disagree. The icons are 22 px with 8 px between
+them, and hovering one fills its plate and draws an accent edge — a row
+of targets needs to say which one is under the pointer, and a colour
+change alone cannot say it on an already-coloured glyph. A click opens the activity's **dashboard**
 — the request carries no item, which is what makes `open_tool` focus the
 dashboard home tab — and Settings opens on the page it was last left on,
 General the first time.
@@ -307,6 +310,50 @@ pane above the sidebar as well. It is the *tab's* toolbar, so it belongs
 over the tab's pane — where the status bar already was. The panel is
 skipped entirely when the active tab has no toolbar (a dashboard home
 tab), rather than drawn empty. Owner's requirement.
+
+### 1.2 Outlined activity icons (2026-10-26)
+
+**Settings → Appearance → Sidebar → Outline Activity Icons** draws a ring
+around each coloured activity icon — light on a dark theme, dark on a
+light one — so a glyph in its own hue separates from the panel behind it.
+On by default, and offered only with Coloured Activity Icons on: a plain
+icon is already the theme's text colour, and a contrasting ring around
+that reads as a glow rather than an edge.
+
+epaint has no stroke for text (`TextShape` carries an `underline` and
+nothing else), so the ring is the glyph drawn eight times at small
+offsets under the real one — `hs_ui::icons::outlined_text`, with the
+diagonals pulled in by √½ so it is round. The width is
+`app::ICON_OUTLINE_WIDTH`, 1.5 pt: enough to separate the glyph without
+closing up its own detail at 18 px.
+
+Nine text shapes per icon is nothing for a rail of sixteen and would be
+worth thinking about for a tree of hundreds, which is why this is a
+helper a caller opts into rather than something `painter.text` does
+everywhere. Icons built into a button's label (`format!("{icon} {text}")`
+handed to `Button`) cannot be outlined at all: egui lays the icon and the
+text out as one run.
+
+### 1.3 A tab wears its own icon (2026-10-26)
+
+`Tool::tab_icon` lets a tab show the glyph **its own row wears in the
+sidebar** rather than its activity's, so a strip of tabs from one
+activity is readable at a glance:
+
+| Activity | The tab's icon |
+|---|---|
+| Terminal | the shell profile's (PowerShell, cmd, Git Bash, WSL…), the CLI profile's when it was opened from one, the pod glyph for a shell inside a pod |
+| Containers | the host's kind — Docker, Podman, Kubernetes, Windows containers |
+| Graphics | the kind — Image, Icon, Diagram Editor, Diagram Generator |
+| Devtools | the utility's, from the same table the sidebar lists from |
+
+Two of these need the answer **kept in the tab's own saved state**, because
+`tab_icon` is asked every frame and is handed no `Services`: the container
+host's kind (`State::host_kind`, taken again on the first draw so a tab
+saved before the field existed heals itself) and the terminal's CLI icon
+key (`State::icon`, resolved once when the tab is opened by matching the
+request's command against the CLI profiles — which is why no new field was
+needed in `OpenRequest::Terminal`).
 
 ## 5. Environments in the UI
 

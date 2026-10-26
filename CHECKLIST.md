@@ -151,6 +151,16 @@ store that already exists.
 | A connection tab is named after its connection | Completed | S3 titled its tab after the *bucket*; it takes the profile's name now, kept in its own saved state so a restored tab reads right before anything connects. Every connection activity also follows a rename (`ConnectionsChanged`) without disturbing the session. Verified on screen |
 
 
+### Icon work from the owner's review (2026-10-26)
+
+| Item | State | Notes |
+|---|---|---|
+| Outline on activity icons, theme-aware, slightly thick | Completed | `hs_ui::icons::outlined_text`: epaint has no text stroke, so the ring is the glyph drawn eight times at 1.5 pt offsets (diagonals by √½) under the real one. `Theme::icon_outline` picks light on dark and dark on light. Gated to **coloured** icons - around a plain one, already the theme's text colour, the ring reads as a glow. Verified on screen in both modes |
+| A switch for it in Settings → Appearance → Sidebar | Completed | `appearance.rail_icon_outline`, on by default and disabled (with a reason on hover) while Coloured Activity Icons is off. A test parses a settings file written before the field existed and asserts it comes back **on**, since the container's `#[serde(default)]` is what fills it |
+| Home toolbar: bigger icons, gaps, hover indicator | Completed | 22 px glyphs, 8 px apart, and a hover plate with an accent edge. Verified on screen |
+| A tab wears its own item's icon | Completed | `Tool::tab_icon` in Terminal (shell profile, CLI profile, pod), Containers (host kind), Graphics (kind) and Devtools (utility). The container kind and the CLI key live in the tab's saved state, because `tab_icon` is asked every frame with no `Services`; the container kind is re-taken on the first draw so an older tab heals. Verified on screen in all four: Git Bash's branch and WSL's penguin, a Kubernetes polygon beside a Docker container, image/icon/diagram, and five different Devtools utilities |
+
+
 ### M6 · Hardening and 1.0
 | Item | State | Notes |
 |---|---|---|

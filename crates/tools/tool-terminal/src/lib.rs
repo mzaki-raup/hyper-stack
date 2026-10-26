@@ -51,6 +51,16 @@ struct State {
     /// reconnects to the pod instead of silently opening PowerShell.
     #[serde(default)]
     cluster: Option<ClusterExec>,
+    /// The icon key of the **CLI profile** this tab was opened for, when
+    /// it was opened from one.
+    ///
+    /// A CLI row opens an ordinary shell running the CLI's command line,
+    /// so the tab would otherwise wear the shell's glyph and three CLI
+    /// tabs would look alike. Resolved once, when the tab is opened, and
+    /// kept here because `tab_icon` is asked every frame and is handed
+    /// no `Services` (owner's requirement, 2026-10-26).
+    #[serde(default)]
+    icon: Option<String>,
 }
 
 /// Which container a cluster tab runs its shell in.
@@ -651,6 +661,24 @@ impl Tool for TerminalTool {
         self.home_title = home.then(|| services.t("tool-terminal"));
     }
 
+    /// The glyph this tab's own row wears in the sidebar: the CLI's when
+    /// it was opened from one, the pod's for a shell inside a pod, and
+    /// otherwise the shell profile's - so PowerShell, cmd, Git Bash and
+    /// WSL are told apart in the strip (owner's requirement,
+    /// 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.home_title.is_some() {
+            return None;
+        }
+        if self.state.cluster.is_some() {
+            return Some(hs_ui::icons::ph::POLYGON);
+        }
+        if let Some(key) = &self.state.icon {
+            return Some(cli_icon(key));
+        }
+        self.state.profile.as_deref().map(shell_icon)
+    }
+
     fn title(&self) -> Cow<'_, str> {
         // The home tab is the activity's; it has no shell of its own.
         if let Some(name) = &self.home_title {
@@ -1195,6 +1223,19 @@ impl Tool for TerminalTool {
                 }
                 if let Some(c) = cwd {
                     self.state.cwd = Some(PathBuf::from(c));
+                }
+                // Which CLI, if this is one: the command line is what
+                // the sidebar's CLI rows are built from, so matching on
+                // it needs no new field in `OpenRequest::Terminal` and
+                // leaves every other tool's match arms alone.
+                if let Some(cmd) = command.as_deref() {
+                    let st = cx.services.settings.read();
+                    self.state.icon = st
+                        .terminal
+                        .cli
+                        .iter()
+                        .find(|c| c.command_line() == cmd)
+                        .map(|c| c.icon.clone());
                 }
                 self.session = None;
                 self.start(cx.services);

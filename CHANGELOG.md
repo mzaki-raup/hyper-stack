@@ -11,6 +11,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Outlined activity icons**, switched in Settings → Appearance →
+  Sidebar. A ring around each coloured icon — light on a dark theme,
+  dark on a light one — so a glyph in its own hue separates from the
+  panel. On by default, and offered only with Coloured Activity Icons
+  on, since a plain icon is the theme's own colour and a ring round that
+  reads as a glow. epaint has no stroke for text, so the ring is the
+  glyph drawn eight times at small offsets underneath.
+- **Home's activity toolbar** got bigger icons (22 px), room between
+  them, and a hover plate with an accent edge, so the row says which
+  icon is under the pointer.
+- **A tab wears its own icon.** A Terminal tab shows its shell's glyph —
+  PowerShell, cmd, Git Bash, WSL — or its CLI's when it was opened from
+  one; a Container tab its host's kind; a Graphics tab its kind; a
+  Devtools tab its utility's. Each is the same glyph that item's row
+  wears in the sidebar.
+
 - **Fixed: closing the window hung the process.** The one tokio runtime
   is dropped when `main` returns, and that `Drop` waits for every
   *blocking* task; a follower parked in a blocking read — a

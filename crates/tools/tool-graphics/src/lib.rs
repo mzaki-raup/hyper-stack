@@ -2846,6 +2846,14 @@ impl Tool for GraphicsTool {
         true
     }
 
+    /// The tab wears the icon its own kind wears in the sidebar - an
+    /// Image tab the picture glyph, a Diagram tab the tree, and so on -
+    /// rather than the activity's, which every tab would share
+    /// (owner's requirement, 2026-10-26).
+    fn tab_icon(&self) -> Option<&'static str> {
+        Some(self.kind.icon())
+    }
+
     fn home_is_dashboard(&self) -> bool {
         self.kind == Kind::Home
     }

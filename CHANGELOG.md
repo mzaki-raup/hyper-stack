@@ -11,6 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Every work pane now has its header band.** The last of them: the
+  Image and Icon panes show the picture's current dimensions, its size
+  and its path - and their toolbars drop the readout that used to
+  carry them; the Diagram editor and generator show which kind of
+  diagram it is; the Logs pane shows the command, the file and the host
+  behind whatever it is following. The band fills the width of the pane
+  rather than stopping where its facts do.
+- **The Logs toolbar is three rows** - what the tab follows, what the
+  list shows, what leaves the tab - and the **Diagram editor's is two**,
+  the canvas tools on their own row. Each row is divided by a rule, and
+  the AI Assistant keeps its corner.
+- In the API Client's band, **only the method carries colour**; the
+  request's own name stays in the ordinary text colour.
+
 - **The Container work pane carries its header band:** the host under
   its engine's own mark, what kind of engine it is, the version it
   reported ("Docker Engine 27.1.1", "Kubernetes v1.31.2") and where it

@@ -599,6 +599,7 @@ impl DiagramState {
 
     pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         if ui
             .button(format!(
                 "{} {}",
@@ -739,7 +740,10 @@ impl DiagramState {
         if self.view == DiagramView::Source {
             return;
         }
-        ui.separator();
+        // Second row: what acts on the canvas. The rule that used to end
+        // the first row goes with it - a row that ends needs no
+        // separator (owner's requirement, 2026-10-27).
+        hs_ui::toolbar::row_break(ui, &theme);
         if ui
             .button(format!(
                 "{} {}",
@@ -759,7 +763,6 @@ impl DiagramState {
                 s.t("gfx-diagram-grid")
             ),
         );
-        ui.separator();
         if ui
             .selectable_label(
                 self.tool == ToolMode::Select,

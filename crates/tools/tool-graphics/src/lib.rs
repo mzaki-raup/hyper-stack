@@ -3075,11 +3075,6 @@ impl Tool for GraphicsTool {
             return;
         }
         let s = cx.services;
-        let info = self.info_line();
-        if !info.is_empty() {
-            ui.label(egui::RichText::new(info).monospace().small());
-            ui.separator();
-        }
         if ui
             .add_enabled(
                 !self.undo_stack.is_empty(),
@@ -3154,6 +3149,64 @@ impl Tool for GraphicsTool {
                 self.assistant.toggle("graphics");
             }
         });
+    }
+
+    /// What this tab is looking at: a picture with its dimensions, its
+    /// size on disk and where it lives, or a diagram with its kind.
+    fn header(&self) -> Option<hs_core::tool::ToolHeader> {
+        if self.kind == Kind::Home {
+            return None;
+        }
+        let name = self
+            .path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| self.title().to_string());
+        let icon = self.kind.icon();
+        match self.kind {
+            Kind::Diagram | Kind::Generator => {
+                // A diagram has no pixels and no size on disk worth
+                // showing; what matters is which kind of diagram it is.
+                let doc_kind = match self.kind {
+                    Kind::Diagram => self.diagram.as_ref().map(|d| d.doc.kind),
+                    _ => self.generator.as_ref().map(|g| g.kind),
+                };
+                Some(
+                    hs_core::tool::ToolHeader::new(icon, name)
+                        .fact("Type", doc_kind.map(|k| k.label()).unwrap_or_default()),
+                )
+            }
+            _ => {
+                // The *current* dimensions: an image that has been
+                // cropped or resized is no longer the size it was opened
+                // at, and the band should say what is on screen.
+                let dims = self
+                    .current
+                    .as_ref()
+                    .map(|c| format!("{}×{}", c.width(), c.height()))
+                    .unwrap_or_default();
+                Some(
+                    hs_core::tool::ToolHeader::new(icon, name)
+                        .fact("Dimension", dims)
+                        .fact(
+                            "Size",
+                            if self.original_bytes.is_empty() {
+                                String::new()
+                            } else {
+                                human_size(self.original_bytes.len())
+                            },
+                        )
+                        .fact(
+                            "Path",
+                            self.path
+                                .as_ref()
+                                .map(|p| p.display().to_string())
+                                .unwrap_or_default(),
+                        ),
+                )
+            }
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

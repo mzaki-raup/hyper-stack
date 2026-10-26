@@ -46,6 +46,11 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
             bottom: 6,
         })
         .show(ui, |ui| {
+            // The band is a band: its fill runs the width of the pane
+            // rather than stopping where the facts do (owner's
+            // requirement, 2026-10-27). A `Frame` sizes to its content,
+            // so the content has to claim the row.
+            ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 ui.add_space(PAD);
@@ -69,14 +74,9 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
                     if value.trim().is_empty() {
                         continue;
                     }
-                    // A fact may carry its own colour when the colour is
-                    // part of what it says - an HTTP method, say.
-                    let tint = header
-                        .colours
-                        .iter()
-                        .find(|(at, _)| *at == i)
-                        .and_then(|(_, hex)| crate::theme::parse_hex(hex))
-                        .unwrap_or(theme.text_muted);
+                    // A fact may colour its first word when that colour
+                    // is part of what it says - an HTTP method, say.
+                    let tint = header.colours.iter().find(|t| t.at == i);
                     ui.add_space(PAD);
                     // A fact with no label is just its value - a path, or
                     // a method and a request name.
@@ -85,7 +85,22 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
                     } else {
                         format!("{label} : {value}")
                     };
-                    ui.label(RichText::new(text).size(FACT_SIZE).color(tint));
+                    match tint.and_then(|t| crate::theme::parse_hex(&t.hex).map(|c| (c, t.prefix)))
+                    {
+                        Some((colour, chars)) => {
+                            // The coloured word, then the rest in the
+                            // ordinary text colour - brighter than the
+                            // other facts, because it is a name rather
+                            // than a label.
+                            let head: String = text.chars().take(chars).collect();
+                            let tail: String = text.chars().skip(chars).collect();
+                            ui.label(RichText::new(head).size(FACT_SIZE).color(colour));
+                            ui.label(RichText::new(tail).size(FACT_SIZE).color(theme.text));
+                        }
+                        None => {
+                            ui.label(RichText::new(text).size(FACT_SIZE).color(theme.text_muted));
+                        }
+                    }
                     ui.add_space(PAD);
                     rule(ui, theme);
                 }

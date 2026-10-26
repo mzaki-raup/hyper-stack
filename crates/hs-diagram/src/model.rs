@@ -14,6 +14,22 @@ pub enum DiagramKind {
     Sequence,
 }
 
+impl DiagramKind {
+    /// What this kind is called, in the form a header band shows it.
+    ///
+    /// Not a Fluent key: these are the names of the diagram kinds
+    /// themselves, and "ERD" is an initialism rather than a word that
+    /// title-cases to "Erd".
+    pub fn label(self) -> &'static str {
+        match self {
+            DiagramKind::Flow => "Flow",
+            DiagramKind::Architecture => "Architecture",
+            DiagramKind::Erd => "ERD",
+            DiagramKind::Sequence => "Sequence",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum PageSize {

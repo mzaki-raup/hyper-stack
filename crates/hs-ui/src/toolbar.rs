@@ -88,3 +88,28 @@ pub fn hard_right(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
         )
     });
 }
+
+/// Break a wrapping toolbar onto a new row, with a rule between them.
+///
+/// A `horizontal_wrapped` row has no "end row" of its own: it wraps when
+/// a widget does not fit. Allocating the **full** width of the toolbar
+/// therefore does three things at once - the current row ends, this
+/// strip takes a row of its own, and whatever comes next starts a third
+/// - which is exactly a row break with a rule in it.
+///
+/// Taking `max_rect().width()` rather than `available_width()` matters:
+/// the latter is whatever is left of the current row, which on a nearly
+/// full row is a stub that fits where it is and breaks nothing. The
+/// width is the row's, which the shell has already narrowed to keep the
+/// hard-right corner clear, so the rule stops short of the AI Assistant
+/// rather than running under it.
+pub fn row_break(ui: &mut egui::Ui, theme: &crate::theme::Theme) {
+    const AIR: f32 = 5.0;
+    let w = ui.max_rect().width().max(1.0);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(w, AIR * 2.0 + 1.0), egui::Sense::hover());
+    ui.painter().hline(
+        rect.x_range(),
+        rect.center().y,
+        egui::Stroke::new(1.0, theme.border),
+    );
+}

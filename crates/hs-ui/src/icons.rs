@@ -141,3 +141,59 @@ pub fn container_kind_icon(kind: &str) -> &'static str {
         _ => ph::SHIPPING_CONTAINER,
     }
 }
+
+/// The glyph for a saved connection: its engine's own mark where one
+/// exists, and the kind's otherwise.
+///
+/// `engine` is the `db` kinds' sub-type (`postgres`, `mysql`, …) and is
+/// ignored for every other kind; pass `""` when there is none. Brands
+/// come from the bundled Nerd Font's devicon set, which is where
+/// PostgreSQL's elephant and MySQL's dolphin live. A store with no logo
+/// anywhere - MinIO, Qdrant, WebDAV, Nexus - takes the nearest honest
+/// generic rather than somebody else's brand.
+///
+/// One table, so the list in Settings, each activity's sidebar and the
+/// tabs cannot disagree about what a connection looks like (owner's
+/// requirement, 2026-10-26).
+///
+/// **Phosphor is installed before the Nerd Font and wins where the two
+/// overlap**, and both live in the Private Use Area. A codepoint taken
+/// from a Nerd Fonts cheat sheet may therefore draw something else
+/// entirely - `U+E76E` is PostgreSQL there and a *safe* in Phosphor -
+/// so every glyph below was checked on screen, and the shadowed ones
+/// were replaced rather than shipped.
+pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
+    match kind {
+        "db" => match engine {
+            // The devicon brands for these three sit at codepoints
+            // Phosphor already uses (see the note above), so these are
+            // the mascots from the Material range instead: the elephant
+            // and the dolphin are what PostgreSQL and MySQL put on their
+            // own pages, and SQLite is a database that is one file.
+            "postgres" | "postgresql" => "\u{f07c6}",
+            "mysql" | "mariadb" => "\u{f18b4}",
+            "sqlite" => "\u{f0b1d}",
+            _ => ph::DATABASE,
+        },
+        // nf-dev-redis, a real brand and not shadowed. Valkey is Redis'
+        // fork and has no mark of its own.
+        "redis" | "valkey" => "\u{e76d}",
+        // MongoDB's own logo is a leaf; the devicon one is shadowed.
+        "mongodb" => "\u{f032a}",
+        // nf-dev-couchdb, a real brand and not shadowed.
+        "couchdb" => "\u{e77c}",
+        // No Qdrant logo anywhere in Nerd Fonts: a vector store is still
+        // a database.
+        "qdrant" => ph::DATABASE,
+        "elasticsearch" => ph::MAGNIFYING_GLASS,
+        "dynamodb" | "cassandra" => ph::DATABASE,
+        // S3 and the other object stores keep the cloud and the folder:
+        // MinIO, WebDAV and Nexus have no glyph to use.
+        "s3" => ph::CLOUD,
+        "webdav" => ph::FOLDER_SIMPLE,
+        "nexus" => ph::PACKAGE,
+        "ssh" => ph::COMPUTER_TOWER,
+        "api" => ph::PAPER_PLANE_TILT,
+        _ => container_kind_icon(kind),
+    }
+}

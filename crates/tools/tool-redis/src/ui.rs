@@ -438,6 +438,15 @@ impl Tool for RedisTool {
         self.state.conn_id.as_deref()
     }
 
+    /// Redis' own mark. Valkey is its fork and has none of its own, so
+    /// the two share a glyph and the kind need not be carried here.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.conn_name.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::connection_icon("redis", ""))
+    }
+
     /// A renamed profile renames its tab. The name is the only thing
     /// taken: a rename must not disturb a live session.
     fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
@@ -566,7 +575,8 @@ impl Tool for RedisTool {
                 id: "settings:connections".into(),
             });
         }
-        let profiles: Vec<(String, String, String, bool)> = {
+        // The kind's own mark, from the table every list shares.
+        let profiles: Vec<(String, String, String, bool, &'static str)> = {
             let conns = s.connections.read();
             conns
                 .of_redis_kinds()
@@ -576,6 +586,7 @@ impl Tool for RedisTool {
                         c.name.clone(),
                         RedisFields::from_table(&c.fields).label_for(&c.kind),
                         c.pinned,
+                        hs_ui::icons::connection_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -595,14 +606,14 @@ impl Tool for RedisTool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
-                for (i, (id, name, label, is_pinned)) in profiles.iter().enumerate() {
+                for (i, (id, name, label, is_pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         let row = form::connection_row(
                             ui,
                             &theme,
                             selected,
-                            ph::LIGHTNING,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,

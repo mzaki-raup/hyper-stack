@@ -105,7 +105,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "gemini-2.5-flash",
                         blurb: "ai-svc-gemini",
-                        icon: ph::DIAMOND,
+                        icon: // nf-md-google: the real G
+                        "\u{f02ad}",
                     },
                     Service {
                         name: "Azure OpenAI",
@@ -113,7 +114,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "",
                         blurb: "ai-svc-azure",
-                        icon: ph::CLOUD,
+                        icon: // nf-md-microsoft-azure
+                        "\u{f0805}",
                     },
                     Service {
                         name: "AWS Bedrock",
@@ -121,7 +123,8 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                         base: "",
                         model: "",
                         blurb: "ai-svc-bedrock",
-                        icon: ph::CLOUD_ARROW_UP,
+                        icon: // nf-dev-aws
+                        "\u{e7ad}",
                     },
                     Service {
                         name: "Mistral",

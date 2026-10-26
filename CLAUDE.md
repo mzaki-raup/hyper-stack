@@ -647,6 +647,15 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   pairs in a right-to-left group, add each control first and then its
   label, and add the pairs in reverse order (2026-10-26, the title bar's
   Workspace and Environment pickers).
+- **Phosphor is installed before the Nerd Font and wins where they
+  overlap.** Both live in the Private Use Area, so a codepoint copied
+  from a Nerd Fonts cheat sheet can quietly draw something else: `U+E76E`
+  is PostgreSQL there and a **safe** in Phosphor, `U+E7B0` is Docker and
+  a thin unrelated mark, `U+EBCA` is a bash prompt and a cube. All three
+  were shipped-and-caught on screen before the cause was understood.
+  `scratchpad/collide.py` compares the two cmaps and says which
+  codepoints are unusable; run it before choosing a glyph, then still
+  look at the result (2026-10-26).
 - **Check a Nerd Font glyph by looking at it.** The codepoint being in
   the font says nothing about *which* picture it is: `U+EBCA`, listed as
   the codicon terminal-bash, draws a cube in the bundled JetBrains Mono,

@@ -11,6 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Every connection wears its own mark.** PostgreSQL's elephant,
+  MySQL's dolphin, a single file for SQLite, Redis' and CouchDB's own
+  logos, MongoDB's leaf, a cloud for S3, a folder for WebDAV, a package
+  for Nexus - in Settings, in each activity's sidebar and on the tab,
+  from one shared table. Qdrant, MinIO and Nexus have no logo anywhere,
+  so they take the nearest honest generic rather than a borrowed brand.
+- **Google, Azure and AWS keep their real marks** in the AI provider
+  gallery; the rest already had apt stand-ins (DeepSeek's whale,
+  Moonshot's moon, Mistral's wind) and keep them, since no logo for them
+  exists in the bundled font.
+
 - **An SSH host wears its operating system.** One read-only probe on
   connect (`/etc/os-release`, `uname -sr`, `ver`) works out what the
   other end is; the answer is kept on the profile, so the sidebar draws

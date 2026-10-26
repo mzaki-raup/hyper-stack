@@ -2866,12 +2866,24 @@ fn connections(
                     state.conn_draft = Some((c, String::new()));
                 }
                 ui.add_space(8.0);
-                let conns: Vec<(String, String, String)> = s
+                // The engine travels with the kind: a `db` profile's
+                // icon is PostgreSQL's or MySQL's, not a generic plug.
+                let conns: Vec<(String, String, String, &'static str)> = s
                     .connections
                     .read()
                     .all()
                     .iter()
-                    .map(|c| (c.id.clone(), c.kind.clone(), c.name.clone()))
+                    .map(|c| {
+                        let engine = c
+                            .fields
+                            .get("db")
+                            .and_then(|v| v.as_table())
+                            .and_then(|t| t.get("engine"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default();
+                        let icon = hs_ui::icons::connection_icon(&c.kind, engine);
+                        (c.id.clone(), c.kind.clone(), c.name.clone(), icon)
+                    })
                     .collect();
                 if conns.is_empty() {
                     form::hint(ui, theme, &s.t("conn-none"));
@@ -2880,14 +2892,14 @@ fn connections(
                 // order the tools' own sidebars inherit.
                 let mut reorder = hs_ui::reorder::Reorder::new("conn-list-reorder");
                 let mut pick: Option<String> = None;
-                for (i, (id, kind, name)) in conns.iter().enumerate() {
+                for (i, (id, kind, name, icon)) in conns.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
                         if form::list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::ph::PLUGS_CONNECTED,
+                            icon,
                             name,
                             Some(hs_core::connections::kind_label(kind)),
                         )

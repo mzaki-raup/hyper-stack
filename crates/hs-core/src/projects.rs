@@ -224,6 +224,55 @@ pub fn normalise(p: &Path) -> String {
     s.trim_end_matches('/').to_lowercase()
 }
 
+/// Every language the app knows by name, as `(id, display name)`.
+///
+/// The ids are what [`detect_language`] returns and what
+/// `hs_ui::icons::language_icon` draws; the names are what a person
+/// picks from. The list is here rather than in the Editor because the
+/// Settings form and the Editor both read it, and a project whose
+/// language was chosen by hand must mean the same thing in both.
+///
+/// Ordered as a reader would look for them: the compiled languages, the
+/// scripted ones, then the markup and configuration formats.
+pub const LANGUAGES: &[(&str, &str)] = &[
+    ("rust", "Rust"),
+    ("go", "Go"),
+    ("c", "C"),
+    ("cpp", "C++"),
+    ("csharp", "C#"),
+    ("java", "Java"),
+    ("kotlin", "Kotlin"),
+    ("scala", "Scala"),
+    ("swift", "Swift"),
+    ("zig", "Zig"),
+    ("haskell", "Haskell"),
+    ("elixir", "Elixir"),
+    ("dart", "Dart"),
+    ("python", "Python"),
+    ("ruby", "Ruby"),
+    ("php", "PHP"),
+    ("perl", "Perl"),
+    ("lua", "Lua"),
+    ("javascript", "JavaScript"),
+    ("typescript", "TypeScript"),
+    ("node", "Node.js"),
+    ("shell", "Shell"),
+    ("terraform", "Terraform"),
+    ("html", "HTML"),
+    ("css", "CSS"),
+    ("markdown", "Markdown"),
+];
+
+/// The display name for a language id, or `""` when it is not one of
+/// [`LANGUAGES`] - an empty answer is better than inventing a name.
+pub fn language_name(id: &str) -> &'static str {
+    LANGUAGES
+        .iter()
+        .find(|(k, _)| *k == id)
+        .map(|(_, n)| *n)
+        .unwrap_or("")
+}
+
 /// What language a folder is, from the manifest it carries.
 ///
 /// The order matters where a repository has more than one: a Rust
@@ -288,6 +337,43 @@ mod tests {
 
     fn touch(dir: &Path, name: &str) {
         std::fs::write(dir.join(name), "").unwrap();
+    }
+
+    /// Every language the picker offers has to have an icon and a name,
+    /// or a chosen row draws as a plain folder with a blank label - and
+    /// every id detection can return has to be in the list, or the
+    /// picker cannot show what was detected.
+    #[test]
+    fn every_offered_language_has_a_name_and_every_detected_one_is_offered() {
+        for (id, name) in LANGUAGES {
+            assert!(!name.is_empty(), "{id} has no name");
+            assert_eq!(language_name(id), *name);
+        }
+        assert_eq!(language_name("nonsense"), "");
+        assert_eq!(language_name(""), "");
+        for detected in [
+            "rust",
+            "go",
+            "java",
+            "kotlin",
+            "dart",
+            "elixir",
+            "php",
+            "ruby",
+            "python",
+            "zig",
+            "haskell",
+            "scala",
+            "cpp",
+            "javascript",
+            "typescript",
+            "csharp",
+        ] {
+            assert!(
+                LANGUAGES.iter().any(|(k, _)| *k == detected),
+                "{detected} can be detected but cannot be picked"
+            );
+        }
     }
 
     #[test]

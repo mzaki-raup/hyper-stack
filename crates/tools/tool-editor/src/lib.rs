@@ -2755,6 +2755,21 @@ impl EditorTool {
                         );
                     }
                 }
+                // The shared Open Here grid, as every other activity's
+                // dashboard shows it: the project list above says what
+                // could be opened, this says what already is and takes
+                // the reader back to it (owner's rule on one UI
+                // language, 2026-10-20; asked for here 2026-10-27).
+                let tabs = s.open_tabs.of("editor");
+                let labels = hs_ui::dashboard::DashboardLabels {
+                    open_heading: &s.t("dash-open"),
+                    nothing_open: &s.t("dash-nothing-open"),
+                    no_preview: &s.t("dash-no-preview"),
+                };
+                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
+                    cx.actions
+                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                }
             });
     }
 
@@ -3016,7 +3031,17 @@ impl Tool for EditorTool {
         Some(
             hs_core::tool::ToolHeader::new(hs_ui::icons::language_icon(&self.proj_lang), name)
                 .fact("Language", language)
-                .fact("Version", version),
+                .fact("Version", version)
+                // Where the project actually lives, last in the band
+                // (owner's requirement, 2026-10-27). A tab with no root
+                // - a loose file, or the workspace tab - leaves it out
+                // rather than showing an empty fact.
+                .fact(
+                    "Path",
+                    self.root()
+                        .map(|r| r.display().to_string())
+                        .unwrap_or_default(),
+                ),
         )
     }
 

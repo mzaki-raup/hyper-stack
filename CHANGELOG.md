@@ -11,6 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **A project's language can be chosen by hand.** Settings -> Editor ->
+  Project List now has a Language field listing the 26 languages the app
+  draws an icon for, pre-selected from what the folder's manifest says
+  and overridable; "Detect from the folder" puts it back. The choice
+  reaches the tab icon, the sidebar row and the header band.
+- **The Editor dashboard says what is open here.** The shared Open Here
+  grid now follows the project list, as it does in every other activity.
+- **Labels on the NoSQL and Redis actions.** Reload Databases leads the
+  NoSQL container tree, and Reload, Rename, Set TTL, Never Expire,
+  Delete and Add Member carry their words in the Redis value pane and
+  the Info tab. The key list's filter row keeps bare icons - 300 px has
+  no room for words.
+- **The NoSQL container path sits over the pane it describes** rather
+  than in the toolbar, which belongs to the whole tab.
 - **Fixed: Remove From List left the project's tabs open.** The shell
   matched an open tab against the file it had open, which a project tab
   with no file does not have, so removing a project from either the

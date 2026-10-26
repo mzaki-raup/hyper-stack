@@ -4669,6 +4669,45 @@ fn project_detail(
                 }
             });
             ui.end_row();
+
+            // Detection reads the manifest, which is right most of the
+            // time and wrong for a folder that carries none or carries
+            // two. The picker starts on whatever was detected and the
+            // choice sticks: it is what the tab icon, the sidebar row
+            // and the header band all read (owner's requirement,
+            // 2026-10-27). "Detect" puts it back.
+            form::label(ui, &s.t("settings-project-language"));
+            let current = if draft.entry.language.is_empty() {
+                s.t("settings-project-language-auto")
+            } else {
+                let name = hs_core::projects::language_name(&draft.entry.language);
+                if name.is_empty() {
+                    draft.entry.language.clone()
+                } else {
+                    name.to_string()
+                }
+            };
+            egui::ComboBox::from_id_salt("project-language")
+                .selected_text(format!(
+                    "{} {current}",
+                    hs_ui::icons::language_icon(&draft.entry.language)
+                ))
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut draft.entry.language,
+                        String::new(),
+                        s.t("settings-project-language-auto"),
+                    );
+                    for (id, name) in hs_core::projects::LANGUAGES {
+                        ui.selectable_value(
+                            &mut draft.entry.language,
+                            (*id).to_string(),
+                            format!("{} {name}", hs_ui::icons::language_icon(id)),
+                        );
+                    }
+                });
+            ui.end_row();
         });
         ui.add_space(8.0);
         ui.label(

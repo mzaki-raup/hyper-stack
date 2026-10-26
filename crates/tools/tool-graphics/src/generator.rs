@@ -124,32 +124,54 @@ impl GeneratorState {
         if ui
             .add_enabled(
                 self.doc.is_some(),
-                egui::Button::new(s.t("gfx-gen-open-editor")),
+                egui::Button::new(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::PENCIL_SIMPLE,
+                    s.t("gfx-gen-open-editor")
+                )),
             )
             .clicked()
         {
             self.open_in_editor(cx);
         }
         ui.add_enabled_ui(self.doc.is_some(), |ui| {
-            ui.menu_button(s.t("gfx-gen-export"), |ui| {
-                if ui.button("PNG").clicked() {
-                    self.export(cx, ExportKind::Png);
-                    ui.close();
-                }
-                if ui.button("PDF").clicked() {
-                    self.export(cx, ExportKind::Pdf);
-                    ui.close();
-                }
-            });
+            ui.menu_button(
+                format!("{} {}", hs_ui::icons::ph::EXPORT, s.t("gfx-gen-export")),
+                |ui| {
+                    if ui.button("PNG").clicked() {
+                        self.export(cx, ExportKind::Png);
+                        ui.close();
+                    }
+                    if ui.button("PDF").clicked() {
+                        self.export(cx, ExportKind::Pdf);
+                        ui.close();
+                    }
+                },
+            );
         });
         if self.doc.is_some() {
             ui.separator();
-            for (view, key) in [
-                (GeneratorView::Preview, "gfx-view-preview"),
-                (GeneratorView::Source, "gfx-view-source"),
-                (GeneratorView::Split, "gfx-view-split"),
+            for (view, icon, key) in [
+                (
+                    GeneratorView::Preview,
+                    hs_ui::icons::ph::EYE,
+                    "gfx-view-preview",
+                ),
+                (
+                    GeneratorView::Source,
+                    hs_ui::icons::ph::CODE,
+                    "gfx-view-source",
+                ),
+                (
+                    GeneratorView::Split,
+                    hs_ui::icons::ph::COLUMNS,
+                    "gfx-view-split",
+                ),
             ] {
-                if ui.selectable_label(self.view == view, s.t(key)).clicked() {
+                if ui
+                    .selectable_label(self.view == view, format!("{} {}", icon, s.t(key)))
+                    .clicked()
+                {
                     self.view = view;
                 }
             }

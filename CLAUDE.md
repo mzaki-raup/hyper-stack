@@ -659,6 +659,19 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   (`scratchpad/metrics.py`), and remember the scaled copy must stay
   **last** in `Proportional`: ahead of a real text font it would draw
   the letters too (2026-10-26).
+- **egui's own `emoji-icon-font` steals Private Use Area codepoints
+  too, and it is not Phosphor.** It is one of epaint's default
+  Proportional fonts, a *legacy icon* set rather than an emoji one, and
+  it claims 58 PUA codepoints - among them `U+E627` (Go), `U+E61D` (C++)
+  and `U+E62D` (Elixir). The Go gopher therefore rendered as the
+  **SoundCloud logo**, and the font file itself was innocent: rendering
+  the codepoint with PIL showed a perfectly good gopher. `fonts::install`
+  now inserts the icon fallback **before `emoji-icon-font`** (still after
+  `NotoEmoji-Regular`, so real emoji are unaffected), and a test pins
+  that order. The checker to run is `scratchpad/shadow.py`, which walks
+  the whole fallback chain rather than Phosphor alone; `scratchpad/
+  sheet.py` renders candidates to a contact sheet so the picture can be
+  looked at without building the app (2026-10-26).
 - **Phosphor is installed before the Nerd Font and wins where they
   overlap.** Both live in the Private Use Area, so a codepoint copied
   from a Nerd Fonts cheat sheet can quietly draw something else: `U+E76E`

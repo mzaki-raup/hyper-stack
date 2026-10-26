@@ -128,6 +128,12 @@ pub struct SettingsState {
     pub env_copy: Option<EnvCopyState>,
     pub conn_selected: Option<String>,
     pub conn_draft: Option<(ConnectionProfile, String)>,
+    /// Settings -> Editor -> Project List: which project is open for
+    /// editing, and the copy being edited. The draft carries the Git
+    /// identity read from the repository itself, so Save writes back only
+    /// what was actually changed on screen.
+    pub project_selected: Option<String>,
+    pub project_draft: Option<ProjectDraft>,
     pub shortcut_edit: HashMap<String, String>,
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
@@ -242,6 +248,12 @@ pub enum SettingsEffect {
     /// Write the environment being edited to a file in this format.
     ExportEnvironment(tool_api::env_export::Format),
     ConnectionsChanged,
+    /// Settings -> Editor -> Project List -> Remove: ask first, then
+    /// drop the entry and close the tab that had it open. The
+    /// **folder is never touched** - this is the list forgetting a
+    /// reference, not a delete (owner's requirement, 2026-10-26),
+    /// which is why the confirmation says so in as many words.
+    ConfirmRemoveProject(String, String),
     /// Settings -> Connections -> Connect: open this saved profile in its
     /// own activity, in the tab it already has or in a new one.
     OpenConnection {
@@ -336,7 +348,7 @@ pub fn page(
         Page::Containers => containers(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
-        Page::Editor => editor(ui, theme, services, effects),
+        Page::Editor => editor(ui, theme, services, state, effects),
         Page::Browser => browser(ui, theme, services, effects),
         Page::Ai => crate::settings_ai::page(ui, theme, services, &mut state.ai, effects),
         Page::About => about(ui, theme, services, effects),
@@ -2874,14 +2886,10 @@ fn connections(
                     .all()
                     .iter()
                     .map(|c| {
-                        let engine = c
-                            .fields
-                            .get("db")
-                            .and_then(|v| v.as_table())
-                            .and_then(|t| t.get("engine"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default();
-                        let icon = hs_ui::icons::connection_icon(&c.kind, engine);
+                        // Reads the engine for a database and the
+                        // detected OS for an SSH host, so this list
+                        // agrees with the activity sidebars.
+                        let icon = hs_ui::icons::profile_icon(c);
                         (c.id.clone(), c.kind.clone(), c.name.clone(), icon)
                     })
                     .collect();
@@ -4474,13 +4482,338 @@ fn terminal(
     }
 }
 
-fn editor(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+/// A project being edited in Settings -> Editor -> Project List.
+///
+/// The Git identity is read from the repository when the row is opened
+/// and written back on Save, so this struct - not the stored entry - is
+/// what the form binds to.
+#[derive(Debug, Clone)]
+pub struct ProjectDraft {
+    pub entry: hs_core::projects::ProjectEntry,
+    /// The repository's own `--local` configuration, as it reads right
+    /// now. Saved back key by key; an empty field unsets rather than
+    /// blanks, so the repository inherits the global value again.
+    pub git: hs_git::write::RepoConfig,
+    /// Whether the folder is a git repository at all; when it is not,
+    /// the identity fields are shown disabled rather than hidden, so the
+    /// reason is visible.
+    pub is_repo: bool,
+}
+
+impl ProjectDraft {
+    fn open(entry: hs_core::projects::ProjectEntry) -> Self {
+        let is_repo = entry.root.join(".git").exists();
+        // Reading two config keys is two short `git` runs. That is fine
+        // on a click; it would not be fine every frame, which is why it
+        // happens here and not in the form.
+        let git = if is_repo {
+            hs_git::write::repo_config(&entry.root)
+        } else {
+            hs_git::write::RepoConfig::default()
+        };
+        Self {
+            entry,
+            git,
+            is_repo,
+        }
+    }
+}
+
+/// Settings -> Editor -> **Project List**: every folder the Editor
+/// activity offers, in the order its sidebar shows them.
+///
+/// This is the same list the activity's sidebar draws, from the same
+/// store, so adding or reordering here is immediately what the sidebar
+/// does (owner's requirement, 2026-10-26).
+fn project_list(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::section(ui, theme, &s.t("settings-section-project-list"), |ui| {
+        form::hint(ui, theme, &s.t("settings-project-list-hint"));
+        let rows: Vec<(String, String, String, &'static str)> = s
+            .projects
+            .read()
+            .all()
+            .iter()
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    p.label(),
+                    p.root.display().to_string(),
+                    hs_ui::icons::language_icon(&p.language),
+                )
+            })
+            .collect();
+        if rows.is_empty() {
+            form::hint(ui, theme, &s.t("settings-project-list-none"));
+        }
+        let mut reorder = hs_ui::reorder::Reorder::new("project-list-reorder");
+        let mut pick: Option<String> = None;
+        for (i, (id, name, root, icon)) in rows.iter().enumerate() {
+            let selected = state.project_selected.as_deref() == Some(id.as_str());
+            reorder.row(ui, i, |ui| {
+                if form::list_row(ui, theme, selected, icon, name, Some(root)).clicked() {
+                    pick = Some(id.clone());
+                }
+            });
+            ui.add_space(2.0);
+        }
+        if let Some((from, to)) = reorder.finish(ui, theme.accent)
+            && let Err(e) = s.projects.write().reorder(from, to)
+        {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            ));
+        }
+        if let Some(id) = pick {
+            state.project_selected = Some(id.clone());
+            if let Some(p) = s.projects.read().by_id(&id) {
+                state.project_draft = Some(ProjectDraft::open(p.clone()));
+            }
+        }
+        ui.add_space(6.0);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("settings-project-add")),
+        )
+        .clicked()
+            && let Some(root) = rfd::FileDialog::new().pick_folder()
+        {
+            // A folder already in the list opens rather than doubling:
+            // two rows for one folder is never what the click meant.
+            let existing = s.projects.read().by_root(&root).map(|p| p.id.clone());
+            let entry = match existing {
+                Some(id) => s.projects.read().by_id(&id).cloned(),
+                None => {
+                    let e = hs_core::projects::ProjectEntry::for_root(&root);
+                    match s.projects.write().upsert(e.clone()) {
+                        Ok(()) => Some(e),
+                        Err(err) => {
+                            effects.push(SettingsEffect::Toast(
+                                hs_core::tool::ToastLevel::Error,
+                                err.to_string(),
+                            ));
+                            None
+                        }
+                    }
+                }
+            };
+            if let Some(e) = entry {
+                state.project_selected = Some(e.id.clone());
+                state.project_draft = Some(ProjectDraft::open(e));
+            }
+        }
+    });
+    if state.project_draft.is_some() {
+        ui.add_space(8.0);
+        project_detail(ui, theme, s, state, effects);
+    }
+    ui.add_space(12.0);
+}
+
+/// One project's settings: its name, the folder it refers to, and the
+/// identity its commits carry.
+fn project_detail(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let Some(draft) = state.project_draft.as_mut() else {
+        return;
+    };
+    let mut save = false;
+    let mut remove = false;
+    form::section(ui, theme, &draft.entry.label(), |ui| {
+        form::field_grid(ui, "project-detail", |ui| {
+            form::label(ui, &s.t("settings-project-name"));
+            form::text_field(
+                ui,
+                &mut draft.entry.name,
+                &s.t("settings-project-name-hint"),
+            );
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-project-root"));
+            ui.horizontal(|ui| {
+                let mut root = draft.entry.root.display().to_string();
+                if form::text_field(ui, &mut root, "").changed() {
+                    draft.entry.root = std::path::PathBuf::from(root);
+                }
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        s.t("browse")
+                    ))
+                    .clicked()
+                    && let Some(p) = rfd::FileDialog::new().pick_folder()
+                {
+                    draft.entry.root = p;
+                    // A different folder is a different project: its
+                    // language and its repository identity both have to
+                    // be read again rather than carried over.
+                    draft.entry.language =
+                        hs_core::projects::detect_language(&draft.entry.root).to_string();
+                    let re = ProjectDraft::open(draft.entry.clone());
+                    draft.git = re.git;
+                    draft.is_repo = re.is_repo;
+                }
+            });
+            ui.end_row();
+        });
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(s.t("settings-project-git"))
+                .strong()
+                .color(theme.text),
+        );
+        if !draft.is_repo {
+            form::hint(ui, theme, &s.t("settings-project-not-a-repo"));
+        }
+        let is_repo = draft.is_repo;
+        ui.add_enabled_ui(is_repo, |ui| {
+            form::field_grid(ui, "project-git", |ui| {
+                form::label(ui, &s.t("settings-project-git-name"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.name,
+                    &s.t("settings-project-git-inherit-hint"),
+                );
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-email"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.email,
+                    &s.t("settings-project-git-inherit-hint"),
+                );
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-signing-key"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.signing_key,
+                    &s.t("settings-project-git-inherit-hint"),
+                );
+                ui.end_row();
+                // Three states, because "not set here" is a real answer
+                // and a checkbox cannot say it: an unset key inherits,
+                // and saving `false` over it is a different instruction.
+                form::label(ui, &s.t("settings-project-git-sign"));
+                let label = match draft.git.sign_commits {
+                    None => s.t("settings-project-git-inherit"),
+                    Some(true) => s.t("yes"),
+                    Some(false) => s.t("no"),
+                };
+                egui::ComboBox::from_id_salt("project-git-sign")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut draft.git.sign_commits,
+                            None,
+                            s.t("settings-project-git-inherit"),
+                        );
+                        ui.selectable_value(&mut draft.git.sign_commits, Some(true), s.t("yes"));
+                        ui.selectable_value(&mut draft.git.sign_commits, Some(false), s.t("no"));
+                    });
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-branch"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.default_branch,
+                    &s.t("settings-project-git-branch-hint"),
+                );
+                ui.end_row();
+                form::label(ui, &s.t("settings-project-git-remote"));
+                form::text_field(
+                    ui,
+                    &mut draft.git.remote_url,
+                    &s.t("settings-project-git-remote-hint"),
+                );
+                ui.end_row();
+            });
+        });
+        form::hint(ui, theme, &s.t("settings-project-git-hint"));
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                save = true;
+            }
+            if ui.button(s.t("close")).clicked() {
+                state.project_selected = None;
+            }
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if form::danger_button(ui, theme, &s.t("settings-project-remove")).clicked() {
+                    remove = true;
+                }
+            });
+        });
+    });
+
+    if save && let Some(draft) = state.project_draft.clone() {
+        let mut entry = draft.entry.clone();
+        entry.language = hs_core::projects::detect_language(&entry.root).to_string();
+        let mut failed = None;
+        if draft.is_repo {
+            if let Err(e) = hs_git::write::set_repo_config(&entry.root, &draft.git) {
+                failed = Some(e.to_string());
+            } else {
+                // The entry keeps a copy of the identity only so a list
+                // can show it without running git; the repository is
+                // where it actually lives.
+                entry.git_name = draft.git.name.clone();
+                entry.git_email = draft.git.email.clone();
+            }
+        }
+        match failed {
+            Some(e) => effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e)),
+            None => match s.projects.write().upsert(entry.clone()) {
+                Ok(()) => {
+                    state.project_draft = Some(ProjectDraft::open(entry));
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Success,
+                        s.t("toast-saved"),
+                    ));
+                }
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                )),
+            },
+        }
+    }
+    if remove && let Some(draft) = state.project_draft.clone() {
+        // Removing is a list operation: the folder on disk is never
+        // touched (owner's requirement, 2026-10-26). The confirmation
+        // says so, because "Remove" next to a folder path reads as
+        // something much worse than it is.
+        effects.push(SettingsEffect::ConfirmRemoveProject(
+            draft.entry.id.clone(),
+            draft.entry.label(),
+        ));
+    }
+}
+
+fn editor(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
     form::page_title(
         ui,
         theme,
         &s.t("settings-editor"),
         Some(&s.t("settings-editor-sub")),
     );
+    project_list(ui, theme, s, state, effects);
     let mut settings = s.settings.write();
     let mut changed = false;
     form::section(ui, theme, &s.t("settings-section-editor-font"), |ui| {

@@ -46,6 +46,12 @@ const EDITOR_FAMILY: &str = "hs-editor";
 /// match the Phosphor icons beside them.
 const ICON_FALLBACK: &str = "hs-icon-fallback";
 
+/// One of egui's own default fonts, and the last place a Private Use
+/// Area codepoint should be looked for: it is a legacy icon set, not an
+/// emoji one, and the 58 PUA glyphs it carries are not the ones anybody
+/// asking for a brand mark means.
+const EMOJI_ICON_FONT: &str = "emoji-icon-font";
+
 /// How much bigger the Nerd Font has to be drawn to match Phosphor.
 ///
 /// Phosphor's icons are drawn to fill the em - mean height 0.722 em over
@@ -191,11 +197,22 @@ pub fn definitions(choice: &FontChoice) -> FontDefinitions {
     // egui's default UI font has no arrows (→ ↑ ↓) or box drawing, and
     // neither it nor Phosphor has the brand marks every connection,
     // container engine, shell and host OS wears; the bundled Nerd Font has
-    // all of them, so its scaled copy is the last glyph fallback.
+    // all of them, so its scaled copy is the glyph fallback.
+    //
+    // It goes **before `emoji-icon-font`**, not at the very end. That font
+    // is one of egui's own defaults, it is a legacy icon font rather than
+    // an emoji one, and it claims 58 codepoints in the Private Use Area -
+    // among them Go, C++ and Elixir, which is why the Go gopher came out
+    // as the SoundCloud logo (owner's report, 2026-10-26). Real emoji
+    // still resolve ahead of it from `NotoEmoji-Regular`; only the PUA
+    // changes hands, and there the Nerd Font is the better answer.
     if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional)
         && !list.iter().any(|f| f == ICON_FALLBACK)
     {
-        list.push(ICON_FALLBACK.to_string());
+        match list.iter().position(|f| f == EMOJI_ICON_FONT) {
+            Some(i) => list.insert(i, ICON_FALLBACK.to_string()),
+            None => list.push(ICON_FALLBACK.to_string()),
+        }
     }
     let mono_fallback = fonts
         .families
@@ -360,12 +377,20 @@ mod tests {
             .get(DEFAULT_MONO)
             .expect("the bundled mono is registered under its own id");
         assert!((plain.tweak.scale - 1.0).abs() < f32::EPSILON);
-        assert_eq!(
-            defs.families[&FontFamily::Proportional]
-                .last()
-                .map(|s| s.as_str()),
-            Some(ICON_FALLBACK),
-            "the scaled copy is the last resort, never ahead of real text fonts"
+        let prop = &defs.families[&FontFamily::Proportional];
+        let icon_at = prop.iter().position(|f| f == ICON_FALLBACK).unwrap();
+        // Never ahead of a real text font...
+        assert!(
+            prop.iter().position(|f| f == "Ubuntu-Light").unwrap() < icon_at,
+            "the scaled copy must not draw the letters: {prop:?}"
+        );
+        // ...and never behind egui's legacy PUA icon font, which claims
+        // Go, C++ and Elixir and would draw the wrong picture for them.
+        assert!(
+            prop.iter()
+                .position(|f| f == EMOJI_ICON_FONT)
+                .is_none_or(|i| icon_at < i),
+            "the Nerd Font must answer the Private Use Area first: {prop:?}"
         );
         // The terminal and the editor draw from the unscaled copy.
         for family in [terminal_family(), editor_family()] {

@@ -3256,12 +3256,16 @@ impl Tool for ContainersTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services.clone();
-        let theme = Theme::from_settings(&s.settings.read().appearance);
         if self.is_home || self.state.host_id.is_empty() {
             return;
         }
-        if form::icon_button(ui, &theme, ph::ARROW_CLOCKWISE, 16.0, self.loading)
-            .tip(s.t("container-refresh"))
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::ARROW_CLOCKWISE,
+                s.t("container-refresh")
+            ))
+            .tip(s.t("container-refresh-tip"))
             .clicked()
         {
             self.run_command("containers.refresh", cx);

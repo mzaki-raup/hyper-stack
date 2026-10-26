@@ -197,3 +197,87 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         _ => container_kind_icon(kind),
     }
 }
+
+/// The glyph for a programming language, for the Editor's project list.
+///
+/// The brands come from the bundled Nerd Font's devicon and Material
+/// ranges. **Phosphor is installed first and wins where the two overlap**
+/// (see the note on [`connection_icon`]), and ten of the obvious choices
+/// here were shadowed - Rust, Python, JavaScript, TypeScript, C#, C,
+/// Kotlin, Lua, Node and Markdown all had to move to a second codepoint.
+/// `scratchpad/langcheck.py` is what found that; run it before adding a
+/// language, and then still look at the result, because being unshadowed
+/// does not make a glyph the right picture: `U+EBCA` is listed as a bash
+/// prompt and draws a **cube**, which is why the shell takes a Phosphor
+/// terminal instead of its "own" mark.
+///
+/// An unknown or undetected language returns the folder, which is the
+/// honest answer for "we did not work it out" and draws the same as the
+/// other rows.
+pub fn language_icon(id: &str) -> &'static str {
+    match id {
+        "rust" => "\u{e68b}",
+        "java" => "\u{e738}",
+        "kotlin" => "\u{e81b}",
+        "scala" => "\u{e737}",
+        "python" => "\u{e235}",
+        "go" => "\u{e627}",
+        "javascript" => "\u{e781}",
+        "typescript" => "\u{e69d}",
+        "node" => "\u{e76f}",
+        "csharp" => "\u{f031b}",
+        "cpp" => "\u{e61d}",
+        "c" => "\u{f0671}",
+        "php" => "\u{e73d}",
+        "ruby" => "\u{e739}",
+        "dart" => "\u{e798}",
+        "swift" => "\u{e755}",
+        "elixir" => "\u{e62d}",
+        "haskell" => "\u{e777}",
+        "perl" => "\u{e769}",
+        "zig" => "\u{e6a9}",
+        "lua" => "\u{e69b}",
+        "css" => "\u{e749}",
+        "markdown" => "\u{e609}",
+        // No usable glyph: HTML's two candidates are both shadowed, and
+        // a shell prompt draws a cube in this font.
+        "shell" => ph::TERMINAL,
+        "html" => ph::BRACKETS_ANGLE,
+        "terraform" => ph::STACK,
+        _ => ph::FOLDER,
+    }
+}
+
+/// The glyph for a saved connection **profile**, reading whatever the
+/// profile itself knows.
+///
+/// [`connection_icon`] answers from the kind alone, which is all most
+/// kinds have. Two kinds know more about themselves and keep it on the
+/// profile:
+///
+/// * `db` carries the engine, so PostgreSQL gets the elephant.
+/// * `ssh` carries the operating system found by the probe on connect,
+///   so a host wears its distribution's logo.
+///
+/// Every list that shows profiles goes through this, because the SSH
+/// sidebar read `os_id` and Settings -> Connections did not: the same
+/// host had two different icons depending on where you looked at it
+/// (owner's report, 2026-10-26).
+pub fn profile_icon(profile: &hs_core::connections::ConnectionProfile) -> &'static str {
+    let field = |section: &str, key: &str| -> &str {
+        profile
+            .fields
+            .get(section)
+            .and_then(|v| v.as_table())
+            .and_then(|t| t.get(key))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+    };
+    if profile.kind == "ssh" {
+        let os = field("ssh", "os_id");
+        if !os.is_empty() {
+            return os_icon(os);
+        }
+    }
+    connection_icon(&profile.kind, field("db", "engine"))
+}

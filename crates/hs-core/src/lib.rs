@@ -37,6 +37,7 @@ pub mod open_tabs;
 pub mod paths;
 pub mod portable;
 pub mod problems;
+pub mod projects;
 pub mod prompts;
 pub mod runtime;
 pub mod search;

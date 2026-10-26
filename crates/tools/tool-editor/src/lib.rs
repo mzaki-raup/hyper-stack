@@ -2664,7 +2664,14 @@ impl Tool for EditorTool {
                 self.save(cx);
             }
         });
-        if ui.button(s.t("editor-save-as")).clicked() {
+        if ui
+            .button(format!(
+                "{} {}",
+                ph::FLOPPY_DISK_BACK,
+                s.t("editor-save-as")
+            ))
+            .clicked()
+        {
             self.save_as(cx);
         }
         ui.separator();
@@ -2676,12 +2683,18 @@ impl Tool for EditorTool {
             let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
             d.view.open_find(false, Some(sel));
         }
-        if ui.button(s.t("editor-replace")).clicked() {
+        if ui
+            .button(format!("{} {}", ph::SWAP, s.t("editor-replace")))
+            .clicked()
+        {
             let d = self.doc_mut();
             let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
             d.view.open_find(true, Some(sel));
         }
-        if ui.button(s.t("editor-goto")).clicked() {
+        if ui
+            .button(format!("{} {}", ph::LIST_NUMBERS, s.t("editor-goto")))
+            .clicked()
+        {
             let d = self.doc_mut();
             d.view.goto_open = true;
             d.view.goto_text.clear();

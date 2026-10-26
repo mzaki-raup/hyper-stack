@@ -3797,6 +3797,7 @@ dependencies = [
  "hs-core",
  "hs-dap",
  "hs-editor",
+ "hs-git",
  "hs-lsp",
  "hs-ssh",
  "hs-term",

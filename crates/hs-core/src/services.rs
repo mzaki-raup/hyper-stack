@@ -28,6 +28,9 @@ pub struct Services {
     pub jobs: Jobs,
     pub events: EventBus,
     pub connections: Arc<RwLock<Connections>>,
+    /// The workspace's saved project list, which the Editor activity's
+    /// sidebar and Settings -> Editor both read and write.
+    pub projects: Arc<RwLock<crate::projects::Projects>>,
     pub environments: Arc<RwLock<Environments>>,
     pub secrets: Arc<dyn SecretStore>,
     pub shortcuts: Arc<RwLock<Keymap>>,

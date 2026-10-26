@@ -493,11 +493,7 @@ pub fn page(
                             ui,
                             theme,
                             state.selected.as_deref() == Some(&p.id),
-                            if cap == Capability::Chat {
-                                ph::SPARKLE
-                            } else {
-                                ph::IMAGE
-                            },
+                            provider_icon(p),
                             &p.name,
                             Some(&sub),
                         )
@@ -752,6 +748,61 @@ fn gallery(ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<AiProvider>
 const CARD_WIDTH: f32 = 236.0;
 /// The height of a card's content: a name and two rows of description.
 const CARD_HEIGHT: f32 = 68.0;
+
+/// The glyph for a **saved** provider: the mark of the gallery entry it
+/// was added from.
+///
+/// A saved provider keeps its `kind` and its endpoint, not which card
+/// made it, so this matches back: the kind narrows it, the base URL
+/// picks between the many services that share one kind (everything
+/// OpenAI-shaped is `Provider::OpenAi` - OpenAI, Mistral, DeepSeek,
+/// Moonshot, OpenRouter, LM Studio and the rest differ only in where
+/// they live).
+///
+/// Without this the list drew one glyph per *capability*, so every chat
+/// provider was the same sparkle however carefully its card had been
+/// given Google's G or the AWS mark (owner's report, 2026-10-26).
+///
+/// A provider whose endpoint has been edited by hand falls back to its
+/// capability's glyph, which is the honest answer rather than a guess at
+/// whose service it now is.
+fn provider_icon(p: &AiProvider) -> &'static str {
+    let want = normalise_base(&p.base_url);
+    let mut same_kind: Option<&Service> = None;
+    let mut seen = 0usize;
+    for (_, groups) in CATALOGUE {
+        for (_, services) in *groups {
+            for svc in *services {
+                if svc.kind != p.kind {
+                    continue;
+                }
+                if normalise_base(svc.base) == want {
+                    return svc.icon;
+                }
+                same_kind = Some(svc);
+                seen += 1;
+            }
+        }
+    }
+    // Exactly one service has this kind, so the endpoint cannot be
+    // telling us anything the kind did not already say.
+    if seen == 1
+        && let Some(svc) = same_kind
+    {
+        return svc.icon;
+    }
+    match p.kind.capability() {
+        Capability::Chat => ph::SPARKLE,
+        Capability::Image => ph::IMAGE,
+    }
+}
+
+/// Endpoints compare without a trailing slash or a difference of case:
+/// `https://api.mistral.ai/v1/` is the same service as the catalogue's
+/// `https://api.mistral.ai/v1`.
+fn normalise_base(base: &str) -> String {
+    base.trim().trim_end_matches('/').to_lowercase()
+}
 
 /// One card in the gallery: icon, brand name and a line on what it is.
 fn service_card(ui: &mut egui::Ui, theme: &Theme, s: &Services, svc: &Service) -> egui::Response {

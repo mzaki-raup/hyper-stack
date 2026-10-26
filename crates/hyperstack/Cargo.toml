@@ -21,6 +21,7 @@ hs-editor = { workspace = true }
 hs-lsp = { workspace = true }
 hs-dap = { workspace = true }
 hs-term = { workspace = true }
+hs-git = { workspace = true }
 tool-terminal = { workspace = true }
 tool-editor = { workspace = true }
 tool-ssh = { workspace = true }

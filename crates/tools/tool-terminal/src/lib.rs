@@ -145,7 +145,6 @@ pub struct TerminalTool {
     error: Option<String>,
     exit_code: Option<u32>,
     bell: bool,
-    tab_id_hint: u64,
     find: Find,
     /// Give the terminal keyboard focus on the next frame.
     pending_focus: Option<egui::Id>,
@@ -184,7 +183,6 @@ impl TerminalTool {
             error: None,
             exit_code: None,
             bell: false,
-            tab_id_hint: 0,
             find: Find::default(),
             pending_focus: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
@@ -380,7 +378,7 @@ impl TerminalTool {
         };
         let label = ui.label(egui::RichText::new(status).weak());
         if let Some(e) = &self.find.error {
-            label.on_hover_text(e.clone());
+            label.tip(e.clone());
         }
         if ui
             .button(ph::ARROW_UP)
@@ -717,40 +715,11 @@ impl Tool for TerminalTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
-        let current = self.state.profile.clone().unwrap_or_default();
-        let current_name = self
-            .profiles
-            .iter()
-            .find(|p| p.id == current)
-            .map(|p| p.name.clone())
-            .unwrap_or_else(|| s.t("terminal-profile"));
-        let profiles = self.profiles.clone();
-        let mut picked: Option<String> = None;
-        egui::ComboBox::from_id_salt(("term-profile", self.tab_id_hint))
-            .selected_text(current_name)
-            .show_ui(ui, |ui| {
-                for p in profiles.iter() {
-                    if ui.selectable_label(p.id == current, &p.name).clicked() {
-                        picked = Some(p.id.clone());
-                    }
-                }
-            });
-        if let Some(id) = picked {
-            // A new profile opens a new tab; the current session stays.
-            cx.open(
-                "terminal",
-                Some(OpenRequest::Terminal {
-                    cwd: self
-                        .state
-                        .cwd
-                        .as_ref()
-                        .map(|p| p.to_string_lossy().to_string()),
-                    host: None,
-                    profile: Some(id),
-                    command: None,
-                }),
-            );
-        }
+        // No profile picker and no size readout. The tab *is* its shell -
+        // its name and icon say which - and another one is opened from
+        // the sidebar, which is the only place that lists them; the
+        // columns and rows are a detail of the moment, not an action
+        // (owner's requirement, 2026-10-26).
         if ui
             .button(format!(
                 "{} {}",
@@ -762,15 +731,17 @@ impl Tool for TerminalTool {
             self.session = None;
             self.start(s);
         }
-        if ui.button(s.t("terminal-clear")).clicked()
+        if ui
+            .button(format!(
+                "{} {}",
+                hs_ui::icons::ph::ERASER,
+                s.t("terminal-clear")
+            ))
+            .clicked()
             && let Some(sess) = &self.session
         {
             // Clear screen and scrollback (xterm: ESC c would reset; use CSI 3J + 2J + H).
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
-        }
-        if let Some(sess) = &self.session {
-            let (c, r) = sess.size();
-            ui.label(egui::RichText::new(format!("{c}×{r}")).weak());
         }
         if self.bell {
             ui.colored_label(

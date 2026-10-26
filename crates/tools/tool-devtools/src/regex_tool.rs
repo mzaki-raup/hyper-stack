@@ -7,6 +7,7 @@
 //! syntax is RE2-like: no backreferences, no look-around; the error text
 //! from the crate says so when one is typed.
 
+use hs_ui::tip::TipExt;
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 
@@ -248,7 +249,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                                 ui.label(egui::RichText::new(&f.text).monospace());
                                 if ui
                                     .small_button(hs_ui::icons::ph::COPY)
-                                    .on_hover_text(s.t("dt-copy"))
+                                    .tip(s.t("dt-copy"))
                                     .clicked()
                                 {
                                     ui.ctx().copy_text(f.text.clone());
@@ -286,7 +287,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                         );
                         if ui
                             .small_button(hs_ui::icons::ph::COPY)
-                            .on_hover_text(s.t("dt-copy"))
+                            .tip(s.t("dt-copy"))
                             .clicked()
                         {
                             ui.ctx().copy_text(out.clone());

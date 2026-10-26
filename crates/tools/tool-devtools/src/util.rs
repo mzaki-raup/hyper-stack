@@ -2,6 +2,7 @@
 
 use hs_core::Services;
 use hs_ui::theme::Theme;
+use hs_ui::tip::TipExt;
 
 /// A labelled read-only monospace box with a Copy button.
 pub fn output(
@@ -27,7 +28,7 @@ pub fn output(
                     hs_ui::icons::ph::DOWNLOAD_SIMPLE,
                     s.t("download")
                 ))
-                .on_hover_text(s.t("dt-download-tip"))
+                .tip(s.t("dt-download-tip"))
                 .clicked()
             {
                 let ext = match label.to_ascii_lowercase().as_str() {

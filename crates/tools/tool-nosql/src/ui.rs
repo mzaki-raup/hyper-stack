@@ -631,11 +631,7 @@ impl Tool for NoSqlTool {
         if self.protected && !self.writes_unlocked {
             ui.separator();
             let label = s.i18n.t_args("nosql-protected", &[("env", &self.env_name)]);
-            if ui
-                .button(label)
-                .on_hover_text(s.t("nosql-unlock-hint"))
-                .clicked()
-            {
+            if ui.button(label).tip(s.t("nosql-unlock-hint")).clicked() {
                 self.writes_unlocked = true;
             }
         }
@@ -645,7 +641,7 @@ impl Tool for NoSqlTool {
             // the same place: hard right of the toolbar.
             if ui
                 .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .on_hover_text(s.t("ai-shared-button-tip"))
+                .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
                 self.assistant.toggle("NoSQL");
@@ -1050,16 +1046,12 @@ impl NoSqlTool {
             {
                 self.state.limit = limit;
             }
-            if ui
-                .button("‹")
-                .on_hover_text(s.t("nosql-previous"))
-                .clicked()
-            {
+            if ui.button("‹").tip(s.t("nosql-previous")).clicked() {
                 self.state.skip = (self.state.skip - limit).max(0);
                 self.run_find();
             }
             ui.label(format!("{}", self.state.skip));
-            if ui.button("›").on_hover_text(s.t("nosql-next")).clicked() {
+            if ui.button("›").tip(s.t("nosql-next")).clicked() {
                 self.state.skip += limit;
                 self.run_find();
             }

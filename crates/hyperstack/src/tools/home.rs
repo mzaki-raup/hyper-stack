@@ -18,6 +18,7 @@ use hs_core::tool::{
 use hs_ui::theme::Theme;
 
 use crate::launcher::{self, LauncherState};
+use hs_ui::tip::TipExt;
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     id: "home",
@@ -175,7 +176,7 @@ impl Tool for HomeTool {
             // screen reader and `egui_kittest` would both miss it.
             r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
             if r.on_hover_cursor(egui::CursorIcon::PointingHand)
-                .on_hover_text(&label)
+                .tip(&label)
                 .clicked()
             {
                 open = Some(id.to_string());
@@ -468,7 +469,7 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
                 fill,
                 selected,
             )
-            .on_hover_text(if selected {
+            .tip(if selected {
                 s.t("home-workspace-current")
             } else {
                 s.t("home-workspace-switch")
@@ -489,7 +490,7 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
             theme.panel_bg,
             false,
         )
-        .on_hover_text(s.t("home-new-workspace-tip"))
+        .tip(s.t("home-new-workspace-tip"))
         .clicked()
         {
             hub.requests.push(HomeRequest::NewWorkspace);

@@ -688,7 +688,7 @@ impl AiPanel {
                                         let r = ui.selectable_label(self.model == m, &m);
                                         let r = match ai::onemin_model_name(&m) {
                                             Some(name) if p.kind == ai::Provider::OneMin => {
-                                                r.on_hover_text(name)
+                                                r.tip(name)
                                             }
                                             _ => r,
                                         };
@@ -875,16 +875,12 @@ fn code_block(
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                if ui
-                    .small_button(ph::COPY)
-                    .on_hover_text(s.t("ai-copy-code"))
-                    .clicked()
-                {
+                if ui.small_button(ph::COPY).tip(s.t("ai-copy-code")).clicked() {
                     actions.push(Action::Copy(code.to_string()));
                 }
                 if ui
                     .small_button(ph::ARROW_LINE_DOWN)
-                    .on_hover_text(s.t("ai-insert-code"))
+                    .tip(s.t("ai-insert-code"))
                     .clicked()
                 {
                     actions.push(Action::Insert(code.to_string()));
@@ -940,7 +936,7 @@ fn edit_ui(
                     }
                     EditState::Failed(why) => {
                         ui.colored_label(theme.error, format!("{} {why}", s.t("ai-not-applied")))
-                            .on_hover_text(s.t("ai-not-applied-tip"));
+                            .tip(s.t("ai-not-applied-tip"));
                     }
                 }
             });

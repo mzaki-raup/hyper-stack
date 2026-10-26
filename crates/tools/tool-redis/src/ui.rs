@@ -686,11 +686,7 @@ impl Tool for RedisTool {
         if self.protected && !self.writes_unlocked {
             ui.separator();
             let label = s.i18n.t_args("redis-protected", &[("env", &self.env_name)]);
-            if ui
-                .button(label)
-                .on_hover_text(s.t("redis-unlock-hint"))
-                .clicked()
-            {
+            if ui.button(label).tip(s.t("redis-unlock-hint")).clicked() {
                 self.writes_unlocked = true;
             }
         }
@@ -700,7 +696,7 @@ impl Tool for RedisTool {
             // the same place: hard right of the toolbar.
             if ui
                 .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .on_hover_text(s.t("ai-shared-button-tip"))
+                .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
                 self.assistant.toggle("Redis");

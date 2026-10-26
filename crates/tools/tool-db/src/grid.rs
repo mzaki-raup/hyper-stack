@@ -7,6 +7,7 @@ use egui_extras::{Column as TableColumn, TableBuilder};
 use hs_ui::theme::Theme;
 
 use crate::driver::{Column, Row, Value};
+use hs_ui::tip::TipExt;
 
 /// (row count, filter, sort) the cached order was computed for.
 type OrderKey = (usize, String, Option<(usize, bool)>);
@@ -268,7 +269,7 @@ fn grid_table(
                     let r = if c.type_name.is_empty() {
                         r
                     } else {
-                        r.on_hover_text(&c.type_name)
+                        r.tip(&c.type_name)
                     };
                     if r.clicked() {
                         *new_sort = Some(match state.sort {

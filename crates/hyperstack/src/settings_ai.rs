@@ -585,7 +585,7 @@ fn prompt_buttons(
                     let open = state.prompt_editing.as_deref() == Some(b.id.as_str());
                     if ui
                         .add(egui::Button::selectable(open, &b.label))
-                        .on_hover_text(&b.prompt)
+                        .tip(&b.prompt)
                         .clicked()
                     {
                         state.prompt_editing = if open { None } else { Some(b.id.clone()) };
@@ -639,7 +639,7 @@ fn prompt_buttons(
             }
             if ui
                 .button(s.t("ai-prompts-reset"))
-                .on_hover_text(s.t("ai-prompts-reset-tip"))
+                .tip(s.t("ai-prompts-reset-tip"))
                 .clicked()
             {
                 s.settings.write().ai.prompts.reset(&activity);

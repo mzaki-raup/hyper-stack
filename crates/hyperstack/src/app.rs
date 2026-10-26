@@ -1997,7 +1997,7 @@ impl HyperStackApp {
         // A name the row could not show in full is worth a tooltip; one
         // that fits would only repeat itself.
         if elided {
-            resp.clone().on_hover_text(name);
+            resp.clone().tip(name);
         }
 
         if let Some((trash_rect, trash_resp)) = trash {

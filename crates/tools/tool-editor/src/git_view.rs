@@ -1617,7 +1617,7 @@ fn repo_header(
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(ph::GIT_BRANCH).color(theme.accent));
         ui.label(egui::RichText::new(r.name()).strong())
-            .on_hover_text(r.root.display().to_string());
+            .tip(r.root.display().to_string());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
                 .add(|ui: &mut egui::Ui| {
@@ -1656,7 +1656,7 @@ fn repo_header(
                     .selectable(false),
                 );
                 if let Some(t) = tip {
-                    l.on_hover_text(t);
+                    l.tip(t);
                 }
             }
         });
@@ -1852,7 +1852,7 @@ fn change_row(
         Some(o) => format!("{}\n\u{2190} {o}", f.path),
         None => f.path.clone(),
     };
-    resp.on_hover_text(tip)
+    resp.tip(tip)
 }
 
 fn header(
@@ -1866,7 +1866,7 @@ fn header(
     hs_ui::form::header_bar(ui, theme, |ui| {
         if ui
             .button(format!("{} {}", ph::ARROW_LEFT, s.t("git-back")))
-            .on_hover_text(s.t("git-back-tip"))
+            .tip(s.t("git-back-tip"))
             .clicked()
         {
             *back = true;
@@ -2266,11 +2266,7 @@ fn history_body(
                                         .small()
                                         .color(theme.text_muted),
                                 );
-                                if ui
-                                    .small_button(ph::COPY)
-                                    .on_hover_text(s.t("git-copy-id"))
-                                    .clicked()
-                                {
+                                if ui.small_button(ph::COPY).tip(s.t("git-copy-id")).clicked() {
                                     actions.push(GitAction::CopyPath(c.id.clone()));
                                 }
                             });

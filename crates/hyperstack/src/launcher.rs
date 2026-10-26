@@ -4,6 +4,7 @@ use egui::{CornerRadius, Vec2};
 use hs_core::Services;
 use hs_core::tool::{ToolCategory, ToolDescriptor};
 use hs_ui::theme::Theme;
+use hs_ui::tip::TipExt;
 
 #[derive(Default)]
 pub struct LauncherState {
@@ -184,10 +185,7 @@ pub fn side(
                                         "launcher-open-connection",
                                         &[("tool", &services.t(t.title_key))],
                                     );
-                                    if pill(ui, &c.name, fill, theme.text)
-                                        .on_hover_text(tip)
-                                        .clicked()
-                                    {
+                                    if pill(ui, &c.name, fill, theme.text).tip(tip).clicked() {
                                         resp.open_connection =
                                             Some((t.id.to_string(), c.id.clone()));
                                     }
@@ -197,7 +195,7 @@ pub fn side(
                                         "launcher-connection-no-tool",
                                         &[("kind", hs_core::connections::kind_label(&c.kind))],
                                     );
-                                    pill(ui, &c.name, fill, theme.text_muted).on_hover_text(tip);
+                                    pill(ui, &c.name, fill, theme.text_muted).tip(tip);
                                 }
                             }
                         }
@@ -232,7 +230,7 @@ pub fn side(
                         .wrap_mode(egui::TextWrapMode::Truncate)
                         .min_size(Vec2::new(RECENT_WIDTH, 26.0)),
                     );
-                    if r.on_hover_text(services.t("launcher-reopen")).clicked() {
+                    if r.tip(services.t("launcher-reopen")).clicked() {
                         resp.reopen_closed = Some(*idx);
                     }
                 }

@@ -21,6 +21,7 @@ use hs_ui::theme::Theme;
 
 use crate::BrowserTool;
 use crate::store::{FavFolder, FavItem, Favorite, Login};
+use hs_ui::tip::TipExt;
 
 /// Which half of the sidebar is showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -166,7 +167,7 @@ fn favorites(
     ui.horizontal(|ui| {
         if ui
             .small_button(ph::FOLDER_PLUS)
-            .on_hover_text(s.t("browser-new-folder"))
+            .tip(s.t("browser-new-folder"))
             .clicked()
         {
             acts.new_folder_in = Some(None);
@@ -426,7 +427,7 @@ fn passwords(
     ui.horizontal(|ui| {
         if ui
             .small_button(ph::PLUS)
-            .on_hover_text(s.t("browser-new-login"))
+            .tip(s.t("browser-new-login"))
             .clicked()
         {
             add = true;
@@ -725,7 +726,7 @@ pub fn detail(t: &mut BrowserTool, ui: &mut egui::Ui, cx: &mut ToolContext, them
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if hs_ui::form::icon_button(ui, theme, ph::X, 14.0, false)
-                        .on_hover_text(s.t("browser-hide-detail"))
+                        .tip(s.t("browser-hide-detail"))
                         .clicked()
                     {
                         close = true;
@@ -928,14 +929,14 @@ fn secret_field(
         if !stored.is_empty()
             && ui
                 .small_button(ph::EYE)
-                .on_hover_text(s.t("browser-reveal"))
+                .tip(s.t("browser-reveal"))
                 .clicked()
         {
             reveal = true;
         }
         if ui
             .small_button(ph::FLOPPY_DISK)
-            .on_hover_text(s.t("browser-store-secret"))
+            .tip(s.t("browser-store-secret"))
             .clicked()
         {
             store = true;
@@ -943,7 +944,7 @@ fn secret_field(
         if !stored.is_empty()
             && ui
                 .small_button(ph::TRASH)
-                .on_hover_text(s.t("browser-forget-secret"))
+                .tip(s.t("browser-forget-secret"))
                 .clicked()
         {
             clear = true;

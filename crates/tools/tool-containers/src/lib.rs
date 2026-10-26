@@ -1499,10 +1499,10 @@ impl ContainersTool {
                     egui::Button::new(s.t("cluster-exec")),
                 );
                 let exec = match &refusal {
-                    Some(why) => exec.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    Some(why) => exec.tip_disabled(docker::refusal_text(s, why)),
                     None => exec,
                 };
-                if exec.on_hover_text(s.t("cluster-exec-hint")).clicked() {
+                if exec.tip(s.t("cluster-exec-hint")).clicked() {
                     // Name the container only where there is a
                     // choice: with one, the API does not need it.
                     let container = match containers.len() {
@@ -1565,7 +1565,7 @@ impl ContainersTool {
                 !fresh && port.is_some() && !starting,
                 egui::Button::new(s.t("cluster-forward")),
             )
-            .on_hover_text(s.t("cluster-forward-hint"))
+            .tip(s.t("cluster-forward-hint"))
             .clicked()
             && let Some(port) = port
         {
@@ -1674,7 +1674,7 @@ impl ContainersTool {
     ) {
         let blocked = refusal.is_some();
         let explain = |r: egui::Response| match refusal {
-            Some(why) if blocked => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+            Some(why) if blocked => r.tip_disabled(docker::refusal_text(s, why)),
             _ => r,
         };
         // A rollout restart is the one verb here that takes nothing
@@ -1686,7 +1686,7 @@ impl ContainersTool {
                 !fresh && !blocked,
                 egui::Button::new(s.t("cluster-verb-restart")),
             ));
-            if r.on_hover_text(s.t("cluster-verb-restart-hint")).clicked() {
+            if r.tip(s.t("cluster-verb-restart-hint")).clicked() {
                 self.act_cluster(s, profile, target.clone(), cluster::Verb::Restart);
             }
         }
@@ -1705,7 +1705,7 @@ impl ContainersTool {
                 !fresh && !blocked && wanted.is_some(),
                 egui::Button::new(s.t("cluster-verb-scale")),
             ));
-            if r.on_hover_text(s.t("cluster-verb-scale-hint")).clicked()
+            if r.tip(s.t("cluster-verb-scale-hint")).clicked()
                 && let Some(n) = wanted
             {
                 self.confirm_cluster = Some((cluster::Verb::Scale(n), target.clone()));
@@ -1796,7 +1796,7 @@ impl ContainersTool {
                     !fresh && edited && !running,
                     egui::Button::new(s.t("cluster-dry-run")),
                 )
-                .on_hover_text(s.t("cluster-dry-run-hint"))
+                .tip(s.t("cluster-dry-run-hint"))
                 .clicked()
                 && let Some(text) = self.yaml_edit.clone()
             {
@@ -2489,7 +2489,7 @@ impl ContainersTool {
                 let blocked = verb.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    (Some(why), true) => r.tip_disabled(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {
@@ -2535,13 +2535,13 @@ impl ContainersTool {
                             .small()
                             .color(theme.text_muted),
                     )
-                    .on_hover_text(s.t("container-port-not-open"));
+                    .tip(s.t("container-port-not-open"));
                     continue;
                 };
                 let r = ui
                     .small_button(egui::RichText::new(p.describe()).color(theme.accent))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .on_hover_text(s.i18n.t_args("container-open-url", &[("url", &url)]));
+                    .tip(s.i18n.t_args("container-open-url", &[("url", &url)]));
                 if r.clicked() {
                     open_url(cx_actions, &url);
                 }
@@ -2789,7 +2789,7 @@ impl ContainersTool {
                 let blocked = v.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
-                    (Some(why), true) => r.on_disabled_hover_text(docker::refusal_text(s, why)),
+                    (Some(why), true) => r.tip_disabled(docker::refusal_text(s, why)),
                     _ => r,
                 };
                 if r.clicked() && !fresh {

@@ -14,6 +14,7 @@ use hs_container::{Container, Image, Network, Project, State, Volume};
 use hs_core::Services;
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
+use hs_ui::tip::TipExt;
 use serde::{Deserialize, Serialize};
 
 /// Which list the pane is showing.
@@ -196,7 +197,7 @@ pub fn resource_rail(
             let resp = if usable {
                 resp
             } else {
-                resp.on_disabled_hover_text(s.t(swarm.key()))
+                resp.tip_disabled(s.t(swarm.key()))
             };
             if resp.clicked() {
                 picked = Some(r);

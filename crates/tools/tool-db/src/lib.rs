@@ -2001,7 +2001,7 @@ impl DbTool {
                         if let (Some(b), Some(sn)) = (bytes.as_ref(), sniffed.as_ref())
                             && ui
                                 .button(format!("{} {}", ph::FLOPPY_DISK, s.t("db-cell-save")))
-                                .on_hover_text(s.t("db-cell-save-tip"))
+                                .tip(s.t("db-cell-save-tip"))
                                 .clicked()
                             && let Some(path) = rfd::FileDialog::new()
                                 .set_file_name(format!("cell.{}", sn.ext))

@@ -1281,7 +1281,7 @@ impl SshTool {
                     ui.separator();
                     if ui
                         .button(s.t("ssh-copy-file"))
-                        .on_hover_text(s.t("ssh-copy-file-tip"))
+                        .tip(s.t("ssh-copy-file-tip"))
                         .clicked()
                     {
                         self.copy_to_clipboard(s, target.clone(), e.name.clone());
@@ -1488,9 +1488,38 @@ impl SshTool {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_secs(1));
         }
+        // **Grouped by host.** A host usually carries several forwards -
+        // a database, an admin page, a metrics port - and a flat list
+        // repeated "via web-01" on each row without ever saying that the
+        // three belonged together (owner's requirement, 2026-10-26).
+        let mut by_host: Vec<(String, Vec<&TunnelInfo>)> = Vec::new();
         for t in &tunnels {
-            self.tunnel_row(ui, cx, theme, t);
-            ui.add_space(2.0);
+            match by_host.iter_mut().find(|(via, _)| *via == t.via) {
+                Some((_, rows)) => rows.push(t),
+                None => by_host.push((t.via.clone(), vec![t])),
+            }
+        }
+        for (via, rows) in &by_host {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} {via}", ph::COMPUTER_TOWER))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                );
+                hs_ui::toolbar::hard_right(ui, |ui| {
+                    ui.label(
+                        egui::RichText::new(rows.len().to_string())
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                });
+            });
+            for t in rows {
+                self.tunnel_row(ui, cx, theme, t);
+                ui.add_space(2.0);
+            }
         }
         if tunnels.is_empty() && self.tunnel_form.is_none() {
             ui.label(egui::RichText::new(s.t("ssh-tunnels-none")).weak());
@@ -1504,11 +1533,22 @@ impl SshTool {
                 .collect();
             let mut start = false;
             let mut cancel = false;
+            let mut keep_open = false;
+            // One card, a heading, and the fields in the order they are
+            // thought about: which host, which port on it, where it
+            // surfaces here.
             egui::Frame::new()
                 .fill(theme.panel_bg)
-                .inner_margin(egui::Margin::same(8))
+                .stroke(egui::Stroke::new(1.0, theme.border))
+                .inner_margin(egui::Margin::same(10))
                 .corner_radius(egui::CornerRadius::same(6))
                 .show(ui, |ui| {
+                    ui.label(
+                        egui::RichText::new(s.t("ssh-tunnel-new-title"))
+                            .strong()
+                            .size(13.0),
+                    );
+                    ui.add_space(6.0);
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-via")).weak());
                     let current = hosts
                         .iter()
@@ -1543,23 +1583,46 @@ impl SshTool {
                             .hint_text(s.t("ssh-tunnel-local-hint"))
                             .desired_width(f32::INFINITY),
                     );
+                    form::hint(ui, theme, &s.t("ssh-tunnel-local-blank-hint"));
                     if let Some(e) = &form_state.error {
+                        ui.add_space(4.0);
                         ui.colored_label(theme.error, e);
                     }
+                    ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button(s.t("ssh-tunnel-start")).clicked() {
+                        if form::primary_button(ui, theme, &s.t("ssh-tunnel-start")).clicked() {
                             start = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
-                            cancel = true;
+                        // Adding a second forward through the same host is
+                        // the common case, so the card stays open with the
+                        // host kept and only the ports to fill in.
+                        if ui
+                            .button(s.t("ssh-tunnel-add-another"))
+                            .tip(s.t("ssh-tunnel-add-another-tip"))
+                            .clicked()
+                        {
+                            start = true;
+                            keep_open = true;
                         }
+                        hs_ui::toolbar::hard_right(ui, |ui| {
+                            if ui.button(s.t("close")).clicked() {
+                                cancel = true;
+                            }
+                        });
                     });
                 });
             if start {
                 match parse_tunnel_form(form_state) {
                     Ok(spec) => {
                         s.tunnels.open(spec);
-                        self.tunnel_form = None;
+                        if keep_open {
+                            // The host stays; the ports are what differ.
+                            form_state.remote_port.clear();
+                            form_state.local_port.clear();
+                            form_state.error = None;
+                        } else {
+                            self.tunnel_form = None;
+                        }
                     }
                     Err(key) => form_state.error = Some(s.t(key)),
                 }
@@ -1633,7 +1696,7 @@ impl SshTool {
             return;
         }
         let r = if let TunnelState::Failed(_) = &t.state {
-            r.on_hover_text(detail.clone())
+            r.tip(detail.clone())
         } else {
             r
         };

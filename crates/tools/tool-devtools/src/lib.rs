@@ -261,6 +261,12 @@ impl Tool for DevtoolsTool {
     /// The icon of the utility this tab holds, from the one table the
     /// sidebar lists from - so the two can never drift apart.
     fn tab_icon(&self) -> Option<&'static str> {
+        // The dashboard holds no utility - `self.utility` is only its
+        // default there - so it keeps the activity's own icon rather
+        // than Base64's (owner's report, 2026-10-26).
+        if self.is_home {
+            return None;
+        }
         Utility::ALL
             .iter()
             .find(|(u, _, _, _)| *u == self.utility)
@@ -306,6 +312,13 @@ impl Tool for DevtoolsTool {
             .id_salt("devtools-utilities")
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                // Which utility the **active tab** holds, and a dashboard
+                // holds none. `self.utility` is only its default (Base64)
+                // there, so the row was highlighted for a tool nobody had
+                // opened, and the `!=` guard below then swallowed the
+                // click on that very row - including when a Base64 tab
+                // already existed (owner's report, 2026-10-26).
+                let current = (!self.is_home).then_some(self.utility);
                 let mut last_cat = "";
                 for (u, cat, title, icon) in Utility::ALL {
                     if cat != last_cat {
@@ -320,9 +333,9 @@ impl Tool for DevtoolsTool {
                     }
                     // Each utility has its own tab: clicking another one focuses
                     // that tab, or opens it.
-                    if form::list_row(ui, &theme, self.utility == u, icon, &s.t(title), None)
+                    if form::list_row(ui, &theme, current == Some(u), icon, &s.t(title), None)
                         .clicked()
-                        && u != self.utility
+                        && current != Some(u)
                     {
                         cx.open(
                             "devtools",

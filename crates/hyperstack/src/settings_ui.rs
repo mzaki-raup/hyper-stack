@@ -402,7 +402,7 @@ fn workspace(
                 effects.push(SettingsEffect::RunAction(format!("ws:{}", w.name)));
             }
             if !open {
-                r.on_hover_text(s.t("settings-workspace-switch-hint"));
+                r.tip(s.t("settings-workspace-switch-hint"));
             }
             ui.add_space(2.0);
         }
@@ -896,10 +896,7 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 theme,
                 egui::Slider::new(&mut limit, 1..=100).suffix(" steps"),
             );
-            if response
-                .on_hover_text(s.t("settings-undo-limit-hint"))
-                .changed()
-            {
+            if response.tip(s.t("settings-undo-limit-hint")).changed() {
                 settings.general.undo_limit = limit;
                 changed = true;
             }
@@ -1573,7 +1570,7 @@ fn appearance(
                     s.t("settings-rail-icon-outline"),
                 ),
             )
-            .on_disabled_hover_text(s.t("settings-rail-icon-outline-needs-colour"))
+            .tip_disabled(s.t("settings-rail-icon-outline-needs-colour"))
             .changed();
         form::hint(ui, theme, &s.t("settings-rail-icon-outline-hint"));
     });
@@ -1704,7 +1701,7 @@ fn appearance(
                 ui.add_enabled_ui(i > 0, |ui| {
                     if ui
                         .small_button(hs_ui::icons::ph::ARROW_UP)
-                        .on_hover_text(s.t("settings-rail-move-up"))
+                        .tip(s.t("settings-rail-move-up"))
                         .clicked()
                     {
                         moved = Some((i, i - 1));
@@ -1713,7 +1710,7 @@ fn appearance(
                 ui.add_enabled_ui(i + 1 < order.len(), |ui| {
                     if ui
                         .small_button(hs_ui::icons::ph::ARROW_DOWN)
-                        .on_hover_text(s.t("settings-rail-move-down"))
+                        .tip(s.t("settings-rail-move-down"))
                         .clicked()
                     {
                         moved = Some((i, i + 1));
@@ -2059,7 +2056,7 @@ fn environments(
                         },
                     )
                     .response
-                    .on_hover_text(s.t("env-export-hint"));
+                    .tip(s.t("env-export-hint"));
                     if ui
                         .button(format!("{} {}", hs_ui::icons::COPY, s.t("env-copy-from")))
                         .clicked()
@@ -2438,7 +2435,7 @@ fn container_list(
                 .size(14.0);
                 if ui
                     .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
-                    .on_hover_text(s.t("settings-container-add-hint"))
+                    .tip(s.t("settings-container-add-hint"))
                     .clicked()
                 {
                     let mut draft = hs_core::connections::ConnectionProfile {
@@ -2576,7 +2573,7 @@ fn container_defaults(
             form::label(ui, &s.t("settings-container-protected-read-only"));
             changed |= ui
                 .checkbox(&mut c.protected_read_only, "")
-                .on_hover_text(s.t("settings-container-protected-read-only-hint"))
+                .tip(s.t("settings-container-protected-read-only-hint"))
                 .changed();
             ui.end_row();
             form::label(ui, &s.t("settings-container-mask-secrets"));
@@ -2605,7 +2602,7 @@ fn container_defaults(
             form::label(ui, &s.t("settings-container-stream-stats"));
             changed |= ui
                 .checkbox(&mut c.stream_stats, "")
-                .on_hover_text(s.t("settings-container-stream-stats-hint"))
+                .tip(s.t("settings-container-stream-stats-hint"))
                 .changed();
             ui.end_row();
             form::label(ui, &s.t("settings-container-page-size"));
@@ -2621,7 +2618,7 @@ fn container_defaults(
             form::label(ui, &s.t("settings-container-dry-run-first"));
             changed |= ui
                 .checkbox(&mut c.apply_dry_run_first, "")
-                .on_hover_text(s.t("settings-container-dry-run-first-hint"))
+                .tip(s.t("settings-container-dry-run-first-hint"))
                 .changed();
             ui.end_row();
             form::label(ui, &s.t("settings-container-manifest-dir"));
@@ -2629,7 +2626,7 @@ fn container_defaults(
             ui.end_row();
             form::label(ui, &s.t("settings-container-exec-shell"));
             changed |= form::text_field(ui, &mut c.exec_shell, "/bin/sh")
-                .on_hover_text(s.t("settings-container-exec-shell-hint"))
+                .tip(s.t("settings-container-exec-shell-hint"))
                 .changed();
             ui.end_row();
         });
@@ -2699,7 +2696,7 @@ fn container_registries(
                                 r.is_usable(),
                                 egui::Button::new(s.t("settings-container-sign-in")),
                             )
-                            .on_disabled_hover_text(s.t("settings-container-sign-in-needs-user"))
+                            .tip_disabled(s.t("settings-container-sign-in-needs-user"))
                             .clicked()
                         {
                             sign_in = Some(i);
@@ -2769,7 +2766,7 @@ fn container_registries(
                                 !r.name.trim().is_empty() && !r.url.trim().is_empty(),
                                 egui::Button::new(s.t("settings-container-add-repo")),
                             )
-                            .on_disabled_hover_text(s.t("settings-container-add-repo-needs"))
+                            .tip_disabled(s.t("settings-container-add-repo-needs"))
                             .clicked()
                         {
                             add_repo = Some(i);
@@ -3190,7 +3187,7 @@ fn conn_detail(
         };
         if ui
             .add_enabled(can_test && !busy, egui::Button::new(label))
-            .on_disabled_hover_text(if can_test {
+            .tip_disabled(if can_test {
                 s.t("conn-test-running")
             } else {
                 s.t("conn-test-not-testable")
@@ -3204,8 +3201,8 @@ fn conn_detail(
         let can_open = crate::launcher::tool_for_kind(&draft.kind).is_some();
         if ui
             .add_enabled(can_open, egui::Button::new(s.t("conn-connect")))
-            .on_hover_text(s.t("conn-connect-tip"))
-            .on_disabled_hover_text(s.t("conn-connect-not-openable"))
+            .tip(s.t("conn-connect-tip"))
+            .tip_disabled(s.t("conn-connect-not-openable"))
             .clicked()
         {
             do_connect = true;
@@ -3461,13 +3458,11 @@ fn credentials_section(
                                     pair_width,
                                     effects,
                                 )
-                                .on_hover_text(
-                                    if r.key.is_empty() {
-                                        s.t("settings-cred-key-passphrase")
-                                    } else {
-                                        r.key.clone()
-                                    },
-                                );
+                                .tip(if r.key.is_empty() {
+                                    s.t("settings-cred-key-passphrase")
+                                } else {
+                                    r.key.clone()
+                                });
                             }
                             actions_cell(ui, s, state, r, now);
                             ui.end_row();
@@ -3581,7 +3576,7 @@ fn cred_cell(
         }
         if ui
             .small_button(hs_ui::icons::COPY)
-            .on_hover_text(s.t("dt-copy"))
+            .tip(s.t("dt-copy"))
             .clicked()
         {
             ui.ctx().copy_text(value.to_string());
@@ -3657,7 +3652,7 @@ fn secret_cell(
         });
         if ui
             .small_button(hs_ui::icons::COPY)
-            .on_hover_text(s.t("dt-copy"))
+            .tip(s.t("dt-copy"))
             .clicked()
         {
             match &shown {
@@ -3701,7 +3696,7 @@ fn actions_cell(
         };
         if ui
             .small_button(eye)
-            .on_hover_text(if revealed {
+            .tip(if revealed {
                 s.t("settings-cred-hide")
             } else {
                 s.t("settings-cred-reveal")
@@ -3722,7 +3717,7 @@ fn actions_cell(
         ui.add_space(8.0);
         if ui
             .small_button(hs_ui::icons::EDIT)
-            .on_hover_text(s.t("settings-cred-edit"))
+            .tip(s.t("settings-cred-edit"))
             .clicked()
         {
             state.ask = Some(Ask {
@@ -5506,7 +5501,7 @@ fn webdav_form(
             form::label(ui, "");
             changed |= ui
                 .checkbox(&mut f.insecure_tls, s.t("conn-insecure-tls"))
-                .on_hover_text(s.t("conn-insecure-tls-hint"))
+                .tip(s.t("conn-insecure-tls-hint"))
                 .changed();
             ui.end_row();
         });
@@ -5548,7 +5543,7 @@ fn nexus_form(
             form::label(ui, "");
             changed |= ui
                 .checkbox(&mut f.insecure_tls, s.t("conn-insecure-tls"))
-                .on_hover_text(s.t("conn-insecure-tls-hint"))
+                .tip(s.t("conn-insecure-tls-hint"))
                 .changed();
             ui.end_row();
         });
@@ -5634,7 +5629,7 @@ fn container_form(
                 form::label(ui, &s.t("conn-container-use-kubectl"));
                 changed |= ui
                     .checkbox(&mut f.use_kubectl, "")
-                    .on_hover_text(s.t("conn-container-use-kubectl-hint"))
+                    .tip(s.t("conn-container-use-kubectl-hint"))
                     .changed();
                 ui.end_row();
             });

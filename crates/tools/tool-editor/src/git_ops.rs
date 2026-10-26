@@ -869,7 +869,7 @@ pub(crate) fn box_ui(
             }
             if protected {
                 ui.label(egui::RichText::new(ph::SHIELD_WARNING).color(theme.warning))
-                    .on_hover_text(s.t("git-protected-tip"));
+                    .tip(s.t("git-protected-tip"));
             }
             stash_menu(ops, ui, s, theme, &mut out);
             branch_menu(ops, ui, s, theme, status, &mut out);
@@ -981,7 +981,7 @@ pub(crate) fn box_ui(
                     }
                 },
             );
-            mr.response.on_hover_text(s.t("git-prefix-tip"));
+            mr.response.tip(s.t("git-prefix-tip"));
         });
         ui.horizontal(|ui| {
             let can = staged > 0 && !ops.message.trim().is_empty();
@@ -1404,7 +1404,7 @@ fn stash_menu(
                         .truncate()
                         .selectable(false),
                 )
-                .on_hover_text(&st.id);
+                .tip(&st.id);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
                         .small_button(ph::TRASH)

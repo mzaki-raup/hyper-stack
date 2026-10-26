@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::crypto::{b64_encode, hex_encode};
 use crate::util;
+use hs_ui::tip::TipExt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Algo {
@@ -303,7 +304,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                         .truncate()
                                         .selectable(true),
                                     )
-                                    .on_hover_text(&text);
+                                    .tip(&text);
                                 });
                                 row.col(|ui| {
                                     ui.label(
@@ -314,7 +315,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                 row.col(|ui| {
                                     if ui
                                         .small_button(hs_ui::icons::COPY)
-                                        .on_hover_text(s.t("dt-copy"))
+                                        .tip(s.t("dt-copy"))
                                         .clicked()
                                     {
                                         ui.ctx().copy_text(text.clone());

@@ -32,6 +32,7 @@ use hs_ui::theme::Theme;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
+use hs_ui::tip::TipExt;
 use model::{
     Auth, AuthKind, Body, BodyKind, Collection, Globals, HistoryEntry, Item, Kv, PackageLibrary,
     Request,
@@ -1610,7 +1611,7 @@ impl Tool for ApiTool {
             // the same place: hard right of the toolbar.
             if ui
                 .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .on_hover_text(s.t("ai-shared-button-tip"))
+                .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
                 self.assistant.toggle("API client");

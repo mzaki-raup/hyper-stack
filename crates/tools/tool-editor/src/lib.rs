@@ -1947,7 +1947,7 @@ impl EditorTool {
                         .selectable(false)
                         .sense(egui::Sense::click()),
                     );
-                    if r.on_hover_text(s.t("editor-path-row-tip")).clicked() {
+                    if r.tip(s.t("editor-path-row-tip")).clicked() {
                         ui.ctx().copy_text(text.clone());
                     }
                 });

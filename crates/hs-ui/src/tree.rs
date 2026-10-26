@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use egui::{Align2, CornerRadius, Sense, Vec2};
 
 use crate::theme::Theme;
+use crate::tip::TipExt;
 
 /// A node icon: a font glyph (Phosphor, Nerd Font) or an embedded image such
 /// as the Material file icons in [`crate::fileicons`].
@@ -200,7 +201,7 @@ fn show_node(
                 node.tint.unwrap_or(theme.text_muted),
             );
         } else {
-            r = r.on_hover_text(b);
+            r = r.tip(b);
         }
     }
     r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &node.label));

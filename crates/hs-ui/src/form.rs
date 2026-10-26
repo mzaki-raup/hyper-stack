@@ -64,6 +64,17 @@ pub fn page_title(ui: &mut egui::Ui, theme: &Theme, title: &str, subtitle: Optio
 
 /// A card: titled, framed, with consistent padding. Content width is capped
 /// so wide windows don't stretch fields across the whole screen.
+/// How wide a card - and anything that should line up with one - may
+/// grow.
+///
+/// A settings or tool page on a wide monitor is a column of cards, not
+/// a column of full-width bars: past about this width a line of text
+/// becomes hard to track back to the next line. Anything drawn beside
+/// or between cards uses this too, or it runs to the window edge while
+/// the cards stop short and the page looks broken (owner's report,
+/// 2026-10-27).
+pub const CARD_MAX_WIDTH: f32 = 920.0;
+
 pub fn section<R>(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -76,7 +87,7 @@ pub fn section<R>(
         .corner_radius(CornerRadius::same(8))
         .inner_margin(Margin::symmetric(18, 14))
         .show(ui, |ui| {
-            ui.set_width(ui.available_width().min(920.0));
+            ui.set_width(ui.available_width().min(CARD_MAX_WIDTH));
             ui.label(RichText::new(title).size(15.0).strong());
             ui.add_space(2.0);
             ui.separator();

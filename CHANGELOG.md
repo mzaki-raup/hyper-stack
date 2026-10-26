@@ -11,6 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **A Devtools result lines up with the cards around it.** The Result
+  box and its Download and Copy buttons ran to the window edge while the
+  cards above and below stopped at the readable width, which looked
+  broken (owner's report, with a screenshot). Cards and anything drawn
+  between them now share one `form::CARD_MAX_WIDTH`, so they cannot
+  drift apart - and because every utility shares the same result
+  widget, this straightens Base64, URL, YAML, Hashes, TOML, XML, JWT,
+  Firebase, Jasypt, PKI, Cron, Regex and Text Diff with it.
+
 - **Every work pane now has its header band.** The last of them: the
   Image and Icon panes show the picture's current dimensions, its size
   and its path - and their toolbars drop the readout that used to

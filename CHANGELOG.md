@@ -11,21 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Fixed: the Editor had no dashboard.** Its home tab reported the file
-  it happened to hold, so the first file opened anywhere was routed into
-  it - and the activity then had no dashboard for the rest of the
-  workspace's life, with no way back (owner's report). A dashboard
-  answers for nothing: no uri, no affinity, no project roots and no
-  toolbar of editor verbs acting on an editor that is not there. Files
-  open in a tab beside it, as in every other activity.
-- **The Scratchpad dashboard is a page rather than a stat line.** A
-  bordered band carries the activity's icon, name and subtitle; the
-  summaries sit in rounded boxes with the figure above an icon-and-label
-  line, every box one width so they read as a row of equals; and three
-  sections follow, ruled apart - **Start Here** with New Note, **Saved
-  Notes** as a grid of clickable note buttons, and **Open Here**. The
-  pieces are shared helpers in `hs_ui::dashboard`, so the rest of the
-  activities can take the same shape without it drifting.
+- (nothing yet)
+
+## 0.93.0 — 2026-10-27
+
+### Added
+
+- Lay the Scratchpad dashboard out as a page (8f471b89)
+
+### Fixed
+
+- The Editor kept losing its dashboard (e9f926ef)
 
 ## 0.92.0 — 2026-10-26
 

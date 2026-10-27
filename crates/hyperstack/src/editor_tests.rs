@@ -171,6 +171,44 @@ fn one_tab_per_project_with_its_files_inside() {
     let tm = factory.create(s, Some(multi));
     assert_eq!(tm.title(), "beta");
     assert_eq!(tm.save_state()["projects"].as_array().unwrap().len(), 1);
+
+    // The home tab is a dashboard and answers for nothing. It used to
+    // report the file it happened to hold, which meant the first file
+    // opened anywhere landed in it - and the activity then had no
+    // dashboard for the rest of the workspace's life, with no way back
+    // (owner's report, 2026-10-27).
+    let home = json!({ "root": a, "path": a.join("a.rs") });
+    let mut th = factory.create(s, Some(home));
+    assert_eq!(
+        th.uri_affinity(&p(&a.join("a.rs"))),
+        Some(0),
+        "a working tab still answers for the file it holds"
+    );
+    th.set_home_tab(true, s);
+    assert_eq!(
+        th.current_uri(),
+        None,
+        "a dashboard shows nothing of its own"
+    );
+    assert_eq!(
+        th.uri_affinity(&p(&a.join("a.rs"))),
+        None,
+        "and claims no file, so the shell gives the file a tab beside it"
+    );
+    assert_eq!(th.uri_affinity(&p(&a)), None);
+    assert!(
+        th.project_roots().is_empty(),
+        "a dashboard holds no project, so removing one never closes it"
+    );
+    assert!(
+        !th.draws_toolbar(),
+        "and has nothing for a toolbar of editor verbs to act on"
+    );
+    assert!(
+        !th.open(file(&a.join("a.rs"), None), &mut cx),
+        "a request routed here directly is refused rather than filling the dashboard"
+    );
+
     drop(boot);
     let _ = std::fs::remove_dir_all(&tmp);
 }

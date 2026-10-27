@@ -596,3 +596,10 @@ root, language, order and the repository identity).
 - **The dashboard** carries the project count, the number of tabs open
   here, Add Project Folder and Manage Projects, the project list itself,
   and then the shared **Open Here** grid every other activity shows.
+  It is the home tab and it stays one: it reports no uri, no
+  `uri_affinity` and no project roots, and draws no toolbar, so a file
+  opened from anywhere gets a tab beside it rather than replacing the
+  dashboard. Reporting a uri was what made the Editor look as though it
+  had no dashboard at all - one file in, and it was gone for the life of
+  the workspace (owner's report, 2026-10-27; the same trap the Devtools
+  home tab fell into, recorded in CLAUDE.md).

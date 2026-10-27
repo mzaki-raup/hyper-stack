@@ -3057,6 +3057,14 @@ impl Tool for EditorTool {
         Some(hs_ui::icons::language_icon(&self.proj_lang))
     }
 
+    /// The dashboard has no file to save, no folder to close and no
+    /// terminal to open, so the strip of editor verbs above it acted on
+    /// nothing. The shell leaves the bar out entirely rather than
+    /// reserving an empty one.
+    fn draws_toolbar(&self) -> bool {
+        !self.is_home
+    }
+
     /// All three, or the activity opens a working tab with nothing in it
     /// and draws its "this has been deleted" empty state (CLAUDE.md).
     fn wants_home_tab(&self) -> bool {
@@ -3088,6 +3096,11 @@ impl Tool for EditorTool {
     }
 
     fn project_roots(&self) -> Vec<PathBuf> {
+        // The dashboard holds no project, so it is never "a tab under
+        // this root" when one is removed from the list.
+        if self.is_home {
+            return Vec::new();
+        }
         self.projects
             .iter()
             .filter_map(|p| p.root.clone())
@@ -3412,11 +3425,14 @@ impl Tool for EditorTool {
         // every later frame reads the cached answer.
         langver::ensure(&s.runtime, &self.proj_lang);
         let (theme, ed_theme) = Self::theme(s);
-        // Draw the dashboard whenever the tab has nothing open, not only
-        // when `is_home` is set: the flag arrives from the shell a beat
-        // later, and keying on it alone shows an empty state in a tab
-        // that has simply not been given anything yet (CLAUDE.md).
-        if self.is_home && self.root().is_none() && self.doc().path.is_none() {
+        // The home tab is the dashboard, full stop. Letting a file or a
+        // folder in it turn it back into an editor is what made the
+        // Editor read as having no dashboard at all: open one file and
+        // it was gone for the life of the workspace, with no way back
+        // (owner's report, 2026-10-27). The file is not lost - with no
+        // uri and no affinity below, the shell opens it in a tab beside
+        // this one, which is what every other activity does.
+        if self.is_home {
             self.dashboard(ui, cx);
             return;
         }
@@ -3909,6 +3925,9 @@ impl Tool for EditorTool {
     }
 
     fn current_uri(&self) -> Option<String> {
+        if self.is_home {
+            return None;
+        }
         self.doc()
             .path
             .as_ref()
@@ -3916,6 +3935,11 @@ impl Tool for EditorTool {
     }
 
     fn uri_affinity(&self, uri: &str) -> Option<u8> {
+        // The dashboard answers for nothing: a home tab that claims a
+        // file is handed it, and stops being a dashboard.
+        if self.is_home {
+            return None;
+        }
         let raw_path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(uri));
         let path = normalize_path(std::fs::canonicalize(&raw_path).unwrap_or(raw_path.clone()));
         if self.find_doc(&path).is_some() {
@@ -4021,6 +4045,9 @@ impl Tool for EditorTool {
     }
 
     fn open(&mut self, item: OpenRequest, cx: &mut ToolContext) -> bool {
+        if self.is_home {
+            return false;
+        }
         match item {
             OpenRequest::File { uri, line } => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));

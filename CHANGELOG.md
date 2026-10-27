@@ -11,6 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fixed: the Editor had no dashboard.** Its home tab reported the file
+  it happened to hold, so the first file opened anywhere was routed into
+  it - and the activity then had no dashboard for the rest of the
+  workspace's life, with no way back (owner's report). A dashboard
+  answers for nothing: no uri, no affinity, no project roots and no
+  toolbar of editor verbs acting on an editor that is not there. Files
+  open in a tab beside it, as in every other activity.
 - **The Scratchpad dashboard is a page rather than a stat line.** A
   bordered band carries the activity's icon, name and subtitle; the
   summaries sit in rounded boxes with the figure above an icon-and-label

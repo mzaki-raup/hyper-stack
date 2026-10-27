@@ -949,6 +949,18 @@ above). Keep each entry short: what went wrong, why, what to do instead.
   dashboard and read as a dead click. A dashboard must report no uri and
   no `uri_affinity`, and `app::open_tool_in` skips dashboards when it
   matches one.
+  **It happened again on 2026-10-27, in the Editor, and looked
+  different**: there the home tab reported whatever file it held, so the
+  first file opened anywhere was routed into it and the activity read as
+  *having no dashboard at all* - permanently, because nothing ever put
+  it back. The shell's own filters were right (it skips a dashboard home
+  in both the uri match and the affinity fallback); the tool has to
+  agree. A dashboard answers for nothing: `current_uri`, `uri_affinity`
+  and anything else the shell matches tabs on (`project_roots`) return
+  empty while the home flag is set, `draws_toolbar` is false because the
+  verbs act on a pane that is not drawn, and `ui` draws the dashboard on
+  the flag **alone** - gating it on "and nothing is open" is what let a
+  stray file take the tab over for good.
 - A nested `egui::Panel::bottom` inside a tool's column sizes itself from
   the *previous* frame, so when its content changes height (a wrapped
   row of quick-action buttons) the central area is painted underneath it

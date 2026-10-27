@@ -920,6 +920,7 @@ editor-no-projects = No projects yet. Add a folder, or manage the list in Settin
 editor-project-edit = Edit This Project Settings
 editor-dash-sub = The projects this workspace knows, and the folders you have open.
 editor-dash-projects = Projects
+editor-dash-saved = Saved Projects
 editor-column = Folder
 editor-column-tip = Show or hide the file tree and Source Control beside the editor.
 editor-no-folder = Open a folder to browse its files here. Each folder you open becomes a project with its own row of open files.

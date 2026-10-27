@@ -11,7 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **The Editor dashboard follows the Scratchpad's.** A band with the
+  activity's own mark, the Projects and Open Tabs figures in equal
+  rounded boxes, **Start Here** with Add Project Folder and Manage
+  Projects, **Saved Projects** as a grid of cells carrying the language
+  icon and the name over the folder's path, and **Open Here** - each
+  section ruled apart. The grid cell is a shared helper
+  (`hs_ui::dashboard::item_button`), because `form::list_row` reads
+  `available_width`, which inside a grid cell is whatever the column was
+  last frame.
 
 ## 0.93.0 — 2026-10-27
 

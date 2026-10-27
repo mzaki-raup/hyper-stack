@@ -229,6 +229,99 @@ pub fn stats(ui: &mut egui::Ui, theme: &Theme, stats: &[Stat<'_>]) {
     });
 }
 
+/// One entry in a dashboard's grid of things to open: the icon and the
+/// name on top, what it is underneath.
+///
+/// `form::list_row` is the same idea a row at a time, but it takes
+/// `ui.available_width()`, which inside a grid cell is whatever the
+/// column was last frame and inside a `horizontal` is unbounded
+/// (CLAUDE.md). This one is told its width, so a grid of them lines up.
+/// Both lines are truncated to fit rather than wrapping, because a cell
+/// that grows a line taller drags the whole row with it.
+pub fn item_button(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: &str,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
+    const HEIGHT: f32 = 50.0;
+    const PAD: f32 = 12.0;
+    const ICON: f32 = 18.0;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, HEIGHT), egui::Sense::click());
+    let hovered = resp.hovered();
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(
+        rect,
+        egui::CornerRadius::same(6),
+        if hovered {
+            theme.surface_hover
+        } else {
+            theme.panel_bg
+        },
+    );
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(6),
+        egui::Stroke::new(1.0, if hovered { theme.accent } else { theme.border }),
+        egui::StrokeKind::Inside,
+    );
+    let mut x = rect.left() + PAD;
+    let top = rect.top() + 16.0;
+    if !icon.is_empty() {
+        painter.text(
+            egui::pos2(x, top),
+            egui::Align2::LEFT_CENTER,
+            icon,
+            egui::FontId::proportional(ICON),
+            if hovered {
+                theme.accent
+            } else {
+                theme.text_muted
+            },
+        );
+        x += ICON + 8.0;
+    }
+    let text_width = (rect.right() - PAD - x).max(16.0);
+    painter.galley(
+        egui::pos2(x, top - 8.0),
+        one_line(ui, title, 14.0, theme.text, text_width),
+        theme.text,
+    );
+    if !subtitle.is_empty() {
+        painter.galley(
+            egui::pos2(x, rect.top() + 28.0),
+            one_line(ui, subtitle, 11.5, theme.text_muted, text_width),
+            theme.text_muted,
+        );
+    }
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, title));
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// Lay `text` out on exactly one line, ending in an ellipsis when it
+/// does not fit.
+fn one_line(
+    ui: &mut egui::Ui,
+    text: &str,
+    size: f32,
+    colour: egui::Color32,
+    width: f32,
+) -> std::sync::Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::single_section(
+        text.to_string(),
+        egui::TextFormat::simple(egui::FontId::proportional(size), colour),
+    );
+    job.wrap = egui::text::TextWrapping {
+        max_width: width,
+        max_rows: 1,
+        break_anywhere: true,
+        overflow_character: Some('…'),
+    };
+    ui.fonts_mut(|f| f.layout_job(job))
+}
+
 /// The Open Here grid under its own section heading, for a dashboard
 /// built from the pieces above. Returns the tab the user asked to go to.
 pub fn open_tabs_section(

@@ -593,9 +593,12 @@ root, language, order and the repository identity).
   sidebar row and the header band's `Version : Rust 1.89.0` fact
   (`tool-editor::langver`, which asks the toolchain once per session on
   the blocking pool).
-- **The dashboard** carries the project count, the number of tabs open
-  here, Add Project Folder and Manage Projects, the project list itself,
-  and then the shared **Open Here** grid every other activity shows.
+- **The dashboard** is laid out as the Scratchpad's is (2026-10-27): a
+  band with the activity's mark, name and subtitle; the **Projects** and
+  **Open Tabs** figures in equal rounded boxes; **Start Here** with Add
+  Project Folder and Manage Projects; **Saved Projects**, every project
+  a cell in a grid carrying its language icon and name over the folder's
+  path; and the shared **Open Here** grid - each section ruled apart.
   It is the home tab and it stays one: it reports no uri, no
   `uri_affinity` and no project roots, and draws no toolbar, so a file
   opened from anywhere gets a tab beside it rather than replacing the

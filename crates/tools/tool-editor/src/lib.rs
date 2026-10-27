@@ -2665,6 +2665,10 @@ impl EditorTool {
 
     /// The activity's dashboard: what this workspace has, and a card per
     /// project to open it.
+    /// The activity's home page, laid out as the Scratchpad's is: a
+    /// band, the figures, and a section per thing a reader might want to
+    /// do - start a project, open a saved one, or go back to one already
+    /// open (owner's requirement, 2026-10-27).
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
@@ -2682,95 +2686,156 @@ impl EditorTool {
                 )
             })
             .collect();
-        let open_here = s.open_tabs.projects().len();
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-editor"),
-            Some(&s.t("editor-dash-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &projects.len().to_string(),
-                &s.t("editor-dash-projects"),
-            );
-            hs_ui::dashboard::stat(ui, &theme, &open_here.to_string(), &s.t("dash-open-tabs"));
-        });
-        ui.add_space(6.0);
-        // Adding a folder has to be reachable from the dashboard too: it
-        // is the first thing someone sees in an empty workspace, and
-        // sending them to the sidebar or to Settings to get started
-        // would be the long way round.
+        let tabs = s.open_tabs.of("editor");
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
         let mut add = false;
-        ui.horizontal(|ui| {
-            if hs_ui::form::primary_button(
-                ui,
-                &theme,
-                &format!("{} {}", ph::FOLDER_PLUS, s.t("editor-add-project")),
-            )
-            .clicked()
-            {
-                add = true;
-            }
-            if ui
-                .button(format!("{} {}", ph::GEAR, s.t("editor-manage-projects")))
-                .clicked()
-            {
-                cx.actions.push(hs_core::tool::Action::RunCommand {
-                    id: "settings:editor".into(),
-                });
-            }
-        });
-        if add && let Some(root) = rfd::FileDialog::new().pick_folder() {
-            self.add_project_folder(&root, cx);
-            return;
-        }
-        ui.add_space(8.0);
+        let mut manage = false;
+        let mut open: Option<String> = None;
+        let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt(self.id.with("dashboard"))
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                hs_ui::dashboard::head(
+                    ui,
+                    &theme,
+                    // The activity's own mark, the one the rail shows -
+                    // not the workspace glyph the *tab* wears.
+                    DESCRIPTOR.icon,
+                    &s.t("tool-editor"),
+                    &s.t("editor-dash-sub"),
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::stats(
+                    ui,
+                    &theme,
+                    &[
+                        hs_ui::dashboard::Stat {
+                            icon: ph::FOLDER,
+                            value: &projects.len().to_string(),
+                            label: &s.t("editor-dash-projects"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::COLUMNS,
+                            value: &s.open_tabs.projects().len().to_string(),
+                            label: &s.t("dash-open-tabs"),
+                        },
+                    ],
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    ph::FOLDER_PLUS,
+                                    s.t("editor-add-project")
+                                ))
+                                .size(14.0),
+                            )
+                            .min_size(egui::vec2(200.0, 32.0))
+                            .fill(theme.accent),
+                        )
+                        .clicked()
+                    {
+                        add = true;
+                    }
+                    ui.add_space(8.0);
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    ph::GEAR,
+                                    s.t("editor-manage-projects")
+                                ))
+                                .size(14.0),
+                            )
+                            .min_size(egui::vec2(200.0, 32.0)),
+                        )
+                        .clicked()
+                    {
+                        manage = true;
+                    }
+                });
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("editor-dash-saved"));
                 if projects.is_empty() {
-                    hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("editor-no-projects"));
-                    return;
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("editor-no-projects"));
+                    });
+                } else {
+                    // A grid of equal cells rather than a column of rows:
+                    // a project is a name and a path, which is narrow,
+                    // and one per row left most of a wide pane empty.
+                    const CELL: f32 = 300.0;
+                    let spacing = ui.spacing().item_spacing.x;
+                    let avail = (ui.available_width() - 32.0).max(CELL);
+                    let columns = (((avail + spacing) / (CELL + spacing)).floor() as usize).max(1);
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        egui::Grid::new("editor-saved-projects")
+                            .num_columns(columns)
+                            .spacing([spacing, spacing])
+                            .show(ui, |ui| {
+                                for (i, (id, name, path, icon)) in projects.iter().enumerate() {
+                                    if hs_ui::dashboard::item_button(
+                                        ui, &theme, icon, name, path, CELL,
+                                    )
+                                    .clicked()
+                                    {
+                                        open = Some(id.clone());
+                                    }
+                                    if (i + 1) % columns == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    });
                 }
-                let mut open: Option<String> = None;
-                for (id, name, path, icon) in &projects {
-                    if hs_ui::form::list_row(ui, &theme, false, icon, name, Some(path)).clicked() {
-                        open = Some(id.clone());
-                    }
-                    ui.add_space(2.0);
+                hs_ui::dashboard::rule(ui, &theme);
+
+                if let Some(id) = hs_ui::dashboard::open_tabs_section(ui, &theme, &tabs, &labels) {
+                    focus = Some(id);
                 }
-                if let Some(id) = open {
-                    let root = s.projects.read().by_id(&id).map(|p| p.root.clone());
-                    if let Some(root) = root {
-                        cx.open(
-                            "editor",
-                            Some(OpenRequest::File {
-                                uri: root.to_string_lossy().to_string(),
-                                line: None,
-                            }),
-                        );
-                    }
-                }
-                // The shared Open Here grid, as every other activity's
-                // dashboard shows it: the project list above says what
-                // could be opened, this says what already is and takes
-                // the reader back to it (owner's rule on one UI
-                // language, 2026-10-20; asked for here 2026-10-27).
-                let tabs = s.open_tabs.of("editor");
-                let labels = hs_ui::dashboard::DashboardLabels {
-                    open_heading: &s.t("dash-open"),
-                    nothing_open: &s.t("dash-nothing-open"),
-                    no_preview: &s.t("dash-no-preview"),
-                };
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
+                ui.add_space(8.0);
             });
+        if manage {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: "settings:editor".into(),
+            });
+        }
+        if let Some(id) = open {
+            let root = s.projects.read().by_id(&id).map(|p| p.root.clone());
+            if let Some(root) = root {
+                cx.open(
+                    "editor",
+                    Some(OpenRequest::File {
+                        uri: root.to_string_lossy().to_string(),
+                        line: None,
+                    }),
+                );
+            }
+        }
+        if let Some(tab_id) = focus {
+            cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+        }
+        // Last, because the dialog blocks and anything after it would be
+        // drawing into a frame the user has been away from.
+        if add && let Some(root) = rfd::FileDialog::new().pick_folder() {
+            self.add_project_folder(&root, cx);
+        }
     }
 
     /// Add `root` as a project (or find it) and make it the one new files go to.

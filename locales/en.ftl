@@ -3083,6 +3083,8 @@ dt-unit-w = Weeks
 
 # Activity home tabs (dashboards)
 dash-open = Open Here
+dash-start-here = Start Here
+dash-saved-notes = Saved Notes
 dash-nothing-open = Nothing open yet. Pick one in the sidebar to open it in a tab.
 dash-no-preview = Not opened yet
 dash-connections = Connections

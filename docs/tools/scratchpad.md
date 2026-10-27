@@ -42,6 +42,16 @@ saved travels in the layout as a draft.
   the right (`hs_editor::markdown::render`: headings, lists, `- [ ]`
   checklists, tables, code, Mermaid diagrams), split by a draggable
   divider.
+- **Dashboard** (the activity's home tab, reworked 2026-10-27): a
+  bordered band carrying the icon, the name and the subtitle; a rule;
+  the **summaries** - Notes and Open Tabs - each in a rounded box with
+  the figure above an icon-and-label line, every box one width taken
+  from the widest of them; a rule; **Start Here** with the New Note
+  button; a rule; **Saved Notes**, every note a clickable button in a
+  grid sized to the pane; a rule; and **Open Here**, the shared grid of
+  tabs. The furniture is `hs_ui::dashboard` (`head`, `rule`, `section`,
+  `Stat`/`stats`, `open_tabs_section`) so the other activities can take
+  the same shape without it drifting apart.
 
 ## 4. AI assistant
 

@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **The Scratchpad dashboard is a page rather than a stat line.** A
+  bordered band carries the activity's icon, name and subtitle; the
+  summaries sit in rounded boxes with the figure above an icon-and-label
+  line, every box one width so they read as a row of equals; and three
+  sections follow, ruled apart - **Start Here** with New Note, **Saved
+  Notes** as a grid of clickable note buttons, and **Open Here**. The
+  pieces are shared helpers in `hs_ui::dashboard`, so the rest of the
+  activities can take the same shape without it drifting.
 
 ## 0.92.0 — 2026-10-26
 

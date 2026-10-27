@@ -247,35 +247,152 @@ fn when(t: SystemTime) -> String {
 impl Scratchpad {
     /// The home tab: what this activity has open, with the last picture of
     /// each pane. Owner's requirement, 2026-10-17.
+    /// The activity's home page: a band, the figures, and then one
+    /// section per thing a reader might want to do here - start a note,
+    /// open a saved one, or go back to a note already open (owner's
+    /// requirement, 2026-10-27).
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
-        let count = self.notes.len();
+        // The dashboard is the one surface that shows the whole list, so
+        // it has to be looking at a current one.
+        if self.scanned.is_none_or(|t| t.elapsed() > RESCAN_EVERY) {
+            self.rescan(s);
+        }
+        let notes = self.notes.clone();
         let tabs = s.open_tabs.of("scratchpad");
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-scratchpad"),
-            Some(&s.t("scratchpad-dashboard-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-notes"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
+        let untitled = s.t("scratchpad-untitled");
+        let mut new_note = false;
+        let mut open: Option<String> = None;
+        let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt("scratchpad-dashboard")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                hs_ui::dashboard::head(
+                    ui,
+                    &theme,
+                    ph::NOTE_PENCIL,
+                    &s.t("tool-scratchpad"),
+                    &s.t("scratchpad-dashboard-sub"),
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::stats(
+                    ui,
+                    &theme,
+                    &[
+                        hs_ui::dashboard::Stat {
+                            icon: ph::NOTE,
+                            value: &notes.len().to_string(),
+                            label: &s.t("dash-notes"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::COLUMNS,
+                            value: &tabs.len().to_string(),
+                            label: &s.t("dash-open-tabs"),
+                        },
+                    ],
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    ph::PLUS,
+                                    s.t("scratchpad-new")
+                                ))
+                                .size(14.0),
+                            )
+                            .min_size(egui::vec2(170.0, 32.0))
+                            .fill(theme.accent),
+                        )
+                        .tip(s.t("scratchpad-new-tip"))
+                        .clicked()
+                    {
+                        new_note = true;
+                    }
+                });
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-saved-notes"));
+                if notes.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        form::hint(ui, &theme, &s.t("scratchpad-empty"));
+                    });
+                } else {
+                    // A grid of equal buttons rather than a column of
+                    // rows: the names are short and a single column
+                    // would leave most of a wide pane empty.
+                    const BUTTON: f32 = 230.0;
+                    let spacing = ui.spacing().item_spacing.x;
+                    let avail = (ui.available_width() - 32.0).max(BUTTON);
+                    let columns =
+                        (((avail + spacing) / (BUTTON + spacing)).floor() as usize).max(1);
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        egui::Grid::new("scratchpad-saved-notes")
+                            .num_columns(columns)
+                            .spacing([spacing, spacing])
+                            .show(ui, |ui| {
+                                for (i, n) in notes.iter().enumerate() {
+                                    let title = if n.title.is_empty() {
+                                        untitled.as_str()
+                                    } else {
+                                        n.title.as_str()
+                                    };
+                                    let icon = if n.pinned { ph::PUSH_PIN } else { ph::NOTE };
+                                    if ui
+                                        .add(
+                                            egui::Button::new(format!("{icon}  {title}"))
+                                                .min_size(egui::vec2(BUTTON, 30.0))
+                                                .wrap_mode(egui::TextWrapMode::Truncate),
+                                        )
+                                        .tip(when(n.modified))
+                                        .clicked()
+                                    {
+                                        open = Some(n.id.clone());
+                                    }
+                                    if (i + 1) % columns == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                    });
                 }
+                hs_ui::dashboard::rule(ui, &theme);
+
+                if let Some(id) = hs_ui::dashboard::open_tabs_section(ui, &theme, &tabs, &labels) {
+                    focus = Some(id);
+                }
+                ui.add_space(8.0);
             });
+        if new_note {
+            cx.open_new_tab("scratchpad", None);
+        }
+        if let Some(id) = open {
+            cx.open(
+                "scratchpad",
+                Some(OpenRequest::File {
+                    uri: format!("note://{id}"),
+                    line: None,
+                }),
+            );
+        }
+        if let Some(tab_id) = focus {
+            cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+        }
     }
 
     fn rescan(&mut self, s: &Services) {

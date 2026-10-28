@@ -1,0 +1,204 @@
+# GOTCHAS.md
+
+Known mistakes and their fixes. Read the section for your area before starting work, and add new entries under the matching heading as `- [YYYY-MM-DD] Symptom → Correct approach`.
+
+## Git, Merges and Releases
+
+- **Commit gates must check exit codes.** `cargo clippy ... | grep ... ; git commit` committed code with lint errors. Use `cargo clippy ... >/dev/null 2>&1 && git commit`, not a check on printed output.
+- **Never use `--no-verify` or `--no-gpg-sign`.** If GPG signing fails, fix the agent (see the gpg-agent note below). Don't bypass it.
+- **gpg-agent cache.** `%APPDATA%\gnupg\gpg-agent.conf` sets `default-cache-ttl 14400`. The agent re-reads it only after `gpgconf --reload gpg-agent`. `gpgconf --kill gpg-agent` drops the cache.
+- **CHANGELOG conflict markers.** A merge of `vX.Y.Z` into a feature branch left `<<<<<<<`, `=======`, and `>>>>>>>` in `CHANGELOG.md` for five releases, and nothing caught it. Run `grep -n '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md` before any merge commit. CI now fails on markers in tracked text.
+- **Resolving a CHANGELOG conflict.** Never keep "both". The released section belongs to the release workflow, so keep its generated text as is. Unreleased keeps only items not yet released. Confirm with `grep -c '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md` (must print `0`).
+- **Writing Unreleased notes before a release lands** guarantees that conflict. Expect it, and resolve it as above.
+- **New workspace member on a branch + merged release bump.** `update-version.ps1` can't see a crate that exists only on the branch, so `Cargo.lock` keeps its old version and every `--locked` command fails with "cannot update the lock file". Run a plain `cargo check`, then commit the one-line lock fix. The release job may already have tagged `main`.
+- **Diff base.** `git diff <base>..HEAD` for "the last N days" needs the right base commit. A wrong base produced empty diffs for six crates in review.
+- **Fluent/English locale** is the source for all visible strings. Edit `locales/en.ftl` with the Edit tool, never a heredoc. (See Patch Scripts.)
+
+## Release Pipeline and Updater
+
+- **Asset names are a contract** with `hs-core::update`. Don't rename `HyperStack.exe`, `HyperStack-<version>-windows-x64.zip`, `manifest.json`, `manifest.json.minisig`, `SHA256SUMS.txt`, or `CHANGELOG-<version>.md`.
+- **Release job OOM (run 79)** happened while the runner was busy. Keep release builds separate from other heavy jobs.
+- **`wry::WebView::open_devtools`** exists only with `debug_assertions` or the `devtools` feature. Debug builds, clippy, and tests pass without it. Only the CI release build fails (run 61). The binary enables `features = ["devtools"]`. Check with `cargo build --release --locked -p hyperstack` before pushing.
+- **Renaming a running exe** is allowed on the same volume. Overwriting it is not. The updater renames old → moves new → relaunches, so keep `HyperStackData/update/` on the same volume as the exe.
+- **Updater downloads the zip.** The bare exe is over the forge edge's 100 MB limit, so the updater downloads the release zip and extracts the exe from it.
+- **Runner `%TEMP%` is upper case.** The runner service uses `C:\WINDOWS\SystemTemp` (LocalSystem), but `canonicalize` returns `C:\Windows\…`. Build expected paths from the canonical folder, or compare case-insensitively (see `crates/hyperstack/src/editor_tests.rs`).
+- **Tag and mirror.** The release job's last step fast-forwards GitHub to the version commit (never forced), pushes the tag, and dispatches GitHub's workflow. Never set a Forgejo push mirror while GitHub is writable.
+- **Changes made on GitHub** come back with `scripts/sync-from-github.ps1` (fast-forward only).
+- **Every GitHub job** is guarded with `if: github.server_url == 'https://github.com'`. Forgejo Actions also reads `.github/workflows/` and can't fetch published actions.
+- **Release notes** are generated from commit subjects. Hand-edit only the Unreleased section.
+
+## Patch Scripts and Text Editing
+
+- **Re-running a half-applied patch duplicates work** (two `LspStatus` definitions, two toolbar blocks). Make each step idempotent: test for a marker that exists only after that step. Don't test the first line of the replacement, since it usually appears in the anchor too. Write each step to disk as it succeeds.
+- **`grep -c` the markers after any re-run.** Checking "new text present" isn't enough when the new text starts with the old text.
+- **Unicode escapes in Python.** `\u{b7}` or `\u{2192}` in a Python string is an error ("truncated \uXXXX escape"). Put the character itself in the text, or build it with `chr()`. Doubling the backslash writes a literal `\\u` into Rust, which compiles to the wrong thing.
+- **Windows paths in Python.** Use raw strings (`r"C:\Users\..."`). `"C:\Users"` fails on `\U`.
+- **Windows paths in TOML.** Use single-quoted literal strings (`kubeconfig_path = 'C:\Users\...'`). A double-quoted TOML string processes `\U`, and an invalid escape fails the whole file. The symptom was only "skipping connection …: TOML parse error" and a profile that never appeared.
+- **Heredocs.** Use `<<'EOF'` (quoted). An unquoted heredoc expands `` `backticks` `` (blanking names in doc comments) and `$name` (turning Fluent text into `Remove { }?`, a parse error that dropped the whole message). Better still, write the script to a file with the Write tool and run it.
+- **`the_bundled_locale_parses_without_junk`** fails the gate on bad Fluent entries. A locale error otherwise shows only as "locale en has 1 syntax errors" in the log.
+- **Quoting accidents.** Two lost patches came from quoting, not logic. Write scripts to files.
+
+## Windows Environment and Build
+
+- **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions.
+- **`LNK1140: limit exceeded for program database`.** The PDB outgrew its format limit. No code change causes or fixes it. Don't set `CARGO_PROFILE_DEV_DEBUG=0` on the command line. That changes every fingerprint, rebuilds the whole workspace, and fills D: quickly. If it recurs, set the debug level in `Cargo.toml` so the fingerprint is stable.
+- **Paging file exhaustion.** `cargo test --workspace` can fail with "the paging file is too small" (os error 1455), then "found invalid metadata files for crate …" on every later run. The parallel build exhausts the commit limit, not RAM. Delete `target/debug` and use `-j 4`. A rustc killed mid-write leaves corrupt `.rmeta`/`.rlib` files.
+- **Two cargo invocations on one target folder** serialise on the build lock.
+- **A background `cargo test` started before a new crate is registered** fails on the missing module. Re-run after registering.
+- **DSH Windows sandbox** can fail with `SetNamedSecurityInfoW … grantWrite` or `sandbox-local windows-acl temp grant materialization failed`. Don't widen the workspace or edit ACLs by hand. Run the `diagnose-windows-sandbox-acl` skill on the failing path and on `%TEMP%`.
+- **Resolving a command on PATH.** On Windows only, resolve through PATHEXT. Never fall back to the bare name, since a file with no extension can't be started ("%1 is not a valid Win32 application"). `jdtls` shipped both `bin/jdtls` (Python) and `bin/jdtls.bat`, and the bare path won.
+- **Refreshing PATH.** A process keeps the PATH it started with. `hs_core::env_path::refresh` re-reads `HKCU\Environment` and the machine's `Session Manager\Environment` (expanding `REG_EXPAND_SZ`). Settings → Editor → Refresh Status calls it. Never `std::env::set_var("PATH", ...)`: it's unsound while other threads read the environment. Keep the value beside it, and have lookups ask for it.
+- **Canonical paths.** `std::fs::canonicalize` adds a `\\?\` prefix. Strip it before storing or comparing editor project roots, or saved paths and URIs stop matching.
+- **Child windows.** Windows Explorer or other installs made while HyperStack is open are invisible until restart. The same applies to tools installed while a shell was open.
+- **No console windows.** An internal command with a bare `std::process::Command::new` flashes a console. Use `hs_core::paths::background_command` (sets `CREATE_NO_WINDOW`). The microphone, Read Aloud, and the updater's `tasklist` probe all did this until 2026-10-24.
+- **Deliberate OS hand-offs** (`explorer`, `open`, `xdg-open` for Reveal in Explorer, and the updater relaunching the app) are the only commands allowed to open things outside the app.
+- **Clipboard files (CF_HDROP).** A Windows file list is a 20-byte `DROPFILES` header followed by UTF-16 paths, each NUL-terminated, with an extra NUL ending the list. It carries paths, not bytes. "Copy a remote file" must download to `HyperStackData/tmp/` first (cleared at start). See `hs_core::clipboard_files`.
+- **Global shortcuts.** Ctrl+Shift+L is `vault.lock`. The editor uses Alt+F3 for select-all-occurrences. Pick a different combo when there's a collision.
+- **Release build fails with "Access is denied".** A running `HyperStack.exe` keeps its own file locked. Run `Stop-Process -Name HyperStack -Force` before `cargo build --release`. During development, always use `--data-dir ./tmp-data` so the real `HyperStackData/` is never touched.
+
+## Build and Dependency Gotchas (Rust)
+
+- **Edition 2024 reserved keyword.** `gen` fails to parse ("expected identifier, found reserved keyword"), which broke 18 places from one field. Name it `generate`.
+- **`egui::Id::new(x)`** needs `x: Hash + Debug`. A helper taking `id_salt: impl Hash` must add `+ std::fmt::Debug`, or use `Id::new(base).with(salt)`.
+- **Items after a test module.** Appending functions to a file puts them after `#[cfg(test)] mod tests`, which clippy refuses ("items after a test module"). Insert before the test module. `cat >>` is safe only for files without one.
+- **`serde_json::Value::Object` is a sorted map.** Field order is lost. The JSON tree can't keep order without `preserve_order`, which would change every tool's JSON. For JWTs, re-serialising changes the signature input. Compact the user's text instead (`jwt::compact_json`).
+- **rust-embed.** `#[include]` and `#[exclude]` need the `include-exclude` feature. Without it the derive fails silently, and every `Locales::get` call reports "no associated function".
+- **bson extended JSON.** `Bson::try_from(serde_json::Value)` and `into_relaxed_extjson` need bson's `serde_json-1` feature, which the driver doesn't enable. Depend on `bson` directly with that feature.
+- **mysql_async + rustls.** `ClientConfig::builder()` panics when two crypto providers are compiled in (reqwest brings aws-lc-rs, the app uses ring). Install ring as the process default once before connecting (`driver::mysql::install_crypto_provider`).
+- **reqwest.** The workspace reqwest has no `form` or `multipart` feature. `send::form_body` and `send::multipart` build the bodies by hand.
+- **russh-sftp `write()`** opens with `WRITE` only and fails on a file that doesn't exist. Use `create()` (`CREATE | TRUNCATE | WRITE`).
+- **Boa (JavaScript).** Native closures must be `Copy`. Host state goes through a `thread_local!` record (`script::HOST`), written before `run` and read after. `JsValue::to_json` needs `&mut Context`. Strings come out as `to_std_string_escaped()`.
+- **`Tool` is `Send`.** A per-frame cache on tool state must be `Arc`, not `Rc`.
+- **`wry` is a Windows-only dependency** of the binary (`[target.'cfg(windows)'.dependencies]`). The tool crate must stay free of platform code so Linux clippy passes.
+
+## Clippy and Lints
+
+- **Don't let lints pile up.** Fix them, or use a scoped `#[allow(...)]` with a reason. Never a crate-wide allow.
+- **Clippy must pass with `-D warnings`** on every crate, including Linux.
+
+## Shell and UI Layout (egui)
+
+- **Shell (2026-10-15).** The first tab of an activity becomes its home tab (`TabSpace::open` asks first). A dashboard home draws whatever it was given, so an `OpenTool` request into an activity the user had never opened was silently dropped ("View Logs" showed the Logs dashboard, not the source). `open_tool_in` now lets the first tab be the dashboard and opens a working tab beside it. Test cross-tool handoffs against a fresh workspace.
+- **Theme.** `Theme::apply` used to call `ctx.set_visuals`, which writes only the visuals slot of egui's current theme. With `ThemePreference::System`, Windows 10 reports the theme after the first frame, egui switched to default light visuals, and a saved dark scheme looked lost. Use `hs_ui::theme::install`. Pin the preference with `ctx.set_theme` and fill both slots with `set_visuals_of`. Never call `set_visuals` directly.
+- **Mandatory tabs.** Home and Settings are pinned tabs (`app::MANDATORY`). They're stripped from saved layouts and re-created by `ensure_mandatory_tabs`. Anything that counts, closes, or unpins tabs must skip them.
+- **Tab titles.** `title()` is asked every frame and gets no `Services`, so `Action::SetTitle` is overwritten the moment it lands. A tab whose label comes from a stored profile must keep the name in its own saved state.
+- **`hard_right` is only for toolbars.** `hs_ui::toolbar::hard_right` draws into a corner the shell reserves in `ui.data`. Called anywhere else (for example a settings form right-aligning Remove), it draws into the wrong toolbar and lays out the page around a widget that isn't there. The symptom was the Project List card rendering as an empty rectangle. The shell now clears the marker after each toolbar, so a stray call falls back to inline layout. Use a plain `with_layout(right_to_left)` in forms.
+- **`hard_right` in tool toolbars.** The shell uses `horizontal_wrapped`, so a bare `with_layout(right_to_left)` in a hard-right group only gets the width left on the current row. The AI assistant control vanished first in a narrow window. Use `hs_ui::toolbar::hard_right`.
+- **Panel width.** Tie `size_range`'s upper bound to `available_width()` and give way below a floor. Three stacked minimums (props + source + assistant = 800 px in the diagram editor) left the canvas at zero.
+- **`horizontal_wrapped` and frames.** It wraps on the size a widget reports before drawing, so a row of `egui::Frame` cards runs past the panel. A nested `Ui` in a horizontal layout is unbounded too. Give the column a real width with `set_width` and compute the columns yourself: `floor((w + spacing) / (card + spacing))`. `ui.horizontal` centres items vertically, so unequal-height cards stagger. Use `horizontal_top`.
+- **Escape drops focus.** egui drops keyboard focus on Escape before the tool runs, even when the tool consumes the key (closing a completion list). Request focus for the editor again after handling it.
+- **`request_focus()` every frame** re-grants focus, and the field then never reports `lost_focus()` after Enter. Request it once, when nothing else has focus.
+- **Plurals.** Fluent `[one]` selectors don't match string arguments. `I18n::t_args` passes canonical integers as numbers, so "1 row" and "1 tab" work. Non-canonical text ("007", "0.12.1") stays text.
+- **Double layout passes.** egui lays a frame out twice when a panel's size changes (`request_discard`). `Response::clicked()` is pointer state, so the second pass sees the same click. A detail block that appears on a click therefore receives that click. Selecting a Compose project ran `config`, and the same path on the container list would have reached Remove. Store `ui.input(|i| i.time)` when the selection changes, and refuse verb clicks while it matches. Any pane where selecting a row reveals buttons needs this.
+- **Buttons that re-fill their own input** (assistant quick actions) fire twice. Dedupe by `ui.input(|i| i.time)`, which is the same value in both passes. Key events don't repeat. Clicks do.
+- **Output belongs to what produced it.** The Compose output block survived a selection change, so one project's `config` appeared under the next. Clear output when the selection changes.
+- **Drag thresholds.** `Response::drag_started()` fires only once the pointer passes egui's drag threshold. `interact_pointer_pos()` is then a few pixels from where the button went down. Hit-test grips and handles with `ui.input(|i| i.pointer.press_origin())`. Otherwise an edge drag reads as "move". The same applies to range selections on a strip (`tool-graphics::crop_overlay`, `tool-logs` chart).
+- **Never nest context locks.** `ui.data_mut(|d| … ui.input(|i| …))` takes the write lock twice. In a debug build epaint panics after ten seconds ("Failed to acquire RwLock write"). Read `ui.input` into a local first, then call `data_mut`.
+- **Double-click tests.** `egui_kittest` synthetic clicks (and raw pointer events) never form a double-click. Cover double-click paths in the running app.
+- **Colour blending.** `Color32` is premultiplied. Composite with `base * (1 - a) + over`, not `base * (1 - a) + over * a`. The old `hs_term::widget::blend` dimmed overlays twice, leaving selection and search hits barely visible (fixed 2026-10-16).
+- **Caching derived data.** An immediate-mode `ui()` that recomputes each frame hides until data grows: `layout_approx` on a 500-node diagram, a Myers diff of two pasted configs, a regex with a 4 MiB DFA budget. Cache on a hash of the inputs (`diagram::fingerprint`, `input_key`). Test with a large document.
+- **Icons.** Check a Nerd Font glyph by looking at it. The codepoint being in the font says nothing about the picture. `U+EBCA` is a cube in JetBrains Mono, not a terminal. `U+E7B0` is a thin unrelated mark, not Docker. Run `scratchpad/collide.py` before choosing a glyph, then look at the result. Use the glyph checks on screen before shipping.
+- **Shortcuts and text input.** `egui-winit` turns Ctrl+V, Ctrl+Shift+V, Shift+Insert into `Event::Paste` and Ctrl+C/X into `Copy`/`Cut` before key handling. Never bind them as shortcuts. The Markdown preview is Ctrl+Shift+M for that reason.
+- **Global shortcuts win over tool keys.** `run_action` forwards unknown action ids (`file.save`, `file.open`) to the active tool's `run_command`. A tool must not handle the same combo itself.
+- **Right-click copy/paste** must work in the terminal and every text field we draw, per the PuTTY convention.
+- **Ctrl+Shift+Enter in wrapped text fields** is unreliable with egui. Test it in the running app.
+
+## Tool-Specific: Terminal and Editor
+
+- **`hs_core::paths::background_command`** is required for any internal command (see Windows section).
+- **Locale parse errors** are silent unless the gate runs the locale test (see Patch Scripts).
+- **`egui_kittest` (`crates/hs-editor/tests/view.rs`)** covers mouse paths headlessly. Use it alongside the running-app check.
+
+## Tool-Specific: Databases (tool-db)
+
+- **Postgres cancel.** A cancel request issued when a row limit is reached must be awaited before the next statement, or it can cancel that statement. Inside a transaction block it aborts the transaction, so the rest of the result must be read and dropped instead.
+- **MySQL `KILL QUERY`** goes out and is awaited before draining the result.
+- **Postgres `simple_query`** returns every value as server text (the psql form), which is what the grid wants. Column types come from a separate prepare, used only for alignment and unquoted numbers.
+- **Transaction detection.** `driver::tx_effect` (the BEGIN/COMMIT text classifier) can't see a block opened by a function, closed by a failed statement, or left by `ROLLBACK TO`. Postgres and MySQL ask the server after each statement (`probe_in_tx`: `now() <> statement_timestamp()` / `25P02` on Postgres, `@@in_transaction` or the performance-schema row on MySQL). Keep the classifier only as fallback.
+- **MySQL/Postgres in tests.** Container-backed driver tests run only when the integration environment variable is set.
+
+## Tool-Specific: Logs (tool-logs)
+
+- **Logs with a Searcher.** `has any tool seen this?` goes through `hs_core::search`. Tools implement a `Searcher` over their own store, registered by the binary. Neither side learns the other's schema.
+- **Excluding a source vs skipping a searcher.** `ask_all(skip)` drops a whole searcher. `Query::exclude` drops one source. The asking Logs tab needs the second. The first would stop every other Logs tab from answering.
+- **Process-wide registries** make tests order-dependent. They pass with `--test-threads=1` and fail in parallel. Serialise with a test-only mutex guard held for each test body (`tool_logs::searcher`).
+- **Hold tab records weakly.** Use `Weak<Mutex<Shared>>` in long-lived registries. A strong handle keeps a closed tab's record window alive for the whole session.
+- **Histogram buckets** must follow the span, in round units. A fixed per-minute bucket is useless for a week (10 080 bars in 300 px). `chart::Bucket::pick` returns the smallest round unit under `TARGET_BARS`. A computed bucket like "37 seconds" makes the axis unreadable.
+- **Time-range filters** replace the after/before chips. Two overlapping time windows combine with AND and filter to nothing, which looks like a broken feature.
+- **Record identity.** A record is reached by line number, never by filtered position. The window drops old records, so a position means a different record later. `GOTO_MIME` scrolls to a line. `OpenRequest::File` would reopen the source and lose the place.
+- **Logs over SSH** use `hs_ssh::SshClient::exec`. Wait on this path in the running app.
+
+## Tool-Specific: Containers (tool-containers)
+
+- **Compose and the container list** share the verb-click risk (see Double layout passes under Shell and UI Layout).
+- **Output must be cleared** when the selected item changes.
+
+## Tool-Specific: Graphics and Diagrams
+
+- **Crop overlay drag.** Use `press_origin()` for hit tests, not `interact_pointer_pos()` (see Drag thresholds above).
+- **Diagram layout and fingerprint** must be cached (see Caching above).
+- **Diagram editor width** must respect the panel-width rule (see Panel width above).
+- **ComfyUI `/object_info`** describes combo inputs three ways: `[[names], {}]` (classic), `["COMBO", {"options": [names]}]` (V3 schema, 2026), and `{"options": [names]}`. Read all three (`ai_local::combo_options`). Reading only the first returned an empty list and reported "ComfyUI has no upscale models" against a server that had them. The mock test answers in the V3 shape so the old reader can't return.
+
+## Tool-Specific: AI Assistant (hs-core::ai)
+
+- **1min.AI is not OpenAI-compatible.** It's `POST https://api.1min.ai/api/chat-with-ai` (`?isStreaming=true` for SSE), with an `API-KEY` header (no `Bearer`), and body `{"type":"UNIFY_CHAT_WITH_AI","model":…,"promptObject":{"prompt":…}}`. The older `CHAT_WITH_AI` type on `/api/features` is gone. It takes one prompt, so the conversation is folded into a transcript. There's no model-list endpoint and no tool calling, which is why edits use SEARCH/REPLACE blocks.
+- **1min.AI docs and chatplayground.ai** don't resolve from the cloud sandbox. Test against a local mock server that speaks both SSE formats. The OpenAI one ends with `data: [DONE]`. The SSE stream sends content pieces, then a result record repeating the whole answer. Ignore that record unless nothing streamed.
+- **Diagnosing "the app hangs" on an assistant.** The request runs on the runtime, so the UI thread isn't blocked. What's missing is any sign of time passing. `http_client`'s `read_timeout` only fires on a silent connection, not a service grinding through a huge prompt. Ask which providers fail before suspecting the code. Two providers sharing one request path (DeepSeek and LM Studio, both `openai_body`) where only one hangs point at the payload, not the body shape.
+- **Never send a picture to a model that can't read one, and never send a big one.** A 1024 px PNG at quality 100 was about 2 MB, or 2.8 MB base64 (`tool-graphics/tests/attachment.rs`). A text-only model may tokenise that as ~700 k tokens, which looked like a hang on LM Studio with qwen3-coder. Use `ai::VisionSupport` (Auto/Yes/No per provider), with `model_reads_images` as the Auto rule. It answers no for anything it doesn't recognise. A missing description is a better failure than a hang.
+- **Image size.** PNG while under 400 KB (screenshots and diagrams, where JPEG smears small text). JPEG above 400 KB (photos). PNG always when there's transparency.
+- **Review-only assistants** never run the code they produce. Insert and Run exist only for tools that execute.
+
+## Tool-Specific: API Client (tool-api)
+
+- **Partial results.** Keep Postman compatibility: the `pm` scripting object must match Postman's shape.
+- **Multipart and forms.** Build them by hand with `send::form_body` and `send::multipart`. The workspace reqwest has no `form` or `multipart` feature.
+
+## Tool-Specific: Browser (tool-browser + browser_host)
+
+- **WebView2 paints above egui.** Hide the view whenever a modal, the palette, or a popup is open (`overlay` in `app.rs`), and whenever the tab isn't visible. The tool reports its rectangle every frame, and the host clears it after use.
+- **JavaScript on/off** is fixed at view creation. Flipping it rebuilds the view (`Cmd` handling in `BrowserHost::sync`).
+- **Keyboard focus.** A WebView2 child holds native keyboard focus even when egui's field has it. `SetFocus` on the parent and `wry`'s `focus_parent()` both fail; the child takes focus back on its next message, and hiding the view lost a tab. `EnableWindow(child, FALSE)` works, because a disabled window can't be focused. The host disables it while the address bar has egui focus and re-enables it on blur (`Cmd::AddressFocus`, sent every frame, since one frame's gap lets the view take the keyboard back).
+- **`open_devtools`** needs the `devtools` feature (see Releases).
+
+## Tool-Specific: SFTP and Connection Forms
+
+- **SFTP `write()`** needs `create()` for new files (see Build and Dependency).
+- **Clipboard copy** from SFTP downloads to `HyperStackData/tmp/` first (see Windows).
+- **Connection profile file names.** `ConnectionStore::file_for` derives the file name from the profile's name (slugified). A hand-written fixture saved under any other name is duplicated on the first write, so the store holds two profiles with the same id. Write fixtures through the app, or name the file exactly `slug(name).toml`.
+- **Vault-locked forms.** `store_typed_secrets` used to warn and continue when the vault was locked, so the typed password was saved in the TOML. It now returns `false`, and the form must not save. Any new form must check that result before `upsert`.
+- **SSH Follow Shell Folder** reads the xterm title (`user@host: dir`). A remote prompt that doesn't set it leaves the file pane where it is.
+
+## Tool-Specific: S3 (tool-s3)
+
+- **moto keeps buckets in memory.** A restarted `moto_server` has no buckets, so the S3 tool shows `NoSuchBucket`. Re-run `seed_s3.py`.
+- **moto checks request shape, not signatures.** The SigV4 unit tests against AWS's examples cover signing.
+- **S3 without MinIO:** create a venv, `pip install "moto[server]"`, run `moto_server -H 127.0.0.1 -p 5055` with keys `testing` / `testing`, then `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
+- **Upload and Download** use native file dialogs. Test them through the client tests, not the GUI.
+
+## Headless and GUI Testing
+
+- **Click coordinates.** `click x y` takes client coordinates. `shot` and `rawshot` capture `GetWindowRect`, which includes an 8 px invisible border. A control seen at `(sx, sy)` in a screenshot is clicked at `(sx-8, sy-31)`. Using the screenshot's numbers lands a row or two low. Anything below client height (960 − 39 = 921) fails with "is not over the dev window".
+- **Minimum window size.** The window is at least 1720 × 860 (since 2026-10-23). Windows enforces that against user drags but lets other processes' `SetWindowPos` through, so `HyperStackApp::enforce_min_size` pushes back each frame. A harness asking for 1400 × 960 gets the small window for a frame, then 1720 × 860. Take screenshots after a pause, before clicking anything.
+- **`focus-hs` resets the window size.** Every command except `rawshot` calls it. To test a resize, do the open and click in one harness invocation, and read the result with `GetWindowRect` from a `SetForegroundWindow` call. Clear topmost afterwards. Use `D:\Temp\focus-hs.ps1`. Don't send the vault password until a screenshot shows the HyperStack window in front.
+- **Native dialogs.** The first click after a native file dialog closes only re-activates the window. Click twice, or screenshot after each click.
+- **`GetWindowRect` vs client area.** Use `SetProcessDPIAware()` in PowerShell before taking coordinates. Otherwise clicks drift by a row or more.
+- **Keyboard via `SendKeys`** works for Ctrl+P, Ctrl+T, and Escape. Synthetic `mouse_event` clicks land only where the screenshot says, after `SetProcessDPIAware`.
+- **A stray glyph at the very edge** of a screenshot is the desktop behind the window's invisible border.
+- **Headless rfd dialogs don't open.** Seed `layout.json` (editor root and path) instead of clicking Open Folder.
+- **Linux/Xvfb.** The app panics at start without `libxkbcommon-x11-0`. Install it, plus `libgl1-mesa-dri`, and it renders with llvmpipe. With no window manager, `xdotool` input is ignored until `xdotool windowfocus <id>`. `xdotool type` needs `--` before text starting with `-`.
+- **Xvfb modal dialogs** can leave the window without keyboard focus. Run `xdotool windowfocus <id>` again before typing.
+- **Overlay-only checks.** Test a toolbar hard-right layout in a narrow window (`hard_right` in toolbars).
+
+## Security and Vault
+
+- **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.
+- **Vault-locked saves** must return an error (see Connection Forms).
+- **Protected environments** default to read-only. Check this when a new tool exposes a write action.
+
+## Cross-Platform
+
+- **Platform code** lives only in `hs-core::secrets`, `hs-core::storage::paths`, `hs-core::clipboard_files`, `hs-core::env_path`, and `hs-term::pty`. Linux clippy catches leaks.
+- **BOM-less UTF-16 BE** is ambiguous. Don't guess it during automatic decode. Offer an explicit encoding choice to reopen the original bytes.
+- **`canonicalize` on Windows** adds `\\?\` (see Windows).
+- **Platform-specific test paths** (upper-case `SystemTemp`) need canonical or case-insensitive comparison (see Release Pipeline).

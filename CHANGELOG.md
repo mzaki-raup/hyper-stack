@@ -11,35 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Security: pulldown-cmark updated to 0.13.5.** RUSTSEC-2026-0414 is a
-  memory-exhaustion flaw in wiki-link parsing. HyperStack does not set
-  `ENABLE_WIKILINKS`, so it was not reachable through this, but the
-  advisory names a fixed version and an ignore is only ever for an
-  advisory with no fix.
-- **crypto-bigint moved off a yanked release** (0.7.6 -> 0.7.10). It
-  reaches the tree through russh; nothing here calls it directly.
-- **Every activity's dashboard is laid out the same way.** Terminal,
-  SSH, Containers, Database, NoSQL, Redis, S3, API Client, Graphics,
-  Devtools and Logs now wear the shape the Scratchpad and the Editor
-  got: a band with the activity's mark, the figures in equal rounded
-  boxes, **Start Here** with that activity's first moves, a grid of the
-  things it has saved - each cell naming the thing over what it points
-  at - and **Open Here**, every section ruled apart. One helper draws
-  all of it (`hs_ui::dashboard::saved_dashboard`), so the eleven cannot
-  drift apart a rule or a heading at a time.
-- **A container host says what it is running.** Each saved engine or
-  cluster is asked once per session - the engine over its own CLI, a
-  cluster over its API server - and the answer is cached, so a grid
-  drawn every frame never spawns a process. "Docker Engine 29.5.0 ·
-  WSL · Ubuntu-24.04"; a host that cannot be reached falls back to its
-  kind rather than showing a number it did not get.
-- **Add buttons reach the right form.** A dashboard's Add Connection
-  opens Settings -> Connections with an empty form already set to that
-  activity's kind, and the Terminal's Add CLI opens Settings -> Terminal
-  with an empty CLI form - rather than dropping the reader on a page to
-  find it themselves.
-
 - (nothing yet)
+
+## 0.95.0 — 2026-10-28
+
+### Added
+
+- Lay every activity's dashboard out as a page (36500d10)
+
+### Security
+
+- Update pulldown-cmark and move off a yanked crypto-bigint (4ad5d04c)
 
 ## 0.94.0 — 2026-10-27
 

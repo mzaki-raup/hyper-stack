@@ -230,3 +230,11 @@ every other tool uses and behind the same hard-right button.
 - Quick actions: Explain This Key, Suggest a Command, Memory and Keyspace.
 - `redis.ai` in the palette toggles it, and Read Aloud can read its last
   answer.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Connections** - every server over its `host:port / db`;
+and the shared **Open Here** grid, each section ruled apart.

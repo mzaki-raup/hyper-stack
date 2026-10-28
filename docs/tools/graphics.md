@@ -234,3 +234,11 @@ tool the open tab belongs to marked as selected. A disabled row keeps the
 dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a
 blank PNG draft in the same folder, opened in a new tab.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Functions** - the function list in its own card, with Start Here above it;
+and the shared **Open Here** grid, each section ruled apart.

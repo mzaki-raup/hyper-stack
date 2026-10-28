@@ -425,3 +425,11 @@ folder's and the request's own); Package Libraries; Documentation.
 value are plain fields and every change saves the collection (or
 `globals.json`) and announces it to the other tabs; the other categories
 keep the Save Collection button.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Collections** - every collection over how many folders and requests it holds, opening its management page;
+and the shared **Open Here** grid, each section ruled apart.

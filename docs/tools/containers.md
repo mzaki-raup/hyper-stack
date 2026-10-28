@@ -627,3 +627,14 @@ Image building and registry browsing beyond pulling by name (§4 already
 defers these); Helm release management past detecting the binary;
 cluster provisioning; Hyper-V VM management; editing a kubeconfig's auth
 plugins; and any polling while the activity has no tab open.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Hosts** - every engine and cluster over what it is running and
+where it is ("Docker Engine 29.5.0 · WSL · Ubuntu-24.04"), asked once
+per session through `hs_core::versions::ensure_with` and left as the
+bare kind while the probe is out or the host is unreachable;
+and the shared **Open Here** grid, each section ruled apart.

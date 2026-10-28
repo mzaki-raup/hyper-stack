@@ -1251,6 +1251,33 @@ impl HyperStackApp {
                 ui.state.project_selected = None;
                 ui.state.project_draft = Some(draft);
             }
+            // Add a connection of a given kind, from an activity's
+            // dashboard: Settings -> Connections with an empty form
+            // already set to that kind, so the reader is not left to
+            // pick "db" out of a list after asking for an SSH host
+            // (owner's requirement, 2026-10-29).
+            _ if action.starts_with("settings:connection:new:") => {
+                let kind = action
+                    .trim_start_matches("settings:connection:new:")
+                    .to_string();
+                self.open_settings(Some(settings_ui::Page::Connections));
+                let c = hs_core::connections::ConnectionProfile {
+                    name: "new".into(),
+                    kind,
+                    ..Default::default()
+                };
+                let mut ui = self.settings_ui.lock();
+                ui.state.conn_selected = Some(c.id.clone());
+                ui.state.conn_draft = Some((c, String::new()));
+            }
+            // Add CLI, from the Terminal dashboard: Settings -> Terminal
+            // with an empty CLI form open.
+            "settings:terminal:cli:new" => {
+                self.open_settings(Some(settings_ui::Page::Terminal));
+                let mut ui = self.settings_ui.lock();
+                ui.state.cli_draft = Some(hs_core::settings::CliProfile::default());
+            }
+            "settings:terminal" => self.open_settings(Some(settings_ui::Page::Terminal)),
             // Edit This Connection, from any activity's sidebar: the page
             // opens with that profile already selected in its form, so the
             // user is not left to find it in the list again.

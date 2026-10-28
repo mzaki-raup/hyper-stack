@@ -799,3 +799,11 @@ One consequence worth stating: a record's `raw` is now the line with its
 escapes removed, so the §17 reassembly invariant reads "the records put
 back together are the file again, as the file would be without its
 terminal escapes".
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Sources** - every saved source over the command or session it follows;
+and the shared **Open Here** grid, each section ruled apart.

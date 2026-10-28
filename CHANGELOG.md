@@ -11,6 +11,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Every activity's dashboard is laid out the same way.** Terminal,
+  SSH, Containers, Database, NoSQL, Redis, S3, API Client, Graphics,
+  Devtools and Logs now wear the shape the Scratchpad and the Editor
+  got: a band with the activity's mark, the figures in equal rounded
+  boxes, **Start Here** with that activity's first moves, a grid of the
+  things it has saved - each cell naming the thing over what it points
+  at - and **Open Here**, every section ruled apart. One helper draws
+  all of it (`hs_ui::dashboard::saved_dashboard`), so the eleven cannot
+  drift apart a rule or a heading at a time.
+- **A container host says what it is running.** Each saved engine or
+  cluster is asked once per session - the engine over its own CLI, a
+  cluster over its API server - and the answer is cached, so a grid
+  drawn every frame never spawns a process. "Docker Engine 29.5.0 ·
+  WSL · Ubuntu-24.04"; a host that cannot be reached falls back to its
+  kind rather than showing a number it did not get.
+- **Add buttons reach the right form.** A dashboard's Add Connection
+  opens Settings -> Connections with an empty form already set to that
+  activity's kind, and the Terminal's Add CLI opens Settings -> Terminal
+  with an empty CLI form - rather than dropping the reader on a page to
+  find it themselves.
+
 - (nothing yet)
 
 ## 0.94.0 — 2026-10-27

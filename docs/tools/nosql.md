@@ -335,3 +335,11 @@ payload columns flattened, and the header band reporting the server
 version (it moved out of the toolbar on 2026-10-26, with the container
 path following it over the right column on 2026-10-27; the container
 tree's reload button carries its label rather than a bare glyph).
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Connections** - every store over its `host:port`;
+and the shared **Open Here** grid, each section ruled apart.

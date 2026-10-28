@@ -2092,109 +2092,90 @@ impl LogsTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let tabs = s.open_tabs.of("logs");
-        hs_ui::form::page_title(
+        // What each source is: a command, a file, or the session it is
+        // followed over - `describe` is the same answer the sidebar
+        // gives, so the two cannot drift.
+        let saved: Vec<hs_ui::dashboard::Entry> = self
+            .saved
+            .iter()
+            .map(|src| hs_ui::dashboard::Entry {
+                id: src.spec.uri(),
+                name: src.name.clone(),
+                detail: src.spec.describe(),
+                icon: ph::SCROLL.to_string(),
+            })
+            .collect();
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-logs"),
+            subtitle: &s.t("logs-dashboard-sub"),
+            saved: &s.t("logs-dash-saved"),
+            empty: &s.t("logs-dash-no-saved"),
+            start_here: Some(&s.t("logs-dash-start")),
+            salt: "logs-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
             ui,
             &theme,
-            &s.t("tool-logs"),
-            Some(&s.t("logs-dashboard-sub")),
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: ph::SCROLL,
+                    value: &saved.len().to_string(),
+                    label: &s.t("logs-dash-sources"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::MAGNIFYING_GLASS,
+                    value: &self.views.len().to_string(),
+                    label: &s.t("logs-dash-investigations"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::FUNNEL,
+                    value: &self.presets.len().to_string(),
+                    label: &s.t("logs-dash-presets"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[
+                format!("{} {}", ph::FOLDER_OPEN, s.t("logs-open-file")),
+                format!("{} {}", ph::TREE_STRUCTURE, s.t("logs-open-dump")),
+                format!("{} {}", ph::PLUS, s.t("logs-add-source")),
+                format!("{} {}", ph::CLIPBOARD_TEXT, s.t("logs-paste")),
+            ],
+            &saved,
         );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &self.saved.len().to_string(),
-                &s.t("logs-dash-sources"),
-            );
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &self.presets.len().to_string(),
-                &s.t("logs-dash-presets"),
-            );
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
-        egui::ScrollArea::vertical()
-            .id_salt("logs-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.add_space(12.0);
-                ui.label(
-                    egui::RichText::new(s.t("logs-dash-start"))
-                        .size(15.0)
-                        .strong(),
-                );
-                ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .button(format!("{} {}", ph::FOLDER_OPEN, s.t("logs-open-file")))
-                        .clicked()
-                    {
-                        self.run_command("logs.open_file", cx);
-                    }
-                    if ui
-                        .button(format!("{} {}", ph::TREE_STRUCTURE, s.t("logs-open-dump")))
-                        .clicked()
-                    {
-                        self.run_command("logs.open_dump", cx);
-                    }
-                    if ui
-                        .button(format!("{} {}", ph::PLUS, s.t("logs-add-source")))
-                        .clicked()
-                    {
-                        self.run_command("logs.add_source", cx);
-                    }
-                    if ui
-                        .button(format!("{} {}", ph::CLIPBOARD_TEXT, s.t("logs-paste")))
-                        .clicked()
-                    {
-                        self.run_command("logs.paste", cx);
-                    }
-                });
-                // Saved sources, so a dashboard is a way in rather than a
-                // page that only counts things.
-                ui.add_space(16.0);
-                ui.label(
-                    egui::RichText::new(s.t("logs-dash-saved"))
-                        .size(15.0)
-                        .strong(),
-                );
-                ui.add_space(6.0);
-                if self.saved.is_empty() {
-                    hs_ui::form::hint(ui, &theme, &s.t("logs-dash-no-saved"));
-                } else {
-                    let saved = self.saved.clone();
-                    for src in &saved {
-                        let r = hs_ui::form::list_row(
-                            ui,
-                            &theme,
-                            false,
-                            ph::SCROLL,
-                            &src.name,
-                            Some(&src.spec.describe()),
-                        );
-                        if r.clicked() {
-                            cx.actions.push(hs_core::tool::Action::OpenTool {
-                                factory_id: "logs".into(),
-                                request: Some(hs_core::tool::OpenRequest::File {
-                                    uri: src.spec.uri(),
-                                    line: None,
-                                }),
-                            });
-                        }
-                        ui.add_space(2.0);
-                    }
-                }
-                ui.add_space(16.0);
-                let labels = hs_ui::dashboard::DashboardLabels {
-                    open_heading: &s.t("dash-open"),
-                    nothing_open: &s.t("dash-nothing-open"),
-                    no_preview: &s.t("dash-no-preview"),
+        match pick {
+            Some(hs_ui::dashboard::Pick::Action(i)) => {
+                let id = match i {
+                    0 => "logs.open_file",
+                    1 => "logs.open_dump",
+                    2 => "logs.add_source",
+                    _ => "logs.paste",
                 };
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+                self.run_command(id, cx);
+            }
+            Some(hs_ui::dashboard::Pick::Open(uri)) => {
+                cx.actions.push(hs_core::tool::Action::OpenTool {
+                    factory_id: "logs".into(),
+                    request: Some(hs_core::tool::OpenRequest::File { uri, line: None }),
+                });
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            None => {}
+        }
     }
 
     fn keys(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

@@ -216,3 +216,11 @@ alacritty's parser is tested upstream; we add snapshot tests of grid
 rendering (colours, wide chars, cursor), key-encoding tables, link detection
 regexes, PTY spawn on each OS in CI (echo round-trip, resize), profile
 detection with fake filesystems, task detection fixtures.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Shells** - the shells detected on this machine, each over its executable;
+and the shared **Open Here** grid, each section ruled apart.

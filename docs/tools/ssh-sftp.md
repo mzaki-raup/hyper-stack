@@ -285,3 +285,11 @@ and leaves the line discipline alone — which injecting text straight into
 the grid would not. Owner and group changes were already real `chown`
 commands and stay that way, because there is no SFTP operation for them.
 Owner's requirement, 2026-10-17.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Hosts** - every saved host over the `user@host:port` it would open;
+and the shared **Open Here** grid, each section ruled apart.

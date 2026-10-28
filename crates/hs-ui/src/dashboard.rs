@@ -322,6 +322,176 @@ fn one_line(
     ui.fonts_mut(|f| f.layout_job(job))
 }
 
+/// How wide a cell in a dashboard's grid of saved things is.
+pub const CELL_WIDTH: f32 = 300.0;
+
+/// Lay `count` cells out in a grid sized to the pane, calling `cell`
+/// for each with its index and the width it may use.
+///
+/// Every activity's dashboard asks the same question - how many of
+/// these fit across? - and `horizontal_wrapped` cannot answer it,
+/// because a frame reports its size only after it is drawn (CLAUDE.md).
+/// Working it out in one place keeps ten dashboards from each doing the
+/// arithmetic slightly differently.
+pub fn grid(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    salt: &str,
+    count: usize,
+    empty: &str,
+    mut cell: impl FnMut(&mut egui::Ui, usize, f32),
+) {
+    if count == 0 {
+        ui.horizontal(|ui| {
+            ui.add_space(HEAD_MARGIN);
+            crate::form::note(ui, theme, crate::icons::ph::LIGHTBULB, empty);
+        });
+        return;
+    }
+    let spacing = ui.spacing().item_spacing.x;
+    // Leave room for a scrollbar, as the Open Here grid does, or the
+    // last cell in a row is clipped by the pane's edge.
+    let avail = (ui.available_width() - 32.0).max(CELL_WIDTH);
+    let columns = (((avail + spacing) / (CELL_WIDTH + spacing)).floor() as usize).max(1);
+    ui.horizontal(|ui| {
+        ui.add_space(HEAD_MARGIN);
+        egui::Grid::new(salt)
+            .num_columns(columns)
+            .spacing([spacing, spacing])
+            .show(ui, |ui| {
+                for i in 0..count {
+                    cell(ui, i, CELL_WIDTH);
+                    if (i + 1) % columns == 0 {
+                        ui.end_row();
+                    }
+                }
+            });
+    });
+}
+
+/// A row of buttons under a **Start Here** heading, each the same size
+/// so the row reads as a set of choices rather than a sentence.
+///
+/// The first is the primary one and wears the accent; the rest are
+/// ordinary. Returns the index of the one pressed.
+pub fn actions(ui: &mut egui::Ui, theme: &Theme, labels: &[String]) -> Option<usize> {
+    const MIN: f32 = 190.0;
+    let mut hit = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.add_space(HEAD_MARGIN);
+        for (i, label) in labels.iter().enumerate() {
+            let mut b = egui::Button::new(egui::RichText::new(label).size(14.0))
+                .min_size(egui::vec2(MIN, 32.0));
+            if i == 0 {
+                b = b.fill(theme.accent);
+            }
+            if ui.add(b).clicked() {
+                hit = Some(i);
+            }
+            ui.add_space(8.0);
+        }
+    });
+    hit
+}
+
+/// One saved thing on a dashboard's grid.
+pub struct Entry {
+    pub id: String,
+    pub name: String,
+    /// The line under the name: a session, a path, a category.
+    pub detail: String,
+    pub icon: String,
+}
+
+/// The words a [`saved_dashboard`] needs. Nothing here reaches for
+/// Fluent itself, so the tool stays the only place strings are chosen.
+pub struct Page<'a> {
+    pub icon: &'a str,
+    pub title: &'a str,
+    pub subtitle: &'a str,
+    /// Heading over the grid of saved things ("Saved Hosts").
+    pub saved: &'a str,
+    /// Shown in place of the grid when there is nothing saved.
+    pub empty: &'a str,
+    /// Heading over the action buttons; `None` leaves the section out,
+    /// which is what Devtools wants.
+    pub start_here: Option<&'a str>,
+    pub salt: &'a str,
+    /// What this activity has open, for the Open Here grid.
+    pub tabs: &'a [TabInfo],
+    pub labels: &'a DashboardLabels<'a>,
+}
+
+/// What the reader asked for.
+pub enum Pick {
+    /// The nth button under Start Here.
+    Action(usize),
+    /// The saved thing with this id.
+    Open(String),
+    /// Go back to this open tab.
+    Focus(u64),
+}
+
+/// A whole dashboard in the shape every activity now shares: a band,
+/// the figures, Start Here, the grid of saved things, and Open Here.
+///
+/// Ten activities ask the same five questions in the same order, and
+/// writing that out ten times is how they drift apart - a rule missing
+/// here, a heading a point smaller there (owner's rule on one UI
+/// language). The parts that genuinely differ are the figures, the
+/// buttons and what a saved thing's second line says, so those are
+/// arguments and the rest is not.
+pub fn saved_dashboard(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    page: &Page<'_>,
+    figures: &[Stat<'_>],
+    buttons: &[String],
+    entries: &[Entry],
+) -> Option<Pick> {
+    let mut pick = None;
+    egui::ScrollArea::vertical()
+        .id_salt(page.salt)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            head(ui, theme, page.icon, page.title, page.subtitle);
+            rule(ui, theme);
+
+            stats(ui, theme, figures);
+            rule(ui, theme);
+
+            if let Some(heading) = page.start_here {
+                section(ui, theme, heading);
+                if let Some(i) = actions(ui, theme, buttons) {
+                    pick = Some(Pick::Action(i));
+                }
+                rule(ui, theme);
+            }
+
+            section(ui, theme, page.saved);
+            grid(
+                ui,
+                theme,
+                page.salt,
+                entries.len(),
+                page.empty,
+                |ui, i, w| {
+                    let e = &entries[i];
+                    if item_button(ui, theme, &e.icon, &e.name, &e.detail, w).clicked() {
+                        pick = Some(Pick::Open(e.id.clone()));
+                    }
+                },
+            );
+            rule(ui, theme);
+
+            if let Some(id) = open_tabs_section(ui, theme, page.tabs, page.labels) {
+                pick = Some(Pick::Focus(id));
+            }
+            ui.add_space(8.0);
+        });
+    pick
+}
+
 /// The Open Here grid under its own section heading, for a dashboard
 /// built from the pieces above. Returns the tab the user asked to go to.
 pub fn open_tabs_section(

@@ -433,3 +433,11 @@ which is worse than a clipped button.
 **Open Data** and **Count Rows** also terminate what they write
 (`SELECT * FROM t;`), so the statement left in the tab is complete.
 Owner's requirements, 2026-10-17.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Saved Databases** - every connection over its session, or a SQLite file over its path;
+and the shared **Open Here** grid, each section ruled apart.

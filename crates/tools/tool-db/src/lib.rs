@@ -3273,27 +3273,85 @@ impl DbTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let profiles = s.connections.read().of_kind("db").count();
         let tabs = s.open_tabs.of("db");
-        hs_ui::form::page_title(ui, &theme, &s.t("tool-db"), Some(&s.t("db-dashboard-sub")));
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &profiles.to_string(), &s.t("dash-connections"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
+        let saved: Vec<hs_ui::dashboard::Entry> = {
+            let conns = s.connections.read();
+            conns
+                .of_kind("db")
+                .map(|c| {
+                    // The same session the header band shows once open:
+                    // a server is user@host:port, a SQLite database is
+                    // simply its file.
+                    let f = DbFields::from_table(&c.fields);
+                    let detail = if f.engine == "sqlite" {
+                        f.path.clone()
+                    } else if f.user.is_empty() {
+                        format!("{}:{}", f.host, f.port)
+                    } else {
+                        format!("{}@{}:{}", f.user, f.host, f.port)
+                    };
+                    hs_ui::dashboard::Entry {
+                        id: c.id.clone(),
+                        name: c.name.clone(),
+                        detail,
+                        icon: hs_ui::icons::profile_icon(c).to_string(),
+                    }
+                })
+                .collect()
+        };
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
-        egui::ScrollArea::vertical()
-            .id_salt("db-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-db"),
+            subtitle: &s.t("db-dashboard-sub"),
+            saved: &s.t("dash-saved-databases"),
+            empty: &s.t("dash-no-connections"),
+            start_here: Some(&s.t("dash-start-here")),
+            salt: "db-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
+            ui,
+            &theme,
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::DATABASE,
+                    value: &saved.len().to_string(),
+                    label: &s.t("dash-connections"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("dash-add-database")
+            )],
+            &saved,
+        );
+        match pick {
+            Some(hs_ui::dashboard::Pick::Action(_)) => {
+                cx.actions.push(hs_core::tool::Action::RunCommand {
+                    id: "settings:connection:new:db".into(),
+                });
+            }
+            Some(hs_ui::dashboard::Pick::Open(id)) => {
+                cx.open("db", Some(OpenRequest::Connection { id }));
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            None => {}
+        }
     }
 
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

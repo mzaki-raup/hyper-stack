@@ -288,6 +288,55 @@ type ScanPending = std::sync::Arc<parking_lot::Mutex<Option<Vec<hs_container::sc
 /// (ADR-013).
 type Pending = std::sync::Arc<parking_lot::Mutex<Option<Result<Inventory, String>>>>;
 
+/// The cache key a host's engine version is kept under.
+fn host_version_key(id: &str) -> String {
+    format!("container:{id}")
+}
+
+/// "Docker Engine 27.1.1", "Kubernetes v1.31.2": the engine's own name
+/// in front of the number it reported, so the line reads as a product
+/// rather than a bare version string. The header band says it the same
+/// way, and the two share this.
+fn engine_label(kind: &str, version: &str) -> String {
+    let name = hs_core::connections::kind_label(kind);
+    if kind == "docker" {
+        // Docker calls the daemon the Engine, and so does its own
+        // `docker version` output.
+        format!("Docker Engine {version}")
+    } else {
+        format!("{name} {version}")
+    }
+}
+
+/// Ask a saved host what it is running, once for the life of the
+/// session.
+///
+/// An engine answers over its own CLI, which is a blocking process
+/// call; a cluster answers over its API, which is async - so the
+/// cluster's probe hands the future to the runtime and blocks the
+/// pool thread on it rather than the UI thread.
+fn ensure_host_version(s: &Services, p: &hs_core::connections::ConnectionProfile) {
+    let key = host_version_key(&p.id);
+    if hs_core::versions::asked(&key) {
+        return;
+    }
+    let fields = ContainerFields::from_table(&p.fields);
+    if hs_core::connections::is_cluster_kind(&p.kind) {
+        let handle = s.runtime.handle();
+        hs_core::versions::ensure_with(&s.runtime, &key, move || {
+            handle.block_on(async move {
+                let client = hs_container::k8s::connect(&fields).await.ok()?;
+                hs_container::k8s::version(&client).await.ok()
+            })
+        });
+        return;
+    }
+    let engine = hs_container::Engine::new(&p.kind, fields);
+    hs_core::versions::ensure_with(&s.runtime, &key, move || {
+        hs_container::run::probe(&engine).ok()
+    });
+}
+
 /// What one read of a host returned.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Inventory {
@@ -838,140 +887,154 @@ impl ContainersTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.sync_configs(&s);
         self.drain_scan();
-        form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-containers"),
-            Some(&s.t("container-dashboard-sub")),
-        );
         let all = hosts(&s);
         let engines = all
             .iter()
             .filter(|p| !hs_core::connections::is_cluster_kind(&p.kind))
             .count();
         let clusters = all.len() - engines;
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &engines.to_string(),
-                &s.t("container-dash-engines"),
-            );
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &clusters.to_string(),
-                &s.t("container-dash-clusters"),
-            );
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &self.configs.len().to_string(),
-                &s.t("container-dash-configs"),
-            );
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &s.open_tabs.of("containers").len().to_string(),
-                &s.t("dash-open-tabs"),
-            );
-        });
+        let tabs = s.open_tabs.of("containers");
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        // What each host is running. The answer costs a process spawn
+        // (or a call to an API server), so it is asked **once per host
+        // per session** on the blocking pool and read from the cache
+        // here - `dashboard` is drawn every frame and may not ask the
+        // system itself (owner's requirement, 2026-10-29).
+        for p in &all {
+            ensure_host_version(&s, p);
+        }
+        let saved: Vec<(String, String, String, &'static str)> = all
+            .iter()
+            .map(|p| {
+                let f = ContainerFields::from_table(&p.fields);
+                let kind = hs_core::connections::kind_label(&p.kind);
+                // "Docker Engine 27.1.1 · unix:///var/run/docker.sock",
+                // falling back to the kind alone while the probe is out
+                // or when the host cannot be reached - a blank is a
+                // better answer than a wrong number.
+                let head = match hs_core::versions::cached(&host_version_key(&p.id)) {
+                    Some(v) if !v.is_empty() => engine_label(&p.kind, &v),
+                    _ => kind.to_string(),
+                };
+                (
+                    p.id.clone(),
+                    p.name.clone(),
+                    format!("{head} · {}", f.describe(&p.kind)),
+                    kind_icon(&p.kind),
+                )
+            })
+            .collect();
+        let scanning = self.scan_pending.is_some();
+        let mut act: Option<usize> = None;
+        let mut open: Option<String> = None;
+        let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt("container-dashboard")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                ui.add_space(12.0);
-                ui.label(
-                    egui::RichText::new(s.t("container-dash-start"))
-                        .size(15.0)
-                        .strong(),
+                hs_ui::dashboard::head(
+                    ui,
+                    &theme,
+                    DESCRIPTOR.icon,
+                    &s.t("tool-containers"),
+                    &s.t("container-dashboard-sub"),
                 );
-                ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .button(format!("{} {}", ph::PLUS, s.t("container-add")))
-                        .clicked()
-                    {
-                        cx.actions.push(Action::RunCommand {
-                            id: "settings:containers".into(),
-                        });
-                    }
-                    // Scan Local finds what is on this machine rather
-                    // than asking the user to describe it.
-                    let scanning = self.scan_pending.is_some();
-                    if ui
-                        .add_enabled(
-                            !scanning,
-                            egui::Button::new(format!(
-                                "{} {}",
-                                ph::MAGNIFYING_GLASS,
-                                s.t("container-scan")
-                            )),
-                        )
-                        .clicked()
-                    {
-                        self.start_scan(&s);
-                    }
-                    if scanning {
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::stats(
+                    ui,
+                    &theme,
+                    &[
+                        hs_ui::dashboard::Stat {
+                            icon: ph::SHIPPING_CONTAINER,
+                            value: &engines.to_string(),
+                            label: &s.t("container-dash-engines"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::TREE_STRUCTURE,
+                            value: &clusters.to_string(),
+                            label: &s.t("container-dash-clusters"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::FILE_TEXT,
+                            value: &self.configs.len().to_string(),
+                            label: &s.t("container-dash-configs"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::COLUMNS,
+                            value: &tabs.len().to_string(),
+                            label: &s.t("dash-open-tabs"),
+                        },
+                    ],
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("container-dash-start"));
+                act = hs_ui::dashboard::actions(
+                    ui,
+                    &theme,
+                    &[
+                        format!("{} {}", ph::PLUS, s.t("container-add")),
+                        format!("{} {}", ph::MAGNIFYING_GLASS, s.t("container-scan")),
+                    ],
+                );
+                if scanning {
+                    // The second button is still live while a scan runs;
+                    // the spinner says why a second press changes nothing.
+                    act = act.filter(|i| *i != 1);
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
                         ui.spinner();
                         ui.label(
                             egui::RichText::new(s.t("container-scan-running"))
                                 .small()
                                 .color(theme.text_muted),
                         );
-                    }
-                });
+                    });
+                }
                 self.scan_findings(ui, &theme, &s);
-                ui.add_space(12.0);
-                ui.label(
-                    egui::RichText::new(s.t("container-dash-hosts"))
-                        .size(15.0)
-                        .strong(),
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("container-dash-hosts"));
+                hs_ui::dashboard::grid(
+                    ui,
+                    &theme,
+                    "container-saved-hosts",
+                    saved.len(),
+                    &s.t("container-none"),
+                    |ui, i, w| {
+                        let (id, name, detail, icon) = &saved[i];
+                        if hs_ui::dashboard::item_button(ui, &theme, icon, name, detail, w)
+                            .clicked()
+                        {
+                            open = Some(id.clone());
+                        }
+                    },
                 );
-                ui.add_space(6.0);
-                if all.is_empty() {
-                    form::hint(ui, &theme, &s.t("container-none"));
+                hs_ui::dashboard::rule(ui, &theme);
+
+                if let Some(id) = hs_ui::dashboard::open_tabs_section(ui, &theme, &tabs, &labels) {
+                    focus = Some(id);
                 }
-                let mut open: Option<String> = None;
-                for p in &all {
-                    let f = ContainerFields::from_table(&p.fields);
-                    let subtitle = format!(
-                        "{} · {}",
-                        hs_core::connections::kind_label(&p.kind),
-                        f.describe(&p.kind)
-                    );
-                    if form::list_row(
-                        ui,
-                        &theme,
-                        false,
-                        kind_icon(&p.kind),
-                        &p.name,
-                        Some(&subtitle),
-                    )
-                    .clicked()
-                    {
-                        open = Some(p.id.clone());
-                    }
-                    ui.add_space(2.0);
-                }
-                if let Some(id) = open {
-                    open_host(cx, &id);
-                }
-                // The shared Open Here grid, as every other activity's
-                // dashboard shows it: the question "what have I got open
-                // here, and take me to it" is the same everywhere, and an
-                // activity that answered it differently would be the odd
-                // one out (owner's rule on one UI language, 2026-10-20).
-                let tabs = s.open_tabs.of("containers");
-                let labels = hs_ui::dashboard::DashboardLabels {
-                    open_heading: &s.t("dash-open"),
-                    nothing_open: &s.t("dash-nothing-open"),
-                    no_preview: &s.t("dash-no-preview"),
-                };
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions.push(Action::FocusTab { tab_id: id });
-                }
+                ui.add_space(8.0);
             });
+        match act {
+            Some(0) => cx.actions.push(Action::RunCommand {
+                id: "settings:containers".into(),
+            }),
+            Some(1) => self.start_scan(&s),
+            _ => {}
+        }
+        if let Some(id) = open {
+            open_host(cx, &id);
+        }
+        if let Some(tab_id) = focus {
+            cx.actions.push(Action::FocusTab { tab_id });
+        }
     }
 
     /// What Scan Local found, each offered as a host to add.
@@ -3115,12 +3178,8 @@ impl Tool for ContainersTool {
         };
         let version = if reported.is_empty() {
             String::new()
-        } else if self.state.host_kind == "docker" {
-            // Docker calls the daemon the Engine, and so does its own
-            // `docker version` output.
-            format!("Docker Engine {reported}")
         } else {
-            format!("{kind} {reported}")
+            engine_label(&self.state.host_kind, &reported)
         };
         Some(
             hs_core::tool::ToolHeader::new(

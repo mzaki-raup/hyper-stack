@@ -118,6 +118,40 @@ pub fn ensure(runtime: &crate::runtime::AppRuntime, key: &str, program: &str, ar
     });
 }
 
+/// Work an answer out once, however the caller likes, and keep it under
+/// `key`.
+///
+/// [`ensure`] covers "run this program and read its `--version`", which
+/// is most of them. A container engine is asked through its own argv
+/// builder and a cluster through its API, so those hand the work in as
+/// a closure instead. The claim-it-first rule is the same: the first
+/// call spawns, every later one does nothing, and a probe that fails is
+/// remembered as "no answer" rather than retried every frame.
+pub fn ensure_with<F>(runtime: &crate::runtime::AppRuntime, key: &str, probe: F)
+where
+    F: FnOnce() -> Option<String> + Send + 'static,
+{
+    if key.is_empty() {
+        return;
+    }
+    {
+        let mut c = match cache().lock() {
+            Ok(c) => c,
+            Err(_) => return,
+        };
+        if c.contains_key(key) {
+            return;
+        }
+        c.insert(key.to_string(), None);
+    }
+    let key = key.to_string();
+    runtime.spawn_blocking(move || {
+        if let Some(v) = probe() {
+            remember(&key, Some(v));
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +172,26 @@ mod tests {
         ] {
             assert_eq!(extract(text).as_deref(), Some(want), "from {text:?}");
         }
+    }
+
+    /// An answer worked out some other way is kept exactly like a
+    /// probed one, and a key that has been asked about is never asked
+    /// again - which is what keeps a dashboard drawn every frame from
+    /// spawning a process per host per frame.
+    #[test]
+    fn an_answer_is_claimed_once_and_remembered() {
+        let key = format!("test:{}", crate::new_id());
+        assert!(!asked(&key));
+        assert_eq!(cached(&key), None);
+        remember(&key, Some("27.1.1".into()));
+        assert!(asked(&key));
+        assert_eq!(cached(&key).as_deref(), Some("27.1.1"));
+        // A probe that found nothing still counts as asked, so it is
+        // not retried for ever.
+        let miss = format!("test:{}", crate::new_id());
+        remember(&miss, None);
+        assert!(asked(&miss));
+        assert_eq!(cached(&miss), None);
     }
 
     /// A number with no dot is not a version: a build counter or a year

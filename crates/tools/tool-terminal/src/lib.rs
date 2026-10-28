@@ -483,35 +483,116 @@ impl TerminalTool {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         let tabs = s.open_tabs.of("terminal");
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-terminal"),
-            Some(&s.t("terminal-dashboard-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &self.profiles.len().to_string(),
-                &s.t("dash-shells"),
-            );
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
+        // The shells in the order the user put them in, so the grid and
+        // the sidebar never disagree about which comes first.
+        let saved = s.settings.read().terminal.shell_order.clone();
+        let shells: Vec<(String, String, String, &'static str)> =
+            ordered_shells(&self.profiles, &saved)
+                .iter()
+                .map(|p| {
+                    (
+                        p.id.clone(),
+                        p.name.clone(),
+                        p.exe.clone(),
+                        shell_icon(&p.id),
+                    )
+                })
+                .collect();
+        let mut add_cli = false;
+        let mut open: Option<String> = None;
+        let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt("terminal-dashboard")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
+                hs_ui::dashboard::head(
+                    ui,
+                    &theme,
+                    DESCRIPTOR.icon,
+                    &s.t("tool-terminal"),
+                    &s.t("terminal-dashboard-sub"),
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::stats(
+                    ui,
+                    &theme,
+                    &[
+                        hs_ui::dashboard::Stat {
+                            icon: hs_ui::icons::ph::TERMINAL,
+                            value: &shells.len().to_string(),
+                            label: &s.t("dash-shells"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: hs_ui::icons::ph::COLUMNS,
+                            value: &tabs.len().to_string(),
+                            label: &s.t("dash-open-tabs"),
+                        },
+                    ],
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
+                if hs_ui::dashboard::actions(
+                    ui,
+                    &theme,
+                    &[format!(
+                        "{} {}",
+                        hs_ui::icons::ph::PLUS,
+                        s.t("dash-add-cli")
+                    )],
+                )
+                .is_some()
+                {
+                    add_cli = true;
                 }
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-saved-shells"));
+                hs_ui::dashboard::grid(
+                    ui,
+                    &theme,
+                    "terminal-saved-shells",
+                    shells.len(),
+                    &s.t("dash-no-shells"),
+                    |ui, i, w| {
+                        let (id, name, exe, icon) = &shells[i];
+                        if hs_ui::dashboard::item_button(ui, &theme, icon, name, exe, w).clicked() {
+                            open = Some(id.clone());
+                        }
+                    },
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                if let Some(id) = hs_ui::dashboard::open_tabs_section(ui, &theme, &tabs, &labels) {
+                    focus = Some(id);
+                }
+                ui.add_space(8.0);
             });
+        if add_cli {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: "settings:terminal:cli:new".into(),
+            });
+        }
+        if let Some(profile) = open {
+            cx.open(
+                "terminal",
+                Some(OpenRequest::Terminal {
+                    cwd: None,
+                    host: None,
+                    profile: Some(profile),
+                    command: None,
+                }),
+            );
+        }
+        if let Some(tab_id) = focus {
+            cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+        }
     }
 
     /// Start a shell **inside a pod**, through the cluster's API

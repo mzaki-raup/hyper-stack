@@ -284,3 +284,11 @@ The last two of M5's core utilities, under a **Text** category:
 
 Both keep their state with the tab. Tests cover groups, flags, errors,
 line marking, the whitespace mode and the unified header.
+
+## Dashboard (2026-10-29)
+
+The activity's home tab wears the shape every activity now shares
+(`hs_ui::dashboard::saved_dashboard`): a band with the activity's
+mark, name and subtitle; the figures in equal rounded boxes;
+**Start Here** with its first moves; **Tools** - every utility over the category the sidebar files it in;
+and the shared **Open Here** grid, each section ruled apart.

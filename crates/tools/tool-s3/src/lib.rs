@@ -153,27 +153,82 @@ impl S3Tool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let count = s.connections.read().of_object_kinds().count();
         let tabs = s.open_tabs.of("s3");
-        hs_ui::form::page_title(ui, &theme, &s.t("tool-s3"), Some(&s.t("s3-dashboard-sub")));
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-connections"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
+        let saved: Vec<hs_ui::dashboard::Entry> = {
+            let conns = s.connections.read();
+            conns
+                .of_object_kinds()
+                .map(|c| {
+                    // Each kind keeps its own fields; reading S3's for
+                    // all three is what once made a WebDAV server on
+                    // localhost report an AWS host.
+                    let (user, where_) = session_of(&c.kind, c);
+                    hs_ui::dashboard::Entry {
+                        id: c.id.clone(),
+                        name: c.name.clone(),
+                        detail: if user.is_empty() {
+                            where_
+                        } else {
+                            format!("{user}@{where_}")
+                        },
+                        icon: hs_ui::icons::profile_icon(c).to_string(),
+                    }
+                })
+                .collect()
+        };
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
-        egui::ScrollArea::vertical()
-            .id_salt("s3-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-s3"),
+            subtitle: &s.t("s3-dashboard-sub"),
+            saved: &s.t("dash-saved-connections"),
+            empty: &s.t("dash-no-connections"),
+            start_here: Some(&s.t("dash-start-here")),
+            salt: "s3-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
+            ui,
+            &theme,
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::CLOUD,
+                    value: &saved.len().to_string(),
+                    label: &s.t("dash-connections"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("dash-add-connection")
+            )],
+            &saved,
+        );
+        match pick {
+            Some(hs_ui::dashboard::Pick::Action(_)) => {
+                cx.actions.push(hs_core::tool::Action::RunCommand {
+                    id: "settings:connection:new:s3".into(),
+                });
+            }
+            Some(hs_ui::dashboard::Pick::Open(id)) => {
+                cx.open("s3", Some(OpenRequest::Connection { id }));
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            None => {}
+        }
     }
 
     fn new(services: &Services, state: State) -> Self {
@@ -494,28 +549,7 @@ impl S3Tool {
                 .conn_id
                 .as_deref()
                 .and_then(|id| conns.by_id(id))
-                .map(|c| match kind.as_str() {
-                    "webdav" => {
-                        let f = WebdavFields::from_table(&c.fields);
-                        (f.user, host_of(&f.url))
-                    }
-                    "nexus" => {
-                        let f = NexusFields::from_table(&c.fields);
-                        (f.user, host_of(&f.url))
-                    }
-                    // An object store is reached by an access key rather
-                    // than a user, and an empty endpoint means AWS's own,
-                    // derived from the region.
-                    _ => {
-                        let f = S3Fields::from_table(&c.fields);
-                        let where_ = if f.endpoint.trim().is_empty() {
-                            format!("s3.{}.amazonaws.com", f.region)
-                        } else {
-                            host_of(&f.endpoint)
-                        };
-                        (f.access_key, where_)
-                    }
-                })
+                .map(|c| session_of(&kind, c))
         };
         if let Some((user, where_)) = found {
             self.state.session_user = user.clone();
@@ -1886,6 +1920,40 @@ fn subtitle_for(c: &hs_core::connections::ConnectionProfile) -> String {
 /// and the path are noise beside `127.0.0.1:8086`. Anything that is not
 /// a URL is returned unchanged, which is what an endpoint typed as a
 /// bare host already is.
+/// Who and where a profile points at, read from **that kind's** own
+/// fields.
+///
+/// The three kinds this activity serves keep different fields - WebDAV
+/// and Nexus are HTTP servers with a URL and a user, an object store has
+/// an endpoint, a region and an access key - and reading S3's for all
+/// three is what once made a WebDAV server on `127.0.0.1:8086` report
+/// itself as `s3.us-east-1.amazonaws.com` (owner's report, 2026-10-27).
+/// The band and the dashboard share this, so they cannot drift.
+fn session_of(kind: &str, c: &hs_core::connections::ConnectionProfile) -> (String, String) {
+    match kind {
+        "webdav" => {
+            let f = WebdavFields::from_table(&c.fields);
+            (f.user, host_of(&f.url))
+        }
+        "nexus" => {
+            let f = NexusFields::from_table(&c.fields);
+            (f.user, host_of(&f.url))
+        }
+        // An object store is reached by an access key rather than a
+        // user, and an empty endpoint means AWS's own, derived from the
+        // region.
+        _ => {
+            let f = S3Fields::from_table(&c.fields);
+            let where_ = if f.endpoint.trim().is_empty() {
+                format!("s3.{}.amazonaws.com", f.region)
+            } else {
+                host_of(&f.endpoint)
+            };
+            (f.access_key, where_)
+        }
+    }
+}
+
 fn host_of(url: &str) -> String {
     let rest = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
     let rest = rest.split(['/', '?', '#']).next().unwrap_or(rest);

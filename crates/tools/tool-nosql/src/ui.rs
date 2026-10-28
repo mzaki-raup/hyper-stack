@@ -708,38 +708,77 @@ impl NoSqlTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let count = s
-            .connections
-            .read()
-            .all()
-            .iter()
-            .filter(|c| KINDS.contains(&c.kind.as_str()))
-            .count();
         let tabs = s.open_tabs.of("nosql");
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-nosql"),
-            Some(&s.t("nosql-dashboard-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-connections"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
+        let saved: Vec<hs_ui::dashboard::Entry> = {
+            let conns = s.connections.read();
+            conns
+                .all()
+                .iter()
+                .filter(|c| KINDS.contains(&c.kind.as_str()))
+                .map(|c| {
+                    let f = NoSqlFields::from_table(&c.kind, &c.fields);
+                    hs_ui::dashboard::Entry {
+                        id: c.id.clone(),
+                        name: c.name.clone(),
+                        detail: format!("{}:{}", f.host, f.port),
+                        icon: hs_ui::icons::profile_icon(c).to_string(),
+                    }
+                })
+                .collect()
+        };
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
-        egui::ScrollArea::vertical()
-            .id_salt("nosql-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-nosql"),
+            subtitle: &s.t("nosql-dashboard-sub"),
+            saved: &s.t("dash-saved-connections"),
+            empty: &s.t("dash-no-connections"),
+            start_here: Some(&s.t("dash-start-here")),
+            salt: "nosql-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
+            ui,
+            &theme,
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::PLUGS_CONNECTED,
+                    value: &saved.len().to_string(),
+                    label: &s.t("dash-connections"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("dash-add-connection")
+            )],
+            &saved,
+        );
+        match pick {
+            Some(hs_ui::dashboard::Pick::Action(_)) => {
+                cx.actions.push(hs_core::tool::Action::RunCommand {
+                    id: "settings:connection:new:mongodb".into(),
+                });
+            }
+            Some(hs_ui::dashboard::Pick::Open(id)) => {
+                cx.open("nosql", Some(OpenRequest::Connection { id }));
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            None => {}
+        }
     }
 
     fn body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

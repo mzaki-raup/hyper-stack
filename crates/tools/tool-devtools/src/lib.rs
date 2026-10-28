@@ -224,32 +224,72 @@ impl DevtoolsTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
-        let count = Utility::ALL.len();
         let tabs = s.open_tabs.of("devtools");
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-devtools"),
-            Some(&s.t("devtools-dashboard-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-tools"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
+        // The utilities, each under the category the sidebar files it
+        // in, from the one table both read - so the two can never
+        // disagree about what Devtools offers.
+        let tools: Vec<hs_ui::dashboard::Entry> = Utility::ALL
+            .iter()
+            .map(|(u, cat, title, icon)| hs_ui::dashboard::Entry {
+                id: u.key().to_string(),
+                name: s.t(title),
+                detail: s.t(cat),
+                icon: (*icon).to_string(),
+            })
+            .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
-        egui::ScrollArea::vertical()
-            .id_salt("devtools-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-devtools"),
+            subtitle: &s.t("devtools-dashboard-sub"),
+            saved: &s.t("dash-tools"),
+            empty: "",
+            // Nothing to start here: every utility is in the grid below,
+            // and a button row would only repeat it (owner's
+            // requirement, 2026-10-29).
+            start_here: None,
+            salt: "devtools-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
+            ui,
+            &theme,
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: ph::WRENCH,
+                    value: &tools.len().to_string(),
+                    label: &s.t("dash-tools"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[],
+            &tools,
+        );
+        match pick {
+            Some(hs_ui::dashboard::Pick::Open(key)) => {
+                cx.open(
+                    "devtools",
+                    Some(hs_core::tool::OpenRequest::File {
+                        uri: format!("devtools://{key}"),
+                        line: None,
+                    }),
+                );
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            _ => {}
+        }
     }
 }
 

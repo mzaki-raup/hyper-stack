@@ -192,32 +192,77 @@ impl SshTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
-        let count = s.connections.read().of_kind("ssh").count();
         let tabs = s.open_tabs.of("ssh");
-        hs_ui::form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-ssh"),
-            Some(&s.t("ssh-dashboard-sub")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &count.to_string(), &s.t("dash-connections"));
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("dash-open-tabs"));
-        });
+        // Every saved host, with the session it would open - the same
+        // `user@host:port` the header band shows once connected, so the
+        // two never read as different machines.
+        let hosts: Vec<hs_ui::dashboard::Entry> = s
+            .connections
+            .read()
+            .of_kind("ssh")
+            .map(|c| {
+                let f = SshFields::from_table(&c.fields);
+                hs_ui::dashboard::Entry {
+                    id: c.id.clone(),
+                    name: c.name.clone(),
+                    detail: format!("{}@{}:{}", f.user, f.host, f.port),
+                    icon: hs_ui::icons::profile_icon(c).to_string(),
+                }
+            })
+            .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
             no_preview: &s.t("dash-no-preview"),
         };
-        egui::ScrollArea::vertical()
-            .id_salt("ssh-dashboard")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions
-                        .push(hs_core::tool::Action::FocusTab { tab_id: id });
-                }
-            });
+        let page = hs_ui::dashboard::Page {
+            icon: DESCRIPTOR.icon,
+            title: &s.t("tool-ssh"),
+            subtitle: &s.t("ssh-dashboard-sub"),
+            saved: &s.t("dash-saved-hosts"),
+            empty: &s.t("dash-no-connections"),
+            start_here: Some(&s.t("dash-start-here")),
+            salt: "ssh-dashboard",
+            tabs: &tabs,
+            labels: &labels,
+        };
+        let pick = hs_ui::dashboard::saved_dashboard(
+            ui,
+            &theme,
+            &page,
+            &[
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::PLUGS_CONNECTED,
+                    value: &hosts.len().to_string(),
+                    label: &s.t("dash-connections"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: hs_ui::icons::ph::COLUMNS,
+                    value: &tabs.len().to_string(),
+                    label: &s.t("dash-open-tabs"),
+                },
+            ],
+            &[format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("dash-add-connection")
+            )],
+            &hosts,
+        );
+        match pick {
+            Some(hs_ui::dashboard::Pick::Action(_)) => {
+                cx.actions.push(hs_core::tool::Action::RunCommand {
+                    id: "settings:connection:new:ssh".into(),
+                });
+            }
+            Some(hs_ui::dashboard::Pick::Open(id)) => {
+                cx.open("ssh", Some(OpenRequest::Connection { id }));
+            }
+            Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
+                cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
+            }
+            None => {}
+        }
     }
 
     fn new(services: &Services, state: State) -> Self {

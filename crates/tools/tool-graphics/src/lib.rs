@@ -2591,193 +2591,194 @@ impl GraphicsTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let tabs = s.open_tabs.of("graphics");
         let recents = self.hub.lock().recents();
-        form::page_title(
-            ui,
-            &theme,
-            &s.t("tool-graphics"),
-            Some(&s.t("gfx-activity-subtitle")),
-        );
-        ui.horizontal(|ui| {
-            hs_ui::dashboard::stat(ui, &theme, &tabs.len().to_string(), &s.t("gfx-stat-open"));
-            hs_ui::dashboard::stat(
-                ui,
-                &theme,
-                &recents.len().to_string(),
-                &s.t("gfx-stat-recent"),
-            );
-        });
+        let labels = hs_ui::dashboard::DashboardLabels {
+            open_heading: &s.t("dash-open"),
+            nothing_open: &s.t("dash-nothing-open"),
+            no_preview: &s.t("dash-no-preview"),
+        };
+        // The same choices the Functions list offers, in the same order,
+        // as plain buttons: "New Image" sits beside Open Image because
+        // it is the same function reached a different way.
+        let choices: Vec<(String, Option<Function>, bool)> = Function::ALL
+            .iter()
+            .flat_map(|f| {
+                let mut v = vec![(
+                    format!("{} {}", f.action_icon(), s.t(f.action_key())),
+                    Some(*f),
+                    f.enabled(),
+                )];
+                if *f == Function::Image {
+                    v.push((
+                        format!("{} {}", ph::FILE_PLUS, s.t("gfx-new-image")),
+                        None,
+                        true,
+                    ));
+                }
+                v
+            })
+            .collect();
+        let button_labels: Vec<String> = choices.iter().map(|(l, _, _)| l.clone()).collect();
+        let mut act: Option<usize> = None;
+        let mut run: Option<Function> = None;
+        let mut new_image = false;
+        let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt("gfx-home")
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                ui.add_space(16.0);
-                ui.label(
-                    egui::RichText::new(s.t("gfx-what-to-do"))
-                        .strong()
-                        .size(13.0)
-                        .color(theme.text_muted),
+                hs_ui::dashboard::head(
+                    ui,
+                    &theme,
+                    DESCRIPTOR.icon,
+                    &s.t("tool-graphics"),
+                    &s.t("gfx-activity-subtitle"),
                 );
-                ui.add_space(6.0);
-                ui.horizontal_top(|ui| {
-                    let actions = Function::ALL
-                        .map(|f| (f.action_icon(), f.action_key(), f.description_key(), f));
-                    // "New Image" sits beside Open Image: the same tile, its
-                    // own action (the dialog rather than a file picker).
-                    let mut new_image_clicked = false;
-                    let tiles: Vec<(&str, &str, &str, Option<Function>)> = actions
-                        .iter()
-                        .flat_map(|(icon, label_key, desc_key, f)| {
-                            let mut v = vec![(*icon, *label_key, *desc_key, Some(*f))];
-                            if *f == Function::Image {
-                                v.push((
-                                    ph::FILE_PLUS,
-                                    "gfx-new-image",
-                                    "gfx-new-image-hint",
-                                    None,
-                                ));
-                            }
-                            v
-                        })
-                        .collect();
-                    for (icon, label_key, desc_key, f) in tiles {
-                        let enabled = f.map(|f| f.enabled()).unwrap_or(true);
-                        let label = s.t(label_key);
-                        let (rect, r) =
-                            ui.allocate_exact_size(egui::vec2(180.0, 44.0), egui::Sense::click());
-                        let colour = if enabled {
-                            theme.text
-                        } else {
-                            theme.text_muted
-                        };
-                        let painter = ui.painter();
-                        painter.rect(
-                            rect,
-                            6.0,
-                            if r.hovered() && enabled {
-                                theme.surface_hover
-                            } else {
-                                theme.surface
-                            },
-                            egui::Stroke::new(1.0, theme.border),
-                            egui::StrokeKind::Inside,
-                        );
-                        let icon_galley = painter.layout_no_wrap(
-                            icon.to_string(),
-                            egui::FontId::proportional(18.0),
-                            colour,
-                        );
-                        let text_galley =
-                            painter.layout_no_wrap(label, egui::FontId::proportional(14.0), colour);
-                        let gap = 8.0;
-                        let total_w = icon_galley.size().x + gap + text_galley.size().x;
-                        let start_x = rect.center().x - total_w / 2.0;
-                        let centre_y = rect.center().y;
-                        painter.galley(
-                            egui::pos2(start_x, centre_y - icon_galley.size().y / 2.0),
-                            icon_galley.clone(),
-                            colour,
-                        );
-                        painter.galley(
-                            egui::pos2(
-                                start_x + icon_galley.size().x + gap,
-                                centre_y - text_galley.size().y / 2.0,
-                            ),
-                            text_galley,
-                            colour,
-                        );
-                        if enabled && r.tip(s.t(desc_key)).clicked() {
-                            match f {
-                                Some(f) => self.pick_and_open(cx, f),
-                                None => new_image_clicked = true,
-                            }
-                        }
-                        ui.add_space(8.0);
-                    }
-                    if new_image_clicked {
-                        self.new_image = Some(NewImage::default());
-                    }
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::stats(
+                    ui,
+                    &theme,
+                    &[
+                        hs_ui::dashboard::Stat {
+                            icon: ph::CLOCK_COUNTER_CLOCKWISE,
+                            value: &recents.len().to_string(),
+                            label: &s.t("gfx-stat-recent"),
+                        },
+                        hs_ui::dashboard::Stat {
+                            icon: ph::COLUMNS,
+                            value: &tabs.len().to_string(),
+                            label: &s.t("gfx-stat-open"),
+                        },
+                    ],
+                );
+                hs_ui::dashboard::rule(ui, &theme);
+
+                hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
+                act = hs_ui::dashboard::actions(ui, &theme, &button_labels);
+                hs_ui::dashboard::rule(ui, &theme);
+
+                // The Functions list keeps the layout it had - a row per
+                // function with its description and its own button - and
+                // gains the card the rest of the page now has.
+                hs_ui::dashboard::section(ui, &theme, &s.t("gfx-functions"));
+                // The card needs a width of its own: inside a
+                // `horizontal` the nested `Ui` is unbounded, and the
+                // function rows then ran across the page instead of
+                // stacking (CLAUDE.md).
+                let card_w = (ui.available_width() - 32.0).clamp(320.0, form::CARD_MAX_WIDTH);
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    egui::Frame::new()
+                        .fill(theme.panel_bg)
+                        .stroke(egui::Stroke::new(1.0, theme.border))
+                        .corner_radius(egui::CornerRadius::same(8))
+                        .inner_margin(egui::Margin::same(12))
+                        .show(ui, |ui| {
+                            ui.set_width(card_w - 24.0);
+                            // A `Frame` hands its content the *parent's*
+                            // direction, and the parent here is a
+                            // `horizontal` - so without this the rows
+                            // were placed beside each other rather than
+                            // stacked (CLAUDE.md).
+                            ui.vertical(|ui| {
+                                for f in Function::ALL {
+                                    ui.horizontal_top(|ui| {
+                                        ui.add_sized(
+                                            [24.0, 24.0],
+                                            egui::Label::new(
+                                                egui::RichText::new(f.icon()).size(18.0),
+                                            )
+                                            .selectable(false),
+                                        );
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(330.0, 58.0),
+                                            egui::Layout::top_down(egui::Align::Min),
+                                            |ui| {
+                                                ui.set_min_width(330.0);
+                                                ui.set_max_width(330.0);
+                                                ui.label(
+                                                    egui::RichText::new(s.t(f.title_key()))
+                                                        .strong(),
+                                                );
+                                                ui.label(
+                                                    egui::RichText::new(s.t(f.description_key()))
+                                                        .small()
+                                                        .color(theme.text_muted),
+                                                );
+                                            },
+                                        );
+                                        ui.allocate_ui_with_layout(
+                                            egui::vec2(150.0, 58.0),
+                                            egui::Layout::top_down(egui::Align::Center),
+                                            |ui| {
+                                                ui.set_min_width(150.0);
+                                                ui.set_max_width(150.0);
+                                                ui.add_space(if f == Function::Image {
+                                                    2.0
+                                                } else {
+                                                    12.0
+                                                });
+                                                if ui
+                                                    .add_enabled(
+                                                        f.enabled(),
+                                                        egui::Button::new(format!(
+                                                            "{} {}",
+                                                            f.action_icon(),
+                                                            s.t(f.action_key())
+                                                        ))
+                                                        .min_size(egui::vec2(140.0, 28.0)),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    run = Some(f);
+                                                }
+                                                if f == Function::Image
+                                                    && ui
+                                                        .add(
+                                                            egui::Button::new(format!(
+                                                                "{} {}",
+                                                                ph::FILE_PLUS,
+                                                                s.t("gfx-new-image")
+                                                            ))
+                                                            .min_size(egui::vec2(140.0, 24.0)),
+                                                        )
+                                                        .clicked()
+                                                {
+                                                    new_image = true;
+                                                }
+                                            },
+                                        );
+                                    });
+                                    ui.add_space(2.0);
+                                }
+                            });
+                        });
                 });
-                ui.add_space(18.0);
-                ui.label(
-                    egui::RichText::new(s.t("gfx-functions"))
-                        .strong()
-                        .size(13.0)
-                        .color(theme.text_muted),
-                );
-                ui.add_space(6.0);
-                for f in Function::ALL {
-                    ui.horizontal_top(|ui| {
-                        ui.add_sized(
-                            [24.0, 24.0],
-                            egui::Label::new(egui::RichText::new(f.icon()).size(18.0))
-                                .selectable(false),
-                        );
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(330.0, 58.0),
-                            egui::Layout::top_down(egui::Align::Min),
-                            |ui| {
-                                ui.set_min_width(330.0);
-                                ui.set_max_width(330.0);
-                                ui.label(egui::RichText::new(s.t(f.title_key())).strong());
-                                ui.label(
-                                    egui::RichText::new(s.t(f.description_key()))
-                                        .small()
-                                        .color(theme.text_muted),
-                                );
-                            },
-                        );
-                        ui.allocate_ui_with_layout(
-                            egui::vec2(150.0, 58.0),
-                            egui::Layout::top_down(egui::Align::Center),
-                            |ui| {
-                                ui.set_min_width(150.0);
-                                ui.set_max_width(150.0);
-                                ui.add_space(if f == Function::Image { 2.0 } else { 12.0 });
-                                // The same icon as the What To Do tile above
-                                // (owner's request, 2026-10-22).
-                                if ui
-                                    .add_enabled(
-                                        f.enabled(),
-                                        egui::Button::new(format!(
-                                            "{} {}",
-                                            f.action_icon(),
-                                            s.t(f.action_key())
-                                        ))
-                                        .min_size(egui::vec2(140.0, 28.0)),
-                                    )
-                                    .clicked()
-                                {
-                                    self.pick_and_open(cx, f);
-                                }
-                                if f == Function::Image
-                                    && ui
-                                        .add(
-                                            egui::Button::new(format!(
-                                                "{} {}",
-                                                ph::FILE_PLUS,
-                                                s.t("gfx-new-image")
-                                            ))
-                                            .min_size(egui::vec2(140.0, 24.0)),
-                                        )
-                                        .clicked()
-                                {
-                                    self.new_image = Some(NewImage::default());
-                                }
-                            },
-                        );
-                    });
-                    ui.add_space(2.0);
+                hs_ui::dashboard::rule(ui, &theme);
+
+                if let Some(id) = hs_ui::dashboard::open_tabs_section(ui, &theme, &tabs, &labels) {
+                    focus = Some(id);
                 }
                 ui.add_space(8.0);
-                let labels = hs_ui::dashboard::DashboardLabels {
-                    open_heading: &s.t("dash-open"),
-                    nothing_open: &s.t("dash-nothing-open"),
-                    no_preview: &s.t("dash-no-preview"),
-                };
-                if let Some(id) = hs_ui::dashboard::open_tabs(ui, &theme, &tabs, &labels) {
-                    cx.actions.push(Action::FocusTab { tab_id: id });
-                }
             });
+        if let Some(i) = act
+            && let Some((_, f, enabled)) = choices.get(i)
+            && *enabled
+        {
+            match f {
+                Some(f) => run = Some(*f),
+                None => new_image = true,
+            }
+        }
+        if let Some(f) = run {
+            self.pick_and_open(cx, f);
+        }
+        if new_image {
+            self.new_image = Some(NewImage::default());
+        }
+        if let Some(tab_id) = focus {
+            cx.actions.push(Action::FocusTab { tab_id });
+        }
     }
 
     /// Debounced (1 s) autosave of a dirty diagram into the same stable draft

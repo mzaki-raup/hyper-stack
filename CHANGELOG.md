@@ -11,6 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Security: pulldown-cmark updated to 0.13.5.** RUSTSEC-2026-0414 is a
+  memory-exhaustion flaw in wiki-link parsing. HyperStack does not set
+  `ENABLE_WIKILINKS`, so it was not reachable through this, but the
+  advisory names a fixed version and an ignore is only ever for an
+  advisory with no fix.
+- **crypto-bigint moved off a yanked release** (0.7.6 -> 0.7.10). It
+  reaches the tree through russh; nothing here calls it directly.
 - **Every activity's dashboard is laid out the same way.** Terminal,
   SSH, Containers, Database, NoSQL, Redis, S3, API Client, Graphics,
   Devtools and Logs now wear the shape the Scratchpad and the Editor

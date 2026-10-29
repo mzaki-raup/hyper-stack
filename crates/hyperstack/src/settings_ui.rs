@@ -6302,6 +6302,25 @@ fn repo_detail(
                             }
                             e.project = p.full_name.clone();
                             e.url = p.clone_url.clone();
+                            // The host's picture becomes the icon, unless
+                            // one was uploaded already (phase 6).
+                            if !p.avatar_url.is_empty()
+                                && s.git_repos.read().icon_file(&e.id).is_none()
+                            {
+                                let id = e.id.clone();
+                                let url = p.avatar_url.clone();
+                                let repos = s.git_repos.clone();
+                                s.runtime.spawn(async move {
+                                    let http = hs_core::ai::http_client();
+                                    if let Ok((bytes, ext)) =
+                                        tool_git::hosts::fetch_avatar(&http, &url).await
+                                        && let Err(e) =
+                                            repos.read().set_icon_bytes(&id, &ext, &bytes)
+                                    {
+                                        tracing::warn!("repository avatar not saved: {e}");
+                                    }
+                                });
+                            }
                             let base = s.settings.read().git.clone_folder.clone();
                             if e.path.as_os_str().is_empty() && !base.trim().is_empty() {
                                 e.path = std::path::PathBuf::from(base.trim()).join(&name);

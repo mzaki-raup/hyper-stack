@@ -68,9 +68,24 @@ struct State {
     image: Option<String>,
 }
 
+/// What the dashboard knows about one saved repository: whether its
+/// work tree is dirty and how far ahead / behind its upstream it is.
+/// Probed on the blocking pool when the dashboard is on screen, kept
+/// for a while, never on the UI thread.
+#[derive(Clone, Default)]
+struct RepoFigures {
+    dirty: bool,
+    ahead: u32,
+    behind: u32,
+}
+
 pub struct GitTool {
     id: egui::Id,
     state: State,
+    /// Dashboard figures by entry id, with when they were read.
+    figures: std::collections::HashMap<String, (f64, RepoFigures)>,
+    figures_slot: std::sync::Arc<parking_lot::Mutex<Vec<(String, RepoFigures)>>>,
+    probing: std::collections::HashSet<String>,
     /// `Some(title)` while this is the activity's home tab.
     home_title: Option<String>,
     pane: pane::RepoPane,
@@ -81,6 +96,9 @@ impl GitTool {
         let mut t = Self {
             id: egui::Id::new(("git-tool", hs_core::new_id())),
             state,
+            figures: Default::default(),
+            figures_slot: Default::default(),
+            probing: Default::default(),
             home_title: None,
             pane: pane::RepoPane::default(),
         };
@@ -126,10 +144,59 @@ impl GitTool {
         ph::GIT_BRANCH
     }
 
+    /// Read the dashboard's figures for every saved repository whose
+    /// answer is older than a minute; each probe is one `git status`.
+    fn probe_figures(&mut self, s: &Services, now: f64) {
+        const FRESH: f64 = 60.0;
+        for (id, f) in self.figures_slot.lock().drain(..) {
+            self.probing.remove(&id);
+            self.figures.insert(id, (now, f));
+        }
+        let entries: Vec<(String, PathBuf)> = s
+            .git_repos
+            .read()
+            .all()
+            .iter()
+            .map(|r| (r.id.clone(), r.path.clone()))
+            .collect();
+        for (id, path) in entries {
+            let fresh = self
+                .figures
+                .get(&id)
+                .is_some_and(|(at, _)| now - at < FRESH);
+            if fresh || self.probing.contains(&id) || !path.join(".git").exists() {
+                continue;
+            }
+            self.probing.insert(id.clone());
+            let slot = self.figures_slot.clone();
+            s.runtime.spawn_blocking(move || {
+                let f = hs_git::status(&path)
+                    .map(|st| RepoFigures {
+                        dirty: !st.files.is_empty(),
+                        ahead: st.ahead,
+                        behind: st.behind,
+                    })
+                    .unwrap_or_default();
+                slot.lock().push((id, f));
+            });
+        }
+    }
+
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Self::theme(s);
         let tabs = s.open_tabs.of("git");
+        let now = ui.input(|i| i.time);
+        self.probe_figures(s, now);
+        if !self.probing.is_empty() {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(300));
+        }
+        let dirty = self.figures.values().filter(|(_, f)| f.dirty).count();
+        let (ahead, behind) = self
+            .figures
+            .values()
+            .fold((0u32, 0u32), |(a, b), (_, f)| (a + f.ahead, b + f.behind));
         let repos: Vec<hs_ui::dashboard::Entry> = s
             .git_repos
             .read()
@@ -169,6 +236,16 @@ impl GitTool {
                     icon: ph::GIT_BRANCH,
                     value: &repos.len().to_string(),
                     label: &s.t("git-dash-repos"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::PENCIL_SIMPLE,
+                    value: &dirty.to_string(),
+                    label: &s.t("git-dash-dirty"),
+                },
+                hs_ui::dashboard::Stat {
+                    icon: ph::ARROWS_DOWN_UP,
+                    value: &format!("\u{2191}{ahead} \u{2193}{behind}"),
+                    label: &s.t("git-dash-ahead-behind"),
                 },
                 hs_ui::dashboard::Stat {
                     icon: ph::KEY,
@@ -379,6 +456,45 @@ impl Tool for GitTool {
 
     fn draws_toolbar(&self) -> bool {
         !self.is_home() && self.root().is_some()
+    }
+
+    /// Every verb as a palette command (owner's rule: every action has
+    /// a palette command); the shortcut column is the user's to fill in
+    /// Settings → Shortcuts.
+    fn commands(&self) -> Vec<hs_core::tool::CommandDescriptor> {
+        if self.is_home() || self.root().is_none() {
+            return Vec::new();
+        }
+        [
+            ("git.ai", "Git: Toggle AI Assistant"),
+            ("git.refresh", "Git: Refresh"),
+            ("git.fetch", "Git: Fetch"),
+            ("git.pull", "Git: Pull"),
+            ("git.push", "Git: Push"),
+            ("git.status", "Git: File Status"),
+            ("git.history", "Git: History"),
+            ("git.branch", "Git: Branch…"),
+            ("git.merge", "Git: Merge…"),
+            ("git.rebase", "Git: Rebase…"),
+            ("git.stash", "Git: Stash…"),
+            ("git.tag", "Git: Tag…"),
+            ("git.flow", "Git: Git Flow…"),
+            ("git.terminal", "Git: Open Terminal Here"),
+        ]
+        .into_iter()
+        .map(|(id, title)| hs_core::tool::CommandDescriptor {
+            id: id.into(),
+            title: title.into(),
+            shortcut_action: None,
+        })
+        .collect()
+    }
+
+    fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
+        if self.is_home() || self.root().is_none() {
+            return false;
+        }
+        self.pane.run_command(id, cx)
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

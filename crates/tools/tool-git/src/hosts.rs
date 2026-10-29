@@ -19,6 +19,9 @@ pub struct Project {
     pub clone_url: String,
     pub default_branch: String,
     pub private: bool,
+    /// The owner's or project's picture, when the host lists one; the
+    /// form offers it as the repository icon (§3, phase 6).
+    pub avatar_url: String,
 }
 
 /// What to send: the first page's URL, how to go on, the headers.
@@ -159,6 +162,31 @@ fn error_text(body: &Value) -> String {
         .to_string()
 }
 
+/// Download a project's avatar for use as the repository icon: the
+/// bytes and the file extension the content type says.
+pub async fn fetch_avatar(http: &reqwest::Client, url: &str) -> Result<(Vec<u8>, String), String> {
+    let resp = http.get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("{}", resp.status()));
+    }
+    let ext = match resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+    {
+        t if t.contains("png") => "png",
+        t if t.contains("jpeg") || t.contains("jpg") => "jpg",
+        t if t.contains("gif") => "gif",
+        t if t.contains("webp") => "webp",
+        t if t.contains("svg") => "svg",
+        _ => "png",
+    }
+    .to_string();
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok((bytes.to_vec(), ext))
+}
+
 /// The login field of each host's "current user" answer.
 pub fn parse_whoami(kind: HostKind, body: &Value) -> Option<String> {
     let key = match kind {
@@ -188,6 +216,17 @@ pub fn parse_projects(kind: HostKind, body: &Value) -> (Vec<Project>, bool) {
                             clone_url: s(r, "clone_url"),
                             default_branch: s(r, "default_branch"),
                             private: r.get("private").and_then(Value::as_bool).unwrap_or(false),
+                            avatar_url: {
+                                let own = s(r, "avatar_url");
+                                if own.is_empty() {
+                                    r.pointer("/owner/avatar_url")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("")
+                                        .to_string()
+                                } else {
+                                    own
+                                }
+                            },
                         })
                         .filter(|p| !p.full_name.is_empty())
                         .collect()
@@ -208,6 +247,17 @@ pub fn parse_projects(kind: HostKind, body: &Value) -> (Vec<Project>, bool) {
                             clone_url: s(r, "http_url_to_repo"),
                             default_branch: s(r, "default_branch"),
                             private: r.get("visibility").and_then(Value::as_str) != Some("public"),
+                            avatar_url: {
+                                let own = s(r, "avatar_url");
+                                if own.is_empty() {
+                                    r.pointer("/namespace/avatar_url")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("")
+                                        .to_string()
+                                } else {
+                                    own
+                                }
+                            },
                         })
                         .filter(|p| !p.full_name.is_empty())
                         .collect()
@@ -246,6 +296,11 @@ pub fn parse_projects(kind: HostKind, body: &Value) -> (Vec<Project>, bool) {
                                     .get("is_private")
                                     .and_then(Value::as_bool)
                                     .unwrap_or(false),
+                                avatar_url: r
+                                    .pointer("/links/avatar/href")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
                             }
                         })
                         .filter(|p| !p.full_name.is_empty())
@@ -267,13 +322,14 @@ mod tests {
     #[test]
     fn github_and_gitea_list_full_name_and_clone_url() {
         let body = json!([
-            {"full_name": "owner/hyper-stack", "description": "d", "clone_url": "https://github.com/owner/hyper-stack.git", "default_branch": "main", "private": true},
+            {"full_name": "owner/hyper-stack", "description": "d", "clone_url": "https://github.com/owner/hyper-stack.git", "default_branch": "main", "private": true, "owner": {"avatar_url": "https://avatars.example/1"}},
             {"full_name": "", "clone_url": "x"}
         ]);
         let (items, more) = parse_projects(HostKind::GitHub, &body);
         assert_eq!(items.len(), 1, "a row without a name is dropped");
         assert_eq!(items[0].full_name, "owner/hyper-stack");
         assert!(items[0].private);
+        assert_eq!(items[0].avatar_url, "https://avatars.example/1");
         assert!(!more, "a short page is the last one");
         let (items, _) = parse_projects(HostKind::Forgejo, &body);
         assert_eq!(

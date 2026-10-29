@@ -85,10 +85,10 @@ in the e2e test).
 - [x] `tool-api`: request editor (params/headers/body/auth: basic, bearer, API key; OAuth2 and SigV4 pending), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export — 2026-10-15
 - [x] Collections (one JSON file each), variables with scopes, Postman v2.1 import/export; JavaScript `pm` scripts on Boa — 2026-10-15 (Insomnia, Bruno and OpenAPI importers 2026-10-18)
 - [x] Git in the editor: status, stage/unstage file + hunk, diff viewer, commit, branches, stash, fetch/pull/push via the git CLI, protected-remote guard (`hs-git`, 2026-10-12/18)
-- [ ] **Git activity** (`tool-git`, owner's request 2026-10-29, phases in `docs/tools/git-activity.md` §8): phase 1 foundation landed 2026-10-29 (stores, rail entry, dashboard, sidebar, File Status + commit, Settings → Git); phases 2–6 (work pane, operations, hosts, assistant, polish) pending
+- [x] **Git activity** (`tool-git`, owner's request 2026-10-29, phases in `docs/tools/git-activity.md` §8): all six phases landed 2026-10-29/30 — foundation (v0.98), work pane with History graph, blame and conflict editor (v0.99), operations and Git Flow (v0.100), hosts with Fetch Project and Clone and Save (v0.101), AI Assistant (v0.102), polish (v0.103)
 
 ### M5 · Logs + Devtools core (4 w)
-- [ ] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/combined/multi-line stack traces), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources
+- [x] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/Nginx/PostgreSQL/JVM thread dumps), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources — 2026-10-22 (thread dumps 2026-10-24)
 - [x] `tool-devtools`: JSON/YAML/TOML/XML format+convert, regex tester, cron builder, UUID/ULID, timestamp converter, text diff — JWT, Base64, hashes/HMAC, Jasypt, PKI messages and Firebase tokens 2026-10-15; cron, generators, conversions 2026-10-17; regex tester and text diff (on `similar`, not `hs-editor`) 2026-10-18
 
 ### M6 · Hardening and 1.0 (4 w)
@@ -123,14 +123,14 @@ feeds the same handoff.
 
 ## Phase 2 — Depth (≈ 16 weeks)
 
-- [ ] Containers: Docker/Podman (local, TCP, over SSH), compose; logs feed `tool-logs`, exec feeds `hs-term`
+- [x] Containers: Docker/Podman (local, TCP, over SSH), Kubernetes and Windows containers, compose; logs feed `tool-logs`, exec feeds `hs-term` — the Container activity, 2026-10-24 (ADR-026)
 - [ ] API: Rhai pre/post scripts and assertions, collection runner with report, WebSocket + SSE, GraphQL introspection, cookie jar, client certs, proxy
 - [ ] SQL: SQL Server, inline editing with preview, explain plan tree, CSV import, Excel export
 - [ ] NoSQL: Elasticsearch/OpenSearch and DynamoDB drivers, index management, explain, schema inference, import/export, copy collection across environments, CouchDB views and replication
 - [ ] Redis: server info dashboard, slowlog, client list, pub/sub tab, streams with consumer groups, big-key finder, bulk delete with dry run, export/import
-- [ ] Logs: Docker/Kubernetes/journalctl/Windows Event Log sources, multi-source merge, statistics sparkline, alerts, save filtered output
+- [ ] Logs: Docker/Kubernetes sources done through the Container activity (2026-10-24); journalctl/Windows Event Log sources, multi-source merge, statistics sparkline, alerts, save filtered output pending
 - [ ] Editor: tree-sitter highlighting and folding, minimap, snippets, external formatter, three-way merge editor
-- [ ] Git: log graph, blame, file history, merge/rebase/cherry-pick/revert/tags, conflict resolution
+- [x] Git: log graph, blame, file history, merge/rebase/cherry-pick/tags, conflict resolution — the Git activity, 2026-10-29/30 (revert pending)
 - [ ] SSH: port-forward manager UI, broadcast input, server monitor widget, saved commands
 - [ ] S3: object metadata/tags/versions, sync with dry run, policy/CORS viewer
 - [ ] Shell: cross-tool drag and drop, global search, optional installed mode (per-user data folder) for people who prefer it
@@ -139,11 +139,11 @@ feeds the same handoff.
 
 ## Phase 3 — Reach (≈ 16 weeks)
 
-- [ ] Kubernetes: contexts, namespaces, workloads, pods logs/exec/port-forward, describe, apply
+- [x] Kubernetes: contexts, namespaces, workloads, pods logs/exec/port-forward, describe, apply — in the Container activity, 2026-10-24
 - [ ] API: gRPC (reflection + proto import), mock server from collection/OpenAPI, OpenAPI export
 - [ ] SQL: ER diagram, DDL generator, schema compare, data compare, ClickHouse/DuckDB
 - [ ] NoSQL: Cassandra/ScyllaDB (CQL), Firestore/Cosmos/Neo4j evaluation
-- [ ] Git forge integration: GitHub/GitLab/Forgejo PRs, issues, CI status
+- [ ] Git forge integration: project listing, clone and avatars done (Git activity phase 4, 2026-10-29); PRs, issues and CI status pending
 - [ ] Plugin API (WASM via `wasmtime`): devtools utilities and importers first
 - [ ] Detachable tabs (multiple viewports), session audit log, presentation mode
 - [x] Optional AI assistant (bring your own service) in the editor (ADR-019); review-only assistant with Insert in Terminal, SSH, SQL, S3, API client and Graphics (2026-10-15)

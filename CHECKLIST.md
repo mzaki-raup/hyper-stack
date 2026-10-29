@@ -236,19 +236,19 @@ store that already exists.
 
 | Item | State | Notes |
 |---|---|---|
-| Containers: Docker/Podman, Compose, remote over SSH | Pending | |
+| Containers: Docker/Podman, Compose, remote over SSH | Completed | The Container activity, 2026-10-24: Docker, Podman, Kubernetes and Windows containers, images, Compose, pod logs into Logs, a shell in a pod (see the Container activity section above) |
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
 | SQL: SQL Server, inline editing, explain, CSV import, Excel export | Pending | |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Pending | |
-| Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | Pending | |
+| Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | In-Progress | Docker and Kubernetes sources through the Container activity (2026-10-24); journalctl, Event Log, merge, statistics and alerts pending |
 | Editor: tree-sitter, minimap, snippets, formatter, three-way merge | Pending | |
 | Editor: AI assistant (1min.AI / OpenAI-compatible, edit blocks, Cascade; ADR-019) | Completed | 2026-10-11, owner's request ahead of the roadmap: chat with file/selection context, diffs with Apply/Reject (one undo step each), Cascade rounds, Settings → AI Assistant with several providers, Fetch Models and Test Connection; exercised in the app against a mock server speaking both the 1min.AI and the OpenAI SSE formats; API key stored in the vault and the data folder grepped clean. Not yet tried against the live 1min.AI service or a real LM Studio |
 | Editor: several project roots, each with its own editor tabs | Completed | 2026-10-12: one editor tab, a row of file tabs per project, Other Files row, close guards, Ctrl+F4 / Ctrl+Alt+PgUp/PgDn, routing from other tools via `uri_affinity`, one-file layouts migrated; tool-level test with real services, and exercised in the app (command-line folder, tree, terminal Ctrl+click, unsaved-close dialog, restart restore) |
 | Editor: one window tab per project with a multi-row strip of file tabs inside (replaces "Open Files In") | Completed | 2026-10-12, owner's request: exercised in the app (a two-project tab split into two project tabs, 13 files wrapping in the file strip, 10 project tabs wrapping in the window strip, close and the file-tab menu), editor tool test, tab strip kittest |
 | Editor: "Open Files In" setting (Separate Tabs default, Project Rows with wrapping rows) | Completed | 2026-10-12, after the owner found files "overwriting" the tab: exercised both modes in the app (new tab per tree click, focus of an open file, projects carried to new tabs, live switch, a 14-file row wrapping) and in the tool-level test |
 | AI: model dropdown from the provider's model list | Completed | 2026-10-12: LM Studio-style `/v1/models` list, 1min.AI built-in list, custom id, refresh, error shown in the list; exercised against the mock server |
-| Git: log graph, blame, merge/rebase/cherry-pick, conflicts | Pending | |
+| Git: log graph, blame, merge/rebase/cherry-pick, conflicts | Completed | The Git activity, 2026-10-29/30 (phases 2 and 3 in the Git activity section) |
 | SSH: port-forward UI, broadcast, server monitor | Pending | |
 | S3: metadata/tags/versions, sync, policy viewer | Pending | |
 | Shell: drag and drop, global search, installed mode | Pending | |
@@ -259,11 +259,11 @@ store that already exists.
 
 | Item | State | Notes |
 |---|---|---|
-| Kubernetes | Pending | |
+| Kubernetes | Completed | In the Container activity, 2026-10-24: contexts, namespaces, workloads, pod logs/exec/port-forward, describe, apply with a dry-run diff |
 | gRPC, mock server, OpenAPI export | Pending | |
 | SQL: ER diagram, DDL, schema/data compare, ClickHouse/DuckDB | Pending | |
 | NoSQL: Cassandra/ScyllaDB | Pending | |
-| Forge integration (GitHub/GitLab/Forgejo) | Pending | |
+| Forge integration (GitHub/GitLab/Forgejo) | In-Progress | Project listing, clone and avatars done (Git activity phase 4, 2026-10-29); PRs, issues and CI status pending |
 | Plugin API (WASM) | Pending | |
 | Detachable tabs, audit log, presentation mode | Pending | |
 | macOS runner and bundle, aarch64 builds | Pending | |

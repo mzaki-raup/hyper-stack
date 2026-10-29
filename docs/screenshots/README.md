@@ -36,6 +36,38 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-10-30 set: the Git activity, dashboards, variables, the Devtools toolbar
+
+Captured at 1760x900 from the v0.102/v0.103 debug build with the session
+harness (`hs.ps1`: `start`, `click`, `rclick`, `keys`, `wheel`, `shot`,
+client coordinates = screenshot − (8, 31)), quantised with
+`magick <in> -colors 256 -depth 8 <out>`. The fixture repository
+`D:\Temp\hs-git-fixture` has a merge in progress (README.md conflicted
+between `main` and `fix`), an unstaged change to `main.rs`, a stash, a
+tag, and the `feature` and `topic` branches; `hs-bare.git` is its bare
+clone for the Localhost source.
+
+- `git-dashboard.png`, `git-repository.png` (File Status with a hunk's
+  verbs under the paused-merge bar), `git-history.png`,
+  `git-conflict.png`, `git-blame.png`, `git-flow.png`,
+  `git-branch-menu.png`, `git-assistant.png`, `settings-git.png`,
+  `settings-git-credential.png`.
+- `git-walkthrough.gif`: those ten in that order,
+  `magick <frames> -resize 1200x -colors 256 -layers Optimize -set delay 300 -loop 0 git-walkthrough.gif`
+  (3 s a frame, 0.7 MB).
+- `terminal-dashboard.png`, `db-dashboard.png`: the shared dashboard
+  layout every activity's permanent tab uses since 2026-10-27.
+- `settings-variables.png` (the Collection Variables and Global Variables
+  cards beside the environments), `settings-globals.png` (the Globals
+  editor).
+- `devtools-toolbar.png`: a utility tab with its toolbar row.
+- `hyperstack-demo.gif`: the 112 frames of the 2026-10-22 set plus
+  twelve new ones (the ten Git frames, the Terminal dashboard and the
+  Globals editor, each `-resize 1200x -gravity center -background
+  '#14161A' -extent 1200x823`), re-optimised with
+  `magick <old coalesced> <new> -colors 256 -layers Optimize -set delay 300 -loop 0`:
+  124 frames, 3 s each, 8.7 MB.
+
 ## 2026-10-15 set: Home, settings pages, Devtools, API client, Graphics, Browser
 
 `home.png`, `settings-general.png`, `settings-appearance.png`,

@@ -230,7 +230,18 @@ bounded slice of the diff; never the token.
 
 ## 8. Phases
 
-Status: **phase 4 landed 2026-10-29** - the host clients
+Status: **phase 5 landed 2026-10-30** - the assistant column
+(`RepoPane::assistant_column`), its six prompt buttons shipped through
+`hs_core::prompts` so Settings → AI Assistant → Prompt Buttons edits
+them, and the command hand-off: **Insert and Run** opens a Terminal tab
+in the repository root with the command (the terminal runs it, as the
+editor's Run does); plain **Insert** on a command copies it to the
+clipboard and opens that terminal, because the Terminal request has no
+"type but do not run" form and review-only means exactly that. A
+```commit block's Insert fills the commit box. Phase 4 landed the day
+before.
+
+Phase 4 status: **landed 2026-10-29** - the host clients
 (`tool-git::hosts`), Fetch Project with the fuzzy dropdown, Clone and
 Save as a Job, the credential Test, and the token hand-off
 (`tool-git::auth`). One design change from §2.2: the token reaches git

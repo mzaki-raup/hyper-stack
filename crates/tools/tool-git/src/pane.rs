@@ -71,6 +71,15 @@ pub struct RepoPane {
     verbs: Verbs,
     /// The saved credential the network verbs hand to git, by id.
     credential: String,
+    /// The AI Assistant column (docs/tools/git-activity.md §7).
+    assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// What the assistant is told about the repository, refreshed with
+    /// the status: short status, bounded staged diff, recent log.
+    ai_context: String,
+    ai_context_slot: Slot<String>,
+    /// The commit box text an answer's Insert filled in, applied on the
+    /// next frame the box is drawn.
+    message_from_ai: Option<String>,
     status_error: Option<String>,
     status_slot: Slot<Result<Status, String>>,
     remote_slot: Slot<String>,
@@ -144,10 +153,16 @@ impl RepoPane {
         let slot = self.status_slot.clone();
         let remote = self.remote_slot.clone();
         let op_state = self.op_state_slot.clone();
+        let ai_context = self.assistant.open.then(|| self.ai_context_slot.clone());
         s.runtime.spawn_blocking(move || {
             let st = hs_git::status(&root).map_err(|e| e.to_string());
             *slot.lock() = Some(st);
             *op_state.lock() = Some(hs_git::operation_state(&root));
+            // What the assistant sees, only while its column is open: a
+            // bounded picture, never the whole tree.
+            if let Some(ctx) = ai_context {
+                *ctx.lock() = Some(assistant_context(&root));
+            }
             if let Ok(rs) = hs_git::write::remotes(&root) {
                 let url = rs
                     .iter()
@@ -309,6 +324,9 @@ impl RepoPane {
         }
         if let Some(st) = self.op_state_slot.lock().take() {
             self.op_state = st;
+        }
+        if let Some(c) = self.ai_context_slot.lock().take() {
+            self.ai_context = c;
         }
         let d = self.diff_slot.lock().take();
         if let Some((path, side, d)) = d {
@@ -481,6 +499,22 @@ impl RepoPane {
             ui.spinner();
             ui.label(egui::RichText::new(label).color(theme.text_muted));
         }
+        hs_ui::toolbar::hard_right(ui, |ui| {
+            // The same control in every tool, in the same place.
+            if ui
+                .selectable_label(
+                    self.assistant.open,
+                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+                )
+                .on_hover_text(s.t("git-ai-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("git");
+                if self.assistant.open {
+                    self.refresh(s);
+                }
+            }
+        });
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
@@ -535,6 +569,12 @@ impl RepoPane {
         if let Some(op) = self.verbs.panel_ui(ui, theme, cx.services, &facts, busy) {
             self.exec(cx.services, op);
         }
+        let (mut main, panel) = hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        // The column is drawn into the *outer* ui: the carved-off child's
+        // clip rectangle excludes it, and a child made from that child
+        // clipped the whole assistant away (seen on screen).
+        let outer = ui;
+        let ui = &mut main;
         let full = ui.available_width();
         // The tree, narrow and resizable.
         let mut tree_pick: Option<tree::Pick> = None;
@@ -569,6 +609,109 @@ impl RepoPane {
             .show(ui, |ui| {
                 self.right_column(ui, theme, cx);
             });
+        if let Some(panel) = panel {
+            self.assistant_column(outer, panel, theme, cx);
+        }
+    }
+
+    /// The assistant's column (docs/tools/git-activity.md §7): the
+    /// repository as context, git prompt buttons, and answers whose
+    /// command blocks can be run in a terminal in the repository root.
+    fn assistant_column(
+        &mut self,
+        ui: &mut egui::Ui,
+        panel: egui::Rect,
+        theme: &Theme,
+        cx: &mut ToolContext,
+    ) {
+        let s = cx.services;
+        let name = self
+            .root
+            .as_ref()
+            .and_then(|r| r.file_name().map(|n| n.to_string_lossy().to_string()))
+            .unwrap_or_default();
+        let branch = self
+            .status
+            .as_ref()
+            .map(|st| st.branch_label())
+            .unwrap_or_default();
+        let upstream = self
+            .status
+            .as_ref()
+            .and_then(|st| st.upstream.clone())
+            .unwrap_or_default();
+        let context = format!(
+            "Repository: {name}\nBranch: {branch}\nUpstream: {upstream}\nRemote: {}\n\n{}",
+            self.remote_url, self.ai_context
+        );
+        self.assistant.set_context(s.t("git-ai-context"), context);
+        self.assistant.extra_system = s.t("git-ai-system");
+        self.assistant.quick_actions = hs_ui::ai_assistant::QuickAction::for_activity(s, "git");
+        self.assistant.can_insert = true;
+        self.assistant.can_run = self.root.is_some();
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(panel)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        child.set_clip_rect(panel.intersect(ui.clip_rect()));
+        let mut out = hs_ui::ai_assistant::AssistantOutput::default();
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .show(&mut child, |ui| {
+                ui.set_min_width(370.0);
+                out = self.assistant.ui(ui, s, theme, "git");
+            });
+        let Some(block) = out.use_block else {
+            return;
+        };
+        let lang = out.use_block_lang.trim().to_ascii_lowercase();
+        let is_command = matches!(
+            lang.as_str(),
+            "bash" | "sh" | "shell" | "git" | "console" | "zsh" | "powershell" | "pwsh" | "cmd"
+        );
+        if is_command {
+            let command = block.trim().to_string();
+            if out.run {
+                // Insert and Run: a terminal in the repository root
+                // runs it - the activity never spawns a shell of its own.
+                if let Some(root) = &self.root {
+                    let profile = s.settings.read().git.terminal_profile.clone();
+                    cx.open_new_tab(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd: Some(root.to_string_lossy().to_string()),
+                            host: None,
+                            profile: (!profile.is_empty()).then_some(profile),
+                            command: Some(command),
+                        }),
+                    );
+                }
+            } else {
+                // Insert is review-only: the command goes to the
+                // clipboard and a terminal opens in the root for it.
+                ui.ctx().copy_text(command);
+                if let Some(root) = &self.root {
+                    let profile = s.settings.read().git.terminal_profile.clone();
+                    cx.open_new_tab(
+                        "terminal",
+                        Some(OpenRequest::Terminal {
+                            cwd: Some(root.to_string_lossy().to_string()),
+                            host: None,
+                            profile: (!profile.is_empty()).then_some(profile),
+                            command: None,
+                        }),
+                    );
+                }
+                cx.toast(ToastLevel::Info, s.t("git-ai-copied"));
+            }
+        } else {
+            // Prose or a ```commit block: the commit message.
+            self.message_from_ai = Some(block.trim().to_string());
+            self.tree.view = View::Status;
+            cx.toast(ToastLevel::Success, s.t("git-ai-message-set"));
+        }
     }
 
     /// A merge, rebase or cherry-pick git has paused on: Continue, Skip
@@ -1211,6 +1354,9 @@ impl RepoPane {
     ) {
         let s = cx.services;
         let busy = self.busy.is_some();
+        if let Some(m) = self.message_from_ai.take() {
+            self.message = m;
+        }
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
@@ -1285,6 +1431,35 @@ impl RepoPane {
                 });
             });
     }
+}
+
+/// What the assistant is told: `git status --short`, the staged diff
+/// (cut at a bound - a model is given a slice, never a tree), and the
+/// last commits. Read on the blocking pool.
+fn assistant_context(root: &Path) -> String {
+    const DIFF_BOUND: usize = 12_000;
+    let run = |args: &[&str]| {
+        hs_git::git_with_env(root, args, &[])
+            .map(|o| String::from_utf8_lossy(&o).to_string())
+            .unwrap_or_default()
+    };
+    let status = run(&["status", "--short"]);
+    let mut diff = run(&["diff", "--cached", "--no-color"]);
+    if diff.is_empty() {
+        diff = run(&["diff", "--no-color"]);
+    }
+    if diff.len() > DIFF_BOUND {
+        let cut = diff
+            .char_indices()
+            .map(|(i, _)| i)
+            .take_while(|&i| i < DIFF_BOUND)
+            .last()
+            .unwrap_or(0);
+        diff.truncate(cut);
+        diff.push_str("\n… (diff truncated)\n");
+    }
+    let log = run(&["log", "--oneline", "-8", "--no-color"]);
+    format!("git status --short:\n{status}\nstaged diff:\n{diff}\nrecent commits:\n{log}")
 }
 
 /// Which lists a file appears in, as the sides a selection may name.

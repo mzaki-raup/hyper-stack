@@ -33,6 +33,7 @@ pub struct Default_ {
 /// activity whose edits would do nothing is worse than not listing it.
 pub const ACTIVITIES: &[(&str, &str)] = &[
     ("terminal", "tool-terminal"),
+    ("git", "tool-git"),
     ("ssh", "tool-ssh"),
     ("db", "tool-db"),
     ("redis", "tool-redis"),
@@ -62,6 +63,14 @@ macro_rules! qa {
 pub const DEFAULTS: &[Default_] = &[
     // The shell tools share one set: a command ran, and the question is
     // about what it printed.
+    // The Git activity (docs/tools/git-activity.md §7): the repository's
+    // status, staged diff and recent log are the context.
+    qa!("git", "ai-qa-git-commit-message"),
+    qa!("git", "ai-qa-git-explain-changes"),
+    qa!("git", "ai-qa-git-review"),
+    qa!("git", "ai-qa-git-resolve-conflict"),
+    qa!("git", "ai-qa-git-branch-name"),
+    qa!("git", "ai-qa-git-explain-commit"),
     qa!("terminal", "ai-qa-explain-output"),
     qa!("terminal", "ai-qa-explain-error"),
     qa!("terminal", "ai-qa-next-command"),

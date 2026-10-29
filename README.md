@@ -192,7 +192,10 @@ Phase 4 added the hosts: a credential's **Test**, **Fetch Project** (a
 searchable list of everything a GitHub, GitLab, Forgejo, Gitea or
 Bitbucket token can see), **Clone and Save** as a cancellable job, and
 the token handed to git for one command at a time through a helper file
-that is deleted afterwards. The assistant arrives in phase 5.
+that is deleted afterwards. Phase 5 added the **AI Assistant** column: the repository as context,
+prompt buttons for a commit message, an explanation or review of the
+changes, a conflict, a branch name or the last commit, and answers whose
+command blocks run in a terminal opened in the repository root.
 
 ### Terminal
 

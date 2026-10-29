@@ -230,7 +230,19 @@ bounded slice of the diff; never the token.
 
 ## 8. Phases
 
-Status: **phase 3 landed 2026-10-29** - the verbs (`tool-git::verbs`:
+Status: **phase 4 landed 2026-10-29** - the host clients
+(`tool-git::hosts`), Fetch Project with the fuzzy dropdown, Clone and
+Save as a Job, the credential Test, and the token hand-off
+(`tool-git::auth`). One design change from §2.2: the token reaches git
+as a one-command **credential helper** (`GIT_CONFIG_COUNT` /
+`GIT_CONFIG_KEY_0=credential.helper` / `!f() { cat "<file>"; }; f`)
+rather than `GIT_ASKPASS` - git runs the helper through its own shell on
+every platform, the file holds `username=` / `password=` lines, and it
+is written for one command and deleted after, which is the promise that
+mattered. Fetch Project is covered by fixture tests of each host's
+answer shape, not by a live token. Phase 3 landed earlier the same day.
+
+Phase 3 status: **landed 2026-10-29** - the verbs (`tool-git::verbs`:
 Branch, Merge, Rebase and Interactive Rebase, Stash, Tag, Git Flow,
 Rename, Remote panels), the tree's and History's context menus, the
 paused-operation bar and the guards. Git Flow writes nothing into the

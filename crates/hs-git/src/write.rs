@@ -301,6 +301,165 @@ pub fn push_branch(root: &Path, remote: &str, branch: &str, set_upstream: bool) 
     git(root, &args).map(|o| String::from_utf8_lossy(&o).to_string())
 }
 
+/// The environment that makes git read its credentials from `file` - a
+/// two-line `username=…` / `password=…` text the caller writes for the
+/// duration of one command and deletes after (docs/tools/git-activity.md
+/// §2.2). Git runs the helper through its shell, so the file is read by
+/// `cat` and the token never appears on a command line or in a config.
+pub fn credential_env(file: &Path) -> Vec<(String, String)> {
+    let path = file.display().to_string().replace('\\', "/");
+    vec![
+        ("GIT_CONFIG_COUNT".into(), "1".into()),
+        ("GIT_CONFIG_KEY_0".into(), "credential.helper".into()),
+        (
+            "GIT_CONFIG_VALUE_0".into(),
+            format!("!f() {{ cat \"{path}\"; }}; f"),
+        ),
+        ("GIT_TERMINAL_PROMPT".into(), "0".into()),
+    ]
+}
+
+fn borrowed(env: &[(String, String)]) -> Vec<(&str, &str)> {
+    env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+}
+
+/// `git fetch --all --prune` with `env` (see [`credential_env`]).
+pub fn fetch_env(root: &Path, env: &[(String, String)]) -> Result<String> {
+    crate::git_with_env(root, &["fetch", "--all", "--prune"], &borrowed(env))
+        .map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// [`pull`] with `env`.
+pub fn pull_env(root: &Path, rebase: bool, env: &[(String, String)]) -> Result<String> {
+    let args: &[&str] = if rebase {
+        &["pull", "--rebase"]
+    } else {
+        &["pull"]
+    };
+    crate::git_with_env(root, args, &borrowed(env)).map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// [`push`] with `env`.
+pub fn push_env(root: &Path, opts: &PushOptions, env: &[(String, String)]) -> Result<String> {
+    let mut args: Vec<&str> = vec!["push"];
+    if opts.force_with_lease {
+        args.push("--force-with-lease");
+    }
+    if let Some((remote, branch)) = &opts.set_upstream {
+        args.push("-u");
+        args.push(remote);
+        args.push(branch);
+    }
+    crate::git_with_env(root, &args, &borrowed(env))
+        .map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// `git clone url dest`, streaming git's progress lines to `on_line`
+/// (they arrive on stderr, one `\r`-separated step at a time), with
+/// `env` for the credentials and `cancel` polled between reads. The
+/// destination's parent is created; the destination itself must not
+/// exist yet, as git requires.
+pub fn clone(
+    url: &str,
+    dest: &Path,
+    env: &[(String, String)],
+    cancel: &dyn Fn() -> bool,
+    on_line: &mut dyn FnMut(&str),
+) -> Result<()> {
+    use std::io::Read as _;
+    use std::process::Stdio;
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| crate::GitError::Failed {
+            command: "clone".into(),
+            message: e.to_string(),
+        })?;
+    }
+    let mut cmd = hs_core::paths::background_command("git");
+    cmd.args(["clone", "--progress", url])
+        .arg(dest)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let mut child = cmd.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            crate::GitError::NotInstalled
+        } else {
+            crate::GitError::Failed {
+                command: "clone".into(),
+                message: e.to_string(),
+            }
+        }
+    })?;
+    let mut stderr = child.stderr.take();
+    let mut collected = String::new();
+    if let Some(err) = stderr.as_mut() {
+        let mut buf = [0u8; 512];
+        let mut line = String::new();
+        loop {
+            if cancel() {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(crate::GitError::Failed {
+                    command: "clone".into(),
+                    message: "cancelled".into(),
+                });
+            }
+            let n = match err.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            for ch in String::from_utf8_lossy(&buf[..n]).chars() {
+                if ch == '\r' || ch == '\n' {
+                    if !line.trim().is_empty() {
+                        on_line(line.trim());
+                        collected.push_str(line.trim());
+                        collected.push('\n');
+                    }
+                    line.clear();
+                } else {
+                    line.push(ch);
+                }
+            }
+        }
+        if !line.trim().is_empty() {
+            on_line(line.trim());
+            collected.push_str(line.trim());
+        }
+    }
+    let status = child.wait().map_err(|e| crate::GitError::Failed {
+        command: "clone".into(),
+        message: e.to_string(),
+    })?;
+    if status.success() {
+        Ok(())
+    } else {
+        // The last lines of stderr are the reason.
+        let tail: Vec<&str> = collected.lines().rev().take(3).collect();
+        let mut tail: Vec<&str> = tail.into_iter().rev().collect();
+        tail.retain(|l| !l.starts_with("Receiving") && !l.starts_with("Resolving"));
+        Err(crate::GitError::Failed {
+            command: "clone".into(),
+            message: if tail.is_empty() {
+                format!("exit status {status}")
+            } else {
+                tail.join(" ")
+            },
+        })
+    }
+}
+
+/// The two lines git's credential helper answers with, for
+/// [`credential_env`]'s file.
+pub fn credential_file_text(username: &str, token: &str) -> String {
+    format!("username={username}\npassword={token}\n")
+}
+
 pub fn merge_continue(root: &Path) -> Result<String> {
     git(root, &["-c", "core.editor=true", "merge", "--continue"])
         .map(|out| String::from_utf8_lossy(&out).to_string())

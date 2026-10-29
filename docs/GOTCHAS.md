@@ -4,6 +4,15 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Git, Merges and Releases
 
+- **Never read a push's result through `| grep -v remote | tail -1`.**
+  The Phase 3 merge was "pushed" that way on 2026-10-29, the push
+  failed, the pipeline printed nothing, and `main` sat a release behind
+  until the next branch was cut from `origin/main` and conflicted with
+  work that assumed the merge was there. A push is a gate: check its
+  exit code (`git push … || echo PUSH FAILED`) and `git log -1
+  origin/main` after it, exactly as a `cargo` gate is checked by its
+  exit code and not by eye.
+
 - **Commit gates must check exit codes.** `cargo clippy ... | grep ... ; git commit` committed code with lint errors. Use `cargo clippy ... >/dev/null 2>&1 && git commit`, not a check on printed output.
 - **Never use `--no-verify` or `--no-gpg-sign`.** If GPG signing fails, fix the agent (see the gpg-agent note below). Don't bypass it.
 - **gpg-agent cache.** `%APPDATA%\gnupg\gpg-agent.conf` sets `default-cache-ttl 14400`. The agent re-reads it only after `gpgconf --reload gpg-agent`. `gpgconf --kill gpg-agent` drops the cache.

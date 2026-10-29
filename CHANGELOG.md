@@ -11,6 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Git activity, phase 4: hosts.** Settings → Git → a repository's
+  **Fetch Project** asks the chosen credential's host (GitHub, GitLab,
+  Forgejo, Gitea or Bitbucket) for every repository it can see and fills
+  a searchable dropdown (fuzzy, over `owner/name` and description);
+  choosing one fills the URL, the name and the folder under the Default
+  Clone Folder. **Clone and Save** clones a Remote or Localhost source
+  whose folder does not exist yet as a cancellable Job with git's
+  progress in the Jobs dock, then records the entry and opens it. A
+  credential's **Test** asks the host who the token belongs to. Fetch,
+  Pull and Push in a repository tab hand the repository's credential to
+  git through a one-command helper file under `HyperStackData/tmp/`
+  (`GIT_CONFIG_*` credential helper, never a URL or a config); the file
+  is deleted when the command ends.
+
 - **Git activity, phase 3: the operations.** The toolbar grows Branch,
   Merge, Rebase, Stash, Tag and Git Flow, each an inline panel with its
   options and an Apply: create a branch from any ref (and check it out),

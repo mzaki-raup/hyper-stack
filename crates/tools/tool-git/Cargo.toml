@@ -21,3 +21,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
+# Host APIs (GitHub, GitLab, Forgejo/Gitea, Bitbucket) for Fetch Project
+# and the credential Test; the vault secret the token comes out of.
+reqwest = { workspace = true }
+tokio = { workspace = true }
+secrecy = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

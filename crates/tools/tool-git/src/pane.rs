@@ -69,6 +69,8 @@ pub struct RepoPane {
     op_state: Option<hs_git::OperationState>,
     op_state_slot: Slot<Option<hs_git::OperationState>>,
     verbs: Verbs,
+    /// The saved credential the network verbs hand to git, by id.
+    credential: String,
     status_error: Option<String>,
     status_slot: Slot<Result<Status, String>>,
     remote_slot: Slot<String>,
@@ -112,6 +114,22 @@ impl RepoPane {
         self.root = Some(root);
         self.refresh(s);
         self.tree.refresh(s);
+    }
+
+    pub fn set_credential(&mut self, id: &str) {
+        self.credential = id.to_string();
+    }
+
+    /// The credential for a network verb, out of the vault; a toast and
+    /// `None` when the vault is locked or the reference is gone.
+    fn auth(&self, cx: &mut ToolContext) -> Option<Option<crate::auth::Resolved>> {
+        match crate::auth::resolve(cx.services, &self.credential) {
+            Ok(r) => Some(r),
+            Err(e) => {
+                cx.toast(ToastLevel::Error, e);
+                None
+            }
+        }
     }
 
     /// The `origin` URL, read once per root; what the header band shows.
@@ -377,9 +395,12 @@ impl RepoPane {
                 )),
             )
             .clicked()
+            && let Some(auth) = self.auth(cx)
         {
-            self.run(s, s.t("git-fetch-button"), |r| {
-                hs_git::write::fetch(r).map_err(|e| e.to_string())
+            self.run(s, s.t("git-fetch-button"), move |r| {
+                crate::auth::with_env(auth.as_ref(), |env| {
+                    hs_git::write::fetch_env(r, env).map_err(|e| e.to_string())
+                })?
             });
         }
         let rebase = s.settings.read().git.pull_rebase;
@@ -389,9 +410,12 @@ impl RepoPane {
                 egui::Button::new(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("git-pull"))),
             )
             .clicked()
+            && let Some(auth) = self.auth(cx)
         {
             self.run(s, s.t("git-pull"), move |r| {
-                hs_git::write::pull(r, rebase).map_err(|e| e.to_string())
+                crate::auth::with_env(auth.as_ref(), |env| {
+                    hs_git::write::pull_env(r, rebase, env).map_err(|e| e.to_string())
+                })?
             });
         }
         let upstream = self.status.as_ref().and_then(|st| st.upstream.clone());
@@ -416,17 +440,22 @@ impl RepoPane {
                 s.i18n
                     .t_args("git-confirm-protected-push", &[("branch", b)])
             });
-            let op = Op::new(s.t("git-push"), move |r| {
-                hs_git::write::push(
-                    r,
-                    &hs_git::write::PushOptions {
-                        set_upstream,
-                        force_with_lease: false,
-                    },
-                )
-                .map_err(|e| e.to_string())
-            });
-            self.guarded(s, question, op);
+            if let Some(auth) = self.auth(cx) {
+                let op = Op::new(s.t("git-push"), move |r| {
+                    crate::auth::with_env(auth.as_ref(), |env| {
+                        hs_git::write::push_env(
+                            r,
+                            &hs_git::write::PushOptions {
+                                set_upstream,
+                                force_with_lease: false,
+                            },
+                            env,
+                        )
+                        .map_err(|e| e.to_string())
+                    })?
+                });
+                self.guarded(s, question, op);
+            }
         }
         ui.separator();
         self.verbs.toolbar(ui, s, busy);

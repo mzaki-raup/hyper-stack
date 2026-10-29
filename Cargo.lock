@@ -3811,6 +3811,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "toml 0.8.23",
  "tool-api",
  "tool-browser",
@@ -8811,8 +8812,12 @@ dependencies = [
  "hs-git",
  "hs-ui",
  "parking_lot",
+ "reqwest",
+ "secrecy",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 

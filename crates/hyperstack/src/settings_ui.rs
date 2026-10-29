@@ -159,6 +159,10 @@ fn rows_to_kv(rows: &[KvRow]) -> Vec<tool_api::model::Kv> {
         .collect()
 }
 
+/// An answer on its way back from the runtime, read by the page that
+/// asked for it.
+type Slot<T> = std::sync::Arc<parking_lot::Mutex<Option<T>>>;
+
 #[derive(Default)]
 pub struct SettingsState {
     pub page: Page,
@@ -189,6 +193,16 @@ pub struct SettingsState {
     pub cred_draft: Option<hs_core::git_hosts::GitCredential>,
     /// Remove Credential was clicked once; the second click does it.
     pub cred_confirm_remove: bool,
+    /// Fetch Project: the host's listing, the request in flight, and
+    /// the search typed into the dropdown.
+    pub repo_projects: Option<Vec<tool_git::hosts::Project>>,
+    pub repo_projects_slot: Slot<Result<Vec<tool_git::hosts::Project>, String>>,
+    pub repo_projects_busy: bool,
+    pub repo_project_filter: String,
+    /// A clone started by Save: the entry to record once it lands.
+    pub repo_clone: Option<(hs_core::git_repos::RepoEntry, Slot<Result<(), String>>)>,
+    /// The credential Test in flight, by credential id.
+    pub cred_test: Option<(String, Slot<Result<String, String>>)>,
     pub shortcut_edit: HashMap<String, String>,
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
@@ -5689,6 +5703,21 @@ fn credential_detail(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
+    let tested = state
+        .cred_test
+        .as_ref()
+        .and_then(|(_, slot)| slot.lock().take());
+    if let Some(r) = tested {
+        state.cred_test = None;
+        match r {
+            Ok(login) => effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Success,
+                s.i18n
+                    .t_args("settings-git-cred-test-ok", &[("login", &login)]),
+            )),
+            Err(e) => effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e)),
+        }
+    }
     let Some(cred) = state.cred_draft.as_mut() else {
         return;
     };
@@ -5760,6 +5789,40 @@ fn credential_detail(
             }
             if ui.button(s.t("close")).clicked() {
                 close = true;
+            }
+            // Test asks the host who the token belongs to.
+            let testing = state
+                .cred_test
+                .as_ref()
+                .is_some_and(|(id, _)| *id == cred.id);
+            if ui
+                .add_enabled(
+                    cred.kind.lists_projects() && !testing,
+                    egui::Button::new(s.t("settings-git-cred-test")),
+                )
+                .clicked()
+            {
+                match tool_git::auth::resolve_cred(s, cred) {
+                    Err(err) => {
+                        effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, err))
+                    }
+                    Ok(resolved) => {
+                        let token = resolved.map(|r| r.token).unwrap_or_default();
+                        let slot: std::sync::Arc<
+                            parking_lot::Mutex<Option<Result<String, String>>>,
+                        > = Default::default();
+                        let c = cred.clone();
+                        let done = slot.clone();
+                        s.runtime.spawn(async move {
+                            let http = hs_core::ai::http_client();
+                            *done.lock() = Some(tool_git::hosts::whoami(&http, &c, &token).await);
+                        });
+                        state.cred_test = Some((cred.id.clone(), slot));
+                    }
+                }
+            }
+            if testing {
+                ui.spinner();
             }
             if !is_new {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -5940,9 +6003,51 @@ fn repo_detail(
     effects: &mut Vec<SettingsEffect>,
 ) {
     use hs_core::git_repos::Source;
+    // Answers from the blocking pool, read before anything borrows the
+    // draft: the host's project listing, and a clone Save started.
+    let listed = state.repo_projects_slot.lock().take();
+    if let Some(r) = listed {
+        state.repo_projects_busy = false;
+        match r {
+            Ok(list) => state.repo_projects = Some(list),
+            Err(e) => effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e)),
+        }
+    }
+    let cloned = state
+        .repo_clone
+        .as_ref()
+        .and_then(|(_, slot)| slot.lock().take());
+    if let Some(r) = cloned
+        && let Some((mut entry, _)) = state.repo_clone.take()
+    {
+        // The folder exists now, so its language can be read.
+        if entry.language.trim().is_empty() {
+            entry.language = hs_core::projects::detect_language(&entry.path).to_string();
+        }
+        match r {
+            Ok(()) => match s.git_repos.write().upsert(entry.clone()) {
+                Ok(()) => {
+                    state.repo_draft = None;
+                    state.repo_selected = None;
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Success,
+                        s.i18n
+                            .t_args("settings-git-repo-cloned", &[("name", &entry.label())]),
+                    ));
+                    effects.push(SettingsEffect::OpenRepo(entry.path.clone()));
+                }
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                )),
+            },
+            Err(e) => effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e)),
+        }
+    }
     let Some(draft) = state.repo_draft.as_mut() else {
         return;
     };
+    let cloning = state.repo_clone.is_some();
     let is_new = s.git_repos.read().by_id(&draft.entry.id).is_none();
     let mut save = false;
     let mut close = false;
@@ -6100,15 +6205,127 @@ fn repo_detail(
 
                 form::label(ui, &s.t("settings-git-repo-project"));
                 ui.horizontal(|ui| {
-                    ui.add_enabled_ui(false, |ui| {
-                        form::text_field_width(ui, &mut e.project, "owner/name", 180.0);
-                        // Disabled until phase 4 brings the host clients.
-                        let _ = ui.button(format!(
-                            "{} {}",
-                            hs_ui::icons::ph::CLOUD_ARROW_DOWN,
-                            s.t("settings-git-repo-fetch")
-                        ));
-                    });
+                    // Fetch Project asks the host for everything the
+                    // credential can see; the dropdown is searched with
+                    // the fuzzy matcher the palette uses.
+                    let cred = s.git_credentials.read().by_id(&e.credential).cloned();
+                    let lists = cred.as_ref().is_some_and(|c| c.kind.lists_projects());
+                    let fetch = ui
+                        .add_enabled(
+                            lists && !state.repo_projects_busy,
+                            egui::Button::new(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::CLOUD_ARROW_DOWN,
+                                s.t("settings-git-repo-fetch")
+                            )),
+                        )
+                        .on_disabled_hover_text(s.t("settings-git-repo-fetch-first"))
+                        .clicked();
+                    if state.repo_projects_busy {
+                        ui.spinner();
+                    }
+                    if let Some(list) = &state.repo_projects {
+                        let shown = if e.project.is_empty() {
+                            s.i18n.t_args(
+                                "settings-git-repo-project-pick",
+                                &[("count", &list.len().to_string())],
+                            )
+                        } else {
+                            e.project.clone()
+                        };
+                        let mut chosen: Option<tool_git::hosts::Project> = None;
+                        egui::ComboBox::from_id_salt("git-repo-project")
+                            .selected_text(shown)
+                            .width(360.0)
+                            .show_ui(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut state.repo_project_filter)
+                                        .hint_text(s.t("settings-git-repo-project-hint"))
+                                        .desired_width(f32::INFINITY),
+                                );
+                                let needle = state.repo_project_filter.trim();
+                                let order: Vec<usize> = if needle.is_empty() {
+                                    (0..list.len()).collect()
+                                } else {
+                                    let items: Vec<(&str, Option<&str>)> = list
+                                        .iter()
+                                        .map(|p| {
+                                            (p.full_name.as_str(), Some(p.description.as_str()))
+                                        })
+                                        .collect();
+                                    hs_core::fuzzy::rank(needle, &items)
+                                        .into_iter()
+                                        .map(|m| m.index)
+                                        .collect()
+                                };
+                                egui::ScrollArea::vertical()
+                                    .max_height(320.0)
+                                    .show(ui, |ui| {
+                                        for i in order.into_iter().take(400) {
+                                            let p = &list[i];
+                                            let label = if p.private {
+                                                format!(
+                                                    "{} {}",
+                                                    hs_ui::icons::ph::LOCK,
+                                                    p.full_name
+                                                )
+                                            } else {
+                                                p.full_name.clone()
+                                            };
+                                            let r = ui
+                                                .selectable_label(e.project == p.full_name, label);
+                                            let r = if p.description.is_empty() {
+                                                r
+                                            } else {
+                                                r.on_hover_text(&p.description)
+                                            };
+                                            if r.clicked() {
+                                                chosen = Some(p.clone());
+                                            }
+                                        }
+                                    });
+                            });
+                        if let Some(p) = chosen {
+                            // The project fills what the form would ask
+                            // for next: the URL, a name, and the folder
+                            // under the default clone folder.
+                            let name = p
+                                .full_name
+                                .rsplit('/')
+                                .next()
+                                .unwrap_or(&p.full_name)
+                                .to_string();
+                            if e.name.trim().is_empty()
+                                || e.name == e.project.rsplit('/').next().unwrap_or("")
+                            {
+                                e.name = name.clone();
+                            }
+                            e.project = p.full_name.clone();
+                            e.url = p.clone_url.clone();
+                            let base = s.settings.read().git.clone_folder.clone();
+                            if e.path.as_os_str().is_empty() && !base.trim().is_empty() {
+                                e.path = std::path::PathBuf::from(base.trim()).join(&name);
+                            }
+                        }
+                    }
+                    if fetch && let Some(cred) = cred {
+                        match tool_git::auth::resolve_cred(s, &cred) {
+                            Err(err) => effects
+                                .push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, err)),
+                            Ok(resolved) => {
+                                let token = resolved.map(|r| r.token).unwrap_or_default();
+                                let slot = state.repo_projects_slot.clone();
+                                state.repo_projects_busy = true;
+                                state.repo_project_filter.clear();
+                                s.runtime.spawn(async move {
+                                    let http = hs_core::ai::http_client();
+                                    let r =
+                                        tool_git::hosts::list_projects(&http, &cred, &token).await;
+                                    *slot.lock() = Some(r);
+                                });
+                            }
+                        }
+                    }
                 });
                 ui.end_row();
             }
@@ -6182,24 +6399,38 @@ fn repo_detail(
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("settings-git-repo-icon-hint"));
-        if e.source != Source::Local {
-            form::hint(ui, theme, &s.t("settings-git-repo-fetch-later"));
-        }
         let has_path = !e.path.as_os_str().is_empty();
-        if has_path && !e.is_cloned() {
+        // A folder that is not a repository: for a host source Save
+        // clones into it (it must not exist yet, as git requires); for
+        // a local source it is simply not a repository.
+        let will_clone = e.source != Source::Local && has_path && !e.is_cloned();
+        if will_clone {
+            form::hint(ui, theme, &s.t("settings-git-repo-will-clone"));
+        } else if has_path && !e.is_cloned() {
             form::hint(ui, theme, &s.t("settings-git-repo-not-a-repo"));
         }
         // Save is disabled until the mandatory fields hold, and the hint
         // under it names what is missing (owner's requirement).
         let missing: Vec<String> = e.missing().iter().map(|k| s.t(k)).collect();
-        let can_save = missing.is_empty() && e.is_cloned();
+        let can_save = missing.is_empty() && (e.is_cloned() || will_clone) && !cloning;
         ui.add_space(10.0);
         ui.horizontal(|ui| {
+            let save_label = if will_clone {
+                s.t("settings-git-repo-clone-and-save")
+            } else {
+                s.t("save")
+            };
             if ui
-                .add_enabled(can_save, egui::Button::new(s.t("save")).fill(theme.accent))
+                .add_enabled(can_save, egui::Button::new(save_label).fill(theme.accent))
                 .clicked()
             {
                 save = true;
+            }
+            if cloning {
+                ui.spinner();
+                ui.label(
+                    egui::RichText::new(s.t("settings-git-repo-cloning")).color(theme.text_muted),
+                );
             }
             if ui.button(s.t("close")).clicked() {
                 close = true;
@@ -6231,6 +6462,49 @@ fn repo_detail(
         let mut entry = draft.entry;
         if entry.name.trim().is_empty() {
             entry.name = entry.label();
+        }
+        // A host source whose folder holds nothing yet: clone first, as a
+        // Job with git's progress lines and cancel; the entry is recorded
+        // when the clone lands (polled at the top of this function).
+        if entry.source != Source::Local && !entry.is_cloned() {
+            let resolved = match tool_git::auth::resolve(s, &entry.credential) {
+                Ok(r) => r,
+                Err(e) => {
+                    effects.push(SettingsEffect::Toast(hs_core::tool::ToastLevel::Error, e));
+                    return;
+                }
+            };
+            let slot: Slot<Result<(), String>> = Default::default();
+            let (url, dest) = (entry.url.clone(), entry.path.clone());
+            let done = slot.clone();
+            let title = s.i18n.t_args(
+                "settings-git-repo-cloning-title",
+                &[("name", &entry.label())],
+            );
+            s.jobs.spawn(title, "git", move |h| async move {
+                let cancel = h.clone();
+                let progress = h.clone();
+                let r = tokio::task::spawn_blocking(move || {
+                    tool_git::auth::with_env(resolved.as_ref(), |env| {
+                        hs_git::write::clone(
+                            &url,
+                            &dest,
+                            env,
+                            &|| cancel.is_cancelled(),
+                            &mut |line| progress.set_message(line.to_string()),
+                        )
+                        .map_err(|e| e.to_string())
+                    })
+                    .and_then(|r| r)
+                })
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|r| r);
+                *done.lock() = Some(r.clone());
+                r
+            });
+            state.repo_clone = Some((entry, slot));
+            return;
         }
         if entry.language.trim().is_empty() {
             entry.language = hs_core::projects::detect_language(&entry.path).to_string();

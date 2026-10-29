@@ -188,7 +188,11 @@ branches, remotes, tags, stashes and commits (check out, merge, rebase,
 push, set upstream, rename, delete, fetch, cherry-pick, tag here…); a
 Continue / Skip / Abort bar for a paused merge, rebase or cherry-pick;
 and confirmations for deletions and pushes onto protected branches.
-Hosts and the assistant arrive in later phases.
+Phase 4 added the hosts: a credential's **Test**, **Fetch Project** (a
+searchable list of everything a GitHub, GitLab, Forgejo, Gitea or
+Bitbucket token can see), **Clone and Save** as a cancellable job, and
+the token handed to git for one command at a time through a helper file
+that is deleted afterwards. The assistant arrives in phase 5.
 
 ### Terminal
 

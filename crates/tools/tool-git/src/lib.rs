@@ -13,6 +13,7 @@ mod diffview;
 mod history;
 mod pane;
 mod tree;
+mod verbs;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

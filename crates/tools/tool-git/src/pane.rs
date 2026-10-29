@@ -22,6 +22,7 @@ use crate::conflict::ConflictView;
 use crate::diffview::{self, HunkPick};
 use crate::history::{self, HistoryView};
 use crate::tree::{self, Tree, View};
+use crate::verbs::{Facts, Op, Verbs};
 
 /// A result on its way back from the blocking pool.
 type Slot<T> = Arc<Mutex<Option<T>>>;
@@ -34,6 +35,11 @@ const REFRESH_SECONDS: f64 = 4.0;
 /// Something the pane asks before doing.
 enum Confirm {
     Discard(Vec<String>),
+    /// A guarded operation: the question, then the verb.
+    Run {
+        text: String,
+        op: Op,
+    },
 }
 
 /// What the right column shows.
@@ -59,6 +65,10 @@ enum Right {
 pub struct RepoPane {
     root: Option<PathBuf>,
     status: Option<Status>,
+    /// A merge, rebase or cherry-pick that git has paused on.
+    op_state: Option<hs_git::OperationState>,
+    op_state_slot: Slot<Option<hs_git::OperationState>>,
+    verbs: Verbs,
     status_error: Option<String>,
     status_slot: Slot<Result<Status, String>>,
     remote_slot: Slot<String>,
@@ -97,6 +107,8 @@ impl RepoPane {
         *self = Self::default();
         self.tree.set_root(root.clone());
         self.history.set_root(root.clone());
+        self.verbs
+            .set_root(root.clone(), s.settings.read().git.stash_untracked);
         self.root = Some(root);
         self.refresh(s);
         self.tree.refresh(s);
@@ -113,9 +125,11 @@ impl RepoPane {
         };
         let slot = self.status_slot.clone();
         let remote = self.remote_slot.clone();
+        let op_state = self.op_state_slot.clone();
         s.runtime.spawn_blocking(move || {
             let st = hs_git::status(&root).map_err(|e| e.to_string());
             *slot.lock() = Some(st);
+            *op_state.lock() = Some(hs_git::operation_state(&root));
             if let Ok(rs) = hs_git::write::remotes(&root) {
                 let url = rs
                     .iter()
@@ -178,6 +192,28 @@ impl RepoPane {
             let out = f(&root);
             *slot.lock() = Some((label, out));
         });
+    }
+
+    /// Run a verb's operation.
+    fn exec(&mut self, s: &Services, op: Op) {
+        let Op { label, notify, run } = op;
+        self.start(s, label, notify, run);
+    }
+
+    /// Run `op`, or ask `question` first when there is one (a delete, a
+    /// push onto a protected branch).
+    fn guarded(&mut self, s: &Services, question: Option<String>, op: Op) {
+        match question {
+            Some(text) => self.confirm = Some(Confirm::Run { text, op }),
+            None => self.exec(s, op),
+        }
+    }
+
+    /// Whether the current branch or the remote is protected
+    /// (Settings -> Git -> Protected Patterns).
+    fn protected(&self, s: &Services, branch: &str) -> bool {
+        let patterns = s.settings.read().git.protected_patterns.clone();
+        hs_git::write::is_protected(&patterns, &self.remote_url, branch)
     }
 
     fn load_work_diff(&mut self, s: &Services, path: String, side: Side) {
@@ -252,6 +288,9 @@ impl RepoPane {
         }
         if let Some(url) = self.remote_slot.lock().take() {
             self.remote_url = url;
+        }
+        if let Some(st) = self.op_state_slot.lock().take() {
+            self.op_state = st;
         }
         let d = self.diff_slot.lock().take();
         if let Some((path, side, d)) = d {
@@ -373,7 +412,11 @@ impl RepoPane {
                 (None, Some(b)) => Some(("origin".to_string(), b.clone())),
                 _ => None,
             };
-            self.run(s, s.t("git-push"), move |r| {
+            let question = branch.as_deref().filter(|b| self.protected(s, b)).map(|b| {
+                s.i18n
+                    .t_args("git-confirm-protected-push", &[("branch", b)])
+            });
+            let op = Op::new(s.t("git-push"), move |r| {
                 hs_git::write::push(
                     r,
                     &hs_git::write::PushOptions {
@@ -383,7 +426,10 @@ impl RepoPane {
                 )
                 .map_err(|e| e.to_string())
             });
+            self.guarded(s, question, op);
         }
+        ui.separator();
+        self.verbs.toolbar(ui, s, busy);
         ui.separator();
         if ui
             .button(format!("{} {}", ph::TERMINAL_WINDOW, s.t("git-terminal")))
@@ -447,6 +493,19 @@ impl RepoPane {
                 });
         }
         self.confirm_bar(ui, theme, cx);
+        self.operation_bar(ui, theme, cx);
+        let facts_branches = self.tree.refs.branches.clone();
+        let facts_remotes = self.tree.refs.remotes.clone();
+        let current = self.status.as_ref().and_then(|st| st.branch.clone());
+        let facts = Facts {
+            branches: &facts_branches,
+            remotes: &facts_remotes,
+            current: current.as_deref(),
+        };
+        let busy = self.busy.is_some();
+        if let Some(op) = self.verbs.panel_ui(ui, theme, cx.services, &facts, busy) {
+            self.exec(cx.services, op);
+        }
         let full = ui.available_width();
         // The tree, narrow and resizable.
         let mut tree_pick: Option<tree::Pick> = None;
@@ -457,8 +516,8 @@ impl RepoPane {
             .show(ui, |ui| {
                 tree_pick = self.tree.ui(ui, theme, cx);
             });
-        if let Some(tree::Pick::View(v)) = tree_pick {
-            self.tree.view = v;
+        if let Some(p) = tree_pick {
+            self.tree_pick(cx.services, p);
         }
         let rest = (full - 220.0).max(400.0);
         let centre_w = match self.tree.view {
@@ -483,6 +542,232 @@ impl RepoPane {
             });
     }
 
+    /// A merge, rebase or cherry-pick git has paused on: Continue, Skip
+    /// (cherry-pick) and Abort.
+    fn operation_bar(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let Some(state) = self.op_state else {
+            return;
+        };
+        let s = cx.services;
+        let busy = self.busy.is_some();
+        let key = match state {
+            hs_git::OperationState::Merge => "git-op-merge",
+            hs_git::OperationState::Rebase => "git-op-rebase",
+            hs_git::OperationState::CherryPick => "git-op-cherry-pick",
+        };
+        let mut op: Option<Op> = None;
+        egui::Frame::new()
+            .fill(theme.warning.linear_multiply(0.12))
+            .inner_margin(egui::Margin::symmetric(12, 8))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, s.t(key))).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_enabled(!busy, egui::Button::new(s.t("git-abort")))
+                            .clicked()
+                        {
+                            op = Some(Op::new(s.t("git-abort"), move |r| {
+                                let out = match state {
+                                    hs_git::OperationState::Merge => hs_git::write::merge_abort(r),
+                                    hs_git::OperationState::Rebase => {
+                                        hs_git::write::rebase_abort(r)
+                                    }
+                                    hs_git::OperationState::CherryPick => {
+                                        hs_git::write::cherry_pick_abort(r)
+                                    }
+                                };
+                                out.map_err(|e| e.to_string())
+                            }));
+                        }
+                        if state == hs_git::OperationState::CherryPick
+                            && ui
+                                .add_enabled(!busy, egui::Button::new(s.t("git-skip")))
+                                .clicked()
+                        {
+                            op = Some(Op::new(s.t("git-skip"), |r| {
+                                hs_git::write::cherry_pick_skip(r).map_err(|e| e.to_string())
+                            }));
+                        }
+                        if ui
+                            .add_enabled(!busy, egui::Button::new(s.t("git-continue")))
+                            .clicked()
+                        {
+                            op = Some(Op::new(s.t("git-continue"), move |r| {
+                                let out = match state {
+                                    hs_git::OperationState::Merge => {
+                                        hs_git::write::merge_continue(r)
+                                    }
+                                    hs_git::OperationState::Rebase => {
+                                        hs_git::write::rebase_continue(r)
+                                    }
+                                    hs_git::OperationState::CherryPick => {
+                                        hs_git::write::cherry_pick_continue(r)
+                                    }
+                                };
+                                out.map_err(|e| e.to_string())
+                            }));
+                        }
+                    });
+                });
+            });
+        if let Some(op) = op {
+            self.exec(s, op);
+        }
+    }
+
+    /// What a row of the tree asked for.
+    fn tree_pick(&mut self, s: &Services, p: tree::Pick) {
+        use tree::Pick as P;
+        let first_remote = self
+            .tree
+            .refs
+            .remotes
+            .first()
+            .map(|r| r.name.clone())
+            .unwrap_or_else(|| "origin".into());
+        match p {
+            P::View(v) => self.tree.view = v,
+            P::Checkout(b) => {
+                let op = Op::new(s.t("git-menu-checkout"), move |r| {
+                    hs_git::write::checkout(r, &b)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::CheckoutRemote(full) => {
+                // `origin/topic` -> a local `topic` tracking it.
+                let local = full
+                    .split_once('/')
+                    .map(|(_, b)| b.to_string())
+                    .unwrap_or(full.clone());
+                let op = Op::new(s.t("git-menu-checkout"), move |r| {
+                    hs_git::write::create_branch(r, &local, Some(&full))
+                        .map_err(|e| e.to_string())?;
+                    hs_git::write::checkout(r, &local)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::MergeInto(b) => self.verbs.merge_from(&b),
+            P::RebaseOnto(b) => self.verbs.rebase_on(&b),
+            P::Rename(b) => self.verbs.rename(&b),
+            P::Delete(b) => {
+                let text = s
+                    .i18n
+                    .t_args("git-confirm-delete-branch", &[("branch", &b)]);
+                let op = Op::new(s.t("git-menu-delete"), move |r| {
+                    hs_git::write::delete_branch(r, &b, true)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.guarded(s, Some(text), op);
+            }
+            P::SetUpstream(b) => {
+                let remote = first_remote;
+                let op = Op::new(s.t("git-menu-set-upstream"), move |r| {
+                    hs_git::write::set_upstream(r, &remote, &b)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::PushBranch(b) => {
+                let question = self.protected(s, &b).then(|| {
+                    s.i18n
+                        .t_args("git-confirm-protected-push", &[("branch", &b)])
+                });
+                let remote = first_remote;
+                let op = Op::new(s.t("git-push"), move |r| {
+                    hs_git::write::push_branch(r, &remote, &b, true).map_err(|e| e.to_string())
+                });
+                self.guarded(s, question, op);
+            }
+            P::DeleteRemoteBranch { remote, branch } => {
+                let text = s.i18n.t_args(
+                    "git-confirm-delete-remote-branch",
+                    &[("branch", &format!("{remote}/{branch}"))],
+                );
+                let op = Op::new(s.t("git-menu-delete-remote-branch"), move |r| {
+                    hs_git::write::delete_remote_branch(r, &remote, &branch)
+                        .map_err(|e| e.to_string())
+                });
+                self.guarded(s, Some(text), op);
+            }
+            P::FetchRemote(name) => {
+                let op = Op::new(s.t("git-fetch-button"), move |r| {
+                    hs_git::write::fetch_remote(r, &name, true).map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::EditRemote(name) => {
+                let existing = self
+                    .tree
+                    .refs
+                    .remotes
+                    .iter()
+                    .find(|r| r.name == name)
+                    .cloned();
+                self.verbs.remote(existing.as_ref());
+            }
+            P::AddRemote => self.verbs.remote(None),
+            P::RemoveRemote(name) => {
+                let text = s
+                    .i18n
+                    .t_args("git-confirm-remove-remote", &[("remote", &name)]);
+                let op = Op::new(s.t("git-menu-remove-remote"), move |r| {
+                    hs_git::write::remove_remote(r, &name)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.guarded(s, Some(text), op);
+            }
+            P::PushTag(t) => {
+                let remote = first_remote;
+                let op = Op::new(s.t("git-menu-push-tag"), move |r| {
+                    hs_git::write::push_tag(r, &remote, &t).map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::DeleteTag(t) => {
+                let text = s.i18n.t_args("git-confirm-delete-tag", &[("tag", &t)]);
+                let op = Op::new(s.t("git-menu-delete-tag"), move |r| {
+                    hs_git::write::delete_tag(r, &t)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.guarded(s, Some(text), op);
+            }
+            P::StashApply(id) => {
+                let op = Op::new(s.t("git-menu-stash-apply"), move |r| {
+                    hs_git::write::stash_apply(r, &id)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::StashPop(id) => {
+                let op = Op::new(s.t("git-menu-stash-pop"), move |r| {
+                    hs_git::write::stash_pop(r, &id)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            P::StashDrop(id) => {
+                let text = s.i18n.t_args("git-confirm-drop-stash", &[("stash", &id)]);
+                let op = Op::new(s.t("git-menu-stash-drop"), move |r| {
+                    hs_git::write::stash_drop(r, &id)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.guarded(s, Some(text), op);
+            }
+        }
+    }
+
     fn history_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let pick = self.history.ui(ui, theme, cx);
         match pick {
@@ -497,6 +782,24 @@ impl RepoPane {
                     self.right = Right::Blame;
                 }
             }
+            Some(history::Pick::Checkout(id)) => {
+                let s = cx.services;
+                let op = Op::new(s.t("git-menu-checkout-commit"), move |r| {
+                    hs_git::write::checkout(r, &id)
+                        .map(|_| String::new())
+                        .map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            Some(history::Pick::Cherry(id)) => {
+                let s = cx.services;
+                let op = Op::new(s.t("git-menu-cherry-pick"), move |r| {
+                    hs_git::write::cherry_pick(r, &id).map_err(|e| e.to_string())
+                });
+                self.exec(s, op);
+            }
+            Some(history::Pick::BranchAt(id)) => self.verbs.branch_at(&id),
+            Some(history::Pick::TagAt(id)) => self.verbs.tag_at(&id),
             None => {}
         }
     }
@@ -617,21 +920,24 @@ impl RepoPane {
             .inner_margin(egui::Margin::symmetric(12, 8))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    match c {
+                    let verb = match c {
                         Confirm::Discard(paths) => {
                             ui.label(s.i18n.t_args(
                                 "git-discard-confirm",
                                 &[("count", &paths.len().to_string())],
                             ));
+                            s.t("git-discard-button")
                         }
-                    }
+                        Confirm::Run { text, op } => {
+                            ui.label(text);
+                            op.label.clone()
+                        }
+                    };
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(s.t("cancel")).clicked() {
                             cancel = true;
                         }
-                        if hs_ui::form::danger_button(ui, theme, &s.t("git-discard-button"))
-                            .clicked()
-                        {
+                        if hs_ui::form::danger_button(ui, theme, &verb).clicked() {
                             go = true;
                         }
                     });
@@ -639,6 +945,13 @@ impl RepoPane {
             });
         if cancel {
             self.confirm = None;
+        }
+        if go
+            && matches!(self.confirm, Some(Confirm::Run { .. }))
+            && let Some(Confirm::Run { op, .. }) = self.confirm.take()
+        {
+            self.exec(s, op);
+            return;
         }
         if go && let Some(Confirm::Discard(paths)) = self.confirm.take() {
             let untracked: Vec<String> = self

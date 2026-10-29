@@ -295,10 +295,29 @@ impl DevtoolsTool {
 }
 
 impl Tool for DevtoolsTool {
-    /// Draws no toolbar: the shell leaves the strip out rather than
-    /// reserving an empty bar above the pane.
+    /// A utility tab has a toolbar row - the utility's name on the left
+    /// and the hard-right corner kept free, so a utility that grows an
+    /// AI Assistant has its control where every other activity puts it
+    /// (owner's requirement, 2026-10-29). The dashboard draws none.
     fn draws_toolbar(&self) -> bool {
-        false
+        !self.is_home
+    }
+
+    fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        if self.is_home {
+            return;
+        }
+        let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        if let Some((_, _, title, icon)) =
+            Utility::ALL.iter().find(|(u, _, _, _)| *u == self.utility)
+        {
+            ui.label(
+                egui::RichText::new(format!("{icon} {}", s.t(title)))
+                    .strong()
+                    .color(theme.accent),
+            );
+        }
     }
 
     fn wants_home_tab(&self) -> bool {

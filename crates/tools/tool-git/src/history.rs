@@ -40,7 +40,14 @@ pub enum Pick {
         file: ChangedFile,
     },
     /// Blame this file at this commit.
-    Blame { id: String, path: String },
+    Blame {
+        id: String,
+        path: String,
+    },
+    Checkout(String),
+    Cherry(String),
+    BranchAt(String),
+    TagAt(String),
 }
 
 pub struct HistoryView {
@@ -178,16 +185,20 @@ impl HistoryView {
             .default_size((height * 0.55).max(140.0))
             .size_range(100.0..=(height - 120.0).max(100.0))
             .resizable(true)
-            .show(ui, |ui| self.list(ui, theme, s));
+            .show(ui, |ui| {
+                pick = self.list(ui, theme, s);
+            });
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.panel_bg))
             .show(ui, |ui| {
-                pick = self.details_ui(ui, theme, s);
+                if let Some(p) = self.details_ui(ui, theme, s) {
+                    pick = Some(p);
+                }
             });
         pick
     }
 
-    fn list(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+    fn list(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<Pick> {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
@@ -218,7 +229,7 @@ impl HistoryView {
                 ui.add_space(12.0);
                 ui.label(egui::RichText::new(s.t("git-no-commits")).color(theme.text_muted));
             });
-            return;
+            return None;
         }
         let needle = self.search.trim().to_lowercase();
         let shown: Vec<usize> = (0..self.commits.len())
@@ -237,6 +248,7 @@ impl HistoryView {
             self.rows.iter().map(Row::width).max().unwrap_or(1).min(12) as f32 * LANE_W + 8.0;
         let mut select: Option<usize> = None;
         let mut load_more = false;
+        let mut menu_pick: Option<Pick> = None;
         egui::ScrollArea::both()
             .id_salt(ui.id().with("git-history-rows"))
             .auto_shrink([false, false])
@@ -386,6 +398,29 @@ impl HistoryView {
                     if resp.clicked() {
                         select = Some(i);
                     }
+                    resp.context_menu(|ui| {
+                        if ui.button(s.t("git-menu-copy-hash")).clicked() {
+                            ui.ctx().copy_text(c.id.clone());
+                            ui.close();
+                        }
+                        ui.separator();
+                        if ui.button(s.t("git-menu-checkout-commit")).clicked() {
+                            menu_pick = Some(Pick::Checkout(c.id.clone()));
+                            ui.close();
+                        }
+                        if ui.button(s.t("git-menu-cherry-pick")).clicked() {
+                            menu_pick = Some(Pick::Cherry(c.id.clone()));
+                            ui.close();
+                        }
+                        if ui.button(s.t("git-menu-branch-here")).clicked() {
+                            menu_pick = Some(Pick::BranchAt(c.id.clone()));
+                            ui.close();
+                        }
+                        if ui.button(s.t("git-menu-tag-here")).clicked() {
+                            menu_pick = Some(Pick::TagAt(c.id.clone()));
+                            ui.close();
+                        }
+                    });
                 }
             });
         if let Some(i) = select {
@@ -394,6 +429,7 @@ impl HistoryView {
         if load_more {
             self.load_page(s);
         }
+        menu_pick
     }
 
     fn details_ui(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<Pick> {

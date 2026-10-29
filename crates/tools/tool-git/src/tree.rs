@@ -34,6 +34,28 @@ pub struct Refs {
 /// What the reader clicked.
 pub enum Pick {
     View(View),
+    Checkout(String),
+    MergeInto(String),
+    RebaseOnto(String),
+    Rename(String),
+    Delete(String),
+    SetUpstream(String),
+    PushBranch(String),
+    /// `remote/branch`, checked out as a local tracking branch.
+    CheckoutRemote(String),
+    DeleteRemoteBranch {
+        remote: String,
+        branch: String,
+    },
+    FetchRemote(String),
+    EditRemote(String),
+    RemoveRemote(String),
+    AddRemote,
+    PushTag(String),
+    DeleteTag(String),
+    StashApply(String),
+    StashPop(String),
+    StashDrop(String),
 }
 
 #[derive(Default)]
@@ -129,8 +151,44 @@ impl Tree {
                             label.push_str(&format!(" \u{2193}{}", b.behind));
                         }
                         let icon = if b.current { ph::CHECK } else { ph::GIT_BRANCH };
-                        row(ui, theme, b.current, icon, &label, b.upstream.as_deref())
+                        let r = row(ui, theme, b.current, icon, &label, b.upstream.as_deref())
                             .on_hover_text(&b.subject);
+                        if r.double_clicked() && !b.current {
+                            pick = Some(Pick::Checkout(b.name.clone()));
+                        }
+                        r.context_menu(|ui| {
+                            let name = b.name.clone();
+                            if !b.current && ui.button(s.t("git-menu-checkout")).clicked() {
+                                pick = Some(Pick::Checkout(name.clone()));
+                                ui.close();
+                            }
+                            if !b.current && ui.button(s.t("git-menu-merge-into")).clicked() {
+                                pick = Some(Pick::MergeInto(name.clone()));
+                                ui.close();
+                            }
+                            if !b.current && ui.button(s.t("git-menu-rebase-onto")).clicked() {
+                                pick = Some(Pick::RebaseOnto(name.clone()));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui.button(s.t("git-menu-push-branch")).clicked() {
+                                pick = Some(Pick::PushBranch(name.clone()));
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-menu-set-upstream")).clicked() {
+                                pick = Some(Pick::SetUpstream(name.clone()));
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-menu-rename")).clicked() {
+                                pick = Some(Pick::Rename(name.clone()));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if !b.current && ui.button(s.t("git-menu-delete")).clicked() {
+                                pick = Some(Pick::Delete(name));
+                                ui.close();
+                            }
+                        });
                     }
                 }
                 let n = self.refs.remotes.len();
@@ -147,13 +205,29 @@ impl Tree {
                         } else {
                             ph::CARET_RIGHT
                         };
-                        if row(ui, theme, false, icon, &r.name, Some(&r.url)).clicked() {
+                        let resp = row(ui, theme, false, icon, &r.name, Some(&r.url));
+                        if resp.clicked() {
                             if open {
                                 self.open_remote.retain(|n| n != &r.name);
                             } else {
                                 self.open_remote.push(r.name.clone());
                             }
                         }
+                        resp.context_menu(|ui| {
+                            if ui.button(s.t("git-menu-fetch-remote")).clicked() {
+                                pick = Some(Pick::FetchRemote(r.name.clone()));
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-menu-edit-remote")).clicked() {
+                                pick = Some(Pick::EditRemote(r.name.clone()));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui.button(s.t("git-menu-remove-remote")).clicked() {
+                                pick = Some(Pick::RemoveRemote(r.name.clone()));
+                                ui.close();
+                            }
+                        });
                         if open {
                             let prefix = format!("{}/", r.name);
                             for b in self
@@ -164,11 +238,45 @@ impl Tree {
                             {
                                 ui.horizontal(|ui| {
                                     ui.add_space(16.0);
-                                    row(ui, theme, false, ph::CLOUD, &b.name[prefix.len()..], None)
-                                        .on_hover_text(&b.subject);
+                                    let resp = row(
+                                        ui,
+                                        theme,
+                                        false,
+                                        ph::CLOUD,
+                                        &b.name[prefix.len()..],
+                                        None,
+                                    )
+                                    .on_hover_text(&b.subject);
+                                    resp.context_menu(|ui| {
+                                        if ui.button(s.t("git-menu-checkout")).clicked() {
+                                            pick = Some(Pick::CheckoutRemote(b.name.clone()));
+                                            ui.close();
+                                        }
+                                        ui.separator();
+                                        if ui.button(s.t("git-menu-delete-remote-branch")).clicked()
+                                        {
+                                            pick = Some(Pick::DeleteRemoteBranch {
+                                                remote: r.name.clone(),
+                                                branch: b.name[prefix.len()..].to_string(),
+                                            });
+                                            ui.close();
+                                        }
+                                    });
                                 });
                             }
                         }
+                    }
+                    if row(
+                        ui,
+                        theme,
+                        false,
+                        ph::PLUS,
+                        &s.t("git-menu-add-remote"),
+                        None,
+                    )
+                    .clicked()
+                    {
+                        pick = Some(Pick::AddRemote);
                     }
                 }
                 let n = self.refs.tags.len();
@@ -179,7 +287,17 @@ impl Tree {
                     Some((n, &mut self.open_tags)),
                 ) {
                     for t in &self.refs.tags {
-                        row(ui, theme, false, ph::TAG, t, None);
+                        row(ui, theme, false, ph::TAG, t, None).context_menu(|ui| {
+                            if ui.button(s.t("git-menu-push-tag")).clicked() {
+                                pick = Some(Pick::PushTag(t.clone()));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui.button(s.t("git-menu-delete-tag")).clicked() {
+                                pick = Some(Pick::DeleteTag(t.clone()));
+                                ui.close();
+                            }
+                        });
                     }
                 }
                 let n = self.refs.stashes.len();
@@ -190,7 +308,23 @@ impl Tree {
                     Some((n, &mut self.open_stashes)),
                 ) {
                     for st in &self.refs.stashes {
-                        row(ui, theme, false, ph::ARCHIVE, &st.message, Some(&st.id));
+                        row(ui, theme, false, ph::ARCHIVE, &st.message, Some(&st.id)).context_menu(
+                            |ui| {
+                                if ui.button(s.t("git-menu-stash-apply")).clicked() {
+                                    pick = Some(Pick::StashApply(st.id.clone()));
+                                    ui.close();
+                                }
+                                if ui.button(s.t("git-menu-stash-pop")).clicked() {
+                                    pick = Some(Pick::StashPop(st.id.clone()));
+                                    ui.close();
+                                }
+                                ui.separator();
+                                if ui.button(s.t("git-menu-stash-drop")).clicked() {
+                                    pick = Some(Pick::StashDrop(st.id.clone()));
+                                    ui.close();
+                                }
+                            },
+                        );
                     }
                 }
             });

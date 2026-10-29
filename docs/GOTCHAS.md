@@ -4,6 +4,15 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Git, Merges and Releases
 
+- **A merge resolution and its commit must be one `&&` chain, and the
+  marker count a hard gate inside it.** On 2026-10-30 the resolver
+  script died on a `/tmp` path, the `;` after it let `git add && git
+  commit && git push` run anyway, and a merge with `<<<<<<<` in
+  `CHANGELOG.md` reached `main` (run 2346, cancelled by the repair push
+  a minute later). The shape that cannot do this is
+  `resolve && test "$(grep -c '^<<<<<<<\|^=======\|^>>>>>>>' CHANGELOG.md)" = 0 && git commit …`
+  - every step a gate, nothing after a `;`.
+
 - **Never read a push's result through `| grep -v remote | tail -1`.**
   The Phase 3 merge was "pushed" that way on 2026-10-29, the push
   failed, the pipeline printed nothing, and `main` sat a release behind

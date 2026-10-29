@@ -11,7 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Git activity, phase 5: the AI Assistant.** The hard-right toggle of
+  a repository tab opens the shared assistant column with the repository
+  as its context (branch, upstream, remote, `git status --short`, the
+  staged diff cut at a bound, the last commits) and six prompt buttons -
+  Write Commit Message, Explain These Changes, Review Before Push,
+  Resolve This Conflict, Suggest Branch Name, Explain This Commit -
+  editable in Settings → AI Assistant → Prompt Buttons like every other
+  activity's. A ```commit block's Insert fills the commit box; a
+  command block's **Insert and Run** runs it in a Terminal tab opened in
+  the repository root, and plain Insert copies it and opens that
+  terminal for review (the activity never runs a shell of its own).
 
 ## 0.101.0 — 2026-10-29
 

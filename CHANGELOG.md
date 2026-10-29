@@ -11,22 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Scratchpad notes resolve `{{name}}` and open their links.** The
-  preview substitutes environment and global variables as it renders -
-  the reader sees the value, an unknown name stays as written - and a
-  link in the preview, bracketed or a bare `https://…`, opens as a new
-  page in the Browser activity. The source pane stays plain text for
-  editing; nothing is clickable there.
-
-- **Collection variables compare with - and sync from - another
-  collection, in this workspace or any other.** The collection's
-  detail in Settings -> Environments gains **Compare With…**: pick a
-  workspace and a collection, see every key as New, Same or Differs
-  (with both values), tick what to bring over, or **Sync All** to make
-  every value the source has read the same here. Keys only this
-  collection has are kept; Save writes the result.
-
 - (nothing yet)
+
+## 0.97.0 — 2026-10-29
+
+### Added
+
+- Scratchpad notes resolve variables and open their links in the Browser (37912c84)
+- Compare a collection's variables with another collection, and sync them (b48f7383)
 
 ## 0.96.0 — 2026-10-29
 

@@ -141,6 +141,107 @@ impl RepoPane {
         }
     }
 
+    /// A palette command (`GitTool::commands`). Returns whether it was one
+    /// of ours.
+    pub fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
+        use crate::verbs::Panel;
+        let s = cx.services;
+        match id {
+            "git.ai" => {
+                self.assistant.toggle("git");
+                if self.assistant.open {
+                    self.refresh(s);
+                }
+            }
+            "git.refresh" => self.refresh_all(s),
+            "git.fetch" => self.fetch(cx),
+            "git.pull" => self.pull(cx),
+            "git.push" => self.push(cx),
+            "git.status" => self.tree.view = View::Status,
+            "git.history" => self.tree.view = View::History,
+            "git.branch" => self.verbs.panel = Panel::Branch,
+            "git.merge" => self.verbs.panel = Panel::Merge,
+            "git.rebase" => self.verbs.panel = Panel::Rebase,
+            "git.stash" => self.verbs.panel = Panel::Stash,
+            "git.tag" => self.verbs.panel = Panel::Tag,
+            "git.flow" => self.verbs.panel = Panel::Flow,
+            "git.terminal" => self.open_terminal(cx, None),
+            _ => return false,
+        }
+        true
+    }
+
+    /// A Terminal tab in the repository root, with `command` typed and
+    /// run when given.
+    fn open_terminal(&self, cx: &mut ToolContext, command: Option<String>) {
+        let Some(root) = &self.root else {
+            return;
+        };
+        let profile = cx.services.settings.read().git.terminal_profile.clone();
+        cx.open_new_tab(
+            "terminal",
+            Some(OpenRequest::Terminal {
+                cwd: Some(root.to_string_lossy().to_string()),
+                host: None,
+                profile: (!profile.is_empty()).then_some(profile),
+                command,
+            }),
+        );
+    }
+
+    fn fetch(&mut self, cx: &mut ToolContext) {
+        let s = cx.services;
+        if let Some(auth) = self.auth(cx) {
+            self.run(s, s.t("git-fetch-button"), move |r| {
+                crate::auth::with_env(auth.as_ref(), |env| {
+                    hs_git::write::fetch_env(r, env).map_err(|e| e.to_string())
+                })?
+            });
+        }
+    }
+
+    fn pull(&mut self, cx: &mut ToolContext) {
+        let s = cx.services;
+        let rebase = s.settings.read().git.pull_rebase;
+        if let Some(auth) = self.auth(cx) {
+            self.run(s, s.t("git-pull"), move |r| {
+                crate::auth::with_env(auth.as_ref(), |env| {
+                    hs_git::write::pull_env(r, rebase, env).map_err(|e| e.to_string())
+                })?
+            });
+        }
+    }
+
+    fn push(&mut self, cx: &mut ToolContext) {
+        let s = cx.services;
+        let upstream = self.status.as_ref().and_then(|st| st.upstream.clone());
+        let branch = self.status.as_ref().and_then(|st| st.branch.clone());
+        let set_upstream = match (&upstream, &branch) {
+            (None, Some(b)) => Some(("origin".to_string(), b.clone())),
+            _ => None,
+        };
+        let question = branch.as_deref().filter(|b| self.protected(s, b)).map(|b| {
+            s.i18n
+                .t_args("git-confirm-protected-push", &[("branch", b)])
+        });
+        if let Some(auth) = self.auth(cx) {
+            let op = Op::new(s.t("git-push"), move |r| {
+                crate::auth::with_env(auth.as_ref(), |env| {
+                    hs_git::write::push_env(
+                        r,
+                        &hs_git::write::PushOptions {
+                            set_upstream,
+                            force_with_lease: false,
+                        },
+                        env,
+                    )
+                    .map_err(|e| e.to_string())
+                })?
+            });
+            self.guarded(s, question, op);
+        }
+    }
+
     /// The `origin` URL, read once per root; what the header band shows.
     pub fn remote_url(&self) -> String {
         self.remote_url.clone()
@@ -413,28 +514,17 @@ impl RepoPane {
                 )),
             )
             .clicked()
-            && let Some(auth) = self.auth(cx)
         {
-            self.run(s, s.t("git-fetch-button"), move |r| {
-                crate::auth::with_env(auth.as_ref(), |env| {
-                    hs_git::write::fetch_env(r, env).map_err(|e| e.to_string())
-                })?
-            });
+            self.fetch(cx);
         }
-        let rebase = s.settings.read().git.pull_rebase;
         if ui
             .add_enabled(
                 !busy,
                 egui::Button::new(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("git-pull"))),
             )
             .clicked()
-            && let Some(auth) = self.auth(cx)
         {
-            self.run(s, s.t("git-pull"), move |r| {
-                crate::auth::with_env(auth.as_ref(), |env| {
-                    hs_git::write::pull_env(r, rebase, env).map_err(|e| e.to_string())
-                })?
-            });
+            self.pull(cx);
         }
         let upstream = self.status.as_ref().and_then(|st| st.upstream.clone());
         let branch = self.status.as_ref().and_then(|st| st.branch.clone());
@@ -450,30 +540,7 @@ impl RepoPane {
             )
             .clicked()
         {
-            let set_upstream = match (&upstream, &branch) {
-                (None, Some(b)) => Some(("origin".to_string(), b.clone())),
-                _ => None,
-            };
-            let question = branch.as_deref().filter(|b| self.protected(s, b)).map(|b| {
-                s.i18n
-                    .t_args("git-confirm-protected-push", &[("branch", b)])
-            });
-            if let Some(auth) = self.auth(cx) {
-                let op = Op::new(s.t("git-push"), move |r| {
-                    crate::auth::with_env(auth.as_ref(), |env| {
-                        hs_git::write::push_env(
-                            r,
-                            &hs_git::write::PushOptions {
-                                set_upstream,
-                                force_with_lease: false,
-                            },
-                            env,
-                        )
-                        .map_err(|e| e.to_string())
-                    })?
-                });
-                self.guarded(s, question, op);
-            }
+            self.push(cx);
         }
         ui.separator();
         self.verbs.toolbar(ui, s, busy);
@@ -481,18 +548,8 @@ impl RepoPane {
         if ui
             .button(format!("{} {}", ph::TERMINAL_WINDOW, s.t("git-terminal")))
             .clicked()
-            && let Some(root) = &self.root
         {
-            let profile = s.settings.read().git.terminal_profile.clone();
-            cx.open_new_tab(
-                "terminal",
-                Some(OpenRequest::Terminal {
-                    cwd: Some(root.to_string_lossy().to_string()),
-                    host: None,
-                    profile: (!profile.is_empty()).then_some(profile),
-                    command: None,
-                }),
-            );
+            self.open_terminal(cx, None);
         }
         if let Some(label) = &self.busy {
             ui.separator();
@@ -676,34 +733,12 @@ impl RepoPane {
             if out.run {
                 // Insert and Run: a terminal in the repository root
                 // runs it - the activity never spawns a shell of its own.
-                if let Some(root) = &self.root {
-                    let profile = s.settings.read().git.terminal_profile.clone();
-                    cx.open_new_tab(
-                        "terminal",
-                        Some(OpenRequest::Terminal {
-                            cwd: Some(root.to_string_lossy().to_string()),
-                            host: None,
-                            profile: (!profile.is_empty()).then_some(profile),
-                            command: Some(command),
-                        }),
-                    );
-                }
+                self.open_terminal(cx, Some(command));
             } else {
                 // Insert is review-only: the command goes to the
                 // clipboard and a terminal opens in the root for it.
                 ui.ctx().copy_text(command);
-                if let Some(root) = &self.root {
-                    let profile = s.settings.read().git.terminal_profile.clone();
-                    cx.open_new_tab(
-                        "terminal",
-                        Some(OpenRequest::Terminal {
-                            cwd: Some(root.to_string_lossy().to_string()),
-                            host: None,
-                            profile: (!profile.is_empty()).then_some(profile),
-                            command: None,
-                        }),
-                    );
-                }
+                self.open_terminal(cx, None);
                 cx.toast(ToastLevel::Info, s.t("git-ai-copied"));
             }
         } else {
@@ -1292,6 +1327,41 @@ impl RepoPane {
         ui.separator();
         self.commit_box(ui, theme, cx, &st, staged.len());
 
+        // Up and Down walk the two lists as one, when no field has the
+        // keyboard (owner's rule: every list is keyboard-navigable).
+        if !ui.ctx().egui_wants_keyboard_input() {
+            let (up, down) = ui.input(|i| {
+                (
+                    i.key_pressed(egui::Key::ArrowUp),
+                    i.key_pressed(egui::Key::ArrowDown),
+                )
+            });
+            if up || down {
+                let mut order: Vec<(String, Side)> = unstaged
+                    .iter()
+                    .map(|f| {
+                        let side = if f.kind == Kind::Untracked {
+                            Side::Untracked
+                        } else {
+                            Side::Unstaged
+                        };
+                        (f.path.clone(), side)
+                    })
+                    .collect();
+                order.extend(staged.iter().map(|f| (f.path.clone(), Side::Staged)));
+                if !order.is_empty() {
+                    let cur = selected
+                        .as_ref()
+                        .and_then(|sel| order.iter().position(|o| o == sel));
+                    let next = match (cur, down) {
+                        (None, _) => 0,
+                        (Some(i), true) => (i + 1).min(order.len() - 1),
+                        (Some(i), false) => i.saturating_sub(1),
+                    };
+                    pick = Some(order[next].clone());
+                }
+            }
+        }
         if let Some((p, side)) = pick {
             self.load_work_diff(s, p, side);
         }

@@ -312,6 +312,29 @@ impl GitRepos {
         Ok(dst)
     }
 
+    /// Write `bytes` as entry `id`'s icon with `ext` (a host's avatar,
+    /// phase 6); the same place and rules as [`GitRepos::set_icon`].
+    pub fn set_icon_bytes(&self, id: &str, ext: &str, bytes: &[u8]) -> storage::Result<PathBuf> {
+        let ext = ext.to_ascii_lowercase();
+        if !crate::workspace::ICON_EXTS.contains(&ext.as_str()) {
+            return Err(storage::StorageError::Message(format!(
+                "unsupported icon format: {ext}"
+            )));
+        }
+        let dir = self.icons_dir();
+        std::fs::create_dir_all(&dir).map_err(|source| storage::StorageError::Io {
+            path: dir.display().to_string(),
+            source,
+        })?;
+        self.remove_icon(id);
+        let dst = dir.join(format!("{id}.{ext}"));
+        std::fs::write(&dst, bytes).map_err(|source| storage::StorageError::Io {
+            path: dst.display().to_string(),
+            source,
+        })?;
+        Ok(dst)
+    }
+
     /// Drop entry `id`'s uploaded icon, if any. The entry itself stays.
     pub fn remove_icon(&self, id: &str) {
         if let Some(old) = self.icon_file(id) {

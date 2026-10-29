@@ -195,7 +195,16 @@ the token handed to git for one command at a time through a helper file
 that is deleted afterwards. Phase 5 added the **AI Assistant** column: the repository as context,
 prompt buttons for a commit message, an explanation or review of the
 changes, a conflict, a branch name or the last commit, and answers whose
-command blocks run in a terminal opened in the repository root.
+command blocks run in a terminal opened in the repository root. Phase 6
+finished the activity: dashboard figures for repositories with changes
+and commits ahead / behind, the host's avatar as the icon of a fetched
+project, a palette command for every verb, and keyboard navigation of
+the lists.
+
+| | |
+|---|---|
+| ![Git dashboard](docs/screenshots/git-dashboard.png) | ![Git repository tab](docs/screenshots/git-repository.png) |
+| **Dashboard** - saved repositories, figures, Start Here | **Repository tab** - tree, History graph, diff and the assistant column |
 
 ### Terminal
 

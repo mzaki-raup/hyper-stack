@@ -96,6 +96,14 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **`split_for_assistant` hands back a child `Ui` whose clip rectangle
+  *excludes* the assistant's column.** Drawing the column through that
+  child (`child.new_child(...)` with the panel rect) clips every pixel
+  of it away: the toggle lit up, the content narrowed, and the column
+  stayed empty (Git activity, 2026-10-30, two rebuilds to see it). Keep
+  the outer `Ui` (`let outer = ui; let ui = &mut content;`, as the
+  terminal does) and make the column's child from `outer`.
+
 - **egui's file loader does not take a bare path, and a `file://` URI
   with a `?v=` query is not found either.** Both drew the "could not
   load" warning triangle in place of the uploaded repository icon

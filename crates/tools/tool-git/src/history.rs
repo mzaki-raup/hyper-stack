@@ -423,6 +423,26 @@ impl HistoryView {
                     });
                 }
             });
+        // Up and Down step through the rows shown.
+        if !ui.ctx().egui_wants_keyboard_input() && !shown.is_empty() {
+            let (up, down) = ui.input(|i| {
+                (
+                    i.key_pressed(egui::Key::ArrowUp),
+                    i.key_pressed(egui::Key::ArrowDown),
+                )
+            });
+            if up || down {
+                let cur = self
+                    .selected
+                    .and_then(|sel| shown.iter().position(|&i| i == sel));
+                let k = match (cur, down) {
+                    (None, _) => 0,
+                    (Some(k), true) => (k + 1).min(shown.len() - 1),
+                    (Some(k), false) => k.saturating_sub(1),
+                };
+                select = Some(shown[k]);
+            }
+        }
         if let Some(i) = select {
             self.select(s, i);
         }

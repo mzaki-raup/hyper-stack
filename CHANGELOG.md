@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Git activity, phase 6: polish.** The dashboard's summaries now
+  include **With Changes** and **Ahead / Behind**, probed per saved
+  repository on the blocking pool and kept for a minute; choosing a
+  project in Fetch Project saves the host's avatar as the repository
+  icon unless one was uploaded; every verb is a palette command
+  (`Git: Fetch`, `Git: Branch…`, `Git: Open Terminal Here`, …) that
+  Settings → Shortcuts can bind; Up and Down walk the file lists and
+  the History rows; README screenshots of the activity.
 
 ## 0.102.0 — 2026-10-29
 

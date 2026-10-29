@@ -230,7 +230,16 @@ bounded slice of the diff; never the token.
 
 ## 8. Phases
 
-Status: **phase 5 landed 2026-10-30** - the assistant column
+Status: **phase 6 landed 2026-10-30** - the dashboard's With Changes
+and Ahead / Behind figures (`GitTool::probe_figures`, one `git status`
+per saved repository, kept for a minute), the host avatar as the
+repository icon when a project is chosen in Fetch Project
+(`hosts::fetch_avatar`, `GitRepos::set_icon_bytes`; an uploaded icon is
+never replaced), a palette command for every verb (`GitTool::commands`,
+bindable in Settings → Shortcuts), Up / Down over the file lists and
+History, and the README screenshots. All six phases of §8 are in.
+
+Phase 5 status: **landed 2026-10-30** - the assistant column
 (`RepoPane::assistant_column`), its six prompt buttons shipped through
 `hs_core::prompts` so Settings → AI Assistant → Prompt Buttons edits
 them, and the command hand-off: **Insert and Run** opens a Terminal tab

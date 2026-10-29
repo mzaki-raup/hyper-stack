@@ -281,3 +281,53 @@ pub fn profile_icon(profile: &hs_core::connections::ConnectionProfile) -> &'stat
     }
     connection_icon(&profile.kind, field("db", "engine"))
 }
+
+/// The glyphs a saved repository may wear, by a stable key the list file
+/// stores (`hs_core::git_repos::RepoEntry::icon`). A language id works
+/// too, through [`language_icon`]; this is the hand-picked rest.
+pub const REPO_ICONS: &[(&str, &str)] = &[
+    ("git", ph::GIT_BRANCH),
+    ("fork", ph::GIT_FORK),
+    ("github", ph::GITHUB_LOGO),
+    ("gitlab", ph::GITLAB_LOGO),
+    ("folder", ph::FOLDER),
+    ("package", ph::PACKAGE),
+    ("cube", ph::CUBE),
+    ("rocket", ph::ROCKET),
+    ("database", ph::DATABASE),
+    ("globe", ph::GLOBE),
+    ("cloud", ph::CLOUD),
+    ("terminal", ph::TERMINAL_WINDOW),
+    ("book", ph::BOOK),
+    ("bug", ph::BUG),
+    ("flask", ph::FLASK),
+    ("shield", ph::SHIELD),
+    ("star", ph::STAR),
+    ("heart", ph::HEART),
+    ("lightning", ph::LIGHTNING),
+    ("gear", ph::GEAR),
+    ("wrench", ph::WRENCH),
+    ("puzzle", ph::PUZZLE_PIECE),
+    ("code", ph::CODE),
+    ("atom", ph::ATOM),
+    ("robot", ph::ROBOT),
+    ("archive", ph::ARCHIVE),
+    ("stack", ph::STACK),
+    ("tag", ph::TAG),
+];
+
+/// The glyph for a stored icon key: one of [`REPO_ICONS`], or a language
+/// id. `None` for an empty or unknown key, so the caller can fall back to
+/// what it knows about the thing (its language, its kind).
+pub fn named(key: &str) -> Option<&'static str> {
+    if key.is_empty() {
+        return None;
+    }
+    if let Some((_, g)) = REPO_ICONS.iter().find(|(k, _)| *k == key) {
+        return Some(g);
+    }
+    hs_core::projects::LANGUAGES
+        .iter()
+        .any(|(id, _)| *id == key)
+        .then(|| language_icon(key))
+}

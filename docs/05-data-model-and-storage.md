@@ -409,6 +409,14 @@ icon colour are P1 and not stored yet. No secret is stored in a profile.
 
 ## Global variables (2026-10-29)
 
+`HyperStackData/git-credentials.toml` holds the Git hosts and their
+credentials for the Git activity (`hs_core::git_hosts`, 2026-10-29):
+name, kind, base URL, username and a `secret:<ulid>` token reference -
+never the token. `<workspace>/git-repos.toml` is the workspace's saved
+repository list (`hs_core::git_repos`: id, name, icon key, source,
+host URL, project, clone URL, path, credential id, order, language), a
+list of references that never owns a folder, like `projects.toml`.
+
 `HyperStackData/globals.json` holds the one application-wide variable
 set (`hs_core::globals::Globals`: `{schema, values: [{enabled, key,
 value, description}]}`). It is deliberately *not* under a workspace: a

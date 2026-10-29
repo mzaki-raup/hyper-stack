@@ -82,7 +82,7 @@ the fixtures behind them.
 | [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
-| [Git](#git) | Tree, Source Control, history, tags, prefixes, conflict editor, interactive rebase |
+| [Git](#git) | Git in the editor, and the Git activity with saved repositories, File Status and Settings → Git |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
@@ -162,6 +162,22 @@ directly after the permanent one.
 | **Conflict editor** — an unmerged file opens block by block: Ours and Theirs under their marker labels, then Ours / Theirs / Both / a typed result per block; **Save and Mark Resolved** writes the file without markers and stages it | **Interactive Rebase** — commits oldest first with Pick / Squash / Fixup / Drop and move arrows; merge, rebase and cherry-pick offer Continue / Skip / Abort when Git pauses |
 | ![Tags](docs/screenshots/editor-git-tags.png) | ![Commit prefix](docs/screenshots/editor-git-prefix.png) |
 | **Tags** - lightweight or annotated, created from their own menu and pushed or deleted per tag | **Commit prefixes** - pick a Conventional Commit type; it is inserted once with its meaning, and Clear Prefix removes it |
+
+**The Git activity** (2026-10-29, phase 1 of `docs/tools/git-activity.md`)
+sits right after Editor in the rail: a dashboard home with summaries,
+Start Here, Saved Repositories and Open Here; a sidebar of the
+workspace's saved repositories (drag to reorder; right-click to edit its
+settings or Remove From List, which closes the tabs and never touches the
+folder); and one tab per repository with a header band (icon, name,
+language, toolchain version, URL, path), a toolbar (branch, Refresh,
+Fetch, Pull, Push, Terminal in the repository root) and the SourceTree
+File Status view - unstaged and staged lists with Stage / Unstage /
+Discard, the diff of the selected file, and a commit box with Amend and
+Push After Commit. **Settings → Git** holds the repository list
+(master/detail form), Git Credentials (tokens go to the vault) and the
+General options (protected patterns, pull with rebase, sign-off, stash
+untracked, default clone folder, terminal profile, Git Flow names).
+History, branches, hosts and the assistant arrive in later phases.
 
 ### Terminal
 

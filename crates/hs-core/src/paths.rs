@@ -116,6 +116,12 @@ impl DataDir {
     pub fn globals_file(&self) -> PathBuf {
         self.root.join("globals.json")
     }
+    /// The Git hosts and their tokens-by-reference (`hs_core::git_hosts`):
+    /// application-wide, a GitHub token being the same token in every
+    /// workspace.
+    pub fn git_credentials_file(&self) -> PathBuf {
+        self.root.join("git-credentials.toml")
+    }
     pub fn workspaces_registry(&self) -> PathBuf {
         self.root.join("workspaces.toml")
     }

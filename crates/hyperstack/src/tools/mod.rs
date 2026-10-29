@@ -20,6 +20,10 @@ pub fn factories(
     vec![
         Box::new(home::HomeFactory { hub: home }),
         Box::new(tool_editor::EditorFactory),
+        // Right after the Editor, as the owner placed it (2026-10-29);
+        // `rail_order` appends it to a saved order, where Settings ->
+        // Appearance can move it.
+        Box::new(tool_git::GitFactory),
         Box::new(tool_terminal::TerminalFactory),
         Box::new(tool_ssh::SshFactory),
         Box::new(tool_s3::S3Factory),

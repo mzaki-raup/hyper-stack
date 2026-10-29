@@ -541,6 +541,17 @@ request, 2026-10-19; details in [tools/terminal.md](tools/terminal.md) 5.
 
 ### 9.1 Visual rules
 
+Settings → Git (2026-10-29, between Editor and Browser) is three cards:
+Repositories (master list with drag reorder and an Add Repository /
+detail form - source, name, icon, URL and credential for a host source,
+path with Browse…, language; Save stays disabled until name, path and -
+for a host - URL hold, with the hint naming what is missing), Git
+Credentials (name, host kind with its default URL, host URL, username,
+token through the vault; Remove asks with a second click), and General
+(protected patterns, pull with rebase, sign-off, stash untracked - moved
+here from the Editor page - plus default clone folder, terminal profile
+and the Git Flow names). `docs/tools/git-activity.md` §3.
+
 Settings pages are built from `hs_ui::form`: a page title with a one-line
 description, then cards (`section`) that hold a two-column label/field grid.
 Text fields are tall (7 px vertical padding) and grow to the available width

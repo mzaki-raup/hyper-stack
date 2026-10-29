@@ -548,6 +548,17 @@ and ADR-025.
 | Release 2: Archify JSON import and draw.io XML import | Completed | Archify JSON through the strict IR; plain and compressed draw.io XML with vertices, edges and shape mapping; tests cover both formats and page selection |
 | Release 2: `.diagram.json` alias and schema migration | Completed | `.diagram.json` opens/saves as an alias; schema v2 migrates v1 documents in `from_json` and writes the new marker on save, with tests |
 
+## Git activity (owner's request, 2026-10-29; `docs/tools/git-activity.md`)
+
+| Phase | State | Notes |
+|---|---|---|
+| 1 — Foundation: stores, `tool-git` crate after Editor, dashboard, sidebar, header band, File Status + commit, Settings → Git, Remove From List | Completed | `hs_core::git_repos`, `hs_core::git_hosts`, `hs_core::langver` (moved from the editor), `Services.git_repos`/`git_credentials`, `tool-git::{GitTool, pane::RepoPane}`, `settings_ui::{Page::Git, RepoDraft, repo_list/detail, credential_list/detail, git_general}`, routes `settings:git[:repo:new[:remote]|:repo:<id>|:credentials]` and `git:remove:<id>`, `close_tool_tabs_under`. Verified on screen 2026-10-29: dashboard, sidebar, repo tab, diff, stage, commit (`git log` shows it), Remove From List (folder intact), Settings forms |
+| 2 — Work pane: left tree, History graph, commit details, Blame, hunk actions, conflict editor | Pending | |
+| 3 — Operations: branch/merge/rebase/cherry-pick/tag/stash verbs, Git Flow, guards, file history | Pending | |
+| 4 — Hosts: Remote/Localhost sources, host APIs, Fetch Project, clone as a Job, `GIT_ASKPASS` | Pending | |
+| 5 — AI Assistant with git quick actions and runnable command blocks | Pending | |
+| 6 — Polish: host avatars, probed summaries, palette commands, screenshots | Pending | |
+
 ## Owner's requests, 2026-10-22 (UI batch)
 
 | Item | State | Notes |

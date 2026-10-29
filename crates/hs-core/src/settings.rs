@@ -163,6 +163,14 @@ pub struct Git {
     pub signoff: bool,
     /// Stash untracked files too (`git stash -u`).
     pub stash_untracked: bool,
+    /// Where the Git activity clones a fetched project unless the form
+    /// says otherwise. Empty means "ask" (docs/tools/git-activity.md §3).
+    pub clone_folder: String,
+    /// The branch names and prefixes the Git Flow panel works with.
+    pub flow: GitFlow,
+    /// The terminal profile Open Terminal starts in the repository root;
+    /// empty means the Terminal activity's default shell.
+    pub terminal_profile: String,
 }
 
 impl Default for Git {
@@ -172,6 +180,36 @@ impl Default for Git {
             pull_rebase: true,
             signoff: false,
             stash_untracked: true,
+            clone_folder: String::new(),
+            flow: GitFlow::default(),
+            terminal_profile: String::new(),
+        }
+    }
+}
+
+/// The git-flow branching model, as names: the Git activity builds its
+/// Start / Finish verbs from these with plain git, so no `git-flow`
+/// extension is needed (docs/tools/git-activity.md §5.4).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct GitFlow {
+    pub production: String,
+    pub develop: String,
+    pub feature: String,
+    pub release: String,
+    pub hotfix: String,
+    pub version_tag_prefix: String,
+}
+
+impl Default for GitFlow {
+    fn default() -> Self {
+        Self {
+            production: "main".into(),
+            develop: "develop".into(),
+            feature: "feature/".into(),
+            release: "release/".into(),
+            hotfix: "hotfix/".into(),
+            version_tag_prefix: "v".into(),
         }
     }
 }

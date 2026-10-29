@@ -3818,6 +3818,7 @@ dependencies = [
  "tool-db",
  "tool-devtools",
  "tool-editor",
+ "tool-git",
  "tool-graphics",
  "tool-logs",
  "tool-nosql",
@@ -8798,6 +8799,20 @@ dependencies = [
  "tokio",
  "tracing",
  "zip",
+]
+
+[[package]]
+name = "tool-git"
+version = "0.97.0"
+dependencies = [
+ "egui",
+ "hs-core",
+ "hs-git",
+ "hs-ui",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

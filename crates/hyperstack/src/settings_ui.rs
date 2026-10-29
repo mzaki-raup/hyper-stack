@@ -31,13 +31,14 @@ pub enum Page {
     Security,
     Terminal,
     Editor,
+    Git,
     Browser,
     Ai,
     About,
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 14] {
+    pub fn all() -> [(Page, &'static str); 15] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -49,6 +50,7 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Containers, "settings-containers"),
             (Page::Editor, "settings-editor"),
+            (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
             (Page::Ai, "settings-ai"),
             (Page::Shortcuts, "settings-shortcuts"),
@@ -70,6 +72,7 @@ impl Page {
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
+            Page::Git => ph::GIT_BRANCH,
             Page::Browser => ph::GLOBE,
             Page::Ai => ph::SPARKLE,
             Page::About => ph::INFO,
@@ -177,6 +180,15 @@ pub struct SettingsState {
     /// what was actually changed on screen.
     pub project_selected: Option<String>,
     pub project_draft: Option<ProjectDraft>,
+    /// Settings -> Git -> Repositories: the entry open for editing and
+    /// the copy being edited (docs/tools/git-activity.md §3).
+    pub repo_selected: Option<String>,
+    pub repo_draft: Option<RepoDraft>,
+    /// Settings -> Git -> Git Credentials: the same pair for a credential.
+    pub cred_selected: Option<String>,
+    pub cred_draft: Option<hs_core::git_hosts::GitCredential>,
+    /// Remove Credential was clicked once; the second click does it.
+    pub cred_confirm_remove: bool,
     pub shortcut_edit: HashMap<String, String>,
     pub shortcut_filter: String,
     pub confirm_delete: Option<(String, String, bool)>, // id, name, is_env
@@ -311,6 +323,13 @@ pub enum SettingsEffect {
     /// Open this project folder in the Editor, in the tab it already has
     /// or in a new one.
     OpenProject(std::path::PathBuf),
+    /// Settings -> Git -> Repositories -> Remove From List: ask first,
+    /// then drop the entry and close the Git tabs that show it. The
+    /// folder is never touched (docs/tools/git-activity.md §4).
+    ConfirmRemoveRepo(String, String),
+    /// Open this repository in the Git activity, in the tab it already
+    /// has or in a new one.
+    OpenRepo(std::path::PathBuf),
     /// Settings -> Connections -> Connect: open this saved profile in its
     /// own activity, in the tab it already has or in a new one.
     OpenConnection {
@@ -406,6 +425,7 @@ pub fn page(
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
+        Page::Git => git(ui, theme, services, state, effects),
         Page::Browser => browser(ui, theme, services, effects),
         Page::Ai => crate::settings_ai::page(ui, theme, services, &mut state.ai, effects),
         Page::About => about(ui, theme, services, effects),
@@ -5430,6 +5450,744 @@ fn project_detail(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Settings -> Git (docs/tools/git-activity.md §3)
+
+/// A repository being added or edited in Settings -> Git.
+#[derive(Debug, Clone)]
+pub struct RepoDraft {
+    pub entry: hs_core::git_repos::RepoEntry,
+}
+
+impl RepoDraft {
+    /// An empty form in the detail column, as Add Project gives one.
+    pub fn blank(source: hs_core::git_repos::Source) -> Self {
+        Self {
+            entry: hs_core::git_repos::RepoEntry {
+                source,
+                ..Default::default()
+            },
+        }
+    }
+    pub fn open(entry: hs_core::git_repos::RepoEntry) -> Self {
+        Self { entry }
+    }
+}
+
+fn git(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-git"),
+        Some(&s.t("settings-git-sub")),
+    );
+    repo_list(ui, theme, s, state, effects);
+    credential_list(ui, theme, s, state, effects);
+    git_general(ui, theme, s, effects);
+}
+
+/// How the Git activity pulls, pushes, protects and branches; until
+/// 2026-10-29 the first four lived on the Editor page.
+fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
+    let mut settings = s.settings.write();
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-section-git-general"), |ui| {
+        form::field_grid(ui, "git-general", |ui| {
+            form::label(ui, &s.t("settings-git-protected"));
+            let mut text = settings.git.protected_patterns.join(", ");
+            if form::text_field(ui, &mut text, "prod, release").changed() {
+                settings.git.protected_patterns = text
+                    .split(',')
+                    .map(|p| p.trim().to_string())
+                    .filter(|p| !p.is_empty())
+                    .collect();
+                changed = true;
+            }
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-clone-folder"));
+            ui.horizontal(|ui| {
+                changed |= form::text_field(ui, &mut settings.git.clone_folder, "").changed();
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        s.t("browse")
+                    ))
+                    .clicked()
+                    && let Some(p) = rfd::FileDialog::new().pick_folder()
+                {
+                    settings.git.clone_folder = p.display().to_string();
+                    changed = true;
+                }
+            });
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-terminal-profile"));
+            let clis: Vec<(String, String)> = settings
+                .terminal
+                .cli
+                .iter()
+                .map(|c| (c.id.clone(), c.name.clone()))
+                .collect();
+            let current = clis
+                .iter()
+                .find(|(id, _)| *id == settings.git.terminal_profile)
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| s.t("settings-git-terminal-default"));
+            egui::ComboBox::from_id_salt("git-terminal-profile")
+                .selected_text(current)
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(
+                            settings.git.terminal_profile.is_empty(),
+                            s.t("settings-git-terminal-default"),
+                        )
+                        .clicked()
+                    {
+                        settings.git.terminal_profile.clear();
+                        changed = true;
+                    }
+                    for (id, name) in &clis {
+                        if ui
+                            .selectable_label(settings.git.terminal_profile == *id, name)
+                            .clicked()
+                        {
+                            settings.git.terminal_profile = id.clone();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-git-protected-hint"));
+        form::hint(ui, theme, &s.t("settings-git-clone-folder-hint"));
+        form::hint(ui, theme, &s.t("settings-git-terminal-profile-hint"));
+        ui.add_space(6.0);
+        changed |= ui
+            .checkbox(
+                &mut settings.git.pull_rebase,
+                s.t("settings-git-pull-rebase"),
+            )
+            .changed();
+        changed |= ui
+            .checkbox(&mut settings.git.signoff, s.t("settings-git-signoff"))
+            .changed();
+        changed |= ui
+            .checkbox(
+                &mut settings.git.stash_untracked,
+                s.t("settings-git-stash-untracked"),
+            )
+            .changed();
+    });
+    form::section(ui, theme, &s.t("settings-git-flow"), |ui| {
+        form::hint(ui, theme, &s.t("settings-git-flow-hint"));
+        ui.add_space(4.0);
+        let flow = &mut settings.git.flow;
+        form::field_grid(ui, "git-flow", |ui| {
+            for (key, value) in [
+                ("settings-git-flow-production", &mut flow.production),
+                ("settings-git-flow-develop", &mut flow.develop),
+                ("settings-git-flow-feature", &mut flow.feature),
+                ("settings-git-flow-release", &mut flow.release),
+                ("settings-git-flow-hotfix", &mut flow.hotfix),
+                ("settings-git-flow-tag", &mut flow.version_tag_prefix),
+            ] {
+                form::label(ui, &s.t(key));
+                changed |= form::text_field(ui, value, "").changed();
+                ui.end_row();
+            }
+        });
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
+fn credential_list(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::section(ui, theme, &s.t("settings-section-git-credentials"), |ui| {
+        if form::primary_button(
+            ui,
+            theme,
+            &format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("settings-git-cred-add")
+            ),
+        )
+        .clicked()
+        {
+            state.cred_selected = None;
+            state.cred_draft = Some(hs_core::git_hosts::GitCredential::default());
+            state.cred_confirm_remove = false;
+        }
+        ui.add_space(8.0);
+        form::hint(ui, theme, &s.t("settings-git-cred-hint"));
+        let rows: Vec<(String, String, String)> = s
+            .git_credentials
+            .read()
+            .all()
+            .iter()
+            .map(|c| {
+                (
+                    c.id.clone(),
+                    c.label(),
+                    format!("{} · {}", c.kind.name(), c.host()),
+                )
+            })
+            .collect();
+        if rows.is_empty() {
+            form::hint(ui, theme, &s.t("settings-git-cred-none"));
+        }
+        let mut pick: Option<String> = None;
+        for (id, name, detail) in &rows {
+            let selected = state.cred_selected.as_deref() == Some(id.as_str());
+            if form::list_row(
+                ui,
+                theme,
+                selected,
+                hs_ui::icons::ph::KEY,
+                name,
+                Some(detail),
+            )
+            .clicked()
+            {
+                pick = Some(id.clone());
+            }
+            ui.add_space(2.0);
+        }
+        if let Some(id) = pick {
+            state.cred_selected = Some(id.clone());
+            state.cred_draft = s.git_credentials.read().by_id(&id).cloned();
+            state.cred_confirm_remove = false;
+        }
+    });
+    if state.cred_draft.is_some() {
+        ui.add_space(8.0);
+        credential_detail(ui, theme, s, state, effects);
+    }
+    ui.add_space(12.0);
+}
+
+fn credential_detail(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    let Some(cred) = state.cred_draft.as_mut() else {
+        return;
+    };
+    let is_new = s.git_credentials.read().by_id(&cred.id).is_none();
+    let mut save = false;
+    let mut close = false;
+    let mut remove = false;
+    let title = if cred.name.trim().is_empty() {
+        s.t("settings-git-cred-add")
+    } else {
+        cred.label()
+    };
+    form::section(ui, theme, &title, |ui| {
+        form::field_grid(ui, "git-cred-detail", |ui| {
+            form::label(ui, &s.t("settings-git-cred-name"));
+            form::text_field(ui, &mut cred.name, &s.t("settings-git-cred-name-hint"));
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-cred-kind"));
+            egui::ComboBox::from_id_salt("git-cred-kind")
+                .selected_text(cred.kind.name())
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    for k in hs_core::git_hosts::HostKind::all() {
+                        if ui.selectable_label(cred.kind == k, k.name()).clicked() {
+                            // The public host's address follows the kind
+                            // until the user has typed one of their own.
+                            let was_default = cred.base_url.is_empty()
+                                || cred.base_url == cred.kind.default_url();
+                            cred.kind = k;
+                            if was_default {
+                                cred.base_url = k.default_url().to_string();
+                            }
+                        }
+                    }
+                });
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-cred-url"));
+            form::text_field(ui, &mut cred.base_url, &s.t("settings-git-cred-url-hint"));
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-cred-user"));
+            form::text_field(ui, &mut cred.username, "");
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-cred-token"));
+            let mut scratch = String::new();
+            secret_field(
+                ui,
+                theme,
+                s,
+                "git-cred-token",
+                &mut cred.token,
+                &mut scratch,
+                0,
+            );
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-git-cred-token-hint"));
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            let can = !cred.base_url.trim().is_empty() || cred.kind.default_url().is_empty();
+            if ui
+                .add_enabled(can, egui::Button::new(s.t("save")).fill(theme.accent))
+                .clicked()
+            {
+                save = true;
+            }
+            if ui.button(s.t("close")).clicked() {
+                close = true;
+            }
+            if !is_new {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if state.cred_confirm_remove {
+                        if form::danger_button(ui, theme, &s.t("settings-git-cred-remove"))
+                            .clicked()
+                        {
+                            remove = true;
+                        }
+                        ui.label(
+                            egui::RichText::new(s.i18n.t_args(
+                                "settings-git-cred-remove-confirm",
+                                &[("name", &cred.label())],
+                            ))
+                            .color(theme.warning),
+                        );
+                    } else if ui.button(s.t("settings-git-cred-remove")).clicked() {
+                        state.cred_confirm_remove = true;
+                    }
+                });
+            }
+        });
+    });
+    if close {
+        state.cred_draft = None;
+        state.cred_selected = None;
+        state.cred_confirm_remove = false;
+    }
+    if save && let Some(mut cred) = state.cred_draft.clone() {
+        if cred.name.trim().is_empty() {
+            cred.name = cred.label();
+        }
+        cred.base_url = cred.host();
+        // The typed token goes to the vault and the reference stays here;
+        // a locked vault refuses the save rather than writing the token.
+        let label = cred.label();
+        if !store_typed_secrets(s, &label, [("Token", &mut cred.token)], effects) {
+            return;
+        }
+        match s.git_credentials.write().upsert(cred) {
+            Ok(()) => {
+                state.cred_draft = None;
+                state.cred_selected = None;
+                effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Success,
+                    s.t("toast-saved"),
+                ));
+            }
+            Err(e) => effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            )),
+        }
+    }
+    if remove && let Some(cred) = state.cred_draft.clone() {
+        match s.git_credentials.write().remove(&cred.id) {
+            Ok(()) => {
+                state.cred_draft = None;
+                state.cred_selected = None;
+                state.cred_confirm_remove = false;
+            }
+            Err(e) => effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+fn repo_list(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    form::section(ui, theme, &s.t("settings-section-git-repos"), |ui| {
+        if form::primary_button(
+            ui,
+            theme,
+            &format!(
+                "{} {}",
+                hs_ui::icons::ph::PLUS,
+                s.t("settings-git-repo-add")
+            ),
+        )
+        .clicked()
+        {
+            state.repo_selected = None;
+            state.repo_draft = Some(RepoDraft::blank(hs_core::git_repos::Source::Local));
+        }
+        ui.add_space(8.0);
+        form::hint(ui, theme, &s.t("settings-git-repos-hint"));
+        let rows: Vec<(String, String, String, &'static str)> = s
+            .git_repos
+            .read()
+            .all()
+            .iter()
+            .map(|r| {
+                (
+                    r.id.clone(),
+                    r.label(),
+                    r.path.display().to_string(),
+                    repo_icon(r),
+                )
+            })
+            .collect();
+        if rows.is_empty() {
+            form::hint(ui, theme, &s.t("settings-git-repos-none"));
+        }
+        let mut reorder = hs_ui::reorder::Reorder::new("git-repo-list-reorder");
+        let mut pick: Option<String> = None;
+        for (i, (id, name, path, icon)) in rows.iter().enumerate() {
+            let selected = state.repo_selected.as_deref() == Some(id.as_str());
+            reorder.row(ui, i, |ui| {
+                if form::list_row(ui, theme, selected, icon, name, Some(path)).clicked() {
+                    pick = Some(id.clone());
+                }
+            });
+            ui.add_space(2.0);
+        }
+        if let Some((from, to)) = reorder.finish(ui, theme.accent)
+            && let Err(e) = s.git_repos.write().reorder(from, to)
+        {
+            effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            ));
+        }
+        if let Some(id) = pick {
+            state.repo_selected = Some(id.clone());
+            if let Some(r) = s.git_repos.read().by_id(&id) {
+                state.repo_draft = Some(RepoDraft::open(r.clone()));
+            }
+        }
+    });
+    if state.repo_draft.is_some() {
+        ui.add_space(8.0);
+        repo_detail(ui, theme, s, state, effects);
+    }
+    ui.add_space(12.0);
+}
+
+/// The glyph a saved repository draws: its chosen icon, else its
+/// language's, else git's branch mark.
+pub(crate) fn repo_icon(r: &hs_core::git_repos::RepoEntry) -> &'static str {
+    hs_ui::icons::named(&r.icon).unwrap_or_else(|| {
+        if r.language.is_empty() {
+            hs_ui::icons::ph::GIT_BRANCH
+        } else {
+            hs_ui::icons::language_icon(&r.language)
+        }
+    })
+}
+
+fn repo_detail(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::git_repos::Source;
+    let Some(draft) = state.repo_draft.as_mut() else {
+        return;
+    };
+    let is_new = s.git_repos.read().by_id(&draft.entry.id).is_none();
+    let mut save = false;
+    let mut close = false;
+    let mut remove = false;
+    let title = if draft.entry.name.trim().is_empty() && draft.entry.path.as_os_str().is_empty() {
+        s.t("settings-git-repo-add")
+    } else {
+        draft.entry.label()
+    };
+    form::section(ui, theme, &title, |ui| {
+        let e = &mut draft.entry;
+        form::field_grid(ui, "git-repo-detail", |ui| {
+            form::label(ui, &s.t("settings-git-repo-source"));
+            egui::ComboBox::from_id_salt("git-repo-source")
+                .selected_text(s.t(e.source.label_key()))
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    for src in Source::all() {
+                        if ui
+                            .selectable_label(e.source == src, s.t(src.label_key()))
+                            .clicked()
+                        {
+                            e.source = src;
+                        }
+                    }
+                });
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-repo-name"));
+            form::text_field(ui, &mut e.name, &s.t("settings-git-repo-name-hint"));
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-repo-icon"));
+            let current = hs_ui::icons::named(&e.icon)
+                .map(|g| format!("{g}  {}", e.icon))
+                .unwrap_or_else(|| s.t("settings-git-repo-icon-auto"));
+            egui::ComboBox::from_id_salt("git-repo-icon")
+                .selected_text(current)
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(e.icon.is_empty(), s.t("settings-git-repo-icon-auto"))
+                        .clicked()
+                    {
+                        e.icon.clear();
+                    }
+                    for (key, glyph) in hs_ui::icons::REPO_ICONS {
+                        if ui
+                            .selectable_label(e.icon == *key, format!("{glyph}  {key}"))
+                            .clicked()
+                        {
+                            e.icon = key.to_string();
+                        }
+                    }
+                });
+            ui.end_row();
+
+            if e.source != Source::Local {
+                form::label(ui, &s.t("settings-git-repo-url"));
+                form::text_field(ui, &mut e.url, &s.t("settings-git-repo-url-hint"));
+                ui.end_row();
+
+                form::label(ui, &s.t("settings-git-repo-credential"));
+                let creds: Vec<(String, String)> = s
+                    .git_credentials
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|c| (c.id.clone(), c.label()))
+                    .collect();
+                let current = creds
+                    .iter()
+                    .find(|(id, _)| *id == e.credential)
+                    .map(|(_, n)| n.clone())
+                    .unwrap_or_else(|| s.t("settings-git-repo-credential-none"));
+                egui::ComboBox::from_id_salt("git-repo-credential")
+                    .selected_text(current)
+                    .width(form::FIELD_MIN_WIDTH)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(
+                                e.credential.is_empty(),
+                                s.t("settings-git-repo-credential-none"),
+                            )
+                            .clicked()
+                        {
+                            e.credential.clear();
+                        }
+                        for (id, name) in &creds {
+                            if ui.selectable_label(e.credential == *id, name).clicked() {
+                                e.credential = id.clone();
+                                if let Some(c) = s.git_credentials.read().by_id(id) {
+                                    e.host_url = c.host();
+                                }
+                            }
+                        }
+                    });
+                ui.end_row();
+
+                form::label(ui, &s.t("settings-git-repo-project"));
+                ui.horizontal(|ui| {
+                    ui.add_enabled_ui(false, |ui| {
+                        form::text_field_width(ui, &mut e.project, "owner/name", 180.0);
+                        // Disabled until phase 4 brings the host clients.
+                        let _ = ui.button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::CLOUD_ARROW_DOWN,
+                            s.t("settings-git-repo-fetch")
+                        ));
+                    });
+                });
+                ui.end_row();
+            }
+
+            form::label(ui, &s.t("settings-git-repo-path"));
+            ui.horizontal(|ui| {
+                let mut path = e.path.display().to_string();
+                if form::text_field(ui, &mut path, "").changed() {
+                    e.path = std::path::PathBuf::from(path);
+                }
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        s.t("browse")
+                    ))
+                    .clicked()
+                    && let Some(p) = rfd::FileDialog::new().pick_folder()
+                {
+                    // A different folder is a different repository: its
+                    // name and language are read again.
+                    let fresh = hs_core::git_repos::RepoEntry::for_path(&p);
+                    if e.name.trim().is_empty() || e.name == fresh.name {
+                        e.name = fresh.name;
+                    }
+                    e.language = fresh.language;
+                    e.path = p;
+                }
+            });
+            ui.end_row();
+
+            form::label(ui, &s.t("settings-git-repo-language"));
+            let current = if e.language.is_empty() {
+                s.t("settings-project-language-auto")
+            } else {
+                let name = hs_core::projects::language_name(&e.language);
+                if name.is_empty() {
+                    e.language.clone()
+                } else {
+                    name.to_string()
+                }
+            };
+            egui::ComboBox::from_id_salt("git-repo-language")
+                .selected_text(format!(
+                    "{} {current}",
+                    hs_ui::icons::language_icon(&e.language)
+                ))
+                .width(form::FIELD_MIN_WIDTH)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(
+                            e.language.is_empty(),
+                            s.t("settings-project-language-auto"),
+                        )
+                        .clicked()
+                    {
+                        e.language = hs_core::projects::detect_language(&e.path).to_string();
+                    }
+                    for (id, name) in hs_core::projects::LANGUAGES {
+                        if ui
+                            .selectable_label(
+                                e.language == *id,
+                                format!("{} {name}", hs_ui::icons::language_icon(id)),
+                            )
+                            .clicked()
+                        {
+                            e.language = id.to_string();
+                        }
+                    }
+                });
+            ui.end_row();
+        });
+        if e.source != Source::Local {
+            form::hint(ui, theme, &s.t("settings-git-repo-fetch-later"));
+        }
+        let has_path = !e.path.as_os_str().is_empty();
+        if has_path && !e.is_cloned() {
+            form::hint(ui, theme, &s.t("settings-git-repo-not-a-repo"));
+        }
+        // Save is disabled until the mandatory fields hold, and the hint
+        // under it names what is missing (owner's requirement).
+        let missing: Vec<String> = e.missing().iter().map(|k| s.t(k)).collect();
+        let can_save = missing.is_empty() && e.is_cloned();
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(can_save, egui::Button::new(s.t("save")).fill(theme.accent))
+                .clicked()
+            {
+                save = true;
+            }
+            if ui.button(s.t("close")).clicked() {
+                close = true;
+            }
+            if !is_new {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if form::danger_button(ui, theme, &s.t("git-repo-remove")).clicked() {
+                        remove = true;
+                    }
+                });
+            }
+        });
+        if !missing.is_empty() {
+            form::hint(
+                ui,
+                theme,
+                &s.i18n.t_args(
+                    "settings-git-repo-missing",
+                    &[("what", &missing.join(", "))],
+                ),
+            );
+        }
+    });
+    if close {
+        state.repo_draft = None;
+        state.repo_selected = None;
+    }
+    if save && let Some(draft) = state.repo_draft.clone() {
+        let mut entry = draft.entry;
+        if entry.name.trim().is_empty() {
+            entry.name = entry.label();
+        }
+        if entry.language.trim().is_empty() {
+            entry.language = hs_core::projects::detect_language(&entry.path).to_string();
+        }
+        let is_new = s.git_repos.read().by_id(&entry.id).is_none();
+        match s.git_repos.write().upsert(entry.clone()) {
+            Ok(()) => {
+                state.repo_draft = None;
+                state.repo_selected = None;
+                effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Success,
+                    s.t("toast-saved"),
+                ));
+                if is_new {
+                    effects.push(SettingsEffect::OpenRepo(entry.path.clone()));
+                }
+            }
+            Err(e) => effects.push(SettingsEffect::Toast(
+                hs_core::tool::ToastLevel::Error,
+                e.to_string(),
+            )),
+        }
+    }
+    if remove && let Some(draft) = state.repo_draft.clone() {
+        effects.push(SettingsEffect::ConfirmRemoveRepo(
+            draft.entry.id.clone(),
+            draft.entry.label(),
+        ));
+    }
+}
+
 fn editor(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -5586,44 +6344,6 @@ fn editor(
         ui.add_space(4.0);
         changed |=
             language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
-    });
-    form::section(ui, theme, &s.t("settings-section-git"), |ui| {
-        form::field_grid(ui, "editor-git", |ui| {
-            form::label(ui, &s.t("settings-git-protected"));
-            let mut text = settings.git.protected_patterns.join(", ");
-            if ui
-                .add(
-                    egui::TextEdit::singleline(&mut text)
-                        .hint_text("prod, release")
-                        .desired_width(f32::INFINITY),
-                )
-                .changed()
-            {
-                settings.git.protected_patterns = text
-                    .split(',')
-                    .map(|p| p.trim().to_string())
-                    .filter(|p| !p.is_empty())
-                    .collect();
-                changed = true;
-            }
-            ui.end_row();
-        });
-        form::hint(ui, theme, &s.t("settings-git-protected-hint"));
-        changed |= ui
-            .checkbox(
-                &mut settings.git.pull_rebase,
-                s.t("settings-git-pull-rebase"),
-            )
-            .changed();
-        changed |= ui
-            .checkbox(&mut settings.git.signoff, s.t("settings-git-signoff"))
-            .changed();
-        changed |= ui
-            .checkbox(
-                &mut settings.git.stash_untracked,
-                s.t("settings-git-stash-untracked"),
-            )
-            .changed();
     });
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));

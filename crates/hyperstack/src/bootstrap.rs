@@ -51,6 +51,8 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let workspace: Workspace = registry.open(&paths, &name).map_err(|e| e.to_string())?;
     let connections = Connections::load(&workspace.connections_dir());
     let projects = hs_core::projects::Projects::load(&workspace.projects_file());
+    let git_repos = hs_core::git_repos::GitRepos::load(&workspace.git_repos_file());
+    let git_credentials = hs_core::git_hosts::GitCredentials::load(&paths.git_credentials_file());
     let mut environments = Environments::load(&workspace.environments_dir());
     environments.active = workspace.meta.default_environment.clone();
     // The application-wide variable set resolves `{{name}}` after the
@@ -84,6 +86,8 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         jobs,
         events: EventBus::new(),
         projects: Arc::new(RwLock::new(projects)),
+        git_repos: Arc::new(RwLock::new(git_repos)),
+        git_credentials: Arc::new(RwLock::new(git_credentials)),
         connections,
         environments: Arc::new(RwLock::new(environments)),
         secrets,
@@ -138,6 +142,7 @@ pub fn switch_workspace(
     // configuration; it does not need the profile list it came from.
     *services.connections.write() = Connections::load(&ws.connections_dir());
     *services.projects.write() = hs_core::projects::Projects::load(&ws.projects_file());
+    *services.git_repos.write() = hs_core::git_repos::GitRepos::load(&ws.git_repos_file());
     let mut envs = Environments::load(&ws.environments_dir());
     envs.active = ws.meta.default_environment.clone();
     // Globals are not the workspace's: the same set, every time.

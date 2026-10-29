@@ -31,6 +31,12 @@ pub struct Services {
     /// The workspace's saved project list, which the Editor activity's
     /// sidebar and Settings -> Editor both read and write.
     pub projects: Arc<RwLock<crate::projects::Projects>>,
+    /// The workspace's saved repository list, which the Git activity's
+    /// sidebar and Settings -> Git both read and write
+    /// (docs/tools/git-activity.md §2.1).
+    pub git_repos: Arc<RwLock<crate::git_repos::GitRepos>>,
+    /// The application-wide Git hosts and credentials (§2.2).
+    pub git_credentials: Arc<RwLock<crate::git_hosts::GitCredentials>>,
     pub environments: Arc<RwLock<Environments>>,
     pub secrets: Arc<dyn SecretStore>,
     pub shortcuts: Arc<RwLock<Keymap>>,

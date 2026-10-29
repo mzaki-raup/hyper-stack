@@ -181,6 +181,11 @@ impl Workspace {
     pub fn projects_file(&self) -> PathBuf {
         self.root.join("projects.toml")
     }
+    /// The saved repository list the Git activity shows
+    /// (`hs_core::git_repos`).
+    pub fn git_repos_file(&self) -> PathBuf {
+        self.root.join("git-repos.toml")
+    }
     pub fn layout_file(&self) -> PathBuf {
         self.root.join("layout.json")
     }

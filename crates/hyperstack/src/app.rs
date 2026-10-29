@@ -266,6 +266,8 @@ pub struct HyperStackApp {
     /// project waiting on a yes, as (id, name). The folder is never
     /// touched - see the dialog body.
     confirm_remove_project: Option<(String, String)>,
+    /// Remove From List on a Git repository, awaiting the owner's yes.
+    confirm_remove_repo: Option<(String, String)>,
     last_input: Instant,
     /// When a secret copied from Settings → Security leaves the clipboard.
     clear_clipboard_at: Option<Instant>,
@@ -395,6 +397,7 @@ impl HyperStackApp {
             password: PasswordDialogState::default(),
             confirm_close: None,
             confirm_remove_project: None,
+            confirm_remove_repo: None,
             last_input: Instant::now(),
             clear_clipboard_at: None,
             last_layout_save: Instant::now(),
@@ -1227,6 +1230,32 @@ impl HyperStackApp {
         }
     }
 
+    /// Close the tabs of one activity whose `project_roots` are at or
+    /// under `root` - Remove From List in the Git activity, where the
+    /// editor's tab on the same folder must stay open.
+    fn close_tool_tabs_under(&mut self, factory_id: &str, root: &std::path::Path) {
+        let want = hs_core::projects::normalise(root);
+        if want.is_empty() {
+            return;
+        }
+        let doomed: Vec<u64> = self
+            .tabs
+            .tabs
+            .iter()
+            .filter(|t| t.factory_id == factory_id)
+            .filter(|t| {
+                t.tool.project_roots().iter().any(|r| {
+                    let p = hs_core::projects::normalise(r);
+                    p == want || p.starts_with(&format!("{want}/"))
+                })
+            })
+            .map(|t| t.id)
+            .collect();
+        for t in doomed {
+            self.close_tab(t, true);
+        }
+    }
+
     fn close_tab(&mut self, id: u64, force: bool) {
         // Mandatory shell tabs and an activity's permanent home tab both
         // stay. Checking here covers Close Others and Close to the Right
@@ -1365,6 +1394,40 @@ impl HyperStackApp {
                 let id = action.trim_start_matches("settings:project:").to_string();
                 self.open_settings(Some(settings_ui::Page::Editor));
                 self.select_project_in_settings(&id);
+            }
+            // The Git activity's routes (docs/tools/git-activity.md §3, §4):
+            // the page, the Add Repository form (local, or on the Remote
+            // source for Clone From Host), one repository's form, and
+            // Remove From List, which asks first and never touches the
+            // folder.
+            "settings:git" | "settings:git:credentials" => {
+                self.open_settings(Some(settings_ui::Page::Git));
+            }
+            "settings:git:repo:new" | "settings:git:repo:new:remote" => {
+                self.open_settings(Some(settings_ui::Page::Git));
+                let source = if action.ends_with(":remote") {
+                    hs_core::git_repos::Source::Remote
+                } else {
+                    hs_core::git_repos::Source::Local
+                };
+                let mut ui = self.settings_ui.lock();
+                ui.state.repo_selected = None;
+                ui.state.repo_draft = Some(settings_ui::RepoDraft::blank(source));
+            }
+            _ if action.starts_with("settings:git:repo:") => {
+                let id = action.trim_start_matches("settings:git:repo:").to_string();
+                self.open_settings(Some(settings_ui::Page::Git));
+                if let Some(r) = self.services.git_repos.read().by_id(&id).cloned() {
+                    let mut ui = self.settings_ui.lock();
+                    ui.state.repo_selected = Some(r.id.clone());
+                    ui.state.repo_draft = Some(settings_ui::RepoDraft::open(r));
+                }
+            }
+            _ if action.starts_with("git:remove:") => {
+                let id = action.trim_start_matches("git:remove:").to_string();
+                if let Some(r) = self.services.git_repos.read().by_id(&id) {
+                    self.confirm_remove_repo = Some((id.clone(), r.label()));
+                }
             }
             _ if action.starts_with("settings:container:") => {
                 let id = action.trim_start_matches("settings:container:").to_string();
@@ -1857,6 +1920,19 @@ impl HyperStackApp {
                 }
                 SettingsEffect::ConfirmRemoveProject(id, name) => {
                     self.confirm_remove_project = Some((id, name));
+                }
+                SettingsEffect::ConfirmRemoveRepo(id, name) => {
+                    self.confirm_remove_repo = Some((id, name));
+                }
+                SettingsEffect::OpenRepo(path) => {
+                    self.reveal_rail("git");
+                    self.open_tool(
+                        "git",
+                        Some(OpenRequest::File {
+                            uri: path.to_string_lossy().to_string(),
+                            line: None,
+                        }),
+                    );
                 }
                 SettingsEffect::OpenConnection { tool, id } => {
                     // Settings saved it a moment ago, so the activity reads
@@ -4172,7 +4248,8 @@ impl eframe::App for HyperStackApp {
             || self.notifications_open
             || self.fallback_notice_open
             || self.settings_ui.lock().state.confirm_delete.is_some()
-            || self.confirm_remove_project.is_some();
+            || self.confirm_remove_project.is_some()
+            || self.confirm_remove_repo.is_some();
         let (blocklist, devtools_panel) = {
             let st = self.services.settings.read();
             (st.browser.blocklist.clone(), st.browser.devtools_panel)
@@ -4301,6 +4378,43 @@ impl eframe::App for HyperStackApp {
                     self.confirm_remove_project = None;
                 }
                 DialogResult::Cancel => self.confirm_remove_project = None,
+                DialogResult::Open => {}
+            }
+        }
+        let confirm_repo = self.confirm_remove_repo.clone();
+        if let Some((id, name)) = confirm_repo {
+            let s = self.services.clone();
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "remove-repo",
+                &s.t("git-repo-remove"),
+                &s.i18n.t_args("git-repo-remove-confirm", &[("name", &name)]),
+                &s.t("git-repo-remove"),
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    let path = s.git_repos.read().by_id(&id).map(|r| r.path.clone());
+                    match s.git_repos.write().remove(&id) {
+                        Ok(()) => {
+                            {
+                                let mut hub = self.settings_ui.lock();
+                                hub.state.repo_draft = None;
+                                hub.state.repo_selected = None;
+                            }
+                            // Only the Git activity's tabs go: an editor
+                            // tab on the same folder is the editor's
+                            // business, and the folder itself stays.
+                            if let Some(p) = path {
+                                self.close_tool_tabs_under("git", &p);
+                            }
+                        }
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                    self.confirm_remove_repo = None;
+                }
+                DialogResult::Cancel => self.confirm_remove_repo = None,
                 DialogResult::Open => {}
             }
         }
@@ -4695,6 +4809,8 @@ pub(crate) fn activity_colour(id: &str) -> egui::Color32 {
     match id {
         "home" => egui::Color32::from_rgb(0xa7, 0x8b, 0xfa),
         "editor" => egui::Color32::from_rgb(0x60, 0xa5, 0xfa),
+        // Git's own orange; nothing else in the rail is this warm.
+        "git" => egui::Color32::from_rgb(0xf0, 0x88, 0x3e),
         "terminal" => egui::Color32::from_rgb(0x4a, 0xde, 0x80),
         "ssh" => egui::Color32::from_rgb(0x2d, 0xd4, 0xbf),
         "s3" => egui::Color32::from_rgb(0xfb, 0x92, 0x3c),

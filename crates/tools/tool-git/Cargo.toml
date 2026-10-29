@@ -1,0 +1,22 @@
+[package]
+name = "tool-git"
+description = "HyperStack Git activity: repositories managed SourceTree-style"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+# The git driver (read and write over the git CLI, ADR-006); a driver
+# library, not a tool crate (ADR-004).
+hs-git = { workspace = true }
+parking_lot = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }

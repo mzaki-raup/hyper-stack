@@ -1,5 +1,11 @@
 # Tool spec — Git
 
+> Since 2026-10-29 there is also a **Git activity** of its own
+> (`tool-git`, [git-activity.md](git-activity.md)): the SourceTree-style
+> repository manager with its sidebar, dashboard and Settings page. This
+> document covers the engine (`hs-git`) and the Git view inside the
+> editor, which both stay as they are.
+
 **Crate:** `tool-git` · **Priority:** P0 (status, stage, commit, diff, branches, fetch/pull/push) · P1 (log graph, blame, merge/rebase, conflicts) · P2 (submodules, worktrees, forge integration) · **Status:** draft
 
 ## 1. Purpose

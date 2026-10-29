@@ -84,7 +84,8 @@ in the e2e test).
 ### M4 · API client + Git (6 w)
 - [x] `tool-api`: request editor (params/headers/body/auth: basic, bearer, API key; OAuth2 and SigV4 pending), send with timing, response viewer (pretty/raw/preview, headers, cookies), history, curl import/export — 2026-10-15
 - [x] Collections (one JSON file each), variables with scopes, Postman v2.1 import/export; JavaScript `pm` scripts on Boa — 2026-10-15 (Insomnia, Bruno and OpenAPI importers 2026-10-18)
-- [ ] `tool-git`: repo detection in project tree, status via `gix`, stage/unstage file + hunk, diff viewer on `hs-editor`, commit, branches, stash list, fetch/pull/push via git CLI with progress, credential helper passthrough, protected-remote guard
+- [x] Git in the editor: status, stage/unstage file + hunk, diff viewer, commit, branches, stash, fetch/pull/push via the git CLI, protected-remote guard (`hs-git`, 2026-10-12/18)
+- [ ] **Git activity** (`tool-git`, owner's request 2026-10-29, phases in `docs/tools/git-activity.md` §8): phase 1 foundation landed 2026-10-29 (stores, rail entry, dashboard, sidebar, File Status + commit, Settings → Git); phases 2–6 (work pane, operations, hosts, assistant, polish) pending
 
 ### M5 · Logs + Devtools core (4 w)
 - [ ] `tool-logs`: local file engine (index, backward paging, follow with rotation detection), SSH source (`tail -F` over exec channel, SFTP range fallback), parsers (plain/JSON/logfmt/syslog/combined/multi-line stack traces), filters, highlight rules, level colours, structured columns, find, bookmarks, saved sources

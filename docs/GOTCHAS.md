@@ -77,6 +77,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Clippy must pass with `-D warnings`** on every crate, including Linux.
 
 ## Shell and UI Layout (egui)
+
+- **A `right_to_left` scope beside other widgets on one `horizontal`
+  row gets only the width that is left**, and in a narrow column that
+  is less than its button needs: the commit box of the Git activity
+  drew "Push After Commit" and "Commit 2 file(s)" on top of each other
+  (2026-10-29, seen on screen). Put the right-aligned control on a row
+  of its own, or measure before deciding they fit.
 - **Switching workspaces must park the live `TabSpace`, not rebuild
   it.** Dropping the space drops every tool: the browser's session, an
   SSH shell, a database connection - and "switch back" rebuilt fresh

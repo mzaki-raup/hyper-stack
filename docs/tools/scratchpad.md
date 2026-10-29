@@ -42,6 +42,16 @@ saved travels in the layout as a draft.
   the right (`hs_editor::markdown::render`: headings, lists, `- [ ]`
   checklists, tables, code, Mermaid diagrams), split by a draggable
   divider.
+- **Variables and links in the preview** (2026-10-29). The preview
+  resolves `{{name}}` through the active environment, its parents and
+  the application-wide globals before rendering
+  (`Environments::substitute_lenient`): an unknown name is left as
+  written, not refused, because a note is prose. A link in the preview -
+  `[text](https://…)` or a bare `https://…` in the text - opens as a new
+  page in the Browser activity (`OpenRequest::Url`), the cursor turning
+  to a hand over it. The source pane is for editing and has no clickable
+  links. `markdown::render` keeps each link's character range beside
+  the `LayoutJob` and hit-tests clicks against the galley it drew.
 - **Dashboard** (the activity's home tab, reworked 2026-10-27): a
   bordered band carrying the icon, the name and the subtitle; a rule;
   the **summaries** - Notes and Open Tabs - each in a rounded box with

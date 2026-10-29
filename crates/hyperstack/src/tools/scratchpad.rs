@@ -502,7 +502,13 @@ impl Scratchpad {
             });
     }
 
-    fn preview(&self, ui: &mut egui::Ui, theme: &Theme) {
+    /// The rendered note. `{{name}}` is resolved through the active
+    /// environment and the globals before rendering - what a reader
+    /// sees is the value, not the placeholder - and an unknown name is
+    /// left as written rather than refused. A link the reader clicks
+    /// is returned, to be opened as a page in the Browser activity
+    /// (owner's requirement, 2026-10-29).
+    fn preview(&self, ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<String> {
         let style = hs_editor::markdown::MarkdownStyle {
             dark: theme.dark,
             text: theme.text,
@@ -512,6 +518,12 @@ impl Scratchpad {
             quote_bar: theme.border,
             base_size: 14.0,
         };
+        // Resolved once per frame; the note is small and the lookup is
+        // a map walk, so this is cheaper than caching it against edits.
+        let text = s
+            .environments
+            .read()
+            .substitute_lenient(&self.state.text, None);
         egui::ScrollArea::vertical()
             .id_salt("scratchpad-preview")
             .auto_shrink([false, false])
@@ -520,13 +532,16 @@ impl Scratchpad {
                 egui::Frame::new()
                     .inner_margin(egui::Margin::same(16))
                     .show(ui, |ui| {
-                        if self.state.text.trim().is_empty() {
+                        if text.trim().is_empty() {
                             ui.label(egui::RichText::new("…").color(theme.text_muted));
+                            None
                         } else {
-                            hs_editor::markdown::render(ui, &self.state.text, &style);
+                            hs_editor::markdown::render(ui, &text, &style).link_clicked
                         }
-                    });
-            });
+                    })
+                    .inner
+            })
+            .inner
     }
 }
 
@@ -885,9 +900,10 @@ impl Tool for Scratchpad {
         // room for the note and steps aside in a narrow window, instead of a
         // fixed 390 px cut that left the column looking like it floated.
         let (mut main, panel) = hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        let mut link: Option<String> = None;
         match self.state.view {
             View::Edit => self.editor(&mut main),
-            View::Preview => self.preview(&mut main, &theme),
+            View::Preview => link = self.preview(&mut main, &theme, s),
             View::Split => {
                 let half = (main.available_width() * 0.5).round();
                 egui::Panel::left(main.id().with("scratchpad-split"))
@@ -895,10 +911,20 @@ impl Tool for Scratchpad {
                     .default_size(half)
                     .size_range(160.0..=f32::INFINITY)
                     .show(&mut main, |ui| self.editor(ui));
-                egui::CentralPanel::default()
+                link = egui::CentralPanel::default()
                     .frame(egui::Frame::new().fill(theme.panel_bg))
-                    .show(&mut main, |ui| self.preview(ui, &theme));
+                    .show(&mut main, |ui| self.preview(ui, &theme, s))
+                    .inner;
             }
+        }
+        // A web address opens as a page in the Browser activity rather
+        // than in the system browser: the note is part of the work, and
+        // so is the page it points at. Only the preview's links do this;
+        // the source pane is for editing.
+        if let Some(url) = link
+            && (url.starts_with("http://") || url.starts_with("https://"))
+        {
+            cx.open("browser", Some(OpenRequest::Url { url }));
         }
         if let Some(panel) = panel {
             // The note is the context; the system prompt asks for Markdown

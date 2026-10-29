@@ -21,7 +21,7 @@ pub struct MarkdownStyle {
     pub base_size: f32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Inline {
     bold: u32,
     italic: u32,
@@ -30,9 +30,69 @@ struct Inline {
     link: Option<String>,
 }
 
+/// A link inside a laid-out run of text: which characters it covers
+/// (the job's text, in chars) and where it goes.
+#[derive(Debug, Clone, PartialEq)]
+struct Link {
+    start: usize,
+    end: usize,
+    url: String,
+}
+
+/// A laid-out run of text with its links kept beside it, so a click on
+/// the finished label can be answered with a destination. The job alone
+/// only knows colours; it has no idea which coloured characters were a
+/// link to what (2026-10-29).
+#[derive(Default, Clone)]
+struct Rich {
+    job: egui::text::LayoutJob,
+    links: Vec<Link>,
+    chars: usize,
+}
+
+impl Rich {
+    fn append(&mut self, text: &str, format: egui::TextFormat, link: Option<&str>) {
+        let n = text.chars().count();
+        if let Some(url) = link
+            && n > 0
+        {
+            // Consecutive pieces of one link merge into one range.
+            match self.links.last_mut() {
+                Some(l) if l.end == self.chars && l.url == url => l.end += n,
+                _ => self.links.push(Link {
+                    start: self.chars,
+                    end: self.chars + n,
+                    url: url.to_string(),
+                }),
+            }
+        }
+        self.job.append(text, 0.0, format);
+        self.chars += n;
+    }
+
+    fn is_empty(&self) -> bool {
+        self.job.text.is_empty()
+    }
+
+    /// The link under character `index`, if any.
+    fn link_at(&self, index: usize) -> Option<&str> {
+        self.links
+            .iter()
+            .find(|l| l.start <= index && index < l.end)
+            .map(|l| l.url.as_str())
+    }
+}
+
+/// What a frame of [`render`] reports back.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct MarkdownResponse {
+    /// A link the reader clicked, as written in the document.
+    pub link_clicked: Option<String>,
+}
+
 enum Block {
-    Paragraph(egui::text::LayoutJob),
-    Heading(HeadingLevel, egui::text::LayoutJob),
+    Paragraph(Rich),
+    Heading(HeadingLevel, Rich),
     Code {
         lang: String,
         text: String,
@@ -41,23 +101,54 @@ enum Block {
     ListItem {
         depth: usize,
         marker: String,
-        job: egui::text::LayoutJob,
+        job: Rich,
     },
-    Quote(egui::text::LayoutJob),
+    Quote(Rich),
     TableRow {
-        cells: Vec<egui::text::LayoutJob>,
+        cells: Vec<Rich>,
         header: bool,
     },
 }
 
 /// Render `text` into `ui`.
-pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
+/// Draw one run of text; a click on a link in it is reported through
+/// `clicked`, and the cursor says a link is under it.
+fn label(ui: &mut egui::Ui, rich: &Rich, clicked: &mut Option<String>) {
+    if rich.links.is_empty() {
+        ui.add(egui::Label::new(rich.job.clone()).wrap());
+        return;
+    }
+    // Lay the job out at the width the label will get, so the galley
+    // the click is tested against is the one on screen.
+    let mut job = rich.job.clone();
+    job.wrap.max_width = ui.available_width();
+    let galley = ui.fonts_mut(|f| f.layout_job(job));
+    let resp = ui.add(egui::Label::new(galley.clone()).sense(egui::Sense::click()));
+    let at = |pos: egui::Pos2| {
+        let index = galley.cursor_from_pos(pos - resp.rect.min).index.0;
+        rich.link_at(index).map(str::to_string)
+    };
+    if let Some(pos) = resp.hover_pos()
+        && at(pos).is_some()
+    {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if resp.clicked()
+        && let Some(pos) = resp.interact_pointer_pos()
+        && let Some(url) = at(pos)
+    {
+        *clicked = Some(url);
+    }
+}
+
+pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownResponse {
     let blocks = parse(text, style, ui.available_width());
     let mut last_was_table = false;
+    let mut clicked: Option<String> = None;
     for b in blocks {
         match b {
             Block::Paragraph(job) => {
-                ui.add(egui::Label::new(job).wrap());
+                label(ui, &job, &mut clicked);
                 ui.add_space(6.0);
             }
             Block::Heading(level, job) => {
@@ -66,7 +157,7 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
                 } else {
                     6.0
                 });
-                ui.add(egui::Label::new(job).wrap());
+                label(ui, &job, &mut clicked);
                 if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {
                     ui.separator();
                 }
@@ -109,7 +200,7 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
                 ui.horizontal_top(|ui| {
                     ui.add_space(12.0 + depth as f32 * 18.0);
                     ui.label(RichText::new(marker).color(style.muted));
-                    ui.add(egui::Label::new(job).wrap());
+                    label(ui, &job, &mut clicked);
                 });
             }
             Block::Quote(job) => {
@@ -118,7 +209,7 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
                         ui.allocate_exact_size(egui::vec2(4.0, 20.0), egui::Sense::hover());
                     ui.painter().rect_filled(rect, 2.0, style.quote_bar);
                     ui.add_space(6.0);
-                    ui.add(egui::Label::new(job).wrap());
+                    label(ui, &job, &mut clicked);
                 });
                 ui.add_space(4.0);
             }
@@ -127,13 +218,13 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
                     for c in cells {
                         let mut job = c;
                         if header {
-                            for s in &mut job.sections {
+                            for s in &mut job.job.sections {
                                 s.format.color = style.text;
                             }
                         }
                         ui.add_sized(
                             [ui.available_width() / 4.0_f32.max(1.0), 18.0],
-                            egui::Label::new(job).truncate(),
+                            egui::Label::new(job.job).truncate(),
                         );
                     }
                 });
@@ -145,6 +236,9 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) {
             ui.add_space(6.0);
             last_was_table = false;
         }
+    }
+    MarkdownResponse {
+        link_clicked: clicked,
     }
 }
 
@@ -238,6 +332,49 @@ fn fmt(style: &MarkdownStyle, inline: &Inline, size: f32, heading: bool) -> egui
     f
 }
 
+/// Split prose into plain pieces and bare `http(s)://` addresses, each
+/// address carrying itself as its destination. An address ends at
+/// whitespace; a trailing `.`, `,`, `;`, `:`, `)` or quote is prose,
+/// not part of it, which is what a sentence ending in a URL needs.
+fn autolink(text: &str) -> Vec<(String, Option<String>)> {
+    let mut out: Vec<(String, Option<String>)> = Vec::new();
+    let mut rest = text;
+    loop {
+        let hit = ["https://", "http://"]
+            .iter()
+            .filter_map(|p| rest.find(p))
+            .min();
+        let Some(i) = hit else {
+            if !rest.is_empty() {
+                out.push((rest.to_string(), None));
+            }
+            break;
+        };
+        if i > 0 {
+            out.push((rest[..i].to_string(), None));
+        }
+        let tail = &rest[i..];
+        let mut end = tail.find(char::is_whitespace).unwrap_or(tail.len());
+        while end > 0
+            && matches!(
+                &tail[end - 1..end],
+                "." | "," | ";" | ":" | ")" | "\"" | "'"
+            )
+        {
+            end -= 1;
+        }
+        let url = &tail[..end];
+        if url.len() <= "https://".len() {
+            // "http://" alone is not an address.
+            out.push((url.to_string(), None));
+        } else {
+            out.push((url.to_string(), Some(url.to_string())));
+        }
+        rest = &tail[end..];
+    }
+    out
+}
+
 fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -245,7 +382,7 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
     opts.insert(Options::ENABLE_TASKLISTS);
     let parser = Parser::new_ext(text, opts);
     let mut blocks = Vec::new();
-    let mut job = egui::text::LayoutJob::default();
+    let mut job = Rich::default();
     let mut inline = Inline::default();
     let mut heading: Option<HeadingLevel> = None;
     let mut list_depth = 0usize;
@@ -253,7 +390,7 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
     let mut in_item = false;
     let mut in_quote = false;
     let mut code: Option<(String, String)> = None;
-    let mut table_cells: Vec<egui::text::LayoutJob> = Vec::new();
+    let mut table_cells: Vec<Rich> = Vec::new();
     let mut in_table_header = false;
     let mut in_table = false;
     let base = style.base_size;
@@ -301,7 +438,7 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                         // paragraph inside a list item: flushed at item end
                     } else if in_quote {
                         blocks.push(Block::Quote(std::mem::take(&mut job)));
-                    } else if !job.text.is_empty() {
+                    } else if !job.is_empty() {
                         blocks.push(Block::Paragraph(std::mem::take(&mut job)));
                     }
                 }
@@ -310,7 +447,7 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                     heading = None;
                 }
                 TagEnd::BlockQuote(_) => {
-                    if !job.text.is_empty() {
+                    if !job.is_empty() {
                         blocks.push(Block::Quote(std::mem::take(&mut job)));
                     }
                     in_quote = false;
@@ -366,34 +503,45 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
             Event::Text(t) => {
                 if let Some((_, body)) = code.as_mut() {
                     body.push_str(&t);
-                } else {
+                } else if inline.link.is_some() {
                     let f = fmt(
                         style,
                         &inline,
                         size_now(heading),
                         heading.is_some() || (in_table && in_table_header),
                     );
-                    job.append(&t, 0.0, f);
+                    job.append(&t, f, inline.link.as_deref());
+                } else {
+                    // A bare `https://…` in prose is a link too: a note
+                    // full of addresses nobody wrapped in brackets should
+                    // still open them (owner's requirement, 2026-10-29).
+                    let strong = heading.is_some() || (in_table && in_table_header);
+                    for (piece, url) in autolink(&t) {
+                        let mut i = inline.clone();
+                        i.link = url.clone();
+                        let f = fmt(style, &i, size_now(heading), strong);
+                        job.append(&piece, f, url.as_deref());
+                    }
                 }
             }
             Event::Code(t) => {
                 inline.code += 1;
                 let f = fmt(style, &inline, size_now(heading), false);
-                job.append(&t, 0.0, f);
+                job.append(&t, f, None);
                 inline.code -= 1;
             }
             Event::SoftBreak => {
                 let f = fmt(style, &inline, size_now(heading), false);
-                job.append(" ", 0.0, f);
+                job.append(" ", f, None);
             }
             Event::HardBreak => {
                 let f = fmt(style, &inline, size_now(heading), false);
-                job.append("\n", 0.0, f);
+                job.append("\n", f, None);
             }
             Event::Rule => blocks.push(Block::Rule),
             Event::TaskListMarker(done) => {
                 let f = fmt(style, &inline, base, false);
-                job.append(if done { "☑ " } else { "☐ " }, 0.0, f);
+                job.append(if done { "☑ " } else { "☐ " }, f, None);
             }
             Event::Html(h) | Event::InlineHtml(h) => {
                 let f = egui::TextFormat {
@@ -401,12 +549,12 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                     color: style.muted,
                     ..Default::default()
                 };
-                job.append(&h, 0.0, f);
+                job.append(&h, f, None);
             }
             _ => {}
         }
     }
-    if !job.text.is_empty() {
+    if !job.is_empty() {
         blocks.push(Block::Paragraph(job));
     }
     blocks
@@ -445,6 +593,47 @@ pub fn to_html(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// A bracketed link and a bare address both keep their destination
+    /// beside the characters they cover, so a click can be answered.
+    #[test]
+    fn links_keep_their_ranges_and_bare_addresses_count() {
+        let style = super::MarkdownStyle {
+            dark: true,
+            text: egui::Color32::WHITE,
+            muted: egui::Color32::GRAY,
+            link: egui::Color32::LIGHT_BLUE,
+            code_bg: egui::Color32::BLACK,
+            quote_bar: egui::Color32::GRAY,
+            base_size: 14.0,
+        };
+        let blocks = super::parse(
+            "See [docs](https://example.com/d) or https://example.org/x, then go.",
+            &style,
+            400.0,
+        );
+        let super::Block::Paragraph(rich) = &blocks[0] else {
+            panic!("a paragraph")
+        };
+        assert_eq!(rich.links.len(), 2);
+        assert_eq!(rich.links[0].url, "https://example.com/d");
+        assert_eq!(
+            rich.links[1].url, "https://example.org/x",
+            "the comma is prose"
+        );
+        // "See " is four chars; "docs" covers 4..8.
+        assert_eq!((rich.links[0].start, rich.links[0].end), (4, 8));
+        assert_eq!(rich.link_at(5), Some("https://example.com/d"));
+        assert_eq!(rich.link_at(2), None);
+        assert_eq!(
+            super::autolink("x http://a.b/c) y"),
+            vec![
+                ("x ".to_string(), None),
+                ("http://a.b/c".to_string(), Some("http://a.b/c".to_string())),
+                (") y".to_string(), None),
+            ]
+        );
+    }
+
     use super::*;
 
     fn style() -> MarkdownStyle {

@@ -553,6 +553,13 @@ project is not "a folder with .java files in it".
   The project's build file (pom.xml, build.gradle, package.json, …)
   counts as the project, so Run is offered while it is open.
 
+## 14a. Markdown preview links (2026-10-29)
+
+`hs_editor::markdown::render` returns a `MarkdownResponse` whose
+`link_clicked` names a link the reader clicked, bracketed or a bare
+`http(s)://` address; the Scratchpad opens it in the Browser activity.
+The editor's own Markdown preview ignores the value for now.
+
 ## 15. The project list (2026-10-26, language picker 2026-10-27)
 
 The activity is a list of **projects**, not of folders that happen to be

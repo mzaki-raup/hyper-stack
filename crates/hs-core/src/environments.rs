@@ -261,6 +261,40 @@ impl Environments {
     }
 }
 
+impl Environments {
+    /// Substitute what can be substituted and leave the rest as written.
+    ///
+    /// A note or a page is not a request: an unknown `{{name}}` in prose
+    /// is not an error to refuse the whole text over, it is simply text
+    /// the reader wrote (owner's requirement for the Scratchpad,
+    /// 2026-10-29). [`substitute`] stays strict for the tools that must
+    /// not send half a URL.
+    pub fn substitute_lenient(&self, input: &str, env_id: Option<&str>) -> String {
+        let mut out = String::with_capacity(input.len());
+        let mut rest = input;
+        while let Some(start) = rest.find("{{") {
+            out.push_str(&rest[..start]);
+            let after = &rest[start + 2..];
+            match after.find("}}") {
+                Some(end) => {
+                    let name = after[..end].trim();
+                    match self.lookup(name, env_id, &[]) {
+                        Some(v) => out.push_str(&v),
+                        None => out.push_str(&rest[start..start + 2 + end + 2]),
+                    }
+                    rest = &after[end + 2..];
+                }
+                None => {
+                    out.push_str(&rest[start..]);
+                    rest = "";
+                }
+            }
+        }
+        out.push_str(rest);
+        out
+    }
+}
+
 /// `{{$uuid}}`, `{{$ulid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}`,
 /// `{{$randomInt(min,max)}}`, `{{$env:NAME}}`.
 fn builtin(name: &str) -> Option<String> {
@@ -383,6 +417,14 @@ mod tests {
             .substitute("{{db_host}}:{{db_port}}", Some(&stg), &[])
             .unwrap_err();
         assert_eq!(err, vec!["db_port".to_string()]);
+        // Lenient: the known name resolves, the unknown stays as written.
+        assert_eq!(
+            e.substitute_lenient("{{api_base}} and {{nope}}", Some(&stg)),
+            format!(
+                "{} and {{{{nope}}}}",
+                e.substitute("{{api_base}}", Some(&stg), &[]).unwrap()
+            )
+        );
         assert_eq!(e.substitute("plain text", None, &[]).unwrap(), "plain text");
         assert_eq!(e.substitute("{{unclosed", None, &[]).unwrap(), "{{unclosed");
     }

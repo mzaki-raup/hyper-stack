@@ -433,3 +433,12 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Collections** - every collection over how many folders and requests it holds, opening its management page;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Globals are application-wide (2026-10-29)
+
+`pm.globals`, the Manage page's Globals tab and `set_variable
+{scope: global}` all edit `HyperStackData/globals.json`
+(`hs_core::globals`), not a file of this workspace. A global set here is
+visible to every tool that accepts a `{{name}}`, in every workspace,
+whatever environment is selected; Settings -> Environments edits the
+same set, and an open tab notices a save made there on its next frame.

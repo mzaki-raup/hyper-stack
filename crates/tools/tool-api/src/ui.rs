@@ -2966,7 +2966,7 @@ pub(crate) fn manage_tab(
             }
             ui.add_space(12.0);
         });
-    if globals_changed && let Err(e) = t.globals.save(&t.globals_path()) {
+    if globals_changed && let Err(e) = t.save_globals(cx.services) {
         cx.toast(ToastLevel::Error, e.to_string());
     }
     // Variables are written as they are typed (owner's request): the

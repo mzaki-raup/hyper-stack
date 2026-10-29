@@ -151,6 +151,9 @@ pub struct ApiTool {
     saved: Option<Request>,
     pub(crate) collections: Vec<Collection>,
     pub(crate) globals: Globals,
+    /// Where the globals live, and which edition of them this copy is.
+    globals_file: PathBuf,
+    globals_seen: u64,
     pub(crate) history: Vec<HistoryEntry>,
     /// The workspace's package libraries (`api/libraries/*.json`).
     pub(crate) libraries: Vec<PackageLibrary>,
@@ -230,14 +233,29 @@ impl ApiTool {
         Ok(self.apply_actions(&actions, cx))
     }
 
-    pub(crate) fn globals_path(&self) -> PathBuf {
-        self.api_dir.join("globals.json")
+    /// Write the globals and let every `{{name}}` in the app see them.
+    pub(crate) fn save_globals(&mut self, s: &Services) -> hs_core::storage::Result<()> {
+        self.globals.save(&self.globals_file)?;
+        self.globals.apply_to(&mut s.environments.write());
+        self.globals_seen = hs_core::globals::version();
+        Ok(())
+    }
+
+    /// Pick up a save made elsewhere - Settings -> Environments, or
+    /// another API tab - so this tab's copy never goes stale.
+    fn refresh_globals(&mut self) {
+        let now = hs_core::globals::version();
+        if now != self.globals_seen {
+            self.globals = Globals::load(&self.globals_file);
+            self.globals_seen = now;
+        }
     }
 
     fn new(s: &Services, state: State) -> Self {
         let api_dir = s.workspace.read().root().join("api");
         let collections = Collection::load_all(&api_dir.join("collections"));
-        let globals = Globals::load(&api_dir.join("globals.json"));
+        let globals_file = s.paths.globals_file();
+        let globals = Globals::load(&globals_file);
         let history = model::load_history(&api_dir.join("history.jsonl"), 200);
         let mut t = Self {
             is_home: false,
@@ -247,6 +265,8 @@ impl ApiTool {
             saved: None,
             collections,
             globals,
+            globals_file,
+            globals_seen: hs_core::globals::version(),
             history,
             libraries: PackageLibrary::load_all(&api_dir.join("libraries")),
             library_fetch: None,
@@ -308,7 +328,7 @@ impl ApiTool {
         self.api_dir = s.workspace.read().root().join("api");
         self.collections = Collection::load_all(&self.collections_dir());
         self.libraries = PackageLibrary::load_all(&self.libraries_dir());
-        self.globals = Globals::load(&self.api_dir.join("globals.json"));
+        self.refresh_globals();
         self.history = model::load_history(&self.api_dir.join("history.jsonl"), 200);
     }
 
@@ -1209,7 +1229,7 @@ impl ApiTool {
                 }
             }
         }
-        if globals_dirty && let Err(e) = self.globals.save(&self.api_dir.join("globals.json")) {
+        if globals_dirty && let Err(e) = self.save_globals(s) {
             cx.toast(ToastLevel::Error, e.to_string());
         }
         if collection_dirty && let Some(cid) = self.state.collection.clone() {
@@ -1489,6 +1509,7 @@ impl Tool for ApiTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        self.refresh_globals();
         self.poll(cx);
         let theme = Theme::from_settings(&cx.services.settings.read().appearance);
         // `title` and the tab's icon are asked for outside `ui`, where

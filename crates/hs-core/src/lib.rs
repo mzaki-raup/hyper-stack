@@ -28,6 +28,7 @@ pub mod events;
 pub mod favicon;
 pub mod fmt;
 pub mod fuzzy;
+pub mod globals;
 pub mod html;
 pub mod i18n;
 pub mod jobs;

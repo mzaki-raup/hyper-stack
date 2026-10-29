@@ -11,6 +11,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Global variables are application-wide.** The API client's globals
+  used to live under each workspace (`<workspace>/api/globals.json`);
+  they are one set now, `HyperStackData/globals.json`, read the same in
+  every workspace, under every environment, from every tool - a
+  `{{name}}` in a connection form, a database query, the Scratchpad or
+  the Browser resolves against them after the environment chain. The
+  first start takes the current workspace's old file as the seed. An
+  API tab picks up a save made in Settings (or in another tab) without
+  being reopened.
+- **Settings -> Environments gains two cards.** *Collection Variables*
+  lists this workspace's API collections and edits a collection's own
+  variables in the right column, the same editor the environment form
+  uses; *Global Variables* does the same for the application-wide set.
+  Every open API tab reloads its collections when one is saved here.
+
 - (nothing yet)
 
 ## 0.95.1 — 2026-10-29

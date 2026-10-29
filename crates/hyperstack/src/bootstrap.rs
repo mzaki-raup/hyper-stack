@@ -53,6 +53,15 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
     let projects = hs_core::projects::Projects::load(&workspace.projects_file());
     let mut environments = Environments::load(&workspace.environments_dir());
     environments.active = workspace.meta.default_environment.clone();
+    // The application-wide variable set resolves `{{name}}` after the
+    // environment chain, in every workspace. The first start after it
+    // moved out of the workspace takes the old per-workspace file as the
+    // seed (hs_core::globals).
+    hs_core::globals::Globals::migrate_from(
+        &paths.globals_file(),
+        &workspace.root().join("api").join("globals.json"),
+    );
+    hs_core::globals::Globals::load(&paths.globals_file()).apply_to(&mut environments);
     let secrets = Arc::new(VaultStore::new(&paths.vault_file(), kdf));
     let paths = Arc::new(paths);
     let version = VersionInfo::current();
@@ -131,6 +140,8 @@ pub fn switch_workspace(
     *services.projects.write() = hs_core::projects::Projects::load(&ws.projects_file());
     let mut envs = Environments::load(&ws.environments_dir());
     envs.active = ws.meta.default_environment.clone();
+    // Globals are not the workspace's: the same set, every time.
+    hs_core::globals::Globals::load(&services.paths.globals_file()).apply_to(&mut envs);
     *services.environments.write() = envs;
     *services.workspace.write() = ws;
     services

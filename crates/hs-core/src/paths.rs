@@ -110,6 +110,12 @@ impl DataDir {
     pub fn known_hosts_file(&self) -> PathBuf {
         self.root.join("known_hosts")
     }
+    /// The application-wide variable set (`hs_core::globals`): beside the
+    /// executable, not under a workspace, because it reads the same in
+    /// every workspace.
+    pub fn globals_file(&self) -> PathBuf {
+        self.root.join("globals.json")
+    }
     pub fn workspaces_registry(&self) -> PathBuf {
         self.root.join("workspaces.toml")
     }

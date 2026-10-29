@@ -707,7 +707,7 @@ impl ApiTool {
                 match scope.trim().to_ascii_lowercase().as_str() {
                     "global" | "globals" => {
                         self.globals.set(key.trim(), value);
-                        if let Err(e) = self.globals.save(&self.globals_path()) {
+                        if let Err(e) = self.save_globals(cx.services) {
                             return Err(format!("set_variable: {e}"));
                         }
                     }

@@ -943,3 +943,16 @@ from its saved layout the first time it is opened in a session. Layouts
 are still written to disk at every switch. Tab ids are process-wide, so
 parked and live tabs never collide in the browser host, the open-tabs
 registry or the thumbnails.
+
+## Settings -> Environments: three cards (2026-10-29)
+
+The page's left column stacks three list cards in one shape - a list of
+rows, the selected one opening its detail in the right column - and the
+right column shows exactly one of them at a time: **Environments** (the
+workspace's named sets, with secrets), **Collection Variables** (the
+API collections of this workspace, each editing its own variable list),
+and **Global Variables** (the one application-wide set). Picking a row
+in any card clears the other two selections. Collection and global
+variables use the same `KvEditor` as an environment, without the secret
+toggle, and Save writes straight to the collection file or
+`globals.json`.

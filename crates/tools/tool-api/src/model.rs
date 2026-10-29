@@ -11,35 +11,10 @@ use serde::{Deserialize, Serialize};
 
 pub const SCHEMA: u32 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(default)]
-pub struct Kv {
-    pub enabled: bool,
-    pub key: String,
-    pub value: String,
-    pub description: String,
-}
-
-impl Default for Kv {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            key: String::new(),
-            value: String::new(),
-            description: String::new(),
-        }
-    }
-}
-
-impl Kv {
-    pub fn new(key: &str, value: &str) -> Self {
-        Self {
-            key: key.into(),
-            value: value.into(),
-            ..Default::default()
-        }
-    }
-}
+/// One variable: the row every key/value table here edits. Defined in
+/// `hs_core::globals` so the application-wide set and a collection's own
+/// variables are the same shape and a row moves between them untouched.
+pub use hs_core::globals::Kv;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -622,51 +597,11 @@ impl Collection {
     }
 }
 
-/// `globals.json`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(default)]
-pub struct Globals {
-    pub schema: u32,
-    pub values: Vec<Kv>,
-}
+/// The application-wide variable set. It used to be this crate's own
+/// `<workspace>/api/globals.json`; since 2026-10-29 it is one file beside
+/// the executable that every tool reads (`hs_core::globals`).
+pub use hs_core::globals::Globals;
 
-impl Globals {
-    pub fn load(path: &Path) -> Self {
-        if path.exists() {
-            hs_core::storage::read_json(path).unwrap_or_default()
-        } else {
-            Self::default()
-        }
-    }
-    pub fn save(&self, path: &Path) -> hs_core::storage::Result<()> {
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let mut g = self.clone();
-        g.schema = SCHEMA;
-        hs_core::storage::write_json(path, &g)
-    }
-    pub fn get(&self, key: &str) -> Option<&str> {
-        self.values
-            .iter()
-            .find(|v| v.enabled && v.key == key)
-            .map(|v| v.value.as_str())
-    }
-    pub fn set(&mut self, key: &str, value: &str) {
-        match self.values.iter_mut().find(|v| v.key == key) {
-            Some(v) => {
-                v.value = value.to_string();
-                v.enabled = true;
-            }
-            None => self.values.push(Kv::new(key, value)),
-        }
-    }
-    pub fn unset(&mut self, key: &str) {
-        self.values.retain(|v| v.key != key);
-    }
-}
-
-/// One line of `history.jsonl`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct HistoryEntry {

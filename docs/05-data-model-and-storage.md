@@ -406,3 +406,19 @@ order, so reordering on Settings → Terminal writes the array; a disabled
 profile stays in it. The same section holds `shell_order`, which already
 existed for the detected shells. Per-profile environment injection and an
 icon colour are P1 and not stored yet. No secret is stored in a profile.
+
+## Global variables (2026-10-29)
+
+`HyperStackData/globals.json` holds the one application-wide variable
+set (`hs_core::globals::Globals`: `{schema, values: [{enabled, key,
+value, description}]}`). It is deliberately *not* under a workspace: a
+global reads the same in every workspace, under every environment, from
+every tool. `Environments::lookup` resolves a `{{name}}` through the
+active environment and its parents first and then through this set, so
+an environment variable of the same name wins. Every `Environments` the
+app loads - at start and on a workspace switch - is handed the set
+(`Globals::apply_to`), and every save re-applies it and bumps
+`globals::version()`, which the API client watches to refresh its own
+copy. Before this date the API client kept the set per workspace in
+`<workspace>/api/globals.json`; `Globals::migrate_from` seeds the new
+file from the current workspace's old one, once, and never overwrites.

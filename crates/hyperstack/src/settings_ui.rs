@@ -120,12 +120,53 @@ impl Default for SettingsHub {
 
 pub type SharedSettings = std::sync::Arc<parking_lot::Mutex<SettingsHub>>;
 
+/// Which set of variables the Environments page's right column is
+/// editing when it is not an environment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VarSource {
+    /// An API collection's own variables, by collection id, with its
+    /// name for the heading.
+    Collection(String, String),
+    /// The application-wide set (`hs_core::globals`).
+    Globals,
+}
+
+/// A `Kv` list as editor rows: the editor's row has a secret flag the
+/// collection row has not, so the two are converted at the edges.
+fn kv_to_rows(list: &[tool_api::model::Kv]) -> Vec<KvRow> {
+    list.iter()
+        .map(|v| KvRow {
+            enabled: v.enabled,
+            key: v.key.clone(),
+            value: v.value.clone(),
+            secret: false,
+        })
+        .collect()
+}
+
+fn rows_to_kv(rows: &[KvRow]) -> Vec<tool_api::model::Kv> {
+    rows.iter()
+        .filter(|r| !r.key.trim().is_empty())
+        .map(|r| tool_api::model::Kv {
+            enabled: r.enabled,
+            key: r.key.trim().to_string(),
+            value: r.value.clone(),
+            description: String::new(),
+        })
+        .collect()
+}
+
 #[derive(Default)]
 pub struct SettingsState {
     pub page: Page,
     pub env_selected: Option<String>,
     pub env_draft: Option<(Environment, Vec<KvRow>)>,
     pub env_copy: Option<EnvCopyState>,
+    /// Settings -> Environments: a collection's variables or the
+    /// application-wide globals being edited in the right column, in
+    /// place of an environment (owner's requirement, 2026-10-29).
+    pub var_source: Option<VarSource>,
+    pub var_draft: Vec<KvRow>,
     pub conn_selected: Option<String>,
     pub conn_draft: Option<(ConnectionProfile, String)>,
     /// Settings -> Editor -> Project List: which project is open for
@@ -1937,6 +1978,7 @@ fn environments(
                     };
                     state.env_selected = Some(e.id.clone());
                     state.env_draft = Some((e, Vec::new()));
+                    state.var_source = None;
                 }
                 ui.add_space(8.0);
                 let envs: Vec<(String, String, Option<String>, bool)> = s
@@ -1963,6 +2005,7 @@ fn environments(
                     ui.painter().circle_filled(dot, 5.0, col);
                     if r.clicked() {
                         state.env_selected = Some(id.clone());
+                        state.var_source = None;
                         if let Some(e) = s.environments.read().by_id(&id) {
                             let mut vars: Vec<KvRow> = e
                                 .variables
@@ -1981,10 +2024,87 @@ fn environments(
                     ui.add_space(2.0);
                 }
             });
+            // The variables an API collection carries: the same card
+            // shape, listing this workspace's collections. Edited here
+            // as well as in the API client's own Manage page, because
+            // this is where someone looking for "where is {{host}} set"
+            // comes first (owner's requirement, 2026-10-29).
+            ui.add_space(8.0);
+            form::section(ui, theme, &s.t("settings-collection-vars"), |ui| {
+                let dir = s.workspace.read().root().join("api").join("collections");
+                let mut cols: Vec<(String, String, usize)> =
+                    tool_api::model::Collection::load_all(&dir)
+                        .into_iter()
+                        .map(|c| (c.id, c.name, c.variables.len()))
+                        .collect();
+                cols.sort_by(|a, b| a.1.cmp(&b.1));
+                if cols.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-collection-vars-none"));
+                }
+                for (id, name, n) in cols {
+                    let selected =
+                        matches!(&state.var_source, Some(VarSource::Collection(c, _)) if *c == id);
+                    let sub = s
+                        .i18n
+                        .t_args("settings-vars-count", &[("n", &n.to_string())]);
+                    if form::list_row(
+                        ui,
+                        theme,
+                        selected,
+                        hs_ui::icons::ph::FOLDER,
+                        &name,
+                        Some(&sub),
+                    )
+                    .clicked()
+                    {
+                        let vars = tool_api::model::Collection::load_all(&dir)
+                            .into_iter()
+                            .find(|c| c.id == id)
+                            .map(|c| kv_to_rows(&c.variables))
+                            .unwrap_or_default();
+                        state.var_source = Some(VarSource::Collection(id.clone(), name.clone()));
+                        state.var_draft = vars;
+                        state.env_selected = None;
+                        state.env_draft = None;
+                    }
+                    ui.add_space(2.0);
+                }
+            });
+            // The application-wide set: one row, because there is one
+            // set - it reads the same in every workspace, under every
+            // environment, from every tool.
+            ui.add_space(8.0);
+            form::section(ui, theme, &s.t("settings-global-vars"), |ui| {
+                form::hint(ui, theme, &s.t("settings-global-vars-hint"));
+                let g = hs_core::globals::Globals::load(&s.paths.globals_file());
+                let selected = matches!(state.var_source, Some(VarSource::Globals));
+                let sub = s
+                    .i18n
+                    .t_args("settings-vars-count", &[("n", &g.values.len().to_string())]);
+                if form::list_row(
+                    ui,
+                    theme,
+                    selected,
+                    hs_ui::icons::ph::GLOBE,
+                    &s.t("settings-global-vars-row"),
+                    Some(&sub),
+                )
+                .clicked()
+                {
+                    state.var_source = Some(VarSource::Globals);
+                    state.var_draft = kv_to_rows(&g.values);
+                    state.env_selected = None;
+                    state.env_draft = None;
+                }
+            });
         });
         ui.add_space(12.0);
         // Right: the form.
         ui.vertical(|ui| {
+            if let Some(source) = state.var_source.clone() {
+                variable_set_detail(ui, theme, s, state, effects, source);
+                return;
+            }
             let Some((draft, vars)) = &mut state.env_draft else {
                 form::note(ui, theme, hs_ui::icons::INFO, &s.t("env-select-hint"));
                 return;
@@ -2148,6 +2268,96 @@ fn environments(
         });
     }
     env_copy_dialog(ui, theme, s, state, effects);
+}
+
+/// The right column of Settings -> Environments when a collection's
+/// variables or the globals are being edited: the same editor the
+/// environment form uses, over a plain key/value list, with Save.
+fn variable_set_detail(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+    source: VarSource,
+) {
+    let (title, hint) = match &source {
+        VarSource::Collection(_, name) => (
+            s.i18n
+                .t_args("settings-collection-vars-title", &[("name", name)]),
+            s.t("settings-collection-vars-detail-hint"),
+        ),
+        VarSource::Globals => (
+            s.t("settings-global-vars-row"),
+            s.t("settings-global-vars-detail-hint"),
+        ),
+    };
+    form::section(ui, theme, &title, |ui| {
+        form::hint(ui, theme, &hint);
+        ui.add_space(6.0);
+        KvEditor {
+            theme,
+            key_hint: &s.t("env-var-name"),
+            value_hint: &s.t("env-var-value"),
+            add_label: &s.t("env-add-variable"),
+            allow_secret: false,
+        }
+        .show(ui, &mut state.var_draft);
+    });
+    ui.horizontal(|ui| {
+        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+            let values = rows_to_kv(&state.var_draft);
+            let result = match &source {
+                VarSource::Collection(id, _) => {
+                    let dir = s.workspace.read().root().join("api").join("collections");
+                    match tool_api::model::Collection::load_all(&dir)
+                        .into_iter()
+                        .find(|c| c.id == *id)
+                    {
+                        Some(mut c) => {
+                            c.variables = values;
+                            c.save(&dir).map(|()| {
+                                // Every API tab reloads its collections;
+                                // the payload names no tab, so none skips it.
+                                s.events.publish(hs_core::events::Event::Custom {
+                                    topic: "api.collections".into(),
+                                    payload: "settings".into(),
+                                });
+                            })
+                        }
+                        None => Err(hs_core::storage::StorageError::Message(
+                            s.t("settings-collection-vars-gone"),
+                        )),
+                    }
+                }
+                VarSource::Globals => {
+                    let g = hs_core::globals::Globals {
+                        schema: hs_core::globals::SCHEMA,
+                        values,
+                    };
+                    g.save(&s.paths.globals_file()).map(|()| {
+                        // Live for every tool at once: the environments
+                        // resolve `{{name}}` against this set last.
+                        g.apply_to(&mut s.environments.write());
+                    })
+                }
+            };
+            match result {
+                Ok(()) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Success,
+                    s.t("toast-saved"),
+                )),
+                Err(e) => effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                )),
+            }
+        }
+        if ui.button(s.t("close")).clicked() {
+            state.var_source = None;
+            state.var_draft.clear();
+        }
+    });
 }
 
 /// One source environment for the copy dialog: `(id, name, sorted vars)`.

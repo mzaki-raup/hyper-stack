@@ -11,9 +11,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-<<<<<<< HEAD
-- (nothing yet)
-=======
 - **Git activity, phase 4: hosts.** Settings → Git → a repository's
   **Fetch Project** asks the chosen credential's host (GitHub, GitLab,
   Forgejo, Gitea or Bitbucket) for every repository it can see and fills
@@ -27,27 +24,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   git through a one-command helper file under `HyperStackData/tmp/`
   (`GIT_CONFIG_*` credential helper, never a URL or a config); the file
   is deleted when the command ends.
-
-- **Git activity, phase 3: the operations.** The toolbar grows Branch,
-  Merge, Rebase, Stash, Tag and Git Flow, each an inline panel with its
-  options and an Apply: create a branch from any ref (and check it out),
-  merge with no-fast-forward / squash / no-commit, rebase onto a branch
-  or **interactively** (pick / squash / fixup / drop, reorder, from the
-  base branch), stash with a message and untracked files, create a
-  lightweight or annotated tag at any commit (and push it), and **Git
-  Flow** start / finish for feature, release and hotfix branches built
-  from plain git (the exact commands shown before Apply; a release or
-  hotfix finish tags production and merges back into develop). The tree
-  gained right-click menus: branches (check out, merge into current,
-  rebase current onto, push, set upstream, rename, delete), remote
-  branches (check out as tracking, delete on remote), remotes (fetch
-  with prune, edit URL, remove, add), tags (push, delete) and stashes
-  (apply, pop, drop); History rows offer copy hash, check out,
-  cherry-pick, create branch here and tag here. A paused merge, rebase
-  or cherry-pick shows a bar with Continue / Skip / Abort. Deleting a
-  branch, a remote branch, a tag, a remote or a stash asks first, and a
-  push onto a branch matching a protected pattern does too.
->>>>>>> feat/git-activity-4
 
 ## 0.100.0 — 2026-10-29
 

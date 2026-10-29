@@ -189,15 +189,16 @@ suggestion.
 
 | Feature | Priority | Effort |
 |---|---|---|
-| Status, stage/unstage (file and hunk), commit with message templates and sign-off | P0 | M |
-| Diff viewer (side by side / inline) using the editor engine | P0 | M |
-| Branches: create, checkout, rename, delete; stash list | P0 | M |
-| Fetch, pull, push with upstream tracking and credential helper integration | P0 | M |
-| Merge with conflict list; conflict resolution in the three-way editor | P1 | L |
-| Log graph with search, blame, file history | P1 | M |
-| Rebase (interactive list), cherry-pick, revert, tags | P1 | M |
+| Status, stage/unstage (file and hunk), commit with message templates and sign-off — done in the editor 2026-10-12/18 and in the Git activity 2026-10-29 | P0 | M |
+| Diff viewer (side by side / inline) using the editor engine — done 2026-10-12 (editor); the Git activity draws its own inline diff with per-hunk verbs 2026-10-29 | P0 | M |
+| Branches: create, checkout, rename, delete; stash list — done 2026-10-18 (editor), 2026-10-29 (activity: tree, menus, panels) | P0 | M |
+| Fetch, pull, push with upstream tracking and credential helper integration — done 2026-10-18; the activity hands a vault token to git through a one-command credential helper 2026-10-29 | P0 | M |
+| Merge with conflict list; conflict resolution in the three-way editor — done 2026-10-18 (editor) and 2026-10-29 (activity's conflict editor, Continue / Skip / Abort bar) | P1 | L |
+| Log graph with search, blame, file history — done 2026-10-29 in the Git activity (`hs_git::graph` lanes, `hs_git::blame`, File History) | P1 | M |
+| Rebase (interactive list), cherry-pick, revert, tags — rebase, interactive rebase, cherry-pick and tags done 2026-10-18 (editor) / 2026-10-29 (activity); revert pending | P1 | M |
+| **Git activity** (owner's request 2026-10-29, [spec](tools/git-activity.md)): rail entry after Editor, dashboard with figures, saved repositories per workspace with uploaded icons, SourceTree work pane, Git Flow start/finish from plain git, hosts (Fetch Project for GitHub / GitLab / Forgejo / Gitea / Bitbucket, Clone and Save as a Job, credential Test, avatars as icons), AI Assistant with git prompt buttons, a palette command per verb — done in six phases 2026-10-29/30 (v0.98–v0.103) | P0 | L |
 | Submodules, worktrees, LFS awareness | P2 | M |
-| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in the vault) | P2 | L |
+| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in the vault) — project listing, clone and avatars done 2026-10-29; PRs, issues and CI status pending | P2 | L |
 
 ## 8. Terminal (suggested) — [spec](tools/terminal.md)
 
@@ -273,5 +274,9 @@ suggestion.
 | Secrets in an encrypted vault file beside the executable (master password), referenced by id from profiles; OS keyring as an opt-in alternative for installed, non-portable use | P0 | M |
 | Import/export of everything except secrets as a folder of files; put `.hyperstack/` in a repo to share with a team | P0 | S |
 | Global search across saved queries, requests, hosts, buckets, snippets | P1 | M |
+| **Global variables**: one application-wide set read wherever `{{name}}` is accepted, after the environment chain; Settings → Environments cards for collection variables and globals — done 2026-10-29 | P1 | S |
+| **Collection variables compared and synced** with another collection in this or any workspace (New / Same / Differs, Copy Selected, Sync All) — done 2026-10-29 | P1 | S |
+| **Activity dashboards**: one shared layout (header band, summaries, Start Here, saved things, Open Here) for every activity's permanent tab — done 2026-10-27 | P1 | M |
+| Scratchpad preview resolves `{{variables}}` and opens `http(s)` links as Browser pages — done 2026-10-29 | P2 | S |
 | Plugin API (WASM, limited to devtools and importers first) | P2 | L |
 | Optional AI assistant (bring your own service: Anthropic, Gemini, Azure OpenAI, AWS Bedrock, 1min.AI, OpenAI-compatible, local LM Studio/Ollama): editor chat, review, edit blocks applied as diffs, Cascade rounds (ADR-019); assistant in terminal, SSH, SQL, S3, API client and graphics uses explicitly shared context, offers per-tool quick actions, and can Insert or Insert and Run a block through the tool's own guarded Run (ADR-019, amended 2026-10-16) | P1 | M |

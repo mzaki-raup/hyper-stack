@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Docs refreshed for every feature and phase** (owner's request,
+  2026-10-30): `CHECKLIST.md`, `docs/02-features.md` and
+  `docs/07-roadmap.md` now record the Git activity's six phases, the
+  Logs and Container activities, Kubernetes, the dashboards, global and
+  collection variables; the README gains the Git activity's surfaces
+  (ten screenshots and `git-walkthrough.gif`), the shared dashboard
+  layout, the Settings → Git page, the variables cards and the Devtools
+  toolbar row, and the main walkthrough GIF grows twelve frames.
 
 ## 0.103.0 — 2026-10-29
 

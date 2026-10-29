@@ -12,7 +12,7 @@
   <a href="https://github.com/mzaki-raup/hyper-stack/stargazers"><img src="https://img.shields.io/github/stars/mzaki-raup/hyper-stack?style=for-the-badge&color=5F4B87&labelColor=14161A" alt="Stars" /></a>
 </p>
 
-<p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, search the output and Ctrl+click a compiler location to open it in the editor, preview Markdown with a Mermaid diagram, connect over SSH and start a port-forward tunnel, browse an S3 bucket and create a presigned URL, then switch to the protected Production environment" width="960"></p>
+<p align="center"><img src="docs/screenshots/hyperstack-demo.gif" alt="HyperStack walkthrough: unlock the vault, open a terminal from the launcher, search the output and Ctrl+click a compiler location to open it in the editor, preview Markdown with a Mermaid diagram, connect over SSH and start a port-forward tunnel, browse an S3 bucket and create a presigned URL, switch to the protected Production environment, then tour the Git activity (dashboard, File Status, conflict editor, History graph, blame, Git Flow, menus, AI Assistant, Settings → Git), an activity dashboard and the global variables" width="960"></p>
 
 HyperStack is a desktop application for full-stack developers, DevOps engineers,
 database administrators, testers and integration engineers. It brings the tools
@@ -50,8 +50,21 @@ and theme.
 > SwarmUI, InvokeAI or Fooocus server) and a review-only assistant in
 > Terminal, SSH, SQL, Redis, NoSQL, S3, API client and Graphics whose code blocks can be
 > inserted but never run, and the in-app updater with signed releases.
-> The Git write side and logs follow in the next milestones
-> per [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
+> Since then: the **Logs** activity (2026-10-22: local, SSH, command and
+> pasted sources, parsers for plain/JSON/logfmt/syslog/Nginx/PostgreSQL
+> and JVM thread dumps, filters, find, bookmarks), the **Containers**
+> activity (2026-10-24: Docker, Podman, Kubernetes and Windows
+> containers; images, Compose, pod logs into Logs, a shell in a pod),
+> a **dashboard home tab** for every activity (2026-10-27: summaries,
+> Start Here, the saved things, what is open), **global variables** and
+> collection variables compared and synced across workspaces
+> (2026-10-29), Scratchpad notes that resolve `{{variables}}` and open
+> their links in the Browser, and the **Git activity** (2026-10-29/30,
+> v0.98 to v0.103): saved repositories, a SourceTree-style work pane
+> with History graph, blame and a conflict editor, every branch / merge /
+> rebase / stash / tag / Git Flow verb, hosts (Fetch Project, Clone and
+> Save, tokens in the vault) and an AI Assistant. The remaining
+> milestones are in [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
 > `../eden-explorer` (Rust + egui file manager) serves as a **reference
 > only**: HyperStack studies how it solved the multi-row tab strip,
 > terminal, SSH/SFTP, S3 and Git status, then writes its own
@@ -82,7 +95,7 @@ the fixtures behind them.
 | [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
-| [Git](#git) | Git in the editor, and the Git activity with saved repositories, File Status and Settings → Git |
+| [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts, assistant |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
@@ -91,11 +104,11 @@ the fixtures behind them.
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command and pasted sources; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |
-| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units |
+| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
 | [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, pinning, dictation |
 | [Browser](#browser) | WebView2 pages, favourites, passwords |
-| [Settings](#settings) | Every page |
+| [Settings](#settings) | Every page, including Git and the Collection / Global Variables cards |
 
 ### Shell and workspaces
 
@@ -114,13 +127,20 @@ the fixtures behind them.
 
 Every activity opens on a **permanent tab of its own** - named after the
 activity, with its icon, and it cannot be closed, pinned or duplicated.
-For Terminal, SSH, Database, NoSQL, Redis, S3, Devtools and the Scratchpad
-that tab is a dashboard: a short summary of the activity and a grid of
-what it has open, each card carrying the last picture taken of that pane,
-and clicking one goes to the tab. Opening a connection, a note or a shell
-always makes a tab beside it. The API client's permanent tab is the
-workspace's instead, with its logo and name. Pinning a tab puts it
-directly after the permanent one.
+Since 2026-10-27 that tab is a **dashboard laid out the same way in every
+activity** (Editor, Git, Terminal, SSH, Containers, Database, NoSQL,
+Redis, S3, API client, Graphics, Devtools, Logs, Scratchpad): a header
+band, equal-width summary boxes, **Start Here** buttons that open the
+right Settings form with the kind already chosen, a grid of the saved
+things (shells, hosts, databases, collections, repositories, notes…) and
+**Open Here**, the activity's open tabs each carrying the last picture
+taken of its pane. Opening a connection, a note or a shell always makes a
+tab beside it. Pinning a tab puts it directly after the permanent one.
+
+| | |
+|---|---|
+| ![Terminal dashboard](docs/screenshots/terminal-dashboard.png) | ![Database dashboard](docs/screenshots/db-dashboard.png) |
+| **Terminal dashboard** - shells detected on the machine, Add CLI, Saved Shells, Open Here with a picture of the open session | **Database dashboard** - saved connections, Add Database, Open Here |
 
 ### Vault and connections
 
@@ -163,48 +183,29 @@ directly after the permanent one.
 | ![Tags](docs/screenshots/editor-git-tags.png) | ![Commit prefix](docs/screenshots/editor-git-prefix.png) |
 | **Tags** - lightweight or annotated, created from their own menu and pushed or deleted per tag | **Commit prefixes** - pick a Conventional Commit type; it is inserted once with its meaning, and Clear Prefix removes it |
 
-**The Git activity** (2026-10-29, phase 1 of `docs/tools/git-activity.md`)
-sits right after Editor in the rail: a dashboard home with summaries,
-Start Here, Saved Repositories and Open Here; a sidebar of the
-workspace's saved repositories (drag to reorder; right-click to edit its
-settings or Remove From List, which closes the tabs and never touches the
-folder); and one tab per repository with a header band (icon, name,
-language, toolchain version, URL, path), a toolbar (branch, Refresh,
-Fetch, Pull, Push, Terminal in the repository root) and the SourceTree
-File Status view - unstaged and staged lists with Stage / Unstage /
-Discard, the diff of the selected file, and a commit box with Amend and
-Push After Commit. **Settings → Git** holds the repository list
-(master/detail form), Git Credentials (tokens go to the vault) and the
-General options (protected patterns, pull with rebase, sign-off, stash
-untracked, default clone folder, terminal profile, Git Flow names).
-Phase 2 (same day) added the SourceTree work pane: a tree of branches,
-remotes, tags and stashes; **History** with the commit graph, chips,
-search, commit details and per-file diffs; **Blame** coloured by age;
-per-hunk Stage / Unstage / Discard; a **conflict editor** (Ours / Theirs
-/ Both per block, Save and Mark Resolved); and uploaded **repository
-icons** shown on the tab, the sidebar and the dashboard. Phase 3 brought the verbs: Branch, Merge, Rebase (plain and interactive),
-Stash, Tag and Git Flow panels on the toolbar; right-click menus on
-branches, remotes, tags, stashes and commits (check out, merge, rebase,
-push, set upstream, rename, delete, fetch, cherry-pick, tag here…); a
-Continue / Skip / Abort bar for a paused merge, rebase or cherry-pick;
-and confirmations for deletions and pushes onto protected branches.
-Phase 4 added the hosts: a credential's **Test**, **Fetch Project** (a
-searchable list of everything a GitHub, GitLab, Forgejo, Gitea or
-Bitbucket token can see), **Clone and Save** as a cancellable job, and
-the token handed to git for one command at a time through a helper file
-that is deleted afterwards. Phase 5 added the **AI Assistant** column: the repository as context,
-prompt buttons for a commit message, an explanation or review of the
-changes, a conflict, a branch name or the last commit, and answers whose
-command blocks run in a terminal opened in the repository root. Phase 6
-finished the activity: dashboard figures for repositories with changes
-and commits ahead / behind, the host's avatar as the icon of a fetched
-project, a palette command for every verb, and keyboard navigation of
-the lists.
+**The Git activity** (2026-10-29/30, v0.98 to v0.103, spec
+[docs/tools/git-activity.md](docs/tools/git-activity.md)) sits right after
+Editor in the rail and manages repositories SourceTree-style, apart from
+whatever the editor has open.
+
+<p align="center"><img src="docs/screenshots/git-walkthrough.gif" alt="Git activity walkthrough: the dashboard, File Status with a hunk's Stage and Discard under a paused merge, the conflict editor, the History graph with a commit's files, blame, the Git Flow panel, a branch's menu, the AI Assistant with the repository as context, Settings → Git and a credential form" width="960"></p>
 
 | | |
 |---|---|
-| ![Git dashboard](docs/screenshots/git-dashboard.png) | ![Git repository tab](docs/screenshots/git-repository.png) |
-| **Dashboard** - saved repositories, figures, Start Here | **Repository tab** - tree, History graph, diff and the assistant column |
+| ![Git dashboard](docs/screenshots/git-dashboard.png) | ![File Status](docs/screenshots/git-repository.png) |
+| **Dashboard** - Repositories, With Changes, Ahead / Behind, Credentials and Open Tabs; Start Here (Add Repository, Clone From Host, Git Credentials, Manage Repositories); Saved Repositories with their icons; Open Here | **Repository tab** - header band (icon, name, language, toolchain version, URL, path), the toolbar (branch, Refresh, Fetch, Pull, Push, Branch, Merge, Rebase, Stash, Tag, Git Flow, Terminal, AI Assistant), the tree (File Status / History, Branches with ahead/behind, Remotes, Tags, Stashes), unstaged and staged lists with Stage / Unstage / Discard, the diff with **Stage / Discard per hunk**, the commit box with Amend and Push After Commit - here under the bar a paused merge shows, with Continue and Abort |
+| ![History](docs/screenshots/git-history.png) | ![Conflict editor](docs/screenshots/git-conflict.png) |
+| **History** - the commit graph of every branch with lanes, branch / tag / stash chips, author and date, a search over message, author, hash and ref, Load More; the selected commit's message, hash, parents and changed files, each opening its diff or its blame | **Conflict editor** - an unmerged file block by block: Ours and Theirs under their labels, Ours / Theirs / Both per block, All Ours / All Theirs, and **Save and Mark Resolved**, which writes the file and stages it |
+| ![Blame](docs/screenshots/git-blame.png) | ![Git Flow](docs/screenshots/git-flow.png) |
+| **Blame** - every line with its commit, author and date in a gutter coloured by age; clicking a line finds its commit in History | **Git Flow** - Feature / Release / Hotfix, Start or Finish, built from plain git with the exact commands shown before Apply (a finish merges with `--no-ff`, tags production and merges back into develop); the names live in Settings → Git |
+| ![Branch menu](docs/screenshots/git-branch-menu.png) | ![AI Assistant](docs/screenshots/git-assistant.png) |
+| **Right-click menus** - a branch: Check Out, Merge into Current, Rebase Current onto, Push, Set Upstream, Rename, Delete; a remote branch, a remote, a tag, a stash and a History row have theirs (cherry-pick, create branch here, tag here…); deletions and pushes onto a protected branch ask first | **AI Assistant** - the repository as context (branch, upstream, remote, status, a bounded staged diff, recent commits) and six prompt buttons; a `commit` block's Insert fills the commit box, a command block's Insert and Run runs it in a terminal opened in the repository root |
+| ![Settings → Git](docs/screenshots/settings-git.png) | ![Credential](docs/screenshots/settings-git-credential.png) |
+| **Settings → Git** - the repository list (drag to reorder) and a master/detail form: Local Folder, Localhost or Remote Host source, name, an **uploaded icon** or a glyph, URL, credential, **Fetch Project** (a fuzzy-searchable list of everything the token can see; the host's avatar becomes the icon), path and language; **Clone and Save** clones a folder that does not exist yet as a cancellable Job; Save stays disabled until the mandatory fields hold | **Git Credentials** - GitHub, GitLab, Forgejo, Gitea, Bitbucket, Azure DevOps or generic; host URL, username and a token that goes to the **vault** and reaches git for one command at a time through a helper file deleted afterwards; **Test** asks the host who the token belongs to. The General card below holds protected patterns, pull with rebase, sign-off, stash untracked, the default clone folder, the terminal profile and the Git Flow names |
+
+Removing a repository from the list closes its tabs and **never touches
+the folder**; every verb is also a palette command, and Up / Down walk
+the lists.
 
 ### Terminal
 
@@ -315,6 +316,9 @@ globals. A non-GET request to a protected environment asks first.
 | ![Cron](docs/screenshots/devtools-cron.png) | ![Unit conversion](docs/screenshots/devtools-units.png) |
 | **Cron** - build a schedule and read it in Unix, Spring and Quartz dialects, with an expression checker | **Units** - time, epochs, number bases, data sizes, durations and bandwidth, with every unit listed |
 
+| ![Utility toolbar](docs/screenshots/devtools-toolbar.png) | |
+| **Utility tabs** (2026-10-29) - every utility opens in its own tab under a toolbar row that names it and keeps the hard-right corner for an AI Assistant control; the activity's dashboard lists all fifteen | |
+
 Also **TOML** and **XML** (check, format, convert) and **Firebase tokens**;
 keys typed into a utility are never saved.
 
@@ -396,8 +400,10 @@ each removable; the AI assistant is review-only.
 | **Edit Secret** — after the master password, the password and key are editable; typed values move into the vault, an empty field clears the secret | **Connections** — every profile by kind, folder and tags, drag to reorder, Test Connection and **Connect**, which saves and opens the profile in its own activity. Right-click a connection in any activity sidebar for **Edit This Connection…**, which opens its form here |
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
 | **Terminal** — default shell, font, right-click copy/paste, link detection | **Editor** — font, right-click, trim and final newline on save, auto reload, language servers and debug adapters |
-| ![Terminal List](docs/screenshots/settings-terminal-list.png) | |
-| **Terminal List** - shells and CLI profiles in order, with Add CLI, Edit, Remove and PATH suggestions (sqlite3, claude and opencode here); a disabled CLI stays in the list and leaves the sidebar | |
+| ![Terminal List](docs/screenshots/settings-terminal-list.png) | ![Git settings](docs/screenshots/settings-git.png) |
+| **Terminal List** - shells and CLI profiles in order, with Add CLI, Edit, Remove and PATH suggestions (sqlite3, claude and opencode here); a disabled CLI stays in the list and leaves the sidebar | **Git** (2026-10-29) - Repositories (master/detail, Fetch Project, Clone and Save, uploaded icons), Git Credentials (tokens in the vault, Test) and General (protected patterns, pull / sign-off / stash options, clone folder, terminal profile, Git Flow names) |
+| ![Variables cards](docs/screenshots/settings-variables.png) | ![Globals](docs/screenshots/settings-globals.png) |
+| **Collection Variables and Global Variables** (2026-10-29) - beside the environments, every API collection's variables and the one application-wide global set, edited in place; a collection's **Compare With…** shows New / Same / Differs against another collection in this or any other workspace, with Copy Selected and **Sync All** | **Globals** - one set for the whole application, read wherever a `{{name}}` is accepted (API client, Scratchpad, Browser, connection forms); an environment variable of the same name wins |
 | ![Browser settings](docs/screenshots/settings-browser.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
 | **Browser** — home page, blocking and script defaults, extra blocked hosts | **Shortcuts** — every action rebindable; conflicts listed |
 | ![AI settings](docs/screenshots/settings-ai.png) | ![About](docs/screenshots/settings-about.png) |

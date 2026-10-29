@@ -11,25 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **A Git activity** (phase 1 of `docs/tools/git-activity.md`). A new
-  rail entry right after Editor with a dashboard home (summaries, Start
-  Here, Saved Repositories, Open Here), a sidebar of the workspace's saved
-  repositories (drag to reorder; right-click Edit Repository Settings /
-  Remove From List, which closes the tabs and never touches the folder),
-  and one tab per repository: a header band (icon, name, language,
-  toolchain version, URL, path), a toolbar with the branch, Refresh,
-  Fetch, Pull, Push (with Set Upstream when there is none) and Terminal
-  (a shell in the repository root), and the SourceTree File Status view -
-  unstaged and staged lists with Stage / Unstage / Discard (asked first),
-  the diff of the selected file, and a commit box with Amend and Push
-  After Commit. Settings gains a **Git** page between Editor and Browser:
-  Repositories (master/detail: source, name, icon, URL, credential, path,
-  language; Save disabled until the mandatory fields hold), Git
-  Credentials (host kind, URL, username, a token that goes to the vault)
-  and General (protected patterns, pull/sign-off/stash options moved here
-  from the Editor page, default clone folder, terminal profile, Git Flow
-  names). Stores: `<workspace>/git-repos.toml` and
-  `HyperStackData/git-credentials.toml`.
+- (nothing yet)
+
+## 0.98.0 — 2026-10-29
+
+### Added
+
+- A Git activity with saved repositories, File Status and Settings ΓåÆ Git (phase 1) (e5250658)
 
 ## 0.97.0 — 2026-10-29
 

@@ -11,52 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Git activity, phase 3: the operations.** The toolbar grows Branch,
-  Merge, Rebase, Stash, Tag and Git Flow, each an inline panel with its
-  options and an Apply: create a branch from any ref (and check it out),
-  merge with no-fast-forward / squash / no-commit, rebase onto a branch
-  or **interactively** (pick / squash / fixup / drop, reorder, from the
-  base branch), stash with a message and untracked files, create a
-  lightweight or annotated tag at any commit (and push it), and **Git
-  Flow** start / finish for feature, release and hotfix branches built
-  from plain git (the exact commands shown before Apply; a release or
-  hotfix finish tags production and merges back into develop). The tree
-  gained right-click menus: branches (check out, merge into current,
-  rebase current onto, push, set upstream, rename, delete), remote
-  branches (check out as tracking, delete on remote), remotes (fetch
-  with prune, edit URL, remove, add), tags (push, delete) and stashes
-  (apply, pop, drop); History rows offer copy hash, check out,
-  cherry-pick, create branch here and tag here. A paused merge, rebase
-  or cherry-pick shows a bar with Continue / Skip / Abort. Deleting a
-  branch, a remote branch, a tag, a remote or a stash asks first, and a
-  push onto a branch matching a protected pattern does too.
+- (nothing yet)
 
-- **Devtools utility tabs have a toolbar row again**, with the utility's
-  name on the left and the hard-right corner free, so a utility that
-  grows an AI Assistant puts its control where every other activity does
-  (owner's requirement, 2026-10-29). The dashboard still draws none.
+## 0.100.0 — 2026-10-29
 
-- **Git activity, phase 2: the work pane.** A repository tab now has the
-  SourceTree arrangement: a tree on the left (Workspace with File Status
-  and History; Branches with ahead/behind; Remotes with their branches;
-  Tags; Stashes), File Status or History in the centre, and the diff,
-  blame or conflict editor on the right. **History** draws the commit
-  graph (lanes from `hs_git::graph`, every branch, paged with Load More),
-  branch and tag chips, author and date, a search over message, author,
-  hash and ref, and the selected commit's message, parents and changed
-  files - each opening its diff, or its blame at that commit. **Blame**
-  colours the gutter by age; clicking a line's commit finds it in
-  History. A work-tree or index diff offers **Stage / Unstage / Discard
-  per hunk**; a conflicted file opens the **conflict editor** (Ours /
-  Theirs / Both per block, All Ours / All Theirs, Save and Mark Resolved
-  writes the file and stages it). Right-click a file for Blame or File
-  History.
-- **Repository icons can be uploaded.** Settings → Git → a repository's
-  Icon row takes an image (PNG, ICO, JPG, BMP, GIF, WEBP or SVG), kept
-  under `<workspace>/git/icons/<id>.<ext>` and shown on the tab, in the
-  sidebar, on the dashboard and in the Settings list; Remove Image goes
-  back to the glyph. Remove From List drops the picture with the entry
-  (owner's requirement, 2026-10-29).
+### Added
+
+- The Git activity's operations (phase 3) and a Devtools toolbar row (43b0b527)
 
 ## 0.98.0 — 2026-10-29
 

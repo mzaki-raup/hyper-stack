@@ -42,6 +42,82 @@ pub struct ProjectEntry {
     /// projects the way a global `user.email` does.
     pub git_name: String,
     pub git_email: String,
+    /// How Run starts this project: its environment, the profiles it
+    /// runs under, and what to hand the build tool (owner's requirement,
+    /// 2026-10-29).
+    pub run: RunConfig,
+}
+
+/// How a project is run, beyond "the command its build tool implies".
+///
+/// A Spring Boot service is rarely run bare: it wants a profile, a
+/// handful of environment variables, and more often than not `-DskipTests`
+/// and a JVM flag or two. Those used to need a terminal of one's own;
+/// they live with the project now, and Run applies them.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct RunConfig {
+    /// `KEY=VALUE`, one per line, set in the process Run starts.
+    pub env: String,
+    /// `SPRING_PROFILES_ACTIVE`, comma-separated. Applies to any
+    /// launcher - Maven, Gradle, a plain `java -jar` - because it is an
+    /// environment variable rather than a flag.
+    pub spring_profiles: String,
+    /// Maven `-P` / Gradle `-P` profiles, comma-separated.
+    pub build_profiles: String,
+    /// The goal or task to run instead of the one the project implies
+    /// (`spring-boot:run`, `exec:java`, `bootRun`, `run`). Empty keeps
+    /// the default.
+    pub goal: String,
+    /// Anything else to put on the command line, verbatim.
+    pub args: String,
+    /// JVM flags for the application, through `JAVA_TOOL_OPTIONS` - the
+    /// one place every Java launcher reads them from.
+    pub jvm_args: String,
+    /// `-DskipTests` on Maven, `-x test` on Gradle.
+    pub skip_tests: bool,
+}
+
+impl RunConfig {
+    /// The environment Run sets: the `KEY=VALUE` lines, then the Spring
+    /// profiles and the JVM flags under the names the launchers read.
+    /// A later line overrides an earlier one with the same key.
+    pub fn environment(&self) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        let mut put = |k: String, v: String| {
+            if let Some(e) = out.iter_mut().find(|(ek, _)| *ek == k) {
+                e.1 = v;
+            } else {
+                out.push((k, v));
+            }
+        };
+        for line in self.env.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((k, v)) = line.split_once('=') {
+                let k = k.trim();
+                if !k.is_empty() {
+                    put(k.to_string(), v.trim().trim_matches('"').to_string());
+                }
+            }
+        }
+        if !self.spring_profiles.trim().is_empty() {
+            put(
+                "SPRING_PROFILES_ACTIVE".into(),
+                self.spring_profiles.trim().to_string(),
+            );
+        }
+        if !self.jvm_args.trim().is_empty() {
+            put("JAVA_TOOL_OPTIONS".into(), self.jvm_args.trim().to_string());
+        }
+        out
+    }
+
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
 }
 
 impl Default for ProjectEntry {
@@ -54,6 +130,7 @@ impl Default for ProjectEntry {
             order: 0,
             git_name: String::new(),
             git_email: String::new(),
+            run: RunConfig::default(),
         }
     }
 }
@@ -374,6 +451,35 @@ mod tests {
                 "{detected} can be detected but cannot be picked"
             );
         }
+    }
+
+    /// The environment Run sets: lines, then the two named variables,
+    /// with a later value for the same key replacing the earlier one.
+    #[test]
+    fn a_run_configuration_becomes_an_environment() {
+        let r = RunConfig {
+            env: "A=1\n# note\nB = \"two words\"\nA=3\n".into(),
+            spring_profiles: "dev, local".into(),
+            jvm_args: "-Xmx1g".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            r.environment(),
+            vec![
+                ("A".to_string(), "3".to_string()),
+                ("B".to_string(), "two words".to_string()),
+                (
+                    "SPRING_PROFILES_ACTIVE".to_string(),
+                    "dev, local".to_string()
+                ),
+                ("JAVA_TOOL_OPTIONS".to_string(), "-Xmx1g".to_string()),
+            ]
+        );
+        assert!(RunConfig::default().is_default());
+        // An entry written before the field existed reads back with the
+        // default, not an error.
+        let old: ProjectEntry = toml::from_str("id = \"x\"\nname = \"n\"\nroot = \"/p\"").unwrap();
+        assert!(old.run.is_default());
     }
 
     #[test]

@@ -192,19 +192,159 @@ pub fn parse(body: &str) -> Result<Vec<Action>, String> {
     let v: serde_json::Value = serde_json::from_str(body.trim()).map_err(|e| e.to_string())?;
     let list = match v {
         serde_json::Value::Array(a) => a,
-        serde_json::Value::Object(mut o) => match o.remove("actions") {
-            Some(serde_json::Value::Array(a)) => a,
-            Some(_) => return Err("\"actions\" must be an array".into()),
-            None => vec![serde_json::Value::Object(o)],
-        },
+        serde_json::Value::Object(mut o) => {
+            // The prompt asks for {"actions":[...]}; models also answer
+            // with {"hs-api":[...]}, {"request":{...}} or the bare action.
+            let inner = ["actions", "hs-api", "hs_api", "request", "changes", "steps"]
+                .iter()
+                .find_map(|k| o.remove(*k));
+            match inner {
+                Some(serde_json::Value::Array(a)) => a,
+                Some(serde_json::Value::Object(inner)) => vec![serde_json::Value::Object(inner)],
+                Some(_) => return Err("\"actions\" must be an array".into()),
+                None => vec![serde_json::Value::Object(o)],
+            }
+        }
         _ => return Err("expected an object with \"actions\" or an array".into()),
     };
-    list.into_iter()
-        .enumerate()
-        .map(|(i, a)| {
-            serde_json::from_value::<Action>(a).map_err(|e| format!("action {}: {e}", i + 1))
-        })
-        .collect()
+    let mut out = Vec::new();
+    for (i, a) in list.into_iter().enumerate() {
+        for a in normalise(a) {
+            out.push(
+                serde_json::from_value::<Action>(a)
+                    .map_err(|e| format!("action {}: {e}", i + 1))?,
+            );
+        }
+    }
+    Ok(out)
+}
+
+/// Bring one action the model wrote into the shape the schema reads.
+///
+/// The schema tags an action with `"op"`, and a model that was told so
+/// still writes `"action"`, `"type"` or `"kind"` a fair share of the
+/// time, in camelCase or with a stray hyphen - and sometimes no tag at
+/// all, just the fields: `{"method":"POST","url":"..."}`. Every one of
+/// those used to stop Apply dead with "missing field `op`" (owner's
+/// report, 2026-10-29). The intent is plain in each case, so it is read
+/// rather than refused: the tag is taken from whichever key carries it,
+/// spelled the way the schema wants, and a tagless object that names
+/// request fields becomes the `set_*` actions those fields mean.
+fn normalise(a: serde_json::Value) -> Vec<serde_json::Value> {
+    use serde_json::Value;
+    let Value::Object(mut o) = a else {
+        return vec![a];
+    };
+    if !o.contains_key("op") {
+        for key in ["action", "type", "kind", "name_of_action", "operation"] {
+            if let Some(Value::String(tag)) = o.get(key).cloned()
+                && is_known_op(&snake(&tag))
+            {
+                o.remove(key);
+                o.insert("op".into(), Value::String(snake(&tag)));
+                break;
+            }
+        }
+    }
+    if let Some(Value::String(tag)) = o.get("op").cloned() {
+        o.insert("op".into(), Value::String(snake(&tag)));
+        return vec![Value::Object(o)];
+    }
+    // No tag anywhere: a description of a request. Each field it names
+    // is one action, in the order the client applies them.
+    let mut out = Vec::new();
+    if let Some(Value::String(name)) = o.get("name") {
+        out.push(serde_json::json!({"op": "set_name", "name": name}));
+    }
+    if let Some(Value::String(m)) = o.get("method") {
+        out.push(serde_json::json!({"op": "set_method", "method": m}));
+    }
+    if let Some(Value::String(u)) = o.get("url") {
+        out.push(serde_json::json!({"op": "set_url", "url": u}));
+    }
+    if let Some(Value::Object(h)) = o.get("headers") {
+        for (k, v) in h {
+            let v = match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            out.push(serde_json::json!({"op": "set_header", "key": k, "value": v}));
+        }
+    }
+    if let Some(Value::Object(q)) = o.get("params").or_else(|| o.get("query")) {
+        for (k, v) in q {
+            let v = match v {
+                Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            out.push(serde_json::json!({"op": "set_param", "key": k, "value": v}));
+        }
+    }
+    match o.get("body") {
+        Some(Value::String(text)) => {
+            out.push(serde_json::json!({"op": "set_body", "kind": "text", "text": text}));
+        }
+        Some(Value::Object(b)) if b.contains_key("kind") => {
+            let mut b = b.clone();
+            b.insert("op".into(), Value::String("set_body".into()));
+            out.push(Value::Object(b));
+        }
+        Some(other @ Value::Object(_)) | Some(other @ Value::Array(_)) => {
+            out.push(serde_json::json!({
+                "op": "set_body",
+                "kind": "json",
+                "text": serde_json::to_string_pretty(other).unwrap_or_default()
+            }));
+        }
+        _ => {}
+    }
+    if out.is_empty() {
+        // Nothing recognisable: hand it back so the schema reports the
+        // missing tag in its own words.
+        return vec![Value::Object(o)];
+    }
+    out
+}
+
+/// `setUrl`, `set-url`, `SET_URL` and `set_url` are one op.
+fn snake(tag: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in tag.trim().chars().enumerate() {
+        if c == '-' || c == ' ' {
+            out.push('_');
+        } else if c.is_ascii_uppercase() {
+            if i > 0 && !out.ends_with('_') {
+                out.push('_');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn is_known_op(tag: &str) -> bool {
+    matches!(
+        tag,
+        "new_collection"
+            | "new_folder"
+            | "new_request"
+            | "open_request"
+            | "set_name"
+            | "set_method"
+            | "set_url"
+            | "set_param"
+            | "remove_param"
+            | "set_header"
+            | "remove_header"
+            | "set_body"
+            | "set_auth"
+            | "set_script"
+            | "set_docs"
+            | "set_variable"
+            | "save"
+    )
 }
 
 /// What applying a block did.
@@ -665,6 +805,39 @@ mod tests {
         );
         assert!(parse("not json").is_err());
         assert!(parse(r#"[{"op":"fly"}]"#).is_err());
+    }
+
+    /// A model told to write `"op"` writes `"action"`, `setUrl`, or no
+    /// tag at all; every one of those stopped Apply with "missing field
+    /// `op`" (owner's report, 2026-10-29).
+    #[test]
+    fn the_shapes_a_model_writes_are_all_read() {
+        let a = parse(
+            r#"[{"action":"setUrl","url":"{{host}}/x"},{"type":"set-method","method":"post"}]"#,
+        )
+        .unwrap();
+        assert_eq!(a.len(), 2);
+        assert!(matches!(&a[0], Action::SetUrl { url } if url == "{{host}}/x"));
+        assert!(matches!(&a[1], Action::SetMethod { .. }));
+
+        let b = parse(r#"{"request":{"method":"POST","url":"https://api/x","headers":{"Accept":"application/json"},"body":{"a":1}}}"#)
+            .unwrap();
+        let ops: Vec<&str> = b
+            .iter()
+            .map(|x| match x {
+                Action::SetMethod { .. } => "method",
+                Action::SetUrl { .. } => "url",
+                Action::SetHeader { .. } => "header",
+                Action::SetBody { .. } => "body",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(ops, vec!["method", "url", "header", "body"]);
+
+        let c = parse(r#"{"hs-api":[{"op":"save"}]}"#).unwrap();
+        assert!(matches!(c[0], Action::Save));
+        // Still refused when nothing in it can be read as an action.
+        assert!(parse(r#"[{"colour":"blue"}]"#).is_err());
     }
 
     #[test]

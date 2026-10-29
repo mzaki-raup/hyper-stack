@@ -931,3 +931,15 @@ could be ended without closing a tab. They were removed outright on
 Every AI Assistant column goes through `hs_ui::ai_assistant::split_for_assistant`
 now, the Scratchpad, the API client and the Graphics picture tabs included;
 a hand-cut 390 px column read as a floating card and ignored the window.
+
+## Workspace switching (2026-10-29)
+
+Switching workspaces keeps the workspace being left **alive**: its
+`TabSpace` - every tab and the tool behind it - is parked in the shell
+and taken back out when the workspace is returned to, so a logged-in
+browser page, an SSH shell or a database connection survives the round
+trip. The target's tabs come from its parked space when it has one and
+from its saved layout the first time it is opened in a session. Layouts
+are still written to disk at every switch. Tab ids are process-wide, so
+parked and live tabs never collide in the browser host, the open-tabs
+registry or the thumbnails.

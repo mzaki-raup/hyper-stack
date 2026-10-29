@@ -259,3 +259,15 @@ bar and the sidebar show real icons without a visit, and a globe only for a
 site that has none. Chips sit 10 px apart with padding of their own, so
 neighbours do not read as one word (owner's request, 2026-10-18). `tool-browser::favbar`. Owner's requirement,
 2026-10-18.
+
+## Keyboard focus and the web view (2026-10-29)
+
+WebView2 draws in a child window that takes native keyboard focus for
+itself, and winit then reports the *main window* as unfocused - at which
+point egui refuses to give any of its widgets focus. The host
+(`browser_host`) therefore owns the policy: a click that lands on egui
+rather than on a page puts native focus back on the main window; while
+any egui text field holds focus every web view is disabled, so the child
+cannot take the keyboard back on its next message; and the state is
+re-applied on every sync, because a view's child window appears a beat
+after the view is created (New Tab).

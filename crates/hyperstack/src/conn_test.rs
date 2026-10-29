@@ -123,7 +123,20 @@ impl Test {
 pub fn testable(kind: &str) -> bool {
     matches!(
         kind,
-        "ssh" | "s3" | "db" | "redis" | "valkey" | "mongodb" | "couchdb"
+        "ssh"
+            | "s3"
+            | "webdav"
+            | "nexus"
+            | "db"
+            | "redis"
+            | "valkey"
+            | "mongodb"
+            | "couchdb"
+            | "qdrant"
+            | "docker"
+            | "podman"
+            | "wincontainer"
+            | "k8s"
     )
 }
 
@@ -246,6 +259,83 @@ fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
                 }
             }))
         }
+        // The two HTTP object stores: the cheapest thing either can be
+        // asked is what containers it has.
+        "webdav" => {
+            let f = hs_core::objstore::http_profile::WebdavFields::from_table(fields);
+            let config = f.config(secrets).map_err(s3_error)?;
+            let client = hs_core::objstore::webdav::WebdavClient::new(config)
+                .map_err(|e| Outcome::Failed(e.to_string()))?;
+            Ok(Box::pin(async move {
+                use hs_core::objstore::store::ObjectStore;
+                match client.containers().await {
+                    Ok(b) => Outcome::Ok(b.len().to_string()),
+                    Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
+        "nexus" => {
+            let f = hs_core::objstore::http_profile::NexusFields::from_table(fields);
+            let config = f.config(secrets).map_err(s3_error)?;
+            let client = hs_core::objstore::nexus::NexusClient::new(config)
+                .map_err(|e| Outcome::Failed(e.to_string()))?;
+            Ok(Box::pin(async move {
+                use hs_core::objstore::store::ObjectStore;
+                match client.containers().await {
+                    Ok(b) => Outcome::Ok(b.len().to_string()),
+                    Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
+        "qdrant" => {
+            let cfg = tool_nosql::profile::NoSqlFields::from_table("qdrant", fields)
+                .resolve_qdrant(read_only, secrets, &lookup)
+                .map_err(nosql_error)?;
+            Ok(Box::pin(async move {
+                match tool_nosql::qdrant::QdrantStore::connect(&cfg).await {
+                    Ok(store) => {
+                        use tool_nosql::store::DocStore;
+                        Outcome::Ok(store.version().to_string())
+                    }
+                    Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
+        // An engine answers over its own CLI, which is a blocking process
+        // call, so it runs on the blocking pool; the button was disabled
+        // for every container kind until 2026-10-29 (owner's report).
+        "docker" | "podman" | "wincontainer" => {
+            let f = hs_container::profile::ContainerFields::from_table(fields);
+            if f.transport == hs_container::profile::Transport::Ssh {
+                // Run on the far side through the SSH tool, which this
+                // page cannot do; opening the host does.
+                return Err(Outcome::Failed(s.t("conn-test-over-ssh")));
+            }
+            let engine = hs_container::Engine::new(&profile.kind, f);
+            let handle = s.runtime.handle();
+            Ok(Box::pin(async move {
+                match handle
+                    .spawn_blocking(move || hs_container::run::probe(&engine))
+                    .await
+                {
+                    Ok(Ok(v)) => Outcome::Ok(v),
+                    Ok(Err(e)) => Outcome::Failed(e.to_string()),
+                    Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
+        "k8s" => {
+            let f = hs_container::profile::ContainerFields::from_table(fields);
+            Ok(Box::pin(async move {
+                match hs_container::k8s::connect(&f).await {
+                    Ok(client) => match hs_container::k8s::version(&client).await {
+                        Ok(v) => Outcome::Ok(v),
+                        Err(e) => Outcome::Failed(e.to_string()),
+                    },
+                    Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
         "ssh" => {
             let f = hs_ssh::SshFields::from_table(fields);
             let cfg = hs_ssh::config::config_from_fields(&f, secrets).map_err(ssh_error)?;
@@ -282,7 +372,22 @@ mod tests {
 
     #[test]
     fn only_kinds_with_a_driver_are_offered_a_test() {
-        for k in ["ssh", "s3", "db", "redis", "valkey", "mongodb", "couchdb"] {
+        for k in [
+            "ssh",
+            "s3",
+            "webdav",
+            "nexus",
+            "db",
+            "redis",
+            "valkey",
+            "mongodb",
+            "couchdb",
+            "qdrant",
+            "docker",
+            "podman",
+            "wincontainer",
+            "k8s",
+        ] {
             assert!(testable(k), "{k}");
         }
         for k in ["api", "browser", "", "sftp"] {

@@ -370,9 +370,119 @@ pub fn cwd_from_title(title: &str) -> Option<String> {
     }
 }
 
+/// The folder a `cd` typed at the prompt will land in, or `None` when
+/// the line is not a `cd`.
+///
+/// `line` is the whole prompt row as the terminal shows it, `current`
+/// the folder the file pane is looking at. The title-based follow
+/// (`cwd_from_title`) only works when the remote prompt sets an xterm
+/// title, which a bare `sh`, a root prompt or a minimal `.bashrc` never
+/// does - so `cd` in the shell left the file pane where it was (owner's
+/// report, 2026-10-29). Reading the command the user pressed Enter on
+/// needs nothing from the remote side.
+///
+/// Handled: `cd`, `cd ~`, `cd ~/x`, `cd /abs`, `cd rel`, `cd ..`, a
+/// quoted argument, and `cd` as the last of `a && cd b` / `a; cd b`.
+/// `cd -` is left alone - the pane does not know the shell's previous
+/// folder.
+pub fn cd_target(line: &str, current: &str) -> Option<String> {
+    // Strip the prompt: whatever precedes the last prompt marker.
+    let mut cmd = line.trim();
+    for marker in ["$ ", "# ", "% ", "> "] {
+        if let Some(i) = cmd.rfind(marker) {
+            cmd = cmd[i + marker.len()..].trim();
+        }
+    }
+    // The last command of a chain is the one that leaves the shell
+    // somewhere.
+    let cmd = cmd
+        .rsplit([';', '&', '|'])
+        .next()
+        .map(str::trim)
+        .unwrap_or("");
+    let rest = if cmd == "cd" {
+        ""
+    } else {
+        cmd.strip_prefix("cd ")?.trim()
+    };
+    let arg = rest.trim_matches(|c| c == '"' || c == '\'');
+    if arg == "-" {
+        return None;
+    }
+    let raw = if arg.is_empty() { "~" } else { arg };
+    Some(resolve_path(raw, current))
+}
+
+/// Join `path` onto `current` the way a shell would, folding `.` and
+/// `..`; `~` is left for the caller, which knows the home folder.
+fn resolve_path(path: &str, current: &str) -> String {
+    if path.starts_with('/') || path == "~" || path.starts_with("~/") {
+        return normalise(path);
+    }
+    let base = if current.is_empty() { "/" } else { current };
+    normalise(&format!("{}/{}", base.trim_end_matches('/'), path))
+}
+
+fn normalise(path: &str) -> String {
+    let tilde = path == "~" || path.starts_with("~/");
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in path.trim_start_matches('~').split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            s => parts.push(s),
+        }
+    }
+    let body = parts.join("/");
+    if tilde {
+        if body.is_empty() {
+            "~".to_string()
+        } else {
+            format!("~/{body}")
+        }
+    } else {
+        format!("/{body}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a `cd` typed at a prompt means for the file pane.
+    #[test]
+    fn a_cd_on_the_prompt_row_names_the_folder_it_lands_in() {
+        let at = "/home/dev/work";
+        assert_eq!(
+            cd_target("dev@box:~/work$ cd src", at).as_deref(),
+            Some("/home/dev/work/src")
+        );
+        assert_eq!(
+            cd_target("dev@box:~/work$ cd ..", at).as_deref(),
+            Some("/home/dev")
+        );
+        assert_eq!(cd_target("$ cd /var/log", at).as_deref(), Some("/var/log"));
+        assert_eq!(cd_target("# cd", at).as_deref(), Some("~"));
+        assert_eq!(cd_target("$ cd ~/x/../y", at).as_deref(), Some("~/y"));
+        assert_eq!(
+            cd_target("$ cd \"my dir\"", at).as_deref(),
+            Some("/home/dev/work/my dir")
+        );
+        assert_eq!(
+            cd_target("$ make && cd build", at).as_deref(),
+            Some("/home/dev/work/build")
+        );
+        // A prompt that ends in `>` (PowerShell-style) still parses.
+        assert_eq!(
+            cd_target("PS /tmp> cd ./a/./b", at).as_deref(),
+            Some("/home/dev/work/a/b")
+        );
+        assert_eq!(cd_target("$ ls", at), None);
+        assert_eq!(cd_target("$ cd -", at), None);
+        assert_eq!(cd_target("$ cdx y", at), None);
+    }
 
     #[test]
     fn cwd_is_parsed_from_common_prompt_titles() {

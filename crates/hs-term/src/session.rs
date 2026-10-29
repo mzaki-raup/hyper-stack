@@ -240,6 +240,31 @@ impl Session {
         (self.cols, self.rows)
     }
 
+    /// The text of the row the cursor is on - the command line being
+    /// typed, prompt and all - as the grid shows it.
+    ///
+    /// Read from the grid rather than from the keystrokes, because what
+    /// the shell will run is what is on the row: a Tab completion, an
+    /// Up-arrow history recall or a pasted line never pass through the
+    /// key encoder, and a buffer of typed bytes would say `cd Doc<TAB>`
+    /// where the row says `cd Documents/`.
+    pub fn cursor_line_text(&self) -> String {
+        let term = self.term.lock();
+        let line = term.grid().cursor.point.line;
+        let grid = term.grid();
+        (0..self.cols as usize)
+            .map(|col| {
+                grid[alacritty_terminal::index::Point::new(
+                    line,
+                    alacritty_terminal::index::Column(col),
+                )]
+                .c
+            })
+            .collect::<String>()
+            .trim_end()
+            .to_string()
+    }
+
     /// Plain-text view of visible terminal rows for an explicitly requested
     /// assistant context. Control sequences and styling are omitted.
     pub fn visible_text(&self, max_rows: usize) -> String {

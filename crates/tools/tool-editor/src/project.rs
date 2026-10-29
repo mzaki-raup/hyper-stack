@@ -269,6 +269,49 @@ pub fn build_command(p: &Project, settings: &EditorSettings) -> String {
     }
 }
 
+/// What **Run** runs for this project, with the project's own run
+/// settings applied: a goal override, build profiles, skip-tests and
+/// extra arguments. The environment (Spring profiles, JVM flags, the
+/// user's variables) is set on the process rather than typed, so it
+/// reaches the application whatever the shell is.
+pub fn run_command_with(
+    p: &Project,
+    settings: &EditorSettings,
+    run: &hs_core::projects::RunConfig,
+) -> String {
+    let base = match p.kind {
+        Kind::Maven | Kind::Gradle if !run.goal.trim().is_empty() => {
+            format!("{} {}", tool(p, settings), run.goal.trim())
+        }
+        _ => run_command(p, settings),
+    };
+    let mut parts = vec![base];
+    let profiles = run.build_profiles.trim();
+    match p.kind {
+        Kind::Maven => {
+            if !profiles.is_empty() {
+                parts.push(format!("-P{}", profiles.replace(' ', "")));
+            }
+            if run.skip_tests {
+                parts.push("-DskipTests".into());
+            }
+        }
+        Kind::Gradle => {
+            for prof in profiles.split(',').map(str::trim).filter(|x| !x.is_empty()) {
+                parts.push(format!("-P{prof}"));
+            }
+            if run.skip_tests {
+                parts.push("-x test".into());
+            }
+        }
+        _ => {}
+    }
+    if !run.args.trim().is_empty() {
+        parts.push(run.args.trim().to_string());
+    }
+    parts.join(" ")
+}
+
 /// What **Run** runs for this project.
 pub fn run_command(p: &Project, settings: &EditorSettings) -> String {
     match p.kind {
@@ -355,6 +398,24 @@ mod tests {
         assert_eq!(p.kind, Kind::Maven);
         assert!(p.spring_boot && p.web);
         assert_eq!(run_command(&p, &settings()), "mvn spring-boot:run");
+        // The project's own run settings land on the command line; the
+        // environment is set on the process, not typed.
+        let run = hs_core::projects::RunConfig {
+            build_profiles: "dev, fast".into(),
+            skip_tests: true,
+            args: "-Dserver.port=9090".into(),
+            spring_profiles: "local".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            run_command_with(&p, &settings(), &run),
+            "mvn spring-boot:run -Pdev,fast -DskipTests -Dserver.port=9090"
+        );
+        let goal = hs_core::projects::RunConfig {
+            goal: "quarkus:dev".into(),
+            ..Default::default()
+        };
+        assert_eq!(run_command_with(&p, &settings(), &goal), "mvn quarkus:dev");
         assert_eq!(build_command(&p, &settings()), "mvn package -DskipTests");
     }
 

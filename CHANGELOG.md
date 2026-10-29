@@ -11,7 +11,52 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Fixed: switching workspaces logged every tab out.** The switch used
+  to drop the whole tab space and rebuild the target's from its saved
+  layout - every tool with it, so a browser tab lost its session, an
+  SSH tab its shell and a database tab its connection, and coming back
+  got fresh copies that had to log in again (owner's report). The
+  workspace being left is now **parked**, tabs and tools alive, and
+  taken back out on return; tab ids come from one process-wide counter
+  so the parked and the live never collide. Tunnels are no longer
+  stopped on a switch either.
+- **Fixed: the Browser's address bar could not be typed into after New
+  Tab.** A WebView2 child that holds native focus makes the main window
+  report itself unfocused, and egui then refuses to give any widget
+  focus - so the field drew a caret that took no keys. The host now
+  takes native focus back on any click that lands on egui rather than
+  on a page, keeps the web views disabled while an egui text field
+  holds focus, and re-applies that to a view whose child window appears
+  a beat after it was created (the New Tab case).
+- **Fixed: post-response scripts that reached for `pm.environmentVariables`
+  died on their first line** and so wrote nothing - which read as
+  variables not being saved. `pm.environmentVariables`,
+  `pm.globalVariables`, `pm.collectionVars` and the `postman.set/get/clear*`
+  calls now name the same scopes as the Postman API.
+- **Fixed: Apply on an AI suggestion failed with "missing field `op`".**
+  A model told to tag actions with `"op"` writes `"action"`, `setUrl`
+  or no tag at all a fair share of the time; the block is now read for
+  what it plainly means - the tag taken from whichever key carries it,
+  spelled the way the schema wants, and a tagless request description
+  turned into the `set_*` actions its fields imply.
+- **Test Connection works for every kind.** Docker, Podman, Windows
+  containers, Kubernetes, Qdrant, WebDAV and Nexus profiles had the
+  button disabled; each now has a probe ("Connected. 29.5.0").
+- **A container host that cannot be read says what was run**: the
+  error carries the exact command line, so a WSL distro name, a missing
+  `docker` on the distro's PATH or a socket permission can be told apart
+  by pasting it into a terminal.
+- **Run for a Java project, with its own settings.** Run is offered for
+  a project folder whether or not a runnable file is in front (a Spring
+  Boot application with its YAML open had only Build). Settings ->
+  Editor -> a project gains a **Run** card: Spring profiles, Maven/Gradle
+  profiles, a goal override, extra arguments, JVM arguments and
+  environment variables, set on the process Run starts so they reach
+  the application whatever the shell is.
+- **Fixed: `cd` in an SSH shell did not move the file pane** unless the
+  remote prompt happened to set an xterm title. The pane now reads the
+  command on the prompt row when Enter is pressed and follows a `cd` -
+  relative, absolute, `~`, `..`, quoted, or last in a `&&` chain.
 
 ## 0.95.0 — 2026-10-28
 

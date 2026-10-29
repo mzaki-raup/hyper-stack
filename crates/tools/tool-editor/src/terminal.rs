@@ -91,8 +91,22 @@ impl TerminalPanel {
     /// `web`, the first address the program prints is handed back from
     /// [`TerminalPanel::panel_ui`] for the Browser to open.
     pub fn run(&mut self, s: &Services, root: Option<&Path>, command: &str, web: bool) {
+        self.run_with_env(s, root, command, web, &[]);
+    }
+
+    /// `run`, with variables set in the shell's environment first - so
+    /// they reach the program whatever the shell is, without a
+    /// `$env:` / `set` / `export` prefix that only one of them reads.
+    pub fn run_with_env(
+        &mut self,
+        s: &Services,
+        root: Option<&Path>,
+        command: &str,
+        web: bool,
+        env: &[(String, String)],
+    ) {
         self.open = true;
-        self.spawn(s, root, Some(command.to_string()));
+        self.spawn_with_env(s, root, Some(command.to_string()), env);
         if let Some(t) = self.shells.last_mut() {
             // The command names the tab, so a build and a run are told
             // apart at a glance.
@@ -122,6 +136,16 @@ impl TerminalPanel {
 
     /// Start a shell. `pending` is typed once it answers.
     fn spawn(&mut self, s: &Services, root: Option<&Path>, pending: Option<String>) {
+        self.spawn_with_env(s, root, pending, &[]);
+    }
+
+    fn spawn_with_env(
+        &mut self,
+        s: &Services,
+        root: Option<&Path>,
+        pending: Option<String>,
+        env: &[(String, String)],
+    ) {
         self.error = None;
         let profiles = hs_term::shells::profiles();
         let (configured, fallback, scrollback, font, copy, right_click, links) = {
@@ -136,10 +160,11 @@ impl TerminalPanel {
                 st.terminal.link_detection,
             )
         };
-        let Some(profile) = pick_profile(&profiles, &configured, &fallback).cloned() else {
+        let Some(mut profile) = pick_profile(&profiles, &configured, &fallback).cloned() else {
             self.error = Some(s.t("terminal-no-shell"));
             return;
         };
+        profile.env.extend(env.iter().cloned());
         let cwd = root
             .map(|r| r.to_path_buf())
             .unwrap_or_else(|| s.workspace.read().root().to_path_buf());

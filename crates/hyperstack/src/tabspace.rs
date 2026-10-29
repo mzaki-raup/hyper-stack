@@ -33,8 +33,23 @@ pub struct TabSpace {
     pub tabs: Vec<TabEntry>,
     pub active: Option<u64>,
     pub closed: Vec<ClosedTab>,
-    next_id: u64,
     pub dirty: bool,
+}
+
+/// Tab ids are handed out process-wide, not per `TabSpace`: a workspace
+/// that is switched away from keeps its tabs alive, parked beside the
+/// live ones, and everything keyed on a tab id - the browser host's web
+/// views, the open-tabs registry, the thumbnails - would collide if each
+/// space counted from one (2026-10-29).
+static NEXT_TAB_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn alloc_tab_id() -> u64 {
+    NEXT_TAB_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Make sure no future id collides with one read back from a layout.
+fn reserve_tab_id(id: u64) {
+    NEXT_TAB_ID.fetch_max(id + 1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Read-only view for the strip.
@@ -105,13 +120,18 @@ impl TabItem for TabView {
     }
 }
 
+impl Default for TabSpace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TabSpace {
     pub fn new() -> Self {
         Self {
             tabs: Vec::new(),
             active: None,
             closed: Vec::new(),
-            next_id: 1,
             dirty: false,
         }
     }
@@ -180,8 +200,7 @@ impl TabSpace {
         services: &Services,
         restore: Option<serde_json::Value>,
     ) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = alloc_tab_id();
         let mut tool = factory.create(services, restore);
         let factory_id = factory.descriptor().id.to_string();
         // The first tab of an activity that wants a home becomes it. There
@@ -405,8 +424,7 @@ impl TabSpace {
             };
             let mut tool = factory.create(services, None);
             tool.set_home_tab(true, services);
-            let new_id = self.next_id;
-            self.next_id += 1;
+            let new_id = alloc_tab_id();
             self.tabs.insert(
                 i,
                 TabEntry {
@@ -447,7 +465,7 @@ impl TabSpace {
                 colour: lt.colour.map(|[r, g, b]| Color32::from_rgb(r, g, b)),
                 home,
             });
-            self.next_id = self.next_id.max(lt.id + 1);
+            reserve_tab_id(lt.id);
         }
         self.ensure_home_tabs(factories, services);
         let ids: Vec<String> = {

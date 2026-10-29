@@ -328,8 +328,11 @@ const PRELUDE: &str = r#"
     iterationData: { get: () => undefined },
     sendRequest: () => { throw new Error("pm.sendRequest is not available in HyperStack scripts"); },
   };
+  pm.environmentVariables = pm.environment;
+  pm.globalVariables = pm.globals;
+  pm.collectionVars = pm.collectionVariables;
   globalThis.pm = pm;
-  globalThis.postman = { setEnvironmentVariable: (k, v) => pm.environment.set(k, v), setGlobalVariable: (k, v) => pm.globals.set(k, v), getEnvironmentVariable: (k) => pm.environment.get(k), getGlobalVariable: (k) => pm.globals.get(k) };
+  globalThis.postman = { setEnvironmentVariable: (k, v) => pm.environment.set(k, v), setGlobalVariable: (k, v) => pm.globals.set(k, v), setCollectionVariable: (k, v) => pm.collectionVariables.set(k, v), getEnvironmentVariable: (k) => pm.environment.get(k), getGlobalVariable: (k) => pm.globals.get(k), getCollectionVariable: (k) => pm.collectionVariables.get(k), clearEnvironmentVariable: (k) => pm.environment.unset(k), clearGlobalVariable: (k) => pm.globals.unset(k) };
   globalThis.tests = {};
   globalThis.responseCode = response ? { code: response.code, name: response.status } : undefined;
   globalThis.responseBody = response ? response.text() : undefined;
@@ -526,6 +529,9 @@ mod tests {
             pm.environment.set("token", data.token);
             pm.globals.unset("g");
             pm.collectionVariables.set("n", helper(21));
+            pm.environmentVariables.set("alias_env", "e");
+            pm.globalVariables.set("alias_glob", "g");
+            postman.setCollectionVariable("alias_coll", "c");
             console.log("hello", data);
             pm.test("status 201", () => pm.response.to.have.status(201));
             pm.test("has token", () => pm.expect(data.token).to.equal("abc"));
@@ -565,7 +571,20 @@ mod tests {
         let req = out.request.unwrap();
         assert_eq!(req["headers"]["X-B"], "https://e");
         assert_eq!(req["url"], "{{base}}/x?y=1");
-        assert_eq!(out.changes.len(), 3);
+        // The three Postman calls and the three aliases: six writes.
+        assert_eq!(out.changes.len(), 6);
+        assert_eq!(
+            out.scopes.environment.get("alias_env").map(String::as_str),
+            Some("e")
+        );
+        assert_eq!(
+            out.scopes.globals.get("alias_glob").map(String::as_str),
+            Some("g")
+        );
+        assert_eq!(
+            out.scopes.collection.get("alias_coll").map(String::as_str),
+            Some("c")
+        );
     }
 
     #[test]

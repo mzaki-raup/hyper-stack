@@ -4780,6 +4780,57 @@ fn project_detail(
             });
         });
         form::hint(ui, theme, &s.t("settings-project-git-hint"));
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(s.t("settings-project-run"))
+                .strong()
+                .color(theme.text),
+        );
+        form::hint(ui, theme, &s.t("settings-project-run-hint"));
+        form::field_grid(ui, "project-run", |ui| {
+            form::label(ui, &s.t("settings-project-run-spring"));
+            form::text_field(
+                ui,
+                &mut draft.entry.run.spring_profiles,
+                &s.t("settings-project-run-spring-hint"),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-profiles"));
+            form::text_field(
+                ui,
+                &mut draft.entry.run.build_profiles,
+                &s.t("settings-project-run-profiles-hint"),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-goal"));
+            form::text_field(
+                ui,
+                &mut draft.entry.run.goal,
+                &s.t("settings-project-run-goal-hint"),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-args"));
+            form::text_field(
+                ui,
+                &mut draft.entry.run.args,
+                &s.t("settings-project-run-args-hint"),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-jvm"));
+            form::text_field(
+                ui,
+                &mut draft.entry.run.jvm_args,
+                &s.t("settings-project-run-jvm-hint"),
+            );
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-skip-tests"));
+            ui.checkbox(&mut draft.entry.run.skip_tests, "");
+            ui.end_row();
+            form::label(ui, &s.t("settings-project-run-env"));
+            form::code_field(ui, &mut draft.entry.run.env, 4);
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-project-run-env-hint"));
         ui.add_space(10.0);
         ui.horizontal(|ui| {
             if form::primary_button(ui, theme, &s.t("save")).clicked() {

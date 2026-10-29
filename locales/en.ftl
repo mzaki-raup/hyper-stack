@@ -177,6 +177,7 @@ conn-test-missing = The environment does not define { $names }.
 conn-test-no-password = Password authentication is selected, but no password is stored.
 conn-test-no-keys = No access key is set, so there is nothing to sign the request with.
 conn-test-not-testable = This kind of connection has nothing to open, so there is nothing to test.
+conn-test-over-ssh = This host is reached through SSH; open it from the Containers activity to test it.
 conn-select-hint = Select a connection on the left, or create a new one.
 conn-section-details = Details
 conn-folder-hint = Optional group, e.g. "Customer A"
@@ -225,6 +226,21 @@ settings-project-name-hint = Defaults to the folder's own name.
 settings-project-root = Project Folder
 settings-project-language = Language
 settings-project-language-auto = Detect from the folder
+settings-project-run = Run
+settings-project-run-hint = How Run starts this project. The environment below is set on the process, so it reaches the application whatever the shell is.
+settings-project-run-spring = Spring Profiles
+settings-project-run-spring-hint = e.g. dev,local - sets SPRING_PROFILES_ACTIVE
+settings-project-run-profiles = Build Profiles
+settings-project-run-profiles-hint = Maven or Gradle -P profiles, comma-separated
+settings-project-run-goal = Goal or Task
+settings-project-run-goal-hint = Leave empty for spring-boot:run / exec:java / bootRun
+settings-project-run-args = Extra Arguments
+settings-project-run-args-hint = e.g. -Dserver.port=9090
+settings-project-run-jvm = JVM Arguments
+settings-project-run-jvm-hint = e.g. -Xmx1g -Ddebug=true - sets JAVA_TOOL_OPTIONS
+settings-project-run-skip-tests = Skip Tests
+settings-project-run-env = Environment Variables
+settings-project-run-env-hint = One KEY=VALUE per line; a line starting with # is a note.
 settings-project-git = Git
 settings-project-git-name = Git User Name
 settings-project-git-email = Git Email

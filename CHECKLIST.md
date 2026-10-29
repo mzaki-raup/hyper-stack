@@ -185,6 +185,14 @@ store that already exists.
 | Per-project Git settings | Completed | user.name, user.email, user.signingkey, commit.gpgsign (Inherit/Yes/No), init.defaultBranch, remote.origin.url - all `--local`, and an empty field unsets rather than blanks |
 | Editor: the workspace keeps a project list | Completed | `hs_core::projects`, one `projects.toml` per workspace: name, root, detected language, order, per-project Git identity. Loaded into `Services` at start-up and on every workspace switch |
 | Settings -> Editor -> Project List | Completed | Top card of the page: drag to reorder, language logo per row, Add Project Folder, and per-project settings for name, root and Git user/e-mail (written to that repository's own `.git/config`, never global) |
+| A workspace switch keeps every tab alive | Completed | `HyperStackApp::parked` holds the leaving workspace's `TabSpace`; tab ids come from `tabspace::NEXT_TAB_ID`; tunnels no longer stopped on switch |
+| The Browser address bar takes keys after New Tab | Completed | The host reads egui focus itself: SetFocus back to the main window on an egui click, views disabled while a text field is focused, re-applied as a new view's child window appears |
+| Script variable aliases | Completed | `pm.environmentVariables` / `pm.globalVariables` / `pm.collectionVars` / `postman.*` name the Postman scopes |
+| Apply reads what a model actually writes | Completed | `assist::normalise`: `action`/`type`/`kind` tags, camelCase and kebab-case, tagless request descriptions |
+| Test Connection for every connection kind | Completed | Probes for docker/podman/wincontainer (CLI on the blocking pool), k8s (API server), qdrant, webdav, nexus |
+| Container read errors carry the command line | Completed | `read_inventory` appends `Command: …` from `Invocation::to_line` |
+| Run for a project without a runnable file, with per-project run settings | Completed | `ProjectEntry.run: RunConfig`; `project::run_command_with`; env set through the shell profile's environment |
+| SSH file pane follows a typed `cd` | Completed | `hs_ssh::cd_target` reads the prompt row on Enter; titles still followed where a prompt sets one |
 | Every activity dashboard laid out as a page | Completed | Terminal, SSH, Containers, Database, NoSQL, Redis, S3, API Client, Graphics, Devtools, Logs - one `hs_ui::dashboard::saved_dashboard` draws band, figures, Start Here, the saved grid and Open Here |
 | Container hosts report their engine version | Completed | `hs_core::versions::ensure_with` caches a closure's answer; engines answer over their CLI, clusters over the API server, asked once per session and blank until they do |
 | Dashboard Add buttons reach the right form | Completed | `settings:connection:new:<kind>` opens Settings -> Connections with an empty form of that kind; `settings:terminal:cli:new` opens an empty CLI form |

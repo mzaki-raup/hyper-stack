@@ -77,6 +77,16 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Clippy must pass with `-D warnings`** on every crate, including Linux.
 
 ## Shell and UI Layout (egui)
+- **Switching workspaces must park the live `TabSpace`, not rebuild
+  it.** Dropping the space drops every tool: the browser's session, an
+  SSH shell, a database connection - and "switch back" rebuilt fresh
+  copies from the saved layout that all had to log in again (owner's
+  report, 2026-10-29). Parking needs tab ids that are unique across
+  spaces (`NEXT_TAB_ID` is process-wide; `TabSpace::new` no longer
+  counts from one), because the browser host, the open-tabs registry
+  and the thumbnails all key on the id. A parked browser tool keeps its
+  hub entry (its `Drop` is what removes it), so the host hides its views
+  rather than destroying them.
 
 - **Shell (2026-10-15).** The first tab of an activity becomes its home tab (`TabSpace::open` asks first). A dashboard home draws whatever it was given, so an `OpenTool` request into an activity the user had never opened was silently dropped ("View Logs" showed the Logs dashboard, not the source). `open_tool_in` now lets the first tab be the dashboard and opens a working tab beside it. Test cross-tool handoffs against a fresh workspace.
 - **Theme.** `Theme::apply` used to call `ctx.set_visuals`, which writes only the visuals slot of egui's current theme. With `ThemePreference::System`, Windows 10 reports the theme after the first frame, egui switched to default light visuals, and a saved dark scheme looked lost. Use `hs_ui::theme::install`. Pin the preference with `ctx.set_theme` and fill both slots with `set_visuals_of`. Never call `set_visuals` directly.
@@ -129,6 +139,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Logs over SSH** use `hs_ssh::SshClient::exec`. Wait on this path in the running app.
 
 ## Tool-Specific: Containers (tool-containers)
+- **"could not reach the engine" against a WSL host leaves three
+  suspects** - `wsl.exe`, the distro name, `docker` on that distro's
+  PATH - and the pane used to name none of them. A read error carries
+  the exact command line now (`Command: wsl.exe -d Ubuntu-24.04 --
+  docker ps ...`), which can be pasted into a terminal. The same
+  profile the owner reported as failing (WSL, Ubuntu-24.04) lists 14
+  containers here, so the next report needs that line.
 
 - **Compose and the container list** share the verb-click risk (see Double layout passes under Shell and UI Layout).
 - **Output must be cleared** when the selected item changes.
@@ -150,11 +167,46 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Review-only assistants** never run the code they produce. Insert and Run exist only for tools that execute.
 
 ## Tool-Specific: API Client (tool-api)
+- **A script that throws on line one writes nothing, and that reads as
+  "variables are not saved".** `pm.environmentVariables.set(...)` is
+  not a Postman API, so the shim had no such object and the TypeError
+  stopped the script before the `pm.globals.set` on the next line ran
+  (owner's report, 2026-10-29). Aliases people guess at are cheap;
+  provide them rather than letting a name decide whether anything at
+  all is written.
+- **Models do not keep to the tag the prompt names.** `#[serde(tag =
+  "op")]` refused `"action"`, `"type"`, `setUrl`, `set-url` and a bare
+  `{"method":..,"url":..}` with "missing field `op`" and Apply did
+  nothing. Normalise before deserialising (`assist::normalise`) - the
+  schema is for the client's benefit, not a test the model has to pass.
 
 - **Partial results.** Keep Postman compatibility: the `pm` scripting object must match Postman's shape.
 - **Multipart and forms.** Build them by hand with `send::form_body` and `send::multipart`. The workspace reqwest has no `form` or `multipart` feature.
 
 ## Tool-Specific: Browser (tool-browser + browser_host)
+- **A WebView2 child holding native focus makes egui refuse focus to
+  every widget.** winit reports the *main window* as unfocused the
+  moment a child HWND takes focus (WM_KILLFOCUS on the main window),
+  and egui's `Memory::begin_pass` drops the focused widget whenever
+  `raw_input.focused` is false - so a click on the address bar drew a
+  field that could never hold a caret, and the tool's own "address bar
+  focused" signal never fired at all (2026-10-29). Nothing the *tool*
+  can say fixes that; the host has to put native focus back on the
+  main window (`SetFocus`) when a click lands on egui rather than on a
+  view, and keep the views disabled (`EnableWindow(false)`) while any
+  egui text field holds focus. Read the state from `ctx` -
+  `egui_wants_keyboard_input()`, `pointer.any_pressed()`,
+  `input.focused` - not from commands the tool may never get to send.
+- **A view's child window appears after `create` returns.** A disable
+  sent in the frame that created the view lands on no HWND; it has to
+  be re-applied on later syncs, and egui has to be kept repainting for
+  a moment after a creation or it goes idle before the window exists
+  (`settle_until`). This is why New Tab specifically lost the keyboard.
+- **`tracing` lines that never appear usually mean the path never ran,
+  not that logging is broken** - but check the file is growing first:
+  the harness's `stop` is a hard kill and the non-blocking appender's
+  last lines go with it. A once-per-two-seconds heartbeat at the top of
+  the suspect function tells the two apart in one run.
 
 - **WebView2 paints above egui.** Hide the view whenever a modal, the palette, or a popup is open (`overlay` in `app.rs`), and whenever the tab isn't visible. The tool reports its rectangle every frame, and the host clears it after use.
 - **JavaScript on/off** is fixed at view creation. Flipping it rebuilds the view (`Cmd` handling in `BrowserHost::sync`).
@@ -162,6 +214,14 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **`open_devtools`** needs the `devtools` feature (see Releases).
 
 ## Tool-Specific: SFTP and Connection Forms
+- **"Follow Shell Folder" cannot depend on the remote prompt.** The
+  xterm title (`user@host: dir`) is set by a configured bash/zsh prompt
+  and by nothing else - a bare `sh`, a root prompt or a minimal
+  `.bashrc` never sets one, and the file pane sat still after every
+  `cd` (owner's report, 2026-10-29). Read the command the user pressed
+  Enter on from the *grid row* (`Session::cursor_line_text`), not from
+  the keystrokes: Tab completion, history recall and a paste never go
+  through the key encoder, and the row is what the shell will run.
 
 - **SFTP `write()`** needs `create()` for new files (see Build and Dependency).
 - **Clipboard copy** from SFTP downloads to `HyperStackData/tmp/` first (see Windows).

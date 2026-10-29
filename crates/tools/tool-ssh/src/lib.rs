@@ -163,6 +163,12 @@ pub struct SshTool {
     /// protected host: the local files and the folder they go into.
     confirm_overwrite: Option<(Vec<PathBuf>, String)>,
     startup_sent: bool,
+    /// Whether the shell had the keyboard last frame, so an Enter can be
+    /// told apart from one typed into the path field or a dialog.
+    term_focused: bool,
+    /// A folder a `cd` on the prompt row is about to land in, listed by
+    /// the file pane once the key has gone to the shell.
+    follow_cd: Option<String>,
     conn_name: String,
     /// The profile's environment, for the banner, the frame and the
     /// protected-host guards (docs/tools/ssh-sftp.md §5).
@@ -297,6 +303,8 @@ impl SshTool {
             confirm_delete: None,
             confirm_overwrite: None,
             startup_sent: false,
+            term_focused: false,
+            follow_cd: None,
             conn_name: String::new(),
             env_id: None,
             tunnel_form: None,
@@ -2206,6 +2214,9 @@ impl Tool for SshTool {
         {
             self.navigate(s, p, true);
         }
+        if let Some(target) = self.follow_cd.take() {
+            self.navigate(s, target, true);
+        }
         self.hostkey_dialog(ui, &theme, s);
         self.prompts(ui, &theme, cx);
         self.entry_menu(ui, cx);
@@ -2254,7 +2265,22 @@ impl Tool for SshTool {
             let ui = &mut term_ui;
             match (&mut self.session, &self.status) {
                 (Some(sess), _) => {
-                    self.view.show(ui, sess, &term_theme);
+                    // A `cd` the user is about to send: read the prompt
+                    // row *before* the key reaches the shell, because
+                    // the shell clears it on Enter. Titles still drive
+                    // the pane where the remote prompt sets one; this
+                    // covers the prompts that never do.
+                    let enter = self.term_focused
+                        && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.any());
+                    if enter && self.state.sync_cwd {
+                        let current = self.shared.lock().remote.path.clone();
+                        if let Some(target) = hs_ssh::cd_target(&sess.cursor_line_text(), &current)
+                        {
+                            self.follow_cd = Some(target);
+                        }
+                    }
+                    let r = self.view.show(ui, sess, &term_theme);
+                    self.term_focused = r.focused;
                 }
                 (None, Status::Connecting) => {
                     ui.add_space(24.0);

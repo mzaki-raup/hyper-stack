@@ -31,6 +31,9 @@ use hs_ui::tip::TipExt;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
+/// How many frames New Tab keeps asking for the address bar's focus.
+const FOCUS_RETRY_FRAMES: u8 = 40;
+
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     id: "browser",
     title_key: "tool-browser",
@@ -342,7 +345,7 @@ impl ToolFactory for BrowserFactory {
             hub: self.hub.clone(),
             state,
             tab_id: 0,
-            focus_address: false,
+            focus_address: 0,
             address_focused: false,
             pending: Vec::new(),
             active_favicon: None,
@@ -364,7 +367,12 @@ pub struct BrowserTool {
     hub: SharedBrowser,
     state: State,
     tab_id: u64,
-    focus_address: bool,
+    /// Frames left to keep asking for the address bar's focus after
+    /// New Tab. A web view created for the new page takes native focus
+    /// when its child window appears a few frames later, the main
+    /// window gets WM_KILLFOCUS and egui drops the field's focus with
+    /// it - so one request is lost (owner's report, 2026-10-29).
+    focus_address: u8,
     /// The address bar had keyboard focus last frame, so the page's own
     /// URL reports must not overwrite what is being typed.
     address_focused: bool,
@@ -809,7 +817,7 @@ impl Tool for BrowserTool {
         if r.new_tab {
             let home = s.settings.read().browser.home_url.clone();
             self.open_url(&home, s);
-            self.focus_address = true;
+            self.focus_address = FOCUS_RETRY_FRAMES;
         }
         let mut close = Vec::new();
         if let Some(id) = r.close {
@@ -891,9 +899,16 @@ impl Tool for BrowserTool {
                     .hint_text(s.t("browser-address-hint"))
                     .desired_width(w),
             );
-            if self.focus_address {
-                resp.request_focus();
-                self.focus_address = false;
+            if self.focus_address > 0 {
+                if resp.has_focus() && self.focus_address < FOCUS_RETRY_FRAMES {
+                    // It took: stop asking, or a click elsewhere would
+                    // be undone.
+                    self.focus_address = 0;
+                } else {
+                    resp.request_focus();
+                    self.focus_address -= 1;
+                    ui.ctx().request_repaint();
+                }
             }
             // The moment the field takes focus, ask the host for the
             // keyboard back; the web view does not give it up by itself.
@@ -906,6 +921,9 @@ impl Tool for BrowserTool {
             // allowed to, so this is a state the host has to hold, not an
             // event it can act on once.
             if focused || self.address_focused {
+                if focused != self.address_focused {
+                    tracing::debug!(focused, "browser tool: address bar focus");
+                }
                 self.pending.push(Cmd::AddressFocus(focused));
             }
             self.address_focused = focused;
@@ -1169,7 +1187,7 @@ impl Tool for BrowserTool {
             "browser.new_tab" => {
                 let home = cx.services.settings.read().browser.home_url.clone();
                 self.open_url(&home, cx.services);
-                self.focus_address = true;
+                self.focus_address = FOCUS_RETRY_FRAMES;
             }
             "browser.reload" => self.pending.push(Cmd::Reload(page)),
             "browser.devtools" => {

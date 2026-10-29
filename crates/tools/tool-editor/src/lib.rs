@@ -2370,15 +2370,36 @@ impl EditorTool {
     /// when the root has one, else the interpreter for the file type.
     fn run_plan(&mut self, s: &Services) -> Option<(PathBuf, String)> {
         let project = self.projects[self.active].detected();
-        let d = self.doc();
-        let path = d.path.as_ref()?.clone();
+        let root = self.projects[self.active].root.clone();
+        let run = self.run_config(s);
         let st = s.settings.read();
-        run_plan_with(
-            &path,
-            self.projects[self.active].root.as_deref(),
-            project.as_ref(),
-            &st.editor,
-        )
+        if let Some(path) = self.doc().path.clone()
+            && let Some(plan) = run_plan_with(&path, root.as_deref(), project.as_ref(), &st.editor)
+        {
+            // A file the project owns runs as the project: its run
+            // settings apply there too.
+            if let (Some(p), Some(r)) = (project.as_ref(), root.as_ref())
+                && plan.0 == *r
+            {
+                return Some((plan.0, project::run_command_with(p, &st.editor, &run)));
+            }
+            return Some(plan);
+        }
+        // No runnable file in front, but the folder is a project: run
+        // the project. A web application was unrunnable with its YAML
+        // open and only Build on offer (owner's report, 2026-10-29).
+        let (root, p) = (root?, project?);
+        Some((root, project::run_command_with(&p, &st.editor, &run)))
+    }
+
+    /// The saved run settings for this tab's project, if it is in the
+    /// workspace's list; a folder opened without being saved runs bare.
+    fn run_config(&self, s: &Services) -> hs_core::projects::RunConfig {
+        self.projects[self.active]
+            .root
+            .as_ref()
+            .and_then(|r| s.projects.read().by_root(r).map(|e| e.run.clone()))
+            .unwrap_or_default()
     }
 
     /// Ctrl+F5: continue a stopped session, start the last configuration
@@ -2439,7 +2460,9 @@ impl EditorTool {
         // activity to watch it is what interrupts it.
         // Owner's report, 2026-10-18.
         let web = self.project().is_some_and(|p| p.web);
-        self.terminal.run(cx.services, Some(&cwd), &cmd, web);
+        let env = self.run_config(cx.services).environment();
+        self.terminal
+            .run_with_env(cx.services, Some(&cwd), &cmd, web, &env);
     }
 
     /// The project this tab's folder holds (Maven, Gradle, Cargo, npm, …).

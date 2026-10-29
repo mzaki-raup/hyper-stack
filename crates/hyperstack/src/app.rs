@@ -214,12 +214,33 @@ enum PortableDialog {
     Import,
 }
 
+/// A workspace's tabs, kept alive while another workspace is in front.
+///
+/// Switching workspaces used to drop the whole `TabSpace` and rebuild
+/// the target's from its saved layout - every tool with it. A browser
+/// tab lost its session, an SSH tab its shell, a database tab its
+/// connection, and switching back got a fresh copy of each that had to
+/// log in again (owner's report, 2026-10-29). Now the leaving
+/// workspace's space is parked here, tools and all, and taken back out
+/// when the workspace is returned to. A parked tool is never drawn, so
+/// it holds exactly the state it had, and the browser host keeps its
+/// web views hidden rather than destroyed because the tool - and its
+/// entry in the hub - is still alive.
+struct ParkedWorkspace {
+    tabs: TabSpace,
+    group: Option<String>,
+    sidebar_open: bool,
+    dock_open: bool,
+}
+
 pub struct HyperStackApp {
     services: Services,
     registry: Registry,
     factories: Vec<Box<dyn ToolFactory>>,
     theme: Theme,
     tabs: TabSpace,
+    /// Tabs of the workspaces that are not in front, by workspace name.
+    parked: HashMap<String, ParkedWorkspace>,
     /// The component whose tabs the strip shows (a factory id); the rail switches it.
     group: Option<String>,
     window_state: crate::window_state::WindowState,
@@ -358,6 +379,7 @@ impl HyperStackApp {
             factories,
             theme,
             tabs: TabSpace::new(),
+            parked: HashMap::new(),
             group: None,
             window_state: crate::window_state::WindowState::default(),
             window_poll: Instant::now(),
@@ -750,6 +772,46 @@ impl HyperStackApp {
         self.tabs.dirty = false;
         self.layout_dirty_since = None;
         self.last_layout_save = Instant::now();
+    }
+
+    /// Bring `name` in front, keeping the workspace being left alive.
+    ///
+    /// The leaving workspace's tabs are parked, tools and all; the
+    /// target's are taken back out if it was parked earlier, or built
+    /// from its saved layout the first time it is opened this session.
+    /// Either way the layout on disk is written first, so a crash
+    /// between here and the next save loses nothing.
+    fn switch_to_workspace(&mut self, name: &str) {
+        let leaving = self.services.workspace.read().meta.name.clone();
+        if leaving == name {
+            return;
+        }
+        self.save_layout();
+        match bootstrap::switch_workspace(&self.services, &mut self.registry, name) {
+            Ok(()) => {
+                let parked = ParkedWorkspace {
+                    tabs: std::mem::take(&mut self.tabs),
+                    group: self.group.take(),
+                    sidebar_open: self.sidebar_open,
+                    dock_open: self.dock_open,
+                };
+                self.parked.insert(leaving, parked);
+                match self.parked.remove(name) {
+                    Some(p) => {
+                        self.tabs = p.tabs;
+                        self.group = p.group;
+                        self.sidebar_open = p.sidebar_open;
+                        self.dock_open = p.dock_open;
+                        self.tabs.dirty = true;
+                    }
+                    None => {
+                        self.tabs = TabSpace::new();
+                        self.restore_layout();
+                    }
+                }
+            }
+            Err(e) => self.toasts.push(ToastLevel::Error, e),
+        }
     }
 
     /// Settings live in one tab: focus it if open, else open it; optionally jump to a page.
@@ -1360,14 +1422,7 @@ impl HyperStackApp {
                         delete_files: false,
                     };
                 } else if let Some(ws) = other.strip_prefix("ws:") {
-                    self.save_layout();
-                    match bootstrap::switch_workspace(&self.services, &mut self.registry, ws) {
-                        Ok(()) => {
-                            self.tabs = TabSpace::new();
-                            self.restore_layout();
-                        }
-                        Err(e) => self.toasts.push(ToastLevel::Error, e),
-                    }
+                    self.switch_to_workspace(ws);
                 } else if let Some(tool) = other.strip_prefix("open:") {
                     self.open_tool(tool, None);
                 } else if let Some(rest) = other.strip_prefix("qo:")
@@ -2342,20 +2397,13 @@ impl HyperStackApp {
             .create(&self.services.paths, name, source.as_ref(), icon);
         match result {
             Ok(_) => {
-                self.save_layout();
-                match bootstrap::switch_workspace(&self.services, &mut self.registry, name) {
-                    Ok(()) => {
-                        self.tabs = TabSpace::new();
-                        self.restore_layout();
-                        self.toasts.push(
-                            ToastLevel::Success,
-                            self.services
-                                .i18n
-                                .t_args("workspace-created", &[("name", name)]),
-                        );
-                    }
-                    Err(e) => self.toasts.push(ToastLevel::Error, e),
-                }
+                self.switch_to_workspace(name);
+                self.toasts.push(
+                    ToastLevel::Success,
+                    self.services
+                        .i18n
+                        .t_args("workspace-created", &[("name", name)]),
+                );
             }
             Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
         }
@@ -2375,14 +2423,9 @@ impl HyperStackApp {
         };
         let switch_away = self.services.workspace.read().meta.name == name;
         if switch_away {
-            self.save_layout();
-            if let Err(e) = bootstrap::switch_workspace(&self.services, &mut self.registry, &next) {
-                self.toasts.push(ToastLevel::Error, e);
-                return;
-            }
-            self.tabs = TabSpace::new();
-            self.restore_layout();
+            self.switch_to_workspace(&next);
         }
+        self.parked.remove(name);
         // A startup preference pointing at the deleted workspace would
         // fail at the next launch; the registry's own fallback takes over.
         if self.services.settings.read().general.startup_workspace == name {
@@ -3873,6 +3916,7 @@ impl eframe::App for HyperStackApp {
     /// out.
     fn on_exit(&mut self) {
         self.tabs.tabs.clear();
+        self.parked.clear();
         // The process leaves through `std::process::exit`, which runs no
         // destructors: flush the log here or its last lines are lost.
         self.logging.flush();

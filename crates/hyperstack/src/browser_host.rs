@@ -17,6 +17,12 @@ mod imp {
 
     struct View {
         webview: wry::WebView,
+        /// Whether the child window is enabled - `false` while the
+        /// address bar holds the keyboard. Kept here so every sync can
+        /// re-apply it: WebView2 creates its child window a beat after
+        /// `create` returns, and a disable sent before that lands on
+        /// nothing (New Tab, 2026-10-29).
+        keyboard: bool,
         javascript: bool,
         adblock: bool,
         dark: bool,
@@ -28,6 +34,18 @@ mod imp {
 
     pub struct BrowserHost {
         views: HashMap<u64, View>,
+        /// Whether the address bar holds the keyboard right now. Every
+        /// view is disabled while it does - and a view created in the
+        /// same frame has to be born that way, or it takes the keyboard
+        /// back before the field has typed a letter (New Tab, 2026-10-29).
+        address_focused: bool,
+        /// What the browser tool last said about its address bar; folded
+        /// into `address_focused` with egui's own focus state.
+        tool_address_focused: bool,
+        /// Keep syncing for a moment after a view is created: its child
+        /// window appears asynchronously, and the frame that created it
+        /// is usually the last one egui paints before going idle.
+        settle_until: Option<std::time::Instant>,
         events: Arc<Mutex<Vec<HostEvent>>>,
         blocklist: Arc<RwLock<Vec<String>>>,
         failed: Option<String>,
@@ -46,6 +64,9 @@ mod imp {
         fn default() -> Self {
             Self {
                 views: HashMap::new(),
+                address_focused: false,
+                tool_address_focused: false,
+                settle_until: None,
                 events: Arc::new(Mutex::new(Vec::new())),
                 blocklist: Arc::new(RwLock::new(Vec::new())),
                 failed: None,
@@ -142,6 +163,7 @@ mod imp {
                 let _ = webview.zoom(page.zoom);
             }
             Ok(View {
+                keyboard: true,
                 webview,
                 javascript: page.javascript,
                 adblock: page.adblock,
@@ -286,24 +308,12 @@ mod imp {
                             continue;
                         }
                         Cmd::AddressFocus(on) => {
-                            // Asking politely does not work: `SetFocus` on
-                            // the parent and wry's own `focus_parent` both
-                            // hand the keyboard over and the WebView2 child
-                            // takes it straight back on its next message,
-                            // so the address bar could never be typed into.
-                            // A *disabled* window cannot be focused at all,
-                            // which is the only thing that holds. It is
-                            // enabled again the moment the field gives the
-                            // keyboard up.
-                            for v in self.views.values() {
-                                enable_webview(&v.webview, !*on);
+                            // Recorded here, applied below to every view
+                            // on every sync - see `enforce_keyboard`.
+                            if self.tool_address_focused != *on {
+                                tracing::debug!(on, "browser host: address bar focus");
                             }
-                            if *on {
-                                for v in self.views.values() {
-                                    let _ = v.webview.focus_parent();
-                                }
-                                refocus_parent(frame);
-                            }
+                            self.tool_address_focused = *on;
                             continue;
                         }
                         Cmd::ClearData(id) => {
@@ -407,6 +417,9 @@ mod imp {
                     Ok(v) => {
                         shown.insert(page.id);
                         self.views.insert(page.id, v);
+                        self.settle_until = Some(
+                            std::time::Instant::now() + std::time::Duration::from_millis(1500),
+                        );
                     }
                     Err(e) => {
                         tracing::warn!("browser host: {e}");
@@ -484,9 +497,82 @@ mod imp {
                 refocus_parent(frame);
                 ctx.request_repaint();
             }
+            // Who should have the keyboard. A WebView2 child that holds
+            // native focus makes winit report the *main window* as
+            // unfocused, and egui then refuses to give any widget focus
+            // - so a click on the address bar drew a field that could
+            // not be typed into, and the tool's own "address bar is
+            // focused" signal never fired at all. The host reads egui's
+            // state directly: a click landing on egui rather than on a
+            // view takes native focus back, and while any egui text
+            // field holds focus the views are kept disabled so the child
+            // cannot take it again on its next message (2026-10-29).
+            let typing = ctx.egui_wants_keyboard_input();
+            let (pressed, at) = ctx.input(|i| (i.pointer.any_pressed(), i.pointer.interact_pos()));
+            let over_view = at.is_some_and(|p| {
+                self.views
+                    .values()
+                    .any(|v| v.visible && v.bounds.contains(p))
+            });
+            let window_focused = ctx.input(|i| i.focused);
+            self.address_focused = typing || self.tool_address_focused;
+            self.enforce_keyboard(frame);
+            if (pressed && !over_view && !window_focused) || (typing && !window_focused) {
+                refocus_parent(frame);
+                ctx.request_repaint();
+            }
+            if let Some(until) = self.settle_until {
+                if std::time::Instant::now() < until {
+                    // While a new view settles, keep the keyboard on the
+                    // main window if the address bar wants it: the child
+                    // takes it on creation and again when its first
+                    // navigation completes.
+                    if self.address_focused {
+                        refocus_parent(frame);
+                    }
+                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                } else {
+                    self.settle_until = None;
+                }
+            }
             hub.events.append(&mut self.events.lock());
             if !hub.events.is_empty() {
                 ctx.request_repaint();
+            }
+        }
+
+        /// Hold the keyboard where the address bar wants it.
+        ///
+        /// Asking politely does not work: `SetFocus` on the parent and
+        /// wry's own `focus_parent` both hand the keyboard over and the
+        /// WebView2 child takes it straight back on its next message, so
+        /// the address bar could never be typed into. A *disabled*
+        /// window cannot be focused at all, which is the only thing that
+        /// holds; it is enabled again the moment the field gives the
+        /// keyboard up. Done every sync rather than once per request,
+        /// because a view's child window may not exist yet when the
+        /// request comes - the New Tab case - and a disable sent then
+        /// lands on nothing (owner's report, 2026-10-29).
+        fn enforce_keyboard(&mut self, frame: &eframe::Frame) {
+            let want = !self.address_focused;
+            let mut took_back = false;
+            for v in self.views.values_mut() {
+                if v.keyboard != want {
+                    enable_webview(&v.webview, want);
+                    // Only count it applied once the child exists.
+                    use wry::WebViewExtWindows;
+                    let hwnd = v.webview.hwnd().0 as isize;
+                    if hwnd != 0 {
+                        v.keyboard = want;
+                        if !want {
+                            let _ = v.webview.focus_parent();
+                            took_back = true;
+                        }
+                    }
+                }
+            }
+            if took_back {
+                refocus_parent(frame);
             }
         }
     }

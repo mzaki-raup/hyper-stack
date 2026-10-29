@@ -10,6 +10,7 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+tracing = { workspace = true }
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
 egui = { workspace = true }

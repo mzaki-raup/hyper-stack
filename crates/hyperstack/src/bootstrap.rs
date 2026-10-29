@@ -120,10 +120,13 @@ pub fn switch_workspace(
     let ws = registry
         .open(&services.paths, name)
         .map_err(|e| e.to_string())?;
-    // Forwards go through the old workspace's SSH profiles.
-    for t in services.tunnels.list() {
-        services.tunnels.stop(t.id);
-    }
+    // Tunnels are left running. They were stopped here once because a
+    // forward goes through the old workspace's SSH profile - but a
+    // workspace switch keeps every open tab of the old workspace alive
+    // now (parked in the shell, resumed on the way back), and a shell
+    // whose tunnel was cut under it is exactly the "switching logs me
+    // out" the owner reported (2026-10-29). A tunnel carries its own
+    // configuration; it does not need the profile list it came from.
     *services.connections.write() = Connections::load(&ws.connections_dir());
     *services.projects.write() = hs_core::projects::Projects::load(&ws.projects_file());
     let mut envs = Environments::load(&ws.environments_dir());

@@ -838,8 +838,10 @@ impl ContainersTool {
 /// an engine cannot list volumes would be the wrong trade.
 fn read_inventory(engine: &hs_container::Engine) -> Result<Inventory, String> {
     use hs_container::run;
-    let version = run::probe(engine).map_err(|e| e.to_string())?;
-    let containers = run::containers(engine).map_err(|e| e.to_string())?;
+    let said =
+        |e: run::Error, inv: hs_container::Invocation| format!("{e}\n\nCommand: {}", inv.to_line());
+    let version = run::probe(engine).map_err(|e| said(e, engine.version()))?;
+    let containers = run::containers(engine).map_err(|e| said(e, engine.list_containers()))?;
     let image_list = run::images(engine).unwrap_or_default();
     let volume_list = run::volumes(engine).unwrap_or_default();
     let network_list = run::networks(engine).unwrap_or_default();

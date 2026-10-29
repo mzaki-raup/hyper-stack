@@ -593,6 +593,15 @@ root, language, order and the repository identity).
   sidebar row and the header band's `Version : Rust 1.89.0` fact
   (`tool-editor::langver`, which asks the toolchain once per session on
   the blocking pool).
+- **Run settings** (2026-10-29): a project's **Run** card in Settings
+  carries Spring profiles (`SPRING_PROFILES_ACTIVE`), Maven/Gradle `-P`
+  profiles, a goal or task that replaces `spring-boot:run` / `exec:java`
+  / `bootRun` / `run`, extra arguments, JVM arguments (`JAVA_TOOL_OPTIONS`)
+  and `KEY=VALUE` environment lines. The flags go on the command line
+  (`project::run_command_with`); the environment is set on the shell
+  Run starts, so it reaches the application whatever the shell is. Run
+  is offered for a project folder whether or not a runnable file is in
+  front.
 - **The dashboard** is laid out as the Scratchpad's is (2026-10-27): a
   band with the activity's mark, name and subtitle; the **Projects** and
   **Open Tabs** figures in equal rounded boxes; **Start Here** with Add

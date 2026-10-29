@@ -286,6 +286,16 @@ the grid would not. Owner and group changes were already real `chown`
 commands and stay that way, because there is no SFTP operation for them.
 Owner's requirement, 2026-10-17.
 
+## Follow Shell Folder (2026-10-29)
+
+The file pane follows the shell two ways. An xterm title of the form
+`user@host: dir` still moves it, for prompts that set one. Independently,
+when Enter is pressed in the shell the prompt row is read from the grid
+(`Session::cursor_line_text`) and a `cd` on it - `cd x`, `cd ..`, `cd
+/abs`, `cd ~`, `cd "a dir"`, or the last command of `a && cd b` - names
+the folder the pane lists next (`hs_ssh::cd_target`). `cd -` is left
+alone, because the pane does not know the shell's previous folder.
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

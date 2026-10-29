@@ -11,6 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Collection variables compare with - and sync from - another
+  collection, in this workspace or any other.** The collection's
+  detail in Settings -> Environments gains **Compare With…**: pick a
+  workspace and a collection, see every key as New, Same or Differs
+  (with both values), tick what to bring over, or **Sync All** to make
+  every value the source has read the same here. Keys only this
+  collection has are kept; Save writes the result.
+
 - (nothing yet)
 
 ## 0.96.0 — 2026-10-29

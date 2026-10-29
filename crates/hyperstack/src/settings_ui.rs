@@ -167,6 +167,8 @@ pub struct SettingsState {
     /// place of an environment (owner's requirement, 2026-10-29).
     pub var_source: Option<VarSource>,
     pub var_draft: Vec<KvRow>,
+    /// The "Compare With…" dialog over a collection's variables.
+    pub col_copy: Option<ColCopyState>,
     pub conn_selected: Option<String>,
     pub conn_draft: Option<(ConnectionProfile, String)>,
     /// Settings -> Editor -> Project List: which project is open for
@@ -269,6 +271,17 @@ pub struct EnvCopyState {
     pub selected: std::collections::HashSet<String>,
     /// The (workspace, env) the `selected` set was seeded for, so a changed
     /// source re-seeds the ticks (missing keys on by default).
+    pub seeded_for: Option<(String, String)>,
+}
+
+/// The compare/copy/sync dialog for a collection's variables: another
+/// collection of this or any workspace is the source (owner's
+/// requirement, 2026-10-29).
+#[derive(Default)]
+pub struct ColCopyState {
+    pub source_ws: String,
+    pub source_col: String,
+    pub selected: std::collections::HashSet<String>,
     pub seeded_for: Option<(String, String)>,
 }
 
@@ -2292,8 +2305,21 @@ fn variable_set_detail(
             s.t("settings-global-vars-detail-hint"),
         ),
     };
+    let mut open_compare = false;
     form::section(ui, theme, &title, |ui| {
         form::hint(ui, theme, &hint);
+        if matches!(source, VarSource::Collection(..))
+            && ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+                    s.t("col-compare")
+                ))
+                .tip(s.t("col-compare-hint"))
+                .clicked()
+        {
+            open_compare = true;
+        }
         ui.add_space(6.0);
         KvEditor {
             theme,
@@ -2304,6 +2330,13 @@ fn variable_set_detail(
         }
         .show(ui, &mut state.var_draft);
     });
+    if open_compare {
+        state.col_copy = Some(ColCopyState {
+            source_ws: s.workspace.read().meta.name.clone(),
+            ..Default::default()
+        });
+    }
+    collection_copy_dialog(ui, theme, s, state, effects);
     ui.horizontal(|ui| {
         if form::primary_button(ui, theme, &s.t("save")).clicked() {
             let values = rows_to_kv(&state.var_draft);
@@ -2358,6 +2391,267 @@ fn variable_set_detail(
             state.var_draft.clear();
         }
     });
+}
+
+/// The collections of a workspace, by name, with their variables:
+/// `(id, name, sorted vars)`. The current workspace is read from disk
+/// too, which is what the API tabs write to, so what the dialog shows
+/// is what a request would see.
+fn collections_of(s: &Services, ws_name: &str) -> Vec<SourceEnv> {
+    let current = s.workspace.read().meta.name.clone();
+    let root = if ws_name == current {
+        Some(s.workspace.read().root().to_path_buf())
+    } else {
+        let registry = hs_core::workspace::Registry::load(&s.paths);
+        registry
+            .workspaces
+            .iter()
+            .find(|w| w.name == ws_name)
+            .map(|w| s.paths.resolve_path(&w.path))
+    };
+    let Some(root) = root else {
+        return Vec::new();
+    };
+    let mut out: Vec<SourceEnv> =
+        tool_api::model::Collection::load_all(&root.join("api").join("collections"))
+            .into_iter()
+            .map(|c| {
+                let mut v: Vec<(String, String)> = c
+                    .variables
+                    .iter()
+                    .filter(|k| k.enabled && !k.key.trim().is_empty())
+                    .map(|k| (k.key.clone(), k.value.clone()))
+                    .collect();
+                v.sort();
+                (c.id, c.name, v)
+            })
+            .collect();
+    out.sort_by(|a, b| a.1.cmp(&b.1));
+    out
+}
+
+/// "Compare With…" over a collection's variables: pick a source
+/// collection in this or any workspace, see every key as New, Same or
+/// Differs against the draft, and either copy the ticked keys or sync
+/// the lot. Sync makes this collection's value match the source's for
+/// every key the source has and keeps the keys only this one has - a
+/// sync that deleted would be a surprise nobody asked for. Changes land
+/// in the draft; Save writes them.
+fn collection_copy_dialog(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    if state.col_copy.is_none() {
+        return;
+    }
+    let Some(VarSource::Collection(target_id, target_name)) = state.var_source.clone() else {
+        state.col_copy = None;
+        return;
+    };
+    let target: std::collections::HashMap<String, String> = state
+        .var_draft
+        .iter()
+        .filter(|r| !r.key.trim().is_empty())
+        .map(|r| (r.key.trim().to_string(), r.value.clone()))
+        .collect();
+
+    let registry = hs_core::workspace::Registry::load(&s.paths);
+    let ws_names = registry.names();
+    let current_ws = s.workspace.read().meta.name.clone();
+    let cp = state.col_copy.as_mut().unwrap();
+    if cp.source_ws.is_empty() || !ws_names.contains(&cp.source_ws) {
+        cp.source_ws = current_ws.clone();
+    }
+    // The collection being edited is not a source for itself.
+    let sources: Vec<SourceEnv> = collections_of(s, &cp.source_ws)
+        .into_iter()
+        .filter(|(id, ..)| !(cp.source_ws == current_ws && *id == target_id))
+        .collect();
+    if cp.source_col.is_empty() || !sources.iter().any(|(id, ..)| *id == cp.source_col) {
+        cp.source_col = sources
+            .first()
+            .map(|(id, ..)| id.clone())
+            .unwrap_or_default();
+    }
+    let source_vars: Vec<(String, String)> = sources
+        .iter()
+        .find(|(id, ..)| *id == cp.source_col)
+        .map(|(.., v)| v.clone())
+        .unwrap_or_default();
+    // Ticks default to everything the target lacks or has differently.
+    let seed_key = (cp.source_ws.clone(), cp.source_col.clone());
+    if cp.seeded_for.as_ref() != Some(&seed_key) {
+        cp.selected = source_vars
+            .iter()
+            .filter(|(k, v)| target.get(k) != Some(v))
+            .map(|(k, _)| k.clone())
+            .collect();
+        cp.seeded_for = Some(seed_key);
+    }
+
+    let mut apply: Option<Vec<(String, String)>> = None;
+    let mut cancel = false;
+    let modal = egui::Modal::new(egui::Id::new("hs-col-copy")).show(ui.ctx(), |ui| {
+        ui.set_width(560.0);
+        ui.heading(s.t("col-compare-title"));
+        ui.add_space(6.0);
+        ui.label(s.i18n.t_args("col-compare-into", &[("name", &target_name)]));
+        ui.add_space(10.0);
+        let cp = state.col_copy.as_mut().unwrap();
+        egui::Grid::new("col-copy-src")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label(s.t("env-copy-workspace"));
+                egui::ComboBox::from_id_salt("col-copy-ws")
+                    .selected_text(&cp.source_ws)
+                    .show_ui(ui, |ui| {
+                        for n in &ws_names {
+                            ui.selectable_value(&mut cp.source_ws, n.clone(), n);
+                        }
+                    });
+                ui.end_row();
+                ui.label(s.t("col-compare-collection"));
+                let sel_name = sources
+                    .iter()
+                    .find(|(id, ..)| *id == cp.source_col)
+                    .map(|(_, n, _)| n.clone())
+                    .unwrap_or_else(|| "—".into());
+                egui::ComboBox::from_id_salt("col-copy-col")
+                    .selected_text(sel_name)
+                    .show_ui(ui, |ui| {
+                        for (id, name, _) in &sources {
+                            ui.selectable_value(&mut cp.source_col, id.clone(), name);
+                        }
+                    });
+                ui.end_row();
+            });
+        ui.add_space(8.0);
+        ui.separator();
+        if source_vars.is_empty() {
+            form::hint(ui, theme, &s.t("col-compare-empty"));
+        } else {
+            ui.horizontal(|ui| {
+                if ui.button(s.t("env-copy-all")).clicked() {
+                    cp.selected = source_vars.iter().map(|(k, _)| k.clone()).collect();
+                }
+                if ui.button(s.t("col-compare-changed")).clicked() {
+                    cp.selected = source_vars
+                        .iter()
+                        .filter(|(k, v)| target.get(k) != Some(v))
+                        .map(|(k, _)| k.clone())
+                        .collect();
+                }
+                if ui.button(s.t("env-copy-none-btn")).clicked() {
+                    cp.selected.clear();
+                }
+            });
+            ui.add_space(6.0);
+            egui::ScrollArea::vertical()
+                .max_height(320.0)
+                .show(ui, |ui| {
+                    for (k, v) in &source_vars {
+                        ui.horizontal(|ui| {
+                            let mut on = cp.selected.contains(k);
+                            if ui.checkbox(&mut on, "").changed() {
+                                if on {
+                                    cp.selected.insert(k.clone());
+                                } else {
+                                    cp.selected.remove(k);
+                                }
+                            }
+                            // New: not here. Same: here with this value.
+                            // Differs: here with another value - the
+                            // case a compare exists for.
+                            let tag = match target.get(k) {
+                                None => egui::RichText::new(s.t("env-copy-new"))
+                                    .small()
+                                    .color(theme.success),
+                                Some(t) if t == v => egui::RichText::new(s.t("col-compare-same"))
+                                    .small()
+                                    .color(theme.text_muted),
+                                Some(_) => egui::RichText::new(s.t("col-compare-differs"))
+                                    .small()
+                                    .color(theme.warning),
+                            };
+                            ui.label(egui::RichText::new(k).strong());
+                            ui.label(tag);
+                            let preview: String = v.chars().take(40).collect();
+                            ui.label(egui::RichText::new(preview).color(theme.text_muted));
+                            if let Some(t) = target.get(k)
+                                && t != v
+                            {
+                                let here: String = t.chars().take(24).collect();
+                                ui.label(
+                                    egui::RichText::new(
+                                        s.i18n.t_args("col-compare-here", &[("value", &here)]),
+                                    )
+                                    .small()
+                                    .color(theme.text_muted),
+                                );
+                            }
+                        });
+                    }
+                });
+        }
+        ui.add_space(10.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let n = cp.selected.len();
+            let label = s.i18n.t_args("env-copy-apply", &[("n", &n.to_string())]);
+            if ui.add_enabled(n > 0, egui::Button::new(label)).clicked() {
+                apply = Some(
+                    source_vars
+                        .iter()
+                        .filter(|(k, _)| cp.selected.contains(k))
+                        .cloned()
+                        .collect(),
+                );
+            }
+            if ui
+                .add_enabled(
+                    !source_vars.is_empty(),
+                    egui::Button::new(s.t("col-sync-all")),
+                )
+                .tip(s.t("col-sync-all-hint"))
+                .clicked()
+            {
+                apply = Some(source_vars.clone());
+            }
+            if ui.button(s.t("cancel")).clicked() {
+                cancel = true;
+            }
+        });
+    });
+    if modal.should_close() {
+        cancel = true;
+    }
+
+    if let Some(pairs) = apply {
+        for (k, v) in &pairs {
+            if let Some(row) = state.var_draft.iter_mut().find(|r| r.key.trim() == k) {
+                row.value = v.clone();
+                row.enabled = true;
+            } else {
+                state.var_draft.push(KvRow {
+                    enabled: true,
+                    key: k.clone(),
+                    value: v.clone(),
+                    secret: false,
+                });
+            }
+        }
+        state.var_draft.sort_by(|a, b| a.key.cmp(&b.key));
+        effects.push(SettingsEffect::Toast(
+            hs_core::tool::ToastLevel::Success,
+            s.i18n
+                .t_args("col-compare-done", &[("n", &pairs.len().to_string())]),
+        ));
+        state.col_copy = None;
+    } else if cancel {
+        state.col_copy = None;
+    }
 }
 
 /// One source environment for the copy dialog: `(id, name, sorted vars)`.

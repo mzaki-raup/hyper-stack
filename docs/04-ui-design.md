@@ -955,4 +955,11 @@ and **Global Variables** (the one application-wide set). Picking a row
 in any card clears the other two selections. Collection and global
 variables use the same `KvEditor` as an environment, without the secret
 toggle, and Save writes straight to the collection file or
-`globals.json`.
+`globals.json`. A collection's detail also has **Compare With…**, the
+environment card's copy dialog reshaped for collections: a source
+workspace and collection (any workspace in the registry, read from
+disk), each key tagged New / Same / Differs with both values shown,
+Copy Selected for the ticked keys, and **Sync All**, which makes every
+value the source has read the same in this collection while keeping the
+keys only this one has - a sync that deleted would be a surprise. The
+dialog edits the draft; Save writes it.

@@ -7,10 +7,12 @@
 //! touches git goes through `hs-git` on the blocking pool; the UI thread
 //! only ever reads the last answer.
 
+pub mod auth;
 mod blame;
 mod conflict;
 mod diffview;
 mod history;
+pub mod hosts;
 mod pane;
 mod tree;
 mod verbs;
@@ -109,6 +111,7 @@ impl GitTool {
         self.state.icon = entry.icon.clone();
         self.state.image = None;
         self.pane.set_root(s, entry.path.clone());
+        self.pane.set_credential(&entry.credential);
     }
 
     /// The glyph for this repository: the chosen icon, else its

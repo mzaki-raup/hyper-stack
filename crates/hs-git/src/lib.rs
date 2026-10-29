@@ -41,8 +41,10 @@ fn git(root: &Path, args: &[&str]) -> Result<Vec<u8>> {
 }
 
 /// `git` with extra environment variables, for the operations that need an
-/// editor or a sequence editor the app controls (`rebase -i`).
-pub(crate) fn git_with_env(root: &Path, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
+/// editor or a sequence editor the app controls (`rebase -i`), or a
+/// credential helper the Git activity hands a token through
+/// (`write::credential_env`).
+pub fn git_with_env(root: &Path, args: &[&str], env: &[(&str, &str)]) -> Result<Vec<u8>> {
     let mut cmd = hs_core::paths::background_command("git");
     cmd.arg("-C")
         .arg(root)

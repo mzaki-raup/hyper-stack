@@ -230,7 +230,15 @@ bounded slice of the diff; never the token.
 
 ## 8. Phases
 
-Status: **phase 2 landed 2026-10-29** - the tree, History with the
+Status: **phase 3 landed 2026-10-29** - the verbs (`tool-git::verbs`:
+Branch, Merge, Rebase and Interactive Rebase, Stash, Tag, Git Flow,
+Rename, Remote panels), the tree's and History's context menus, the
+paused-operation bar and the guards. Git Flow writes nothing into the
+repository's config: the names live in Settings → Git → Git Flow and
+the panel builds plain git from them. Phase 2 landed earlier the same
+day.
+
+Phase 2 status: **landed 2026-10-29** - the tree, History with the
 graph, commit details and file diffs, Blame, per-hunk Stage / Unstage /
 Discard, the conflict editor, File History; and uploaded repository
 icons (§3, Icon). Phase 1 landed earlier the same day.

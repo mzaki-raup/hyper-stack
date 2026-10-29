@@ -123,6 +123,11 @@ individually ("JWT", "Cron") and can be pinned.
 
 ## 3. Interaction model
 
+A utility tab draws a toolbar row (2026-10-29): the utility's icon and
+name on the left, the hard-right corner reserved for an AI Assistant
+control (`hs_ui::toolbar::hard_right`) once a utility has one. The
+dashboard home tab draws no toolbar.
+
 - Each utility is a tab or a **popover** (from the palette: "JWT: decode
   clipboard") that shows the result and offers "Open in tab".
 - Input sources: paste, type, drop a file, "from selection" of the active

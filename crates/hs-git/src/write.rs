@@ -250,6 +250,57 @@ pub fn merge(root: &Path, source: &str, no_commit: bool, squash: bool) -> Result
     git(root, &args).map(|out| String::from_utf8_lossy(&out).to_string())
 }
 
+/// [`merge`] with every switch the Git activity's panel offers:
+/// `--no-ff` keeps a merge commit even for a fast-forward (what git-flow
+/// does when finishing a branch), the rest as in [`merge`].
+pub fn merge_with(
+    root: &Path,
+    source: &str,
+    no_ff: bool,
+    no_commit: bool,
+    squash: bool,
+) -> Result<String> {
+    let mut args = vec!["merge"];
+    if no_ff {
+        args.push("--no-ff");
+    }
+    if no_commit {
+        args.push("--no-commit");
+    }
+    if squash {
+        args.push("--squash");
+    }
+    args.push(source);
+    git(root, &args).map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// Fetch one remote (`--prune` drops the remote-tracking branches it no
+/// longer has).
+pub fn fetch_remote(root: &Path, remote: &str, prune: bool) -> Result<String> {
+    let mut args = vec!["fetch", remote];
+    if prune {
+        args.push("--prune");
+    }
+    git(root, &args).map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// Delete a branch on a remote (`push <remote> --delete <branch>`).
+pub fn delete_remote_branch(root: &Path, remote: &str, branch: &str) -> Result<String> {
+    git(root, &["push", remote, "--delete", branch])
+        .map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
+/// Push one branch to a remote, optionally setting it as the upstream.
+pub fn push_branch(root: &Path, remote: &str, branch: &str, set_upstream: bool) -> Result<String> {
+    let mut args = vec!["push"];
+    if set_upstream {
+        args.push("-u");
+    }
+    args.push(remote);
+    args.push(branch);
+    git(root, &args).map(|o| String::from_utf8_lossy(&o).to_string())
+}
+
 pub fn merge_continue(root: &Path) -> Result<String> {
     git(root, &["-c", "core.editor=true", "merge", "--continue"])
         .map(|out| String::from_utf8_lossy(&out).to_string())

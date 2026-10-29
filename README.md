@@ -182,8 +182,13 @@ remotes, tags and stashes; **History** with the commit graph, chips,
 search, commit details and per-file diffs; **Blame** coloured by age;
 per-hunk Stage / Unstage / Discard; a **conflict editor** (Ours / Theirs
 / Both per block, Save and Mark Resolved); and uploaded **repository
-icons** shown on the tab, the sidebar and the dashboard. Hosts, the
-branch verbs and the assistant arrive in later phases.
+icons** shown on the tab, the sidebar and the dashboard. Phase 3 brought the verbs: Branch, Merge, Rebase (plain and interactive),
+Stash, Tag and Git Flow panels on the toolbar; right-click menus on
+branches, remotes, tags, stashes and commits (check out, merge, rebase,
+push, set upstream, rename, delete, fetch, cherry-pick, tag here…); a
+Continue / Skip / Abort bar for a paused merge, rebase or cherry-pick;
+and confirmations for deletions and pushes onto protected branches.
+Hosts and the assistant arrive in later phases.
 
 ### Terminal
 

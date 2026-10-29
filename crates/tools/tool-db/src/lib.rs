@@ -3295,6 +3295,7 @@ impl DbTool {
                         name: c.name.clone(),
                         detail,
                         icon: hs_ui::icons::profile_icon(c).to_string(),
+                        image: None,
                     }
                 })
                 .collect()

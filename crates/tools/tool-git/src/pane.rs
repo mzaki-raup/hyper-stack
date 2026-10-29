@@ -1,22 +1,27 @@
-//! One repository's work pane (docs/tools/git-activity.md §5).
+//! One repository's work pane (docs/tools/git-activity.md §5): the
+//! SourceTree arrangement - a tree on the left (Workspace, Branches,
+//! Remotes, Tags, Stashes), File Status or History in the centre, and
+//! the diff, blame or conflict editor on the right - under a toolbar
+//! with the branch, Refresh, Fetch, Pull, Push and Terminal.
 //!
-//! Phase 1 draws the SourceTree **File Status** view: the unstaged and
-//! staged lists with their verbs, the diff of the selected file, and
-//! the commit box; the toolbar carries Refresh, Fetch, Pull, Push and
-//! Terminal. Every call into git runs on the blocking pool and lands in
-//! a slot the next frame reads - the UI thread never waits on a process
-//! (ADR-013).
+//! Every call into git runs on the blocking pool and lands in a slot the
+//! next frame reads - the UI thread never waits on a process (ADR-013).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use hs_core::services::Services;
 use hs_core::tool::{OpenRequest, ToastLevel, ToolContext};
-use hs_git::diff::LineKind;
-use hs_git::{FileDiff, FileStatus, Kind, Side, Status};
+use hs_git::{ChangedFile, FileDiff, FileStatus, Kind, Side, Status};
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use parking_lot::Mutex;
+
+use crate::blame::BlameView;
+use crate::conflict::ConflictView;
+use crate::diffview::{self, HunkPick};
+use crate::history::{self, HistoryView};
+use crate::tree::{self, Tree, View};
 
 /// A result on its way back from the blocking pool.
 type Slot<T> = Arc<Mutex<Option<T>>>;
@@ -29,6 +34,25 @@ const REFRESH_SECONDS: f64 = 4.0;
 /// Something the pane asks before doing.
 enum Confirm {
     Discard(Vec<String>),
+}
+
+/// What the right column shows.
+#[derive(Default)]
+enum Right {
+    #[default]
+    Nothing,
+    /// A work-tree or index diff of a file in File Status.
+    Work {
+        path: String,
+        side: Side,
+    },
+    /// One file of a commit, from History.
+    Commit {
+        id: String,
+        file: ChangedFile,
+    },
+    Blame,
+    Conflict,
 }
 
 #[derive(Default)]
@@ -49,15 +73,20 @@ pub struct RepoPane {
     /// What the last operation printed, shown under the toolbar until
     /// the next one.
     output: Option<String>,
-    selected: Option<(String, Side)>,
+    right: Right,
     diff: Option<FileDiff>,
-    diff_slot: Slot<(String, Side, Result<FileDiff, String>)>,
+    /// (path, Some(side) for a work diff / None for a commit's, result).
+    diff_slot: Slot<(String, Option<Side>, Result<FileDiff, String>)>,
     message: String,
     amend: bool,
     push_after: bool,
     filter: String,
     last_refresh: f64,
     confirm: Option<Confirm>,
+    tree: Tree,
+    history: HistoryView,
+    blame: BlameView,
+    conflict: ConflictView,
 }
 
 impl RepoPane {
@@ -66,8 +95,11 @@ impl RepoPane {
             return;
         }
         *self = Self::default();
+        self.tree.set_root(root.clone());
+        self.history.set_root(root.clone());
         self.root = Some(root);
         self.refresh(s);
+        self.tree.refresh(s);
     }
 
     /// The `origin` URL, read once per root; what the header band shows.
@@ -94,6 +126,14 @@ impl RepoPane {
                 *remote.lock() = Some(url);
             }
         });
+    }
+
+    /// Everything that can have changed after an operation: the status,
+    /// the refs in the tree, and the graph.
+    fn refresh_all(&mut self, s: &Services) {
+        self.refresh(s);
+        self.tree.refresh(s);
+        self.history.stale = true;
     }
 
     /// Start `f` on the blocking pool; `label` names it while it runs
@@ -140,31 +180,67 @@ impl RepoPane {
         });
     }
 
-    fn load_diff(&mut self, s: &Services, path: String, side: Side) {
+    fn load_work_diff(&mut self, s: &Services, path: String, side: Side) {
         let Some(root) = self.root.clone() else {
             return;
         };
-        self.selected = Some((path.clone(), side));
+        self.right = Right::Work {
+            path: path.clone(),
+            side,
+        };
         let slot = self.diff_slot.clone();
         s.runtime.spawn_blocking(move || {
             let d = hs_git::file_diff(&root, &path, side).map_err(|e| e.to_string());
-            *slot.lock() = Some((path, side, d));
+            *slot.lock() = Some((path, Some(side), d));
         });
     }
 
+    fn load_commit_diff(
+        &mut self,
+        s: &Services,
+        id: String,
+        first_parent: Option<String>,
+        file: ChangedFile,
+    ) {
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        self.right = Right::Commit {
+            id: id.clone(),
+            file: file.clone(),
+        };
+        self.diff = None;
+        let slot = self.diff_slot.clone();
+        s.runtime.spawn_blocking(move || {
+            let d = hs_git::commit_file_diff(&root, &id, first_parent.as_deref(), &file)
+                .map_err(|e| e.to_string());
+            *slot.lock() = Some((file.path, None, d));
+        });
+    }
+
+    /// The right column's current work-diff selection, if that is what
+    /// it shows.
+    fn work_selection(&self) -> Option<(String, Side)> {
+        match &self.right {
+            Right::Work { path, side } => Some((path.clone(), *side)),
+            _ => None,
+        }
+    }
+
     fn poll(&mut self, cx: &mut ToolContext, now: f64) {
-        if let Some(st) = self.status_slot.lock().take() {
+        let st = self.status_slot.lock().take();
+        if let Some(st) = st {
             match st {
                 Ok(st) => {
                     // The selected file may have left the list (staged,
                     // discarded, committed); the diff goes with it.
-                    if let Some((p, side)) = &self.selected
+                    if let Some((p, side)) = self.work_selection()
                         && !st
                             .files
                             .iter()
-                            .any(|f| &f.path == p && side_of(f).contains(side))
+                            .any(|f| f.path == p && side_of(f).contains(&side))
                     {
-                        self.selected = None;
+                        self.right = Right::Nothing;
                         self.diff = None;
                     }
                     self.status = Some(st);
@@ -177,12 +253,18 @@ impl RepoPane {
         if let Some(url) = self.remote_slot.lock().take() {
             self.remote_url = url;
         }
-        if let Some((path, side, d)) = self.diff_slot.lock().take()
-            && self.selected.as_ref() == Some(&(path, side))
-        {
-            match d {
-                Ok(d) => self.diff = Some(d),
-                Err(e) => cx.toast(ToastLevel::Error, e),
+        let d = self.diff_slot.lock().take();
+        if let Some((path, side, d)) = d {
+            let wanted = match (&self.right, side) {
+                (Right::Work { path: p, side: s }, Some(side)) => *p == path && *s == side,
+                (Right::Commit { file, .. }, None) => file.path == path,
+                _ => false,
+            };
+            if wanted {
+                match d {
+                    Ok(d) => self.diff = Some(d),
+                    Err(e) => cx.toast(ToastLevel::Error, e),
+                }
             }
         }
         let finished = self.op_slot.lock().take();
@@ -206,9 +288,9 @@ impl RepoPane {
                     cx.toast(ToastLevel::Error, e);
                 }
             }
-            self.refresh(cx.services);
-            if let Some((p, side)) = self.selected.clone() {
-                self.load_diff(cx.services, p, side);
+            self.refresh_all(cx.services);
+            if let Some((p, side)) = self.work_selection() {
+                self.load_work_diff(cx.services, p, side);
             }
         }
         if self.busy.is_none()
@@ -244,7 +326,7 @@ impl RepoPane {
             )
             .clicked()
         {
-            self.refresh(s);
+            self.refresh_all(s);
         }
         if ui
             .add_enabled(
@@ -336,7 +418,6 @@ impl RepoPane {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_secs_f64(REFRESH_SECONDS));
         }
-        let s = cx.services;
         if let Some(e) = &self.status_error {
             ui.add_space(16.0);
             ui.horizontal(|ui| {
@@ -367,19 +448,161 @@ impl RepoPane {
         }
         self.confirm_bar(ui, theme, cx);
         let full = ui.available_width();
-        let left_w = (full * 0.42).clamp(360.0, 620.0);
-        egui::Panel::left(ui.id().with("git-status-col"))
+        // The tree, narrow and resizable.
+        let mut tree_pick: Option<tree::Pick> = None;
+        egui::Panel::left(ui.id().with("git-tree-col"))
             .resizable(true)
-            .default_size(left_w)
-            .size_range(280.0..=(full - 240.0).max(280.0))
+            .default_size(220.0)
+            .size_range(160.0..=360.0)
             .show(ui, |ui| {
-                self.status_column(ui, theme, cx);
+                tree_pick = self.tree.ui(ui, theme, cx);
             });
+        if let Some(tree::Pick::View(v)) = tree_pick {
+            self.tree.view = v;
+        }
+        let rest = (full - 220.0).max(400.0);
+        let centre_w = match self.tree.view {
+            View::Status => (rest * 0.40).clamp(360.0, 620.0),
+            View::History => (rest * 0.55).clamp(420.0, 900.0),
+        };
+        egui::Panel::left(
+            ui.id()
+                .with(("git-centre-col", self.tree.view == View::History)),
+        )
+        .resizable(true)
+        .default_size(centre_w)
+        .size_range(320.0..=(rest - 240.0).max(320.0))
+        .show(ui, |ui| match self.tree.view {
+            View::Status => self.status_column(ui, theme, cx),
+            View::History => self.history_column(ui, theme, cx),
+        });
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.panel_bg))
             .show(ui, |ui| {
-                self.diff_view(ui, theme, s);
+                self.right_column(ui, theme, cx);
             });
+    }
+
+    fn history_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let pick = self.history.ui(ui, theme, cx);
+        match pick {
+            Some(history::Pick::FileDiff {
+                id,
+                first_parent,
+                file,
+            }) => self.load_commit_diff(cx.services, id, first_parent, file),
+            Some(history::Pick::Blame { id, path }) => {
+                if let Some(root) = self.root.clone() {
+                    self.blame.load(cx.services, root, path, Some(id));
+                    self.right = Right::Blame;
+                }
+            }
+            None => {}
+        }
+    }
+
+    fn right_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
+        match &self.right {
+            Right::Nothing => {
+                ui.add_space(24.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(24.0);
+                    hs_ui::form::note(ui, theme, ph::GIT_DIFF, &s.t("git-no-file-selected"));
+                });
+            }
+            Right::Blame => {
+                if let Some(id) = self.blame.ui(ui, theme, cx) {
+                    // A line's commit opens in History.
+                    self.tree.view = View::History;
+                    self.history.search = id;
+                }
+            }
+            Right::Conflict => {
+                if let Some(root) = self.root.clone()
+                    && self.conflict.ui(ui, theme, cx, &root)
+                {
+                    self.right = Right::Nothing;
+                    self.refresh_all(s);
+                }
+            }
+            Right::Work { path, side } => {
+                let (path, side) = (path.clone(), *side);
+                egui::Frame::new()
+                    .inner_margin(egui::Margin::symmetric(12, 6))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
+                            ui.label(egui::RichText::new(&path).strong());
+                            let what = match side {
+                                Side::Staged => s.t("git-staged"),
+                                Side::Unstaged => s.t("git-unstaged"),
+                                Side::Untracked => s.t("git-untracked"),
+                            };
+                            ui.label(egui::RichText::new(what).color(theme.text_muted));
+                            if let Some(d) = &self.diff {
+                                diffview::counts(ui, theme, d);
+                            }
+                        });
+                    });
+                ui.separator();
+                let Some(d) = self.diff.clone() else {
+                    ui.spinner();
+                    return;
+                };
+                let busy = self.busy.is_some();
+                let verbs = (side != Side::Untracked).then_some(side);
+                if let Some(pick) = diffview::show(ui, theme, s, &d, verbs, busy) {
+                    let (hi, op) = match pick {
+                        HunkPick::Stage(i) => (i, hs_git::write::HunkOp::Stage),
+                        HunkPick::Unstage(i) => (i, hs_git::write::HunkOp::Unstage),
+                        HunkPick::Discard(i) => (i, hs_git::write::HunkOp::Discard),
+                    };
+                    if let Some(hunk) = d.hunks.get(hi).cloned() {
+                        let p = path.clone();
+                        let label = match op {
+                            hs_git::write::HunkOp::Discard => s.t("git-discard-button"),
+                            hs_git::write::HunkOp::Stage => s.t("git-stage"),
+                            hs_git::write::HunkOp::Unstage => s.t("git-unstage"),
+                        };
+                        self.run_quiet(s, label, move |r| {
+                            hs_git::write::apply_hunk(r, &p, &hunk, op)
+                                .map(|_| String::new())
+                                .map_err(|e| e.to_string())
+                        });
+                    }
+                }
+            }
+            Right::Commit { id, file } => {
+                let (id, file) = (id.clone(), file.clone());
+                egui::Frame::new()
+                    .inner_margin(egui::Margin::symmetric(12, 6))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
+                            ui.label(egui::RichText::new(&file.path).strong());
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{} {}",
+                                    ph::GIT_COMMIT,
+                                    &id[..id.len().min(7)]
+                                ))
+                                .monospace()
+                                .color(theme.text_muted),
+                            );
+                            if let Some(d) = &self.diff {
+                                diffview::counts(ui, theme, d);
+                            }
+                        });
+                    });
+                ui.separator();
+                let Some(d) = self.diff.clone() else {
+                    ui.spinner();
+                    return;
+                };
+                diffview::show(ui, theme, s, &d, None, true);
+            }
+        }
     }
 
     fn confirm_bar(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
@@ -494,16 +717,16 @@ impl RepoPane {
         let mut stage_all = false;
         let mut unstage_all = false;
         let mut pick: Option<(String, Side)> = None;
-        let selected = self.selected.clone();
-        let (tip_stage, tip_unstage, tip_discard) = (
-            s.t("git-stage"),
-            s.t("git-unstage"),
-            s.t("git-discard-button"),
-        );
+        let mut conflict: Option<String> = None;
+        let mut blame: Option<String> = None;
+        let mut file_history: Option<String> = None;
+        let selected = self.work_selection();
         let tips = RowTips {
-            stage: &tip_stage,
-            unstage: &tip_unstage,
-            discard: &tip_discard,
+            stage: s.t("git-stage"),
+            unstage: s.t("git-unstage"),
+            discard: s.t("git-discard-button"),
+            blame: s.t("git-blame"),
+            history: s.t("git-file-history"),
         };
         egui::ScrollArea::vertical()
             .id_salt(ui.id().with("git-lists"))
@@ -537,10 +760,15 @@ impl RepoPane {
                     let is_sel = selected.as_ref() == Some(&(f.path.clone(), side));
                     let act = file_row(ui, theme, f, is_sel, busy, RowVerbs::Unstaged, &tips);
                     match act {
+                        RowAction::Pick if f.kind == Kind::Conflict => {
+                            conflict = Some(f.path.clone());
+                        }
                         RowAction::Pick => pick = Some((f.path.clone(), side)),
                         RowAction::Stage => stage.push(f.path.clone()),
                         RowAction::Discard => discard.push(f.path.clone()),
-                        _ => {}
+                        RowAction::Blame => blame = Some(f.path.clone()),
+                        RowAction::History => file_history = Some(f.path.clone()),
+                        RowAction::Unstage | RowAction::None => {}
                     }
                 }
                 ui.add_space(8.0);
@@ -570,6 +798,8 @@ impl RepoPane {
                     match act {
                         RowAction::Pick => pick = Some((f.path.clone(), Side::Staged)),
                         RowAction::Unstage => unstage.push(f.path.clone()),
+                        RowAction::Blame => blame = Some(f.path.clone()),
+                        RowAction::History => file_history = Some(f.path.clone()),
                         _ => {}
                     }
                 }
@@ -578,7 +808,24 @@ impl RepoPane {
         self.commit_box(ui, theme, cx, &st, staged.len());
 
         if let Some((p, side)) = pick {
-            self.load_diff(s, p, side);
+            self.load_work_diff(s, p, side);
+        }
+        if let Some(p) = conflict
+            && let Some(root) = self.root.clone()
+        {
+            self.conflict.load(s, root, p);
+            self.right = Right::Conflict;
+        }
+        if let Some(p) = blame
+            && let Some(root) = self.root.clone()
+        {
+            self.blame.load(s, root, p, None);
+            self.right = Right::Blame;
+        }
+        if let Some(p) = file_history {
+            self.history.path = Some(p);
+            self.history.stale = true;
+            self.tree.view = View::History;
         }
         if stage_all {
             self.run_quiet(s, s.t("git-stage"), |r| {
@@ -696,110 +943,6 @@ impl RepoPane {
                 });
             });
     }
-
-    fn diff_view(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
-        let Some((path, side)) = &self.selected else {
-            ui.add_space(24.0);
-            ui.horizontal(|ui| {
-                ui.add_space(24.0);
-                hs_ui::form::note(ui, theme, ph::GIT_DIFF, &s.t("git-no-file-selected"));
-            });
-            return;
-        };
-        egui::Frame::new()
-            .inner_margin(egui::Margin::symmetric(12, 6))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
-                    ui.label(egui::RichText::new(path).strong());
-                    let what = match side {
-                        Side::Staged => s.t("git-staged"),
-                        Side::Unstaged => s.t("git-unstaged"),
-                        Side::Untracked => s.t("git-untracked"),
-                    };
-                    ui.label(egui::RichText::new(what).color(theme.text_muted));
-                    if let Some(d) = &self.diff {
-                        ui.label(
-                            egui::RichText::new(format!("+{}", d.added())).color(theme.success),
-                        );
-                        ui.label(
-                            egui::RichText::new(format!("-{}", d.removed())).color(theme.error),
-                        );
-                    }
-                });
-            });
-        ui.separator();
-        let Some(d) = self.diff.clone() else {
-            ui.spinner();
-            return;
-        };
-        if d.binary {
-            ui.label(egui::RichText::new(s.t("git-binary")).color(theme.text_muted));
-            return;
-        }
-        for n in &d.notes {
-            ui.label(egui::RichText::new(n).color(theme.text_muted).italics());
-        }
-        let added_bg = theme.success.linear_multiply(0.16);
-        let removed_bg = theme.error.linear_multiply(0.16);
-        egui::ScrollArea::both()
-            .id_salt(ui.id().with("git-diff"))
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                let font = egui::TextStyle::Monospace.resolve(ui.style());
-                let row_h = ui.fonts_mut(|f| f.row_height(&font)) + 4.0;
-                let gutter = 96.0;
-                for h in &d.hunks {
-                    let (rect, _) = ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), row_h),
-                        egui::Sense::hover(),
-                    );
-                    ui.painter().rect_filled(rect, 0.0, theme.surface);
-                    ui.painter().text(
-                        rect.left_center() + egui::vec2(8.0, 0.0),
-                        egui::Align2::LEFT_CENTER,
-                        &h.header,
-                        font.clone(),
-                        theme.text_muted,
-                    );
-                    for l in &h.lines {
-                        let (rect, _) = ui.allocate_exact_size(
-                            egui::vec2(ui.available_width().max(rect.width()), row_h),
-                            egui::Sense::hover(),
-                        );
-                        let (bg, sign, colour) = match l.kind {
-                            LineKind::Added => (Some(added_bg), '+', theme.text),
-                            LineKind::Removed => (Some(removed_bg), '-', theme.text),
-                            LineKind::Context => (None, ' ', theme.text),
-                            LineKind::NoNewline => (None, '\\', theme.text_muted),
-                        };
-                        if let Some(bg) = bg {
-                            ui.painter().rect_filled(rect, 0.0, bg);
-                        }
-                        let nums = format!(
-                            "{:>4} {:>4}",
-                            l.old.map(|n| n.to_string()).unwrap_or_default(),
-                            l.new.map(|n| n.to_string()).unwrap_or_default()
-                        );
-                        ui.painter().text(
-                            rect.left_center() + egui::vec2(8.0, 0.0),
-                            egui::Align2::LEFT_CENTER,
-                            nums,
-                            font.clone(),
-                            theme.text_muted,
-                        );
-                        ui.painter().text(
-                            rect.left_center() + egui::vec2(gutter, 0.0),
-                            egui::Align2::LEFT_CENTER,
-                            format!("{sign} {}", l.text),
-                            font.clone(),
-                            colour,
-                        );
-                    }
-                }
-            });
-    }
 }
 
 /// Which lists a file appears in, as the sides a selection may name.
@@ -851,10 +994,23 @@ enum RowAction {
     Stage,
     Unstage,
     Discard,
+    Blame,
+    History,
+}
+
+/// The row verbs' tooltips and menu labels, read once per frame rather
+/// than per row.
+struct RowTips {
+    stage: String,
+    unstage: String,
+    discard: String,
+    blame: String,
+    history: String,
 }
 
 /// One file in a list: its status letter, its path, and the verbs for
 /// its side in a fixed column (owner's rule on aligned row actions).
+/// Right-click offers Blame and File History.
 fn file_row(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -862,7 +1018,7 @@ fn file_row(
     selected: bool,
     busy: bool,
     verbs: RowVerbs,
-    tips: &RowTips<'_>,
+    tips: &RowTips,
 ) -> RowAction {
     let mut action = RowAction::None;
     let height = 26.0;
@@ -917,6 +1073,16 @@ fn file_row(
     if resp.clicked() {
         action = RowAction::Pick;
     }
+    resp.context_menu(|ui| {
+        if ui.button(&tips.blame).clicked() {
+            action = RowAction::Blame;
+            ui.close();
+        }
+        if ui.button(&tips.history).clicked() {
+            action = RowAction::History;
+            ui.close();
+        }
+    });
     let verb_rect = egui::Rect::from_min_max(
         egui::pos2(rect.right() - verbs_w, rect.top()),
         rect.right_bottom(),
@@ -931,7 +1097,7 @@ fn file_row(
         RowVerbs::Unstaged => {
             if child
                 .add_enabled(!busy, egui::Button::new(ph::PLUS).small())
-                .on_hover_text(tips.stage)
+                .on_hover_text(&tips.stage)
                 .clicked()
             {
                 action = RowAction::Stage;
@@ -941,7 +1107,7 @@ fn file_row(
                     !busy,
                     egui::Button::new(ph::ARROW_COUNTER_CLOCKWISE).small(),
                 )
-                .on_hover_text(tips.discard)
+                .on_hover_text(&tips.discard)
                 .clicked()
             {
                 action = RowAction::Discard;
@@ -950,7 +1116,7 @@ fn file_row(
         RowVerbs::Staged => {
             if child
                 .add_enabled(!busy, egui::Button::new(ph::MINUS).small())
-                .on_hover_text(tips.unstage)
+                .on_hover_text(&tips.unstage)
                 .clicked()
             {
                 action = RowAction::Unstage;
@@ -958,11 +1124,4 @@ fn file_row(
         }
     }
     action
-}
-
-/// The row verbs' tooltips, read once per frame rather than per row.
-struct RowTips<'a> {
-    stage: &'a str,
-    unstage: &'a str,
-    discard: &'a str,
 }

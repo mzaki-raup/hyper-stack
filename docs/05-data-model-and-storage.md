@@ -416,6 +416,8 @@ never the token. `<workspace>/git-repos.toml` is the workspace's saved
 repository list (`hs_core::git_repos`: id, name, icon key, source,
 host URL, project, clone URL, path, credential id, order, language), a
 list of references that never owns a folder, like `projects.toml`.
+`<workspace>/git/icons/<id>.<ext>` holds an uploaded repository icon
+(`GitRepos::set_icon`), one file per entry, removed with the entry.
 
 `HyperStackData/globals.json` holds the one application-wide variable
 set (`hs_core::globals::Globals`: `{schema, values: [{enabled, key,

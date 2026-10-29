@@ -722,6 +722,7 @@ impl NoSqlTool {
                         name: c.name.clone(),
                         detail: format!("{}:{}", f.host, f.port),
                         icon: hs_ui::icons::profile_icon(c).to_string(),
+                        image: None,
                     }
                 })
                 .collect()

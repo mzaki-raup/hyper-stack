@@ -2103,6 +2103,7 @@ impl LogsTool {
                 name: src.name.clone(),
                 detail: src.spec.describe(),
                 icon: ph::SCROLL.to_string(),
+                image: None,
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {

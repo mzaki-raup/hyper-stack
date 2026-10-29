@@ -177,7 +177,13 @@ Push After Commit. **Settings → Git** holds the repository list
 (master/detail form), Git Credentials (tokens go to the vault) and the
 General options (protected patterns, pull with rebase, sign-off, stash
 untracked, default clone folder, terminal profile, Git Flow names).
-History, branches, hosts and the assistant arrive in later phases.
+Phase 2 (same day) added the SourceTree work pane: a tree of branches,
+remotes, tags and stashes; **History** with the commit graph, chips,
+search, commit details and per-file diffs; **Blame** coloured by age;
+per-hunk Stage / Unstage / Discard; a **conflict editor** (Ours / Theirs
+/ Both per block, Save and Mark Resolved); and uploaded **repository
+icons** shown on the tab, the sidebar and the dashboard. Hosts, the
+branch verbs and the assistant arrive in later phases.
 
 ### Terminal
 

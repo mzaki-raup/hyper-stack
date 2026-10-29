@@ -172,6 +172,7 @@ impl S3Tool {
                             format!("{user}@{where_}")
                         },
                         icon: hs_ui::icons::profile_icon(c).to_string(),
+                        image: None,
                     }
                 })
                 .collect()

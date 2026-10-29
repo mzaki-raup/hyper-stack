@@ -11,7 +11,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Git activity, phase 2: the work pane.** A repository tab now has the
+  SourceTree arrangement: a tree on the left (Workspace with File Status
+  and History; Branches with ahead/behind; Remotes with their branches;
+  Tags; Stashes), File Status or History in the centre, and the diff,
+  blame or conflict editor on the right. **History** draws the commit
+  graph (lanes from `hs_git::graph`, every branch, paged with Load More),
+  branch and tag chips, author and date, a search over message, author,
+  hash and ref, and the selected commit's message, parents and changed
+  files - each opening its diff, or its blame at that commit. **Blame**
+  colours the gutter by age; clicking a line's commit finds it in
+  History. A work-tree or index diff offers **Stage / Unstage / Discard
+  per hunk**; a conflicted file opens the **conflict editor** (Ours /
+  Theirs / Both per block, All Ours / All Theirs, Save and Mark Resolved
+  writes the file and stages it). Right-click a file for Blame or File
+  History.
+- **Repository icons can be uploaded.** Settings → Git → a repository's
+  Icon row takes an image (PNG, ICO, JPG, BMP, GIF, WEBP or SVG), kept
+  under `<workspace>/git/icons/<id>.<ext>` and shown on the tab, in the
+  sidebar, on the dashboard and in the Settings list; Remove Image goes
+  back to the glyph. Remove From List drops the picture with the entry
+  (owner's requirement, 2026-10-29).
 
 ## 0.98.0 — 2026-10-29
 

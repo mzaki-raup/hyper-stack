@@ -8805,6 +8805,7 @@ dependencies = [
 name = "tool-git"
 version = "0.98.0"
 dependencies = [
+ "chrono",
  "egui",
  "hs-core",
  "hs-git",

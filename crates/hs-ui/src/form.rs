@@ -399,6 +399,21 @@ pub fn list_row(
     title: &str,
     subtitle: Option<&str>,
 ) -> egui::Response {
+    list_row_image(ui, theme, selected, None, icon, title, subtitle)
+}
+
+/// [`list_row`] whose icon may be a picture: `image` is an egui image
+/// URI drawn at the glyph's size, with `icon` the glyph when it is
+/// `None` (an uploaded repository icon, a workspace logo).
+pub fn list_row_image(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    image: Option<&str>,
+    icon: &str,
+    title: &str,
+    subtitle: Option<&str>,
+) -> egui::Response {
     let height = if subtitle.is_some() { 44.0 } else { 34.0 };
     let (rect, resp) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), height),
@@ -427,13 +442,27 @@ pub fn list_row(
     } else {
         theme.text_muted
     };
-    ui.painter().text(
-        egui::pos2(rect.left() + 12.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        icon,
-        egui::FontId::proportional(20.0),
-        icon_col,
-    );
+    match image {
+        Some(uri) => {
+            let size = Vec2::splat(22.0);
+            let at = egui::Rect::from_center_size(
+                egui::pos2(rect.left() + 12.0 + size.x / 2.0, rect.center().y),
+                size,
+            );
+            egui::Image::from_uri(uri.to_string())
+                .fit_to_exact_size(size)
+                .paint_at(ui, at);
+        }
+        None => {
+            ui.painter().text(
+                egui::pos2(rect.left() + 12.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                icon,
+                egui::FontId::proportional(20.0),
+                icon_col,
+            );
+        }
+    }
     let text_x = rect.left() + 42.0;
     match subtitle {
         Some(sub) => {

@@ -263,6 +263,61 @@ impl GitRepos {
             },
         )
     }
+
+    /// Where uploaded repository icons live: `<workspace>/git/icons/`,
+    /// one `<id>.<ext>` per entry, beside the list rather than in it so
+    /// the TOML stays small and the image travels with the workspace.
+    pub fn icons_dir(&self) -> PathBuf {
+        self.path
+            .parent()
+            .map(|p| p.join("git").join("icons"))
+            .unwrap_or_else(|| PathBuf::from("git").join("icons"))
+    }
+
+    /// The uploaded icon of entry `id`, if one has been set (owner's
+    /// requirement, 2026-10-29). An image wins over the glyph key.
+    pub fn icon_file(&self, id: &str) -> Option<PathBuf> {
+        let dir = self.icons_dir();
+        crate::workspace::ICON_EXTS
+            .iter()
+            .map(|ext| dir.join(format!("{id}.{ext}")))
+            .find(|p| p.is_file())
+    }
+
+    /// Copy the image at `src` in as entry `id`'s icon, replacing any
+    /// earlier one. Same formats as a workspace logo.
+    pub fn set_icon(&self, id: &str, src: &Path) -> storage::Result<PathBuf> {
+        let ext = src
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_ascii_lowercase())
+            .filter(|e| crate::workspace::ICON_EXTS.contains(&e.as_str()))
+            .ok_or_else(|| {
+                storage::StorageError::Message(
+                    "choose a PNG, ICO, JPG, BMP, GIF, WEBP or SVG".into(),
+                )
+            })?;
+        let dir = self.icons_dir();
+        let io_err = |path: &Path| {
+            let p = path.display().to_string();
+            move |source| storage::StorageError::Io {
+                path: p.clone(),
+                source,
+            }
+        };
+        std::fs::create_dir_all(&dir).map_err(io_err(&dir))?;
+        self.remove_icon(id);
+        let dst = dir.join(format!("{id}.{ext}"));
+        std::fs::copy(src, &dst).map_err(io_err(src))?;
+        Ok(dst)
+    }
+
+    /// Drop entry `id`'s uploaded icon, if any. The entry itself stays.
+    pub fn remove_icon(&self, id: &str) {
+        if let Some(old) = self.icon_file(id) {
+            let _ = std::fs::remove_file(old);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -314,6 +369,28 @@ mod tests {
         assert!(repos.is_empty());
         assert!(repo.join("README.md").is_file());
         assert!(repo.join(".git").is_dir());
+    }
+
+    #[test]
+    fn an_uploaded_icon_is_kept_beside_the_list_and_removed_on_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("git-repos.toml");
+        let repos = GitRepos::load(&file);
+        let src = dir.path().join("logo.png");
+        std::fs::write(&src, b"not really a png").unwrap();
+        assert!(repos.icon_file("r1").is_none());
+        let dst = repos.set_icon("r1", &src).unwrap();
+        assert_eq!(dst, dir.path().join("git").join("icons").join("r1.png"));
+        assert_eq!(repos.icon_file("r1"), Some(dst.clone()));
+        // A second upload in another format replaces the first.
+        let src2 = dir.path().join("logo.jpg");
+        std::fs::write(&src2, b"jpg").unwrap();
+        repos.set_icon("r1", &src2).unwrap();
+        assert!(!dst.exists());
+        assert!(repos.icon_file("r1").unwrap().ends_with("r1.jpg"));
+        assert!(repos.set_icon("r1", &dir.path().join("x.exe")).is_err());
+        repos.remove_icon("r1");
+        assert!(repos.icon_file("r1").is_none());
     }
 
     #[test]

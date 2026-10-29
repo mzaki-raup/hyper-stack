@@ -7,7 +7,12 @@
 //! touches git goes through `hs-git` on the blocking pool; the UI thread
 //! only ever reads the last answer.
 
+mod blame;
+mod conflict;
+mod diffview;
+mod history;
 mod pane;
+mod tree;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -54,6 +59,10 @@ struct State {
     name: String,
     language: String,
     icon: String,
+    /// The uploaded icon's image URI, refreshed from the list each frame
+    /// the tab is drawn (cheap: a stat); not saved.
+    #[serde(skip)]
+    image: Option<String>,
 }
 
 pub struct GitTool {
@@ -97,6 +106,7 @@ impl GitTool {
         self.state.name = entry.label();
         self.state.language = entry.language.clone();
         self.state.icon = entry.icon.clone();
+        self.state.image = None;
         self.pane.set_root(s, entry.path.clone());
     }
 
@@ -126,6 +136,7 @@ impl GitTool {
                 name: r.label(),
                 detail: r.path.display().to_string(),
                 icon: entry_icon(r).to_string(),
+                image: entry_image(ui.ctx(), s, &r.id),
             })
             .collect();
         let credentials = s.git_credentials.read().all().len();
@@ -194,6 +205,26 @@ impl GitTool {
             None => {}
         }
     }
+}
+
+/// One sidebar row, read from the store once per frame.
+struct SidebarRow {
+    id: String,
+    name: String,
+    path: String,
+    icon: &'static str,
+    /// The active tab shows this repository.
+    here: bool,
+    image: Option<String>,
+}
+
+/// The uploaded icon of saved entry `id` as an image URI, if it has one.
+fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
+    if id.is_empty() {
+        return None;
+    }
+    let file = s.git_repos.read().icon_file(id)?;
+    hs_ui::icons::image_uri(ctx, &file)
 }
 
 /// The glyph a saved entry draws in lists.
@@ -265,6 +296,15 @@ impl Tool for GitTool {
             return Some(ph::GIT_BRANCH);
         }
         Some(self.icon())
+    }
+
+    /// The uploaded icon, when the repository has one; read once per
+    /// change of entry rather than per frame (`state.image`).
+    fn tab_icon_uri(&self) -> Option<String> {
+        if self.is_home() {
+            return None;
+        }
+        self.state.image.clone()
     }
 
     fn header(&self) -> Option<hs_core::tool::ToolHeader> {
@@ -363,20 +403,18 @@ impl Tool for GitTool {
             });
         }
         let mine = self.root().map(hs_core::projects::normalise);
-        let rows: Vec<(String, String, String, &'static str, bool)> = s
+        let rows: Vec<SidebarRow> = s
             .git_repos
             .read()
             .all()
             .iter()
-            .map(|r| {
-                let here = mine.as_deref() == Some(hs_core::projects::normalise(&r.path).as_str());
-                (
-                    r.id.clone(),
-                    r.label(),
-                    r.path.display().to_string(),
-                    entry_icon(r),
-                    here,
-                )
+            .map(|r| SidebarRow {
+                id: r.id.clone(),
+                name: r.label(),
+                path: r.path.display().to_string(),
+                icon: entry_icon(r),
+                here: mine.as_deref() == Some(hs_core::projects::normalise(&r.path).as_str()),
+                image: entry_image(ui.ctx(), s, &r.id),
             })
             .collect();
         if rows.is_empty() {
@@ -391,9 +429,25 @@ impl Tool for GitTool {
             .id_salt(self.id.with("repos"))
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                for (i, (id, name, path, icon, here)) in rows.iter().enumerate() {
+                for (i, r) in rows.iter().enumerate() {
+                    let SidebarRow {
+                        id,
+                        name,
+                        path,
+                        icon,
+                        here,
+                        image,
+                    } = r;
                     reorder.row(ui, i, |ui| {
-                        let row = hs_ui::form::list_row(ui, &theme, *here, icon, name, Some(path));
+                        let row = hs_ui::form::list_row_image(
+                            ui,
+                            &theme,
+                            *here,
+                            image.as_deref(),
+                            icon,
+                            name,
+                            Some(path),
+                        );
                         if row.clicked() {
                             open = Some(id.clone());
                         }
@@ -457,6 +511,9 @@ impl Tool for GitTool {
             if !e.language.is_empty() {
                 self.state.language = e.language.clone();
             }
+        }
+        if !self.state.repo_id.is_empty() {
+            self.state.image = entry_image(ui.ctx(), cx.services, &self.state.repo_id);
         }
         hs_core::langver::ensure(&cx.services.runtime, &self.state.language);
         self.pane.ui(ui, &theme, cx);

@@ -5853,7 +5853,7 @@ fn repo_list(
         }
         ui.add_space(8.0);
         form::hint(ui, theme, &s.t("settings-git-repos-hint"));
-        let rows: Vec<(String, String, String, &'static str)> = s
+        let rows: Vec<(String, String, String, &'static str, Option<String>)> = s
             .git_repos
             .read()
             .all()
@@ -5864,6 +5864,7 @@ fn repo_list(
                     r.label(),
                     r.path.display().to_string(),
                     repo_icon(r),
+                    repo_image(ui.ctx(), s, &r.id),
                 )
             })
             .collect();
@@ -5872,10 +5873,20 @@ fn repo_list(
         }
         let mut reorder = hs_ui::reorder::Reorder::new("git-repo-list-reorder");
         let mut pick: Option<String> = None;
-        for (i, (id, name, path, icon)) in rows.iter().enumerate() {
+        for (i, (id, name, path, icon, image)) in rows.iter().enumerate() {
             let selected = state.repo_selected.as_deref() == Some(id.as_str());
             reorder.row(ui, i, |ui| {
-                if form::list_row(ui, theme, selected, icon, name, Some(path)).clicked() {
+                if form::list_row_image(
+                    ui,
+                    theme,
+                    selected,
+                    image.as_deref(),
+                    icon,
+                    name,
+                    Some(path),
+                )
+                .clicked()
+                {
                     pick = Some(id.clone());
                 }
             });
@@ -5901,6 +5912,12 @@ fn repo_list(
         repo_detail(ui, theme, s, state, effects);
     }
     ui.add_space(12.0);
+}
+
+/// A saved repository's uploaded icon as an image URI, if it has one.
+pub(crate) fn repo_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
+    let file = s.git_repos.read().icon_file(id)?;
+    hs_ui::icons::image_uri(ctx, &file)
 }
 
 /// The glyph a saved repository draws: its chosen icon, else its
@@ -5959,6 +5976,62 @@ fn repo_detail(
             ui.end_row();
 
             form::label(ui, &s.t("settings-git-repo-icon"));
+            // An uploaded picture is the icon the tab, the sidebar and
+            // the dashboard wear; it is kept beside the list under
+            // <workspace>/git/icons/<id>.<ext> (owner's requirement,
+            // 2026-10-29). The glyph picker below stays the fallback.
+            ui.horizontal(|ui| {
+                let (rect, _) =
+                    ui.allocate_exact_size(egui::vec2(36.0, 36.0), egui::Sense::hover());
+                ui.painter().rect_filled(rect, 6.0, theme.surface);
+                let image = s.git_repos.read().icon_file(&e.id);
+                match &image {
+                    Some(file) => {
+                        if let Some(uri) = hs_ui::icons::image_uri(ui.ctx(), file) {
+                            egui::Image::from_uri(uri)
+                                .fit_to_exact_size(egui::vec2(32.0, 32.0))
+                                .paint_at(ui, rect.shrink(2.0));
+                        }
+                    }
+                    None => {
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            repo_icon(e),
+                            egui::FontId::proportional(20.0),
+                            theme.text_muted,
+                        );
+                    }
+                }
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::UPLOAD_SIMPLE,
+                        s.t("settings-git-repo-icon-upload")
+                    ))
+                    .clicked()
+                    && let Some(src) = rfd::FileDialog::new()
+                        .add_filter("Image", hs_core::workspace::ICON_EXTS)
+                        .pick_file()
+                {
+                    match s.git_repos.read().set_icon(&e.id, &src) {
+                        Ok(_) => effects.push(SettingsEffect::Toast(
+                            hs_core::tool::ToastLevel::Success,
+                            s.t("settings-git-repo-icon-set"),
+                        )),
+                        Err(err) => effects.push(SettingsEffect::Toast(
+                            hs_core::tool::ToastLevel::Error,
+                            err.to_string(),
+                        )),
+                    }
+                }
+                if image.is_some() && ui.button(s.t("settings-git-repo-icon-remove")).clicked() {
+                    s.git_repos.read().remove_icon(&e.id);
+                }
+            });
+            ui.end_row();
+
+            form::label(ui, "");
             let current = hs_ui::icons::named(&e.icon)
                 .map(|g| format!("{g}  {}", e.icon))
                 .unwrap_or_else(|| s.t("settings-git-repo-icon-auto"));
@@ -6108,6 +6181,7 @@ fn repo_detail(
                 });
             ui.end_row();
         });
+        form::hint(ui, theme, &s.t("settings-git-repo-icon-hint"));
         if e.source != Source::Local {
             form::hint(ui, theme, &s.t("settings-git-repo-fetch-later"));
         }

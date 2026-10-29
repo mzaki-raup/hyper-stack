@@ -802,6 +802,7 @@ impl RedisTool {
                         name: c.name.clone(),
                         detail: format!("{}:{} / {}", f.host, f.port, f.db),
                         icon: hs_ui::icons::profile_icon(c).to_string(),
+                        image: None,
                     }
                 })
                 .collect()

@@ -78,6 +78,15 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **egui's file loader does not take a bare path, and a `file://` URI
+  with a `?v=` query is not found either.** Both drew the "could not
+  load" warning triangle in place of the uploaded repository icon
+  (2026-10-29, twice on screen). What works is what the API tool's home
+  icon does: read the bytes and `ctx.include_bytes("bytes://…", bytes)`
+  once per (path, modification stamp) - `hs_ui::icons::image_uri` keeps
+  the set of names it has registered so an unchanged file costs a `stat`
+  per frame and nothing more.
+
 - **A `right_to_left` scope beside other widgets on one `horizontal`
   row gets only the width that is left**, and in a narrow column that
   is less than its button needs: the commit box of the Git activity

@@ -4396,6 +4396,9 @@ impl eframe::App for HyperStackApp {
             ) {
                 DialogResult::Ok => {
                     let path = s.git_repos.read().by_id(&id).map(|r| r.path.clone());
+                    // The uploaded icon is the list's own file, so it goes
+                    // with the entry; the repository folder never does.
+                    s.git_repos.read().remove_icon(&id);
                     match s.git_repos.write().remove(&id) {
                         Ok(()) => {
                             {

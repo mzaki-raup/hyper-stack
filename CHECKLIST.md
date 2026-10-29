@@ -553,7 +553,8 @@ and ADR-025.
 | Phase | State | Notes |
 |---|---|---|
 | 1 — Foundation: stores, `tool-git` crate after Editor, dashboard, sidebar, header band, File Status + commit, Settings → Git, Remove From List | Completed | `hs_core::git_repos`, `hs_core::git_hosts`, `hs_core::langver` (moved from the editor), `Services.git_repos`/`git_credentials`, `tool-git::{GitTool, pane::RepoPane}`, `settings_ui::{Page::Git, RepoDraft, repo_list/detail, credential_list/detail, git_general}`, routes `settings:git[:repo:new[:remote]|:repo:<id>|:credentials]` and `git:remove:<id>`, `close_tool_tabs_under`. Verified on screen 2026-10-29: dashboard, sidebar, repo tab, diff, stage, commit (`git log` shows it), Remove From List (folder intact), Settings forms |
-| 2 — Work pane: left tree, History graph, commit details, Blame, hunk actions, conflict editor | Pending | |
+| 2 — Work pane: left tree, History graph, commit details, Blame, hunk actions, conflict editor | Completed | `hs_git::{graph, blame, log_with}`, `tool-git::{tree, history, blame, conflict, diffview}`; verified on screen 2026-10-29: tree with branches/tags, graph with a merge and two tips, commit details and file diff, blame at a commit, hunk unstage (`git status` agrees), conflict resolved with Both and staged |
+| Repository icons uploaded in Settings → Git (tab, sidebar, dashboard, list) | Completed | `GitRepos::{icon_file, set_icon, remove_icon}` under `<workspace>/git/icons/`, `hs_ui::icons::image_uri` (bytes:// registered once per stamp), `form::list_row_image`, `dashboard::item_button_image` / `Entry.image`, `Tool::tab_icon_uri` |
 | 3 — Operations: branch/merge/rebase/cherry-pick/tag/stash verbs, Git Flow, guards, file history | Pending | |
 | 4 — Hosts: Remote/Localhost sources, host APIs, Fetch Project, clone as a Job, `GIT_ASKPASS` | Pending | |
 | 5 — AI Assistant with git quick actions and runnable command blocks | Pending | |

@@ -230,7 +230,22 @@ bounded slice of the diff; never the token.
 
 ## 8. Phases
 
-Status: **phase 1 landed 2026-10-29** (the stores, the crate, the
+Status: **phase 2 landed 2026-10-29** - the tree, History with the
+graph, commit details and file diffs, Blame, per-hunk Stage / Unstage /
+Discard, the conflict editor, File History; and uploaded repository
+icons (§3, Icon). Phase 1 landed earlier the same day.
+
+**Repository icons** (owner's requirement, 2026-10-29): the Icon row
+takes an uploaded image beside the glyph picker. The file is copied to
+`<workspace>/git/icons/<id>.<ext>` (`GitRepos::set_icon`, same formats
+as a workspace logo) and shown on the tab (`Tool::tab_icon_uri`), the
+sidebar row, the dashboard cell and the Settings list through
+`hs_ui::icons::image_uri`, which reads the bytes once per modification
+stamp and registers them with the context under a `bytes://` name.
+Remove Image deletes the file; Remove From List removes it with the
+entry.
+
+Phase 1 status: **landed 2026-10-29** (the stores, the crate, the
 dashboard, the sidebar, the header band, File Status with the commit box,
 Fetch / Pull / Push / Terminal on the toolbar, Settings → Git with the
 Local Folder source; the Remote and Localhost sources are offered in the

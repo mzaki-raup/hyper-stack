@@ -316,6 +316,38 @@ pub const REPO_ICONS: &[(&str, &str)] = &[
     ("tag", ph::TAG),
 ];
 
+/// An image file on disk as an egui image URI: the bytes are read once
+/// per (path, modification stamp) and registered with the context under
+/// a `bytes://` name, so a replaced file is shown anew and an unchanged
+/// one costs a `stat` per call. `None` when the file cannot be read.
+pub fn image_uri(ctx: &egui::Context, path: &std::path::Path) -> Option<String> {
+    use std::collections::HashSet;
+    use std::sync::{LazyLock, Mutex};
+    static KNOWN: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
+    let stamp = std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_ascii_lowercase();
+    let uri = format!(
+        "bytes://hs-image/{}/{stamp}.{ext}",
+        path.display().to_string().replace(['\\', ':'], "/")
+    );
+    let mut known = KNOWN.lock().ok()?;
+    if !known.contains(&uri) {
+        let bytes = std::fs::read(path).ok()?;
+        ctx.include_bytes(uri.clone(), bytes);
+        known.insert(uri.clone());
+    }
+    Some(uri)
+}
+
 /// The glyph for a stored icon key: one of [`REPO_ICONS`], or a language
 /// id. `None` for an empty or unknown key, so the caller can fall back to
 /// what it knows about the thing (its language, its kind).

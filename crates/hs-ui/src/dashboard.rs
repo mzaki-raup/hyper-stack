@@ -246,6 +246,20 @@ pub fn item_button(
     subtitle: &str,
     width: f32,
 ) -> egui::Response {
+    item_button_image(ui, theme, None, icon, title, subtitle, width)
+}
+
+/// [`item_button`] whose icon may be a picture (an egui image URI),
+/// drawn at the glyph's size; `icon` is the glyph when it is `None`.
+pub fn item_button_image(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    image: Option<&str>,
+    icon: &str,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
     const HEIGHT: f32 = 50.0;
     const PAD: f32 = 12.0;
     const ICON: f32 = 18.0;
@@ -269,7 +283,14 @@ pub fn item_button(
     );
     let mut x = rect.left() + PAD;
     let top = rect.top() + 16.0;
-    if !icon.is_empty() {
+    if let Some(uri) = image {
+        let size = egui::Vec2::splat(ICON + 2.0);
+        let at = egui::Rect::from_center_size(egui::pos2(x + size.x / 2.0, top), size);
+        egui::Image::from_uri(uri.to_string())
+            .fit_to_exact_size(size)
+            .paint_at(ui, at);
+        x += ICON + 8.0;
+    } else if !icon.is_empty() {
         painter.text(
             egui::pos2(x, top),
             egui::Align2::LEFT_CENTER,
@@ -401,6 +422,8 @@ pub struct Entry {
     /// The line under the name: a session, a path, a category.
     pub detail: String,
     pub icon: String,
+    /// An image URI drawn in place of the glyph, when the thing has one.
+    pub image: Option<String>,
 }
 
 /// The words a [`saved_dashboard`] needs. Nothing here reaches for
@@ -477,7 +500,17 @@ pub fn saved_dashboard(
                 page.empty,
                 |ui, i, w| {
                     let e = &entries[i];
-                    if item_button(ui, theme, &e.icon, &e.name, &e.detail, w).clicked() {
+                    if item_button_image(
+                        ui,
+                        theme,
+                        e.image.as_deref(),
+                        &e.icon,
+                        &e.name,
+                        &e.detail,
+                        w,
+                    )
+                    .clicked()
+                    {
                         pick = Some(Pick::Open(e.id.clone()));
                     }
                 },

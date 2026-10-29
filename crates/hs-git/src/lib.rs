@@ -13,8 +13,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
+pub mod blame;
 pub mod conflict;
 pub mod diff;
+pub mod graph;
 pub mod write;
 
 pub use diff::{DiffLine, FileDiff, Hunk, LineKind};
@@ -470,6 +472,45 @@ pub fn log(root: &Path, skip: usize, limit: usize) -> Result<Vec<Commit>> {
         Err(GitError::Failed { message, .. }) if message.contains("any commits") => Ok(Vec::new()),
         Err(e) => Err(e),
     }
+}
+
+/// Every branch's history (`--all`, topological order) or one file's,
+/// for the Git activity's graph: `path` limits the log to the commits
+/// that touched it (File History), `all` takes every ref rather than the
+/// current branch alone.
+pub fn log_with(
+    root: &Path,
+    all: bool,
+    path: Option<&str>,
+    skip: usize,
+    limit: usize,
+) -> Result<Vec<Commit>> {
+    let skip = format!("--skip={skip}");
+    let limit = format!("--max-count={limit}");
+    let mut args = vec!["log", LOG_FORMAT, "--topo-order", &skip, &limit];
+    if all {
+        args.push("--all");
+    }
+    if let Some(p) = path {
+        args.push("--");
+        args.push(p);
+    }
+    match git(root, &args) {
+        Ok(out) => Ok(parse_log(&String::from_utf8_lossy(&out))),
+        Err(GitError::Failed { message, .. }) if message.contains("any commits") => Ok(Vec::new()),
+        Err(e) => Err(e),
+    }
+}
+
+/// Who last touched each line of `path` (the work tree copy, or `rev`'s).
+pub fn blame(root: &Path, path: &str, rev: Option<&str>) -> Result<Vec<blame::BlameLine>> {
+    let mut args = vec!["blame", "--porcelain"];
+    if let Some(r) = rev {
+        args.push(r);
+    }
+    args.extend(["--", path]);
+    let out = git(root, &args)?;
+    Ok(blame::parse(&String::from_utf8_lossy(&out)))
 }
 
 pub fn parse_log(text: &str) -> Vec<Commit> {

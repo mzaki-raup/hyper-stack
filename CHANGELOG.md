@@ -28,7 +28,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   (Ctrl+Alt+Shift+K) samples one table on both connections by primary
   key under a row bound and reports the rows that are new, missing or
   differ, with `INSERT`/`UPDATE` generation. Both compares open the
-  target read-only.
+  target read-only. All four are driven end to end in
+  `hyperstack/src/db_tests.rs` against real SQLite databases, so the
+  dialogs and the hand-over to the Diagram Editor are covered by tests
+  rather than only by hand.
 
 - **Fixed:** `hs-core` now owns the Graphics tool's open-request mime
   (`GRAPHICS_MIME`), which was private to `tool-graphics`, so another

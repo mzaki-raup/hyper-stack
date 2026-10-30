@@ -9,6 +9,8 @@ mod bootstrap;
 mod browser_host;
 mod conn_test;
 mod credentials;
+#[cfg(test)]
+mod db_tests;
 mod dock;
 #[cfg(test)]
 mod editor_tests;

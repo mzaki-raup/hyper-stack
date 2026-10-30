@@ -320,6 +320,10 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Linux/Xvfb.** The app panics at start without `libxkbcommon-x11-0`. Install it, plus `libgl1-mesa-dri`, and it renders with llvmpipe. With no window manager, `xdotool` input is ignored until `xdotool windowfocus <id>`. `xdotool type` needs `--` before text starting with `-`.
 - **Xvfb modal dialogs** can leave the window without keyboard focus. Run `xdotool windowfocus <id>` again before typing.
 - **Overlay-only checks.** Test a toolbar hard-right layout in a narrow window (`hard_right` in toolbars).
+- **A kittest context starts with no fonts.** Anything drawn with a named family panics with `FontFamily::Name("hs-editor") is not bound to any fonts`. Call `hs_ui::icons::install_fonts(ui.ctx())` on the first frame and return without drawing; draw from the second (see `hs-editor/tests/view.rs`, `hyperstack/src/db_tests.rs`).
+- **A `ComboBox` carries its text on a child node,** so `get_by_label("<selected text>")` finds nothing. Reach it with `get_by_role(egui::accesskit::Role::ComboBox)` — `egui` re-exports `accesskit`, so no extra dependency. Its items are `selectable_value` buttons and *are* found by label once the popup is open.
+- **Plain `ui.label` text is matched through the node's `value`,** not its label, which kittest handles; a heading or label is therefore queryable, but prefer waiting on a button that only appears in the state you want. `pump` in `db_tests.rs` waits on "Generate Migration" for that reason: it is drawn only once a compare has actually returned differences.
+- **A whole tool can be driven headlessly.** `crate::bootstrap::services` on a temp `DataDir` with `NoopWaker` and `KdfParams::FAST` gives real services; `ToolContext` is a plain struct, so frames can be run with `Harness::new_ui_state` while the tool's own tokio session does real I/O. Run a palette command by setting a field the closure takes on the next frame, and poll for the result instead of assuming one frame is enough.
 
 ## Security and Vault
 

@@ -154,6 +154,44 @@ top processes, listening ports; 5 s interval; sparklines; "kill process" and
 "tail this log" shortcuts. Works on Linux and BSD; Windows hosts via
 PowerShell remoting are out of scope.
 
+### 9.1 Depth, phase E (2026-10-30)
+
+The depth programme's fifth phase (`docs/10-depth-programme.md`)
+delivered the §6 broadcast, the §8 pane and saved forwards, and the §9
+monitor in its first shape:
+
+- **Tunnels pane** (`SshTool::tunnels_panel`): the toolbar's Tunnels
+  toggle draws the sidebar's forwards section above the shell (same
+  grouped list, traffic, stop and form) and under it **Kept Forwards**:
+  `SshFields::forwards` (`[[ssh.forwards]]` with `remote_host`,
+  `remote_port`, `local_port`, `auto`), each with an Auto tick, Start and
+  Remove. The New Tunnel form's *Keep on this host and start on connect*
+  tick saves the forward on the form's host. `start_saved_forwards` runs
+  on the tab's Idle → Connected edge and skips a target a listening
+  forward already serves. Remote (`-R`) and dynamic (`-D`) forwards are
+  still not done.
+- **Broadcast** (`tool-ssh::broadcast`): `TerminalResponse::input` now
+  carries the bytes the terminal wrote this frame; with the toolbar's
+  Broadcast toggle on (red, with the receiver count) the tab writes the
+  same bytes through `SessionWriter`s held in a process-wide registry
+  keyed by tab serial, to every other registered shell of the same
+  connection. A tab registers when its shell comes up and leaves on
+  disconnect or close. "A chosen set" of hosts is not done: it is the
+  same host only.
+- **Monitor** (`tool-ssh::monitor`): the Monitor toggle runs
+  `monitor::SCRIPT` (`/proc/loadavg`, the `cpu` line of `/proc/stat`,
+  `MemTotal` / `MemAvailable`, `/proc/uptime`, `df -Pk /`, `ps -eo
+  pcpu,pmem,comm --sort=-pcpu | head -6`) over the exec channel every
+  five seconds through `exec_text` (bounded to 8 s and 64 KB) and shows
+  CPU % (from two readings), load, memory used / total, disk use, uptime
+  and the top processes in a strip above the shell. Both rows wrap, so a
+narrow pane puts the rest of the processes on the next line rather than
+cutting the list off (owner's report, 2026-10-30). A host without
+  `/proc` says so. Sparklines, kill and "tail this log" are not done.
+
+Verified 2026-10-30 against the WSL Ubuntu sshd (key auth) on screen;
+the parser and the profile round trip are unit-tested.
+
 ## 10. Integration points
 
 - `sftp://host-id/path` VFS scheme for the editor, logs (`LogSource::Ssh`),

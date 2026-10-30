@@ -11,7 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **SSH depth (depth programme, phase E).** A **Tunnels** toggle in the
+  SSH tab's toolbar opens the port forwards above the shell: the live
+  list with traffic and stop, the New Tunnel form, and **Kept Forwards**
+  - forwards saved on the host's profile (`[[ssh.forwards]]`) that start
+  whenever a tab connects (per-forward Auto tick, Start, Remove; the
+  form's "Keep on this host" tick saves one). **Broadcast**: a toolbar
+  toggle, red while on with the number of receivers, sends what is
+  typed in this shell to every other open shell of the same host.
+  **Monitor**: a strip above the shell with the host's CPU, load,
+  memory, disk, uptime and top processes, read every five seconds over
+  the exec channel from `/proc` (Linux hosts). Palette commands `SSH:
+  Toggle Broadcast Input`, `SSH: Toggle Server Monitor`, `SSH: Toggle
+  Tunnels Pane`. The monitor's figures and its Top row wrap onto further
+  lines, so every process stays readable in a narrow pane.
 
 ## 0.106.0 — 2026-10-30
 

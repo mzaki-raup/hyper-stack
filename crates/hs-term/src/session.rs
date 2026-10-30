@@ -62,6 +62,21 @@ impl EventListener for Listener {
 
 pub type SharedTerm = Arc<FairMutex<Term<Listener>>>;
 
+/// See [`Session::writer`].
+#[derive(Clone)]
+pub struct SessionWriter {
+    pty: Arc<Mutex<Box<dyn Transport>>>,
+    exited: Arc<AtomicBool>,
+}
+
+impl SessionWriter {
+    pub fn write(&self, bytes: &[u8]) {
+        if !self.exited.load(Ordering::Relaxed) {
+            let _ = self.pty.lock().write(bytes);
+        }
+    }
+}
+
 pub struct Session {
     pub term: SharedTerm,
     listener: Listener,
@@ -216,6 +231,15 @@ impl Session {
     pub fn write(&self, bytes: &[u8]) {
         if !self.exited.load(Ordering::Relaxed) {
             let _ = self.pty.lock().write(bytes);
+        }
+    }
+
+    /// A handle that writes to this session from anywhere, without
+    /// holding the session (the SSH tool's broadcast input).
+    pub fn writer(&self) -> SessionWriter {
+        SessionWriter {
+            pty: self.pty.clone(),
+            exited: self.exited.clone(),
         }
     }
 

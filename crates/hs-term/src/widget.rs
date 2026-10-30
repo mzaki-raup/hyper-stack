@@ -126,6 +126,9 @@ pub struct TerminalResponse {
     pub link: Option<LinkTarget>,
     /// Ctrl+Shift+F while focused (the tool opens its search bar).
     pub find_requested: bool,
+    /// The bytes written to the session this frame (keys and pastes), for
+    /// an owner that mirrors them elsewhere (the SSH tool's broadcast).
+    pub input: Vec<u8>,
 }
 
 /// Per-view state (font size, selection drag) kept by the owner.
@@ -385,6 +388,7 @@ impl TerminalView {
                 }
             }
             if !to_write.is_empty() {
+                resp.input.extend_from_slice(&to_write);
                 session.write(&to_write);
             }
             if scroll_to_bottom {

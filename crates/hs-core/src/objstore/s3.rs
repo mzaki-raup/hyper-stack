@@ -112,6 +112,21 @@ pub struct Head {
     pub metadata: Vec<(String, String)>,
 }
 
+/// One version of a key (`ListObjectVersions`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ObjectVersion {
+    pub version_id: String,
+    pub modified: String,
+    pub size: u64,
+    pub etag: String,
+    pub storage_class: String,
+    /// This is what the key reads as now.
+    pub latest: bool,
+    /// A delete marker rather than data: the key looks gone until it is
+    /// removed or an older version is restored.
+    pub delete_marker: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Versioning {
     Never,
@@ -701,6 +716,145 @@ impl S3Client {
                 Some(t) => token = Some(t),
                 None => return Ok(keys),
             }
+        }
+    }
+
+    // ---- depth programme, phase F: tags, versions, policy -------------
+
+    /// `GetObjectTagging`.
+    pub async fn get_tags(&self, bucket: &str, key: &str) -> Result<Vec<(String, String)>> {
+        let root = self
+            .send_xml(Call::new(reqwest::Method::GET, Some(bucket), key).q("tagging", ""))
+            .await?;
+        Ok(root
+            .child("TagSet")
+            .map(|set| {
+                set.all("Tag")
+                    .map(|t| (t.text_of("Key"), t.text_of("Value")))
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// `PutObjectTagging`; an empty set deletes the tagging instead, which
+    /// is what S3 wants for "no tags".
+    pub async fn put_tags(&self, bucket: &str, key: &str, tags: &[(String, String)]) -> Result<()> {
+        if tags.is_empty() {
+            self.send(Call::new(reqwest::Method::DELETE, Some(bucket), key).q("tagging", ""))
+                .await?;
+            return Ok(());
+        }
+        let body = format!(
+            "<Tagging><TagSet>{}</TagSet></Tagging>",
+            tags.iter()
+                .map(|(k, v)| format!(
+                    "<Tag><Key>{}</Key><Value>{}</Value></Tag>",
+                    crate::objstore::xml::escape(k),
+                    crate::objstore::xml::escape(v)
+                ))
+                .collect::<String>()
+        )
+        .into_bytes();
+        self.send(
+            Call::new(reqwest::Method::PUT, Some(bucket), key)
+                .q("tagging", "")
+                .h("content-type", "application/xml")
+                .body(body),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// `ListObjectVersions` for one key: every version and delete marker,
+    /// newest first as S3 returns them.
+    pub async fn list_versions(&self, bucket: &str, key: &str) -> Result<Vec<ObjectVersion>> {
+        let root = self
+            .send_xml(
+                Call::new(reqwest::Method::GET, Some(bucket), "")
+                    .q("versions", "")
+                    .q("prefix", key)
+                    .q("max-keys", "200"),
+            )
+            .await?;
+        let mut out: Vec<ObjectVersion> = Vec::new();
+        for (name, marker) in [("Version", false), ("DeleteMarker", true)] {
+            for e in root.all(name) {
+                // The prefix match is not an exact match: a sibling key
+                // that starts with this one would come back too.
+                if e.text_of("Key") != key {
+                    continue;
+                }
+                out.push(ObjectVersion {
+                    version_id: e.text_of("VersionId"),
+                    modified: e.text_of("LastModified"),
+                    size: e.text_of("Size").parse().unwrap_or(0),
+                    etag: e.text_of("ETag").trim_matches('"').to_string(),
+                    storage_class: e.text_of("StorageClass"),
+                    latest: e.text_of("IsLatest") == "true",
+                    delete_marker: marker,
+                });
+            }
+        }
+        out.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(out)
+    }
+
+    /// One version's bytes (the version viewer and "download this one").
+    pub async fn get_version_bytes(
+        &self,
+        bucket: &str,
+        key: &str,
+        version_id: &str,
+    ) -> Result<Vec<u8>> {
+        let resp = self
+            .send(Call::new(reqwest::Method::GET, Some(bucket), key).q("versionId", version_id))
+            .await?;
+        Ok(resp.bytes().await.map_err(http_err)?.to_vec())
+    }
+
+    /// Delete one version for good (not a delete marker).
+    pub async fn delete_version(&self, bucket: &str, key: &str, version_id: &str) -> Result<()> {
+        self.send(Call::new(reqwest::Method::DELETE, Some(bucket), key).q("versionId", version_id))
+            .await?;
+        Ok(())
+    }
+
+    /// Make an old version current again by copying it over the key.
+    pub async fn restore_version(&self, bucket: &str, key: &str, version_id: &str) -> Result<()> {
+        let source = format!(
+            "/{bucket}/{}?versionId={version_id}",
+            sigv4::uri_encode(key, false)
+        );
+        self.send(
+            Call::new(reqwest::Method::PUT, Some(bucket), key)
+                .h("x-amz-copy-source", source)
+                .h("x-amz-metadata-directive", "COPY"),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// The bucket policy as its JSON text; `None` when none is set.
+    pub async fn bucket_policy(&self, bucket: &str) -> Result<Option<String>> {
+        match self
+            .send(Call::new(reqwest::Method::GET, Some(bucket), "").q("policy", ""))
+            .await
+        {
+            Ok(r) => Ok(Some(r.text().await.map_err(http_err)?)),
+            Err(S3Error::Api { status: 404, .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// The bucket's CORS rules as XML text; `None` when none are set.
+    pub async fn bucket_cors(&self, bucket: &str) -> Result<Option<String>> {
+        match self
+            .send(Call::new(reqwest::Method::GET, Some(bucket), "").q("cors", ""))
+            .await
+        {
+            Ok(r) => Ok(Some(r.text().await.map_err(http_err)?)),
+            Err(S3Error::Api { status: 404, .. }) => Ok(None),
+            Err(e) => Err(e),
         }
     }
 

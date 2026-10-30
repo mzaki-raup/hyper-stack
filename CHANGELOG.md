@@ -11,6 +11,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **S3 depth (depth programme, phase F).** A **Details** pane beside the
+  browser shows the selected object's size, content type, modified time,
+  storage class, ETag, version id and `x-amz-meta-*` headers, its
+  **tags** (editable, saved with `PutObjectTagging`) and, on a versioned
+  bucket, its **versions** with restore and delete-this-version.
+  **Sync…** compares a local folder with the open prefix by size in
+  either direction, shows the differences as a dry run (added, changed
+  and, optionally, extra files to delete) and applies them as a Job with
+  progress and cancel. **Bucket Policy…** shows the bucket policy JSON
+  and the CORS rules read-only, with Copy. Palette commands `S3: Toggle
+  Details Pane`, `S3: Sync With a Folder…`, `S3: Bucket Policy and
+  CORS`. WebDAV and Nexus profiles do not offer these: the calls are
+  S3's alone.
+
 - **SSH depth (depth programme, phase E).** A **Tunnels** toggle in the
   SSH tab's toolbar opens the port forwards above the shell: the live
   list with traffic and stop, the New Tunnel form, and **Kept Forwards**

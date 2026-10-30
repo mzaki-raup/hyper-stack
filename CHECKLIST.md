@@ -250,7 +250,7 @@ store that already exists.
 | AI: model dropdown from the provider's model list | Completed | 2026-10-12: LM Studio-style `/v1/models` list, 1min.AI built-in list, custom id, refresh, error shown in the list; exercised against the mock server |
 | Git: log graph, blame, merge/rebase/cherry-pick, conflicts | Completed | The Git activity, 2026-10-29/30 (phases 2 and 3 in the Git activity section) |
 | SSH: port-forward UI, broadcast, server monitor | Completed | Depth programme phase E, 2026-10-30 |
-| S3: metadata/tags/versions, sync, policy viewer | Pending | |
+| S3: metadata/tags/versions, sync, policy viewer | Completed | Depth programme phase F, 2026-10-30 |
 | Shell: drag and drop, global search, installed mode | Pending | |
 | Delivery: Linux x64 via `cargo-zigbuild`, beta channel, mirror source | Pending | |
 | Devtools: network tools, process viewer, snippets, `.env` editor, scratchpad | Pending | |
@@ -569,7 +569,7 @@ and ADR-025.
 | C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
 | D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Completed | `parse::{Journal, EventLog, journal_command, eventlog_command}`, `SourceSpec::Merge` + `engine::merge_loop`, `ui::{compute_stats, AlertScan}`; verified on screen 2026-10-30 |
 | E — SSH depth: port-forward manager, broadcast input, server monitor | Completed | `SshTool::{tunnels_panel, start_saved_forwards, monitor_strip}`, `tool-ssh::{broadcast, monitor}`, `SshFields::forwards`, `TerminalResponse::input`, `Session::writer`; verified on screen 2026-10-30 against WSL sshd |
-| F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Pending | |
+| F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Completed | `objstore::s3::{get_tags, put_tags, list_versions, restore_version, delete_version, bucket_policy, bucket_cors}`, `S3Tool::details_pane`, `tool-s3::sync`; verified on screen 2026-10-30 against MinIO |
 | G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Pending | |
 | H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | Pending | |
 | I — Cassandra / ScyllaDB driver in the NoSQL activity | Pending | |

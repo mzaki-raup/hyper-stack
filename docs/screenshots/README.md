@@ -471,3 +471,11 @@ Application log followed on this machine).
 Depth programme, phase E (2026-10-30): `ssh-monitor.png` (the WSL Ubuntu
 host over key auth with the Monitor strip above the shell: CPU, load,
 memory, disk, uptime and the top processes).
+
+Depth programme, phase F (2026-10-30), against moto at 127.0.0.1:5055 with
+the `hs-depth-f` bucket (versioning on, a tagged and thrice-written
+`reports/quarter.json`, a bucket policy and CORS rules) and the local folder
+`D:\Temp\hs-depth-f\local`: `s3-details.png` (the details pane with metadata,
+custom headers, tags and three versions), `s3-sync.png` (the dry run: two new
+files and one changed) and `s3-policy.png` (the read-only policy and CORS
+viewer).

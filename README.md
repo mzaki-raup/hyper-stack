@@ -98,7 +98,7 @@ the fixtures behind them.
 | [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts, assistant |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels kept per host, broadcast input, server monitor, remote editing |
-| [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
+| [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, object details with tags and versions, folder sync, presigned URLs, guards; **WebDAV** and **Nexus** too |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
@@ -237,6 +237,8 @@ the lists.
 |---|---|
 | ![S3 browser](docs/screenshots/s3-browser.png) | ![S3 profile](docs/screenshots/connection-s3-form.png) |
 | **Browser** — profiles in the sidebar; buckets and the open bucket's folders in the pane's left column, breadcrumb, size / modified / class / ETag, Load More | **Profile** — provider presets (AWS, MinIO, R2, B2, Spaces, Wasabi), keys stored in the vault |
+| ![Object details](docs/screenshots/s3-details.png) | ![Sync dry run](docs/screenshots/s3-sync.png) |
+| **Details** - the selected object's metadata and `x-amz-meta-*` headers, its tags (editable) and, on a versioned bucket, every version with Restore and Delete | **Sync** - compare a local folder with the prefix by size either way, see what would move, then apply it as a Job; **Bucket Policy…** shows the policy and CORS rules read-only |
 | ![Import AWS profiles](docs/screenshots/s3-import-aws.png) | ![Presigned URL](docs/screenshots/s3-presign.png) |
 | **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |

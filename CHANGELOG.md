@@ -11,25 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Redis depth (depth programme, phase A).** The Info tab opens with a
-  **dashboard**: memory, clients, ops/s, hit rate, keys and uptime as
-  cards, five-minute sparklines of ops, memory and clients, and peak /
-  fragmentation / role / persistence / evicted / expired figures, read
-  every two seconds while the tab is on screen; the raw INFO sections
-  fold under it. A **Tools** tab holds the **Slowlog** and **Client
-  List** tables (kill is guarded and refused on read-only), the
-  **big-key finder** (SCAN with `MEMORY USAGE` per page, top N by size
-  with type, length and TTL, cancellable, a key opens on click) and
-  **Bulk Ops** (delete / expire / persist / rename-prefix by pattern,
-  previewed first, capped at 10 000 keys, confirmed in a dialog that
-  asks for the pattern to be typed back on a protected environment). A
-  **Pub/Sub** tab subscribes to channels and patterns on a second
-  connection, shows messages as they arrive and publishes. A
-  **Streams** tab shows a stream's length, groups with consumers and
-  pending counts, last id and its newest entries. Palette commands
-  `Redis: Pub/Sub`, `Redis: Streams`, `Redis: Tools`.
-
 - (nothing yet)
+
+## 0.104.0 — 2026-10-30
+
+### Added
+
+- Info dashboard, Slowlog, Client List, big keys, bulk ops, Pub/Sub and Streams (depth programme phase A) (cf605031)
 
 ## 0.103.1 — 2026-10-30
 

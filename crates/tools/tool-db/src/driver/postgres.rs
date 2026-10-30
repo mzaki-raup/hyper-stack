@@ -25,6 +25,7 @@ use super::{
     BATCH, Canceller, Catalog, Column, ConnectConfig, DbError, DbSession, Engine, ExecSummary,
     Flow, ObjectKind, Result, ResultSink, Row, SchemaObject, Scope, ServerInfo, Value,
 };
+use crate::schema::{ColumnDef, ForeignKey, IndexDef, TableSchema};
 use crate::sql::quote_literal;
 
 const QUERY_CANCELED: &str = "57014";
@@ -467,8 +468,151 @@ impl DbSession for PgSession {
         ))
     }
 
+    async fn table_schema(&mut self, schema: &str, table: &str) -> Result<TableSchema> {
+        let e = Engine::Postgres;
+        let (s, t) = (quote_literal(schema, e), quote_literal(table, e));
+
+        // attidentity/attgenerated cover IDENTITY; a serial shows instead as a
+        // nextval() default, which is why both are checked.
+        let cols = self
+            .rows_of(&format!(
+                "SELECT a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull, \
+                   pg_get_expr(d.adbin, d.adrelid), a.attidentity \
+                 FROM pg_attribute a \
+                 JOIN pg_class c ON c.oid = a.attrelid \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum \
+                 WHERE n.nspname = {s} AND c.relname = {t} \
+                   AND a.attnum > 0 AND NOT a.attisdropped \
+                 ORDER BY a.attnum"
+            ))
+            .await?;
+        let mut columns = Vec::with_capacity(cols.len());
+        for r in &cols {
+            let default = cell(r, 3);
+            let identity = !cell(r, 4).is_empty();
+            let serial = default.starts_with("nextval(");
+            columns.push(ColumnDef {
+                name: cell(r, 0),
+                data_type: cell(r, 1),
+                nullable: cell(r, 2) != "t",
+                // A serial's nextval() default belongs to the sequence the
+                // generator writes itself, so it is not repeated here.
+                default: if default.is_empty() || serial {
+                    None
+                } else {
+                    Some(default)
+                },
+                auto_increment: identity || serial,
+            });
+        }
+
+        // indkey is in key order; unnest with ordinality keeps it.
+        let key = self
+            .rows_of(&format!(
+                "SELECT a.attname FROM pg_index i \
+                 JOIN pg_class c ON c.oid = i.indrelid \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 JOIN unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord) ON TRUE \
+                 JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum \
+                 WHERE n.nspname = {s} AND c.relname = {t} AND i.indisprimary \
+                 ORDER BY k.ord"
+            ))
+            .await
+            .unwrap_or_default();
+        let primary_key = key.iter().map(|r| cell(r, 0)).collect();
+
+        let ix_rows = self
+            .rows_of(&format!(
+                "SELECT i.relname, ix.indisunique, ix.indisprimary, \
+                   (SELECT string_agg(a.attname, ',' ORDER BY k.ord) \
+                      FROM unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord) \
+                      JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum) \
+                 FROM pg_index ix \
+                 JOIN pg_class i ON i.oid = ix.indexrelid \
+                 JOIN pg_class c ON c.oid = ix.indrelid \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 WHERE n.nspname = {s} AND c.relname = {t} ORDER BY i.relname"
+            ))
+            .await
+            .unwrap_or_default();
+        let indexes = ix_rows
+            .iter()
+            .map(|r| IndexDef {
+                name: cell(r, 0),
+                columns: split_list(&cell(r, 3)),
+                unique: cell(r, 1) == "t",
+                primary: cell(r, 2) == "t",
+            })
+            .collect();
+
+        // confupdtype/confdeltype are single letters, not words.
+        let fk_rows = self
+            .rows_of(&format!(
+                "SELECT k.conname, fn.nspname, fc.relname, \
+                   (SELECT string_agg(a.attname, ',' ORDER BY o.ord) \
+                      FROM unnest(k.conkey) WITH ORDINALITY AS o(attnum, ord) \
+                      JOIN pg_attribute a ON a.attrelid = k.conrelid AND a.attnum = o.attnum), \
+                   (SELECT string_agg(a.attname, ',' ORDER BY o.ord) \
+                      FROM unnest(k.confkey) WITH ORDINALITY AS o(attnum, ord) \
+                      JOIN pg_attribute a ON a.attrelid = k.confrelid AND a.attnum = o.attnum), \
+                   k.confdeltype, k.confupdtype \
+                 FROM pg_constraint k \
+                 JOIN pg_class c ON c.oid = k.conrelid \
+                 JOIN pg_namespace n ON n.oid = c.relnamespace \
+                 JOIN pg_class fc ON fc.oid = k.confrelid \
+                 JOIN pg_namespace fn ON fn.oid = fc.relnamespace \
+                 WHERE n.nspname = {s} AND c.relname = {t} AND k.contype = 'f' \
+                 ORDER BY k.conname"
+            ))
+            .await
+            .unwrap_or_default();
+        let foreign_keys = fk_rows
+            .iter()
+            .map(|r| ForeignKey {
+                name: cell(r, 0),
+                columns: split_list(&cell(r, 3)),
+                ref_schema: cell(r, 1),
+                ref_table: cell(r, 2),
+                ref_columns: split_list(&cell(r, 4)),
+                on_delete: crate::schema::referential_action(fk_action(&cell(r, 5))),
+                on_update: crate::schema::referential_action(fk_action(&cell(r, 6))),
+            })
+            .collect();
+
+        Ok(TableSchema {
+            schema: schema.to_string(),
+            name: table.to_string(),
+            columns,
+            primary_key,
+            indexes,
+            foreign_keys,
+        })
+    }
+
     fn in_transaction(&self) -> bool {
         self.in_tx
+    }
+}
+
+/// A `string_agg` list back into its parts, empty string to empty vec.
+fn split_list(s: &str) -> Vec<String> {
+    if s.is_empty() {
+        Vec::new()
+    } else {
+        s.split(',').map(|p| p.to_string()).collect()
+    }
+}
+
+/// `pg_constraint.confdeltype` / `confupdtype` as the word it stands for.
+fn fk_action(code: &str) -> &'static str {
+    match code {
+        "c" => "CASCADE",
+        "n" => "SET NULL",
+        "d" => "SET DEFAULT",
+        "r" => "RESTRICT",
+        // "a" is NO ACTION, the default.
+        _ => "NO ACTION",
     }
 }
 

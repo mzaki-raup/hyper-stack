@@ -19,8 +19,8 @@ use std::path::{Path, PathBuf};
 pub use activity::{Function, GraphicsHub, Kind, SharedGraphics};
 use hs_core::Services;
 use hs_core::tool::{
-    Accept, Action, CloseDecision, CommandDescriptor, OpenRequest, Printable, Speakable,
-    ToastLevel, Tool, ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
+    Accept, Action, CloseDecision, CommandDescriptor, GRAPHICS_MIME, OpenRequest, Printable,
+    Speakable, ToastLevel, Tool, ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
 };
 use hs_ui::form;
 use hs_ui::icons::ph;
@@ -375,9 +375,6 @@ When the answer changes the diagram, include the complete .hdiag document as a
 {"schema":2,"kind":"flow","title":"Checkout","subtitle":"","page":{"size":"fit","margin":24,"background":"#ffffff"},"nodes":[{"id":"start","label":"Start","kind":"start_end","x":0,"y":0,"w":0,"h":0}],"edges":[],"groups":[],"auto_layout":true}
 Keep ids unique and endpoint ids valid.
 "##;
-
-/// A private request body for "open this as an icon" and "make a new icon".
-const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
 
 /// `.hdiag` or the Release 2 alias `.diagram.json`.
 fn is_diagram_path(path: &Path) -> bool {

@@ -14,6 +14,7 @@ sqlformat = { workspace = true }
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
 hs-editor = { workspace = true }
+hs-diagram = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
 serde = { workspace = true }

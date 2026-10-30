@@ -77,6 +77,58 @@ pub enum Cmd {
         scope: Scope,
     },
     Catalog,
+    /// Read a schema's structure for the ER diagram and the DDL generator
+    /// (docs/10-depth-programme.md phase H).
+    Snapshot {
+        schema: String,
+        cap: usize,
+    },
+    /// Read this schema and the same schema on a second connection, for the
+    /// schema compare. This session is the source.
+    CompareSchemas {
+        schema: String,
+        other: ConnectConfig,
+        other_label: String,
+        other_schema: String,
+        cap: usize,
+    },
+    /// Sample one table on both connections, ordered by its primary key.
+    CompareData {
+        schema: String,
+        table: String,
+        other: ConnectConfig,
+        other_label: String,
+        other_schema: String,
+        limit: usize,
+    },
+}
+
+/// A schema read for the ER diagram or the DDL generator.
+#[derive(Debug, Clone)]
+pub struct SnapshotOut {
+    pub snap: crate::schema::Snapshot,
+    /// Tables the cap left out, so the UI can say the picture is partial.
+    pub skipped: usize,
+}
+
+/// Both sides of a schema compare. This tab is always the source.
+#[derive(Debug, Clone)]
+pub struct CompareOut {
+    pub source: crate::schema::Snapshot,
+    pub target: crate::schema::Snapshot,
+    pub target_label: String,
+}
+
+/// Both samples of a data compare, each already keyed and ordered.
+#[derive(Debug, Clone)]
+pub struct DataOut {
+    pub table: crate::schema::TableSchema,
+    pub columns: Vec<String>,
+    pub source: Vec<(String, Vec<String>)>,
+    pub target: Vec<(String, Vec<String>)>,
+    pub target_label: String,
+    /// Either side filled the sample, so rows beyond the bound were not read.
+    pub truncated: bool,
 }
 
 #[derive(Default)]
@@ -90,6 +142,10 @@ pub struct Shared {
     pub in_tx: bool,
     pub nodes: HashMap<String, Load<Vec<SchemaObject>>>,
     pub catalog: Option<Catalog>,
+    /// Phase-H reads, each drained by the dialog that asked for it.
+    pub snapshot: Load<SnapshotOut>,
+    pub compare: Load<CompareOut>,
+    pub data_compare: Load<DataOut>,
     /// Transaction-control outcomes and other messages, drained as toasts.
     pub messages: Vec<(bool, String)>,
     /// History changed; the UI reloads its list.
@@ -312,11 +368,152 @@ pub fn spawn(
                         shared.lock().catalog = Some(c);
                     }
                 }
+                Cmd::Snapshot { schema, cap } => {
+                    shared.lock().snapshot = Load::Loading;
+                    let r = crate::schema::read(session.as_mut(), &schema, cap).await;
+                    shared.lock().snapshot = match r {
+                        Ok((snap, skipped)) => Load::Ready(SnapshotOut { snap, skipped }),
+                        Err(e) => Load::Failed(e.to_string()),
+                    };
+                    waker.request_repaint();
+                }
+                Cmd::CompareSchemas {
+                    schema,
+                    other,
+                    other_label,
+                    other_schema,
+                    cap,
+                } => {
+                    shared.lock().compare = Load::Loading;
+                    let out = compare_schemas(
+                        session.as_mut(),
+                        &schema,
+                        &other,
+                        other_label,
+                        &other_schema,
+                        cap,
+                    )
+                    .await;
+                    shared.lock().compare = match out {
+                        Ok(c) => Load::Ready(c),
+                        Err(e) => Load::Failed(e),
+                    };
+                    waker.request_repaint();
+                }
+                Cmd::CompareData {
+                    schema,
+                    table,
+                    other,
+                    other_label,
+                    other_schema,
+                    limit,
+                } => {
+                    shared.lock().data_compare = Load::Loading;
+                    let out = compare_data(
+                        session.as_mut(),
+                        &schema,
+                        &table,
+                        &other,
+                        other_label,
+                        &other_schema,
+                        limit,
+                    )
+                    .await;
+                    shared.lock().data_compare = match out {
+                        Ok(d) => Load::Ready(d),
+                        Err(e) => Load::Failed(e),
+                    };
+                    waker.request_repaint();
+                }
             }
         }
         shared.lock().status = Some(Status::Closed);
     });
     tx
+}
+
+/// Reads both sides of a schema compare. The second connection is opened for
+/// the read and dropped straight after, so a compare never leaves a session
+/// open on a server the user is not working in.
+async fn compare_schemas(
+    session: &mut dyn DbSession,
+    schema: &str,
+    other: &ConnectConfig,
+    other_label: String,
+    other_schema: &str,
+    cap: usize,
+) -> Result<CompareOut, String> {
+    let (source, _) = crate::schema::read(session, schema, cap)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut target_session = driver::connect(other).await.map_err(|e| e.to_string())?;
+    let (target, _) = crate::schema::read(target_session.as_mut(), other_schema, cap)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(CompareOut {
+        source,
+        target,
+        target_label: other_label,
+    })
+}
+
+/// Reads one table from both sides, each ordered by its own primary key.
+async fn compare_data(
+    session: &mut dyn DbSession,
+    schema: &str,
+    table: &str,
+    other: &ConnectConfig,
+    other_label: String,
+    other_schema: &str,
+    limit: usize,
+) -> Result<DataOut, String> {
+    let source_table = session
+        .table_schema(schema, table)
+        .await
+        .map_err(|e| e.to_string())?;
+    let source_sql = crate::compare::data_query(&source_table, session.engine(), limit)
+        .ok_or_else(|| format!("{table} has no primary key, so its rows cannot be matched up"))?;
+    let mut sink = driver::Collect {
+        limit: Some(limit),
+        ..Default::default()
+    };
+    session
+        .execute(&source_sql, &mut sink)
+        .await
+        .map_err(|e| e.to_string())?;
+    let source = crate::compare::to_sample(&source_table, &sink.rows);
+
+    let mut target_session = driver::connect(other).await.map_err(|e| e.to_string())?;
+    // The target's own structure decides its statement: the two servers may
+    // quote differently, and a column the target lacks must not be selected.
+    let target_table = target_session
+        .table_schema(other_schema, table)
+        .await
+        .map_err(|e| e.to_string())?;
+    let target_sql = crate::compare::data_query(&target_table, target_session.engine(), limit)
+        .ok_or_else(|| format!("{table} has no primary key on {other_label}"))?;
+    let mut target_sink = driver::Collect {
+        limit: Some(limit),
+        ..Default::default()
+    };
+    target_session
+        .execute(&target_sql, &mut target_sink)
+        .await
+        .map_err(|e| e.to_string())?;
+    let target = crate::compare::to_sample(&target_table, &target_sink.rows);
+
+    Ok(DataOut {
+        columns: source_table
+            .columns
+            .iter()
+            .map(|c| c.name.clone())
+            .collect(),
+        truncated: source.len() >= limit || target.len() >= limit,
+        table: source_table,
+        source,
+        target,
+        target_label: other_label,
+    })
 }
 
 /// Run one statement to a writer on a connection of its own (exports of a

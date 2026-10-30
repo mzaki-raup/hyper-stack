@@ -309,6 +309,18 @@ pub trait DbSession: Send {
 
     async fn catalog(&mut self) -> Result<Catalog>;
 
+    /// Structured metadata for one table: columns with their types,
+    /// nullability and defaults, the primary key in key order, indexes and
+    /// foreign keys. [`introspect`](DbSession::introspect) answers the
+    /// schema tree with display strings and badges; the ER diagram, the DDL
+    /// generator and both compares need the parts apart, so they come
+    /// through here (docs/10-depth-programme.md phase H).
+    async fn table_schema(
+        &mut self,
+        schema: &str,
+        table: &str,
+    ) -> Result<crate::schema::TableSchema>;
+
     /// Whether the server is inside an open transaction block.
     fn in_transaction(&self) -> bool;
 }

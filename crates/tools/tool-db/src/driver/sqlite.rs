@@ -16,6 +16,7 @@ use super::{
     BATCH, Canceller, Catalog, Column, ConnectConfig, DbError, DbSession, Engine, ExecSummary,
     Flow, ObjectKind, Result, ResultSink, Row, SchemaObject, Scope, ServerInfo, Value,
 };
+use crate::schema::{ColumnDef, ForeignKey, IndexDef, TableSchema};
 use crate::sql::quote_ident;
 
 type Job = Box<dyn FnOnce(&mut Connection) + Send>;
@@ -370,6 +371,134 @@ impl DbSession for SqliteSession {
             }
         }
         Ok(cat)
+    }
+
+    async fn table_schema(&mut self, schema: &str, table: &str) -> Result<TableSchema> {
+        let e = Engine::Sqlite;
+        let s = quote_ident(schema, e);
+        let t = crate::sql::quote_literal(table, e);
+
+        // `AUTOINCREMENT` is not a pragma: it only shows in the stored DDL.
+        let created = self
+            .rows_of(format!(
+                "SELECT sql FROM {s}.sqlite_master WHERE type = 'table' AND name = {t}"
+            ))
+            .await
+            .unwrap_or_default();
+        let declared_autoinc = created
+            .first()
+            .map(|r| text(&r[0]).to_ascii_uppercase().contains("AUTOINCREMENT"))
+            .unwrap_or(false);
+
+        // cid, name, type, notnull, dflt_value, pk
+        let rows = self
+            .rows_of(format!("SELECT * FROM {s}.pragma_table_info({t})"))
+            .await?;
+        let mut columns = Vec::with_capacity(rows.len());
+        // pk holds the 1-based position in the key, so the key keeps its order.
+        let mut key: Vec<(i64, String)> = Vec::new();
+        for r in &rows {
+            let name = text(&r[1]);
+            let pk = match r[5] {
+                Value::Int(i) => i,
+                _ => 0,
+            };
+            if pk > 0 {
+                key.push((pk, name.clone()));
+            }
+            let data_type = text(&r[2]);
+            // Only an INTEGER PRIMARY KEY can carry AUTOINCREMENT.
+            let auto_increment =
+                declared_autoinc && pk == 1 && data_type.eq_ignore_ascii_case("INTEGER");
+            columns.push(ColumnDef {
+                name,
+                data_type,
+                // SQLite leaves `notnull` clear on an INTEGER PRIMARY KEY,
+                // because the column is a rowid alias rather than a declared
+                // NOT NULL. No engine allows a null in a key, and Postgres
+                // and MySQL both report one as NOT NULL, so a key column is
+                // recorded that way here too: otherwise every primary key
+                // would read as a difference in a cross-engine compare.
+                nullable: !matches!(r[3], Value::Int(1)) && pk == 0,
+                default: match &r[4] {
+                    Value::Null => None,
+                    v => Some(text(v)),
+                },
+                auto_increment,
+            });
+        }
+        key.sort_by_key(|(pos, _)| *pos);
+        let primary_key: Vec<String> = key.into_iter().map(|(_, n)| n).collect();
+
+        // seq, name, unique, origin, partial. origin "pk" is the key's own index.
+        let listed = self
+            .rows_of(format!("SELECT * FROM {s}.pragma_index_list({t})"))
+            .await
+            .unwrap_or_default();
+        let mut indexes = Vec::with_capacity(listed.len());
+        for r in &listed {
+            let name = text(&r[1]);
+            let info = self
+                .rows_of(format!(
+                    "SELECT * FROM {s}.pragma_index_info({})",
+                    crate::sql::quote_literal(&name, e)
+                ))
+                .await
+                .unwrap_or_default();
+            // seqno, cid, name - already in index order.
+            let cols = info
+                .iter()
+                .map(|i| text(&i[2]))
+                .filter(|n| !n.is_empty())
+                .collect();
+            indexes.push(IndexDef {
+                name,
+                columns: cols,
+                unique: matches!(r[2], Value::Int(1)),
+                primary: text(&r[3]) == "pk",
+            });
+        }
+
+        // id, seq, table, from, to, on_update, on_delete, match
+        let fk_rows = self
+            .rows_of(format!("SELECT * FROM {s}.pragma_foreign_key_list({t})"))
+            .await
+            .unwrap_or_default();
+        let mut foreign_keys: Vec<ForeignKey> = Vec::new();
+        for r in &fk_rows {
+            let id = match r[0] {
+                Value::Int(i) => i,
+                _ => 0,
+            };
+            let from = text(&r[3]);
+            let to = text(&r[4]);
+            // One row per column: rows sharing an id are one composite key.
+            match foreign_keys.last_mut() {
+                Some(fk) if fk.name == format!("fk_{id}") => {
+                    fk.columns.push(from);
+                    fk.ref_columns.push(to);
+                }
+                _ => foreign_keys.push(ForeignKey {
+                    // SQLite does not name its keys; the id keeps them apart.
+                    name: format!("fk_{id}"),
+                    columns: vec![from],
+                    ref_schema: String::new(),
+                    ref_table: text(&r[2]),
+                    ref_columns: vec![to],
+                    on_delete: crate::schema::referential_action(&text(&r[6])),
+                    on_update: crate::schema::referential_action(&text(&r[5])),
+                }),
+            }
+        }
+
+        Ok(TableSchema {
+            schema: schema.to_string(),
+            name: table.to_string(),
+            columns,
+            primary_key,
+            indexes,
+            foreign_keys,
+        })
     }
 
     fn in_transaction(&self) -> bool {

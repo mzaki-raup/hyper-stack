@@ -11,7 +11,82 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Added `TASKS.md`, a work ledger.** Every piece of work now has a
+  `FEAT-`/`BUG-`/`CR-` id under a task version (the owner's batch label, not
+  the app's release number) with its own checklist, and commits reference it
+  as `Refs: <id>`. The backlog in `mynotes` was reconstructed into it as 113
+  items across `v0.7.1`–`v0.0.1`, one per request block; those carry the
+  owner's `Completed` record and no tick boxes, since no session re-ran their
+  checks. `FEAT-0062` (Oracle, DB2 and the other relational engines) is the
+  one item still open.
+- **Added agent scaffolding under `.claude/`.** Slash commands (`/dev-task`,
+  `/task-new`, `/feat`, `/bug`, `/cr`, `/review`, `/gate`, `/phase`,
+  `/docsync`, `/gotcha`), seven skills, six review subagents, nine rules files
+  and five templates. `CLAUDE.md` now holds the general behavioural guidelines
+  and points at them; the project's own rules moved into `.claude/rules/`.
+- **SQL depth 2 (depth programme, phase H).** Four schema tools join the
+  Database activity, all reading through a new structured driver call
+  (`DbSession::table_schema`) rather than the schema tree's display
+  strings. **ER Diagram** (Ctrl+Alt+D) draws the schema's tables and
+  their foreign keys as an ERD and opens it in the Diagram Editor, with
+  cardinality taken from whether a key's own columns are unique.
+  **Generate DDL** (Ctrl+Alt+G) writes `CREATE TABLE`, `CREATE INDEX`
+  and `ALTER TABLE … FOREIGN KEY` for a whole schema in any of the three
+  dialects, with `IF NOT EXISTS`, `DROP` first, indexes and keys each
+  optional. **Compare Schema** (Ctrl+Alt+K) compares a schema against
+  the same schema on another saved connection and reports tables,
+  columns, keys and indexes as New, Missing or Differs with both
+  spellings side by side, and generates a migration script — additive
+  steps as SQL, every drop commented out. **Compare Table Data**
+  (Ctrl+Alt+Shift+K) samples one table on both connections by primary
+  key under a row bound and reports the rows that are new, missing or
+  differ, with `INSERT`/`UPDATE` generation. Both compares open the
+  target read-only. All four are driven end to end in
+  `hyperstack/src/db_tests.rs` against real SQLite databases, so the
+  dialogs and the hand-over to the Diagram Editor are covered by tests
+  rather than only by hand. **Export ER Diagram** (Ctrl+Alt+Shift+D)
+  writes the diagram as a standalone SVG, laid out deterministically so
+  the file is the same every run. Verified against live PostgreSQL 16 and
+  MySQL 8 catalogs, and all four exercised on screen with screenshots in
+  the README (`db-erd.png`, `db-ddl.png`, `db-compare.png`,
+  `db-data-compare.png`).
+
+- **Fixed:** ER diagram boxes were sized for one word. `hs-diagram`
+  measured an entity by its label but drew it with its column list, so
+  every identifier wrapped inside the box — `customer_id` came out as
+  "customer" over "_id". Affected every ERD, the DDL importer's included.
+
+- **Fixed:** the MySQL driver's foreign-key column badge never appeared in
+  its own test, because the test declared the key with a column-level
+  `REFERENCES`, which MySQL parses and silently ignores. The key is now
+  declared at table level, so the test creates what it asserts.
+
+- **Fixed:** `hs-core` now owns the Graphics tool's open-request mime
+  (`GRAPHICS_MIME`), which was private to `tool-graphics`, so another
+  tool can hand it a diagram without depending on it.
+
+- **Fixed:** a SQLite primary-key column is reported as `NOT NULL`.
+  SQLite leaves `notnull` clear on an `INTEGER PRIMARY KEY` rowid alias,
+  which made every key column read as a difference when comparing a
+  SQLite schema against PostgreSQL or MySQL.
+
+- **Fixed:** CI exhausted the machine's memory. The Forgejo runner is the
+  owner's own Windows box, where an unbounded parallel build exhausts the
+  page file — a constraint the local gate has honoured with `-j 4` all
+  along, but the workflows did not. A run died with `rustc-LLVM ERROR: out
+  of memory` on a commit that changed only documentation. `ci.yml` and
+  `release.yml` on the forge now pass `-j 4`; the GitHub mirror's copies
+  stay unbounded, since those run on hosted machines.
+
+- **Fixed:** `.gitignore` had the single pattern `/mynotes*.stackdump`,
+  which matched neither a stack dump nor the file it was meant to cover.
+
+- **A shared language picker.** `hs_ui::language` holds the languages a
+  piece of text can be written in (the project languages plus the
+  shells, the query and config formats) and the dropdown that chooses
+  one, so every activity that stores a language offers the same list.
+  The Snippets dialog is the first to use it; its Language field was a
+  free-text box.
 
 ## 0.108.0 — 2026-10-30
 

@@ -106,9 +106,14 @@ jobs:
         if: steps.ws.outputs.has_cargo == 'true'
         run: cargo fmt --all --check
 
+      # -j 4 everywhere a whole-workspace build happens: the runner is the
+      # owner's own Windows machine, where an unbounded parallel build
+      # exhausts the page file (see .claude/rules/build-and-run.md). Run 471
+      # died with `rustc-LLVM ERROR: out of memory` building hs-container's
+      # lib test while the machine was also running the app.
       - name: Clippy
         if: steps.ws.outputs.has_cargo == 'true'
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings
 
       - name: Tests
         if: steps.ws.outputs.has_cargo == 'true'
@@ -116,7 +121,7 @@ jobs:
           # Container-backed integration tests only run when the runner has
           # Docker and this secret is set; otherwise they are skipped.
           HS_INTEGRATION: ${{ secrets.HS_INTEGRATION }}
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked -j 4
 
       - name: Dependency audit
         if: steps.ws.outputs.has_cargo == 'true'
@@ -126,7 +131,7 @@ jobs:
         if: steps.ws.outputs.has_cargo == 'true'
         run: |
           $ErrorActionPreference = "Stop"
-          cargo build --release --locked -p hyperstack
+          cargo build --release --locked -j 4 -p hyperstack
           Get-Item "$env:CARGO_TARGET_DIR/release/HyperStack.exe" | Select-Object FullName, Length, LastWriteTime
 
       - name: Smoke test the executable

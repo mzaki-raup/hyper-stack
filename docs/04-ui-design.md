@@ -552,6 +552,13 @@ token through the vault; Remove asks with a second click), and General
 here from the Editor page - plus default clone folder, terminal profile
 and the Git Flow names). `docs/tools/git-activity.md` §3.
 
+On every Settings page, every list that has a form (environments,
+connections, containers, projects, repositories, credentials, CLI
+profiles) is laid out as **two columns**: the list on the left at a fixed
+width, the add/edit form on the right, and a hint on the right when
+nothing is selected (owner's rule, 2026-10-30; the Environments page set
+the shape).
+
 Settings pages are built from `hs_ui::form`: a page title with a one-line
 description, then cards (`section`) that hold a two-column label/field grid.
 Text fields are tall (7 px vertical padding) and grow to the available width

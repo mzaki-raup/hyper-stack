@@ -4753,202 +4753,219 @@ fn terminal(
     });
     form::section(ui, theme, &s.t("settings-terminal-list"), |ui| {
         form::hint(ui, theme, &s.t("settings-terminal-list-hint"));
-        ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(s.t("settings-terminal-shells"))
-                .small()
-                .strong()
-                .color(theme.text_muted),
-        );
-        let ids = ordered_shell_ids(&profiles, &settings.terminal.shell_order);
-        let mut move_shell: Option<(usize, usize)> = None;
-        for (i, id) in ids.iter().enumerate() {
-            let Some(profile) = profiles.iter().find(|p| p.id == *id) else {
-                continue;
-            };
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
-                    .clicked()
-                {
-                    move_shell = Some((i, i - 1));
-                }
-                if ui
-                    .add_enabled(
-                        i + 1 < ids.len(),
-                        egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
-                    )
-                    .clicked()
-                {
-                    move_shell = Some((i, i + 1));
-                }
-                ui.label(&profile.name);
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(&profile.exe)
-                            .small()
-                            .color(theme.text_muted),
-                    )
-                    .truncate()
-                    .selectable(false),
-                );
-            });
-        }
-        if let Some((a, b)) = move_shell {
-            let mut order = ids;
-            order.swap(a, b);
-            settings.terminal.shell_order = order;
-            changed = true;
-        }
-
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(s.t("settings-terminal-cli"))
-                .small()
-                .strong()
-                .color(theme.text_muted),
-        );
-        if settings.terminal.cli.is_empty() {
-            form::hint(ui, theme, &s.t("settings-terminal-cli-empty"));
-        }
-        let count = settings.terminal.cli.len();
-        let mut move_cli: Option<(usize, usize)> = None;
-        let mut edit_cli: Option<String> = None;
-        let mut remove_cli: Option<String> = None;
-        for i in 0..count {
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
-                    .clicked()
-                {
-                    move_cli = Some((i, i - 1));
-                }
-                if ui
-                    .add_enabled(
-                        i + 1 < count,
-                        egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
-                    )
-                    .clicked()
-                {
-                    move_cli = Some((i, i + 1));
-                }
-                changed |= ui
-                    .checkbox(&mut settings.terminal.cli[i].enabled, "")
-                    .changed();
-                ui.label(&settings.terminal.cli[i].name);
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(settings.terminal.cli[i].command_line())
-                            .small()
-                            .monospace()
-                            .color(theme.text_muted),
-                    )
-                    .truncate()
-                    .selectable(false),
-                );
-                let id = settings.terminal.cli[i].id.clone();
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button(hs_ui::icons::ph::TRASH).clicked() {
-                        remove_cli = Some(id.clone());
-                    }
-                    if ui.small_button(hs_ui::icons::ph::PENCIL_SIMPLE).clicked() {
-                        edit_cli = Some(id.clone());
-                    }
-                });
-            });
-        }
-        if let Some((a, b)) = move_cli {
-            settings.terminal.cli.swap(a, b);
-            changed = true;
-        }
-        if let Some(id) = edit_cli
-            && let Some(profile) = settings.terminal.cli.iter().find(|c| c.id == id)
-        {
-            state.cli_draft = Some(profile.clone());
-        }
-        if let Some(id) = remove_cli {
-            state.cli_confirm = Some(id);
-        }
-        if let Some(id) = state.cli_confirm.clone() {
-            let name = settings
-                .terminal
-                .cli
-                .iter()
-                .find(|c| c.id == id)
-                .map(|c| c.name.clone())
-                .unwrap_or_default();
-            ui.horizontal(|ui| {
-                ui.label(
-                    s.i18n
-                        .t_args("settings-terminal-remove-cli", &[("name", &name)]),
-                );
-                if ui.button(s.t("delete")).clicked() {
-                    settings.terminal.cli.retain(|c| c.id != id);
-                    state.cli_confirm = None;
-                    changed = true;
-                }
-                if ui.button(s.t("cancel")).clicked() {
-                    state.cli_confirm = None;
-                }
-            });
-        }
-        ui.add_space(4.0);
-        if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::PLUS,
-                s.t("settings-terminal-add-cli")
-            ))
-            .clicked()
-        {
-            state.cli_draft = Some(hs_core::settings::CliProfile::default());
-        }
+        // The list on the left, the CLI editor on the right (owner's
+        // request, 2026-10-30, the Environments page's shape).
         let mut save = false;
         let mut cancel = false;
-        if let Some(draft) = &mut state.cli_draft {
-            ui.separator();
-            ui.label(egui::RichText::new(s.t("settings-terminal-cli-edit")).strong());
-            form::field_grid(ui, "cli-editor", |ui| {
-                form::label(ui, &s.t("settings-terminal-cli-name"));
-                form::text_field(ui, &mut draft.name, &s.t("settings-terminal-cli-name"));
-                ui.end_row();
-                form::label(ui, &s.t("settings-terminal-cli-command"));
-                form::text_field(ui, &mut draft.command, "mysql");
-                ui.end_row();
-                form::label(ui, &s.t("settings-terminal-cli-args"));
-                form::text_field(ui, &mut draft.args, "-u root");
-                ui.end_row();
-                form::label(ui, &s.t("settings-terminal-cli-cwd"));
-                form::text_field(ui, &mut draft.cwd, "{{workspace}}");
-                ui.end_row();
-                form::label(ui, &s.t("settings-terminal-cli-icon"));
-                egui::ComboBox::from_id_salt("cli-icon")
-                    .width(form::FIELD_MIN_WIDTH)
-                    .selected_text(cli_icon_label(&draft.icon, s))
-                    .show_ui(ui, |ui| {
-                        for key in ["terminal", "database", "cloud", "sparkle"] {
-                            if ui
-                                .selectable_label(draft.icon == key, cli_icon_label(key, s))
-                                .clicked()
-                            {
-                                draft.icon = key.to_string();
+        let list_w = (ui.available_width() * 0.5).clamp(360.0, 640.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_w);
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(s.t("settings-terminal-shells"))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                );
+                let ids = ordered_shell_ids(&profiles, &settings.terminal.shell_order);
+                let mut move_shell: Option<(usize, usize)> = None;
+                for (i, id) in ids.iter().enumerate() {
+                    let Some(profile) = profiles.iter().find(|p| p.id == *id) else {
+                        continue;
+                    };
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                            .clicked()
+                        {
+                            move_shell = Some((i, i - 1));
+                        }
+                        if ui
+                            .add_enabled(
+                                i + 1 < ids.len(),
+                                egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
+                            )
+                            .clicked()
+                        {
+                            move_shell = Some((i, i + 1));
+                        }
+                        ui.label(&profile.name);
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(&profile.exe)
+                                    .small()
+                                    .color(theme.text_muted),
+                            )
+                            .truncate()
+                            .selectable(false),
+                        );
+                    });
+                }
+                if let Some((a, b)) = move_shell {
+                    let mut order = ids;
+                    order.swap(a, b);
+                    settings.terminal.shell_order = order;
+                    changed = true;
+                }
+
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(s.t("settings-terminal-cli"))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                );
+                if settings.terminal.cli.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-terminal-cli-empty"));
+                }
+                let count = settings.terminal.cli.len();
+                let mut move_cli: Option<(usize, usize)> = None;
+                let mut edit_cli: Option<String> = None;
+                let mut remove_cli: Option<String> = None;
+                for i in 0..count {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                            .clicked()
+                        {
+                            move_cli = Some((i, i - 1));
+                        }
+                        if ui
+                            .add_enabled(
+                                i + 1 < count,
+                                egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
+                            )
+                            .clicked()
+                        {
+                            move_cli = Some((i, i + 1));
+                        }
+                        changed |= ui
+                            .checkbox(&mut settings.terminal.cli[i].enabled, "")
+                            .changed();
+                        ui.label(&settings.terminal.cli[i].name);
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(settings.terminal.cli[i].command_line())
+                                    .small()
+                                    .monospace()
+                                    .color(theme.text_muted),
+                            )
+                            .truncate()
+                            .selectable(false),
+                        );
+                        let id = settings.terminal.cli[i].id.clone();
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button(hs_ui::icons::ph::TRASH).clicked() {
+                                remove_cli = Some(id.clone());
                             }
+                            if ui.small_button(hs_ui::icons::ph::PENCIL_SIMPLE).clicked() {
+                                edit_cli = Some(id.clone());
+                            }
+                        });
+                    });
+                }
+                if let Some((a, b)) = move_cli {
+                    settings.terminal.cli.swap(a, b);
+                    changed = true;
+                }
+                if let Some(id) = edit_cli
+                    && let Some(profile) = settings.terminal.cli.iter().find(|c| c.id == id)
+                {
+                    state.cli_draft = Some(profile.clone());
+                }
+                if let Some(id) = remove_cli {
+                    state.cli_confirm = Some(id);
+                }
+                if let Some(id) = state.cli_confirm.clone() {
+                    let name = settings
+                        .terminal
+                        .cli
+                        .iter()
+                        .find(|c| c.id == id)
+                        .map(|c| c.name.clone())
+                        .unwrap_or_default();
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            s.i18n
+                                .t_args("settings-terminal-remove-cli", &[("name", &name)]),
+                        );
+                        if ui.button(s.t("delete")).clicked() {
+                            settings.terminal.cli.retain(|c| c.id != id);
+                            state.cli_confirm = None;
+                            changed = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            state.cli_confirm = None;
                         }
                     });
-                ui.end_row();
-            });
-            changed |= ui
-                .checkbox(&mut draft.enabled, s.t("settings-terminal-cli-enabled"))
-                .changed();
-            ui.horizontal(|ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
-                    save = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
-                    cancel = true;
+                ui.add_space(4.0);
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::PLUS,
+                        s.t("settings-terminal-add-cli")
+                    ))
+                    .clicked()
+                {
+                    state.cli_draft = Some(hs_core::settings::CliProfile::default());
                 }
             });
-        }
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                if let Some(draft) = &mut state.cli_draft {
+                    ui.label(egui::RichText::new(s.t("settings-terminal-cli-edit")).strong());
+                    form::field_grid(ui, "cli-editor", |ui| {
+                        form::label(ui, &s.t("settings-terminal-cli-name"));
+                        form::text_field(ui, &mut draft.name, &s.t("settings-terminal-cli-name"));
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-terminal-cli-command"));
+                        form::text_field(ui, &mut draft.command, "mysql");
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-terminal-cli-args"));
+                        form::text_field(ui, &mut draft.args, "-u root");
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-terminal-cli-cwd"));
+                        form::text_field(ui, &mut draft.cwd, "{{workspace}}");
+                        ui.end_row();
+                        form::label(ui, &s.t("settings-terminal-cli-icon"));
+                        egui::ComboBox::from_id_salt("cli-icon")
+                            .width(form::FIELD_MIN_WIDTH)
+                            .selected_text(cli_icon_label(&draft.icon, s))
+                            .show_ui(ui, |ui| {
+                                for key in ["terminal", "database", "cloud", "sparkle"] {
+                                    if ui
+                                        .selectable_label(draft.icon == key, cli_icon_label(key, s))
+                                        .clicked()
+                                    {
+                                        draft.icon = key.to_string();
+                                    }
+                                }
+                            });
+                        ui.end_row();
+                    });
+                    changed |= ui
+                        .checkbox(&mut draft.enabled, s.t("settings-terminal-cli-enabled"))
+                        .changed();
+                    ui.horizontal(|ui| {
+                        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                            save = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            cancel = true;
+                        }
+                    });
+                } else {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-terminal-cli-select-hint"),
+                    );
+                }
+            });
+        });
         if save && let Some(mut draft) = state.cli_draft.take() {
             if draft.id.is_empty() {
                 draft.id = hs_core::new_id();
@@ -5088,71 +5105,90 @@ fn project_list(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    form::section(ui, theme, &s.t("settings-section-project-list"), |ui| {
-        // Add leads the card, as New Connection leads the connections
-        // list, and opens an empty form in the detail column rather than
-        // a file dialog: the folder is one field of several, and picking
-        // it first put the cart before the horse (owner's requirement,
-        // 2026-10-27).
-        if form::primary_button(
-            ui,
-            theme,
-            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("settings-project-add")),
-        )
-        .clicked()
-        {
-            state.project_selected = None;
-            state.project_draft = Some(ProjectDraft::blank());
-        }
-        ui.add_space(8.0);
-        form::hint(ui, theme, &s.t("settings-project-list-hint"));
-        let rows: Vec<(String, String, String, &'static str)> = s
-            .projects
-            .read()
-            .all()
-            .iter()
-            .map(|p| {
-                (
-                    p.id.clone(),
-                    p.label(),
-                    p.root.display().to_string(),
-                    hs_ui::icons::language_icon(&p.language),
+    // The list on the left, the form on the right - the shape the
+    // Environments page set (owner's request, 2026-10-30), so a long list
+    // never pushes its own form off the bottom of the page.
+    let list_w = (ui.available_width() * 0.4).clamp(320.0, 460.0);
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            ui.set_min_width(320.0);
+            ui.set_width(list_w);
+            form::section(ui, theme, &s.t("settings-section-project-list"), |ui| {
+                // Add leads the card, as New Connection leads the connections
+                // list, and opens an empty form in the detail column rather than
+                // a file dialog: the folder is one field of several, and picking
+                // it first put the cart before the horse (owner's requirement,
+                // 2026-10-27).
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("settings-project-add")),
                 )
-            })
-            .collect();
-        if rows.is_empty() {
-            form::hint(ui, theme, &s.t("settings-project-list-none"));
-        }
-        let mut reorder = hs_ui::reorder::Reorder::new("project-list-reorder");
-        let mut pick: Option<String> = None;
-        for (i, (id, name, root, icon)) in rows.iter().enumerate() {
-            let selected = state.project_selected.as_deref() == Some(id.as_str());
-            reorder.row(ui, i, |ui| {
-                if form::list_row(ui, theme, selected, icon, name, Some(root)).clicked() {
-                    pick = Some(id.clone());
+                .clicked()
+                {
+                    state.project_selected = None;
+                    state.project_draft = Some(ProjectDraft::blank());
+                }
+                ui.add_space(8.0);
+                form::hint(ui, theme, &s.t("settings-project-list-hint"));
+                let rows: Vec<(String, String, String, &'static str)> = s
+                    .projects
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|p| {
+                        (
+                            p.id.clone(),
+                            p.label(),
+                            p.root.display().to_string(),
+                            hs_ui::icons::language_icon(&p.language),
+                        )
+                    })
+                    .collect();
+                if rows.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-project-list-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("project-list-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, name, root, icon)) in rows.iter().enumerate() {
+                    let selected = state.project_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(ui, theme, selected, icon, name, Some(root)).clicked() {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.projects.write().reorder(from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick {
+                    state.project_selected = Some(id.clone());
+                    if let Some(p) = s.projects.read().by_id(&id) {
+                        state.project_draft = Some(ProjectDraft::open(p.clone()));
+                    }
                 }
             });
-            ui.add_space(2.0);
-        }
-        if let Some((from, to)) = reorder.finish(ui, theme.accent)
-            && let Err(e) = s.projects.write().reorder(from, to)
-        {
-            effects.push(SettingsEffect::Toast(
-                hs_core::tool::ToastLevel::Error,
-                e.to_string(),
-            ));
-        }
-        if let Some(id) = pick {
-            state.project_selected = Some(id.clone());
-            if let Some(p) = s.projects.read().by_id(&id) {
-                state.project_draft = Some(ProjectDraft::open(p.clone()));
+        });
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            if state.project_draft.is_some() {
+                project_detail(ui, theme, s, state, effects);
+            } else {
+                form::note(
+                    ui,
+                    theme,
+                    hs_ui::icons::INFO,
+                    &s.t("settings-project-select-hint"),
+                );
             }
-        }
+        });
     });
-    if state.project_draft.is_some() {
-        ui.add_space(8.0);
-        project_detail(ui, theme, s, state, effects);
-    }
     ui.add_space(12.0);
 }
 
@@ -5632,67 +5668,86 @@ fn credential_list(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    form::section(ui, theme, &s.t("settings-section-git-credentials"), |ui| {
-        if form::primary_button(
-            ui,
-            theme,
-            &format!(
-                "{} {}",
-                hs_ui::icons::ph::PLUS,
-                s.t("settings-git-cred-add")
-            ),
-        )
-        .clicked()
-        {
-            state.cred_selected = None;
-            state.cred_draft = Some(hs_core::git_hosts::GitCredential::default());
-            state.cred_confirm_remove = false;
-        }
-        ui.add_space(8.0);
-        form::hint(ui, theme, &s.t("settings-git-cred-hint"));
-        let rows: Vec<(String, String, String)> = s
-            .git_credentials
-            .read()
-            .all()
-            .iter()
-            .map(|c| {
-                (
-                    c.id.clone(),
-                    c.label(),
-                    format!("{} · {}", c.kind.name(), c.host()),
+    // The list on the left, the form on the right - the shape the
+    // Environments page set (owner's request, 2026-10-30), so a long list
+    // never pushes its own form off the bottom of the page.
+    let list_w = (ui.available_width() * 0.4).clamp(320.0, 460.0);
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            ui.set_min_width(320.0);
+            ui.set_width(list_w);
+            form::section(ui, theme, &s.t("settings-section-git-credentials"), |ui| {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::PLUS,
+                        s.t("settings-git-cred-add")
+                    ),
                 )
-            })
-            .collect();
-        if rows.is_empty() {
-            form::hint(ui, theme, &s.t("settings-git-cred-none"));
-        }
-        let mut pick: Option<String> = None;
-        for (id, name, detail) in &rows {
-            let selected = state.cred_selected.as_deref() == Some(id.as_str());
-            if form::list_row(
-                ui,
-                theme,
-                selected,
-                hs_ui::icons::ph::KEY,
-                name,
-                Some(detail),
-            )
-            .clicked()
-            {
-                pick = Some(id.clone());
+                .clicked()
+                {
+                    state.cred_selected = None;
+                    state.cred_draft = Some(hs_core::git_hosts::GitCredential::default());
+                    state.cred_confirm_remove = false;
+                }
+                ui.add_space(8.0);
+                form::hint(ui, theme, &s.t("settings-git-cred-hint"));
+                let rows: Vec<(String, String, String)> = s
+                    .git_credentials
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|c| {
+                        (
+                            c.id.clone(),
+                            c.label(),
+                            format!("{} · {}", c.kind.name(), c.host()),
+                        )
+                    })
+                    .collect();
+                if rows.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-git-cred-none"));
+                }
+                let mut pick: Option<String> = None;
+                for (id, name, detail) in &rows {
+                    let selected = state.cred_selected.as_deref() == Some(id.as_str());
+                    if form::list_row(
+                        ui,
+                        theme,
+                        selected,
+                        hs_ui::icons::ph::KEY,
+                        name,
+                        Some(detail),
+                    )
+                    .clicked()
+                    {
+                        pick = Some(id.clone());
+                    }
+                    ui.add_space(2.0);
+                }
+                if let Some(id) = pick {
+                    state.cred_selected = Some(id.clone());
+                    state.cred_draft = s.git_credentials.read().by_id(&id).cloned();
+                    state.cred_confirm_remove = false;
+                }
+            });
+        });
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            if state.cred_draft.is_some() {
+                credential_detail(ui, theme, s, state, effects);
+            } else {
+                form::note(
+                    ui,
+                    theme,
+                    hs_ui::icons::INFO,
+                    &s.t("settings-git-cred-select-hint"),
+                );
             }
-            ui.add_space(2.0);
-        }
-        if let Some(id) = pick {
-            state.cred_selected = Some(id.clone());
-            state.cred_draft = s.git_credentials.read().by_id(&id).cloned();
-            state.cred_confirm_remove = false;
-        }
+        });
     });
-    if state.cred_draft.is_some() {
-        ui.add_space(8.0);
-        credential_detail(ui, theme, s, state, effects);
-    }
     ui.add_space(12.0);
 }
 
@@ -5899,81 +5954,100 @@ fn repo_list(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    form::section(ui, theme, &s.t("settings-section-git-repos"), |ui| {
-        if form::primary_button(
-            ui,
-            theme,
-            &format!(
-                "{} {}",
-                hs_ui::icons::ph::PLUS,
-                s.t("settings-git-repo-add")
-            ),
-        )
-        .clicked()
-        {
-            state.repo_selected = None;
-            state.repo_draft = Some(RepoDraft::blank(hs_core::git_repos::Source::Local));
-        }
-        ui.add_space(8.0);
-        form::hint(ui, theme, &s.t("settings-git-repos-hint"));
-        let rows: Vec<(String, String, String, &'static str, Option<String>)> = s
-            .git_repos
-            .read()
-            .all()
-            .iter()
-            .map(|r| {
-                (
-                    r.id.clone(),
-                    r.label(),
-                    r.path.display().to_string(),
-                    repo_icon(r),
-                    repo_image(ui.ctx(), s, &r.id),
-                )
-            })
-            .collect();
-        if rows.is_empty() {
-            form::hint(ui, theme, &s.t("settings-git-repos-none"));
-        }
-        let mut reorder = hs_ui::reorder::Reorder::new("git-repo-list-reorder");
-        let mut pick: Option<String> = None;
-        for (i, (id, name, path, icon, image)) in rows.iter().enumerate() {
-            let selected = state.repo_selected.as_deref() == Some(id.as_str());
-            reorder.row(ui, i, |ui| {
-                if form::list_row_image(
+    // The list on the left, the form on the right - the shape the
+    // Environments page set (owner's request, 2026-10-30), so a long list
+    // never pushes its own form off the bottom of the page.
+    let list_w = (ui.available_width() * 0.4).clamp(320.0, 460.0);
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            ui.set_min_width(320.0);
+            ui.set_width(list_w);
+            form::section(ui, theme, &s.t("settings-section-git-repos"), |ui| {
+                if form::primary_button(
                     ui,
                     theme,
-                    selected,
-                    image.as_deref(),
-                    icon,
-                    name,
-                    Some(path),
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::PLUS,
+                        s.t("settings-git-repo-add")
+                    ),
                 )
                 .clicked()
                 {
-                    pick = Some(id.clone());
+                    state.repo_selected = None;
+                    state.repo_draft = Some(RepoDraft::blank(hs_core::git_repos::Source::Local));
+                }
+                ui.add_space(8.0);
+                form::hint(ui, theme, &s.t("settings-git-repos-hint"));
+                let rows: Vec<(String, String, String, &'static str, Option<String>)> = s
+                    .git_repos
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|r| {
+                        (
+                            r.id.clone(),
+                            r.label(),
+                            r.path.display().to_string(),
+                            repo_icon(r),
+                            repo_image(ui.ctx(), s, &r.id),
+                        )
+                    })
+                    .collect();
+                if rows.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-git-repos-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("git-repo-list-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, name, path, icon, image)) in rows.iter().enumerate() {
+                    let selected = state.repo_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row_image(
+                            ui,
+                            theme,
+                            selected,
+                            image.as_deref(),
+                            icon,
+                            name,
+                            Some(path),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.git_repos.write().reorder(from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick {
+                    state.repo_selected = Some(id.clone());
+                    if let Some(r) = s.git_repos.read().by_id(&id) {
+                        state.repo_draft = Some(RepoDraft::open(r.clone()));
+                    }
                 }
             });
-            ui.add_space(2.0);
-        }
-        if let Some((from, to)) = reorder.finish(ui, theme.accent)
-            && let Err(e) = s.git_repos.write().reorder(from, to)
-        {
-            effects.push(SettingsEffect::Toast(
-                hs_core::tool::ToastLevel::Error,
-                e.to_string(),
-            ));
-        }
-        if let Some(id) = pick {
-            state.repo_selected = Some(id.clone());
-            if let Some(r) = s.git_repos.read().by_id(&id) {
-                state.repo_draft = Some(RepoDraft::open(r.clone()));
+        });
+        ui.add_space(12.0);
+        ui.vertical(|ui| {
+            if state.repo_draft.is_some() {
+                repo_detail(ui, theme, s, state, effects);
+            } else {
+                form::note(
+                    ui,
+                    theme,
+                    hs_ui::icons::INFO,
+                    &s.t("settings-git-repo-select-hint"),
+                );
             }
-        }
+        });
     });
-    if state.repo_draft.is_some() {
-        ui.add_space(8.0);
-        repo_detail(ui, theme, s, state, effects);
-    }
     ui.add_space(12.0);
 }
 

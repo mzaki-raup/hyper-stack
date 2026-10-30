@@ -61,6 +61,9 @@ clone for the Localhost source.
   cards beside the environments), `settings-globals.png` (the Globals
   editor).
 - `devtools-toolbar.png`: a utility tab with its toolbar row.
+- `settings-git.png` and `settings-editor.png` retaken after the
+  two-column refactor of 2026-10-30 (list left, form right); both GIFs
+  rebuilt with the new Settings → Git frame.
 - `hyperstack-demo.gif`: the 112 frames of the 2026-10-22 set plus
   twelve new ones (the ten Git frames, the Terminal dashboard and the
   Globals editor, each `-resize 1200x -gravity center -background

@@ -434,6 +434,55 @@ which is worse than a clipped button.
 (`SELECT * FROM t;`), so the statement left in the tab is complete.
 Owner's requirements, 2026-10-17.
 
+## Depth, phase B (2026-10-30)
+
+The depth programme's second phase (`docs/10-depth-programme.md`)
+delivered §8 and §10 and the two export / import items of §7:
+
+- **Explain tree** (`tool-db::plan`): `plan::explain_sql` builds the
+  engine's JSON (PostgreSQL `EXPLAIN (FORMAT JSON)`, MySQL `EXPLAIN
+  FORMAT=JSON`) or `EXPLAIN QUERY PLAN` (SQLite); `plan::parse` turns
+  the rows into one `Plan` of `Node`s (label, details, cost, rows,
+  actual rows, time, children) and the result panel draws it with
+  `CollapsingHeader`s open by default, each node coloured by its heat
+  (`Plan::heat`: time when analysed, cost otherwise). **Explain
+  Analyze** (`RunMode::ExplainAnalyze`, palette `db.explain_analyze`)
+  adds actual rows and times; it only runs for statements the
+  classifier calls reads - a write gets a plain EXPLAIN. **Plan / Raw**
+  shows the rows instead; **Copy Plan** copies the indented text.
+  Plain-text plans (an EXPLAIN typed by hand) stay a grid. SQL Server
+  showplan and index hints are not done.
+- **Inline editing** (`tool-db::edit`): `DbTool::ensure_editable` asks
+  for the source table's columns (`export::source_table`, the same
+  `Scope::Columns` introspection the tree uses, cached under
+  `cols:<schema>.<table>`) and `edit::key_columns` finds the primary
+  key in the result; without one the result is read-only. `Edits`
+  holds `Set` / `Delete` changes per row; the grid draws them tinted
+  (warning) or washed (error) and offers Edit Cell, Set NULL, Delete
+  Row and Revert Row in the cell menu, F2 edits the selected cell.
+  `Edits::statements` generates `UPDATE … WHERE <key> = <original>` /
+  `DELETE … WHERE …`; **Review & Apply** shows them and runs them as
+  `BEGIN; …; COMMIT;` (or bare, in manual-commit mode) through
+  `run_text`, so the read-only and protected-environment guards apply
+  unchanged. Add row and paste rows are not done.
+- **CSV import** (`tool-db::import`): **Import CSV…** on a table node
+  opens a file, sniffs the delimiter, previews five records and the
+  table's columns, guesses the mapping by header name (or position
+  without a header), and runs `import::run` as a Job on a second
+  connection: `BEGIN`, one multi-row `INSERT` per batch (200 rows by
+  default), `COMMIT`; a reader error, a failed batch or Cancel rolls
+  back. Values go as quoted literals (empty fields as NULL by option),
+  so the server casts them. Refused on read-only and protected
+  environments before the dialog opens.
+- **Excel export** (`export::XlsxSink`, `Format::Xlsx`): a worksheet
+  filled as rows stream (header bold, integers and floats as numbers,
+  decimals that fit a double as numbers, everything else text), saved
+  by the Job at the end; 1 048 575 data rows at most.
+
+Verified 2026-10-30 against SQLite (the fixture `D:\Temp\hs-depth-b`)
+on screen and by the unit tests; `plan::parse` for PostgreSQL and
+MySQL is covered by tests on captured JSON.
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

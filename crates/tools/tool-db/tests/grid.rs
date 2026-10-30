@@ -42,6 +42,10 @@ fn harness<'a>() -> Harness<'a, State> {
                 copy_row: "Copy Row",
                 view_cell: "View Cell",
                 filter_value: "Filter by This Value",
+                edit_cell: "Edit Cell",
+                set_null: "Set NULL",
+                delete_row: "Delete Row",
+                revert_row: "Revert Row",
             };
             let order = grid::order(&s.rows, &mut s.grid);
             let r: GridResponse = grid::show(
@@ -53,6 +57,7 @@ fn harness<'a>() -> Harness<'a, State> {
                 &mut s.grid,
                 &labels,
                 &order,
+                None,
             );
             if r.open_cell.is_some() {
                 s.open = r.open_cell;

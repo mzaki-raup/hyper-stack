@@ -238,7 +238,7 @@ store that already exists.
 |---|---|---|
 | Containers: Docker/Podman, Compose, remote over SSH | Completed | The Container activity, 2026-10-24: Docker, Podman, Kubernetes and Windows containers, images, Compose, pod logs into Logs, a shell in a pod (see the Container activity section above) |
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
-| SQL: SQL Server, inline editing, explain, CSV import, Excel export | Pending | |
+| SQL: SQL Server, inline editing, explain, CSV import, Excel export | In-Progress | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); SQL Server is phase C |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | In-Progress | Docker and Kubernetes sources through the Container activity (2026-10-24); journalctl, Event Log, merge, statistics and alerts pending |
@@ -565,7 +565,7 @@ and ADR-025.
 | Phase | State | Notes |
 |---|---|---|
 | A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Completed | `tool-redis::depth`, `runner::{parse_sample, big_keys, bulk, subscribe}`, `client::{slowlog, client_list, client_kill, memory_usages, expire_many, persist_many, rename_many, stream_view, publish, pubsub}`; live test against Redis 8.6.3 in WSL; verified on screen 2026-10-30 |
-| B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Pending | |
+| B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Completed | `tool-db::{plan, edit, import}`, `export::XlsxSink`; verified on SQLite on screen 2026-10-30, PostgreSQL / MySQL plan parsing by tests on captured JSON (the WSL PostgreSQL refused TCP from Windows this session, so the drivers test could not reach it) |
 | C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
 | D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Pending | |
 | E — SSH depth: port-forward manager, broadcast input, server monitor | Pending | |

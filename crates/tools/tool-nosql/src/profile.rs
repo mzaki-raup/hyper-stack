@@ -43,6 +43,8 @@ pub struct NoSqlFields {
     pub user: String,
     /// `secret:<id>`, `{{var}}`, or typed text until the form saves it.
     pub password: String,
+    /// An API key (Qdrant), the same way; stored in the vault on save.
+    pub api_key: String,
     /// MongoDB: the database that holds the user. CouchDB ignores it.
     pub auth_source: String,
     /// The database the tree opens on; empty shows them all.
@@ -63,6 +65,7 @@ impl Default for NoSqlFields {
             port: 27017,
             user: String::new(),
             password: String::new(),
+            api_key: String::new(),
             auth_source: "admin".into(),
             database: String::new(),
             tls: false,
@@ -110,6 +113,7 @@ impl NoSqlFields {
                 .unwrap_or_else(|| Self::default_port(kind)),
             user: s("user"),
             password: s("password"),
+            api_key: s("api_key"),
             auth_source: Some(s("auth_source"))
                 .filter(|x| !x.is_empty())
                 .unwrap_or(d.auth_source),
@@ -133,6 +137,7 @@ impl NoSqlFields {
             ("host", &self.host),
             ("user", &self.user),
             ("password", &self.password),
+            ("api_key", &self.api_key),
             ("database", &self.database),
         ] {
             t.insert(k.into(), toml::Value::String(v.clone()));
@@ -195,30 +200,34 @@ impl NoSqlFields {
         let database = sub(&self.database);
         let auth_source = sub(&self.auth_source);
         let password_raw = sub(&self.password);
+        let api_key_raw = sub(&self.api_key);
         if !missing.is_empty() {
             missing.sort();
             missing.dedup();
             return Err(ProfileError::MissingVariables(missing));
         }
-        let password = if password_raw.is_empty() {
-            None
-        } else {
-            match SecretRef::parse(&password_raw) {
+        let reveal = |raw: String| -> Result<Option<String>, ProfileError> {
+            if raw.is_empty() {
+                return Ok(None);
+            }
+            match SecretRef::parse(&raw) {
                 Some(r) => {
                     if secrets.is_locked() {
                         return Err(ProfileError::VaultLocked);
                     }
-                    Some(
+                    Ok(Some(
                         secrets
                             .get(&r)
                             .map_err(|e| ProfileError::Secret(e.to_string()))?
                             .expose_secret()
                             .to_string(),
-                    )
+                    ))
                 }
-                None => Some(password_raw),
+                None => Ok(Some(raw)),
             }
         };
+        let password = reveal(password_raw)?;
+        let api_key = reveal(api_key_raw)?;
         Ok(Resolved {
             uri,
             host,
@@ -226,6 +235,7 @@ impl NoSqlFields {
             database,
             auth_source,
             password,
+            api_key,
         })
     }
 
@@ -293,7 +303,9 @@ impl NoSqlFields {
         };
         Ok(crate::qdrant::ConnectConfig {
             url,
-            api_key: r.password.filter(|k| !k.is_empty()),
+            // The API Key field, or the password field for profiles saved
+            // before it existed.
+            api_key: r.api_key.or(r.password).filter(|k| !k.is_empty()),
             collection: r.database,
             read_only,
             connect_timeout: Duration::from_secs(10),
@@ -308,6 +320,7 @@ struct Resolved {
     database: String,
     auth_source: String,
     password: Option<String>,
+    api_key: Option<String>,
 }
 
 /// Read a `mongodb://`, `mongodb+srv://`, `http://` or `https://` URI into

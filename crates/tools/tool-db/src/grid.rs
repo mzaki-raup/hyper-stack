@@ -7,6 +7,7 @@ use egui_extras::{Column as TableColumn, TableBuilder};
 use hs_ui::theme::Theme;
 
 use crate::driver::{Column, Row, Value};
+use crate::edit::Edits;
 use hs_ui::tip::TipExt;
 
 /// (row count, filter, sort) the cached order was computed for.
@@ -33,6 +34,8 @@ pub struct GridResponse {
     pub open_cell: Option<(usize, usize)>,
     /// A context-menu choice: (what, row, column).
     pub menu: Option<(GridMenu, usize, usize)>,
+    /// F2 on the selected cell of an editable result.
+    pub edit_cell: Option<(usize, usize)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +44,11 @@ pub enum GridMenu {
     CopyRow,
     ViewCell,
     FilterByValue,
+    // Editable results only (docs/tools/database.md §8).
+    EditCell,
+    SetNull,
+    DeleteRow,
+    RevertRow,
 }
 
 pub struct Labels<'a> {
@@ -49,6 +57,10 @@ pub struct Labels<'a> {
     pub copy_row: &'a str,
     pub view_cell: &'a str,
     pub filter_value: &'a str,
+    pub edit_cell: &'a str,
+    pub set_null: &'a str,
+    pub delete_row: &'a str,
+    pub revert_row: &'a str,
 }
 
 fn cmp_values(a: &Value, b: &Value) -> std::cmp::Ordering {
@@ -140,8 +152,15 @@ pub fn show(
     state: &mut GridState,
     labels: &Labels,
     order: &[usize],
+    edits: Option<&Edits>,
 ) -> GridResponse {
     let mut resp = GridResponse::default();
+    if edits.is_some()
+        && let Some(sel) = state.selected
+        && ui.input(|i| i.key_pressed(egui::Key::F2))
+    {
+        resp.edit_cell = Some(sel);
+    }
     let mut new_sort = None;
     // egui_extras' table scrolls vertically only, so every column past
     // the pane's edge used to be unreachable — most visibly once the AI
@@ -199,6 +218,7 @@ pub fn show(
                 state,
                 labels,
                 order,
+                edits,
                 &mut resp,
                 &mut new_sort,
                 &mut measured,
@@ -227,6 +247,7 @@ fn grid_table(
     state: &mut GridState,
     labels: &Labels,
     order: &[usize],
+    edits: Option<&Edits>,
     resp: &mut GridResponse,
     new_sort: &mut Option<Option<(usize, bool)>>,
     measured: &mut f32,
@@ -292,8 +313,11 @@ fn grid_table(
                 let data_idx = order[row.index()];
                 let r_data = &rows[data_idx];
                 row.set_selected(state.selected.is_some_and(|(r, _)| r == data_idx));
+                let deleted = edits.is_some_and(|e| e.is_deleted(data_idx));
                 for ci in 0..columns.len() {
-                    let v = r_data.get(ci).unwrap_or(&Value::Null);
+                    let data_v = r_data.get(ci).unwrap_or(&Value::Null);
+                    let v = edits.map_or(data_v, |e| e.value(data_idx, ci, data_v));
+                    let changed = !std::ptr::eq(v, data_v);
                     let selected = state.selected == Some((data_idx, ci));
                     let mut cell = None;
                     row.col(|ui| {
@@ -304,6 +328,21 @@ fn grid_table(
                             id.with(("cell", data_idx, ci)),
                             egui::Sense::click(),
                         ));
+                        // A pending edit is tinted; a row marked for
+                        // deletion is washed in the error colour.
+                        if deleted {
+                            ui.painter().rect_filled(
+                                ui.max_rect(),
+                                0.0,
+                                theme.error.gamma_multiply(0.18),
+                            );
+                        } else if changed {
+                            ui.painter().rect_filled(
+                                ui.max_rect(),
+                                0.0,
+                                theme.warning.gamma_multiply(0.22),
+                            );
+                        }
                         if selected {
                             ui.painter().rect_stroke(
                                 ui.max_rect().shrink(1.0),
@@ -350,6 +389,20 @@ fn grid_table(
                             if ui.button(label).clicked() {
                                 resp.menu = Some((what, data_idx, ci));
                                 ui.close();
+                            }
+                        }
+                        if edits.is_some() {
+                            ui.separator();
+                            for (what, label) in [
+                                (GridMenu::EditCell, labels.edit_cell),
+                                (GridMenu::SetNull, labels.set_null),
+                                (GridMenu::DeleteRow, labels.delete_row),
+                                (GridMenu::RevertRow, labels.revert_row),
+                            ] {
+                                if ui.button(label).clicked() {
+                                    resp.menu = Some((what, data_idx, ci));
+                                    ui.close();
+                                }
                             }
                         }
                     });

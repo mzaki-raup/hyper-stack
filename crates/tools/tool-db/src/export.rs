@@ -13,6 +13,8 @@ pub enum Format {
     Markdown,
     Insert,
     InList,
+    /// Excel, file export only (never text).
+    Xlsx,
 }
 
 impl Format {
@@ -34,6 +36,7 @@ impl Format {
             Format::Markdown => "db-format-markdown",
             Format::Insert => "db-format-insert",
             Format::InList => "db-format-in-list",
+            Format::Xlsx => "db-format-xlsx",
         }
     }
 
@@ -44,6 +47,7 @@ impl Format {
             Format::Json => "json",
             Format::Markdown => "md",
             Format::Insert | Format::InList => "sql",
+            Format::Xlsx => "xlsx",
         }
     }
 }
@@ -120,7 +124,7 @@ pub fn header(format: Format, columns: &[Column]) -> String {
                     .join("|")
             )
         }
-        Format::Insert => String::new(),
+        Format::Insert | Format::Xlsx => String::new(),
         Format::InList => "IN (".into(),
     }
 }
@@ -209,6 +213,7 @@ pub fn row(
                 .map(|v| sql_literal(v, engine))
                 .unwrap_or_default()
         ),
+        Format::Xlsx => String::new(),
     }
 }
 
@@ -290,6 +295,98 @@ impl<W: std::io::Write + Send> crate::driver::ResultSink for FileSink<W> {
                 return crate::driver::Flow::Stop;
             }
             self.written += 1;
+        }
+        if (self.progress)(self.written) {
+            crate::driver::Flow::Continue
+        } else {
+            crate::driver::Flow::Stop
+        }
+    }
+}
+
+/// Excel holds this many data rows under the header.
+pub const XLSX_MAX_ROWS: u64 = 1_048_575;
+
+/// Streams a result into a worksheet; the workbook is written by `finish`.
+pub struct XlsxSink {
+    sheet: rust_xlsxwriter::Worksheet,
+    pub written: u64,
+    pub error: Option<String>,
+    /// Called with the row count after each batch; returns false to stop.
+    pub progress: Box<dyn FnMut(u64) -> bool + Send>,
+}
+
+impl XlsxSink {
+    pub fn new(progress: Box<dyn FnMut(u64) -> bool + Send>) -> Self {
+        Self {
+            sheet: rust_xlsxwriter::Worksheet::new(),
+            written: 0,
+            error: None,
+            progress,
+        }
+    }
+
+    pub fn finish(self, path: &std::path::Path) -> Result<u64, String> {
+        if let Some(e) = self.error {
+            return Err(e);
+        }
+        let mut wb = rust_xlsxwriter::Workbook::new();
+        wb.push_worksheet(self.sheet);
+        wb.save(path).map_err(|e| e.to_string())?;
+        Ok(self.written)
+    }
+}
+
+/// Keep the first write error; later cells are still attempted.
+fn note(
+    error: &mut Option<String>,
+    r: Result<&mut rust_xlsxwriter::Worksheet, rust_xlsxwriter::XlsxError>,
+) {
+    if let Err(e) = r
+        && error.is_none()
+    {
+        *error = Some(e.to_string());
+    }
+}
+
+impl crate::driver::ResultSink for XlsxSink {
+    fn columns(&mut self, cols: Vec<Column>) {
+        let bold = rust_xlsxwriter::Format::new().set_bold();
+        for (i, c) in cols.iter().enumerate() {
+            let r = self
+                .sheet
+                .write_string_with_format(0, i as u16, &c.name, &bold);
+            note(&mut self.error, r);
+        }
+    }
+    fn rows(&mut self, batch: Vec<Row>) -> crate::driver::Flow {
+        for r in &batch {
+            if self.written >= XLSX_MAX_ROWS {
+                self.error = Some(format!(
+                    "Excel holds at most {XLSX_MAX_ROWS} data rows; the rest were left out"
+                ));
+                return crate::driver::Flow::Stop;
+            }
+            let row = (self.written + 1) as u32;
+            for (ci, v) in r.iter().enumerate() {
+                let col = ci as u16;
+                let res = match v {
+                    Value::Null => continue,
+                    Value::Int(i) => self.sheet.write_number(row, col, *i as f64),
+                    Value::Float(f) if f.is_finite() => self.sheet.write_number(row, col, *f),
+                    // A decimal with more digits than a double keeps stays
+                    // text, so nothing is rounded behind the user's back.
+                    Value::Number(s) if s.len() <= 15 && s.parse::<f64>().is_ok() => self
+                        .sheet
+                        .write_number(row, col, s.parse::<f64>().unwrap_or(0.0)),
+                    other => self.sheet.write_string(row, col, other.display()),
+                };
+                note(&mut self.error, res);
+            }
+            self.written += 1;
+            if self.error.is_some() {
+                return crate::driver::Flow::Stop;
+            }
         }
         if (self.progress)(self.written) {
             crate::driver::Flow::Continue
@@ -419,6 +516,22 @@ mod tests {
             md,
             "| id | name | price | raw |\n| --- | --- | --- | --- |\n| 1 | a, \"b\" | 10.50 | NULL |"
         );
+    }
+
+    #[test]
+    fn an_xlsx_export_writes_a_workbook() {
+        use crate::driver::ResultSink;
+        let (cols, rows) = data();
+        let mut sink = XlsxSink::new(Box::new(|_| true));
+        sink.columns(cols);
+        sink.rows(rows);
+        assert_eq!(sink.written, 2);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("out.xlsx");
+        assert_eq!(sink.finish(&path).unwrap(), 2);
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(bytes.starts_with(b"PK"), "an xlsx is a zip");
+        assert!(bytes.len() > 1000);
     }
 
     #[test]

@@ -34,6 +34,8 @@ tokio-postgres-rustls = { workspace = true }
 mysql_async = { workspace = true }
 rustls = { workspace = true }
 rustls-platform-verifier = { workspace = true }
+csv = { workspace = true }
+rust_xlsxwriter = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { workspace = true }

@@ -11,6 +11,43 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Fix: Redis and NoSQL typed passwords now go to the vault on save.**
+  Settings → Connections vaulted a typed secret for SSH, S3, SQL, WebDAV,
+  Nexus and container profiles but had no branch for Redis, MongoDB,
+  CouchDB and Qdrant, so a password typed into their forms was written
+  to the profile as typed. Found 2026-10-30 while auditing which kinds
+  accept tokens and API keys.
+- **NoSQL connections take an API Key.** Qdrant profiles have an explicit
+  **API Key** field (vault-stored) instead of borrowing the password
+  field; older profiles keep working. Git credentials' token field is
+  labelled **Token / API Key**: it is the password for git over HTTPS
+  and the bearer token for the host's API. The audit found the other
+  kinds already carry what their service uses: S3 access / secret /
+  session keys, Kubernetes bearer tokens, registry passwords, the API
+  client's Basic / Bearer / API-key / OAuth2 / SigV4 auth; SQL, Redis,
+  MongoDB, CouchDB and SSH authenticate with passwords or keys and have
+  no token form.
+
+- **SQL depth 1 (depth programme, phase B).** **Explain** now runs
+  `EXPLAIN (FORMAT JSON)` on PostgreSQL, `EXPLAIN FORMAT=JSON` on MySQL
+  and `EXPLAIN QUERY PLAN` on SQLite and draws the plan as a **tree**
+  (cost, rows, actual rows and time per node, the hottest nodes in
+  warning / error colours, conditions and sort keys as details, Copy
+  Plan, Plan / Raw toggle) with an **Explain Analyze** button for reads
+  and a palette command. **Inline editing**: a result that reads one
+  table whose primary key is in the result becomes editable - F2 or
+  Edit Cell / Set NULL / Delete Row / Revert Row in the cell menu,
+  edited cells tinted, deleted rows washed, a pending-changes strip,
+  **Review & Apply** showing the generated `UPDATE` / `DELETE`
+  statements that then run in one transaction through the usual guards
+  (read-only and protected environments refuse). **Import CSV…** on a
+  table in the schema tree: header / delimiter / empty-as-NULL /
+  batch-size options, a preview, a column mapping guessed by name, and
+  a Job that inserts in batches inside one transaction (cancel rolls
+  back). **Excel export** (`.xlsx`, `rust_xlsxwriter`) beside the
+  other export formats, streamed as a Job like them. Git credentials'
+  token field is now labelled Token / API Key.
+
 - (nothing yet)
 
 ## 0.104.0 — 2026-10-30

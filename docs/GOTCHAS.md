@@ -34,6 +34,9 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Release Pipeline and Updater
 
+- **CI must pass `-j 4` like everything else on this machine.** The Forgejo runner *is* the owner's Windows box, so an unbounded `cargo test --workspace` there exhausts the page file exactly as it does from a shell: run 471 died with `rustc-LLVM ERROR: out of memory` / `STATUS_ILLEGAL_INSTRUCTION` compiling `hs-container`'s lib test, on a commit that changed only Markdown and PNGs. `.claude/rules/build-and-run.md` has mandated `-j 4` for local work all along; `.forgejo/workflows/{ci,release}.yml` did not, and now do. The `.github/` copies are deliberately left unbounded - those run on GitHub-hosted machines. `scripts/build-and-package.ps1` still builds unbounded. Fixed 2026-10-31.
+- **An out-of-memory CI failure looks like a code failure.** It is reported as `could not compile <crate>`, and the crate named is simply whichever one was unlucky, not the one at fault. Before debugging the code, check whether anything else was running on the machine - a GUI app, a screenshot harness, another cargo - and re-run on a quiet machine.
+
 - **Asset names are a contract** with `hs-core::update`. Don't rename `HyperStack.exe`, `HyperStack-<version>-windows-x64.zip`, `manifest.json`, `manifest.json.minisig`, `SHA256SUMS.txt`, or `CHANGELOG-<version>.md`.
 - **Release job OOM (run 79)** happened while the runner was busy. Keep release builds separate from other heavy jobs.
 - **`wry::WebView::open_devtools`** exists only with `debug_assertions` or the `devtools` feature. Debug builds, clippy, and tests pass without it. Only the CI release build fails (run 61). The binary enables `features = ["devtools"]`. Check with `cargo build --release --locked -p hyperstack` before pushing.

@@ -130,11 +130,15 @@ jobs:
 
       - name: Clippy
         if: steps.plan.outputs.version != ''
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        # -j 4: this runner is the owner's own machine, where an unbounded
+        # parallel build exhausts the page file
+        # (.claude/rules/build-and-run.md). CI run 471 died with
+        # `rustc-LLVM ERROR: out of memory` for want of this.
+        run: cargo clippy --workspace --all-targets --locked -j 4 -- -D warnings
 
       - name: Tests
         if: steps.plan.outputs.version != ''
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked -j 4
 
       - name: Dependency audit
         if: steps.plan.outputs.version != ''

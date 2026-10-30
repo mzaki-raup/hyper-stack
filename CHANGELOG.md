@@ -70,6 +70,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   which made every key column read as a difference when comparing a
   SQLite schema against PostgreSQL or MySQL.
 
+- **Fixed:** CI exhausted the machine's memory. The Forgejo runner is the
+  owner's own Windows box, where an unbounded parallel build exhausts the
+  page file — a constraint the local gate has honoured with `-j 4` all
+  along, but the workflows did not. A run died with `rustc-LLVM ERROR: out
+  of memory` on a commit that changed only documentation. `ci.yml` and
+  `release.yml` on the forge now pass `-j 4`; the GitHub mirror's copies
+  stay unbounded, since those run on hosted machines.
+
 - **Fixed:** `.gitignore` had the single pattern `/mynotes*.stackdump`,
   which matched neither a stack dump nor the file it was meant to cover.
 

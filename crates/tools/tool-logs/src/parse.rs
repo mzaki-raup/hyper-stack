@@ -116,10 +116,17 @@ pub enum Format {
     /// id, state and locks pulled out as fields (owner's request,
     /// 2026-10-24).
     ThreadDump,
+    /// `journalctl -o json`: one object per record with `MESSAGE`,
+    /// `PRIORITY`, `__REALTIME_TIMESTAMP` and the unit's fields.
+    Journal,
+    /// Windows Event Log records as the Logs activity's own PowerShell
+    /// follower prints them: `t`, `level`, `provider`, `id`, `record`,
+    /// `msg`.
+    EventLog,
 }
 
 impl Format {
-    pub const ALL: [Format; 8] = [
+    pub const ALL: [Format; 10] = [
         Format::Auto,
         Format::Plain,
         Format::Json,
@@ -128,6 +135,8 @@ impl Format {
         Format::Nginx,
         Format::Postgres,
         Format::ThreadDump,
+        Format::Journal,
+        Format::EventLog,
     ];
     pub fn label_key(self) -> &'static str {
         match self {
@@ -139,11 +148,16 @@ impl Format {
             Format::Nginx => "logs-format-nginx",
             Format::Postgres => "logs-format-postgres",
             Format::ThreadDump => "logs-format-thread-dump",
+            Format::Journal => "logs-format-journal",
+            Format::EventLog => "logs-format-eventlog",
         }
     }
     /// JSON and logfmt carry named fields, so the list can show columns.
     pub fn structured(self) -> bool {
-        matches!(self, Format::Json | Format::Logfmt)
+        matches!(
+            self,
+            Format::Json | Format::Logfmt | Format::Journal | Format::EventLog
+        )
     }
 }
 
@@ -428,6 +442,16 @@ pub fn detect(sample: &[&str]) -> Format {
     {
         return Format::ThreadDump;
     }
+    // journald's JSON and the Event Log follower's JSON are told from
+    // plain JSON lines by the keys only they carry.
+    if count(|l| l.starts_with('{') && l.contains("\"__REALTIME_TIMESTAMP\"")) >= 0.6 {
+        return Format::Journal;
+    }
+    if count(|l| l.starts_with('{') && l.contains("\"provider\"") && l.contains("\"record\""))
+        >= 0.6
+    {
+        return Format::EventLog;
+    }
     if count(|l| l.starts_with('{') && serde_json::from_str::<serde_json::Value>(l).is_ok()) >= 0.6
     {
         return Format::Json;
@@ -502,7 +526,7 @@ pub fn is_continuation(format: Format, line: &str) -> bool {
     if trimmed.is_empty() {
         return true;
     }
-    if format == Format::Json {
+    if matches!(format, Format::Json | Format::Journal | Format::EventLog) {
         // A JSON line starts a record; anything else continues one.
         return !trimmed.starts_with('{');
     }
@@ -551,9 +575,108 @@ pub fn parse(format: Format, line_no: u64, line: &str) -> Record {
         Format::Nginx => parse_nginx(&mut rec, &text),
         Format::Postgres => parse_postgres(&mut rec, &text),
         Format::ThreadDump => parse_thread_dump(&mut rec, &text),
+        Format::Journal => parse_journal(&mut rec, &text),
+        Format::EventLog => parse_eventlog(&mut rec, &text),
         Format::Plain | Format::Auto => parse_plain(&mut rec, &text),
     }
     rec
+}
+
+/// `journalctl -o json`: the timestamp is microseconds since the epoch,
+/// the level is syslog's priority, the text is `MESSAGE` (an array of
+/// bytes when it was not valid UTF-8). The journal's own `__CURSOR` and
+/// `__MONOTONIC_TIMESTAMP` are left out of the fields: nobody filters on
+/// them, and they would push the unit and the identifier off the end of
+/// a pinned-column row.
+fn parse_journal(rec: &mut Record, text: &str) {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(text.trim()) else {
+        parse_plain(rec, text);
+        return;
+    };
+    let Some(obj) = v.as_object() else {
+        parse_plain(rec, text);
+        return;
+    };
+    for (k, v) in obj {
+        if k == "__CURSOR" || k == "__MONOTONIC_TIMESTAMP" {
+            continue;
+        }
+        let s = match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Array(bytes) if k == "MESSAGE" => {
+                let raw: Vec<u8> = bytes
+                    .iter()
+                    .filter_map(|b| b.as_u64().map(|n| n as u8))
+                    .collect();
+                String::from_utf8_lossy(&raw).into_owned()
+            }
+            other => other.to_string(),
+        };
+        rec.fields.push((k.clone(), s));
+    }
+    rec.ts = rec
+        .field("__REALTIME_TIMESTAMP")
+        .and_then(|t| t.parse::<i64>().ok())
+        .and_then(DateTime::<Utc>::from_timestamp_micros);
+    rec.level = rec
+        .field("PRIORITY")
+        .and_then(|p| p.parse::<u8>().ok())
+        .map(|p| match p {
+            0..=2 => Level::Fatal,
+            3 => Level::Error,
+            4 => Level::Warn,
+            5 | 6 => Level::Info,
+            _ => Level::Debug,
+        });
+    rec.message = rec.field("MESSAGE").unwrap_or("").to_string();
+}
+
+/// The Event Log follower's JSON: plain JSON with the level in the words
+/// `Get-WinEvent` uses, which `Level::parse` does not all know.
+fn parse_eventlog(rec: &mut Record, text: &str) {
+    parse_json(rec, text);
+    if rec.level.is_none() {
+        rec.level = match rec.field_ci("level").map(|l| l.to_ascii_lowercase()) {
+            Some(l) if l == "information" => Some(Level::Info),
+            Some(l) if l == "verbose" => Some(Level::Debug),
+            Some(l) if l == "critical" => Some(Level::Fatal),
+            Some(l) if l == "warning" => Some(Level::Warn),
+            Some(l) if l == "error" => Some(Level::Error),
+            _ => None,
+        };
+    }
+}
+
+/// The PowerShell that follows one Windows Event Log as JSON lines: the
+/// last `history` records, then every two seconds whatever is newer than
+/// the last record id. `Get-WinEvent` is the only portable reader; the
+/// output is the shape [`Format::EventLog`] parses. The script travels as
+/// `-EncodedCommand` (UTF-16LE base64): run through `cmd /C`, a quoted
+/// `-Command` string is handed to PowerShell with its quotes on, which
+/// makes it a string to print rather than a script to run.
+pub fn eventlog_command(log_name: &str, history: u32) -> String {
+    use base64::Engine;
+    let log = log_name.trim().replace('\'', "''");
+    let script = format!(
+        "$ProgressPreference='SilentlyContinue'; $log='{log}'; $last=0; function Emit($e) {{ $script:last=[Math]::Max($script:last,$e.RecordId);          [pscustomobject]@{{t=$e.TimeCreated.ToString('o');level=$e.LevelDisplayName;provider=$e.ProviderName;id=$e.Id;record=$e.RecordId;msg=$e.Message}} | ConvertTo-Json -Compress }};          Get-WinEvent -LogName $log -MaxEvents {history} -ErrorAction SilentlyContinue | Sort-Object RecordId | ForEach-Object {{ Emit $_ }};          while($true) {{ Start-Sleep -Seconds 2;          Get-WinEvent -LogName $log -MaxEvents 500 -ErrorAction SilentlyContinue | Where-Object {{ $_.RecordId -gt $last }} | Sort-Object RecordId | ForEach-Object {{ Emit $_ }} }}"
+    );
+    let utf16: Vec<u8> = script
+        .encode_utf16()
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
+    format!(
+        "powershell -NoProfile -NonInteractive -EncodedCommand {}",
+        base64::engine::general_purpose::STANDARD.encode(utf16)
+    )
+}
+
+/// The journalctl that follows one unit as JSON lines.
+pub fn journal_command(unit: &str, history: u32) -> String {
+    if unit.trim().is_empty() {
+        format!("journalctl -o json -n {history} -f")
+    } else {
+        format!("journalctl -o json -n {history} -f -u {}", unit.trim())
+    }
 }
 
 /// A thread dump's thread header:
@@ -1380,5 +1503,61 @@ mod tests {
         let (span, got) = level_span(line).unwrap();
         assert_eq!(got, Level::Info);
         assert_eq!(&line[span], "info");
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn journal_json_becomes_a_record() {
+        let line = r#"{"__CURSOR":"s=1","__REALTIME_TIMESTAMP":"1700000000123456","__MONOTONIC_TIMESTAMP":"1","PRIORITY":"3","_SYSTEMD_UNIT":"nginx.service","SYSLOG_IDENTIFIER":"nginx","MESSAGE":"upstream timed out"}"#;
+        let r = parse(Format::Journal, 1, line);
+        assert_eq!(r.level, Some(Level::Error));
+        assert_eq!(r.message, "upstream timed out");
+        assert_eq!(r.ts.map(|t| t.timestamp()), Some(1_700_000_000));
+        assert_eq!(r.field("_SYSTEMD_UNIT"), Some("nginx.service"));
+        assert!(r.field("__CURSOR").is_none());
+        assert_eq!(detect(&[line, line, line]), Format::Journal);
+        let bytes =
+            r#"{"__REALTIME_TIMESTAMP":"1700000000000000","PRIORITY":"6","MESSAGE":[104,105]}"#;
+        assert_eq!(parse(Format::Journal, 1, bytes).message, "hi");
+        assert!(is_continuation(Format::Journal, "  at line"));
+    }
+
+    #[test]
+    fn eventlog_json_becomes_a_record() {
+        let line = r#"{"t":"2026-10-30T10:00:00.0000000+08:00","level":"Information","provider":"Service Control Manager","id":7036,"record":12345,"msg":"The Print Spooler service entered the running state."}"#;
+        let r = parse(Format::EventLog, 1, line);
+        assert_eq!(r.level, Some(Level::Info));
+        assert!(r.ts.is_some());
+        assert_eq!(r.field("provider"), Some("Service Control Manager"));
+        assert_eq!(detect(&[line, line, line]), Format::EventLog);
+        let crit = r#"{"t":"2026-10-30T10:00:00Z","level":"Critical","provider":"x","id":1,"record":2,"msg":"m"}"#;
+        assert_eq!(parse(Format::EventLog, 1, crit).level, Some(Level::Fatal));
+    }
+
+    #[test]
+    fn follower_commands_are_built() {
+        assert_eq!(
+            journal_command("nginx", 500),
+            "journalctl -o json -n 500 -f -u nginx"
+        );
+        assert_eq!(journal_command("  ", 10), "journalctl -o json -n 10 -f");
+        let c = eventlog_command("Application", 300);
+        assert!(c.starts_with("powershell -NoProfile -NonInteractive -EncodedCommand "));
+        use base64::Engine;
+        let b64 = c.rsplit(' ').next().unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
+        let units: Vec<u16> = bytes
+            .chunks(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        let script = String::from_utf16(&units).unwrap();
+        assert!(script.contains("$log='Application'"));
+        assert!(script.contains("-MaxEvents 300"));
     }
 }

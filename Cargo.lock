@@ -8876,6 +8876,7 @@ dependencies = [
 name = "tool-logs"
 version = "0.105.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "egui",
  "futures-util",

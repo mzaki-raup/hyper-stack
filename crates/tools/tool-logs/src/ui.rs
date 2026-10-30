@@ -146,6 +146,10 @@ struct AddSource {
     format: Format,
     tail_lines: u32,
     pasted: String,
+    /// journald: the unit (empty for the whole journal).
+    unit: String,
+    /// Windows Event Log: the log name.
+    log_name: String,
     save: bool,
     /// The saved source being edited, by the name it had.
     editing: Option<String>,
@@ -233,7 +237,7 @@ impl AddSource {
                 conn_id.clone().unwrap_or_default(),
                 command.clone(),
             ),
-            SourceSpec::K8sPod { .. } => return None,
+            SourceSpec::K8sPod { .. } | SourceSpec::Merge { .. } => return None,
             SourceSpec::Text { .. } => (4, String::new(), String::new(), String::new()),
         };
         Some(Self {
@@ -244,6 +248,8 @@ impl AddSource {
             command,
             format: src.format,
             tail_lines: src.tail_lines,
+            unit: String::new(),
+            log_name: String::new(),
             pasted: String::new(),
             save: true,
             editing: Some(src.name.clone()),
@@ -448,6 +454,94 @@ pub struct LogsTool {
     sidebar_filter: String,
     confirm_delete: Option<String>,
     status_text: String,
+    /// The merge picker: saved source names with their ticks (§9).
+    merge_pick: Option<Vec<(String, bool)>>,
+    /// The Statistics panel (§10) and what it was computed for.
+    stats_open: bool,
+    stats: Option<Stats>,
+    stats_at: (u64, u64),
+    alerts: Mutex<AlertScan>,
+}
+
+/// What the Statistics panel shows for the filtered window
+/// (docs/tools/logs.md §10): counts by level, the rate, the commonest
+/// message shapes and the commonest values of the commonest fields.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Stats {
+    total: usize,
+    /// In `Level::ALL` order.
+    levels: [usize; 6],
+    none: usize,
+    per_minute: f64,
+    top_messages: Vec<(String, usize)>,
+    top_fields: Vec<(String, Vec<(String, usize)>)>,
+}
+
+fn compute_stats(records: &[Record], filtered: &[usize]) -> Stats {
+    use std::collections::HashMap;
+    let mut st = Stats {
+        total: filtered.len(),
+        ..Default::default()
+    };
+    let mut shapes: HashMap<String, usize> = HashMap::new();
+    let mut fields: HashMap<&str, HashMap<&str, usize>> = HashMap::new();
+    let (mut first, mut last) = (None, None);
+    for &i in filtered {
+        let Some(r) = records.get(i) else { continue };
+        match r.level {
+            Some(l) => st.levels[l as usize] += 1,
+            None => st.none += 1,
+        }
+        if let Some(t) = r.ts {
+            first = Some(first.map_or(t, |f: chrono::DateTime<chrono::Utc>| f.min(t)));
+            last = Some(last.map_or(t, |l: chrono::DateTime<chrono::Utc>| l.max(t)));
+        }
+        *shapes.entry(crate::shape::key(&r.message)).or_default() += 1;
+        for (k, v) in &r.fields {
+            *fields
+                .entry(k.as_str())
+                .or_default()
+                .entry(v.as_str())
+                .or_default() += 1;
+        }
+    }
+    if let (Some(f), Some(l)) = (first, last) {
+        let mins = (l - f).num_seconds().max(1) as f64 / 60.0;
+        st.per_minute = st.total as f64 / mins.max(1.0 / 60.0);
+    }
+    let mut top: Vec<(String, usize)> = shapes.into_iter().collect();
+    top.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    top.truncate(10);
+    st.top_messages = top;
+    let mut names: Vec<(&str, usize)> = fields
+        .iter()
+        .map(|(k, vals)| (*k, vals.values().sum::<usize>()))
+        .collect();
+    names.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    for (name, _) in names.into_iter().take(5) {
+        let mut vals: Vec<(String, usize)> = fields[name]
+            .iter()
+            .map(|(v, n)| (v.to_string(), *n))
+            .collect();
+        vals.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        vals.truncate(3);
+        st.top_fields.push((name.to_string(), vals));
+    }
+    st
+}
+
+/// Alerts seen so far (docs/tools/logs.md §10). Behind a mutex because
+/// the scan also runs from `tab_title_prefix`, which the tab strip asks
+/// for every frame whether or not the tab is in front: a hidden tab
+/// still receives records, and its badge has to climb.
+#[derive(Default)]
+struct AlertScan {
+    upto: usize,
+    unseen: usize,
+    /// (rule, message shape) → when it last alerted.
+    last: std::collections::HashMap<(usize, String), std::time::Instant>,
+    /// Toasts waiting for the tab to be drawn.
+    toasts: Vec<String>,
 }
 
 impl LogsTool {
@@ -545,6 +639,11 @@ impl LogsTool {
             sidebar_filter: String::new(),
             confirm_delete: None,
             status_text: String::new(),
+            merge_pick: None,
+            stats_open: false,
+            stats: None,
+            stats_at: (u64::MAX, u64::MAX),
+            alerts: Mutex::new(AlertScan::default()),
         };
         t.bind_connection(services);
         t
@@ -1063,6 +1162,7 @@ fn saved_icon_for(spec: &SourceSpec) -> &'static str {
         SourceSpec::Command { command, .. } => command.as_str(),
         SourceSpec::K8sPod { pod, .. } => pod.as_str(),
         SourceSpec::Text { title } => title.as_str(),
+        SourceSpec::Merge { .. } => "",
     };
     crate::services::classify(text)
         .and_then(crate::services::icon_for)
@@ -1154,6 +1254,21 @@ impl Tool for LogsTool {
             Some(spec) => Cow::Owned(spec.label()),
             None => Cow::Borrowed("Logs"),
         }
+    }
+
+    /// Alerts that arrived while the tab was not in front (§10).
+    fn tab_title_prefix(&self) -> Option<(String, egui::Color32)> {
+        if self.is_home || self.state.spec.is_none() {
+            return None;
+        }
+        self.scan_alerts();
+        let n = self.alerts.lock().unseen;
+        (n > 0).then(|| {
+            (
+                format!("{} {n}", ph::BELL_RINGING),
+                egui::Color32::from_rgb(235, 170, 60),
+            )
+        })
     }
 
     fn subtitle(&self) -> Option<String> {
@@ -1296,6 +1411,8 @@ impl Tool for LogsTool {
             c("logs.open_file", "Logs: Open File…"),
             c("logs.open_dump", "Logs: Open Thread Dump…"),
             c("logs.add_source", "Logs: Add Source…"),
+            c("logs.merge", "Logs: Merge Saved Sources…"),
+            c("logs.statistics", "Logs: Toggle Statistics"),
             c("logs.paste", "Logs: Paste Text…"),
             c("logs.follow", "Logs: Toggle Follow"),
             c("logs.pause", "Logs: Pause / Resume"),
@@ -1336,6 +1453,16 @@ impl Tool for LogsTool {
             }
             "logs.highlights" => {
                 self.highlights_open = true;
+                true
+            }
+            "logs.merge" => {
+                self.sync_lists();
+                self.merge_pick =
+                    Some(self.saved.iter().map(|s| (s.name.clone(), false)).collect());
+                true
+            }
+            "logs.statistics" => {
+                self.stats_open = !self.stats_open;
                 true
             }
             "logs.save_investigation" => {
@@ -1447,6 +1574,13 @@ impl Tool for LogsTool {
                 };
             }
             SourceSpec::Text { .. } => {}
+            SourceSpec::Merge { parts } => {
+                command = parts
+                    .iter()
+                    .map(|p| p.label.clone())
+                    .collect::<Vec<_>>()
+                    .join(" + ");
+            }
         }
         Some(
             hs_core::tool::ToolHeader::new(saved_icon_for(spec), spec.label())
@@ -1488,6 +1622,12 @@ impl Tool for LogsTool {
                 .clicked()
             {
                 self.run_command("logs.add_source", cx);
+            }
+            if form::icon_button(ui, &theme, ph::ROWS, 16.0, false)
+                .tip(s.t("logs-merge"))
+                .clicked()
+            {
+                self.run_command("logs.merge", cx);
             }
             if form::icon_button(ui, &theme, ph::CLIPBOARD_TEXT, 16.0, false)
                 .tip(s.t("logs-paste"))
@@ -1833,6 +1973,16 @@ impl Tool for LogsTool {
             }
             if ui
                 .selectable_label(
+                    self.stats_open,
+                    format!("{} {}", ph::CHART_PIE, s.t("logs-statistics")),
+                )
+                .tip(s.t("logs-statistics-tip"))
+                .clicked()
+            {
+                self.stats_open = !self.stats_open;
+            }
+            if ui
+                .selectable_label(
                     self.state.collapse,
                     format!("{} {}", ph::ARROWS_IN_LINE_VERTICAL, s.t("logs-collapse")),
                 )
@@ -1916,6 +2066,19 @@ impl Tool for LogsTool {
         self.sync_lists();
         self.refilter();
         self.report_problems(&s);
+        // In front: alerts are toasts, and the badge count is spent.
+        self.scan_alerts();
+        let toasts = {
+            let mut a = self.alerts.lock();
+            a.unseen = 0;
+            std::mem::take(&mut a.toasts)
+        };
+        for t in toasts {
+            cx.toast(
+                ToastLevel::Warning,
+                s.i18n.t_args("logs-alert-toast", &[("text", &t)]),
+            );
+        }
         // The column's rectangle is taken out of the tab first, so the
         // list lays out in what is left; it is drawn last, as every other
         // tool draws it, so nothing of the tool paints over it.
@@ -1926,6 +2089,7 @@ impl Tool for LogsTool {
         self.chip_row(ui, &s, &theme);
         self.thread_summary(ui, &s, &theme);
         self.time_strip(ui, &s, &theme);
+        self.statistics_panel(ui, &s, &theme);
         self.highlights_editor(ui, cx, &theme);
         self.find_everywhere_panel(ui, cx, &theme);
         self.diff_panel(ui, &s, &theme);
@@ -2996,6 +3160,10 @@ impl LogsTool {
                                 .checkbox(&mut h.report, s.t("logs-highlight-report"))
                                 .tip(s.t("logs-highlight-report-tip"))
                                 .changed();
+                            changed |= ui
+                                .checkbox(&mut h.alert, s.t("logs-highlight-alert"))
+                                .tip(s.t("logs-highlight-alert-tip"))
+                                .changed();
                             // Only meaningful for a reporting rule, so
                             // it is disabled rather than hidden: a
                             // control that moves is harder to find.
@@ -3065,6 +3233,134 @@ impl LogsTool {
     /// the default, so a tab pays nothing for this feature unless it is
     /// asked for. Posting happens only while the tab exists; nothing
     /// runs in the background.
+    /// Records per level, the rate, the commonest messages and field
+    /// values of the filtered window (docs/tools/logs.md §10).
+    fn statistics_panel(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        if !self.stats_open {
+            return;
+        }
+        let at = (self.shared.lock().version, self.chips_version);
+        if self.stats_at != at || self.stats.is_none() {
+            let sh = self.shared.lock();
+            self.stats = Some(compute_stats(&sh.records, &self.filtered));
+            self.stats_at = at;
+        }
+        let Some(st) = self.stats.clone() else { return };
+        egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new(s.t("logs-statistics")).strong());
+                ui.separator();
+                ui.label(
+                    s.i18n
+                        .t_args("logs-stats-total", &[("n", &st.total.to_string())]),
+                );
+                ui.separator();
+                ui.label(s.i18n.t_args(
+                    "logs-stats-rate",
+                    &[("n", &format!("{:.1}", st.per_minute))],
+                ));
+                ui.separator();
+                for (i, l) in Level::ALL.iter().enumerate() {
+                    if st.levels[i] > 0 {
+                        ui.colored_label(
+                            level_colour(theme, *l),
+                            format!("{} {}", l.label(), st.levels[i]),
+                        );
+                    }
+                }
+                if st.none > 0 {
+                    ui.colored_label(theme.text_muted, format!("— {}", st.none));
+                }
+            });
+            ui.add_space(4.0);
+            ui.columns(2, |cols| {
+                cols[0].label(
+                    egui::RichText::new(s.t("logs-stats-top-messages"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+                for (shape, n) in &st.top_messages {
+                    cols[0].horizontal(|ui| {
+                        ui.label(egui::RichText::new(n.to_string()).monospace().small());
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(shape).small().monospace())
+                                .truncate(),
+                        );
+                    });
+                }
+                cols[1].label(
+                    egui::RichText::new(s.t("logs-stats-top-fields"))
+                        .small()
+                        .color(theme.text_muted),
+                );
+                for (name, vals) in &st.top_fields {
+                    let text = vals
+                        .iter()
+                        .map(|(v, n)| format!("{v} ({n})"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    cols[1].horizontal(|ui| {
+                        ui.label(egui::RichText::new(format!("{name}:")).small().strong());
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(text).small().monospace())
+                                .truncate(),
+                        );
+                    });
+                }
+            });
+            if st.total == 0 {
+                form::hint(ui, theme, &s.t("logs-stats-none"));
+            }
+        });
+    }
+
+    /// Look at the records that arrived since the last look and raise an
+    /// alert for each one an alerting rule matches, with the rule's
+    /// cooldown per message shape (docs/tools/logs.md §10).
+    fn scan_alerts(&self) {
+        let mut a = self.alerts.lock();
+        if !self.highlights.any_alerting() {
+            a.upto = self.shared.lock().records.len();
+            return;
+        }
+        let sh = self.shared.lock();
+        let from = a.upto.min(sh.records.len());
+        let now = std::time::Instant::now();
+        for r in &sh.records[from..] {
+            let Some((rule, cooldown)) = self.highlights.alerts(r) else {
+                continue;
+            };
+            let key = (rule, crate::shape::key(&r.message));
+            let pause = if cooldown == 0 {
+                hs_core::problems::COOLDOWN
+            } else {
+                std::time::Duration::from_secs(u64::from(cooldown))
+            };
+            if a.last
+                .get(&key)
+                .is_some_and(|t| now.duration_since(*t) < pause)
+            {
+                continue;
+            }
+            a.last.insert(key, now);
+            if a.last.len() > 2_000 {
+                a.last.clear();
+            }
+            a.unseen += 1;
+            let text = self.leaving(if r.message.is_empty() {
+                &r.raw
+            } else {
+                &r.message
+            });
+            a.toasts.push(text.chars().take(160).collect());
+            if a.toasts.len() > 20 {
+                a.toasts.remove(0);
+            }
+        }
+        a.upto = sh.records.len();
+    }
+
     fn report_problems(&mut self, s: &Services) {
         if !self.highlights.any_reporting() {
             // Keep the mark level with the window, or turning a rule on
@@ -4028,6 +4324,8 @@ impl LogsTool {
                 "logs-kind-command",
                 "logs-kind-remote-command",
                 "logs-kind-paste",
+                "logs-kind-journald",
+                "logs-kind-eventlog",
             ];
             let m = egui::Modal::new(egui::Id::new("logs-add")).show(ui.ctx(), |ui| {
                 ui.set_width(520.0);
@@ -4095,18 +4393,70 @@ impl LogsTool {
                             form::text_field(ui, &mut a.command, "docker logs -f shop-api");
                             ui.end_row();
                         }
+                        5 => {
+                            // journald as JSON: local, or on an SSH host.
+                            form::label(ui, &s.t("logs-connection"));
+                            let conns: Vec<(String, String)> = s
+                                .connections
+                                .read()
+                                .of_kind("ssh")
+                                .map(|c| (c.id.clone(), c.name.clone()))
+                                .collect();
+                            let current = conns
+                                .iter()
+                                .find(|(id, _)| *id == a.conn_id)
+                                .map(|(_, n)| n.clone())
+                                .unwrap_or_else(|| s.t("logs-this-machine"));
+                            egui::ComboBox::from_id_salt("logs-add-conn-j")
+                                .selected_text(current)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut a.conn_id,
+                                        String::new(),
+                                        s.t("logs-this-machine"),
+                                    );
+                                    for (id, name) in &conns {
+                                        ui.selectable_value(&mut a.conn_id, id.clone(), name);
+                                    }
+                                });
+                            ui.end_row();
+                            form::label(ui, &s.t("logs-unit"));
+                            form::text_field(ui, &mut a.unit, "nginx.service");
+                            ui.end_row();
+                            form::label(ui, &s.t("logs-tail-lines"));
+                            ui.add(egui::DragValue::new(&mut a.tail_lines).range(0..=100_000));
+                            ui.end_row();
+                        }
+                        6 => {
+                            form::label(ui, &s.t("logs-eventlog-name"));
+                            ui.horizontal(|ui| {
+                                form::text_field_width(ui, &mut a.log_name, "Application", 200.0);
+                                for name in ["Application", "System", "Security"] {
+                                    if ui.small_button(name).clicked() {
+                                        a.log_name = name.into();
+                                    }
+                                }
+                            });
+                            ui.end_row();
+                            form::label(ui, &s.t("logs-tail-lines"));
+                            ui.add(egui::DragValue::new(&mut a.tail_lines).range(0..=100_000));
+                            ui.end_row();
+                        }
                         _ => {}
                     }
                     if a.kind != 4 {
-                        form::label(ui, &s.t("logs-format"));
-                        egui::ComboBox::from_id_salt("logs-add-format")
-                            .selected_text(s.t(a.format.label_key()))
-                            .show_ui(ui, |ui| {
-                                for f in Format::ALL {
-                                    ui.selectable_value(&mut a.format, f, s.t(f.label_key()));
-                                }
-                            });
-                        ui.end_row();
+                        // journald and the Event Log pin their parser.
+                        if a.kind < 5 {
+                            form::label(ui, &s.t("logs-format"));
+                            egui::ComboBox::from_id_salt("logs-add-format")
+                                .selected_text(s.t(a.format.label_key()))
+                                .show_ui(ui, |ui| {
+                                    for f in Format::ALL {
+                                        ui.selectable_value(&mut a.format, f, s.t(f.label_key()));
+                                    }
+                                });
+                            ui.end_row();
+                        }
                         form::label(ui, &s.t("logs-name"));
                         form::text_field(ui, &mut a.name, &s.t("logs-name-hint"));
                         ui.end_row();
@@ -4139,6 +4489,8 @@ impl LogsTool {
                         1 => !a.conn_id.is_empty() && !a.path.trim().is_empty(),
                         2 => !a.command.trim().is_empty(),
                         3 => !a.conn_id.is_empty() && !a.command.trim().is_empty(),
+                        5 => true,
+                        6 => !a.log_name.trim().is_empty(),
                         _ => !a.pasted.trim().is_empty(),
                     };
                     if ui
@@ -4156,7 +4508,37 @@ impl LogsTool {
                 cancel = true;
             }
             if done {
+                if a.kind == 5 {
+                    a.format = Format::Journal;
+                    if a.name.trim().is_empty() {
+                        a.name = if a.unit.trim().is_empty() {
+                            "journald".to_string()
+                        } else {
+                            format!("journald: {}", a.unit.trim())
+                        };
+                    }
+                }
+                if a.kind == 6 {
+                    a.format = Format::EventLog;
+                    if a.name.trim().is_empty() {
+                        a.name = format!("Event Log: {}", a.log_name.trim());
+                    }
+                }
                 let (spec, text) = match a.kind {
+                    5 => (
+                        SourceSpec::Command {
+                            conn_id: (!a.conn_id.is_empty()).then(|| a.conn_id.clone()),
+                            command: crate::parse::journal_command(&a.unit, a.tail_lines),
+                        },
+                        None,
+                    ),
+                    6 => (
+                        SourceSpec::Command {
+                            conn_id: None,
+                            command: crate::parse::eventlog_command(&a.log_name, a.tail_lines),
+                        },
+                        None,
+                    ),
                     0 => (
                         SourceSpec::LocalFile {
                             path: a.path.trim().to_string(),
@@ -4251,6 +4633,81 @@ impl LogsTool {
                 }
             } else if !cancel {
                 self.add = Some(a);
+            }
+        }
+        // Merge saved sources (§9).
+        if let Some(mut picks) = self.merge_pick.take() {
+            let mut open = false;
+            let mut cancel = false;
+            let m = egui::Modal::new(egui::Id::new("logs-merge")).show(ui.ctx(), |ui| {
+                ui.set_width(460.0);
+                ui.heading(s.t("logs-merge-title"));
+                form::hint(ui, theme, &s.t("logs-merge-hint"));
+                ui.add_space(6.0);
+                if picks.is_empty() {
+                    form::note(ui, theme, hs_ui::icons::INFO, &s.t("logs-merge-none"));
+                }
+                egui::ScrollArea::vertical()
+                    .id_salt("logs-merge-list")
+                    .max_height(300.0)
+                    .show(ui, |ui| {
+                        for (name, on) in picks.iter_mut() {
+                            ui.checkbox(on, name.as_str());
+                        }
+                    });
+                ui.add_space(10.0);
+                let n = picks.iter().filter(|(_, on)| *on).count();
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .add_enabled(n >= 2, egui::Button::new(s.t("logs-merge-open")))
+                        .clicked()
+                    {
+                        open = true;
+                    }
+                    if ui.button(s.t("cancel")).clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+            if m.should_close() {
+                cancel = true;
+            }
+            if open {
+                let parts: Vec<crate::source::MergePart> = picks
+                    .iter()
+                    .filter(|(_, on)| *on)
+                    .filter_map(|(name, _)| self.saved.iter().find(|x| &x.name == name))
+                    .map(|src| crate::source::MergePart {
+                        label: src.name.clone(),
+                        spec: src.spec.clone(),
+                        format: src.format,
+                        tail_lines: src.tail_lines,
+                    })
+                    .collect();
+                let spec = SourceSpec::Merge { parts };
+                let saved = SavedSource {
+                    name: spec.label(),
+                    spec: spec.clone(),
+                    format: Format::Json,
+                    tail_lines: 0,
+                    ..Default::default()
+                };
+                // The home tab stays the dashboard, so a merge started
+                // there gets a tab of its own, like one started from a
+                // tab that already follows something.
+                if self.is_home || self.state.spec.is_some() {
+                    cx.open_new_tab(
+                        "logs",
+                        Some(OpenRequest::Text {
+                            mime: SPEC_MIME.into(),
+                            body: serde_json::to_string(&saved).unwrap_or_default(),
+                        }),
+                    );
+                } else {
+                    self.open_spec(&s, spec, Format::Json, 0, None);
+                }
+            } else if !cancel {
+                self.merge_pick = Some(picks);
             }
         }
         // New chip.

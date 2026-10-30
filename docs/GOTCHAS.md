@@ -304,3 +304,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **BOM-less UTF-16 BE** is ambiguous. Don't guess it during automatic decode. Offer an explicit encoding choice to reopen the original bytes.
 - **`canonicalize` on Windows** adds `\\?\` (see Windows).
 - **Platform-specific test paths** (upper-case `SystemTemp`) need canonical or case-insensitive comparison (see Release Pipeline).
+
+## Logs and subprocesses
+
+- **A PowerShell script handed to `powershell -Command "..."` through
+  `cmd /C` is printed, not run.** `cmd` passes the quotes on, PowerShell
+  sees one double-quoted string expression and echoes it with `$vars`
+  expanded to nothing. Use `-EncodedCommand` with the script as UTF-16LE
+  base64 (`parse::eventlog_command`) and set
+  `$ProgressPreference='SilentlyContinue'` first, or a `#< CLIXML` line
+  lands in the output.

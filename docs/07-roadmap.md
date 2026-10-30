@@ -124,7 +124,7 @@ feeds the same handoff.
 ## Phase 2 — Depth (≈ 16 weeks)
 
 The remaining Phase 2 and Phase 3 items were re-planned on 2026-10-30
-as the **depth programme** - fourteen phases A to N in
+as the **depth programme** - fifteen phases A to O in
 [10-depth-programme.md](10-depth-programme.md), each released from
 `main` in turn (Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL
 compare / ERD, Cassandra, forge integration, and a new Automation

@@ -800,6 +800,59 @@ escapes removed, so the §17 reassembly invariant reads "the records put
 back together are the file again, as the file would be without its
 terminal escapes".
 
+## Depth, phase D (2026-10-30)
+
+The depth programme's fourth phase (`docs/10-depth-programme.md`)
+delivered §4's journald and Event Log rows, §9 and §10:
+
+- **journald** (`Format::Journal`): Add Source → *journald (JSON)* takes
+  a unit (empty for the whole journal) and a host (this machine or a
+  saved SSH connection) and saves a `Command` source running
+  `parse::journal_command` - `journalctl -o json -n <history> -f -u
+  <unit>` - with the parser pinned. `parse_journal` reads
+  `__REALTIME_TIMESTAMP` (microseconds), `PRIORITY` (0-2 fatal, 3 error,
+  4 warn, 5-6 info, 7 debug) and `MESSAGE` (an array of bytes when it
+  was not UTF-8), keeps every other field but `__CURSOR` and
+  `__MONOTONIC_TIMESTAMP`, and `detect` recognises the shape by the
+  timestamp key. On Windows the same output arrives through `wsl.exe -d
+  <distro> -- journalctl -o json …` as a plain command source.
+- **Windows Event Log** (`Format::EventLog`): Add Source → *Windows
+  Event Log* takes a log name (Application / System / Security buttons)
+  and saves a `Command` source running `parse::eventlog_command`: a
+  `powershell -NoProfile` one-liner that prints the last N records of
+  the log as compact JSON (`t`, `level`, `provider`, `id`, `record`,
+  `msg`) and then, every two seconds, whatever has a higher record id.
+  `parse_eventlog` is the JSON parser plus the Event Log's level words
+  (Information, Verbose, Critical). Local only: `Get-WinEvent` over SSH
+  to a Windows host is a plain remote command.
+- **Merge** (`SourceSpec::Merge { parts }`, `engine::merge_loop`): the
+  sidebar's **Merge Saved Sources…** (and the palette) lists the saved
+  sources with ticks; two or more open a tab whose runner starts one
+  child runner per part (each with its own window and format detection)
+  and a task that, four times a second, moves what each child received
+  into the merged window with `insert_by_time` (walking back from the
+  end, so the near-ordered common case is O(1)) and a `source` field
+  first in every record. The merged status follows while any source
+  does and fails only when all do. Clock-skew adjustment per source is
+  not done.
+- **Statistics** (`ui::compute_stats`): a toolbar toggle opens a panel
+  above the list with the filtered window's count, rate per minute
+  (span of its timestamps), counts by level, the ten commonest message
+  shapes (`shape::key`) and the three commonest values of the five
+  commonest fields. Computed when the records or the chips change,
+  never per frame.
+- **Alerts** (`Highlight::alert`, `ui::AlertScan`): a highlight rule's
+  **Alert** tick raises a toast for each match while the tab is in
+  front and counts matches on the tab (`tab_title_prefix`, a bell) while
+  it is not; the scan runs from the tab strip's title query, so a hidden
+  tab keeps counting. The rule's cooldown applies per message shape.
+  Report (the Problems entry) is unchanged and combines with it.
+
+Verified 2026-10-30 on screen with two followed local files merged, the
+Windows Event Log (Application) on this machine, journald from the WSL
+distribution through `wsl.exe`, the Statistics panel and an alerting
+rule; the parsers and the merge order are covered by unit tests.
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

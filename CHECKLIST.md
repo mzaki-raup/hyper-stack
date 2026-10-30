@@ -238,7 +238,7 @@ store that already exists.
 |---|---|---|
 | Containers: Docker/Podman, Compose, remote over SSH | Completed | The Container activity, 2026-10-24: Docker, Podman, Kubernetes and Windows containers, images, Compose, pod logs into Logs, a shell in a pod (see the Container activity section above) |
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
-| SQL: SQL Server, inline editing, explain, CSV import, Excel export | In-Progress | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); SQL Server is phase C |
+| SQL: SQL Server, inline editing, explain, CSV import, Excel export | In-Progress | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); the ER diagram, DDL generator and the schema and data compares as phase H (2026-10-31); SQL Server is phase C |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | Completed | Docker and Kubernetes sources through the Container activity (2026-10-24); journald, Event Log, merge, statistics and alerts as depth programme phase D (2026-10-30) |
@@ -571,7 +571,7 @@ and ADR-025.
 | E — SSH depth: port-forward manager, broadcast input, server monitor | Completed | `SshTool::{tunnels_panel, start_saved_forwards, monitor_strip}`, `tool-ssh::{broadcast, monitor}`, `SshFields::forwards`, `TerminalResponse::input`, `Session::writer`; verified on screen 2026-10-30 against WSL sshd |
 | F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Completed | `objstore::s3::{get_tags, put_tags, list_versions, restore_version, delete_version, bucket_policy, bucket_cors}`, `S3Tool::details_pane`, `tool-s3::sync`; verified on screen 2026-10-30 against MinIO |
 | G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Completed | `tool-devtools::{net, ports, snippets, envfile}` as four new utilities; verified on screen 2026-10-30 |
-| H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | Pending | |
+| H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | In-Progress | `DbSession::table_schema` on all three drivers, `tool-db::{schema, ddlgen, erd, compare}`, `Cmd::{Snapshot, CompareSchemas, CompareData}`, four dialogs, palette commands and shortcuts; `hs_core::tool::GRAPHICS_MIME` moved out of `tool-graphics` so the ERD can be handed over. Full gate green and introspection tested against a real SQLite database (`tests/drivers.rs::sqlite_table_schema`); the four dialogs have **not** been exercised on screen yet, which is all that is left before this is Completed |
 | I — Cassandra / ScyllaDB driver in the NoSQL activity | Pending | |
 | J — Forge integration in the Git activity: pull requests, issues, CI status | Pending | |
 | K — Automation activity: Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX, Puppet | Pending | |

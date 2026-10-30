@@ -10,9 +10,12 @@
 //! WHERE, DROP/TRUNCATE and admin statements ask first, and on a protected
 //! environment ask for the object's name to be typed.
 
+pub mod compare;
 pub mod complete;
+pub mod ddlgen;
 pub mod driver;
 pub mod edit;
+pub mod erd;
 pub mod export;
 pub mod grid;
 pub mod history;
@@ -20,6 +23,7 @@ pub mod import;
 pub mod plan;
 pub mod profile;
 pub mod runner;
+pub mod schema;
 pub mod searcher;
 pub mod sql;
 
@@ -32,8 +36,8 @@ use std::time::Duration;
 use hs_core::Services;
 use hs_core::events::Event;
 use hs_core::tool::{
-    Accept, Action, CloseDecision, CommandDescriptor, OpenRequest, QuickOpenItem, ToastLevel, Tool,
-    ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
+    Accept, Action, CloseDecision, CommandDescriptor, GRAPHICS_MIME, OpenRequest, QuickOpenItem,
+    ToastLevel, Tool, ToolCategory, ToolContext, ToolDescriptor, ToolFactory,
 };
 use hs_editor::buffer::EditKind;
 use hs_editor::view::EditorTheme;
@@ -222,7 +226,58 @@ enum Dialog {
         sql: String,
     },
     Import(ImportState),
+    /// The generated DDL for a schema (depth programme phase H).
+    Ddl {
+        snap: Box<crate::schema::Snapshot>,
+        /// The dialect written out, which need not be the source's.
+        dialect: Engine,
+        opts: ddlgen::Options,
+        /// Cached script: regenerating it every frame would re-walk the whole
+        /// schema on each repaint.
+        sql: String,
+        skipped: usize,
+    },
+    /// Which connection (and schema) to compare against.
+    ComparePick {
+        /// The table, for a data compare; `None` for a schema compare.
+        table: Option<String>,
+        schema: String,
+        /// The chosen target connection, empty until one is picked.
+        conn_id: String,
+        other_schema: String,
+        /// The row bound for a data compare, as typed.
+        limit: String,
+        error: Option<String>,
+    },
+    /// A finished schema compare.
+    Compare {
+        out: Box<runner::CompareOut>,
+        diffs: Vec<compare::Diff>,
+        /// The migration script, once asked for.
+        migration: Option<String>,
+    },
+    /// A finished data compare of one table.
+    DataCompare {
+        out: Box<runner::DataOut>,
+        diffs: Vec<compare::RowDiff>,
+        migration: Option<String>,
+    },
 }
+
+/// What a pending [`Cmd::Snapshot`] was asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SnapshotUse {
+    Erd,
+    Ddl,
+}
+
+/// How many tables one snapshot reads. A schema with more than this is read
+/// up to the cap and the UI says how many it left out, so the ER diagram
+/// cannot turn into thousands of round trips.
+const SNAPSHOT_CAP: usize = 300;
+
+/// The default row bound of a data compare.
+const DATA_COMPARE_LIMIT: usize = 1000;
 
 /// The CSV import dialog's state.
 #[derive(Clone)]
@@ -294,6 +349,8 @@ pub struct DbTool {
     not_editable: HashMap<usize, &'static str>,
     /// Parsed plans by (run, result); `None` when the rows were not a plan.
     plans: HashMap<(u64, usize), Option<plan::Plan>>,
+    /// What the snapshot now being read is for (depth programme phase H).
+    snapshot_for: Option<SnapshotUse>,
     /// Show an EXPLAIN result as its raw rows rather than the tree.
     plan_raw: bool,
 }
@@ -360,6 +417,21 @@ fn kind_from(s: &str) -> Option<ObjectKind> {
 
 fn node_id(parts: &[&str]) -> String {
     parts.join(&SEP.to_string())
+}
+
+/// The colour a compare verdict is drawn in (depth programme phase H).
+fn side_colour(side: compare::Side, theme: &Theme) -> egui::Color32 {
+    match side {
+        compare::Side::New => theme.success,
+        compare::Side::Missing => theme.warning,
+        compare::Side::Differs => theme.text_muted,
+    }
+}
+
+/// A composite primary key as the report shows it: the separator
+/// [`compare::row_key`] joins with is not printable.
+fn show_key(key: &str) -> String {
+    key.replace('\u{1f}', " · ")
 }
 
 fn short_sql(s: &str) -> String {
@@ -516,6 +588,7 @@ impl DbTool {
             edits: HashMap::new(),
             not_editable: HashMap::new(),
             plans: HashMap::new(),
+            snapshot_for: None,
             plan_raw: false,
             state,
         };
@@ -1945,6 +2018,10 @@ impl DbTool {
         };
         let protected = self.protected;
         let shared = self.shared.clone();
+        // Captured here because `dialog` holds the only borrow of `self`
+        // inside the modal's closure.
+        let current_conn = self.state.conn_id.clone();
+        let data_engine = self.engine;
         let modal = egui::Modal::new(egui::Id::new(("db-dialog", self.id))).show(ui.ctx(), |ui| {
             ui.set_width(520.0);
             match dialog {
@@ -2399,6 +2476,378 @@ impl DbTool {
                         }
                     });
                 }
+                Dialog::Ddl {
+                    snap,
+                    dialect,
+                    opts,
+                    sql,
+                    skipped,
+                } => {
+                    ui.set_width(700.0);
+                    ui.heading(s.t("db-ddl-title"));
+                    ui.add_space(4.0);
+                    ui.label(s.i18n.t_args("db-ddl-body", &[("schema", &snap.schema)]));
+                    if *skipped > 0 {
+                        ui.colored_label(
+                            theme.warning,
+                            s.i18n
+                                .t_args("db-snapshot-capped", &[("count", &skipped.to_string())]),
+                        );
+                    }
+                    ui.add_space(6.0);
+                    let before = (*dialect, *opts);
+                    ui.horizontal(|ui| {
+                        ui.label(s.t("db-ddl-dialect"));
+                        egui::ComboBox::from_id_salt("db-ddl-dialect")
+                            .selected_text(dialect.label())
+                            .show_ui(ui, |ui| {
+                                for e in Engine::ALL {
+                                    ui.selectable_value(dialect, e, e.label());
+                                }
+                            });
+                    });
+                    ui.horizontal_wrapped(|ui| {
+                        ui.checkbox(&mut opts.if_not_exists, s.t("db-ddl-if-not-exists"));
+                        ui.checkbox(&mut opts.drop_first, s.t("db-ddl-drop-first"));
+                        ui.checkbox(&mut opts.indexes, s.t("db-ddl-indexes"));
+                        ui.checkbox(&mut opts.foreign_keys, s.t("db-ddl-keys"));
+                    });
+                    // Only re-walk the schema when something actually changed.
+                    if before != (*dialect, *opts) {
+                        *sql = ddlgen::script(snap, *dialect, opts);
+                    }
+                    if *dialect != snap.engine {
+                        ui.add_space(4.0);
+                        ui.colored_label(theme.text_muted, s.t("db-ddl-types-kept"));
+                    }
+                    ui.add_space(6.0);
+                    egui::ScrollArea::vertical()
+                        .id_salt("db-ddl-sql")
+                        .max_height(320.0)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(sql)
+                                    .code_editor()
+                                    .desired_width(f32::INFINITY)
+                                    .interactive(false),
+                            );
+                        });
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if form::primary_button(ui, theme, &s.t("db-ddl-to-editor")).clicked() {
+                            let text = sql.clone();
+                            then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
+                                t.insert_text(&text);
+                            }));
+                        }
+                        if ui.button(s.t("copy")).clicked() {
+                            ui.ctx().copy_text(sql.clone());
+                        }
+                        if ui.button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::ComparePick {
+                    table,
+                    schema,
+                    conn_id,
+                    other_schema,
+                    limit,
+                    error,
+                } => {
+                    let data = table.is_some();
+                    ui.heading(s.t(if data {
+                        "db-cmp-data-title"
+                    } else {
+                        "db-cmp-schema-title"
+                    }));
+                    ui.add_space(4.0);
+                    ui.label(match table.as_deref() {
+                        Some(t) => s.i18n.t_args("db-cmp-data-body", &[("table", t)]),
+                        None => s.i18n.t_args("db-cmp-schema-body", &[("schema", schema)]),
+                    });
+                    ui.add_space(8.0);
+                    // Every other saved database profile is a candidate; the
+                    // tab's own connection is the source, so it is not one.
+                    let others: Vec<(String, String)> = {
+                        let conns = s.connections.read();
+                        conns
+                            .all()
+                            .iter()
+                            .filter(|c| c.kind == "db")
+                            .filter(|c| Some(c.id.as_str()) != current_conn.as_deref())
+                            .map(|c| (c.id.clone(), c.name.clone()))
+                            .collect()
+                    };
+                    let selected = others
+                        .iter()
+                        .find(|(id, _)| id == conn_id)
+                        .map(|(_, n)| n.clone())
+                        .unwrap_or_else(|| s.t("db-cmp-pick-target"));
+                    form::field_grid(ui, "db-cmp-pick-grid", |ui| {
+                        ui.label(s.t("db-cmp-target"));
+                        egui::ComboBox::from_id_salt("db-cmp-target")
+                            .selected_text(selected)
+                            .width(260.0)
+                            .show_ui(ui, |ui| {
+                                for (id, name) in &others {
+                                    ui.selectable_value(conn_id, id.clone(), name);
+                                }
+                            });
+                        ui.end_row();
+                        ui.label(s.t("db-cmp-target-schema"));
+                        ui.add(
+                            egui::TextEdit::singleline(other_schema)
+                                .hint_text(schema.as_str())
+                                .desired_width(260.0),
+                        );
+                        ui.end_row();
+                        if data {
+                            ui.label(s.t("db-cmp-limit"));
+                            ui.add(egui::TextEdit::singleline(limit).desired_width(100.0));
+                            ui.end_row();
+                        }
+                    });
+                    if others.is_empty() {
+                        ui.add_space(6.0);
+                        ui.colored_label(theme.text_muted, s.t("db-cmp-no-others"));
+                    }
+                    if let Some(e) = error.as_ref() {
+                        ui.add_space(6.0);
+                        ui.colored_label(theme.error, e);
+                    }
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let ready = !conn_id.is_empty();
+                        if ui
+                            .add_enabled(ready, egui::Button::new(s.t("db-cmp-run")))
+                            .clicked()
+                        {
+                            let (t, sc, id) = (table.clone(), schema.clone(), conn_id.clone());
+                            let osc = if other_schema.trim().is_empty() {
+                                schema.clone()
+                            } else {
+                                other_schema.clone()
+                            };
+                            let n = limit.trim().parse().unwrap_or(DATA_COMPARE_LIMIT);
+                            then = Some(Box::new(move |tool: &mut DbTool, s: &Services| {
+                                if let Err(e) = tool.start_compare(t, &sc, &id, &osc, n, s) {
+                                    tool.shared.lock().messages.push((false, e));
+                                }
+                            }));
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::Compare {
+                    out,
+                    diffs,
+                    migration,
+                } => {
+                    ui.set_width(760.0);
+                    ui.heading(s.t("db-cmp-schema-title"));
+                    ui.add_space(4.0);
+                    ui.label(s.i18n.t_args(
+                        "db-cmp-sides",
+                        &[("source", &conn), ("target", &out.target_label)],
+                    ));
+                    ui.add_space(6.0);
+                    if diffs.is_empty() {
+                        ui.colored_label(theme.success, s.t("db-cmp-same"));
+                    } else {
+                        ui.label(
+                            s.i18n
+                                .t_args("db-cmp-count", &[("count", &diffs.len().to_string())]),
+                        );
+                        ui.add_space(4.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("db-cmp-list")
+                            .max_height(300.0)
+                            .show(ui, |ui| {
+                                egui::Grid::new("db-cmp-grid")
+                                    .striped(true)
+                                    .num_columns(5)
+                                    .spacing([12.0, 3.0])
+                                    .show(ui, |ui| {
+                                        for h in [
+                                            "db-cmp-h-side",
+                                            "db-cmp-h-kind",
+                                            "db-cmp-h-name",
+                                            "db-cmp-h-source",
+                                            "db-cmp-h-target",
+                                        ] {
+                                            ui.label(egui::RichText::new(s.t(h)).strong().small());
+                                        }
+                                        ui.end_row();
+                                        for d in diffs.iter() {
+                                            ui.colored_label(
+                                                side_colour(d.side, theme),
+                                                s.t(d.side.label_key()),
+                                            );
+                                            ui.label(s.t(d.kind.label_key()));
+                                            let name = if d.item.is_empty() {
+                                                d.table.clone()
+                                            } else {
+                                                format!("{}.{}", d.table, d.item)
+                                            };
+                                            ui.label(egui::RichText::new(name).monospace().small());
+                                            ui.label(
+                                                egui::RichText::new(&d.source).monospace().small(),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(&d.target).monospace().small(),
+                                            );
+                                            ui.end_row();
+                                        }
+                                    });
+                            });
+                    }
+                    if let Some(sql) = migration.as_mut() {
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new(s.t("db-cmp-migration")).strong());
+                        egui::ScrollArea::vertical()
+                            .id_salt("db-cmp-migration")
+                            .max_height(200.0)
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::multiline(sql)
+                                        .code_editor()
+                                        .desired_width(f32::INFINITY)
+                                        .interactive(false),
+                                );
+                            });
+                    }
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if !diffs.is_empty()
+                            && migration.is_none()
+                            && form::primary_button(ui, theme, &s.t("db-cmp-make-migration"))
+                                .clicked()
+                        {
+                            *migration =
+                                Some(compare::migration(&out.source, diffs, out.target.engine));
+                        }
+                        if let Some(sql) = migration.clone()
+                            && ui.button(s.t("db-cmp-to-editor")).clicked()
+                        {
+                            then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
+                                t.insert_text(&sql);
+                            }));
+                        }
+                        if ui.button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::DataCompare {
+                    out,
+                    diffs,
+                    migration,
+                } => {
+                    ui.set_width(700.0);
+                    ui.heading(s.t("db-cmp-data-title"));
+                    ui.add_space(4.0);
+                    ui.label(s.i18n.t_args(
+                        "db-cmp-data-sides",
+                        &[
+                            ("table", &out.table.name),
+                            ("source", &conn),
+                            ("target", &out.target_label),
+                        ],
+                    ));
+                    ui.label(
+                        egui::RichText::new(s.i18n.t_args(
+                            "db-cmp-data-read",
+                            &[
+                                ("source", &out.source.len().to_string()),
+                                ("target", &out.target.len().to_string()),
+                            ],
+                        ))
+                        .small()
+                        .color(theme.text_muted),
+                    );
+                    if out.truncated {
+                        ui.colored_label(theme.warning, s.t("db-cmp-data-truncated"));
+                    }
+                    ui.add_space(6.0);
+                    if diffs.is_empty() {
+                        ui.colored_label(theme.success, s.t("db-cmp-data-same"));
+                    } else {
+                        egui::ScrollArea::vertical()
+                            .id_salt("db-cmp-data-list")
+                            .max_height(280.0)
+                            .show(ui, |ui| {
+                                egui::Grid::new("db-cmp-data-grid")
+                                    .striped(true)
+                                    .num_columns(3)
+                                    .spacing([12.0, 3.0])
+                                    .show(ui, |ui| {
+                                        for h in
+                                            ["db-cmp-h-side", "db-cmp-h-key", "db-cmp-h-columns"]
+                                        {
+                                            ui.label(egui::RichText::new(s.t(h)).strong().small());
+                                        }
+                                        ui.end_row();
+                                        for d in diffs.iter() {
+                                            ui.colored_label(
+                                                side_colour(d.side, theme),
+                                                s.t(d.side.label_key()),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(show_key(&d.key))
+                                                    .monospace()
+                                                    .small(),
+                                            );
+                                            ui.label(
+                                                egui::RichText::new(d.columns.join(", ")).small(),
+                                            );
+                                            ui.end_row();
+                                        }
+                                    });
+                            });
+                    }
+                    if let Some(sql) = migration.as_mut() {
+                        ui.add_space(8.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("db-cmp-data-migration")
+                            .max_height(180.0)
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::multiline(sql)
+                                        .code_editor()
+                                        .desired_width(f32::INFINITY)
+                                        .interactive(false),
+                                );
+                            });
+                    }
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if !diffs.is_empty()
+                            && migration.is_none()
+                            && form::primary_button(ui, theme, &s.t("db-cmp-make-rows")).clicked()
+                        {
+                            *migration = Some(compare::data_migration(
+                                &out.table,
+                                diffs,
+                                &out.source,
+                                data_engine,
+                            ));
+                        }
+                        if let Some(sql) = migration.clone()
+                            && ui.button(s.t("db-cmp-to-editor")).clicked()
+                        {
+                            then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
+                                t.insert_text(&sql);
+                            }));
+                        }
+                        if ui.button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
             }
         });
         if modal.should_close() {
@@ -2621,6 +3070,9 @@ impl DbTool {
         let mut copy: Option<String> = None;
         let mut refresh = false;
         let mut import_into: Option<(String, String)> = None;
+        // Depth programme phase H, taken after the popup closes.
+        let mut snapshot_for: Option<(String, SnapshotUse)> = None;
+        let mut compare_pick: Option<(Option<String>, String)> = None;
         let area = egui::Area::new(self.id.with("tree-menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos)
@@ -2656,6 +3108,9 @@ impl DbTool {
                             if *kind == "table" && item(ui, s.t("db-import-csv")) {
                                 import_into = Some((schema.to_string(), name.to_string()));
                             }
+                            if *kind == "table" && item(ui, s.t("db-cmp-data-menu")) {
+                                compare_pick = Some((Some(name.to_string()), schema.to_string()));
+                            }
                             if item(ui, s.t("db-copy-name")) {
                                 copy = Some(q.clone());
                             }
@@ -2677,6 +3132,22 @@ impl DbTool {
                         ["c", _, _, name] | ["i", _, _, name] => {
                             if item(ui, s.t("db-copy-name")) {
                                 copy = Some(sql::quote_ident(name, self.engine));
+                            }
+                        }
+                        // A schema: the whole-schema tools of phase H.
+                        ["s", schema] => {
+                            if item(ui, s.t("db-erd-menu")) {
+                                snapshot_for = Some((schema.to_string(), SnapshotUse::Erd));
+                            }
+                            if item(ui, s.t("db-ddl-menu")) {
+                                snapshot_for = Some((schema.to_string(), SnapshotUse::Ddl));
+                            }
+                            if item(ui, s.t("db-cmp-schema-menu")) {
+                                compare_pick = Some((None, schema.to_string()));
+                            }
+                            ui.separator();
+                            if item(ui, s.t("db-refresh-schema")) {
+                                refresh = true;
                             }
                         }
                         _ => {
@@ -2716,8 +3187,204 @@ impl DbTool {
             self.start_import(&schema, &name, s);
             return;
         }
+        if let Some((schema, use_for)) = snapshot_for {
+            self.menu = None;
+            self.start_snapshot(&schema, use_for, s);
+            return;
+        }
+        if let Some((table, schema)) = compare_pick {
+            self.menu = None;
+            self.open_compare_pick(table, schema);
+            return;
+        }
         if close {
             self.menu = None;
+        }
+    }
+
+    // ---- depth programme, phase H: ERD, DDL, schema and data compare -------
+
+    /// Asks the session for the schema's structure. The answer arrives in
+    /// `Shared::snapshot` and [`Self::drain_schema_work`] picks it up.
+    fn start_snapshot(&mut self, schema: &str, use_for: SnapshotUse, s: &Services) {
+        self.snapshot_for = Some(use_for);
+        self.send(
+            Cmd::Snapshot {
+                schema: schema.to_string(),
+                cap: SNAPSHOT_CAP,
+            },
+            s,
+        );
+    }
+
+    /// Resolves another saved connection for the target side of a compare.
+    ///
+    /// The target is resolved read-only: a compare never writes to either
+    /// side. A profile reached through an SSH tunnel is refused rather than
+    /// connected to directly, which would otherwise quietly talk to whatever
+    /// answers on that host and port.
+    fn target_config(&self, id: &str, s: &Services) -> Result<(ConnectConfig, String), String> {
+        let (fields, env_id, name) = {
+            let conns = s.connections.read();
+            let c = conns.by_id(id).ok_or_else(|| s.t("db-no-profile"))?;
+            (
+                DbFields::from_table(&c.fields),
+                c.environment.clone(),
+                c.name.clone(),
+            )
+        };
+        if !fields.tunnel_ssh.is_empty() {
+            return Err(s.t("db-cmp-no-tunnel"));
+        }
+        let lookup = {
+            let envs = s.environments.read().clone();
+            let env_id = env_id.clone();
+            move |v: &str| envs.substitute(v, env_id.as_deref(), &[])
+        };
+        let cfg = fields
+            .resolve(true, s.secrets.as_ref(), &lookup)
+            .map_err(|e| match e {
+                ProfileError::VaultLocked => s.t("db-vault-locked"),
+                ProfileError::UnknownEngine(x) => {
+                    s.i18n.t_args("db-unknown-engine", &[("engine", &x)])
+                }
+                ProfileError::MissingVariables(v) => s
+                    .i18n
+                    .t_args("db-missing-vars", &[("names", &v.join(", "))]),
+                ProfileError::Secret(e) => e,
+            })?;
+        Ok((cfg, name))
+    }
+
+    /// Opens the picker for either compare. `table` is `None` for a schema
+    /// compare.
+    fn open_compare_pick(&mut self, table: Option<String>, schema: String) {
+        self.dialog = Some(Dialog::ComparePick {
+            table,
+            other_schema: schema.clone(),
+            schema,
+            conn_id: String::new(),
+            limit: DATA_COMPARE_LIMIT.to_string(),
+            error: None,
+        });
+    }
+
+    /// Sends whichever compare the picker was opened for.
+    fn start_compare(
+        &mut self,
+        table: Option<String>,
+        schema: &str,
+        conn_id: &str,
+        other_schema: &str,
+        limit: usize,
+        s: &Services,
+    ) -> Result<(), String> {
+        let (other, other_label) = self.target_config(conn_id, s)?;
+        let cmd = match table {
+            None => Cmd::CompareSchemas {
+                schema: schema.to_string(),
+                other,
+                other_label,
+                other_schema: other_schema.to_string(),
+                cap: SNAPSHOT_CAP,
+            },
+            Some(table) => Cmd::CompareData {
+                schema: schema.to_string(),
+                table,
+                other,
+                other_label,
+                other_schema: other_schema.to_string(),
+                limit,
+            },
+        };
+        self.send(cmd, s);
+        Ok(())
+    }
+
+    /// Picks up a finished snapshot or compare. Each slot is taken rather
+    /// than read, so one answer opens one dialog.
+    fn drain_schema_work(&mut self, cx: &mut ToolContext) {
+        let (snapshot, compare, data) = {
+            let mut sh = self.shared.lock();
+            (
+                std::mem::take(&mut sh.snapshot),
+                std::mem::take(&mut sh.compare),
+                std::mem::take(&mut sh.data_compare),
+            )
+        };
+        let s = cx.services;
+
+        match snapshot {
+            Load::Ready(out) => match self.snapshot_for.take() {
+                Some(SnapshotUse::Erd) => {
+                    let doc = erd::build(&out.snap);
+                    if doc.nodes.is_empty() {
+                        cx.toast(ToastLevel::Info, s.t("db-erd-empty"));
+                    } else {
+                        let body = serde_json::json!({ "open_diagram": doc }).to_string();
+                        cx.open(
+                            "graphics",
+                            Some(OpenRequest::Text {
+                                mime: GRAPHICS_MIME.into(),
+                                body,
+                            }),
+                        );
+                        if out.skipped > 0 {
+                            cx.toast(
+                                ToastLevel::Info,
+                                s.i18n.t_args(
+                                    "db-snapshot-capped",
+                                    &[("count", &out.skipped.to_string())],
+                                ),
+                            );
+                        }
+                    }
+                }
+                Some(SnapshotUse::Ddl) => {
+                    let dialect = out.snap.engine;
+                    let opts = ddlgen::Options::default();
+                    let sql = ddlgen::script(&out.snap, dialect, &opts);
+                    self.dialog = Some(Dialog::Ddl {
+                        snap: Box::new(out.snap),
+                        dialect,
+                        opts,
+                        sql,
+                        skipped: out.skipped,
+                    });
+                }
+                None => {}
+            },
+            Load::Failed(e) => {
+                self.snapshot_for = None;
+                cx.toast(ToastLevel::Error, e);
+            }
+            Load::Idle | Load::Loading => {}
+        }
+
+        match compare {
+            Load::Ready(out) => {
+                let diffs = compare::schemas(&out.source, &out.target);
+                self.dialog = Some(Dialog::Compare {
+                    out: Box::new(out),
+                    diffs,
+                    migration: None,
+                });
+            }
+            Load::Failed(e) => cx.toast(ToastLevel::Error, e),
+            Load::Idle | Load::Loading => {}
+        }
+
+        match data {
+            Load::Ready(out) => {
+                let diffs = compare::rows(&out.source, &out.target, &out.columns);
+                self.dialog = Some(Dialog::DataCompare {
+                    out: Box::new(out),
+                    diffs,
+                    migration: None,
+                });
+            }
+            Load::Failed(e) => cx.toast(ToastLevel::Error, e),
+            Load::Idle | Load::Loading => {}
         }
     }
 
@@ -4159,6 +4826,7 @@ impl DbTool {
             self.connect(s);
         }
         self.drain(cx);
+        self.drain_schema_work(cx);
         if let Some(e) = self.conn_error.clone() {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);
@@ -4340,6 +5008,18 @@ impl DbTool {
                 Some("db.refresh_schema"),
             ),
             c("db.complete", "Database: Complete", None),
+            c("db.erd", "Database: ER Diagram", Some("db.erd")),
+            c("db.ddl", "Database: Generate DDL", Some("db.ddl")),
+            c(
+                "db.compare_schema",
+                "Database: Compare Schema",
+                Some("db.compare_schema"),
+            ),
+            c(
+                "db.compare_data",
+                "Database: Compare Table Data",
+                Some("db.compare_data"),
+            ),
             c("file.save", "Database: Save Query", Some("file.save")),
             c("db.save_as", "Database: Save Query As", None),
             c("db.new_query", "Database: New Query Tab", None),
@@ -4368,6 +5048,30 @@ impl DbTool {
             "db.cancel" => self.cancel(),
             "db.commit" => self.control("COMMIT", s),
             "db.rollback" => self.control("ROLLBACK", s),
+            "db.erd" => {
+                let schema = self.default_schema();
+                self.start_snapshot(&schema, SnapshotUse::Erd, s);
+            }
+            "db.ddl" => {
+                let schema = self.default_schema();
+                self.start_snapshot(&schema, SnapshotUse::Ddl, s);
+            }
+            "db.compare_schema" => {
+                let schema = self.default_schema();
+                self.open_compare_pick(None, schema);
+            }
+            "db.compare_data" => {
+                // The table of the statement in front of the user, which is
+                // what Export and the editable grid also go by.
+                let sql = self.doc().buf.text();
+                match export::source_table(&sql, self.engine) {
+                    Some(t) => {
+                        let schema = self.default_schema();
+                        self.open_compare_pick(Some(t), schema);
+                    }
+                    None => cx.toast(ToastLevel::Info, s.t("db-cmp-no-table")),
+                }
+            }
             "db.refresh_schema" => self.refresh_schema(s),
             "db.complete" => self.update_completion(true),
             "file.save" => {

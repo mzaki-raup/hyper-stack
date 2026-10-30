@@ -8763,6 +8763,7 @@ dependencies = [
  "egui_kittest",
  "futures-util",
  "hs-core",
+ "hs-diagram",
  "hs-editor",
  "hs-ui",
  "image",

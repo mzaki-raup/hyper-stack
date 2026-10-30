@@ -1643,6 +1643,64 @@ conn-db-auth-hint = prefer and require encrypt without checking the certificate;
 db-committed = Transaction committed.
 db-rolled-back = Transaction rolled back.
 
+## Database: ER diagram, DDL, schema and data compare (depth programme phase H)
+
+db-erd-menu = ER Diagram
+db-erd-empty = That schema has no tables to draw.
+db-snapshot-capped = { $count } more tables were not read; the result covers the first ones only.
+
+db-ddl-menu = Generate DDL
+db-ddl-title = Generated DDL
+db-ddl-body = Every table of { $schema }, with its key, indexes and foreign keys.
+db-ddl-dialect = Dialect
+db-ddl-if-not-exists = IF NOT EXISTS
+db-ddl-drop-first = DROP First
+db-ddl-indexes = Indexes
+db-ddl-keys = Foreign Keys
+db-ddl-types-kept = Column types are kept as the source server spelled them; check them against the chosen dialect.
+db-ddl-to-editor = Open in Editor
+
+db-cmp-schema-menu = Compare Schema…
+db-cmp-data-menu = Compare Data…
+db-cmp-schema-title = Compare Schema
+db-cmp-data-title = Compare Table Data
+db-cmp-schema-body = Compares { $schema } on this connection against the same schema elsewhere.
+db-cmp-data-body = Compares the rows of { $table } by primary key against another connection.
+db-cmp-target = Compare Against
+db-cmp-target-schema = Target Schema
+db-cmp-pick-target = Choose a connection
+db-cmp-limit = Row Limit
+db-cmp-run = Compare
+db-cmp-no-others = No other database connection is saved, so there is nothing to compare against.
+db-cmp-no-tunnel = That connection goes through an SSH tunnel, which a compare cannot open yet.
+db-cmp-no-table = Put a statement that reads one table in the editor first.
+db-cmp-sides = Source { $source }, target { $target }. Every verdict says what the target would need.
+db-cmp-data-sides = { $table }: source { $source }, target { $target }.
+db-cmp-data-read = { $source } rows read on the source, { $target } on the target.
+db-cmp-data-truncated = The row limit was reached, so rows past it were not compared.
+db-cmp-same = The two schemas match.
+db-cmp-data-same = The sampled rows match.
+db-cmp-count = { $count } differences.
+db-cmp-new = New
+db-cmp-missing = Missing
+db-cmp-differs = Differs
+db-cmp-table = Table
+db-cmp-column = Column
+db-cmp-pk = Primary key
+db-cmp-index = Index
+db-cmp-fk = Foreign key
+db-cmp-h-side = Verdict
+db-cmp-h-kind = Kind
+db-cmp-h-name = Name
+db-cmp-h-source = Source
+db-cmp-h-target = Target
+db-cmp-h-key = Key
+db-cmp-h-columns = Columns
+db-cmp-migration = Migration script
+db-cmp-make-migration = Generate Migration
+db-cmp-make-rows = Generate Row Changes
+db-cmp-to-editor = Open in Editor
+
 ## AI assistant (settings)
 settings-ai = AI Assistant
 settings-ai-sub = Services the AI assistants can ask. Keys are kept in the vault.

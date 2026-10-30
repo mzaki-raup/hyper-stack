@@ -64,6 +64,12 @@ pub struct CommandDescriptor {
     pub shortcut_action: Option<String>,
 }
 
+/// The `mime` of an [`OpenRequest::Text`] the Graphics tool answers. Its
+/// body is a JSON object naming what to open - `{"new": "diagram"}`,
+/// `{"open_diagram": <document>}`, … - so another tool can hand over a
+/// diagram it built without depending on `tool-graphics`.
+pub const GRAPHICS_MIME: &str = "application/x-hyperstack-graphics";
+
 /// A request to open something in a tool (cross-tool integration).
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpenRequest {

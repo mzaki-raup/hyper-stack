@@ -18,6 +18,7 @@ use super::{
     BATCH, Canceller, Catalog, Column, ConnectConfig, DbError, DbSession, Engine, ExecSummary,
     Flow, ObjectKind, Result, ResultSink, Row, SchemaObject, Scope, ServerInfo, Value,
 };
+use crate::schema::{ColumnDef, ForeignKey, IndexDef, TableSchema};
 use crate::sql::quote_literal;
 
 /// ER_QUERY_INTERRUPTED (MySQL and MariaDB).
@@ -451,8 +452,136 @@ impl DbSession for MySession {
         ))
     }
 
+    async fn table_schema(&mut self, schema: &str, table: &str) -> Result<TableSchema> {
+        let e = Engine::Mysql;
+        let (s, t) = (quote_literal(schema, e), quote_literal(table, e));
+
+        let cols = self
+            .rows_of(&format!(
+                "SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA \
+                 FROM information_schema.COLUMNS \
+                 WHERE TABLE_SCHEMA = {s} AND TABLE_NAME = {t} ORDER BY ORDINAL_POSITION"
+            ))
+            .await?;
+        let mut columns = Vec::with_capacity(cols.len());
+        for r in &cols {
+            let extra = r.get(4).cloned().unwrap_or_default();
+            let raw = r.get(3).cloned().unwrap_or_default();
+            columns.push(ColumnDef {
+                name: r.first().cloned().unwrap_or_default(),
+                data_type: r.get(1).cloned().unwrap_or_default(),
+                nullable: r.get(2).map(|v| v == "YES").unwrap_or(false),
+                default: mysql_default(&raw, &extra),
+                auto_increment: extra.to_ascii_lowercase().contains("auto_increment"),
+            });
+        }
+
+        // One row per column of each index, SEQ_IN_INDEX giving the order.
+        let stats = self
+            .rows_of(&format!(
+                "SELECT INDEX_NAME, NON_UNIQUE, COLUMN_NAME \
+                 FROM information_schema.STATISTICS \
+                 WHERE TABLE_SCHEMA = {s} AND TABLE_NAME = {t} \
+                 ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+            ))
+            .await
+            .unwrap_or_default();
+        let mut indexes: Vec<IndexDef> = Vec::new();
+        for r in &stats {
+            let name = r.first().cloned().unwrap_or_default();
+            let column = r.get(2).cloned().unwrap_or_default();
+            match indexes.last_mut() {
+                Some(ix) if ix.name == name => ix.columns.push(column),
+                _ => indexes.push(IndexDef {
+                    unique: r.get(1).map(|v| v == "0").unwrap_or(false),
+                    // MySQL always calls the key's index PRIMARY.
+                    primary: name == "PRIMARY",
+                    name,
+                    columns: vec![column],
+                }),
+            }
+        }
+        let primary_key = indexes
+            .iter()
+            .find(|ix| ix.primary)
+            .map(|ix| ix.columns.clone())
+            .unwrap_or_default();
+
+        let fk_rows = self
+            .rows_of(&format!(
+                "SELECT k.CONSTRAINT_NAME, k.REFERENCED_TABLE_SCHEMA, k.REFERENCED_TABLE_NAME, \
+                   k.COLUMN_NAME, k.REFERENCED_COLUMN_NAME, c.DELETE_RULE, c.UPDATE_RULE \
+                 FROM information_schema.KEY_COLUMN_USAGE k \
+                 JOIN information_schema.REFERENTIAL_CONSTRAINTS c \
+                   ON c.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA \
+                  AND c.CONSTRAINT_NAME = k.CONSTRAINT_NAME \
+                 WHERE k.TABLE_SCHEMA = {s} AND k.TABLE_NAME = {t} \
+                   AND k.REFERENCED_TABLE_NAME IS NOT NULL \
+                 ORDER BY k.CONSTRAINT_NAME, k.ORDINAL_POSITION"
+            ))
+            .await
+            .unwrap_or_default();
+        let mut foreign_keys: Vec<ForeignKey> = Vec::new();
+        for r in &fk_rows {
+            let name = r.first().cloned().unwrap_or_default();
+            let column = r.get(3).cloned().unwrap_or_default();
+            let ref_column = r.get(4).cloned().unwrap_or_default();
+            match foreign_keys.last_mut() {
+                Some(fk) if fk.name == name => {
+                    fk.columns.push(column);
+                    fk.ref_columns.push(ref_column);
+                }
+                _ => foreign_keys.push(ForeignKey {
+                    name,
+                    columns: vec![column],
+                    ref_schema: r.get(1).cloned().unwrap_or_default(),
+                    ref_table: r.get(2).cloned().unwrap_or_default(),
+                    ref_columns: vec![ref_column],
+                    on_delete: crate::schema::referential_action(
+                        r.get(5).map(String::as_str).unwrap_or_default(),
+                    ),
+                    on_update: crate::schema::referential_action(
+                        r.get(6).map(String::as_str).unwrap_or_default(),
+                    ),
+                }),
+            }
+        }
+
+        Ok(TableSchema {
+            schema: schema.to_string(),
+            name: table.to_string(),
+            columns,
+            primary_key,
+            indexes,
+            foreign_keys,
+        })
+    }
+
     fn in_transaction(&self) -> bool {
         self.in_tx
+    }
+}
+
+/// `information_schema.COLUMNS.COLUMN_DEFAULT` as a SQL expression.
+///
+/// MySQL stores a string default unquoted (`DEFAULT 'abc'` comes back as
+/// `abc`), so writing it straight into DDL would produce an identifier. A
+/// default MySQL itself treats as an expression is marked `DEFAULT_GENERATED`
+/// in `EXTRA`; anything else that is not a plain number gets quoted.
+///
+/// A NULL default is indistinguishable from the empty string here, because
+/// the driver decodes both to `""`; the empty string reads as "no default",
+/// which is the commoner of the two.
+fn mysql_default(raw: &str, extra: &str) -> Option<String> {
+    if raw.is_empty() {
+        return None;
+    }
+    let generated = extra.to_ascii_uppercase().contains("DEFAULT_GENERATED");
+    let numeric = raw.parse::<f64>().is_ok();
+    if generated || numeric || raw.eq_ignore_ascii_case("NULL") {
+        Some(raw.to_string())
+    } else {
+        Some(quote_literal(raw, Engine::Mysql))
     }
 }
 

@@ -11,6 +11,37 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **SQL depth 2 (depth programme, phase H).** Four schema tools join the
+  Database activity, all reading through a new structured driver call
+  (`DbSession::table_schema`) rather than the schema tree's display
+  strings. **ER Diagram** (Ctrl+Alt+D) draws the schema's tables and
+  their foreign keys as an ERD and opens it in the Diagram Editor, with
+  cardinality taken from whether a key's own columns are unique.
+  **Generate DDL** (Ctrl+Alt+G) writes `CREATE TABLE`, `CREATE INDEX`
+  and `ALTER TABLE … FOREIGN KEY` for a whole schema in any of the three
+  dialects, with `IF NOT EXISTS`, `DROP` first, indexes and keys each
+  optional. **Compare Schema** (Ctrl+Alt+K) compares a schema against
+  the same schema on another saved connection and reports tables,
+  columns, keys and indexes as New, Missing or Differs with both
+  spellings side by side, and generates a migration script — additive
+  steps as SQL, every drop commented out. **Compare Table Data**
+  (Ctrl+Alt+Shift+K) samples one table on both connections by primary
+  key under a row bound and reports the rows that are new, missing or
+  differ, with `INSERT`/`UPDATE` generation. Both compares open the
+  target read-only.
+
+- **Fixed:** `hs-core` now owns the Graphics tool's open-request mime
+  (`GRAPHICS_MIME`), which was private to `tool-graphics`, so another
+  tool can hand it a diagram without depending on it.
+
+- **Fixed:** a SQLite primary-key column is reported as `NOT NULL`.
+  SQLite leaves `notnull` clear on an `INTEGER PRIMARY KEY` rowid alias,
+  which made every key column read as a difference when comparing a
+  SQLite schema against PostgreSQL or MySQL.
+
+- **Fixed:** `.gitignore` had the single pattern `/mynotes*.stackdump`,
+  which matched neither a stack dump nor the file it was meant to cover.
+
 - **A shared language picker.** `hs_ui::language` holds the languages a
   piece of text can be written in (the project languages plus the
   shells, the query and config formats) and the dropdown that chooses

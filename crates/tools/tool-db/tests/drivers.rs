@@ -300,3 +300,120 @@ async fn postgres_tls_modes() {
     let err = connect(&cfg).await.err().expect("self-signed is refused");
     assert!(!err.message.is_empty());
 }
+
+/// Structured introspection against a real SQLite database (depth programme
+/// phase H). The queries that feed the ER diagram, the DDL generator and
+/// both compares are the part no unit test can cover, so they run here
+/// against a file the test creates.
+#[tokio::test(flavor = "multi_thread")]
+async fn sqlite_table_schema() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = ConnectConfig {
+        engine: Engine::Sqlite,
+        path: dir.path().join("h.db").to_string_lossy().into(),
+        ..Default::default()
+    };
+    let mut s = connect(&cfg).await.expect("sqlite opens");
+    run(
+        &mut s,
+        "CREATE TABLE customers (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL)",
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE TABLE orders (\
+           id INTEGER PRIMARY KEY AUTOINCREMENT, \
+           customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE, \
+           note TEXT DEFAULT 'none')",
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE UNIQUE INDEX customers_email ON customers(email)",
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE INDEX orders_customer ON orders(customer_id)",
+    )
+    .await;
+    // A composite key, to check the key keeps its order.
+    run(
+        &mut s,
+        "CREATE TABLE lines (order_id INTEGER, line INTEGER, qty INTEGER, PRIMARY KEY (order_id, line))",
+    )
+    .await;
+
+    let orders = s.table_schema("main", "orders").await.expect("orders");
+    assert_eq!(orders.primary_key, ["id"]);
+    let id = orders.column("id").expect("id column");
+    assert!(id.auto_increment, "AUTOINCREMENT was not seen: {id:?}");
+    // SQLite reports notnull = 0 for a rowid alias; a key column is still
+    // recorded as NOT NULL, so it matches what Postgres and MySQL report.
+    assert!(!id.nullable, "a primary key column must not be nullable");
+    let note = orders.column("note").expect("note column");
+    assert!(note.nullable);
+    assert_eq!(note.default.as_deref(), Some("'none'"));
+    assert!(orders.column("customer_id").is_some_and(|c| !c.nullable));
+
+    assert_eq!(orders.foreign_keys.len(), 1);
+    let fk = &orders.foreign_keys[0];
+    assert_eq!(fk.columns, ["customer_id"]);
+    assert_eq!(fk.ref_table, "customers");
+    assert_eq!(fk.ref_columns, ["id"]);
+    assert_eq!(fk.on_delete.as_deref(), Some("CASCADE"));
+    // SQLite reports NO ACTION for an unspecified update rule.
+    assert_eq!(fk.on_update, None);
+
+    let named = orders
+        .indexes
+        .iter()
+        .find(|i| i.name == "orders_customer")
+        .expect("the named index is listed");
+    assert_eq!(named.columns, ["customer_id"]);
+    assert!(!named.unique);
+    assert!(!named.primary);
+
+    let customers = s
+        .table_schema("main", "customers")
+        .await
+        .expect("customers");
+    let uq = customers
+        .indexes
+        .iter()
+        .find(|i| i.name == "customers_email")
+        .expect("the unique index is listed");
+    assert!(uq.unique);
+    assert_eq!(uq.columns, ["email"]);
+
+    let lines = s.table_schema("main", "lines").await.expect("lines");
+    assert_eq!(lines.primary_key, ["order_id", "line"]);
+    // A composite key is not an AUTOINCREMENT rowid alias.
+    assert!(lines.columns.iter().all(|c| !c.auto_increment));
+
+    // The whole schema, as the ER diagram and the DDL generator read it.
+    let (snap, skipped) = tool_db::schema::read(s.as_mut(), "main", 100)
+        .await
+        .expect("snapshot");
+    assert_eq!(skipped, 0);
+    let names: Vec<&str> = snap.tables.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, ["customers", "lines", "orders"], "sorted by name");
+
+    // The ERD sees the one relationship, and the generated DDL re-reads.
+    let doc = tool_db::erd::build(&snap);
+    assert_eq!(doc.nodes.len(), 3);
+    assert_eq!(doc.edges.len(), 1);
+    let sql = tool_db::ddlgen::script(&snap, Engine::Sqlite, &Default::default());
+    assert!(sql.contains("PRIMARY KEY (order_id, line)"), "{sql}");
+    assert!(sql.contains("AUTOINCREMENT"), "{sql}");
+
+    // A schema compared with itself has nothing to report.
+    assert!(tool_db::compare::schemas(&snap, &snap).is_empty());
+
+    // The cap is honoured and reported.
+    let (small, left) = tool_db::schema::read(s.as_mut(), "main", 2)
+        .await
+        .expect("capped snapshot");
+    assert_eq!(small.tables.len(), 2);
+    assert_eq!(left, 1);
+}

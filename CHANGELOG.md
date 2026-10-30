@@ -11,23 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Logs depth (depth programme, phase D).** Two new sources in Add
-  Source: **journald (JSON)** (`journalctl -o json -f`, on this machine
-  or an SSH host, with a parser that reads `MESSAGE`, `PRIORITY` and the
-  microsecond timestamp and keeps the unit's fields) and **Windows Event
-  Log** (a PowerShell follower over `Get-WinEvent` that prints records
-  as JSON lines - history first, then every two seconds what is newer -
-  with the level words mapped). **Merge Saved Sources…** opens one tab
-  over several saved sources: each is read on its own, records are
-  moved into the view in timestamp order and tagged with a `source`
-  field that can be pinned as a column. A **Statistics** panel shows the
-  filtered window's count, rate per minute, counts by level, the ten
-  commonest message shapes and the commonest values of the five
-  commonest fields. Highlight rules gain **Alert**: a match raises a
-  toast when the tab is in front and a bell count on the tab while it
-  is not, with the rule's cooldown per message shape. Palette commands
-  `Logs: Merge Saved Sources…` and `Logs: Toggle Statistics`.
 - (nothing yet)
+
+## 0.106.0 — 2026-10-30
+
+### Added
+
+- Journald and Windows Event Log sources, merged views, statistics and alerts (depth programme phase D) (8c2df919)
 
 ## 0.105.0 — 2026-10-30
 

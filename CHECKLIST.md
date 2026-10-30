@@ -577,6 +577,7 @@ and ADR-025.
 | K — Automation activity: Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX, Puppet | Pending | |
 | L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
 | M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
+| N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | Pending | Added 2026-10-30; name suggested as "Tracker" |
 
 ## Owner's requests, 2026-10-22 (UI batch)
 

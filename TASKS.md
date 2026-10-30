@@ -155,7 +155,7 @@ Refs: BUG-0003
 - **State:** Pending · **Source:** `mynotes` L1-7 (1 request)
 - **Scope:** Driver, connection form, type mapping and catalog introspection per engine, the way SQL Server / ClickHouse / DuckDB were planned.
 - [ ] Add Oracle, DB2 and the other common relational databases.
-- [ ] Add refresh button or auto refresh on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
+- [ ] Add auto refresh schema on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
 - [ ] All newly added databases can generate DDL and erd diagram.
 - [ ] Test: a `drivers` case per engine, running when its `HS_*` variable names a server
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
@@ -214,7 +214,11 @@ Refs: BUG-0003
   `db_tests.rs::the_er_diagram_reaches_the_graphics_tool` asserts the
   hand-over is a real document with its key badges
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect to Postgres, open the ER diagram, export it
+- [x] App: opened on screen against the SQLite fixtures — the ERD renders in the
+  Diagram Editor with PK/FK/UQ badges and the `1 .. *` edge, and Ctrl+Alt+Shift+D
+  wrote a 2.6 KB SVG naming both entities and `customer_id` intact
+  (`docs/screenshots/db-erd.png`). Postgres was used through the driver tests, not
+  the app
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS (README needed no change:
   it lists the activity, not its individual tools)
 - **Notes:** `crates/tools/tool-db/src/{schema,erd}.rs`. Code landed in
@@ -240,7 +244,10 @@ Refs: BUG-0003
   statement order; `db_tests.rs::the_ddl_dialog_opens_with_the_schemas_statements`
   drives the dialog and checks the script it puts in the editor
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — generate DDL for a table on each engine
+- [x] App: generated on screen for the whole schema, and the dialect switched from
+  SQLite to PostgreSQL in the dialog — identity spelling and the table-level key
+  both change, and the caution about column types appears
+  (`docs/screenshots/db-ddl.png`)
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** `crates/tools/tool-db/src/ddlgen.rs`. Code landed in `6707780`,
   tests in `e02986e`. **Live catalogs now verified** (2026-10-31):
@@ -263,17 +270,24 @@ Refs: BUG-0003
   delete is ever live SQL; `db_tests.rs` runs both compares against a
   second SQLite database and checks the SQL they generate
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — compare two Postgres schemas, then one table's rows
+- [ ] App: the **schema** compare was run on screen between two SQLite databases —
+  `legacy_audit` Missing, `orders.note` New, and the migration with the DROP
+  commented out (`docs/screenshots/db-compare.png`). The **data** compare dialog
+  was not opened on screen; see **Notes**
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** `crates/tools/tool-db/src/compare.rs`. Code landed in `6707780`,
   tests in `e02986e`. Both compares ran end to end between two SQLite files,
   headlessly, and a live PostgreSQL and MySQL schema each compare clean
   against themselves in `drivers.rs` (2026-10-31) — but a compare between two
   *different* live schemas has still only been done on SQLite. The App box
-  stays open: it asks for the running app, and nothing has been seen on
-  screen. A target reached through an SSH tunnel is refused rather than
-  connected to directly, which is worth a look on screen since it is the one
-  path that shows an error instead of a result.
+  The schema compare and its migration were exercised on screen on 2026-10-31.
+  The **data** compare dialog still has not been seen: driving it needs a
+  statement naming a table in the editor, and the harness kept leaving focus on
+  the schema tree. Its behaviour is covered end to end by
+  `db_tests.rs::a_data_compare_reports_the_rows_that_differ`; only its appearance
+  is unverified. A target reached through an SSH tunnel is refused rather than
+  connected to directly, which is also worth a look since it is the one path that
+  shows an error instead of a result.
 
 ---
   

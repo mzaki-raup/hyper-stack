@@ -11,6 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- **Added `TASKS.md`, a work ledger.** Every piece of work now has a
+  `FEAT-`/`BUG-`/`CR-` id under a task version (the owner's batch label, not
+  the app's release number) with its own checklist, and commits reference it
+  as `Refs: <id>`. The backlog in `mynotes` was reconstructed into it as 113
+  items across `v0.7.1`–`v0.0.1`, one per request block; those carry the
+  owner's `Completed` record and no tick boxes, since no session re-ran their
+  checks. `FEAT-0062` (Oracle, DB2 and the other relational engines) is the
+  one item still open.
+- **Added agent scaffolding under `.claude/`.** Slash commands (`/dev-task`,
+  `/task-new`, `/feat`, `/bug`, `/cr`, `/review`, `/gate`, `/phase`,
+  `/docsync`, `/gotcha`), seven skills, six review subagents, nine rules files
+  and five templates. `CLAUDE.md` now holds the general behavioural guidelines
+  and points at them; the project's own rules moved into `.claude/rules/`.
 - **SQL depth 2 (depth programme, phase H).** Four schema tools join the
   Database activity, all reading through a new structured driver call
   (`DbSession::table_schema`) rather than the schema tree's display

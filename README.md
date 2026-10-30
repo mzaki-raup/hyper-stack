@@ -254,8 +254,10 @@ the lists.
 | **Protected environments** open read-only — writes are refused until **Allow Writes** | **Guards** — UPDATE/DELETE without WHERE, DROP, TRUNCATE ask first; on production the table name must be typed |
 | ![Manual commit](docs/screenshots/db-manual-tx.png) | ![Cell viewer](docs/screenshots/db-cell-viewer.png) |
 | **Transactions** — Auto-Commit or Manual Commit with Commit / Rollback and an open-transaction badge | **Cell viewer** — JSON pretty-printed, binary as a hex dump |
-| ![DB connection form](docs/screenshots/connection-db-form.png) | |
-| **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile | |
+| ![Explain plan tree](docs/screenshots/db-explain.png) | ![Inline editing](docs/screenshots/db-edit.png) |
+| **Explain** — the plan as a tree (JSON on PostgreSQL / MySQL, QUERY PLAN on SQLite) with cost, rows and times per node, the hottest nodes coloured, Explain Analyze for reads | **Inline editing** — a result from one keyed table edits in place (F2, Set NULL, Delete Row); Review & Apply shows the generated UPDATE / DELETE and runs them in one transaction through the guards |
+| ![CSV import](docs/screenshots/db-import.png) | ![DB connection form](docs/screenshots/connection-db-form.png) |
+| **Import CSV** into a table — delimiter, header and NULL options, a preview and a column mapping, then batched INSERTs in one transaction as a Job; **Export** adds Excel (.xlsx) | **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile |
 
 ### Redis
 

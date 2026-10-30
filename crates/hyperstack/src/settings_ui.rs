@@ -3510,13 +3510,16 @@ fn save_draft(
     let is_container = hs_core::connections::is_container_kind(&draft.kind);
     let mut saved = false;
     let is_http_store = matches!(draft.kind.as_str(), "webdav" | "nexus");
-    let parsed = if is_ssh || is_s3 || is_db || is_container || is_http_store {
-        // These forms write into `draft.fields` directly,
-        // so the text box is a view rather than the truth.
-        Ok(draft.fields.clone())
-    } else {
-        toml::from_str::<toml::Table>(fields_text)
-    };
+    let is_redis = draft.kind == "redis";
+    let is_nosql = matches!(draft.kind.as_str(), "mongodb" | "couchdb" | "qdrant");
+    let parsed =
+        if is_ssh || is_s3 || is_db || is_container || is_http_store || is_redis || is_nosql {
+            // These forms write into `draft.fields` directly,
+            // so the text box is a view rather than the truth.
+            Ok(draft.fields.clone())
+        } else {
+            toml::from_str::<toml::Table>(fields_text)
+        };
     match parsed {
         Ok(mut table) => {
             let mut secrets_ok = true;
@@ -3571,6 +3574,25 @@ fn save_draft(
                 // here and written in the clear.
                 let mut f = hs_container::profile::ContainerFields::from_table(&table);
                 secrets_ok = store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_redis {
+                // Redis and the NoSQL stores had no branch here, so a
+                // password typed into their forms reached the profile as
+                // typed (found 2026-10-30 while adding API keys).
+                let mut f = tool_redis::profile::RedisFields::from_table(&table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_nosql {
+                let mut f = tool_nosql::profile::NoSqlFields::from_table(&draft.kind, &table);
+                secrets_ok = store_typed_secrets(
+                    s,
+                    &draft.name,
+                    [("password", &mut f.password), ("API key", &mut f.api_key)],
+                    effects,
+                );
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             }
@@ -4556,9 +4578,17 @@ fn apply_secret_edit(
         }
         "mongodb" | "couchdb" | "qdrant" => {
             let mut f = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, &table);
-            f.password = std::mem::take(password);
-            let ok =
-                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            if profile.kind == "qdrant" {
+                f.api_key = std::mem::take(password);
+            } else {
+                f.password = std::mem::take(password);
+            }
+            let ok = store_typed_secrets(
+                s,
+                &profile.name,
+                [("password", &mut f.password), ("API key", &mut f.api_key)],
+                effects,
+            );
             f.write_into(&mut table);
             ok
         }
@@ -8266,6 +8296,7 @@ fn nosql_form(
     let mut f = NoSqlFields::from_table(&draft.kind, &draft.fields);
     let mut changed = false;
     let is_mongo = draft.kind == "mongodb";
+    let is_qdrant = draft.kind == "qdrant";
     let url_id = egui::Id::new(("nosql-url", draft.id.clone()));
     let mut url: String = ui.data_mut(|d| d.get_temp(url_id).unwrap_or_default());
     form::section(ui, theme, &s.t("conn-nosql-section-server"), |ui| {
@@ -8318,12 +8349,19 @@ fn nosql_form(
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "nosql-auth", |ui| {
-            form::label(ui, &s.t("conn-nosql-user"));
-            changed |= form::text_field(ui, &mut f.user, "").changed();
-            ui.end_row();
-            form::label(ui, &s.t("conn-nosql-password"));
-            changed |= secret_field(ui, theme, s, "nosql-pass", &mut f.password, scratch, 0);
-            ui.end_row();
+            if is_qdrant {
+                // Qdrant authenticates with an API key, not a login.
+                form::label(ui, &s.t("conn-nosql-api-key"));
+                changed |= secret_field(ui, theme, s, "nosql-key", &mut f.api_key, scratch, 1);
+                ui.end_row();
+            } else {
+                form::label(ui, &s.t("conn-nosql-user"));
+                changed |= form::text_field(ui, &mut f.user, "").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-nosql-password"));
+                changed |= secret_field(ui, theme, s, "nosql-pass", &mut f.password, scratch, 0);
+                ui.end_row();
+            }
             if is_mongo {
                 form::label(ui, &s.t("conn-nosql-auth-source"));
                 changed |= form::text_field(ui, &mut f.auth_source, "admin").changed();

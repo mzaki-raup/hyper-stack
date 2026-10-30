@@ -12,15 +12,19 @@
 
 pub mod complete;
 pub mod driver;
+pub mod edit;
 pub mod export;
 pub mod grid;
 pub mod history;
+pub mod import;
+pub mod plan;
 pub mod profile;
 pub mod runner;
 pub mod searcher;
 pub mod sql;
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -44,6 +48,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::driver::{ConnectConfig, Engine, ObjectKind, Scope, Value};
+use crate::edit::Edits;
 use crate::export::Format;
 use crate::grid::{GridMenu, GridState};
 use crate::profile::{DbFields, ProfileError};
@@ -64,6 +69,10 @@ const LIMITS: &[usize] = &[100, 500, 1000, 5000, 0];
 const TIMEOUTS: &[u64] = &[30, 300, 0];
 /// Rows added by Fetch More.
 const MORE: usize = 500;
+
+/// A connection config that may still be waiting on an SSH tunnel.
+type CfgFuture =
+    std::pin::Pin<Box<dyn std::future::Future<Output = Result<ConnectConfig, String>> + Send>>;
 
 pub struct DbFactory;
 
@@ -171,6 +180,8 @@ enum RunMode {
     Current,
     Script,
     Explain,
+    /// EXPLAIN ANALYZE: runs the statement (reads only).
+    ExplainAnalyze,
 }
 
 enum Dialog {
@@ -197,6 +208,38 @@ enum Dialog {
     SaveQuery {
         name: String,
     },
+    /// One cell of an editable result (docs/tools/database.md §8).
+    EditCell {
+        result: usize,
+        row: usize,
+        col: usize,
+        text: String,
+        null: bool,
+    },
+    /// The pending edits as SQL, before they run.
+    Review {
+        result: usize,
+        sql: String,
+    },
+    Import(ImportState),
+}
+
+/// The CSV import dialog's state.
+#[derive(Clone)]
+struct ImportState {
+    /// Quoted, qualified target.
+    table: String,
+    /// `schema.table` as shown.
+    label: String,
+    /// The introspection node the table's columns arrive under.
+    node: String,
+    path: PathBuf,
+    opts: import::Options,
+    preview: Result<import::Preview, String>,
+    /// The table's column names, once introspected.
+    columns: Option<Vec<String>>,
+    /// Per table column: the file column feeding it.
+    mapping: Vec<Option<usize>>,
 }
 
 struct Popup {
@@ -245,6 +288,14 @@ pub struct DbTool {
     /// The saved query's name (from its header), for the tab title.
     query_name: Option<String>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// Pending inline edits per result (docs/tools/database.md §8), and the
+    /// Fluent key of why a result cannot be edited.
+    edits: HashMap<usize, Edits>,
+    not_editable: HashMap<usize, &'static str>,
+    /// Parsed plans by (run, result); `None` when the rows were not a plan.
+    plans: HashMap<(u64, usize), Option<plan::Plan>>,
+    /// Show an EXPLAIN result as its raw rows rather than the tree.
+    plan_raw: bool,
 }
 
 fn char_to_byte(text: &str, ci: usize) -> usize {
@@ -462,6 +513,10 @@ impl DbTool {
             catalog_cached: false,
             query_name: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            edits: HashMap::new(),
+            not_editable: HashMap::new(),
+            plans: HashMap::new(),
+            plan_raw: false,
             state,
         };
         // Reopen the query tabs this tab had. A saved one comes back with
@@ -848,7 +903,12 @@ impl DbTool {
         let Some((text, base)) = self.pick_text(mode) else {
             return;
         };
-        self.run_text(&text, base, mode == RunMode::Explain, None, s);
+        let explain = match mode {
+            RunMode::Explain => Some(false),
+            RunMode::ExplainAnalyze => Some(true),
+            _ => None,
+        };
+        self.run_text(&text, base, explain, None, s);
     }
 
     /// Classify, guard and send. `base` is the text's byte offset in the
@@ -857,7 +917,7 @@ impl DbTool {
         &mut self,
         text: &str,
         base: usize,
-        explain: bool,
+        explain: Option<bool>,
         limit: Option<usize>,
         s: &Services,
     ) {
@@ -882,17 +942,16 @@ impl DbTool {
         } else {
             usize::MAX
         };
-        let explain_prefix = match self.engine {
-            Engine::Sqlite => "EXPLAIN QUERY PLAN ",
-            _ => "EXPLAIN ",
-        };
         let stmts: Vec<RunStmt> = sql::split(&substituted, self.engine)
             .into_iter()
             .map(|st| {
-                let sql = if explain {
-                    format!("{explain_prefix}{}", st.text)
-                } else {
-                    st.text.clone()
+                // ANALYZE runs the statement, so only a read gets it.
+                let sql = match explain {
+                    Some(analyze) => {
+                        let read = sql::classify(&st.text, self.engine).class == Class::Read;
+                        plan::explain_sql(&st.text, self.engine, analyze && read)
+                    }
+                    None => st.text.clone(),
                 };
                 RunStmt {
                     class: sql::classify(&sql, self.engine).class,
@@ -1074,7 +1133,8 @@ impl DbTool {
             };
             (r.sql.clone(), r.columns.clone())
         };
-        let Some(mut cfg) = self.export_cfg.clone() else {
+        let _ = columns;
+        let Some(cfg) = self.resolved_cfg(s) else {
             return;
         };
         let Some(path) = rfd::FileDialog::new()
@@ -1083,35 +1143,8 @@ impl DbTool {
         else {
             return;
         };
-        if cfg.host.is_empty() {
-            // Tunnelled: reuse the tab's resolved address is not possible
-            // without the tunnel; ask the Tunnels service again.
-            let fields = self.state.conn_id.as_ref().and_then(|id| {
-                s.connections
-                    .read()
-                    .by_id(id)
-                    .map(|c| DbFields::from_table(&c.fields))
-            });
-            let Some(f) = fields else { return };
-            let rx = s
-                .tunnels
-                .ensure_local_forward(&f.tunnel_ssh, &f.host, f.port);
-            let engine = self.engine;
-            let table = export::source_table(&sql, engine).unwrap_or_else(|| "exported".into());
-            let _ = columns;
-            self.export_job(s, path, format, sql, table, async move {
-                let port = rx
-                    .await
-                    .map_err(|_| "the SSH tunnel stopped".to_string())?
-                    .map_err(|e| e.to_string())?;
-                cfg.host = "127.0.0.1".into();
-                cfg.port = port;
-                Ok(cfg)
-            });
-            return;
-        }
         let table = export::source_table(&sql, self.engine).unwrap_or_else(|| "exported".into());
-        self.export_job(s, path, format, sql, table, async move { Ok(cfg) });
+        self.export_job(s, path, format, sql, table, cfg);
     }
 
     fn export_job(
@@ -1134,6 +1167,21 @@ impl DbTool {
         );
         s.jobs.spawn(title, "db", move |h| async move {
             let cfg = cfg.await?;
+            if format == Format::Xlsx {
+                let h2 = h.clone();
+                let mut sink = export::XlsxSink::new(Box::new(move |n| {
+                    h2.set_message(format!("{n} rows"));
+                    !h2.is_cancelled()
+                }));
+                let r = runner::export_all(cfg, sql, &mut sink).await;
+                r.map_err(|e| e.to_string())?;
+                let n = sink.finish(&path)?;
+                shared
+                    .lock()
+                    .messages
+                    .push((true, format!("{done_msg} ({n} rows)")));
+                return Ok(());
+            }
             let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
             let h2 = h.clone();
             let mut sink = export::FileSink {
@@ -1349,6 +1397,10 @@ impl DbTool {
             self.seen_run = run_id;
             self.active_result = 0;
             self.grids.clear();
+            self.edits.clear();
+            self.not_editable.clear();
+            self.plans.retain(|(run, _), _| *run == run_id);
+            self.plan_raw = false;
         }
         if history_changed {
             self.reload_history(s);
@@ -1555,8 +1607,19 @@ impl DbTool {
             }
             return;
         }
+        // An EXPLAIN result is a plan tree (docs/tools/database.md §10),
+        // the raw rows a toggle away.
+        let is_plan = plan::is_explain(&self.shared.lock().results[i].sql);
+        if is_plan {
+            self.plan_toggle(ui, s);
+            if !self.plan_raw && self.plan_view(ui, i, s, theme) {
+                return;
+            }
+        }
+        self.ensure_editable(i, s);
+        let pending = self.edits.get(&i).map_or(0, |e| e.len());
         // Footer first (bottom-up) so the grid takes the rest.
-        let footer_h = 30.0;
+        let footer_h = if pending > 0 { 58.0 } else { 30.0 };
         let grid_h = (ui.available_height() - footer_h).max(60.0);
         let labels = grid::Labels {
             null: "NULL",
@@ -1564,15 +1627,21 @@ impl DbTool {
             copy_row: &s.t("db-copy-row"),
             view_cell: &s.t("db-view-cell"),
             filter_value: &s.t("db-filter-value"),
+            edit_cell: &s.t("db-edit-cell"),
+            set_null: &s.t("db-edit-set-null"),
+            delete_row: &s.t("db-edit-delete-row"),
+            revert_row: &s.t("db-edit-revert-row"),
         };
         let mut menu = None;
         let mut open_cell = None;
+        let mut edit_cell = None;
         let shown;
         let total;
         {
             let sh = self.shared.lock();
             let r = &sh.results[i];
             let state = &mut self.grids[i];
+            let edits = self.edits.get(&i);
             let order = grid::order(&r.rows, state);
             shown = order.len();
             total = r.rows.len();
@@ -1586,13 +1655,21 @@ impl DbTool {
                     state,
                     &labels,
                     &order,
+                    edits,
                 );
                 menu = resp.menu;
                 open_cell = resp.open_cell;
+                edit_cell = resp.edit_cell;
             });
         }
         if let Some((row, col)) = open_cell {
             self.open_cell(i, row, col, s);
+        }
+        if let Some((row, col)) = edit_cell {
+            self.begin_edit(i, row, col);
+        }
+        if pending > 0 {
+            self.edit_bar(ui, i, s, theme);
         }
         if let Some((what, row, col)) = menu {
             self.grid_menu(ui, what, i, row, col, s);
@@ -1614,6 +1691,7 @@ impl DbTool {
                 ui.menu_button(format!("{} {}", ph::EXPORT, s.t("db-export")), |ui| {
                     for f in [
                         Format::Csv,
+                        Format::Xlsx,
                         Format::Json,
                         Format::Insert,
                         Format::Markdown,
@@ -1657,6 +1735,9 @@ impl DbTool {
                     }
                     if limited {
                         text.push_str(&format!(" · {}", s.t("db-limited")));
+                    }
+                    if self.edits.contains_key(&i) {
+                        text.push_str(&format!(" · {}", s.t("db-edit-editable")));
                     }
                     ui.add(
                         egui::Label::new(egui::RichText::new(text).color(theme.text_muted))
@@ -1768,6 +1849,18 @@ impl DbTool {
                 }
             }
             GridMenu::ViewCell => self.open_cell(i, row, col, s),
+            GridMenu::EditCell => self.begin_edit(i, row, col),
+            GridMenu::SetNull => self.apply_cell_edit(i, row, col, "", true),
+            GridMenu::DeleteRow => {
+                if let Some(e) = self.edits.get_mut(&i) {
+                    e.delete(row);
+                }
+            }
+            GridMenu::RevertRow => {
+                if let Some(e) = self.edits.get_mut(&i) {
+                    e.discard_row(row);
+                }
+            }
             GridMenu::FilterByValue => {
                 let v = self.shared.lock().results[i]
                     .rows
@@ -1851,6 +1944,7 @@ impl DbTool {
             self.env_name.clone()
         };
         let protected = self.protected;
+        let shared = self.shared.clone();
         let modal = egui::Modal::new(egui::Id::new(("db-dialog", self.id))).show(ui.ctx(), |ui| {
             ui.set_width(520.0);
             match dialog {
@@ -2033,6 +2127,245 @@ impl DbTool {
                             }
                         }
                         if ui.button(s.t("close")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::Import(imp) => {
+                    ui.heading(s.i18n.t_args("db-import-title", &[("table", &imp.label)]));
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(s.t("db-import-file")).color(theme.text_muted),
+                        );
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(imp.path.to_string_lossy()).monospace(),
+                            )
+                            .truncate(),
+                        );
+                    });
+                    // The table's columns arrive from the runner; the first
+                    // mapping is guessed from the header.
+                    if imp.columns.is_none()
+                        && let Some(load) = shared.lock().nodes.get(&imp.node).cloned()
+                    {
+                        match load {
+                            Load::Ready(cols) => {
+                                let names: Vec<String> = cols.into_iter().map(|c| c.name).collect();
+                                let headers = imp
+                                    .preview
+                                    .as_ref()
+                                    .map(|p| p.headers.clone())
+                                    .unwrap_or_default();
+                                imp.mapping =
+                                    import::guess_mapping(&names, &headers, imp.opts.header);
+                                imp.columns = Some(names);
+                            }
+                            Load::Failed(e) => {
+                                imp.columns = Some(Vec::new());
+                                imp.preview = Err(e);
+                            }
+                            _ => {}
+                        }
+                    }
+                    let before = imp.opts.clone();
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut imp.opts.header, s.t("db-import-header"));
+                        ui.separator();
+                        ui.label(s.t("db-import-delimiter"));
+                        for (d, label) in [(b',', ","), (b';', ";"), (b'\t', "Tab"), (b'|', "|")] {
+                            if ui
+                                .add(egui::Button::selectable(imp.opts.delimiter == d, label))
+                                .clicked()
+                            {
+                                imp.opts.delimiter = d;
+                            }
+                        }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut imp.opts.empty_as_null, s.t("db-import-empty-null"));
+                        ui.separator();
+                        ui.label(s.t("db-import-batch"));
+                        ui.add(egui::DragValue::new(&mut imp.opts.batch).range(1..=5000));
+                    });
+                    if imp.opts != before {
+                        imp.preview = import::preview(&imp.path, &imp.opts, 5);
+                        if let (Some(cols), Ok(p)) = (&imp.columns, &imp.preview)
+                            && imp.opts.header != before.header
+                        {
+                            imp.mapping = import::guess_mapping(cols, &p.headers, imp.opts.header);
+                        }
+                    }
+                    ui.add_space(6.0);
+                    match (&imp.columns, &imp.preview) {
+                        (None, _) => {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label(s.t("db-import-loading"));
+                            });
+                        }
+                        (_, Err(e)) => {
+                            ui.colored_label(theme.error, e);
+                        }
+                        (Some(cols), Ok(p)) => {
+                            ui.label(egui::RichText::new(s.t("db-import-mapping")).strong());
+                            egui::ScrollArea::vertical()
+                                .id_salt("db-import-mapping")
+                                .max_height(220.0)
+                                .show(ui, |ui| {
+                                    egui::Grid::new("db-import-map-grid")
+                                        .num_columns(2)
+                                        .spacing([12.0, 4.0])
+                                        .show(ui, |ui| {
+                                            for (ci, c) in cols.iter().enumerate() {
+                                                ui.label(egui::RichText::new(c).monospace());
+                                                let m = imp.mapping.get(ci).copied().flatten();
+                                                let shown = m
+                                                    .and_then(|fi| p.headers.get(fi).cloned())
+                                                    .unwrap_or_else(|| s.t("db-import-skip"));
+                                                egui::ComboBox::from_id_salt(("db-import-map", ci))
+                                                    .selected_text(shown)
+                                                    .width(220.0)
+                                                    .show_ui(ui, |ui| {
+                                                        if ui
+                                                            .selectable_label(
+                                                                m.is_none(),
+                                                                s.t("db-import-skip"),
+                                                            )
+                                                            .clicked()
+                                                            && let Some(slot) =
+                                                                imp.mapping.get_mut(ci)
+                                                        {
+                                                            *slot = None;
+                                                        }
+                                                        for (fi, h) in p.headers.iter().enumerate()
+                                                        {
+                                                            if ui
+                                                                .selectable_label(m == Some(fi), h)
+                                                                .clicked()
+                                                                && let Some(slot) =
+                                                                    imp.mapping.get_mut(ci)
+                                                            {
+                                                                *slot = Some(fi);
+                                                            }
+                                                        }
+                                                    });
+                                                ui.end_row();
+                                            }
+                                        });
+                                });
+                            ui.add_space(6.0);
+                            ui.label(egui::RichText::new(s.t("db-import-preview")).strong());
+                            egui::ScrollArea::horizontal()
+                                .id_salt("db-import-preview")
+                                .show(ui, |ui| {
+                                    egui::Grid::new("db-import-preview-grid")
+                                        .striped(true)
+                                        .spacing([12.0, 2.0])
+                                        .show(ui, |ui| {
+                                            for h in &p.headers {
+                                                ui.label(egui::RichText::new(h).strong().small());
+                                            }
+                                            ui.end_row();
+                                            for r in &p.rows {
+                                                for v in r {
+                                                    ui.label(
+                                                        egui::RichText::new(v).small().monospace(),
+                                                    );
+                                                }
+                                                ui.end_row();
+                                            }
+                                        });
+                                });
+                        }
+                    }
+                    ui.add_space(12.0);
+                    let can = imp.columns.is_some()
+                        && imp.preview.is_ok()
+                        && imp.mapping.iter().any(Option::is_some);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_enabled(can, egui::Button::new(s.t("db-import-run")))
+                            .clicked()
+                        {
+                            let st = imp.clone();
+                            then = Some(Box::new(move |t: &mut DbTool, s: &Services| {
+                                t.import_job(st, s);
+                            }));
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                        if imp.columns.is_some() && !can && imp.preview.is_ok() {
+                            ui.label(
+                                egui::RichText::new(s.t("db-import-nothing"))
+                                    .color(theme.text_muted),
+                            );
+                        }
+                    });
+                }
+                Dialog::EditCell {
+                    result,
+                    row,
+                    col,
+                    text,
+                    null,
+                } => {
+                    ui.heading(s.t("db-edit-title"));
+                    ui.add_space(6.0);
+                    ui.add_enabled(
+                        !*null,
+                        egui::TextEdit::multiline(text)
+                            .code_editor()
+                            .desired_rows(4)
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.checkbox(null, s.t("db-edit-null"));
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                            let (i, r, c, t, n) = (*result, *row, *col, text.clone(), *null);
+                            then = Some(Box::new(move |tool: &mut DbTool, _s: &Services| {
+                                tool.apply_cell_edit(i, r, c, &t, n);
+                            }));
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                }
+                Dialog::Review { result, sql } => {
+                    ui.heading(s.t("db-edit-review-title"));
+                    ui.add_space(4.0);
+                    ui.label(
+                        s.i18n
+                            .t_args("db-edit-review-body", &[("conn", &conn), ("env", &env)]),
+                    );
+                    ui.add_space(4.0);
+                    egui::ScrollArea::vertical()
+                        .id_salt("db-edit-review")
+                        .max_height(260.0)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(sql)
+                                    .code_editor()
+                                    .desired_width(f32::INFINITY)
+                                    .interactive(false),
+                            );
+                        });
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if form::primary_button(ui, theme, &s.t("db-edit-apply")).clicked() {
+                            let (i, text) = (*result, sql.clone());
+                            then = Some(Box::new(move |tool: &mut DbTool, s: &Services| {
+                                tool.apply_edits(i, &text, s);
+                            }));
+                        }
+                        if ui.button(s.t("db-edit-copy-sql")).clicked() {
+                            ui.ctx().copy_text(sql.clone());
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
                             close = true;
                         }
                     });
@@ -2287,6 +2620,7 @@ impl DbTool {
         let mut insert: Option<String> = None;
         let mut copy: Option<String> = None;
         let mut refresh = false;
+        let mut import_into: Option<(String, String)> = None;
         let area = egui::Area::new(self.id.with("tree-menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos)
@@ -2318,6 +2652,9 @@ impl DbTool {
                             }
                             if *kind == "table" && item(ui, s.t("db-count-rows")) {
                                 run = Some(format!("SELECT COUNT(*) FROM {q}"));
+                            }
+                            if *kind == "table" && item(ui, s.t("db-import-csv")) {
+                                import_into = Some((schema.to_string(), name.to_string()));
                             }
                             if item(ui, s.t("db-copy-name")) {
                                 copy = Some(q.clone());
@@ -2374,10 +2711,457 @@ impl DbTool {
             self.refresh_schema(s);
             close = true;
         }
+        if let Some((schema, name)) = import_into {
+            self.menu = None;
+            self.start_import(&schema, &name, s);
+            return;
+        }
         if close {
             self.menu = None;
         }
     }
+
+    // ---- depth programme, phase B: plans, inline edits, CSV import ----------
+
+    /// The default schema an unqualified table name means.
+    fn default_schema(&self) -> String {
+        match self.engine {
+            Engine::Postgres => "public".into(),
+            Engine::Sqlite => "main".into(),
+            Engine::Mysql => match &self.shared.lock().status {
+                Some(Status::Ready(info)) => info.database.clone(),
+                _ => String::new(),
+            },
+        }
+    }
+
+    /// Decide whether result `i` can be edited (docs/tools/database.md §8):
+    /// it must read one table whose primary key is in the result. The
+    /// table's columns come from the same introspection the schema
+    /// browser uses, asked for once per table.
+    fn ensure_editable(&mut self, i: usize, s: &Services) {
+        if self.edits.contains_key(&i) || self.not_editable.contains_key(&i) {
+            return;
+        }
+        let (sql, class, columns, running) = {
+            let sh = self.shared.lock();
+            let Some(r) = sh.results.get(i) else {
+                return;
+            };
+            (r.sql.clone(), r.class, r.columns.clone(), r.running)
+        };
+        if running {
+            return;
+        }
+        if class != Some(Class::Read) || plan::is_explain(&sql) {
+            self.not_editable.insert(i, "db-edit-why-no-table");
+            return;
+        }
+        if self.read_only_profile {
+            self.not_editable.insert(i, "db-edit-why-read-only");
+            return;
+        }
+        let Some(table) = export::source_table(&sql, self.engine) else {
+            self.not_editable.insert(i, "db-edit-why-no-table");
+            return;
+        };
+        let (schema, name) = match table.rsplit_once('.') {
+            Some((sc, n)) => (sc.to_string(), n.to_string()),
+            None => (self.default_schema(), table.clone()),
+        };
+        let node = format!("cols:{schema}.{name}");
+        let state = self.shared.lock().nodes.get(&node).cloned();
+        match state {
+            None => {
+                self.shared.lock().nodes.insert(node.clone(), Load::Loading);
+                self.send(
+                    Cmd::Introspect {
+                        node,
+                        scope: Scope::Columns {
+                            schema,
+                            table: name,
+                        },
+                    },
+                    s,
+                );
+            }
+            Some(Load::Loading) | Some(Load::Idle) => {}
+            Some(Load::Failed(_)) => {
+                self.not_editable.insert(i, "db-edit-why-no-key");
+            }
+            Some(Load::Ready(cols)) => match edit::key_columns(&columns, &cols) {
+                Some(key_cols) => {
+                    let target = edit::Target {
+                        table: self.qualified(&schema, &name),
+                        key_cols,
+                    };
+                    self.edits.insert(i, Edits::new(target));
+                }
+                None => {
+                    self.not_editable.insert(i, "db-edit-why-no-key");
+                }
+            },
+        }
+    }
+
+    fn begin_edit(&mut self, i: usize, row: usize, col: usize) {
+        if !self.edits.contains_key(&i) {
+            return;
+        }
+        let v = {
+            let sh = self.shared.lock();
+            sh.results[i]
+                .rows
+                .get(row)
+                .and_then(|r| r.get(col))
+                .cloned()
+        };
+        let Some(data) = v else { return };
+        let current = self.edits[&i].value(row, col, &data).clone();
+        self.dialog = Some(Dialog::EditCell {
+            result: i,
+            row,
+            col,
+            text: if current.is_null() {
+                String::new()
+            } else {
+                current.display()
+            },
+            null: current.is_null(),
+        });
+    }
+
+    fn apply_cell_edit(&mut self, i: usize, row: usize, col: usize, text: &str, null: bool) {
+        let orig = {
+            let sh = self.shared.lock();
+            sh.results[i]
+                .rows
+                .get(row)
+                .and_then(|r| r.get(col))
+                .cloned()
+        };
+        let Some(orig) = orig else { return };
+        let v = edit::parse_input(text, &orig, null);
+        if let Some(e) = self.edits.get_mut(&i) {
+            e.set(row, col, v, &orig);
+        }
+    }
+
+    /// The pending changes of result `i` as SQL, one statement per line.
+    fn edit_sql(&self, i: usize) -> String {
+        let sh = self.shared.lock();
+        let r = &sh.results[i];
+        self.edits
+            .get(&i)
+            .map(|e| e.statements(&r.columns, &r.rows, self.engine).join("\n"))
+            .unwrap_or_default()
+    }
+
+    /// Run the reviewed statements in one transaction, through the same
+    /// guards as typed SQL. Manual-commit mode leaves the commit to the user.
+    fn apply_edits(&mut self, _i: usize, sql: &str, s: &Services) {
+        let script = if self.state.manual_tx {
+            sql.to_string()
+        } else {
+            format!("BEGIN;\n{sql}\nCOMMIT;")
+        };
+        self.run_text(&script, usize::MAX, None, None, s);
+    }
+
+    /// The strip above the footer while edits are pending.
+    fn edit_bar(&mut self, ui: &mut egui::Ui, i: usize, s: &Services, theme: &Theme) {
+        let n = self.edits.get(&i).map_or(0, |e| e.len());
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {}",
+                    ph::PENCIL_SIMPLE,
+                    s.i18n.t_args("db-edit-pending", &[("n", &n.to_string())])
+                ))
+                .color(theme.warning),
+            );
+            if form::primary_button(ui, theme, &s.t("db-edit-review")).clicked() {
+                self.dialog = Some(Dialog::Review {
+                    result: i,
+                    sql: self.edit_sql(i),
+                });
+            }
+            if ui.button(s.t("db-edit-discard")).clicked()
+                && let Some(e) = self.edits.get_mut(&i)
+            {
+                e.rows.clear();
+            }
+        });
+    }
+
+    /// Plan / Raw for an EXPLAIN result.
+    fn plan_toggle(&mut self, ui: &mut egui::Ui, s: &Services) {
+        ui.horizontal(|ui| {
+            if ui
+                .add(egui::Button::selectable(
+                    !self.plan_raw,
+                    s.t("db-plan-tree"),
+                ))
+                .clicked()
+            {
+                self.plan_raw = false;
+            }
+            if ui
+                .add(egui::Button::selectable(self.plan_raw, s.t("db-plan-raw")))
+                .clicked()
+            {
+                self.plan_raw = true;
+            }
+        });
+    }
+
+    /// The plan tree (docs/tools/database.md §10). `false` when the rows
+    /// are not a plan this build can draw, so the grid shows them.
+    fn plan_view(&mut self, ui: &mut egui::Ui, i: usize, s: &Services, theme: &Theme) -> bool {
+        let key = (self.seen_run, i);
+        if !self.plans.contains_key(&key) {
+            let (running, parsed) = {
+                let sh = self.shared.lock();
+                let r = &sh.results[i];
+                (r.running, plan::parse(self.engine, &r.columns, &r.rows))
+            };
+            if running {
+                return false;
+            }
+            self.plans.insert(key, parsed);
+        }
+        let Some(Some(plan)) = self.plans.get(&key).cloned() else {
+            return false;
+        };
+        let running = self.shared.lock().running;
+        ui.horizontal(|ui| {
+            if ui
+                .button(format!("{} {}", ph::COPY, s.t("db-plan-copy")))
+                .clicked()
+            {
+                ui.ctx().copy_text(plan::to_text(&plan));
+            }
+            // SQLite has no ANALYZE form of EXPLAIN QUERY PLAN.
+            if plan.execution_ms.is_none()
+                && self.engine != Engine::Sqlite
+                && ui
+                    .add_enabled(
+                        !running,
+                        egui::Button::new(format!("{} {}", ph::TIMER, s.t("db-plan-analyze"))),
+                    )
+                    .tip(s.t("db-plan-analyze-tip"))
+                    .clicked()
+            {
+                self.run(RunMode::ExplainAnalyze, s);
+            }
+            let muted = |t: String| egui::RichText::new(t).small().color(theme.text_muted);
+            if let Some(p) = plan.planning_ms {
+                ui.label(muted(
+                    s.i18n
+                        .t_args("db-plan-planning", &[("ms", &format!("{p:.3}"))]),
+                ));
+            }
+            if let Some(e) = plan.execution_ms {
+                ui.label(muted(
+                    s.i18n
+                        .t_args("db-plan-execution", &[("ms", &format!("{e:.3}"))]),
+                ));
+            }
+        });
+        egui::ScrollArea::both()
+            .id_salt(("db-plan", self.seen_run, i))
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                for (j, root) in plan.roots.iter().enumerate() {
+                    plan_node(
+                        ui,
+                        theme,
+                        s,
+                        &plan,
+                        root,
+                        egui::Id::new(("db-plan-node", self.seen_run, i, j)),
+                    );
+                }
+            });
+        true
+    }
+
+    /// Import CSV… on a table of the schema tree.
+    fn start_import(&mut self, schema: &str, name: &str, s: &Services) {
+        if self.read_only_profile || (self.protected && !self.writes_unlocked) {
+            let why = if self.read_only_profile {
+                "db-refused-read-only"
+            } else {
+                "db-refused-protected"
+            };
+            let msg = s.i18n.t_args(
+                why,
+                &[
+                    ("class", &s.t(class_key(Class::Write))),
+                    ("env", &self.env_name),
+                ],
+            );
+            self.shared.lock().messages.push((false, msg));
+            return;
+        }
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("CSV", &["csv", "tsv", "txt"])
+            .pick_file()
+        else {
+            return;
+        };
+        let first = std::fs::File::open(&path)
+            .ok()
+            .and_then(|f| {
+                use std::io::BufRead;
+                std::io::BufReader::new(f)
+                    .lines()
+                    .next()
+                    .and_then(|l| l.ok())
+            })
+            .unwrap_or_default();
+        let opts = import::Options {
+            delimiter: import::sniff_delimiter(&first),
+            ..Default::default()
+        };
+        let preview = import::preview(&path, &opts, 5);
+        let node = format!("cols:{schema}.{name}");
+        self.shared.lock().nodes.insert(node.clone(), Load::Loading);
+        self.send(
+            Cmd::Introspect {
+                node: node.clone(),
+                scope: Scope::Columns {
+                    schema: schema.to_string(),
+                    table: name.to_string(),
+                },
+            },
+            s,
+        );
+        self.dialog = Some(Dialog::Import(ImportState {
+            table: self.qualified(schema, name),
+            label: format!("{schema}.{name}"),
+            node,
+            path,
+            opts,
+            preview,
+            columns: None,
+            mapping: Vec::new(),
+        }));
+    }
+
+    fn import_job(&self, st: ImportState, s: &Services) {
+        let Some(cfg) = self.resolved_cfg(s) else {
+            return;
+        };
+        let Some(columns) = st.columns else { return };
+        let shared = self.shared.clone();
+        let done = s.i18n.t_args(
+            "db-import-done",
+            &[("rows", "{rows}"), ("table", &st.label)],
+        );
+        let title = format!(
+            "Import {}",
+            st.path.file_name().unwrap_or_default().to_string_lossy()
+        );
+        let (path, table, mapping, opts) = (st.path, st.table, st.mapping, st.opts);
+        s.jobs.spawn(title, "db", move |h| async move {
+            let cfg = cfg.await?;
+            let h2 = h.clone();
+            let out = import::run(cfg, &path, &table, &columns, &mapping, &opts, move |n| {
+                h2.set_message(format!("{n} rows"));
+                !h2.is_cancelled()
+            })
+            .await?;
+            shared
+                .lock()
+                .messages
+                .push((true, done.replace("{rows}", &out.rows.to_string())));
+            Ok(())
+        });
+    }
+
+    /// The resolved connection for a second session (exports, imports): the
+    /// tab's own config, or a fresh tunnel when the profile goes through SSH.
+    fn resolved_cfg(&self, s: &Services) -> Option<CfgFuture> {
+        let mut cfg = self.export_cfg.clone()?;
+        if !cfg.host.is_empty() {
+            return Some(Box::pin(async move { Ok(cfg) }));
+        }
+        let fields = self.state.conn_id.as_ref().and_then(|id| {
+            s.connections
+                .read()
+                .by_id(id)
+                .map(|c| DbFields::from_table(&c.fields))
+        })?;
+        let rx = s
+            .tunnels
+            .ensure_local_forward(&fields.tunnel_ssh, &fields.host, fields.port);
+        Some(Box::pin(async move {
+            let port = rx
+                .await
+                .map_err(|_| "the SSH tunnel stopped".to_string())?
+                .map_err(|e| e.to_string())?;
+            cfg.host = "127.0.0.1".into();
+            cfg.port = port;
+            Ok(cfg)
+        }))
+    }
+}
+
+/// One node of the plan tree, open by default, coloured by its heat.
+fn plan_node(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    plan: &plan::Plan,
+    n: &plan::Node,
+    id: egui::Id,
+) {
+    let heat = plan.heat(n);
+    let color = if heat > 0.66 {
+        theme.error
+    } else if heat > 0.33 {
+        theme.warning
+    } else {
+        theme.text
+    };
+    let mut facts = Vec::new();
+    if let Some(c) = n.cost {
+        facts.push(format!("{} {c:.2}", s.t("db-plan-cost")));
+    }
+    if let Some(r) = n.rows {
+        facts.push(format!("{} {r:.0}", s.t("db-plan-rows")));
+    }
+    if let Some(r) = n.actual_rows {
+        facts.push(format!("{} {r:.0}", s.t("db-plan-actual")));
+    }
+    if let Some(t) = n.time_ms {
+        facts.push(format!("{} {t:.3} ms", s.t("db-plan-time")));
+    }
+    let title = egui::RichText::new(if facts.is_empty() {
+        n.label.clone()
+    } else {
+        format!("{}   {}", n.label, facts.join(" · "))
+    })
+    .color(color);
+    egui::CollapsingHeader::new(title)
+        .id_salt(id)
+        .default_open(true)
+        .show(ui, |ui| {
+            for (k, v) in &n.detail {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{k}:"))
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                    ui.label(egui::RichText::new(v).small().monospace());
+                });
+            }
+            for (j, c) in n.children.iter().enumerate() {
+                plan_node(ui, theme, s, plan, c, id.with(j));
+            }
+        });
 }
 
 impl Tool for DbTool {
@@ -3234,7 +4018,7 @@ impl DbTool {
             }
         }
         self.sync_query_state();
-        self.run_text(sql, usize::MAX, false, None, s);
+        self.run_text(sql, usize::MAX, None, None, s);
     }
 
     /// Keep the single-query fields the rest of the tool still reads in
@@ -3526,7 +4310,7 @@ impl DbTool {
             // Exactly the inserted text, through the classify-and-confirm
             // path the Run button uses: a protected environment, a
             // dangerous statement or a read-only profile still stops it.
-            self.run_text(&block, usize::MAX, false, None, s);
+            self.run_text(&block, usize::MAX, None, None, s);
         }
     }
 
@@ -3545,6 +4329,8 @@ impl DbTool {
                 Some("db.run_script"),
             ),
             c("db.explain", "Database: Explain", Some("db.explain")),
+            c("db.explain_analyze", "Database: Explain Analyze", None),
+            c("db.export_xlsx", "Database: Export Result as Excel", None),
             c("db.cancel", "Database: Cancel", None),
             c("db.commit", "Database: Commit", Some("db.commit")),
             c("db.rollback", "Database: Rollback", Some("db.rollback")),
@@ -3572,6 +4358,13 @@ impl DbTool {
             "run" => self.run(RunMode::Current, s),
             "db.run_script" | "run.alt" => self.run(RunMode::Script, s),
             "db.explain" => self.run(RunMode::Explain, s),
+            "db.explain_analyze" => self.run(RunMode::ExplainAnalyze, s),
+            "db.export_xlsx" => {
+                let i = self.active_result;
+                if i < self.shared.lock().results.len() {
+                    self.export(i, Format::Xlsx, s);
+                }
+            }
             "db.cancel" => self.cancel(),
             "db.commit" => self.control("COMMIT", s),
             "db.rollback" => self.control("ROLLBACK", s),

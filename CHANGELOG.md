@@ -11,21 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Settings lists keep their form beside them.** Editor → Project List,
-  Git → Repositories, Git → Git Credentials and Terminal → Terminal List
-  now put the list in a left column and the add/edit form in a right
-  column, the shape the Environments page already had, instead of
-  stacking the form under the list (owner's request, 2026-10-30); a hint
-  on the right says what to select when nothing is.
+- (nothing yet)
 
-- **Docs refreshed for every feature and phase** (owner's request,
-  2026-10-30): `CHECKLIST.md`, `docs/02-features.md` and
-  `docs/07-roadmap.md` now record the Git activity's six phases, the
-  Logs and Container activities, Kubernetes, the dashboards, global and
-  collection variables; the README gains the Git activity's surfaces
-  (ten screenshots and `git-walkthrough.gif`), the shared dashboard
-  layout, the Settings → Git page, the variables cards and the Devtools
-  toolbar row, and the main walkthrough GIF grows twelve frames.
+## 0.103.1 — 2026-10-30
+
+### Fixed
+
+- Settings lists keep their form in a right column (795b750c)
 
 ## 0.103.0 — 2026-10-29
 

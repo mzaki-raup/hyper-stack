@@ -25,6 +25,8 @@ tracing = { workspace = true }
 redis = { workspace = true }
 flate2 = { workspace = true }
 rustls = { workspace = true }
+chrono = { workspace = true }
+futures-util = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

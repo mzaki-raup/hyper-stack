@@ -100,7 +100,7 @@ the fixtures behind them.
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
-| [Redis](#redis) | Key tree, type viewers, console, info; **Valkey** too |
+| [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command and pasted sources; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |
@@ -263,8 +263,10 @@ the lists.
 |---|---|
 | ![Redis key tree and hash viewer](docs/screenshots/redis-browser.png) | |
 | **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | |
-| ![Console](docs/screenshots/redis-console.png) | ![Info](docs/screenshots/redis-info.png) |
-| **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - server version, build, process, listeners and keyspace |
+| ![Console](docs/screenshots/redis-console.png) | ![Info dashboard](docs/screenshots/redis-info.png) |
+| **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - memory, clients, ops/s, hit rate, keys and uptime as cards with five-minute sparklines, role and persistence, and every raw INFO section folded under them |
+| ![Tools: big keys](docs/screenshots/redis-tools.png) | ![Streams](docs/screenshots/redis-streams.png) |
+| **Tools** - Slowlog and Client List tables (kill is guarded), the **big-key finder** (SCAN + MEMORY USAGE, top N with type, length and TTL, cancellable) and **Bulk Ops** that preview the keys a pattern matches before delete / expire / persist / rename-prefix, with the pattern typed back on a protected environment | **Streams** - length, consumer groups with pending counts, last id and the newest entries; **Pub/Sub** subscribes to channels and patterns on a second connection and publishes |
 
 ### Logs
 
@@ -452,6 +454,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
 | 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, portable-first, and so on |
 | 09 | [CI/CD, releases and in-app updates](docs/09-ci-cd-and-updates.md) | Forgejo workflows, automatic versioning, signed release manifest, Settings → Updates (check, download, verify, install, revert), the public GitHub mirror (§10) |
+| 10 | [Depth programme](docs/10-depth-programme.md) | The Phase 2 / 3 items re-planned on 2026-10-30 as fourteen phases: Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL compare / ERD, Cassandra, forge integration, an Automation activity, a Queue activity (RabbitMQ, Kafka, …), ELK (Elasticsearch / Kibana), a Tracker activity (Jira, Redmine, GitLab, Confluence, …) |
 | — | [Workflows](.forgejo/workflows/) and [release scripts](scripts/) | Active Forgejo Actions (`ci.yml`, `release.yml`), their GitHub counterparts in [.github/workflows/](.github/workflows/) and the PowerShell scripts both run; [keys/](keys/) holds the release-signing public key |
 | — | [Tool specs](docs/tools/) | One design document per tool (editor, SQL database, NoSQL, Redis, logs, API client, SSH/SFTP, S3, Git, terminal, containers, devtools) |
 

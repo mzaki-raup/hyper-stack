@@ -240,7 +240,7 @@ store that already exists.
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
 | SQL: SQL Server, inline editing, explain, CSV import, Excel export | Pending | |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
-| Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Pending | |
+| Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | In-Progress | Docker and Kubernetes sources through the Container activity (2026-10-24); journalctl, Event Log, merge, statistics and alerts pending |
 | Editor: tree-sitter, minimap, snippets, formatter, three-way merge | Pending | |
 | Editor: AI assistant (1min.AI / OpenAI-compatible, edit blocks, Cascade; ADR-019) | Completed | 2026-10-11, owner's request ahead of the roadmap: chat with file/selection context, diffs with Apply/Reject (one undo step each), Cascade rounds, Settings → AI Assistant with several providers, Fetch Models and Test Connection; exercised in the app against a mock server speaking both the 1min.AI and the OpenAI SSE formats; API key stored in the vault and the data folder grepped clean. Not yet tried against the live 1min.AI service or a real LM Studio |
@@ -559,6 +559,26 @@ and ADR-025.
 | 4 — Hosts: Remote/Localhost sources, host APIs, Fetch Project, clone as a Job, credential hand-off | Completed | `tool-git::hosts` (list/whoami per kind, parser tests), `tool-git::auth` (vault token → helper file, `with_env`, test), `hs_git::write::{clone, credential_env, fetch_env, pull_env, push_env}`; Settings → Git Fetch Project dropdown (`hs_core::fuzzy`), Clone and Save as `Jobs::spawn`, credential Test. The hand-off is a one-command `credential.helper` through `GIT_CONFIG_*` rather than `GIT_ASKPASS` (same promise: never on a command line). Verified on screen 2026-10-29 with a Localhost clone; the host listings are covered by fixture tests, not a live token |
 | 5 — AI Assistant with git quick actions and runnable command blocks | Completed | `hs_ui::ai_assistant::AssistantPanel` in `RepoPane::assistant_column` (hard-right toggle), `assistant_context` (status / bounded staged diff / log on the blocking pool), `prompts::DEFAULTS` for `git` (six buttons), Insert → commit box or clipboard + terminal, Insert and Run → `OpenRequest::Terminal { command }` in the root. Verified on screen 2026-10-30 |
 | 6 — Polish: host avatars, probed summaries, palette commands, screenshots | Completed | `hosts::fetch_avatar` + `GitRepos::set_icon_bytes` on project choice; `GitTool::probe_figures` (status per saved repository, 60 s); `GitTool::commands`/`RepoPane::run_command` (14 commands); Up/Down in `status_column` and `HistoryView::list`; `docs/screenshots/git-*.png`. Verified on screen 2026-10-30 |
+
+## The depth programme (owner's request, 2026-10-30; `docs/10-depth-programme.md`)
+
+| Phase | State | Notes |
+|---|---|---|
+| A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Completed | `tool-redis::depth`, `runner::{parse_sample, big_keys, bulk, subscribe}`, `client::{slowlog, client_list, client_kill, memory_usages, expire_many, persist_many, rename_many, stream_view, publish, pubsub}`; live test against Redis 8.6.3 in WSL; verified on screen 2026-10-30 |
+| B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Pending | |
+| C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
+| D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Pending | |
+| E — SSH depth: port-forward manager, broadcast input, server monitor | Pending | |
+| F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Pending | |
+| G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Pending | |
+| H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | Pending | |
+| I — Cassandra / ScyllaDB driver in the NoSQL activity | Pending | |
+| J — Forge integration in the Git activity: pull requests, issues, CI status | Pending | |
+| K — Automation activity: Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX, Puppet | Pending | |
+| L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
+| M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
+| N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | Pending | Added 2026-10-30; name suggested as "Tracker" |
+| Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | Pending | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials" |
 
 ## Owner's requests, 2026-10-22 (UI batch)
 

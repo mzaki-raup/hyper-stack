@@ -231,6 +231,50 @@ every other tool uses and behind the same hard-right button.
 - `redis.ai` in the palette toggles it, and Read Aloud can read its last
   answer.
 
+## Depth, phase A (2026-10-30)
+
+The depth programme's first phase (`docs/10-depth-programme.md`)
+delivered §7 and §8 and three things the spec had not named:
+
+- **Info dashboard** (`depth::info_dashboard`): `runner::parse_sample`
+  reads one `Sample` out of every `INFO everything`; the runner keeps
+  150 of them (`Shared::samples`, five minutes at one every two
+  seconds) and the Info tab asks for a new one every two seconds while
+  it is on screen (`Shared::info_at`). Cards for memory, clients,
+  ops/s, hit rate, keys and uptime; sparklines of ops, memory and
+  clients; peak, fragmentation, role (with replica count), persistence
+  (AOF + RDB / RDB), evicted and expired. The raw sections fold under
+  **All Sections**. A refresh is a `Cmd::RefreshInfo`, never a second
+  connection.
+- **Tools** tab (`depth::tools_tab`): **Slowlog** (`SLOWLOG GET 128`,
+  `client::parse_slowlog`), **Client List** (`CLIENT LIST`,
+  `client::parse_client_list`; **Kill** opens `Popup::Kill`, runs
+  `CLIENT KILL ID` and is refused on read-only / protected), **Big
+  Keys** (`runner::big_keys`: SCAN pages with one `MEMORY USAGE ...
+  SAMPLES 0` pipeline per page, the top N kept, then `key_info` for
+  those only; `Shared::bigkeys_stop` cancels at the next page; a row
+  opens the key) and **Bulk Ops** (`Cmd::BulkPreview` runs
+  `count_prefix` capped at 10 000; `Popup::Bulk` confirms, typed-back
+  pattern on a protected environment; `Cmd::Bulk` deletes, `EXPIRE`s or
+  `PERSIST`s in pipelines, or renames by swapping the pattern's literal
+  prefix - `runner::rename_pairs`; the tree is fixed up afterwards).
+- **Pub/Sub** tab (`depth::pubsub_tab`): `Session::pubsub` opens a
+  second connection from the kept `redis::Client` (a subscribed
+  connection can do nothing else); `runner::subscribe` reads it on its
+  own task until the UI drops the `oneshot` stop handle; messages are
+  kept to the last 2 000. Publish is a plain `PUBLISH` on the session,
+  guarded like every write.
+- **Streams** tab (`depth::streams_tab`): `Session::stream_view` runs
+  `XINFO STREAM`, `XINFO GROUPS` and `XREVRANGE ... COUNT n` (shown
+  oldest first); the picker lists the stream keys the scan found
+  (`KeyTree::keys_with_kind`), or a key is typed.
+
+Verified 2026-10-30 against Redis 8.6.3 in WSL (the live test
+`the_depth_helpers_answer_against_a_server` and on screen). Not done:
+pause / filter in the Pub/Sub table and sharded Pub/Sub (§7), the
+configurable refresh period and replication lag (§8), `XPENDING` per
+consumer (groups show their pending count).
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

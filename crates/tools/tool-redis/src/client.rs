@@ -208,6 +208,8 @@ pub struct ScanPage {
 /// A live session. Every method borrows mutably: one command at a time per
 /// tab, which is what the multiplexed connection wants.
 pub struct Session {
+    /// Kept to open the Pub/Sub connection beside the multiplexed one.
+    client: redis::Client,
     conn: MultiplexedConnection,
     info: ServerInfo,
     db: i64,
@@ -235,6 +237,7 @@ impl Session {
         .await
         .map_err(|_| Error::msg("the server did not answer in time"))??;
         let mut s = Session {
+            client,
             conn,
             info: ServerInfo::default(),
             db: cfg.db,
@@ -538,6 +541,162 @@ impl Session {
         }
     }
 
+    // ---- depth programme, phase A --------------------------------------
+
+    /// `SLOWLOG GET n`, newest first as the server returns them.
+    pub async fn slowlog(&mut self, n: usize) -> Result<Vec<SlowEntry>> {
+        let v: redis::Value = redis::cmd("SLOWLOG")
+            .arg("GET")
+            .arg(n)
+            .query_async(&mut self.conn)
+            .await?;
+        Ok(parse_slowlog(&v))
+    }
+
+    pub async fn client_list(&mut self) -> Result<Vec<ClientRow>> {
+        let text: String = redis::cmd("CLIENT")
+            .arg("LIST")
+            .query_async(&mut self.conn)
+            .await?;
+        Ok(parse_client_list(&text))
+    }
+
+    pub async fn client_kill(&mut self, id: &str) -> Result<()> {
+        redis::cmd("CLIENT")
+            .arg("KILL")
+            .arg("ID")
+            .arg(id)
+            .exec_async(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    /// `MEMORY USAGE` for a page of keys in one pipeline; `None` where the
+    /// key went away between the scan and the read.
+    pub async fn memory_usages(&mut self, keys: &[String]) -> Result<Vec<Option<u64>>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut pipe = redis::pipe();
+        for k in keys {
+            pipe.cmd("MEMORY").arg("USAGE").arg(k).arg("SAMPLES").arg(0);
+        }
+        Ok(pipe.query_async(&mut self.conn).await?)
+    }
+
+    /// `EXPIRE` every key in one pipeline; how many were set.
+    pub async fn expire_many(&mut self, keys: &[String], secs: i64) -> Result<u64> {
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let mut pipe = redis::pipe();
+        for k in keys {
+            pipe.cmd("EXPIRE").arg(k).arg(secs);
+        }
+        let v: Vec<i64> = pipe.query_async(&mut self.conn).await?;
+        Ok(v.into_iter().filter(|n| *n == 1).count() as u64)
+    }
+
+    /// `PERSIST` every key in one pipeline; how many had a TTL to drop.
+    pub async fn persist_many(&mut self, keys: &[String]) -> Result<u64> {
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let mut pipe = redis::pipe();
+        for k in keys {
+            pipe.cmd("PERSIST").arg(k);
+        }
+        let v: Vec<i64> = pipe.query_async(&mut self.conn).await?;
+        Ok(v.into_iter().filter(|n| *n == 1).count() as u64)
+    }
+
+    /// `RENAME` each pair in turn; a failure says how many went before it.
+    pub async fn rename_many(&mut self, pairs: &[(String, String)]) -> Result<u64> {
+        let mut n = 0u64;
+        for (from, to) in pairs {
+            if let Err(e) = self.rename(from, to).await {
+                return Err(Error::msg(format!("renamed {n}, then {from}: {e}")));
+            }
+            n += 1;
+        }
+        Ok(n)
+    }
+
+    /// `XINFO STREAM`, `XINFO GROUPS` and the newest `count` entries.
+    pub async fn stream_view(&mut self, key: &str, count: usize) -> Result<StreamView> {
+        let info: redis::Value = redis::cmd("XINFO")
+            .arg("STREAM")
+            .arg(key)
+            .query_async(&mut self.conn)
+            .await?;
+        let info = kv_pairs(&info);
+        // A stream without groups answers an empty array; an older server
+        // without XINFO GROUPS answers an error, which is no reason to hide
+        // the rest.
+        let groups: redis::Value = redis::cmd("XINFO")
+            .arg("GROUPS")
+            .arg(key)
+            .query_async(&mut self.conn)
+            .await
+            .unwrap_or(redis::Value::Array(Vec::new()));
+        let raw: redis::Value = redis::cmd("XREVRANGE")
+            .arg(key)
+            .arg("+")
+            .arg("-")
+            .arg("COUNT")
+            .arg(count)
+            .query_async(&mut self.conn)
+            .await?;
+        let mut entries: Vec<(String, Vec<(String, String)>)> = stream_entries(&raw)
+            .into_iter()
+            .map(|(id, fields)| {
+                let fields = fields
+                    .into_iter()
+                    .map(|(k, v)| (k, String::from_utf8_lossy(&v).into_owned()))
+                    .collect();
+                (id, fields)
+            })
+            .collect();
+        entries.reverse();
+        let groups = match groups {
+            redis::Value::Array(gs) => gs
+                .iter()
+                .map(|g| {
+                    let kv = kv_pairs(g);
+                    GroupRow {
+                        name: field_string(&kv, "name"),
+                        consumers: field_i64(&kv, "consumers"),
+                        pending: field_i64(&kv, "pending"),
+                        last_delivered: field_string(&kv, "last-delivered-id"),
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        Ok(StreamView {
+            key: key.to_string(),
+            length: field_i64(&info, "length"),
+            last_id: field_string(&info, "last-generated-id"),
+            groups,
+            entries,
+        })
+    }
+
+    /// `PUBLISH`; how many subscribers received it.
+    pub async fn publish(&mut self, channel: &str, message: &str) -> Result<i64> {
+        Ok(redis::cmd("PUBLISH")
+            .arg(channel)
+            .arg(message)
+            .query_async(&mut self.conn)
+            .await?)
+    }
+
+    /// A second connection for Pub/Sub: a subscribed connection can do
+    /// nothing else, so the session keeps its own.
+    pub async fn pubsub(&self) -> Result<redis::aio::PubSub> {
+        Ok(self.client.get_async_pubsub().await?)
+    }
+
     /// Run one already-parsed command, for the console.
     pub async fn command(&mut self, args: &[String]) -> Result<redis::Value> {
         let mut parts = args.iter();
@@ -767,6 +926,139 @@ fn connection_info(cfg: &ConnectConfig) -> Result<redis::ConnectionInfo> {
     Ok(addr.into_connection_info()?.set_redis_settings(redis_info))
 }
 
+// ---- depth programme, phase A (docs/tools/redis.md §7, §8) -------------
+
+/// One `SLOWLOG GET` entry.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SlowEntry {
+    pub id: i64,
+    /// Unix seconds.
+    pub at: i64,
+    pub micros: i64,
+    pub command: String,
+    pub client: String,
+}
+
+/// One `CLIENT LIST` row: the fields the table shows, as the server
+/// printed them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ClientRow {
+    pub id: String,
+    pub addr: String,
+    pub name: String,
+    pub age: String,
+    pub idle: String,
+    pub db: String,
+    pub cmd: String,
+}
+
+/// A consumer group of a stream (`XINFO GROUPS`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GroupRow {
+    pub name: String,
+    pub consumers: i64,
+    pub pending: i64,
+    pub last_delivered: String,
+}
+
+/// A stream's shape and its newest entries, oldest first.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StreamView {
+    pub key: String,
+    pub length: i64,
+    pub last_id: String,
+    pub groups: Vec<GroupRow>,
+    pub entries: Vec<(String, Vec<(String, String)>)>,
+}
+
+/// Alternating key/value arrays (RESP2) or maps (RESP3) as pairs.
+pub fn kv_pairs(v: &redis::Value) -> Vec<(String, redis::Value)> {
+    match v {
+        redis::Value::Map(m) => m.iter().map(|(k, v)| (as_string(k), v.clone())).collect(),
+        redis::Value::Array(a) => a
+            .chunks(2)
+            .filter(|c| c.len() == 2)
+            .map(|c| (as_string(&c[0]), c[1].clone()))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn field_string(kv: &[(String, redis::Value)], name: &str) -> String {
+    kv.iter()
+        .find(|(k, _)| k == name)
+        .map(|(_, v)| as_string(v))
+        .unwrap_or_default()
+}
+
+fn field_i64(kv: &[(String, redis::Value)], name: &str) -> i64 {
+    kv.iter()
+        .find(|(k, _)| k == name)
+        .and_then(|(_, v)| match v {
+            redis::Value::Int(i) => Some(*i),
+            other => as_string(other).parse().ok(),
+        })
+        .unwrap_or(0)
+}
+
+/// `SLOWLOG GET` rows: id, unix time, microseconds, argv, client address.
+pub fn parse_slowlog(v: &redis::Value) -> Vec<SlowEntry> {
+    let redis::Value::Array(rows) = v else {
+        return Vec::new();
+    };
+    rows.iter()
+        .filter_map(|r| {
+            let redis::Value::Array(f) = r else {
+                return None;
+            };
+            let int = |i: usize| match f.get(i) {
+                Some(redis::Value::Int(n)) => *n,
+                _ => 0,
+            };
+            let command = match f.get(3) {
+                Some(redis::Value::Array(args)) => {
+                    args.iter().map(as_string).collect::<Vec<_>>().join(" ")
+                }
+                _ => String::new(),
+            };
+            Some(SlowEntry {
+                id: int(0),
+                at: int(1),
+                micros: int(2),
+                command,
+                client: f.get(4).map(as_string).unwrap_or_default(),
+            })
+        })
+        .collect()
+}
+
+/// `CLIENT LIST` text: one client per line, `key=value` fields.
+pub fn parse_client_list(text: &str) -> Vec<ClientRow> {
+    text.lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| {
+            let mut row = ClientRow::default();
+            for part in l.split(' ') {
+                let Some((k, v)) = part.split_once('=') else {
+                    continue;
+                };
+                let v = v.to_string();
+                match k {
+                    "id" => row.id = v,
+                    "addr" => row.addr = v,
+                    "name" => row.name = v,
+                    "age" => row.age = v,
+                    "idle" => row.idle = v,
+                    "db" => row.db = v,
+                    "cmd" => row.cmd = v,
+                    _ => {}
+                }
+            }
+            row
+        })
+        .collect()
+}
+
 /// Open the client, handing rustls a private CA when the profile names one.
 fn open_client(cfg: &ConnectConfig) -> Result<redis::Client> {
     let info = connection_info(cfg)?;
@@ -883,5 +1175,59 @@ mod tests {
         assert_eq!(out[0].1[0].0, "sensor");
         assert_eq!(out[0].1[0].1, b"12");
         assert!(stream_entries(&redis::Value::Nil).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    fn bulk(s: &str) -> redis::Value {
+        redis::Value::BulkString(s.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn slowlog_rows_parse() {
+        let v = redis::Value::Array(vec![redis::Value::Array(vec![
+            redis::Value::Int(14),
+            redis::Value::Int(1_700_000_000),
+            redis::Value::Int(15_000),
+            redis::Value::Array(vec![bulk("KEYS"), bulk("*")]),
+            bulk("127.0.0.1:50000"),
+            bulk(""),
+        ])]);
+        let rows = parse_slowlog(&v);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, 14);
+        assert_eq!(rows[0].micros, 15_000);
+        assert_eq!(rows[0].command, "KEYS *");
+        assert_eq!(rows[0].client, "127.0.0.1:50000");
+    }
+
+    #[test]
+    fn client_list_rows_parse() {
+        let text = "id=3 addr=127.0.0.1:1 name= age=10 idle=0 db=0 cmd=client|list\nid=4 addr=127.0.0.1:2 name=app age=99 idle=5 db=2 cmd=get\n";
+        let rows = parse_client_list(text);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].id, "4");
+        assert_eq!(rows[1].name, "app");
+        assert_eq!(rows[1].db, "2");
+        assert_eq!(rows[0].cmd, "client|list");
+    }
+
+    #[test]
+    fn kv_pairs_read_arrays_and_maps() {
+        let arr = redis::Value::Array(vec![
+            bulk("length"),
+            redis::Value::Int(3),
+            bulk("last-generated-id"),
+            bulk("1-0"),
+        ]);
+        let kv = kv_pairs(&arr);
+        assert_eq!(field_i64(&kv, "length"), 3);
+        assert_eq!(field_string(&kv, "last-generated-id"), "1-0");
+        let map = redis::Value::Map(vec![(bulk("pending"), bulk("7"))]);
+        assert_eq!(field_i64(&kv_pairs(&map), "pending"), 7);
+        assert_eq!(field_i64(&kv, "missing"), 0);
     }
 }

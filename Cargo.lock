@@ -8891,9 +8891,11 @@ dependencies = [
 name = "tool-redis"
 version = "0.103.1"
 dependencies = [
+ "chrono",
  "egui",
  "egui_extras",
  "flate2",
+ "futures-util",
  "hs-core",
  "hs-editor",
  "hs-ui",

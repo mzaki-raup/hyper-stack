@@ -166,6 +166,13 @@ impl KeyTree {
         out
     }
 
+    /// Every key the scan found with this type, for pickers.
+    pub fn keys_with_kind(&self, kind: &KeyType) -> Vec<String> {
+        let mut out = Vec::new();
+        collect_kind(&self.root, "", &self.delimiter, kind, &mut out);
+        out
+    }
+
     /// Record the type of a key the scan already found.
     pub fn set_kind(&mut self, key: &str, kind: KeyType) {
         let segments = self.split(key);
@@ -206,6 +213,20 @@ fn remove_in(node: &mut Node, segments: &[String]) {
     // A group with no keys left and no children is gone.
     if child.children.is_empty() && child.kind.is_none() {
         node.children.remove(head);
+    }
+}
+
+fn collect_kind(node: &Node, prefix: &str, delimiter: &str, kind: &KeyType, out: &mut Vec<String>) {
+    if node.kind.as_ref().and_then(|k| k.as_ref()) == Some(kind) {
+        out.push(prefix.to_string());
+    }
+    for (label, child) in &node.children {
+        let path = if prefix.is_empty() {
+            label.clone()
+        } else {
+            format!("{prefix}{delimiter}{label}")
+        };
+        collect_kind(child, &path, delimiter, kind, out);
     }
 }
 

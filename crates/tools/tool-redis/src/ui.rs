@@ -23,7 +23,7 @@ use crate::client::{ConnectConfig, KeyType, PAGE, STRING_PREVIEW, ValuePage};
 use crate::console::{self, Class};
 use crate::keytree;
 use crate::profile::{ProfileError, RedisFields};
-use crate::runner::{self, Cmd, ScanFlag, Shared, Status, Write};
+use crate::runner::{self, BulkAction, Cmd, ScanFlag, Shared, Status, Write};
 use crate::value;
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
@@ -71,10 +71,13 @@ pub enum Tab {
     Keys,
     Console,
     Info,
+    PubSub,
+    Streams,
+    Tools,
 }
 
 /// A dialog waiting for an answer.
-enum Popup {
+pub(crate) enum Popup {
     /// Delete the keys listed, named by what the user picked.
     Delete {
         keys: Vec<String>,
@@ -107,11 +110,23 @@ enum Popup {
         value: String,
         score: String,
     },
+    /// A bulk operation over the keys its preview listed.
+    Bulk {
+        action: BulkAction,
+        keys: Vec<String>,
+        pattern: String,
+        arg: String,
+        typed: String,
+    },
+    /// `CLIENT KILL` of one connection.
+    Kill {
+        id: String,
+    },
 }
 
 pub struct RedisTool {
-    state: State,
-    shared: Arc<Mutex<Shared>>,
+    pub(crate) state: State,
+    pub(crate) shared: Arc<Mutex<Shared>>,
     cmd: Option<mpsc::Sender<Cmd>>,
     scan_flag: Option<ScanFlag>,
     conn_name: String,
@@ -132,7 +147,7 @@ pub struct RedisTool {
     /// The string editor's buffer, and whether it differs from the server.
     editor: String,
     editing: bool,
-    popup: Option<Popup>,
+    pub(crate) popup: Option<Popup>,
     console_input: String,
     console_history: Vec<String>,
     history_at: Option<usize>,
@@ -145,6 +160,8 @@ pub struct RedisTool {
     /// Review-only assistant (ADR-019): it reads the open key and the
     /// console, and its commands can be inserted but never run by it.
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// What the Tools, Pub/Sub and Streams tabs remember.
+    pub(crate) depth: crate::depth::DepthState,
 }
 
 impl RedisTool {
@@ -176,12 +193,13 @@ impl RedisTool {
             rows: Vec::new(),
             ttl_read: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            depth: Default::default(),
         }
     }
 
     /// Writes are refused on a read-only profile, and on a protected
     /// environment until the tab unlocks them.
-    fn read_only(&self) -> bool {
+    pub(crate) fn read_only(&self) -> bool {
         self.read_only_profile || (self.protected && !self.writes_unlocked)
     }
 
@@ -291,7 +309,7 @@ impl RedisTool {
         self.rescan();
     }
 
-    fn send(&mut self, cmd: Cmd) -> bool {
+    pub(crate) fn send(&mut self, cmd: Cmd) -> bool {
         match &self.cmd {
             Some(tx) => tx.try_send(cmd).is_ok(),
             None => false,
@@ -307,7 +325,7 @@ impl RedisTool {
         self.send(Cmd::Scan { pattern });
     }
 
-    fn open_key(&mut self, key: &str) {
+    pub(crate) fn open_key(&mut self, key: &str) {
         self.state.open_key = Some(key.to_string());
         self.state.tab = Tab::Keys;
         self.editing = false;
@@ -548,6 +566,12 @@ impl Tool for RedisTool {
             c("redis.stop", "Redis: Stop the Scan"),
             c("redis.console", "Redis: Console"),
             c("redis.info", "Redis: Server Info"),
+            c("redis.pubsub", "Redis: Pub/Sub"),
+            c("redis.streams", "Redis: Streams"),
+            c(
+                "redis.tools",
+                "Redis: Tools (Slowlog, Clients, Big Keys, Bulk Ops)",
+            ),
             c("redis.new_key", "Redis: New Key"),
             c("redis.reconnect", "Redis: Reconnect"),
             c("redis.ai", "Redis: AI Assistant"),
@@ -577,6 +601,19 @@ impl Tool for RedisTool {
             "redis.info" => {
                 self.state.tab = Tab::Info;
                 self.send(Cmd::RefreshInfo);
+                true
+            }
+            "redis.pubsub" => {
+                self.state.tab = Tab::PubSub;
+                true
+            }
+            "redis.streams" => {
+                self.state.tab = Tab::Streams;
+                true
+            }
+            "redis.tools" => {
+                self.state.tab = Tab::Tools;
+                self.refresh_tools();
                 true
             }
             "redis.new_key" => {
@@ -740,6 +777,9 @@ impl Tool for RedisTool {
             (Tab::Keys, ph::KEY, "redis-tab-keys"),
             (Tab::Console, ph::TERMINAL_WINDOW, "redis-tab-console"),
             (Tab::Info, ph::INFO, "redis-tab-info"),
+            (Tab::PubSub, ph::BROADCAST, "redis-tab-pubsub"),
+            (Tab::Streams, ph::WAVES, "redis-tab-streams"),
+            (Tab::Tools, ph::WRENCH, "redis-tab-tools"),
         ] {
             let label = format!("{icon} {}", s.t(key));
             if ui
@@ -747,8 +787,12 @@ impl Tool for RedisTool {
                 .clicked()
             {
                 self.state.tab = tab;
-                if tab == Tab::Info {
-                    self.send(Cmd::RefreshInfo);
+                match tab {
+                    Tab::Info => {
+                        self.send(Cmd::RefreshInfo);
+                    }
+                    Tab::Tools => self.refresh_tools(),
+                    _ => {}
                 }
             }
         }
@@ -915,6 +959,9 @@ impl RedisTool {
             Tab::Keys => self.keys_tab(ui, cx),
             Tab::Console => self.console_tab(ui, cx),
             Tab::Info => self.info_tab(ui, cx),
+            Tab::PubSub => self.pubsub_tab(ui, cx),
+            Tab::Streams => self.streams_tab(ui, cx),
+            Tab::Tools => self.tools_tab(ui, cx),
         }
     }
 
@@ -1658,6 +1705,7 @@ impl RedisTool {
         let text = self.shared.lock().info.clone();
         let Some(text) = text else {
             form::hint(ui, &theme, &s.t("redis-info-hint"));
+            self.shared.lock().info_at = ui.input(|i| i.time);
             self.send(Cmd::RefreshInfo);
             return;
         };
@@ -1665,21 +1713,41 @@ impl RedisTool {
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                for (name, rows) in sections {
-                    form::section(ui, &theme, &name, |ui| {
-                        egui::Grid::new(format!("redis-info-{name}"))
-                            .num_columns(2)
-                            .striped(true)
+                // The figures first (docs/tools/redis.md §8), the raw
+                // sections folded under them.
+                self.info_dashboard(ui, cx);
+                form::section(ui, &theme, &s.t("redis-info-raw"), |ui| {
+                    for (name, rows) in sections {
+                        egui::CollapsingHeader::new(&name)
+                            .id_salt(format!("redis-info-fold-{name}"))
                             .show(ui, |ui| {
-                                for (k, v) in rows {
-                                    ui.label(egui::RichText::new(k).small());
-                                    ui.label(egui::RichText::new(v).small().monospace());
-                                    ui.end_row();
-                                }
+                                egui::Grid::new(format!("redis-info-{name}"))
+                                    .num_columns(2)
+                                    .striped(true)
+                                    .show(ui, |ui| {
+                                        for (k, v) in rows {
+                                            ui.label(egui::RichText::new(k).small());
+                                            ui.label(egui::RichText::new(v).small().monospace());
+                                            ui.end_row();
+                                        }
+                                    });
                             });
-                    });
-                }
+                    }
+                });
             });
+    }
+
+    /// Re-read what the open Tools section shows.
+    fn refresh_tools(&mut self) {
+        match self.depth.tool {
+            crate::depth::ToolView::Slowlog => {
+                self.send(Cmd::Slowlog);
+            }
+            crate::depth::ToolView::Clients => {
+                self.send(Cmd::Clients);
+            }
+            _ => {}
+        }
     }
 
     fn dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -1769,6 +1837,107 @@ impl RedisTool {
                 }
                 if close {
                     self.shared.lock().prefix_count = None;
+                    keep = None;
+                }
+            }
+            Popup::Bulk {
+                action,
+                keys,
+                pattern,
+                arg,
+                typed,
+            } => {
+                let n = keys.len();
+                let mut close = false;
+                let mut go = false;
+                // On a protected environment the pattern is typed back, as a
+                // prefix delete is.
+                let need_typed = self.protected;
+                // A connection outside any environment is named by itself.
+                let place = if self.env_name.is_empty() {
+                    self.conn_name.clone()
+                } else {
+                    self.env_name.clone()
+                };
+                let verb = s.t(match action {
+                    BulkAction::Delete => "redis-bulk-delete",
+                    BulkAction::Expire => "redis-bulk-expire",
+                    BulkAction::Persist => "redis-bulk-persist",
+                    BulkAction::RenamePrefix => "redis-bulk-rename",
+                });
+                egui::Modal::new(egui::Id::new("redis-bulk")).show(ui.ctx(), |ui| {
+                    ui.set_width(460.0);
+                    ui.heading(s.t("redis-bulk-title"));
+                    ui.add_space(6.0);
+                    ui.label(s.i18n.t_args(
+                        "redis-bulk-body",
+                        &[
+                            ("verb", &verb),
+                            ("n", &n.to_string()),
+                            ("pattern", pattern.as_str()),
+                            ("env", &place),
+                        ],
+                    ));
+                    if need_typed {
+                        ui.add_space(8.0);
+                        ui.label(s.t("redis-type-pattern"));
+                        ui.text_edit_singleline(typed);
+                    }
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let allowed = n > 0 && (!need_typed || typed.as_str() == pattern.as_str());
+                        if ui.add_enabled(allowed, egui::Button::new(&verb)).clicked() {
+                            go = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+                if go {
+                    if self.read_only() {
+                        cx.toast(ToastLevel::Error, s.t("redis-refused-protected"));
+                    } else {
+                        self.send(Cmd::Bulk {
+                            action: *action,
+                            keys: std::mem::take(keys),
+                            pattern: pattern.clone(),
+                            arg: arg.clone(),
+                        });
+                    }
+                    close = true;
+                }
+                if close {
+                    keep = None;
+                }
+            }
+            Popup::Kill { id } => {
+                let mut close = false;
+                let mut go = false;
+                egui::Modal::new(egui::Id::new("redis-kill")).show(ui.ctx(), |ui| {
+                    ui.set_width(420.0);
+                    ui.heading(s.t("redis-kill-title"));
+                    ui.add_space(6.0);
+                    ui.label(s.i18n.t_args("redis-kill-body", &[("id", id.as_str())]));
+                    ui.add_space(12.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(s.t("redis-client-kill")).clicked() {
+                            go = true;
+                        }
+                        if ui.button(s.t("cancel")).clicked() {
+                            close = true;
+                        }
+                    });
+                });
+                if go {
+                    if self.read_only() {
+                        cx.toast(ToastLevel::Error, s.t("redis-refused-protected"));
+                    } else {
+                        self.send(Cmd::KillClient { id: id.clone() });
+                    }
+                    close = true;
+                }
+                if close {
                     keep = None;
                 }
             }

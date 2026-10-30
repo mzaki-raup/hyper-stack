@@ -11,30 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **A shared language picker.** `hs_ui::language` holds the languages a
-  piece of text can be written in (the project languages plus the
-  shells, the query and config formats) and the dropdown that chooses
-  one, so every activity that stores a language offers the same list.
-  The Snippets dialog is the first to use it; its Language field was a
-  free-text box.
+- (nothing yet)
 
-- **Devtools depth (depth programme, phase G).** Four utilities join the
-  catalogue under two new categories. **Network Check**: a DNS lookup
-  (A, AAAA, CNAME, MX, TXT, NS through the system resolver), a **TCP**
-  connect check with its timing, an **HTTP** check (status, version,
-  timing and the headers worth seeing) and a **TLS certificate** viewer
-  (protocol, cipher, chain length, subject, issuer, serial, validity and
-  the subject alternative names); each one runs only when the button is
-  pressed. **Listening Ports**: what is listening on this machine with
-  the owning process and PID, a filter, and a guarded **Kill Process**.
-  **Snippets**: short pieces of code, SQL or shell kept with the
-  workspace with a language chosen from a shared list and tags,
-  searched across every field, with
-  `{{name}}` placeholders filled in when one is opened and a clashing
-  name taking the usual ` 001` suffix. **.env Editor**: open a `.env` as
-  a table, secret-looking keys masked until revealed, add, edit and
-  delete variables, and write it back with comments and blank lines kept
-  where they were.
+## 0.108.0 — 2026-10-30
+
+### Added
+
+- Devtools depth - network checks, listening ports, snippets and a .env editor (03ec8901)
 
 ## 0.107.0 — 2026-10-30
 

@@ -11,6 +11,7 @@
 
 pub mod client;
 pub mod console;
+pub mod depth;
 pub mod keytree;
 pub mod profile;
 pub mod runner;

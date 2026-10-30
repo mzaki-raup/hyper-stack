@@ -69,6 +69,19 @@ same day as the plan, 2026-10-30, at the owner's request). Every phase ends with
 updated, its lines in `CHANGELOG.md` and its README entry with
 screenshots.
 
+## Credentials for the new activities (owner's rule, 2026-10-30)
+
+Every new activity - Automation (K), Queue (L), ELK (M), Tracker (N) -
+accepts a **token** and an **API key** as credential kinds beside
+username / password: a credential has a `kind` of `password`, `token`
+(bearer / personal access token) or `api-key` (with the header or
+query-parameter name the service wants, e.g. `X-Api-Key`,
+`PRIVATE-TOKEN`, `X-Redmine-API-Key`, `Authorization: ApiKey`), the
+secret itself always a `secret:<ulid>` in the vault, and the form shows
+only the fields that kind needs. The Git credentials store
+(`hs_core::git_hosts::GitCredential`) is the shape to reuse, widened
+with the kind and the header name.
+
 ## What "done" means for each
 
 - Exercised in the running app against a real service where one is on

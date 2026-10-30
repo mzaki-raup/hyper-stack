@@ -240,7 +240,7 @@ store that already exists.
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
 | SQL: SQL Server, inline editing, explain, CSV import, Excel export | Pending | |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
-| Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Pending | |
+| Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | In-Progress | Docker and Kubernetes sources through the Container activity (2026-10-24); journalctl, Event Log, merge, statistics and alerts pending |
 | Editor: tree-sitter, minimap, snippets, formatter, three-way merge | Pending | |
 | Editor: AI assistant (1min.AI / OpenAI-compatible, edit blocks, Cascade; ADR-019) | Completed | 2026-10-11, owner's request ahead of the roadmap: chat with file/selection context, diffs with Apply/Reject (one undo step each), Cascade rounds, Settings → AI Assistant with several providers, Fetch Models and Test Connection; exercised in the app against a mock server speaking both the 1min.AI and the OpenAI SSE formats; API key stored in the vault and the data folder grepped clean. Not yet tried against the live 1min.AI service or a real LM Studio |
@@ -564,7 +564,7 @@ and ADR-025.
 
 | Phase | State | Notes |
 |---|---|---|
-| A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Pending | |
+| A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Completed | `tool-redis::depth`, `runner::{parse_sample, big_keys, bulk, subscribe}`, `client::{slowlog, client_list, client_kill, memory_usages, expire_many, persist_many, rename_many, stream_view, publish, pubsub}`; live test against Redis 8.6.3 in WSL; verified on screen 2026-10-30 |
 | B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Pending | |
 | C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
 | D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Pending | |
@@ -578,6 +578,7 @@ and ADR-025.
 | L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
 | M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
 | N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | Pending | Added 2026-10-30; name suggested as "Tracker" |
+| Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | Pending | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials" |
 
 ## Owner's requests, 2026-10-22 (UI batch)
 

@@ -448,3 +448,11 @@ collection and `seed_cli.py` the two CLI profiles.
 112 frames in activity order (shell, vault, Editor, Terminal, SSH, S3,
 Database, Redis, Logs, NoSQL, API client, Devtools, Browser, Graphics,
 Scratchpad, Settings), 3 s each, 9.6 MB.
+
+Depth programme, phase A (2026-10-30), against Redis 8.6.3 in WSL with
+the `seed.sh` keys (40 `session:*` strings, a 60 KB `cache:big:1`, the
+`demo:events` stream with two groups): `redis-info.png` retaken as the
+Info dashboard (cards, three sparklines after a burst of GETs, the raw
+sections folded), `redis-tools.png` (Tools → Big Keys after a run) and
+`redis-streams.png` (Streams on `demo:events`: 25 entries, the workers
+group with 5 pending, the newest entries).

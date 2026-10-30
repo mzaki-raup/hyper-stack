@@ -104,7 +104,7 @@ the fixtures behind them.
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |
-| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units; the utility toolbar row |
+| [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
 | [Scratchpad and assistant](#scratchpad-and-assistant) | Notes, pinning, dictation |
 | [Browser](#browser) | WebView2 pages, favourites, passwords |
@@ -317,6 +317,8 @@ globals. A non-GET request to a protected environment asks first.
 | **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) and the `{{reference}}` peeked | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
 | ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
+| ![Network Check](docs/screenshots/devtools-net.png) | ![Listening ports](docs/screenshots/devtools-ports.png) |
+| **Network Check** - a DNS lookup (A, AAAA, CNAME, MX, TXT, NS), a TCP connect check with its timing, an HTTP check with status, timing and headers, and a TLS certificate viewer with the chain, validity and alternative names | **Listening Ports** - what is listening here with the owning process and PID, filtered, with a guarded Kill Process; **Snippets** keeps code, SQL and shell with the workspace, and the **.env editor** masks secret-looking keys |
 | ![Regex Tester](docs/screenshots/devtools-regex.png) | ![Text Diff](docs/screenshots/devtools-diff.png) |
 | **Regex Tester** — a pattern with flags, every match with its groups and positions, and the text with matches marked; the same engine as the app's filters | **Text Diff** — two texts side by side, changed lines marked, whitespace-insensitive mode, copy as a unified diff |
 | ![Base64](docs/screenshots/devtools-base64.png) | ![URL](docs/screenshots/devtools-url.png) |

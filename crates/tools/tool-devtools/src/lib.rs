@@ -9,14 +9,18 @@ mod convert;
 mod cron;
 pub mod crypto;
 mod diff_tool;
+pub mod envfile;
 pub mod firebase;
 mod generate;
 pub mod hash;
 pub mod jasypt;
 pub mod jwt;
 mod markup;
+pub mod net;
 pub mod pki;
+pub mod ports;
 mod regex_tool;
+pub mod snippets;
 pub mod url_tool;
 mod util;
 pub mod yaml;
@@ -58,11 +62,16 @@ pub enum Utility {
     Convert,
     Regex,
     Diff,
+    // ---- depth programme, phase G ----
+    Net,
+    Ports,
+    Snippets,
+    EnvFile,
 }
 
 impl Utility {
     /// (utility, category key, title key, icon), in sidebar order.
-    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 15] = [
+    pub const ALL: [(Utility, &'static str, &'static str, &'static str); 19] = [
         (Utility::Base64, "dt-cat-encoding", "dt-base64", ph::BINARY),
         (Utility::Url, "dt-cat-encoding", "dt-url", ph::LINK_SIMPLE),
         (
@@ -103,6 +112,20 @@ impl Utility {
         ),
         (Utility::Regex, "dt-cat-text", "dt-regex", ph::ASTERISK),
         (Utility::Diff, "dt-cat-text", "dt-diff", ph::GIT_DIFF),
+        (Utility::Net, "dt-cat-network", "dt-net", ph::GLOBE_SIMPLE),
+        (Utility::Ports, "dt-cat-network", "dt-ports", ph::PLUGS),
+        (
+            Utility::Snippets,
+            "dt-cat-workspace",
+            "dt-snippets",
+            ph::CODE_SIMPLE,
+        ),
+        (
+            Utility::EnvFile,
+            "dt-cat-workspace",
+            "dt-env",
+            ph::FILE_TEXT,
+        ),
     ];
     pub fn key(self) -> &'static str {
         match self {
@@ -121,6 +144,10 @@ impl Utility {
             Utility::Convert => "convert",
             Utility::Regex => "regex",
             Utility::Diff => "diff",
+            Utility::Net => "net",
+            Utility::Ports => "ports",
+            Utility::Snippets => "snippets",
+            Utility::EnvFile => "env",
         }
     }
     pub fn by_key(key: &str) -> Option<Utility> {
@@ -192,6 +219,12 @@ impl ToolFactory for DevtoolsFactory {
             convert: convert::State::default(),
             regex: part(&restore, "regex"),
             diff: part(&restore, "diff"),
+            net: part(&restore, "net"),
+            // Neither reads back: a port list and an open file belong to
+            // the session that made them, not to a restored tab.
+            ports: ports::State::default(),
+            snippets: snippets::State::default(),
+            envfile: envfile::State::default(),
         })
     }
 }
@@ -216,6 +249,10 @@ pub struct DevtoolsTool {
     firebase: firebase::State,
     jasypt: jasypt::State,
     pki: pki::State,
+    net: net::State,
+    ports: ports::State,
+    snippets: snippets::State,
+    envfile: envfile::State,
 }
 
 impl DevtoolsTool {
@@ -451,6 +488,10 @@ impl Tool for DevtoolsTool {
                             Utility::Convert => convert::ui(&mut self.convert, ui, s, &theme),
                             Utility::Regex => regex_tool::ui(&mut self.regex, ui, s, &theme),
                             Utility::Diff => diff_tool::ui(&mut self.diff, ui, s, &theme),
+                            Utility::Net => net::ui(&mut self.net, ui, s, &theme),
+                            Utility::Ports => ports::ui(&mut self.ports, ui, s, &theme),
+                            Utility::Snippets => snippets::ui(&mut self.snippets, ui, s, &theme),
+                            Utility::EnvFile => envfile::ui(&mut self.envfile, ui, s, &theme),
                             Utility::Jasypt => jasypt::ui(&mut self.jasypt, ui, s, &theme),
                             Utility::Pki => pki::ui(&mut self.pki, ui, s, &theme),
                         }
@@ -566,6 +607,11 @@ impl Tool for DevtoolsTool {
                             self.diff.right = body;
                         }
                     }
+                    // The network checks take a host or a URL rather
+                    // than a block of text; the port list and the .env
+                    // editor read the machine and a file.
+                    Utility::Net => self.net.host = body.trim().to_string(),
+                    Utility::Ports | Utility::Snippets | Utility::EnvFile => {}
                 }
                 true
             }
@@ -606,6 +652,7 @@ impl Tool for DevtoolsTool {
             "pki": self.pki.for_save(),
             "regex": self.regex,
             "diff": self.diff,
+            "net": serde_json::to_value(&self.net).unwrap_or_default(),
         })
     }
 }

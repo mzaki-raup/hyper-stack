@@ -83,6 +83,11 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **rust-embed.** `#[include]` and `#[exclude]` need the `include-exclude` feature. Without it the derive fails silently, and every `Locales::get` call reports "no associated function".
 - **bson extended JSON.** `Bson::try_from(serde_json::Value)` and `into_relaxed_extjson` need bson's `serde_json-1` feature, which the driver doesn't enable. Depend on `bson` directly with that feature.
 - **mysql_async + rustls.** `ClientConfig::builder()` panics when two crypto providers are compiled in (reqwest brings aws-lc-rs, the app uses ring). Install ring as the process default once before connecting (`driver::mysql::install_crypto_provider`).
+- **tokio-rustls, the same panic.** `Network Check`'s TLS pane hit it too:
+  the handshake runs on the tokio runtime, so the panic killed the task
+  silently and the spinner never stopped. `tool-devtools::net::install_crypto_provider`
+  installs ring once, and the handshake itself carries a 10 s timeout so a
+  stuck peer can't hang the pane either (2026-10-31).
 - **reqwest.** The workspace reqwest has no `form` or `multipart` feature. `send::form_body` and `send::multipart` build the bodies by hand.
 - **russh-sftp `write()`** opens with `WRITE` only and fails on a file that doesn't exist. Use `create()` (`CREATE | TRUNCATE | WRITE`).
 - **Boa (JavaScript).** Native closures must be `Copy`. Host state goes through a `thread_local!` record (`script::HOST`), written before `run` and read after. `JsValue::to_json` needs `&mut Context`. Strings come out as `to_std_string_escaped()`.
@@ -154,6 +159,25 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Global shortcuts win over tool keys.** `run_action` forwards unknown action ids (`file.save`, `file.open`) to the active tool's `run_command`. A tool must not handle the same combo itself.
 - **Right-click copy/paste** must work in the terminal and every text field we draw, per the PuTTY convention.
 - **Ctrl+Shift+Enter in wrapped text fields** is unreliable with egui. Test it in the running app.
+- **Text fields inside an `egui::Grid` collapse.** `TextEdit::desired_width`
+  is only a wish: inside a grid cell the leftover width is tiny and every
+  key and value renders as an ellipsis. Measure the row once
+  (`ui.available_width()`) and place each field with `add_sized`, the way
+  `hs_ui::kv_editor` does. The `.env` editor shipped with this bug and was
+  caught on screen, not by a test (2026-10-31).
+- **Fixed slots in a row.** Two ways to reserve width, both with a catch.
+  `allocate_ui_with_layout` allocates only what the child *used*, so call
+  `ui.set_min_width(w)` inside it or the slot collapses to the content
+  (the snippet list's name and language columns). An empty slot made with
+  `add_space(w)` is `item_spacing.x` narrower than a widget of width `w`,
+  so add that gap too, or the column after it shifts on the empty rows
+  (the `.env` editor's Show/Hide). A slot narrower than the widget it
+  holds just grows, which breaks the alignment the slot was for.
+- **Vertical centring in a row.** A cell laid out with `ui.horizontal`
+  hugs its content and sits at the top of a taller row. Give the cell the
+  row's height and centre it:
+  `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
+  plus `ui.set_min_height(ROW_H)`.
 
 ## Tool-Specific: Terminal and Editor
 

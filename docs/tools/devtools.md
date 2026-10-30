@@ -290,6 +290,48 @@ The last two of M5's core utilities, under a **Text** category:
 Both keep their state with the tab. Tests cover groups, flags, errors,
 line marking, the whitespace mode and the unified header.
 
+## Depth, phase G (2026-10-30)
+
+The depth programme's seventh phase (`docs/10-depth-programme.md`)
+delivered the §2 Network rows that do not need a raw socket, and the
+two Workspace helpers that were still pending:
+
+- **Network Check** (`tool-devtools::net`): one pane with four checks.
+  DNS goes through `hickory-resolver`'s system configuration and one
+  generic `lookup` per record type, printing each answer as its record
+  type and data. TCP opens a connection with an 8 s bound and reports
+  the peer and the connect time. HTTP does a GET through
+  `hs_core::ai::http_client` (15 s) and shows status, version, timing,
+  the final URL and the headers worth seeing. TLS connects with
+  `tokio-rustls` and the platform verifier, then reads the leaf
+  certificate with `x509-cert`: protocol, cipher, chain length, subject,
+  issuer, serial, validity and the subject alternative names. Every
+  check is started by its button and runs on the runtime, writing into a
+  slot the UI drains at frame start. ICMP ping, port scanning, whois and
+  the HTTP echo server are still not done.
+- **Listening Ports** (`tool-devtools::ports`): `netstat -ano` plus
+  `tasklist /fo csv` on Windows, `ss -ltnp` elsewhere, both through
+  `hs_core::paths::background_command` and parsed by functions that are
+  tested against captured output. The table shows port, address,
+  protocol, PID and process with a filter; **Kill Process** asks first
+  and names what it would end (docs/06-security.md §3).
+- **Snippets** (`tool-devtools::snippets`): `<workspace>/snippets.toml`
+  holds name, language, tags and body. The language comes from the
+  shared `hs_ui::language` list (the project languages of
+  `hs_core::projects` plus SQL, the shells and the config formats), not
+  from free text, so other activities can offer the same choices. Search looks at all four.
+  `{{name}}` placeholders are listed when a snippet is opened and filled
+  in before Copy. A new snippet whose name is taken gets ` 001`, ` 002`
+  and so on, the same mechanism the rest of the app uses. Inserting into
+  the editor or a terminal is not done yet: Copy is the route out.
+- **.env Editor** (`tool-devtools::envfile`): the file is parsed into
+  pairs and "other" lines, so comments and blank lines come back exactly
+  where they were; `export` and the quote style are kept per line, and a
+  value that grows a space or a `#` gains quotes on the way out. Keys
+  that look like secrets (SECRET, PASSWORD, TOKEN, KEY, …) are masked
+  until revealed. Comparing two files and importing into the vault are
+  not done.
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

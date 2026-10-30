@@ -11,6 +11,7 @@ pub mod form;
 pub mod header;
 pub mod icons;
 pub mod kv_editor;
+pub mod language;
 pub mod mic;
 pub mod palette;
 pub mod reorder;

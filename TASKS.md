@@ -156,7 +156,7 @@ Refs: BUG-0003
 - **Scope:** Driver, connection form, type mapping and catalog introspection per engine, the way SQL Server / ClickHouse / DuckDB were planned.
 - [ ] Add Oracle, DB2 and the other common relational databases.
 - [ ] Add auto refresh schema on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
-- [ ] All newly added databases can generate DDL and erd diagram.
+- [ ] All newly added databases engine can generate DDL and erd diagram too.
 - [ ] Test: a `drivers` case per engine, running when its `HS_*` variable names a server
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — connect, browse the catalog, run and cancel a query

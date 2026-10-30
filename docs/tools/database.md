@@ -578,3 +578,17 @@ The four features:
 Both compares resolve the target connection read-only, and refuse a profile
 that goes through an SSH tunnel rather than connecting straight to that host
 and port.
+
+Not done in this phase, against what `docs/10-depth-programme.md` asks for:
+**exporting** the ER diagram. The document is handed to the Diagram Editor,
+which can export it by its own means, but nothing here drives that, and no
+export path of its own exists. The phase therefore stays In-Progress in
+`CHECKLIST.md`.
+
+Verified against SQLite only. `table_schema` is covered for all three engines
+by code and by unit tests over captured shapes, but the PostgreSQL and MySQL
+queries have not been run against a live server in this phase, and none of
+the four dialogs has been looked at on screen — the harness in
+`hyperstack/src/db_tests.rs` is headless, so it proves behaviour and not
+appearance. The cross-dialect DDL is the case most worth checking by hand,
+since column types pass through as the source server spelled them.

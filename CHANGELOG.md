@@ -44,7 +44,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   target read-only. All four are driven end to end in
   `hyperstack/src/db_tests.rs` against real SQLite databases, so the
   dialogs and the hand-over to the Diagram Editor are covered by tests
-  rather than only by hand.
+  rather than only by hand. Exporting the ER diagram is not implemented,
+  and nothing has run against a live PostgreSQL or MySQL catalog, so the
+  phase stays In-Progress.
 
 - **Fixed:** `hs-core` now owns the Graphics tool's open-request mime
   (`GRAPHICS_MIME`), which was private to `tool-graphics`, so another

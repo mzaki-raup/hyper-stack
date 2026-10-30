@@ -467,3 +467,7 @@ Depth programme, phase D (2026-10-30): `logs-merge.png` (the API and Worker
 saved sources merged, written by `D:\Temp\hs-depth-d\writer.py`, with the
 Statistics panel open) and `logs-eventlog.png` (the Windows Event Log
 Application log followed on this machine).
+
+Depth programme, phase E (2026-10-30): `ssh-monitor.png` (the WSL Ubuntu
+host over key auth with the Monitor strip above the shell: CPU, load,
+memory, disk, uptime and the top processes).

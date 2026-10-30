@@ -249,7 +249,7 @@ store that already exists.
 | Editor: "Open Files In" setting (Separate Tabs default, Project Rows with wrapping rows) | Completed | 2026-10-12, after the owner found files "overwriting" the tab: exercised both modes in the app (new tab per tree click, focus of an open file, projects carried to new tabs, live switch, a 14-file row wrapping) and in the tool-level test |
 | AI: model dropdown from the provider's model list | Completed | 2026-10-12: LM Studio-style `/v1/models` list, 1min.AI built-in list, custom id, refresh, error shown in the list; exercised against the mock server |
 | Git: log graph, blame, merge/rebase/cherry-pick, conflicts | Completed | The Git activity, 2026-10-29/30 (phases 2 and 3 in the Git activity section) |
-| SSH: port-forward UI, broadcast, server monitor | Pending | |
+| SSH: port-forward UI, broadcast, server monitor | Completed | Depth programme phase E, 2026-10-30 |
 | S3: metadata/tags/versions, sync, policy viewer | Pending | |
 | Shell: drag and drop, global search, installed mode | Pending | |
 | Delivery: Linux x64 via `cargo-zigbuild`, beta channel, mirror source | Pending | |
@@ -568,7 +568,7 @@ and ADR-025.
 | B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Completed | `tool-db::{plan, edit, import}`, `export::XlsxSink`; verified on SQLite on screen 2026-10-30, PostgreSQL / MySQL plan parsing by tests on captured JSON (the WSL PostgreSQL refused TCP from Windows this session, so the drivers test could not reach it) |
 | C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
 | D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Completed | `parse::{Journal, EventLog, journal_command, eventlog_command}`, `SourceSpec::Merge` + `engine::merge_loop`, `ui::{compute_stats, AlertScan}`; verified on screen 2026-10-30 |
-| E — SSH depth: port-forward manager, broadcast input, server monitor | Pending | |
+| E — SSH depth: port-forward manager, broadcast input, server monitor | Completed | `SshTool::{tunnels_panel, start_saved_forwards, monitor_strip}`, `tool-ssh::{broadcast, monitor}`, `SshFields::forwards`, `TerminalResponse::input`, `Session::writer`; verified on screen 2026-10-30 against WSL sshd |
 | F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Pending | |
 | G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Pending | |
 | H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | Pending | |

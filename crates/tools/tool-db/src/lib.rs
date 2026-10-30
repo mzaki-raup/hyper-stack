@@ -268,6 +268,9 @@ enum Dialog {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SnapshotUse {
     Erd,
+    /// The same diagram, written straight to an SVG file instead of being
+    /// opened in the Diagram Editor.
+    ErdExport,
     Ddl,
 }
 
@@ -3139,6 +3142,9 @@ impl DbTool {
                             if item(ui, s.t("db-erd-menu")) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::Erd));
                             }
+                            if item(ui, s.t("db-erd-export-menu")) {
+                                snapshot_for = Some((schema.to_string(), SnapshotUse::ErdExport));
+                            }
                             if item(ui, s.t("db-ddl-menu")) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::Ddl));
                             }
@@ -3215,6 +3221,33 @@ impl DbTool {
             },
             s,
         );
+    }
+
+    /// Writes the ER diagram as an SVG the user names. The document is small
+    /// and rendering it touches no server, so this is written here rather
+    /// than as a Job.
+    fn export_erd(&self, snap: &crate::schema::Snapshot, cx: &mut ToolContext) {
+        let name = if snap.schema.is_empty() {
+            "schema".to_string()
+        } else {
+            snap.schema.clone()
+        };
+        let Some(path) = rfd::FileDialog::new()
+            .set_file_name(format!("{name}.svg"))
+            .add_filter("SVG", &["svg"])
+            .save_file()
+        else {
+            return;
+        };
+        let svg = erd::to_svg(snap);
+        let written = cx
+            .services
+            .i18n
+            .t_args("db-erd-exported", &[("path", &path.to_string_lossy())]);
+        match std::fs::write(&path, svg) {
+            Ok(()) => cx.toast(ToastLevel::Success, written),
+            Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+        }
     }
 
     /// Resolves another saved connection for the target side of a compare.
@@ -3338,6 +3371,13 @@ impl DbTool {
                                 ),
                             );
                         }
+                    }
+                }
+                Some(SnapshotUse::ErdExport) => {
+                    if out.snap.tables.is_empty() {
+                        cx.toast(ToastLevel::Info, s.t("db-erd-empty"));
+                    } else {
+                        self.export_erd(&out.snap, cx);
                     }
                 }
                 Some(SnapshotUse::Ddl) => {
@@ -5009,6 +5049,11 @@ impl DbTool {
             ),
             c("db.complete", "Database: Complete", None),
             c("db.erd", "Database: ER Diagram", Some("db.erd")),
+            c(
+                "db.erd_export",
+                "Database: Export ER Diagram",
+                Some("db.erd_export"),
+            ),
             c("db.ddl", "Database: Generate DDL", Some("db.ddl")),
             c(
                 "db.compare_schema",
@@ -5051,6 +5096,10 @@ impl DbTool {
             "db.erd" => {
                 let schema = self.default_schema();
                 self.start_snapshot(&schema, SnapshotUse::Erd, s);
+            }
+            "db.erd_export" => {
+                let schema = self.default_schema();
+                self.start_snapshot(&schema, SnapshotUse::ErdExport, s);
             }
             "db.ddl" => {
                 let schema = self.default_schema();

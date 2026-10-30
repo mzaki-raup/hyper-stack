@@ -49,7 +49,7 @@ Cassandra/ScyllaDB) before starting.
    `HS_INTEGRATION`. Also extend `conn_test`.
 
 ```bash
-HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers
+HS_PG=127.0.0.1:5432:dev:dev:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers
 ```
 
 ## For a NoSQL store

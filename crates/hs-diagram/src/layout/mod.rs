@@ -12,7 +12,21 @@ use crate::text::{Measure, Rect, Size, label_lines};
 /// Node size for automatic layout: wrapped text plus padding, with the shapes
 /// that need extra room (decision, stadium, database) accounted for.
 pub fn node_size(node: &Node, measure: Measure<'_>) -> Size {
-    let (_, text) = label_lines(&node.label, 160.0, measure);
+    // An entity is drawn with its column list (`entity_label`), so it is
+    // measured with it too. Measuring the bare label gave a box one word
+    // wide, and every column line then wrapped inside it - `customer_id`
+    // came out as "customer" over "_id".
+    let drawn = if node.kind == crate::model::NodeKind::Entity {
+        entity_label(node)
+    } else {
+        node.label.clone()
+    };
+    let wrap_at = if node.kind == crate::model::NodeKind::Entity {
+        260.0
+    } else {
+        160.0
+    };
+    let (_, text) = label_lines(&drawn, wrap_at, measure);
     let mut w = (text.w + 28.0).clamp(90.0, 220.0);
     let mut h = (text.h + 20.0).clamp(48.0, 160.0);
     match node.kind {
@@ -25,6 +39,12 @@ pub fn node_size(node: &Node, measure: Measure<'_>) -> Size {
         crate::model::NodeKind::Container => {
             w = w.max(140.0);
             h = h.max(90.0);
+        }
+        crate::model::NodeKind::Entity => {
+            // One line per column, so the height follows the table rather
+            // than a cap: a clipped column list is worse than a tall box.
+            w = (text.w + 28.0).clamp(120.0, 320.0);
+            h = text.h + 24.0;
         }
         _ => {}
     }

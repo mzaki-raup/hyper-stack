@@ -138,6 +138,19 @@ pub fn build(snap: &Snapshot) -> DiagramDoc {
     doc
 }
 
+/// The ERD as a standalone SVG.
+///
+/// Laid out with `hs-diagram`'s deterministic approximate measure rather than
+/// the window's font metrics, so an export needs neither fonts nor a frame
+/// and gives the same file every time. The Diagram Editor exports PNG and PDF
+/// from the same document once it is open there; this is the direct route out
+/// of the Database tab.
+pub fn to_svg(snap: &Snapshot) -> String {
+    let doc = build(snap);
+    let scene = hs_diagram::layout_approx(&doc);
+    hs_diagram::export::svg(&scene, Some("#ffffff"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +289,27 @@ mod tests {
             on_update: None,
         });
         assert_eq!(build(&s).edges.len(), 1);
+    }
+
+    #[test]
+    fn the_svg_export_carries_the_tables_and_their_columns() {
+        let svg = to_svg(&snap());
+        assert!(svg.starts_with("<svg"), "{}", &svg[..60.min(svg.len())]);
+        assert!(svg.contains("</svg>"));
+        // Both entities and a column of each are drawn as text, so the file
+        // is the diagram rather than an empty canvas.
+        for want in ["customers", "orders", "customer_id", "email"] {
+            assert!(svg.contains(want), "the SVG should name {want}");
+        }
+        // Laid out: the nodes were given real positions, not left at 0,0.
+        assert!(svg.contains("<rect"), "entities are drawn as boxes");
+    }
+
+    #[test]
+    fn the_svg_export_is_deterministic() {
+        // The approximate measure means two runs give the same bytes, which
+        // is what makes an exported file diffable.
+        assert_eq!(to_svg(&snap()), to_svg(&snap()));
     }
 
     #[test]

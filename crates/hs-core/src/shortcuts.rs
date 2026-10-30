@@ -236,6 +236,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("db.rollback", "Alt+R"),
     ("db.export", "Ctrl+Alt+E"),
     ("db.erd", "Ctrl+Alt+D"),
+    ("db.erd_export", "Ctrl+Alt+Shift+D"),
     ("db.ddl", "Ctrl+Alt+G"),
     ("db.compare_schema", "Ctrl+Alt+K"),
     ("db.compare_data", "Ctrl+Alt+Shift+K"),

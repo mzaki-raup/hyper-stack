@@ -58,8 +58,13 @@ async fn exercise(cfg: ConnectConfig, table: &str) {
     run(
         &mut s,
         &format!(
+            // The key is declared at table level, not inline on the column:
+            // MySQL parses a column-level REFERENCES and silently ignores
+            // it, so an inline one creates no constraint there and the FK
+            // badge below never appears.
             "create table {table} ({int_pk}, name varchar(40) not null, price decimal(10,2), \
-             note text, raw {blob}, parent_id int references {parent}(id))"
+             note text, raw {blob}, parent_id int, \
+             foreign key (parent_id) references {parent}(id))"
         ),
     )
     .await;
@@ -416,4 +421,193 @@ async fn sqlite_table_schema() {
         .expect("capped snapshot");
     assert_eq!(small.tables.len(), 2);
     assert_eq!(left, 1);
+}
+
+/// What `sqlite_table_schema` checks, against a live PostgreSQL or MySQL
+/// server: the structured introspection behind the ER diagram, the DDL
+/// generator and both compares (depth programme phase H).
+///
+/// `schema` is where the tables are made - `public` on PostgreSQL, the
+/// connection's own database on MySQL, which has no schemas of its own.
+async fn exercise_table_schema(cfg: ConnectConfig, schema: &str) {
+    let mut s = connect(&cfg).await.expect("connects");
+    let engine = cfg.engine;
+    // Drop in dependency order, so a re-run after a failure starts clean.
+    for t in ["hs_h_lines", "hs_h_orders", "hs_h_customers"] {
+        run(&mut s, &format!("DROP TABLE IF EXISTS {t}")).await;
+    }
+    let serial = match engine {
+        Engine::Postgres => "serial PRIMARY KEY",
+        _ => "integer NOT NULL AUTO_INCREMENT PRIMARY KEY",
+    };
+    run(
+        &mut s,
+        &format!("CREATE TABLE hs_h_customers (id {serial}, email varchar(64) NOT NULL)"),
+    )
+    .await;
+    run(
+        &mut s,
+        &format!(
+            "CREATE TABLE hs_h_orders (\
+               id {serial}, \
+               customer_id integer NOT NULL, \
+               note varchar(32) DEFAULT 'none', \
+               CONSTRAINT hs_h_orders_customer FOREIGN KEY (customer_id) \
+                 REFERENCES hs_h_customers (id) ON DELETE CASCADE)"
+        ),
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE TABLE hs_h_lines (order_id integer NOT NULL, line integer NOT NULL, \
+         qty integer, PRIMARY KEY (order_id, line))",
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE UNIQUE INDEX hs_h_customers_email ON hs_h_customers (email)",
+    )
+    .await;
+    run(
+        &mut s,
+        "CREATE INDEX hs_h_orders_customer_ix ON hs_h_orders (customer_id)",
+    )
+    .await;
+
+    let orders = s
+        .table_schema(schema, "hs_h_orders")
+        .await
+        .expect("orders structure");
+    assert_eq!(orders.primary_key, ["id"], "{orders:?}");
+    let id = orders.column("id").expect("id");
+    assert!(
+        id.auto_increment,
+        "a {engine:?} generated key should read as auto-increment: {id:?}"
+    );
+    assert!(!id.nullable);
+    // A serial's nextval() default belongs to its sequence, so it is not
+    // repeated as a column default.
+    assert_eq!(id.default, None, "{id:?}");
+    let note = orders.column("note").expect("note");
+    assert!(note.nullable);
+    // Both servers report the default as a SQL expression, string quotes
+    // included - that is what makes the generated DDL re-runnable.
+    assert!(
+        note.default.as_deref().is_some_and(|d| d.contains("none")),
+        "the string default should survive as a literal: {note:?}"
+    );
+    assert!(
+        orders
+            .column("customer_id")
+            .is_some_and(|c| !c.nullable && !c.data_type.is_empty())
+    );
+
+    assert_eq!(orders.foreign_keys.len(), 1, "{:?}", orders.foreign_keys);
+    let fk = &orders.foreign_keys[0];
+    assert_eq!(fk.columns, ["customer_id"]);
+    assert_eq!(fk.ref_table, "hs_h_customers");
+    assert_eq!(fk.ref_columns, ["id"]);
+    assert_eq!(fk.on_delete.as_deref(), Some("CASCADE"), "{fk:?}");
+    assert_eq!(fk.on_update, None, "an unspecified rule is the default");
+
+    let ix = orders
+        .indexes
+        .iter()
+        .find(|i| i.name == "hs_h_orders_customer_ix")
+        .unwrap_or_else(|| panic!("named index missing: {:?}", orders.indexes));
+    assert_eq!(ix.columns, ["customer_id"]);
+    assert!(!ix.unique);
+    assert!(!ix.primary);
+
+    let customers = s
+        .table_schema(schema, "hs_h_customers")
+        .await
+        .expect("customers structure");
+    let uq = customers
+        .indexes
+        .iter()
+        .find(|i| i.name == "hs_h_customers_email")
+        .unwrap_or_else(|| panic!("unique index missing: {:?}", customers.indexes));
+    assert!(uq.unique);
+    assert_eq!(uq.columns, ["email"]);
+    // The key's own index is reported and flagged, so a compare can skip it.
+    assert!(
+        customers.indexes.iter().any(|i| i.primary),
+        "the primary key's index should be listed: {:?}",
+        customers.indexes
+    );
+
+    // A composite key keeps the order it was declared in - the case that
+    // needs WITH ORDINALITY on PostgreSQL and SEQ_IN_INDEX on MySQL.
+    let lines = s
+        .table_schema(schema, "hs_h_lines")
+        .await
+        .expect("lines structure");
+    assert_eq!(lines.primary_key, ["order_id", "line"], "{lines:?}");
+
+    // The whole schema, then the three things built on it.
+    let (snap, _) = tool_db::schema::read(s.as_mut(), schema, 500)
+        .await
+        .expect("snapshot");
+    for t in ["hs_h_customers", "hs_h_lines", "hs_h_orders"] {
+        assert!(snap.table(t).is_some(), "{t} missing from the snapshot");
+    }
+    let ours: Vec<&str> = snap
+        .tables
+        .iter()
+        .map(|t| t.name.as_str())
+        .filter(|n| n.starts_with("hs_h_"))
+        .collect();
+    assert_eq!(
+        ours,
+        ["hs_h_customers", "hs_h_lines", "hs_h_orders"],
+        "sorted by name"
+    );
+
+    // The ERD finds the one relationship between our tables.
+    let doc = tool_db::erd::build(&snap);
+    assert!(
+        doc.edges.iter().any(|e| e.from.contains("orders")),
+        "the foreign key should be an edge: {:?}",
+        doc.edges
+    );
+    let svg = tool_db::erd::to_svg(&snap);
+    assert!(svg.starts_with("<svg") && svg.contains("hs_h_orders"));
+
+    // Generated DDL round-trips in the server's own dialect.
+    let sql = tool_db::ddlgen::script(&snap, engine, &Default::default());
+    assert!(sql.contains("hs_h_orders"), "{sql}");
+    assert!(
+        sql.contains("PRIMARY KEY (order_id, line)") || sql.contains("PRIMARY KEY (`order_id`"),
+        "the composite key should be written out: {sql}"
+    );
+    // Postgres and MySQL both add their keys afterwards.
+    assert!(sql.contains("ADD CONSTRAINT"), "{sql}");
+
+    // A schema compared with itself reports nothing.
+    assert!(tool_db::compare::schemas(&snap, &snap).is_empty());
+
+    for t in ["hs_h_lines", "hs_h_orders", "hs_h_customers"] {
+        run(&mut s, &format!("DROP TABLE IF EXISTS {t}")).await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn postgres_table_schema() {
+    let Some(cfg) = server("HS_PG", Engine::Postgres) else {
+        eprintln!("HS_PG not set; skipping");
+        return;
+    };
+    exercise_table_schema(cfg, "public").await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn mysql_table_schema() {
+    let Some(cfg) = server("HS_MYSQL", Engine::Mysql) else {
+        eprintln!("HS_MYSQL not set; skipping");
+        return;
+    };
+    // MySQL has no schemas: the connection's database is the schema.
+    let schema = cfg.database.clone();
+    exercise_table_schema(cfg, &schema).await;
 }

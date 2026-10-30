@@ -44,9 +44,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   target read-only. All four are driven end to end in
   `hyperstack/src/db_tests.rs` against real SQLite databases, so the
   dialogs and the hand-over to the Diagram Editor are covered by tests
-  rather than only by hand. Exporting the ER diagram is not implemented,
-  and nothing has run against a live PostgreSQL or MySQL catalog, so the
-  phase stays In-Progress.
+  rather than only by hand. **Export ER Diagram** (Ctrl+Alt+Shift+D)
+  writes the diagram as a standalone SVG, laid out deterministically so
+  the file is the same every run. Verified against live PostgreSQL 16 and
+  MySQL 8 catalogs; the phase stays In-Progress only because none of it
+  has been looked at on screen.
+
+- **Fixed:** ER diagram boxes were sized for one word. `hs-diagram`
+  measured an entity by its label but drew it with its column list, so
+  every identifier wrapped inside the box — `customer_id` came out as
+  "customer" over "_id". Affected every ERD, the DDL importer's included.
+
+- **Fixed:** the MySQL driver's foreign-key column badge never appeared in
+  its own test, because the test declared the key with a column-level
+  `REFERENCES`, which MySQL parses and silently ignores. The key is now
+  declared at table level, so the test creates what it asserts.
 
 - **Fixed:** `hs-core` now owns the Graphics tool's open-request mime
   (`GRAPHICS_MIME`), which was private to `tool-graphics`, so another

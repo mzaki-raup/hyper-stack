@@ -1646,7 +1646,9 @@ db-rolled-back = Transaction rolled back.
 ## Database: ER diagram, DDL, schema and data compare (depth programme phase H)
 
 db-erd-menu = ER Diagram
+db-erd-export-menu = Export ER Diagram…
 db-erd-empty = That schema has no tables to draw.
+db-erd-exported = ER diagram written to { $path }.
 db-snapshot-capped = { $count } more tables were not read; the result covers the first ones only.
 
 db-ddl-menu = Generate DDL

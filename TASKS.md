@@ -154,6 +154,9 @@ Refs: BUG-0003
 ### FEAT-0068 · Oracle, DB2 and the other common relational engines
 - **State:** Pending · **Source:** `mynotes` L1-7 (1 request)
 - **Scope:** Driver, connection form, type mapping and catalog introspection per engine, the way SQL Server / ClickHouse / DuckDB were planned.
+- [ ] Add Oracle, DB2 and the other common relational databases.
+- [ ] Add refresh button or auto refresh on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
+- [ ] All newly added databases can generate DDL and erd diagram.
 - [ ] Test: a `drivers` case per engine, running when its `HS_*` variable names a server
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — connect, browse the catalog, run and cancel a query
@@ -204,7 +207,7 @@ Refs: BUG-0003
 - [x] `DbSession::table_schema` returns columns, primary key, indexes and foreign keys
 - [x] build the ERD from the foreign keys into `hs-diagram`
 - [x] open it in the Diagram Editor
-- [ ] export it from the Diagram Editor — never implemented, see **Notes**
+- [x] export it — `erd::to_svg`, palette `db.erd_export`, Ctrl+Alt+Shift+D
 - [x] Test: `drivers.rs::sqlite_table_schema` reads a real SQLite catalog
   (autoincrement, composite key, unique index, cascade rule, the cap);
   `erd.rs` unit tests cover the cardinality and the edges left out;
@@ -215,13 +218,17 @@ Refs: BUG-0003
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS (README needed no change:
   it lists the activity, not its individual tools)
 - **Notes:** `crates/tools/tool-db/src/{schema,erd}.rs`. Code landed in
-  `6707780`, tests in `e02986e`. **Opening** in the Diagram Editor is done and
-  covered by a test; **export** was not touched. No Postgres server was running
-  this session, so the app check is against SQLite only and headless
-  (`egui_kittest`), never on screen — appearance unverified. Closed as
-  `Completed` on the owner's instruction (2026-10-31) with the export step and
-  the App box still open; export needs an item of its own if it is still
-  wanted, or the spec needs to stop promising it.
+  `6707780`, tests in `e02986e`. **Export landed afterwards** (2026-10-31):
+  `erd::to_svg` writes a standalone SVG, laid out with `layout_approx` so it
+  needs no fonts and is byte-identical each run. It goes out of the Database
+  tab rather than the Diagram Editor, which exports PNG and PDF itself once
+  the document is open there. Writing it exposed a defect in `hs-diagram`
+  affecting every ERD — entities were measured by their label but drawn with
+  their column list, so identifiers wrapped mid-word; `layout::node_size` now
+  measures what it draws. **Live servers now verified** by
+  `drivers.rs::{postgres_table_schema, mysql_table_schema}` against
+  PostgreSQL 16 and MySQL 8. The App box stays open because it asks for the
+  running app: everything here is tests, and nothing has been seen on screen.
 
 ### FEAT-0064 · DDL generator per engine dialect
 - **State:** Completed · **Spec:** docs/tools/database.md · **Phase:** H
@@ -236,12 +243,13 @@ Refs: BUG-0003
 - [ ] App: `--data-dir ./tmp-data` — generate DDL for a table on each engine
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** `crates/tools/tool-db/src/ddlgen.rs`. Code landed in `6707780`,
-  tests in `e02986e`. The App box stays open: the dialog was exercised
-  headlessly against SQLite only, so neither MySQL nor Postgres output has
-  been generated from a live catalog, and nothing was seen on screen. Column
-  types pass through as the source spelled them, so cross-dialect output is
-  the case most worth checking by hand. Closed as `Completed` on the owner's
-  instruction (2026-10-31) with that box still open.
+  tests in `e02986e`. **Live catalogs now verified** (2026-10-31):
+  `drivers.rs::{postgres_table_schema, mysql_table_schema}` generate the DDL
+  from real PostgreSQL 16 and MySQL 8 catalogs and check the composite key
+  and the `ADD CONSTRAINT` form. The App box stays open because it asks for
+  the running app, and nothing has been seen on screen. Column types pass
+  through as the source spelled them, so cross-dialect output — a PostgreSQL
+  schema written out as MySQL — is still the case worth checking by hand.
 
 ### FEAT-0063 · Schema and data compare between two connections
 - **State:** Completed · **Spec:** docs/tools/database.md · **Phase:** H
@@ -259,11 +267,15 @@ Refs: BUG-0003
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** `crates/tools/tool-db/src/compare.rs`. Code landed in `6707780`,
   tests in `e02986e`. Both compares ran end to end between two SQLite files,
-  headlessly; the App box stays open for the Postgres pair. A target reached
-  through an SSH tunnel is refused rather than connected to directly, which
-  is worth a look on screen since it is the one path that shows an error
-  instead of a result. Closed as `Completed` on the owner's instruction
-  (2026-10-31) with that box still open.
+  headlessly, and a live PostgreSQL and MySQL schema each compare clean
+  against themselves in `drivers.rs` (2026-10-31) — but a compare between two
+  *different* live schemas has still only been done on SQLite. The App box
+  stays open: it asks for the running app, and nothing has been seen on
+  screen. A target reached through an SSH tunnel is refused rather than
+  connected to directly, which is worth a look on screen since it is the one
+  path that shows an error instead of a result.
+
+---
   
 ## v0.7.1 — Done 2026-10-30
 > **Shipped in:** app v0.107.0, 2026-10-30

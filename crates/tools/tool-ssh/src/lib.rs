@@ -4,6 +4,8 @@
 //! title) drives the browser, and navigating the browser sends `cd` to the
 //! shell. Hosts come from `kind = "ssh"` connection profiles.
 
+mod broadcast;
+mod monitor;
 mod perms;
 
 use std::borrow::Cow;
@@ -127,6 +129,9 @@ struct Shared {
     open_in_editor: Vec<PathBuf>,
     /// What the OS probe found, for the UI thread to store on the profile.
     detected_os: Option<hs_ssh::os::Detected>,
+    /// The monitor script's last answer, and whether one is in flight.
+    monitor_raw: Option<Result<String, String>>,
+    monitor_busy: bool,
 }
 
 pub struct SshTool {
@@ -179,6 +184,20 @@ pub struct SshTool {
     /// soon as it is unlocked (a tab restored at start-up hits this).
     waiting_for_vault: bool,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// This tab in the broadcast registry (docs/tools/ssh-sftp.md §6).
+    serial: u64,
+    /// Typed input also goes to every other shell of this host.
+    broadcast: bool,
+    /// The Tunnels pane and the monitor strip above the shell (§8, §9).
+    tunnels_open: bool,
+    monitor_open: bool,
+    monitor_prev: Option<monitor::Sample>,
+    monitor_cur: Option<monitor::Sample>,
+    monitor_cpu: Option<f32>,
+    monitor_at: Option<std::time::Instant>,
+    monitor_error: Option<String>,
+    /// Saved forwards are started on the Idle → Connected edge only.
+    was_connected: bool,
 }
 
 /// `ssh -L` as a form: local port (empty = any free one) → remote host:port
@@ -190,6 +209,8 @@ struct TunnelForm {
     remote_port: String,
     local_port: String,
     error: Option<String>,
+    /// Keep it on the host's profile and start it on connect.
+    keep: bool,
 }
 
 impl SshTool {
@@ -311,6 +332,16 @@ impl SshTool {
             tunnel_form: None,
             waiting_for_vault: false,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            serial: broadcast::next_serial(),
+            broadcast: false,
+            tunnels_open: false,
+            monitor_open: false,
+            monitor_prev: None,
+            monitor_cur: None,
+            monitor_cpu: None,
+            monitor_at: None,
+            monitor_error: None,
+            was_connected: false,
         };
         // What the profile already learned, so a restored tab wears the
         // host's logo before any probe runs.
@@ -471,6 +502,7 @@ impl SshTool {
     }
 
     fn disconnect(&mut self) {
+        broadcast::unregister(self.serial);
         if let Some(s) = &self.session {
             s.kill();
         }
@@ -1672,6 +1704,8 @@ impl SshTool {
                             .desired_width(f32::INFINITY),
                     );
                     form::hint(ui, theme, &s.t("ssh-tunnel-local-blank-hint"));
+                    ui.checkbox(&mut form_state.keep, s.t("ssh-tunnel-keep"))
+                        .tip(s.t("ssh-tunnel-keep-tip"));
                     if let Some(e) = &form_state.error {
                         ui.add_space(4.0);
                         ui.colored_label(theme.error, e);
@@ -1702,6 +1736,19 @@ impl SshTool {
             if start {
                 match parse_tunnel_form(form_state) {
                     Ok(spec) => {
+                        if form_state.keep {
+                            let kept = hs_ssh::profile::SavedForward {
+                                remote_host: spec.remote_host.clone(),
+                                remote_port: spec.remote_port,
+                                local_port: spec.local_port,
+                                auto: true,
+                            };
+                            Self::edit_saved_forwards(s, &spec.ssh_id, |v| {
+                                if !v.contains(&kept) {
+                                    v.push(kept);
+                                }
+                            });
+                        }
                         s.tunnels.open(spec);
                         if keep_open {
                             // The host stays; the ports are what differ.
@@ -1832,6 +1879,32 @@ async fn probe_os(client: &SshClient) -> Option<hs_ssh::os::Detected> {
     (found.os != hs_ssh::os::HostOs::Unknown).then_some(found)
 }
 
+/// Run one command over the exec channel and return its stdout, bounded
+/// in time and size (the monitor's reading).
+async fn exec_text(client: &SshClient, command: &str, secs: u64) -> Result<String, String> {
+    use hs_ssh::exec::ExecChunk;
+    let mut stream =
+        tokio::time::timeout(std::time::Duration::from_secs(secs), client.exec(command))
+            .await
+            .map_err(|_| "timed out".to_string())?
+            .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    let read = async {
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                ExecChunk::Stdout(b) => out.extend_from_slice(&b),
+                ExecChunk::Exit(_) => break,
+                ExecChunk::Stderr(_) => {}
+            }
+            if out.len() > 64 * 1024 {
+                break;
+            }
+        }
+    };
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(secs), read).await;
+    Ok(String::from_utf8_lossy(&out).into_owned())
+}
+
 fn parse_tunnel_form(f: &TunnelForm) -> Result<ForwardSpec, &'static str> {
     if f.ssh_id.is_empty() {
         return Err("ssh-tunnel-need-host");
@@ -1871,6 +1944,271 @@ fn tunnel_error_text(s: &Services, e: &TunnelError) -> String {
         TunnelError::NoPassword => s.t("ssh-no-password"),
         TunnelError::UnknownHostKey => s.t("ssh-tunnel-untrusted"),
         TunnelError::Other(e) => e.clone(),
+    }
+}
+
+impl SshTool {
+    // ---- depth programme, phase E: tunnels pane, broadcast, monitor ----
+
+    /// Forwards kept on this host's profile with `auto`, started once a
+    /// tab connects (docs/tools/ssh-sftp.md §8). One already listening
+    /// for the same target is left alone.
+    fn start_saved_forwards(&self, s: &Services) {
+        let Some((_, _, f)) = self.fields(s) else {
+            return;
+        };
+        let Some(id) = self.state.conn_id.clone() else {
+            return;
+        };
+        let live = s.tunnels.list();
+        for fw in f.forwards.iter().filter(|f| f.auto) {
+            let dup = live.iter().any(|t| {
+                t.spec.ssh_id == id
+                    && t.spec.remote_host == fw.remote_host
+                    && t.spec.remote_port == fw.remote_port
+                    && !matches!(t.state, TunnelState::Failed(_))
+            });
+            if !dup {
+                s.tunnels.open(ForwardSpec {
+                    ssh_id: id.clone(),
+                    remote_host: fw.remote_host.clone(),
+                    remote_port: fw.remote_port,
+                    local_port: fw.local_port,
+                });
+            }
+        }
+    }
+
+    /// Add a forward to a host's profile (from the New Tunnel form's
+    /// "keep" tick) or take one off it.
+    fn edit_saved_forwards(
+        s: &Services,
+        ssh_id: &str,
+        change: impl FnOnce(&mut Vec<hs_ssh::profile::SavedForward>),
+    ) {
+        let mut conns = s.connections.write();
+        let Some(mut p) = conns.by_id(ssh_id).cloned() else {
+            return;
+        };
+        let mut f = SshFields::from_table(&p.fields);
+        change(&mut f.forwards);
+        f.write_into(&mut p.fields);
+        let _ = conns.upsert(p);
+    }
+
+    /// The Tunnels pane above the shell: the live list and form the
+    /// sidebar has, plus the forwards kept on this host's profile.
+    fn tunnels_panel(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        let fields = self.fields(s);
+        let conn_id = self.state.conn_id.clone();
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::same(8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                egui::ScrollArea::vertical()
+                    .id_salt(("ssh-tunnels-pane", self.serial))
+                    .max_height(260.0)
+                    .show(ui, |ui| {
+                        self.tunnels_section(ui, cx, theme);
+                        ui.add_space(6.0);
+                        ui.label(
+                            egui::RichText::new(s.t("ssh-saved-forwards"))
+                                .strong()
+                                .size(13.0),
+                        );
+                        form::hint(ui, theme, &s.t("ssh-saved-forwards-hint"));
+                        let (Some((_, _, f)), Some(id)) = (fields, conn_id) else {
+                            return;
+                        };
+                        if f.forwards.is_empty() {
+                            ui.label(egui::RichText::new(s.t("ssh-saved-forwards-none")).weak());
+                        }
+                        let mut remove: Option<usize> = None;
+                        let mut toggle_auto: Option<usize> = None;
+                        for (i, fw) in f.forwards.iter().enumerate() {
+                            ui.horizontal(|ui| {
+                                let local = if fw.local_port == 0 {
+                                    "any".to_string()
+                                } else {
+                                    fw.local_port.to_string()
+                                };
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        ":{local} {} {}:{}",
+                                        ph::ARROW_RIGHT,
+                                        fw.remote_host,
+                                        fw.remote_port
+                                    ))
+                                    .strong(),
+                                );
+                                let mut auto = fw.auto;
+                                if ui
+                                    .checkbox(&mut auto, s.t("ssh-saved-forward-auto"))
+                                    .tip(s.t("ssh-saved-forward-auto-tip"))
+                                    .changed()
+                                {
+                                    toggle_auto = Some(i);
+                                }
+                                if ui.small_button(s.t("ssh-saved-forward-start")).clicked() {
+                                    s.tunnels.open(ForwardSpec {
+                                        ssh_id: id.clone(),
+                                        remote_host: fw.remote_host.clone(),
+                                        remote_port: fw.remote_port,
+                                        local_port: fw.local_port,
+                                    });
+                                }
+                                if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                                    .tip(s.t("ssh-saved-forward-remove"))
+                                    .clicked()
+                                {
+                                    remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = toggle_auto {
+                            Self::edit_saved_forwards(s, &id, |v| {
+                                if let Some(fw) = v.get_mut(i) {
+                                    fw.auto = !fw.auto;
+                                }
+                            });
+                        }
+                        if let Some(i) = remove {
+                            Self::edit_saved_forwards(s, &id, |v| {
+                                if i < v.len() {
+                                    v.remove(i);
+                                }
+                            });
+                        }
+                    });
+            });
+        ui.add_space(4.0);
+    }
+
+    /// The server monitor strip (docs/tools/ssh-sftp.md §9): figures
+    /// from one script over the exec channel every five seconds.
+    fn monitor_strip(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+        // Pull a finished reading.
+        let raw = self.shared.lock().monitor_raw.take();
+        if let Some(r) = raw {
+            match r.as_deref().map(monitor::parse) {
+                Ok(Some(sample)) => {
+                    self.monitor_cpu = self
+                        .monitor_cur
+                        .as_ref()
+                        .and_then(|prev| monitor::cpu_percent(prev, &sample));
+                    self.monitor_prev = self.monitor_cur.take();
+                    self.monitor_cur = Some(sample);
+                    self.monitor_error = None;
+                }
+                Ok(None) => self.monitor_error = Some(s.t("ssh-monitor-unsupported")),
+                Err(e) => self.monitor_error = Some(e.to_string()),
+            }
+        }
+        // Ask again when due.
+        let due = self
+            .monitor_at
+            .is_none_or(|t| t.elapsed() >= monitor::EVERY);
+        if due && self.status == Status::Connected {
+            let busy = self.shared.lock().monitor_busy;
+            let client = self.shared.lock().client.clone();
+            if !busy && let Some(client) = client {
+                self.monitor_at = Some(std::time::Instant::now());
+                self.shared.lock().monitor_busy = true;
+                let shared = self.shared.clone();
+                let waker = s.runtime.waker();
+                s.runtime.spawn(async move {
+                    let r = exec_text(&client, monitor::SCRIPT, 8).await;
+                    let mut sh = shared.lock();
+                    sh.monitor_raw = Some(r);
+                    sh.monitor_busy = false;
+                    drop(sh);
+                    waker.request_repaint();
+                });
+            }
+        }
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs(1));
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::same(8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                let Some(m) = &self.monitor_cur else {
+                    match &self.monitor_error {
+                        Some(e) => {
+                            ui.colored_label(theme.warning, e);
+                        }
+                        None => {
+                            ui.horizontal(|ui| {
+                                ui.spinner();
+                                ui.label(s.t("ssh-monitor-waiting"));
+                            });
+                        }
+                    }
+                    return;
+                };
+                let muted = |t: String| egui::RichText::new(t).small().color(theme.text_muted);
+                let strong = |t: String| egui::RichText::new(t).strong().monospace();
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(muted(s.t("ssh-monitor-cpu")));
+                    ui.label(strong(match self.monitor_cpu {
+                        Some(c) => format!("{c:.0}%"),
+                        None => "…".into(),
+                    }));
+                    ui.separator();
+                    ui.label(muted(s.t("ssh-monitor-load")));
+                    ui.label(strong(format!(
+                        "{:.2} {:.2} {:.2}",
+                        m.load[0], m.load[1], m.load[2]
+                    )));
+                    ui.separator();
+                    ui.label(muted(s.t("ssh-monitor-mem")));
+                    let used = m.mem_total_kb.saturating_sub(m.mem_avail_kb);
+                    ui.label(strong(format!(
+                        "{} / {}",
+                        monitor::human_kb(used),
+                        monitor::human_kb(m.mem_total_kb)
+                    )));
+                    ui.separator();
+                    ui.label(muted(s.t("ssh-monitor-disk")));
+                    let pct = if m.disk_total_kb > 0 {
+                        100.0 * m.disk_used_kb as f64 / m.disk_total_kb as f64
+                    } else {
+                        0.0
+                    };
+                    ui.label(strong(format!(
+                        "{pct:.0}% of {}",
+                        monitor::human_kb(m.disk_total_kb)
+                    )));
+                    ui.separator();
+                    ui.label(muted(s.t("ssh-monitor-up")));
+                    ui.label(strong(monitor::human_uptime(m.uptime_secs)));
+                });
+                if !m.procs.is_empty() {
+                    // One chip per process in a wrapping row, so a narrow
+                    // pane shows every process on a second line rather
+                    // than cutting the list off (owner's report,
+                    // 2026-10-30).
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(muted(s.t("ssh-monitor-top")));
+                        for (i, (c, mem, name)) in m.procs.iter().enumerate() {
+                            if i > 0 {
+                                ui.label(muted("·".into()));
+                            }
+                            ui.label(
+                                egui::RichText::new(format!("{name} {c:.1}% / {mem:.1}%"))
+                                    .small()
+                                    .monospace(),
+                            );
+                        }
+                    });
+                }
+            });
+        ui.add_space(4.0);
     }
 }
 
@@ -1956,6 +2294,36 @@ impl Tool for SshTool {
             format!("{} {}", ph::FOLDER_OPEN, s.t("ssh-sync-cwd")),
         )
         .tip(s.t("ssh-sync-cwd-hint"));
+        ui.toggle_value(
+            &mut self.tunnels_open,
+            format!("{} {}", ph::ARROWS_LEFT_RIGHT, s.t("ssh-tunnels")),
+        )
+        .tip(s.t("ssh-tunnels-pane-tip"));
+        ui.toggle_value(
+            &mut self.monitor_open,
+            format!("{} {}", ph::GAUGE, s.t("ssh-monitor")),
+        )
+        .tip(s.t("ssh-monitor-tip"));
+        // Broadcast reads red while it is on: every keystroke here lands
+        // on every other shell of this host, which is worth seeing.
+        let peers = self
+            .state
+            .conn_id
+            .as_deref()
+            .map_or(0, |id| broadcast::peers(self.serial, id));
+        let label = if self.broadcast {
+            egui::RichText::new(format!(
+                "{} {} ({peers})",
+                ph::BROADCAST,
+                s.t("ssh-broadcast")
+            ))
+            .color(theme.error)
+            .strong()
+        } else {
+            egui::RichText::new(format!("{} {}", ph::BROADCAST, s.t("ssh-broadcast")))
+        };
+        ui.toggle_value(&mut self.broadcast, label)
+            .tip(s.t("ssh-broadcast-tip"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away
@@ -2170,7 +2538,12 @@ impl Tool for SshTool {
                     scrollback,
                     wake,
                 ) {
-                    Ok(sess) => self.session = Some(sess),
+                    Ok(sess) => {
+                        if let Some(id) = &self.state.conn_id {
+                            broadcast::register(self.serial, id, sess.writer());
+                        }
+                        self.session = Some(sess);
+                    }
                     Err(e) => self.status = Status::Failed(e),
                 }
             }
@@ -2179,6 +2552,15 @@ impl Tool for SshTool {
             {
                 self.state.remote_path = Some(sh.remote.path.clone());
             }
+        }
+        // Saved forwards start once per connection (§8).
+        if self.status == Status::Connected {
+            if !self.was_connected {
+                self.was_connected = true;
+                self.start_saved_forwards(s);
+            }
+        } else {
+            self.was_connected = false;
         }
         // Startup command once the shell is up.
         if !self.startup_sent
@@ -2264,6 +2646,15 @@ impl Tool for SshTool {
         term_ui.set_clip_rect(term_rect.intersect(ui.clip_rect()));
         {
             let ui = &mut term_ui;
+            if self.tunnels_open {
+                self.tunnels_panel(ui, cx, &theme);
+            }
+            if self.monitor_open {
+                self.monitor_strip(ui, s, &theme);
+            }
+            let broadcast = self.broadcast;
+            let serial = self.serial;
+            let conn_id = self.state.conn_id.clone().unwrap_or_default();
             match (&mut self.session, &self.status) {
                 (Some(sess), _) => {
                     // A `cd` the user is about to send: read the prompt
@@ -2282,6 +2673,9 @@ impl Tool for SshTool {
                     }
                     let r = self.view.show(ui, sess, &term_theme);
                     self.term_focused = r.focused;
+                    if broadcast && !r.input.is_empty() {
+                        broadcast::send(serial, &conn_id, &r.input);
+                    }
                 }
                 (None, Status::Connecting) => {
                     ui.add_space(24.0);
@@ -2405,6 +2799,9 @@ impl Tool for SshTool {
             shortcut_action: None,
         };
         vec![
+            c("ssh.broadcast", "SSH: Toggle Broadcast Input"),
+            c("ssh.monitor", "SSH: Toggle Server Monitor"),
+            c("ssh.tunnels", "SSH: Toggle Tunnels Pane"),
             c("ssh.ai", "AI: Toggle Assistant"),
             c("ssh.connect", "SSH: Connect"),
             c("ssh.disconnect", "SSH: Disconnect"),
@@ -2418,6 +2815,9 @@ impl Tool for SshTool {
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "ssh.broadcast" => self.broadcast = !self.broadcast,
+            "ssh.monitor" => self.monitor_open = !self.monitor_open,
+            "ssh.tunnels" => self.tunnels_open = !self.tunnels_open,
             "ssh.ai" => self.assistant.toggle("SSH"),
             "ssh.connect" => self.connect(cx.services),
             "ssh.disconnect" => self.disconnect(),
@@ -2869,6 +3269,12 @@ fn split_os_label(label: &str) -> (String, String) {
 }
 
 /// `~/x` → the user's home on this machine (for key paths).
+impl Drop for SshTool {
+    fn drop(&mut self) {
+        broadcast::unregister(self.serial);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

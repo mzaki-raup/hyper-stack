@@ -97,7 +97,7 @@ the fixtures behind them.
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
 | [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts, assistant |
 | [Terminal](#terminal) | Shells, search, links |
-| [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels, remote editing |
+| [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels kept per host, broadcast input, server monitor, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, presigned URLs, guards; **WebDAV** and **Nexus** too |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
@@ -226,8 +226,10 @@ the lists.
 | **Host key check** — new keys are shown by fingerprint before trusting | **Dual pane** — remote files (SFTP) on the left, the shell on the right |
 | ![File pane follows the shell](docs/screenshots/ssh-follow-shell-folder.png) | ![Remote file in the editor](docs/screenshots/ssh-remote-edit.png) |
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
-| ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | |
-| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar | **Clipboard** — Copy puts a remote entry (a folder with everything in it) on the system clipboard; paste uploads what the clipboard holds (Windows) |
+| ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | ![Monitor strip and broadcast](docs/screenshots/ssh-monitor.png) |
+| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar; a Tunnels pane above the shell with forwards **kept on the host** that start on connect | **Monitor and Broadcast** — CPU, load, memory, disk, uptime and top processes read every five seconds over the exec channel; Broadcast sends what is typed to every other open shell of the host |
+| | |
+| **Clipboard** — Copy puts a remote entry (a folder with everything in it) on the system clipboard; paste uploads what the clipboard holds (Windows) | |
 
 ### S3 and S3-compatible storage
 

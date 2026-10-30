@@ -241,7 +241,7 @@ store that already exists.
 | SQL: SQL Server, inline editing, explain, CSV import, Excel export | In-Progress | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); SQL Server is phase C |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
-| Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | In-Progress | Docker and Kubernetes sources through the Container activity (2026-10-24); journalctl, Event Log, merge, statistics and alerts pending |
+| Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | Completed | Docker and Kubernetes sources through the Container activity (2026-10-24); journald, Event Log, merge, statistics and alerts as depth programme phase D (2026-10-30) |
 | Editor: tree-sitter, minimap, snippets, formatter, three-way merge | Pending | |
 | Editor: AI assistant (1min.AI / OpenAI-compatible, edit blocks, Cascade; ADR-019) | Completed | 2026-10-11, owner's request ahead of the roadmap: chat with file/selection context, diffs with Apply/Reject (one undo step each), Cascade rounds, Settings → AI Assistant with several providers, Fetch Models and Test Connection; exercised in the app against a mock server speaking both the 1min.AI and the OpenAI SSE formats; API key stored in the vault and the data folder grepped clean. Not yet tried against the live 1min.AI service or a real LM Studio |
 | Editor: several project roots, each with its own editor tabs | Completed | 2026-10-12: one editor tab, a row of file tabs per project, Other Files row, close guards, Ctrl+F4 / Ctrl+Alt+PgUp/PgDn, routing from other tools via `uri_affinity`, one-file layouts migrated; tool-level test with real services, and exercised in the app (command-line folder, tree, terminal Ctrl+click, unsaved-close dialog, restart restore) |
@@ -567,7 +567,7 @@ and ADR-025.
 | A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Completed | `tool-redis::depth`, `runner::{parse_sample, big_keys, bulk, subscribe}`, `client::{slowlog, client_list, client_kill, memory_usages, expire_many, persist_many, rename_many, stream_view, publish, pubsub}`; live test against Redis 8.6.3 in WSL; verified on screen 2026-10-30 |
 | B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Completed | `tool-db::{plan, edit, import}`, `export::XlsxSink`; verified on SQLite on screen 2026-10-30, PostgreSQL / MySQL plan parsing by tests on captured JSON (the WSL PostgreSQL refused TCP from Windows this session, so the drivers test could not reach it) |
 | C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
-| D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Pending | |
+| D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Completed | `parse::{Journal, EventLog, journal_command, eventlog_command}`, `SourceSpec::Merge` + `engine::merge_loop`, `ui::{compute_stats, AlertScan}`; verified on screen 2026-10-30 |
 | E — SSH depth: port-forward manager, broadcast input, server monitor | Pending | |
 | F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Pending | |
 | G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Pending | |
@@ -578,6 +578,7 @@ and ADR-025.
 | L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
 | M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
 | N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | Pending | Added 2026-10-30; name suggested as "Tracker" |
+| O — Scratchpad folders: folders and subfolders, drag to reorder or move (pinned notes excepted), `name 001` on a clash | Pending | Added 2026-10-30 |
 | Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | Pending | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials" |
 
 ## Owner's requests, 2026-10-22 (UI batch)

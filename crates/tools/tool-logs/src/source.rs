@@ -39,6 +39,25 @@ pub enum SourceSpec {
     },
     /// Text pasted from the clipboard, kept with the tab.
     Text { title: String },
+    /// Several sources in one view, merged by timestamp with a source
+    /// tag on every record (docs/tools/logs.md §9).
+    Merge { parts: Vec<MergePart> },
+}
+
+/// One source of a merged view, with the settings it is read with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MergePart {
+    /// What the record's `source` field says; the saved source's name.
+    pub label: String,
+    pub spec: SourceSpec,
+    #[serde(default)]
+    pub format: Format,
+    #[serde(default = "default_tail")]
+    pub tail_lines: u32,
+}
+
+fn default_tail() -> u32 {
+    2000
 }
 
 impl SourceSpec {
@@ -60,6 +79,11 @@ impl SourceSpec {
                 .join(" "),
             SourceSpec::K8sPod { pod, .. } => pod.clone(),
             SourceSpec::Text { title } => title.clone(),
+            SourceSpec::Merge { parts } => parts
+                .iter()
+                .map(|p| p.label.as_str())
+                .collect::<Vec<_>>()
+                .join(" + "),
         }
     }
 
@@ -82,6 +106,11 @@ impl SourceSpec {
                 }
             }
             SourceSpec::Text { title } => title.clone(),
+            SourceSpec::Merge { parts } => parts
+                .iter()
+                .map(|p| format!("{}: {}", p.label, p.spec.describe()))
+                .collect::<Vec<_>>()
+                .join("\n"),
         }
     }
 
@@ -95,6 +124,7 @@ impl SourceSpec {
             SourceSpec::Command { .. } => ph::TERMINAL,
             SourceSpec::K8sPod { .. } => ph::SHIPPING_CONTAINER,
             SourceSpec::Text { .. } => ph::CLIPBOARD_TEXT,
+            SourceSpec::Merge { .. } => ph::ROWS,
         }
     }
 
@@ -126,6 +156,14 @@ impl SourceSpec {
                 container,
             } => format!("logs://k8s/{conn_id}/{namespace}/{pod}/{container}"),
             SourceSpec::Text { title } => format!("logs://text/{title}"),
+            SourceSpec::Merge { parts } => format!(
+                "logs://merge/{}",
+                parts
+                    .iter()
+                    .map(|p| p.spec.uri())
+                    .collect::<Vec<_>>()
+                    .join("+")
+            ),
         }
     }
 }

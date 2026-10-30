@@ -456,3 +456,14 @@ Info dashboard (cards, three sparklines after a burst of GETs, the raw
 sections folded), `redis-tools.png` (Tools → Big Keys after a run) and
 `redis-streams.png` (Streams on `demo:events`: 25 entries, the workers
 group with 5 pending, the newest entries).
+
+Depth programme, phase B (2026-10-30), on the SQLite fixture
+`D:\Temp\hs-depth-b\shop.db` (customers, orders, imports): `db-explain.png`
+(Explain of a join as the plan tree), `db-edit.png` (two pending edits with
+the Apply Changes review open) and `db-import.png` (the Import CSV dialog on
+`imports` with the mapping guessed from `stock.csv`).
+
+Depth programme, phase D (2026-10-30): `logs-merge.png` (the API and Worker
+saved sources merged, written by `D:\Temp\hs-depth-d\writer.py`, with the
+Statistics panel open) and `logs-eventlog.png` (the Windows Event Log
+Application log followed on this machine).

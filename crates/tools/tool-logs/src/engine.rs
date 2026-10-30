@@ -331,6 +331,8 @@ pub struct Runner {
     /// 2026-10-25). Killing the child closes the pipe, which is what
     /// the read is waiting for.
     child: Arc<Mutex<Option<std::process::Child>>>,
+    /// The sources of a merged view, each with a runner of its own.
+    children: Vec<Runner>,
 }
 
 impl Drop for Runner {
@@ -393,11 +395,38 @@ pub fn start(
         sh.status = Status::Connecting;
     }
     let child_slot: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
-    let runner = Runner {
+    let mut runner = Runner {
         stop: stop.clone(),
         child: child_slot.clone(),
+        children: Vec::new(),
     };
     match spec {
+        SourceSpec::Merge { parts } => {
+            // Each part reads into a window of its own; the merge task
+            // moves what arrives into this tab's window in time order.
+            let mut feeds: Vec<(String, Arc<Mutex<Shared>>)> = Vec::with_capacity(parts.len());
+            for p in parts {
+                let child_shared = Arc::new(Mutex::new(Shared::default()));
+                runner.children.push(start(
+                    services,
+                    &p.spec,
+                    p.format,
+                    p.tail_lines,
+                    None,
+                    child_shared.clone(),
+                ));
+                feeds.push((p.label.clone(), child_shared));
+            }
+            {
+                let mut sh = shared.lock();
+                // Structured, so the `source` field can be pinned.
+                sh.format = Format::Json;
+                sh.status = Status::Following;
+            }
+            services.runtime.spawn(async move {
+                merge_loop(feeds, shared, stop, wake).await;
+            });
+        }
         SourceSpec::Text { .. } => {
             let text = text.unwrap_or_default();
             let lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
@@ -477,6 +506,102 @@ pub fn start(
         }
     }
     runner
+}
+
+/// Drain every child window into the merged one, in timestamp order,
+/// four times a second (docs/tools/logs.md §9).
+async fn merge_loop(
+    feeds: Vec<(String, Arc<Mutex<Shared>>)>,
+    shared: Arc<Mutex<Shared>>,
+    stop: Arc<AtomicBool>,
+    wake: Arc<dyn Fn() + Send + Sync>,
+) {
+    // Absolute record index consumed per child (its `dropped` + offset).
+    let mut consumed: Vec<u64> = vec![0; feeds.len()];
+    loop {
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let mut fresh: Vec<Record> = Vec::new();
+        let mut statuses: Vec<Status> = Vec::with_capacity(feeds.len());
+        let mut bytes = 0u64;
+        for (i, (label, child)) in feeds.iter().enumerate() {
+            let ch = child.lock();
+            statuses.push(ch.status.clone());
+            bytes += ch.bytes;
+            let abs_len = ch.dropped + ch.records.len() as u64;
+            let from = consumed[i].saturating_sub(ch.dropped) as usize;
+            for r in ch.records.iter().skip(from) {
+                let mut r = r.clone();
+                r.fields.insert(0, ("source".to_string(), label.clone()));
+                fresh.push(r);
+            }
+            consumed[i] = abs_len;
+        }
+        let status = merged_status(&statuses);
+        let mut sh = shared.lock();
+        let changed = !fresh.is_empty()
+            || std::mem::discriminant(&sh.status) != std::mem::discriminant(&status);
+        for r in fresh {
+            sh.max_chars = sh.max_chars.max(r.raw.chars().take(4000).count());
+            insert_by_time(&mut sh.records, r);
+        }
+        if sh.records.len() > WINDOW {
+            let extra = sh.records.len() - WINDOW;
+            sh.records.drain(..extra);
+            sh.dropped += extra as u64;
+        }
+        sh.lines = sh.dropped + sh.records.len() as u64;
+        sh.bytes = bytes;
+        sh.status = status;
+        if changed {
+            sh.version += 1;
+            drop(sh);
+            wake();
+        }
+    }
+}
+
+/// The merged view follows while any source does, is done when every
+/// source is, and fails only when all of them failed.
+fn merged_status(statuses: &[Status]) -> Status {
+    if statuses
+        .iter()
+        .any(|s| matches!(s, Status::Following | Status::Reading | Status::Connecting))
+    {
+        return Status::Following;
+    }
+    if statuses.iter().all(|s| matches!(s, Status::Failed(_))) {
+        return statuses
+            .iter()
+            .find_map(|s| match s {
+                Status::Failed(e) => Some(Status::Failed(e.clone())),
+                _ => None,
+            })
+            .unwrap_or(Status::Done);
+    }
+    Status::Done
+}
+
+/// Records arrive nearly in order, so the right place is found by walking
+/// back from the end; an undated record goes last.
+fn insert_by_time(records: &mut Vec<Record>, r: Record) {
+    let Some(t) = r.ts else {
+        records.push(r);
+        return;
+    };
+    let mut pos = records.len();
+    while pos > 0 {
+        match records[pos - 1].ts {
+            // Undated records sit where they arrived; a dated one slots
+            // in before them.
+            Some(prev) if prev > t => pos -= 1,
+            None => pos -= 1,
+            _ => break,
+        }
+    }
+    records.insert(pos, r);
 }
 
 fn shell_quote(s: &str) -> String {
@@ -1062,6 +1187,7 @@ mod tests {
         let runner = Runner {
             stop: Arc::new(AtomicBool::new(false)),
             child: Arc::new(Mutex::new(Some(child))),
+            children: Vec::new(),
         };
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
@@ -1156,5 +1282,53 @@ mod tests {
         }
         assert_eq!(sh.records.len(), WINDOW);
         assert_eq!(sh.dropped, 12);
+    }
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use super::*;
+
+    fn rec(secs: Option<i64>, msg: &str) -> Record {
+        Record {
+            line: 1,
+            raw: msg.into(),
+            ts: secs.and_then(|s| chrono::DateTime::<chrono::Utc>::from_timestamp(s, 0)),
+            level: None,
+            message: msg.into(),
+            fields: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn merged_records_are_in_time_order() {
+        let mut v = Vec::new();
+        insert_by_time(&mut v, rec(Some(10), "a"));
+        insert_by_time(&mut v, rec(Some(30), "c"));
+        insert_by_time(&mut v, rec(Some(20), "b"));
+        insert_by_time(&mut v, rec(None, "z"));
+        insert_by_time(&mut v, rec(Some(25), "bc"));
+        let order: Vec<&str> = v.iter().map(|r| r.message.as_str()).collect();
+        assert_eq!(order, vec!["a", "b", "bc", "c", "z"]);
+    }
+
+    #[test]
+    fn merged_status_follows_the_sources() {
+        assert!(matches!(
+            merged_status(&[Status::Done, Status::Following]),
+            Status::Following
+        ));
+        assert!(matches!(
+            merged_status(&[Status::Done, Status::Done]),
+            Status::Done
+        ));
+        assert!(matches!(
+            merged_status(&[Status::Failed("x".into()), Status::Done]),
+            Status::Done
+        ));
+        assert!(matches!(
+            merged_status(&[Status::Failed("x".into()), Status::Failed("y".into())]),
+            Status::Failed(_)
+        ));
     }
 }

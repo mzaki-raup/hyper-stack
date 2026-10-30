@@ -125,6 +125,10 @@ pub struct Highlight {
     /// Seconds between two reports of the same shape from this rule.
     /// Zero uses `hs_core::problems::COOLDOWN`.
     pub cooldown_secs: u32,
+    /// Raise an alert on a match: a toast, and a count on the tab while
+    /// it is not in front (docs/tools/logs.md §10). Same cooldown.
+    #[serde(default)]
+    pub alert: bool,
 }
 
 impl Default for Highlight {
@@ -136,6 +140,7 @@ impl Default for Highlight {
             enabled: true,
             report: false,
             cooldown_secs: 0,
+            alert: false,
         }
     }
 }
@@ -151,6 +156,7 @@ struct Compiled {
     bold: bool,
     report: bool,
     cooldown_secs: u32,
+    alert: bool,
 }
 
 impl Highlights {
@@ -168,6 +174,7 @@ impl Highlights {
                             bold: h.bold,
                             report: h.report,
                             cooldown_secs: h.cooldown_secs,
+                            alert: h.alert,
                         })
                 })
                 .collect(),
@@ -197,6 +204,19 @@ impl Highlights {
     /// scan entirely.
     pub fn any_reporting(&self) -> bool {
         self.rules.iter().any(|c| c.report)
+    }
+
+    /// The first alerting rule that matches: its index and cooldown.
+    pub fn alerts(&self, r: &Record) -> Option<(usize, u32)> {
+        self.rules
+            .iter()
+            .enumerate()
+            .find(|(_, c)| c.alert && c.re.is_match(&r.raw))
+            .map(|(i, c)| (i, c.cooldown_secs))
+    }
+
+    pub fn any_alerting(&self) -> bool {
+        self.rules.iter().any(|c| c.alert)
     }
 }
 

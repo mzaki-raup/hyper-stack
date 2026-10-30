@@ -102,7 +102,7 @@ the fixtures behind them.
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
-| [Logs](#logs) | Local, SSH, command and pasted sources; parsers, filters, find, bookmarks |
+| [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -278,6 +278,8 @@ the lists.
 | **Sources** — a local file followed like `tail -F` (rotation noticed, multi-gigabyte files opened at their tail), a file on an SSH host through `tail -F` on an exec channel, any command's output (local or remote) and pasted text; saved sources grouped by environment in the sidebar, filter presets beside them | **Detail pane** — the record's fields with filter-by, exclude and pin-as-column actions, the raw line, Copy as JSON, bookmark and Open in Editor for `path:line` |
 | ![Filter chips](docs/screenshots/logs-filter.png) | ![Logs tab in the dock](docs/screenshots/dock.png) |
 | **Parsers and filters** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL and JVM thread dumps detected from the first lines, levels normalised, terminal colour codes stripped at ingest so a coloured container log is readable *and* parsable, stack traces glued to their line; a thread dump becomes one record per thread with its state, locks and top frame as filterable fields (**Open Thread Dump…**, or paste one); filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, Save Filtered… | **App log in the dock** — the bottom dock's Logs tab shows HyperStack's own log at the level set in Settings → General → Behaviour, with a level picker, search, Copy and Clear; every error a tool reports lands there too |
+| ![Merged sources with statistics](docs/screenshots/logs-merge.png) | ![Windows Event Log](docs/screenshots/logs-eventlog.png) |
+| **Merge and statistics** — several saved sources in one view in time order, each record tagged with its source; the Statistics panel counts the filtered window by level, rate per minute, commonest messages and field values; highlight rules can **Alert** (a toast in front, a bell count on the tab behind, with a cooldown) | **journald and the Windows Event Log** — `journalctl -o json` on this machine or an SSH host with the unit's fields kept, and the Event Log followed through `Get-WinEvent` with levels mapped |
 
 ### NoSQL (MongoDB and CouchDB)
 
@@ -456,7 +458,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
 | 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, portable-first, and so on |
 | 09 | [CI/CD, releases and in-app updates](docs/09-ci-cd-and-updates.md) | Forgejo workflows, automatic versioning, signed release manifest, Settings → Updates (check, download, verify, install, revert), the public GitHub mirror (§10) |
-| 10 | [Depth programme](docs/10-depth-programme.md) | The Phase 2 / 3 items re-planned on 2026-10-30 as fourteen phases: Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL compare / ERD, Cassandra, forge integration, an Automation activity, a Queue activity (RabbitMQ, Kafka, …), ELK (Elasticsearch / Kibana), a Tracker activity (Jira, Redmine, GitLab, Confluence, …) |
+| 10 | [Depth programme](docs/10-depth-programme.md) | The Phase 2 / 3 items re-planned on 2026-10-30 as fifteen phases: Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL compare / ERD, Cassandra, forge integration, an Automation activity, a Queue activity (RabbitMQ, Kafka, …), ELK (Elasticsearch / Kibana), a Tracker activity (Jira, Redmine, GitLab, Confluence, …), Scratchpad folders |
 | — | [Workflows](.forgejo/workflows/) and [release scripts](scripts/) | Active Forgejo Actions (`ci.yml`, `release.yml`), their GitHub counterparts in [.github/workflows/](.github/workflows/) and the PowerShell scripts both run; [keys/](keys/) holds the release-signing public key |
 | — | [Tool specs](docs/tools/) | One design document per tool (editor, SQL database, NoSQL, Redis, logs, API client, SSH/SFTP, S3, Git, terminal, containers, devtools) |
 

@@ -13,10 +13,12 @@ use std::sync::Arc;
 use hs_core::Services;
 use hs_core::events::Event;
 use hs_core::jobs::Progress;
+mod sync;
+
 use hs_core::objstore::http_profile::{NexusFields, WebdavFields};
 use hs_core::objstore::nexus::NexusClient;
 use hs_core::objstore::profile::{AwsProfile, ProfileError, S3Fields, load_aws_profiles};
-use hs_core::objstore::s3::{Bucket, Object, S3Client, Versioning};
+use hs_core::objstore::s3::{Bucket, Head, Object, ObjectVersion, S3Client, Versioning};
 use hs_core::objstore::store::{Backend, Caps, ObjectStore};
 use hs_core::objstore::webdav::WebdavClient;
 use hs_core::tool::{
@@ -100,7 +102,20 @@ struct Shared {
     /// Local temp copies opened in the editor → (bucket, key) to put back.
     edits: HashMap<PathBuf, (String, String)>,
     refresh: bool,
+    // ---- depth programme, phase F ----
+    /// (key, head, tags) of the object the details pane shows.
+    details: Load<Details>,
+    /// The tags being edited, so typing is not thrown away each frame.
+    tags_draft: Option<Vec<(String, String)>>,
+    versions: Load<Vec<ObjectVersion>>,
+    /// (policy JSON, CORS XML) of the open bucket.
+    policy: Load<(Option<String>, Option<String>)>,
+    /// The sync dry run: what would move, and the local files behind it.
+    sync_plan: Load<(Vec<sync::Diff>, Vec<sync::LocalFile>)>,
 }
+
+/// What the details pane reads: the key, its head and its tags.
+type Details = (String, Head, Vec<(String, String)>);
 
 /// One row of the browser: a folder (common prefix) or an object.
 #[derive(Debug, Clone, PartialEq)]
@@ -129,6 +144,14 @@ enum DialogState {
     ImportAws {
         profiles: Vec<(AwsProfile, bool)>,
     },
+    /// Sync a local folder with the open prefix (docs/tools/s3.md §8).
+    Sync {
+        folder: PathBuf,
+        direction: sync::Direction,
+        delete_extra: bool,
+    },
+    /// The bucket's policy and CORS, read-only (§9).
+    Policy,
 }
 
 pub struct S3Tool {
@@ -145,6 +168,13 @@ pub struct S3Tool {
     /// The profile's environment (drives the banner and the delete guard).
     env_id: Option<String>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The same client as `client` when the profile is S3, for the calls
+    /// only S3 has (tagging, versions, policy).
+    s3_client: Option<Arc<S3Client>>,
+    /// The details pane is open, and the key it last read.
+    details_open: bool,
+    details_key: Option<String>,
+    details_reload: bool,
 }
 
 impl S3Tool {
@@ -243,6 +273,10 @@ impl S3Tool {
             dialog: None,
             env_id: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            s3_client: None,
+            details_open: false,
+            details_key: None,
+            details_reload: false,
         };
         if t.state.conn_id.is_some() {
             t.connect(services);
@@ -323,8 +357,15 @@ impl S3Tool {
                 }
             }
             _ => match f.config(services.secrets.as_ref()) {
+                // Kept twice on purpose: the browser talks to the store
+                // trait, and the depth-programme calls (tagging,
+                // versions, policy) are S3's alone.
                 Ok(c) => S3Client::new(c)
-                    .map(|c| Arc::new(c) as Arc<dyn ObjectStore>)
+                    .map(|c| {
+                        let c = Arc::new(c);
+                        self.s3_client = Some(c.clone());
+                        c as Arc<dyn ObjectStore>
+                    })
                     .map_err(|e| e.to_string()),
                 Err(e) => {
                     self.waiting_for_vault = e == ProfileError::VaultLocked;
@@ -910,6 +951,459 @@ impl S3Tool {
         }
     }
 
+    // ---- depth programme, phase F: details, versions, sync, policy ----
+
+    /// The S3 client behind the store, for the calls only S3 has
+    /// (tagging, versions, policy). `None` for WebDAV and Nexus.
+    fn s3(&self) -> Option<Arc<S3Client>> {
+        self.s3_client.clone()
+    }
+
+    /// Read everything the details pane shows for one object: head,
+    /// tags and, when the bucket is versioned, its versions.
+    fn load_details(&mut self, s: &Services, key: String) {
+        let Some(client) = self.s3() else { return };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        self.details_key = Some(key.clone());
+        {
+            let mut sh = self.shared.lock();
+            sh.details = Load::Loading;
+            sh.versions = Load::Idle;
+            sh.tags_draft = None;
+        }
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        let versioned = self.shared.lock().versioning == Some(Versioning::Enabled);
+        s.runtime.spawn(async move {
+            let head = client.head(&bucket, &key).await;
+            let tags = client.get_tags(&bucket, &key).await.unwrap_or_default();
+            let versions = if versioned {
+                match client.list_versions(&bucket, &key).await {
+                    Ok(v) => Load::Ready(v),
+                    Err(e) => Load::Failed(e.to_string()),
+                }
+            } else {
+                Load::Idle
+            };
+            let mut sh = shared.lock();
+            sh.details = match head {
+                Ok(h) => Load::Ready((key.clone(), h, tags.clone())),
+                Err(e) => Load::Failed(e.to_string()),
+            };
+            sh.tags_draft = Some(tags);
+            sh.versions = versions;
+            drop(sh);
+            waker.request_repaint();
+        });
+    }
+
+    /// Write the tag draft back (docs/tools/s3.md §7).
+    fn save_tags(&mut self, s: &Services, key: String, tags: Vec<(String, String)>) {
+        let Some(client) = self.s3() else { return };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        let done = s.t("s3-tags-saved");
+        s.runtime.spawn(async move {
+            let r = client.put_tags(&bucket, &key, &tags).await;
+            let mut sh = shared.lock();
+            match r {
+                Ok(()) => sh.toasts.push((ToastLevel::Success, done)),
+                Err(e) => sh.toasts.push((ToastLevel::Error, e.to_string())),
+            }
+            drop(sh);
+            waker.request_repaint();
+        });
+    }
+
+    /// Restore an old version over the key, or delete one for good.
+    fn version_action(&mut self, s: &Services, key: String, version: String, restore: bool) {
+        let Some(client) = self.s3() else { return };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        let done = s.t(if restore {
+            "s3-version-restored"
+        } else {
+            "s3-version-deleted"
+        });
+        s.runtime.spawn(async move {
+            let r = if restore {
+                client.restore_version(&bucket, &key, &version).await
+            } else {
+                client.delete_version(&bucket, &key, &version).await
+            };
+            let mut sh = shared.lock();
+            match r {
+                Ok(()) => {
+                    sh.toasts.push((ToastLevel::Success, done));
+                    sh.refresh = true;
+                }
+                Err(e) => sh.toasts.push((ToastLevel::Error, e.to_string())),
+            }
+            drop(sh);
+            waker.request_repaint();
+        });
+        self.details_reload = true;
+    }
+
+    /// Read the bucket's policy and CORS for the read-only viewer.
+    fn load_policy(&mut self, s: &Services) {
+        let Some(client) = self.s3() else { return };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        self.shared.lock().policy = Load::Loading;
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        s.runtime.spawn(async move {
+            let policy = client.bucket_policy(&bucket).await;
+            let cors = client.bucket_cors(&bucket).await;
+            let mut sh = shared.lock();
+            sh.policy = match (policy, cors) {
+                (Err(e), _) => Load::Failed(e.to_string()),
+                (Ok(p), c) => Load::Ready((p, c.ok().flatten())),
+            };
+            drop(sh);
+            waker.request_repaint();
+        });
+    }
+
+    /// The dry run of a sync (docs/tools/s3.md §8): walk the folder, list
+    /// the prefix, and work out what would move.
+    fn sync_preview(
+        &mut self,
+        s: &Services,
+        folder: PathBuf,
+        direction: sync::Direction,
+        delete_extra: bool,
+    ) {
+        let Some(client) = self.client.clone() else {
+            return;
+        };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        let prefix = self.state.prefix.trim_end_matches('/').to_string();
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        self.shared.lock().sync_plan = Load::Loading;
+        s.runtime.spawn(async move {
+            let local = tokio::task::spawn_blocking({
+                let folder = folder.clone();
+                move || sync::walk_local(&folder)
+            })
+            .await
+            .unwrap_or_default();
+            let remote = match client.list_all_keys(&bucket, &prefix).await {
+                Ok(keys) => keys,
+                Err(e) => {
+                    let mut sh = shared.lock();
+                    sh.sync_plan = Load::Failed(e.to_string());
+                    drop(sh);
+                    waker.request_repaint();
+                    return;
+                }
+            };
+            // `list_all_keys` gives names only; the sizes come from one
+            // delimited walk of the same prefix.
+            let mut objects: Vec<Object> = Vec::with_capacity(remote.len());
+            let mut token = None;
+            loop {
+                match client
+                    .list(&bucket, &prefix, false, token.as_deref(), 1000)
+                    .await
+                {
+                    Ok(page) => {
+                        objects.extend(page.objects);
+                        match page.next {
+                            Some(t) => token = Some(t),
+                            None => break,
+                        }
+                    }
+                    Err(e) => {
+                        let mut sh = shared.lock();
+                        sh.sync_plan = Load::Failed(e.to_string());
+                        drop(sh);
+                        waker.request_repaint();
+                        return;
+                    }
+                }
+            }
+            let diffs = sync::plan(&local, &objects, &prefix, direction, delete_extra);
+            let mut sh = shared.lock();
+            sh.sync_plan = Load::Ready((diffs, local));
+            drop(sh);
+            waker.request_repaint();
+        });
+    }
+
+    /// Apply a previewed sync as a Job with progress and cancel.
+    fn sync_apply(
+        &mut self,
+        s: &Services,
+        folder: PathBuf,
+        direction: sync::Direction,
+        diffs: Vec<sync::Diff>,
+        _local: Vec<sync::LocalFile>,
+    ) {
+        let Some(client) = self.client.clone() else {
+            return;
+        };
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        let prefix = self.state.prefix.trim_end_matches('/').to_string();
+        let shared = self.shared.clone();
+        let total = diffs.len();
+        let title = format!("Sync {} objects", total);
+        let done_msg = s.t("s3-sync-done");
+        s.jobs.spawn(title, "s3", move |h| async move {
+            let mut moved = 0usize;
+            for (i, d) in diffs.iter().enumerate() {
+                if h.is_cancelled() {
+                    break;
+                }
+                h.set_progress(hs_core::jobs::Progress::Fraction(
+                    (i as f32) / total.max(1) as f32,
+                ));
+                h.set_message(d.rel.clone());
+                let key = sync::key_for(&prefix, &d.rel);
+                let local_path = folder.join(d.rel.replace('/', std::path::MAIN_SEPARATOR_STR));
+                let r: Result<(), String> = match (direction, d.action) {
+                    (sync::Direction::Up, sync::Action::Extra) => client
+                        .delete(&bucket, &key)
+                        .await
+                        .map_err(|e| e.to_string()),
+                    (sync::Direction::Up, _) => client
+                        .upload_file(
+                            &bucket,
+                            &key,
+                            &local_path,
+                            Arc::new(|_, _| {}),
+                            h.cancel_token(),
+                        )
+                        .await
+                        .map_err(|e| e.to_string()),
+                    (sync::Direction::Down, sync::Action::Extra) => {
+                        std::fs::remove_file(&local_path).map_err(|e| e.to_string())
+                    }
+                    (sync::Direction::Down, _) => {
+                        if let Some(parent) = local_path.parent() {
+                            let _ = std::fs::create_dir_all(parent);
+                        }
+                        client
+                            .download(
+                                &bucket,
+                                &key,
+                                &local_path,
+                                Arc::new(|_, _| {}),
+                                h.cancel_token(),
+                            )
+                            .await
+                            .map(|_| ())
+                            .map_err(|e| e.to_string())
+                    }
+                };
+                match r {
+                    Ok(()) => moved += 1,
+                    Err(e) => {
+                        let mut sh = shared.lock();
+                        sh.toasts
+                            .push((ToastLevel::Error, format!("{}: {e}", d.rel)));
+                    }
+                }
+            }
+            let mut sh = shared.lock();
+            sh.toasts.push((
+                ToastLevel::Success,
+                done_msg.replace("{n}", &moved.to_string()),
+            ));
+            sh.refresh = true;
+            Ok(())
+        });
+    }
+
+    /// The details pane beside the browser (§7): metadata, tags, versions.
+    fn details_pane(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        // Follow the selection.
+        let selected_key = match self.selected_row() {
+            Some(Row::Object(o)) => Some(o.key.clone()),
+            _ => None,
+        };
+        if let Some(key) = selected_key.clone()
+            && (self.details_key.as_deref() != Some(key.as_str()) || self.details_reload)
+        {
+            self.details_reload = false;
+            self.load_details(s, key);
+        }
+        egui::Frame::new()
+            .fill(theme.panel_bg)
+            .stroke(egui::Stroke::new(1.0, theme.border))
+            .inner_margin(egui::Margin::same(8))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(egui::RichText::new(s.t("s3-details")).strong().size(14.0));
+                if selected_key.is_none() {
+                    form::hint(ui, theme, &s.t("s3-details-none"));
+                    return;
+                }
+                let (details, versions, mut draft) = {
+                    let sh = self.shared.lock();
+                    (
+                        match &sh.details {
+                            Load::Ready(d) => Some(d.clone()),
+                            _ => None,
+                        },
+                        match &sh.versions {
+                            Load::Ready(v) => Some(v.clone()),
+                            _ => None,
+                        },
+                        sh.tags_draft.clone(),
+                    )
+                };
+                let Some((key, head, _)) = details else {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(s.t("s3-loading"));
+                    });
+                    return;
+                };
+                egui::ScrollArea::vertical()
+                    .id_salt("s3-details-scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let muted =
+                            |t: String| egui::RichText::new(t).small().color(theme.text_muted);
+                        egui::Grid::new("s3-details-grid")
+                            .num_columns(2)
+                            .spacing([12.0, 3.0])
+                            .show(ui, |ui| {
+                                for (label, value) in [
+                                    (s.t("s3-col-size"), human_size(head.size)),
+                                    (s.t("s3-detail-type"), head.content_type.clone()),
+                                    (s.t("s3-col-modified"), short_time(&head.modified)),
+                                    (s.t("s3-col-class"), head.storage_class.clone()),
+                                    (s.t("s3-col-etag"), head.etag.clone()),
+                                ] {
+                                    ui.label(muted(label));
+                                    ui.label(egui::RichText::new(value).small().monospace());
+                                    ui.end_row();
+                                }
+                                if let Some(v) = &head.version_id {
+                                    ui.label(muted(s.t("s3-detail-version")));
+                                    ui.label(egui::RichText::new(v).small().monospace());
+                                    ui.end_row();
+                                }
+                                for (k, v) in &head.metadata {
+                                    ui.label(muted(format!("x-amz-meta-{k}")));
+                                    ui.label(egui::RichText::new(v).small().monospace());
+                                    ui.end_row();
+                                }
+                            });
+                        // Tags.
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new(s.t("s3-tags")).strong());
+                        let mut save = false;
+                        if let Some(tags) = draft.as_mut() {
+                            let mut remove: Option<usize> = None;
+                            for (i, (k, v)) in tags.iter_mut().enumerate() {
+                                ui.horizontal(|ui| {
+                                    ui.add(
+                                        egui::TextEdit::singleline(k)
+                                            .hint_text(s.t("s3-tag-key"))
+                                            .desired_width(110.0),
+                                    );
+                                    ui.add(
+                                        egui::TextEdit::singleline(v)
+                                            .hint_text(s.t("s3-tag-value"))
+                                            .desired_width(130.0),
+                                    );
+                                    if form::icon_button(
+                                        ui,
+                                        theme,
+                                        hs_ui::icons::TRASH,
+                                        14.0,
+                                        false,
+                                    )
+                                    .clicked()
+                                    {
+                                        remove = Some(i);
+                                    }
+                                });
+                            }
+                            if let Some(i) = remove {
+                                tags.remove(i);
+                            }
+                            ui.horizontal(|ui| {
+                                if ui.small_button(s.t("s3-tag-add")).clicked() {
+                                    tags.push((String::new(), String::new()));
+                                }
+                                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                                    save = true;
+                                }
+                            });
+                        }
+                        if save && let Some(tags) = draft.clone() {
+                            let tags: Vec<(String, String)> = tags
+                                .into_iter()
+                                .filter(|(k, _)| !k.trim().is_empty())
+                                .collect();
+                            self.save_tags(s, key.clone(), tags);
+                        }
+                        self.shared.lock().tags_draft = draft;
+                        // Versions.
+                        if let Some(versions) = versions {
+                            ui.add_space(6.0);
+                            ui.label(egui::RichText::new(s.t("s3-versions")).strong());
+                            if versions.is_empty() {
+                                form::hint(ui, theme, &s.t("s3-versions-none"));
+                            }
+                            let mut act: Option<(String, bool)> = None;
+                            for v in &versions {
+                                ui.horizontal(|ui| {
+                                    let mark = if v.delete_marker {
+                                        ph::TRASH
+                                    } else if v.latest {
+                                        ph::STAR
+                                    } else {
+                                        ph::CLOCK_COUNTER_CLOCKWISE
+                                    };
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "{mark} {}",
+                                            short_time(&v.modified)
+                                        ))
+                                        .small(),
+                                    );
+                                    ui.label(muted(human_size(v.size)));
+                                    if !v.latest
+                                        && !v.delete_marker
+                                        && ui.small_button(s.t("s3-version-restore")).clicked()
+                                    {
+                                        act = Some((v.version_id.clone(), true));
+                                    }
+                                    if !v.latest
+                                        && ui.small_button(s.t("s3-version-delete")).clicked()
+                                    {
+                                        act = Some((v.version_id.clone(), false));
+                                    }
+                                });
+                            }
+                            if let Some((version, restore)) = act {
+                                self.version_action(s, key.clone(), version, restore);
+                            }
+                        }
+                    });
+            });
+    }
     fn dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
         let Some(dialog) = &mut self.dialog else {
@@ -917,6 +1411,7 @@ impl S3Tool {
         };
         let bucket = self.state.bucket.clone().unwrap_or_default();
         let mut close = false;
+        let mut keep_open = false;
         let mut action: Option<DialogAction> = None;
         let modal = egui::Modal::new(egui::Id::new(("s3-dialog", self.state.conn_id.clone())))
             .show(ui.ctx(), |ui| {
@@ -1104,13 +1599,207 @@ impl S3Tool {
                             }
                         });
                     }
+                    DialogState::Sync {
+                        folder,
+                        direction,
+                        delete_extra,
+                    } => {
+                        ui.heading(s.t("s3-sync-title"));
+                        ui.add_space(4.0);
+                        form::hint(ui, theme, &s.t("s3-sync-hint"));
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("s3-sync-folder"));
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(folder.to_string_lossy()).monospace(),
+                                )
+                                .truncate(),
+                            );
+                            if ui.button(s.t("s3-sync-browse")).clicked()
+                                && let Some(p) = rfd::FileDialog::new().pick_folder()
+                            {
+                                *folder = p;
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(s.t("s3-sync-direction"));
+                            if ui
+                                .add(egui::Button::selectable(
+                                    *direction == sync::Direction::Up,
+                                    s.t("s3-sync-up"),
+                                ))
+                                .clicked()
+                            {
+                                *direction = sync::Direction::Up;
+                            }
+                            if ui
+                                .add(egui::Button::selectable(
+                                    *direction == sync::Direction::Down,
+                                    s.t("s3-sync-down"),
+                                ))
+                                .clicked()
+                            {
+                                *direction = sync::Direction::Down;
+                            }
+                            ui.separator();
+                            ui.checkbox(delete_extra, s.t("s3-sync-delete-extra"));
+                        });
+                        let (folder2, dir2, del2) = (folder.clone(), *direction, *delete_extra);
+                        ui.add_space(6.0);
+                        let plan = {
+                            let sh = self.shared.lock();
+                            match &sh.sync_plan {
+                                Load::Ready(p) => Some(p.clone()),
+                                Load::Failed(e) => {
+                                    let e = e.clone();
+                                    drop(sh);
+                                    ui.colored_label(theme.error, e);
+                                    None
+                                }
+                                Load::Loading => {
+                                    drop(sh);
+                                    ui.horizontal(|ui| {
+                                        ui.spinner();
+                                        ui.label(s.t("s3-sync-comparing"));
+                                    });
+                                    None
+                                }
+                                Load::Idle => None,
+                            }
+                        };
+                        if let Some((diffs, _)) = &plan {
+                            ui.label(
+                                egui::RichText::new(s.i18n.t_args(
+                                    "s3-sync-found",
+                                    &[
+                                        ("n", &diffs.len().to_string()),
+                                        ("bytes", &human_size(sync::total_bytes(diffs))),
+                                    ],
+                                ))
+                                .strong(),
+                            );
+                            egui::ScrollArea::vertical()
+                                .id_salt("s3-sync-plan")
+                                .max_height(240.0)
+                                .show(ui, |ui| {
+                                    for d in diffs.iter().take(500) {
+                                        let (mark, colour) = match d.action {
+                                            sync::Action::Added => ("+", theme.success),
+                                            sync::Action::Changed => ("~", theme.warning),
+                                            sync::Action::Extra => ("−", theme.error),
+                                        };
+                                        ui.horizontal(|ui| {
+                                            ui.colored_label(colour, mark);
+                                            ui.label(
+                                                egui::RichText::new(&d.rel).small().monospace(),
+                                            );
+                                        });
+                                    }
+                                });
+                        }
+                        ui.add_space(10.0);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let ready = plan.as_ref().is_some_and(|(d, _)| !d.is_empty());
+                            if ui
+                                .add_enabled(ready, egui::Button::new(s.t("s3-sync-apply")))
+                                .clicked()
+                                && let Some((diffs, local)) = plan.clone()
+                            {
+                                let folder = folder2.clone();
+                                action = Some(Box::new(move |t: &mut S3Tool, s: &Services| {
+                                    t.sync_apply(s, folder, dir2, diffs, local);
+                                }));
+                            }
+                            if ui.button(s.t("s3-sync-preview")).clicked() {
+                                let folder = folder2.clone();
+                                keep_open = true;
+                                action = Some(Box::new(move |t: &mut S3Tool, s: &Services| {
+                                    t.sync_preview(s, folder, dir2, del2);
+                                }));
+                            }
+                            if ui.button(s.t("cancel")).clicked() {
+                                close = true;
+                            }
+                        });
+                    }
+                    DialogState::Policy => {
+                        ui.heading(s.t("s3-policy-title"));
+                        ui.add_space(4.0);
+                        form::hint(ui, theme, &s.t("s3-policy-hint"));
+                        let state = {
+                            let sh = self.shared.lock();
+                            match &sh.policy {
+                                Load::Ready(p) => Some(p.clone()),
+                                _ => None,
+                            }
+                        };
+                        match state {
+                            None => {
+                                ui.horizontal(|ui| {
+                                    ui.spinner();
+                                    ui.label(s.t("s3-loading"));
+                                });
+                            }
+                            Some((policy, cors)) => {
+                                egui::ScrollArea::vertical()
+                                    .id_salt("s3-policy-scroll")
+                                    .max_height(380.0)
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            egui::RichText::new(s.t("s3-policy-section")).strong(),
+                                        );
+                                        match &policy {
+                                            Some(text) => {
+                                                let mut t = text.clone();
+                                                ui.add(
+                                                    egui::TextEdit::multiline(&mut t)
+                                                        .code_editor()
+                                                        .desired_width(f32::INFINITY)
+                                                        .interactive(false),
+                                                );
+                                            }
+                                            None => form::hint(ui, theme, &s.t("s3-policy-none")),
+                                        }
+                                        ui.add_space(6.0);
+                                        ui.label(egui::RichText::new(s.t("s3-cors")).strong());
+                                        match &cors {
+                                            Some(text) => {
+                                                let mut t = text.clone();
+                                                ui.add(
+                                                    egui::TextEdit::multiline(&mut t)
+                                                        .code_editor()
+                                                        .desired_width(f32::INFINITY)
+                                                        .interactive(false),
+                                                );
+                                            }
+                                            None => form::hint(ui, theme, &s.t("s3-cors-none")),
+                                        }
+                                    });
+                                ui.add_space(8.0);
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui.button(s.t("close")).clicked() {
+                                            close = true;
+                                        }
+                                        if ui.button(s.t("s3-policy-copy")).clicked() {
+                                            ui.ctx().copy_text(policy.clone().unwrap_or_default());
+                                        }
+                                    },
+                                );
+                            }
+                        }
+                    }
                 }
             });
         if modal.should_close() {
             close = true;
         }
         if let Some(a) = action {
-            self.dialog = None;
+            // A preview keeps the card open so its answer lands in it.
+            if !keep_open {
+                self.dialog = None;
+            }
             a(self, s);
         } else if close {
             self.dialog = None;
@@ -1144,19 +1833,46 @@ impl S3Tool {
                 },
             );
             ui.separator();
-            ui.vertical(|ui| {
-                if self.state.bucket.is_none() {
-                    ui.add_space(24.0);
-                    form::note(
-                        ui,
-                        theme,
-                        ph::INFO,
-                        &cx.services.t("s3-pick-container-hint"),
-                    );
-                    return;
-                }
-                self.browser(ui, cx, theme);
-            });
+            // The details pane takes its column before the browser lays
+            // out, so the table shrinks rather than being drawn over
+            // (docs/tools/s3.md §7).
+            let details_w = if self.details_open {
+                (full.x * 0.28).clamp(240.0, 380.0)
+            } else {
+                0.0
+            };
+            let middle = (full.x - left - details_w - 24.0).max(200.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(middle, full.y),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_width(middle);
+                    ui.set_max_width(middle);
+                    if self.state.bucket.is_none() {
+                        ui.add_space(24.0);
+                        form::note(
+                            ui,
+                            theme,
+                            ph::INFO,
+                            &cx.services.t("s3-pick-container-hint"),
+                        );
+                        return;
+                    }
+                    self.browser(ui, cx, theme);
+                },
+            );
+            if self.details_open && self.state.bucket.is_some() {
+                ui.separator();
+                ui.allocate_ui_with_layout(
+                    egui::vec2(details_w, full.y),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.set_min_width(details_w);
+                        ui.set_max_width(details_w);
+                        self.details_pane(ui, cx, theme);
+                    },
+                );
+            }
         });
     }
 
@@ -1483,6 +2199,28 @@ impl Tool for S3Tool {
         ) {
             self.ask_delete(s);
         }
+        // Details, Sync and the policy viewer are S3's (phase F): WebDAV
+        // and Nexus have no tagging, versions or bucket policy.
+        if self.s3_client.is_some() {
+            ui.separator();
+            ui.toggle_value(
+                &mut self.details_open,
+                format!("{} {}", ph::INFO, s.t("s3-details")),
+            )
+            .tip(s.t("s3-details-tip"));
+            if btn(ui, in_bucket, ph::ARROWS_LEFT_RIGHT, "s3-sync") {
+                self.dialog = Some(DialogState::Sync {
+                    folder: PathBuf::new(),
+                    direction: sync::Direction::Up,
+                    delete_extra: false,
+                });
+                self.shared.lock().sync_plan = Load::Idle;
+            }
+            if btn(ui, in_bucket, ph::SHIELD_CHECK, "s3-policy") {
+                self.dialog = Some(DialogState::Policy);
+                self.load_policy(s);
+            }
+        }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -1776,6 +2514,9 @@ impl Tool for S3Tool {
             shortcut_action: None,
         };
         vec![
+            c("s3.details", "S3: Toggle Details Pane"),
+            c("s3.sync", "S3: Sync With a Folder…"),
+            c("s3.policy", "S3: Bucket Policy and CORS"),
             c("s3.ai", "AI: Toggle Assistant"),
             c("s3.refresh", "S3: Refresh"),
             c("s3.up", "S3: Parent Folder"),
@@ -1790,6 +2531,19 @@ impl Tool for S3Tool {
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         match id {
+            "s3.details" => self.details_open = !self.details_open,
+            "s3.sync" => {
+                self.dialog = Some(DialogState::Sync {
+                    folder: PathBuf::new(),
+                    direction: sync::Direction::Up,
+                    delete_extra: false,
+                });
+                self.shared.lock().sync_plan = Load::Idle;
+            }
+            "s3.policy" => {
+                self.dialog = Some(DialogState::Policy);
+                self.load_policy(cx.services);
+            }
             "s3.ai" => self.assistant.toggle("S3"),
             "s3.refresh" | "run.alt" => {
                 self.load_buckets(s);

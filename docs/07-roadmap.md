@@ -123,6 +123,14 @@ feeds the same handoff.
 
 ## Phase 2 — Depth (≈ 16 weeks)
 
+The remaining Phase 2 and Phase 3 items were re-planned on 2026-10-30
+as the **depth programme** - thirteen phases A to M in
+[10-depth-programme.md](10-depth-programme.md), each released from
+`main` in turn (Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL
+compare / ERD, Cassandra, forge integration, and a new Automation
+activity for Jenkins / TeamCity / Actions / AWX / Puppet).
+
+
 - [x] Containers: Docker/Podman (local, TCP, over SSH), Kubernetes and Windows containers, compose; logs feed `tool-logs`, exec feeds `hs-term` — the Container activity, 2026-10-24 (ADR-026)
 - [ ] API: Rhai pre/post scripts and assertions, collection runner with report, WebSocket + SSE, GraphQL introspection, cookie jar, client certs, proxy
 - [ ] SQL: SQL Server, inline editing with preview, explain plan tree, CSV import, Excel export

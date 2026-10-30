@@ -560,6 +560,24 @@ and ADR-025.
 | 5 — AI Assistant with git quick actions and runnable command blocks | Completed | `hs_ui::ai_assistant::AssistantPanel` in `RepoPane::assistant_column` (hard-right toggle), `assistant_context` (status / bounded staged diff / log on the blocking pool), `prompts::DEFAULTS` for `git` (six buttons), Insert → commit box or clipboard + terminal, Insert and Run → `OpenRequest::Terminal { command }` in the root. Verified on screen 2026-10-30 |
 | 6 — Polish: host avatars, probed summaries, palette commands, screenshots | Completed | `hosts::fetch_avatar` + `GitRepos::set_icon_bytes` on project choice; `GitTool::probe_figures` (status per saved repository, 60 s); `GitTool::commands`/`RepoPane::run_command` (14 commands); Up/Down in `status_column` and `HistoryView::list`; `docs/screenshots/git-*.png`. Verified on screen 2026-10-30 |
 
+## The depth programme (owner's request, 2026-10-30; `docs/10-depth-programme.md`)
+
+| Phase | State | Notes |
+|---|---|---|
+| A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Pending | |
+| B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Pending | |
+| C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
+| D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Pending | |
+| E — SSH depth: port-forward manager, broadcast input, server monitor | Pending | |
+| F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Pending | |
+| G — Devtools depth: network tools, process / port viewer, snippets, `.env` editor | Pending | |
+| H — SQL depth 2: ER diagram, DDL generator, schema compare, data compare | Pending | |
+| I — Cassandra / ScyllaDB driver in the NoSQL activity | Pending | |
+| J — Forge integration in the Git activity: pull requests, issues, CI status | Pending | |
+| K — Automation activity: Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX, Puppet | Pending | |
+| L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
+| M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
+
 ## Owner's requests, 2026-10-22 (UI batch)
 
 | Item | State | Notes |

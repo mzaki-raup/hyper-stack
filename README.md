@@ -452,6 +452,7 @@ Full reasoning in [docs/08-decisions.md](docs/08-decisions.md).
 | 07 | [Roadmap](docs/07-roadmap.md) | Phases, milestones, checklists, effort estimates |
 | 08 | [Decisions (ADRs)](docs/08-decisions.md) | Why egui and not Tauri, why hybrid Git, why not sqlx, portable-first, and so on |
 | 09 | [CI/CD, releases and in-app updates](docs/09-ci-cd-and-updates.md) | Forgejo workflows, automatic versioning, signed release manifest, Settings → Updates (check, download, verify, install, revert), the public GitHub mirror (§10) |
+| 10 | [Depth programme](docs/10-depth-programme.md) | The Phase 2 / 3 items re-planned on 2026-10-30 as thirteen phases: Redis, SQL, SQL engines, Logs, SSH, S3, Devtools, SQL compare / ERD, Cassandra, forge integration, an Automation activity, a Queue activity (RabbitMQ, Kafka, …), ELK (Elasticsearch / Kibana) |
 | — | [Workflows](.forgejo/workflows/) and [release scripts](scripts/) | Active Forgejo Actions (`ci.yml`, `release.yml`), their GitHub counterparts in [.github/workflows/](.github/workflows/) and the PowerShell scripts both run; [keys/](keys/) holds the release-signing public key |
 | — | [Tool specs](docs/tools/) | One design document per tool (editor, SQL database, NoSQL, Redis, logs, API client, SSH/SFTP, S3, Git, terminal, containers, devtools) |
 

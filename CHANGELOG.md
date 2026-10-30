@@ -11,34 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **S3 depth (depth programme, phase F).** A **Details** pane beside the
-  browser shows the selected object's size, content type, modified time,
-  storage class, ETag, version id and `x-amz-meta-*` headers, its
-  **tags** (editable, saved with `PutObjectTagging`) and, on a versioned
-  bucket, its **versions** with restore and delete-this-version.
-  **Sync…** compares a local folder with the open prefix by size in
-  either direction, shows the differences as a dry run (added, changed
-  and, optionally, extra files to delete) and applies them as a Job with
-  progress and cancel. **Bucket Policy…** shows the bucket policy JSON
-  and the CORS rules read-only, with Copy. Palette commands `S3: Toggle
-  Details Pane`, `S3: Sync With a Folder…`, `S3: Bucket Policy and
-  CORS`. WebDAV and Nexus profiles do not offer these: the calls are
-  S3's alone.
+- (nothing yet)
 
-- **SSH depth (depth programme, phase E).** A **Tunnels** toggle in the
-  SSH tab's toolbar opens the port forwards above the shell: the live
-  list with traffic and stop, the New Tunnel form, and **Kept Forwards**
-  - forwards saved on the host's profile (`[[ssh.forwards]]`) that start
-  whenever a tab connects (per-forward Auto tick, Start, Remove; the
-  form's "Keep on this host" tick saves one). **Broadcast**: a toolbar
-  toggle, red while on with the number of receivers, sends what is
-  typed in this shell to every other open shell of the same host.
-  **Monitor**: a strip above the shell with the host's CPU, load,
-  memory, disk, uptime and top processes, read every five seconds over
-  the exec channel from `/proc` (Linux hosts). Palette commands `SSH:
-  Toggle Broadcast Input`, `SSH: Toggle Server Monitor`, `SSH: Toggle
-  Tunnels Pane`. The monitor's figures and its Top row wrap onto further
-  lines, so every process stays readable in a narrow pane.
+## 0.107.0 — 2026-10-30
+
+### Added
+
+- Object details with tags and versions, folder sync, policy viewer (depth programme phase F) (7e26f617)
+- Tunnels pane with forwards kept per host, broadcast input, server monitor (depth programme phase E) (ef492ed9)
 
 ## 0.106.0 — 2026-10-30
 

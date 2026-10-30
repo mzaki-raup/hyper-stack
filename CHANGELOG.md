@@ -47,10 +47,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   rather than only by hand. **Export ER Diagram** (Ctrl+Alt+Shift+D)
   writes the diagram as a standalone SVG, laid out deterministically so
   the file is the same every run. Verified against live PostgreSQL 16 and
-  MySQL 8 catalogs, and exercised on screen with screenshots in the README
-  (`db-erd.png`, `db-ddl.png`, `db-compare.png`). The phase stays
-  In-Progress for one thing only: the data compare's dialog has not been
-  opened on screen.
+  MySQL 8 catalogs, and all four exercised on screen with screenshots in
+  the README (`db-erd.png`, `db-ddl.png`, `db-compare.png`,
+  `db-data-compare.png`).
 
 - **Fixed:** ER diagram boxes were sized for one word. `hs-diagram`
   measured an entity by its label but drew it with its column list, so

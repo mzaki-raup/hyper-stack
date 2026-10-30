@@ -264,8 +264,8 @@ the lists.
 | **Import CSV** into a table — delimiter, header and NULL options, a preview and a column mapping, then batched INSERTs in one transaction as a Job; **Export** adds Excel (.xlsx) | **Connection** — paste a `postgres://` / `mysql://` / `sqlite:` URL; the password goes into the vault; TLS modes and an SSH tunnel through any SSH profile |
 | ![ER diagram from the catalog](docs/screenshots/db-erd.png) | ![Generated DDL](docs/screenshots/db-ddl.png) |
 | **ER diagram** — the schema's tables and their foreign keys drawn as an ERD and opened in the Diagram Editor, columns badged PK / FK / UQ and the relationship's cardinality read from whether the key's own columns are unique; **Export** writes it as an SVG | **Generate DDL** — CREATE TABLE, CREATE INDEX and ALTER TABLE … FOREIGN KEY for a whole schema in any of the three dialects, whichever the source is, with IF NOT EXISTS, DROP first, indexes and keys each optional |
-| ![Schema compare and migration](docs/screenshots/db-compare.png) | |
-| **Compare Schema** against another saved connection — tables, columns, keys and indexes as New / Missing / Differs with both spellings side by side, and a generated migration whose additive steps are SQL and whose drops are commented out; **Compare Table Data** samples one table on both sides by primary key | |
+| ![Schema compare and migration](docs/screenshots/db-compare.png) | ![Data compare](docs/screenshots/db-data-compare.png) |
+| **Compare Schema** against another saved connection — tables, columns, keys and indexes as New / Missing / Differs with both spellings side by side, and a generated migration whose additive steps are SQL and whose drops are commented out | **Compare Table Data** — one table sampled on both sides by primary key under a row bound, the rows that are new, missing or differ (with the columns that differ named), and generated INSERT / UPDATE with deletes left commented |
 
 ### Redis
 

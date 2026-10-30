@@ -514,4 +514,11 @@ label. A native dialog leaves focus on whichever tab opened it, so the next
 keystroke can reach the wrong tab — re-focus and click the intended tab
 before sending more keys.
 
-No shot of **Compare Table Data**: its dialog was not opened on screen. Driving it needs a statement naming a table in the editor, and the harness kept leaving focus on the schema tree, where the typed SQL goes nowhere and the shortcut does nothing. Its behaviour end to end - picker, target, result and the INSERT/UPDATE it generates - is covered by `hyperstack/src/db_tests.rs::a_data_compare_reports_the_rows_that_differ`; what has not been seen is how it looks.
+- `db-data-compare.png` — Compare Table Data on `customers`: 3 rows read on
+  the source and 2 on the target, row 2 **Differs** on `city`, row 3 **New**,
+  and the generated `UPDATE` / `INSERT` with deletes left commented.
+
+Reaching that dialog through the editor does not work from the harness: it
+needs a statement naming a table, and focus kept staying on the schema tree,
+where the typed SQL goes nowhere. The table's **right-click → Compare Data…**
+takes no editor text and works first time; prefer it.

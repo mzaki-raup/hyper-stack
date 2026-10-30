@@ -270,22 +270,21 @@ Refs: BUG-0003
   delete is ever live SQL; `db_tests.rs` runs both compares against a
   second SQLite database and checks the SQL they generate
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: the **schema** compare was run on screen between two SQLite databases —
-  `legacy_audit` Missing, `orders.note` New, and the migration with the DROP
-  commented out (`docs/screenshots/db-compare.png`). The **data** compare dialog
-  was not opened on screen; see **Notes**
+- [x] App: both compares run on screen between two SQLite databases — the schema
+  compare finding `legacy_audit` Missing and `orders.note` New with the DROP
+  commented out (`docs/screenshots/db-compare.png`), and the data compare on
+  `customers` finding row 2 Differs on `city` and row 3 New, with the generated
+  UPDATE/INSERT (`docs/screenshots/db-data-compare.png`)
 - [x] Docs: spec · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** `crates/tools/tool-db/src/compare.rs`. Code landed in `6707780`,
   tests in `e02986e`. Both compares ran end to end between two SQLite files,
   headlessly, and a live PostgreSQL and MySQL schema each compare clean
   against themselves in `drivers.rs` (2026-10-31) — but a compare between two
   *different* live schemas has still only been done on SQLite. The App box
-  The schema compare and its migration were exercised on screen on 2026-10-31.
-  The **data** compare dialog still has not been seen: driving it needs a
-  statement naming a table in the editor, and the harness kept leaving focus on
-  the schema tree. Its behaviour is covered end to end by
-  `db_tests.rs::a_data_compare_reports_the_rows_that_differ`; only its appearance
-  is unverified. A target reached through an SSH tunnel is refused rather than
+  Both compares were exercised on screen on 2026-10-31. The data compare is
+  reached from the table's right-click **Compare Data…**, which needs no editor
+  text; driving it through the editor's statement does not work from the harness,
+  because focus stays on the schema tree. A target reached through an SSH tunnel is refused rather than
   connected to directly, which is also worth a look since it is the one path that
   shows an error instead of a result.
 

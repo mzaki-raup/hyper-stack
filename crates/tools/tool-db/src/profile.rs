@@ -14,7 +14,8 @@ pub const SSL_MODES: &[&str] = &["disable", "prefer", "require", "verify-ca", "v
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DbFields {
-    /// postgres | mysql | mariadb | sqlite
+    /// postgres | mysql | mariadb | sqlite | mssql | clickhouse | duckdb |
+    /// oracle | db2
     pub engine: String,
     pub host: String,
     pub port: u16,
@@ -24,8 +25,11 @@ pub struct DbFields {
     pub password: String,
     pub ssl: String,
     pub ssl_ca: String,
-    /// SQLite database file.
+    /// SQLite and DuckDB database file.
     pub path: String,
+    /// Oracle and Db2: the ODBC driver, as ODBC names it; empty picks the
+    /// installed one for the engine.
+    pub odbc_driver: String,
     /// Id of an SSH connection to tunnel through (`[tunnel] ssh`).
     pub tunnel_ssh: String,
 }
@@ -42,6 +46,7 @@ impl Default for DbFields {
             ssl: "prefer".into(),
             ssl_ca: String::new(),
             path: String::new(),
+            odbc_driver: String::new(),
             tunnel_ssh: String::new(),
         }
     }
@@ -91,6 +96,7 @@ impl DbFields {
             ssl: Some(s("ssl")).filter(|x| !x.is_empty()).unwrap_or(d.ssl),
             ssl_ca: s("ssl_ca"),
             path: s("path"),
+            odbc_driver: s("odbc_driver"),
             tunnel_ssh: fields
                 .get("tunnel")
                 .and_then(|v| v.as_table())
@@ -107,9 +113,12 @@ impl DbFields {
             t.insert(k.into(), toml::Value::String(v.to_string()));
         };
         put("engine", &self.engine);
-        if self.engine() == Some(Engine::Sqlite) {
+        if self.engine().is_some_and(Engine::is_file) {
             put("path", &self.path);
         } else {
+            if self.engine().is_some_and(Engine::is_odbc) {
+                put("odbc_driver", &self.odbc_driver);
+            }
             put("host", &self.host);
             put("database", &self.database);
             put("user", &self.user);
@@ -119,7 +128,7 @@ impl DbFields {
             t.insert("port".into(), toml::Value::Integer(self.port as i64));
         }
         fields.insert("db".into(), toml::Value::Table(t));
-        if self.tunnel_ssh.is_empty() || self.engine() == Some(Engine::Sqlite) {
+        if self.tunnel_ssh.is_empty() || self.engine().is_some_and(Engine::is_file) {
             fields.remove("tunnel");
         } else {
             let mut tun = toml::Table::new();
@@ -131,18 +140,18 @@ impl DbFields {
     /// Sidebar subtitle: "PostgreSQL · db.example.com/orders".
     pub fn label(&self) -> String {
         match self.engine() {
-            Some(Engine::Sqlite) => {
+            Some(e) if e.is_file() => {
                 let file = std::path::Path::new(&self.path)
                     .file_name()
                     .map(|f| f.to_string_lossy().to_string())
                     .unwrap_or_else(|| self.path.clone());
-                format!("SQLite · {file}")
+                format!("{} · {file}", e.label())
             }
             Some(e) => {
                 let short = match e {
-                    Engine::Postgres => "PostgreSQL",
-                    _ if self.engine.eq_ignore_ascii_case("mariadb") => "MariaDB",
-                    _ => "MySQL",
+                    Engine::Mysql if self.engine.eq_ignore_ascii_case("mariadb") => "MariaDB",
+                    Engine::Mysql => "MySQL",
+                    other => other.label(),
                 };
                 if self.database.is_empty() {
                     format!("{short} · {}", self.host)
@@ -221,6 +230,7 @@ impl DbFields {
             ssl: self.ssl.clone(),
             ssl_ca: Some(ssl_ca).filter(|c| !c.is_empty()),
             path,
+            odbc_driver: self.odbc_driver.clone(),
             read_only,
             connect_timeout: Duration::from_secs(10),
         })
@@ -366,11 +376,31 @@ mod tests {
             ssl: "require".into(),
             ssl_ca: String::new(),
             path: String::new(),
+            odbc_driver: String::new(),
             tunnel_ssh: "01SSH".into(),
         };
         let mut t = toml::Table::new();
         f.write_into(&mut t);
         assert_eq!(DbFields::from_table(&t), f);
+        // ADR-030: an ODBC engine keeps its driver; DuckDB is a file.
+        let oracle = DbFields {
+            engine: "oracle".into(),
+            port: 1521,
+            odbc_driver: "Oracle in instantclient_23_9".into(),
+            ..f.clone()
+        };
+        let mut t = toml::Table::new();
+        oracle.write_into(&mut t);
+        assert_eq!(DbFields::from_table(&t).odbc_driver, oracle.odbc_driver);
+        let duck = DbFields {
+            engine: "duckdb".into(),
+            path: "C:/data/a.duckdb".into(),
+            ..Default::default()
+        };
+        let mut t = toml::Table::new();
+        duck.write_into(&mut t);
+        assert_eq!(DbFields::from_table(&t).path, duck.path);
+        assert_eq!(duck.label(), "DuckDB · a.duckdb");
         let mut no_tunnel = f.clone();
         no_tunnel.tunnel_ssh.clear();
         no_tunnel.write_into(&mut t);
@@ -471,7 +501,8 @@ mod tests {
             f.resolve(false, &Locked, &lookup).unwrap_err(),
             ProfileError::MissingVariables(vec!["missing".into()])
         );
-        f.engine = "oracle".into();
+        // Oracle was the example once; since ADR-030 it is an engine.
+        f.engine = "informix".into();
         assert!(matches!(
             f.resolve(false, &Locked, &lookup),
             Err(ProfileError::UnknownEngine(_))

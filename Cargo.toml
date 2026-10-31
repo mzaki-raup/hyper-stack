@@ -98,6 +98,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 rusqlite = { version = "0.37", features = ["bundled"] }
+# SQL Server, DuckDB, and Oracle / Db2 through ODBC (ADR-030).
+tiberius = { version = "0.13", default-features = false, features = ["tds80", "rustls", "chrono"] }
+duckdb = { version = "1.20000", features = ["bundled"] }
+odbc-api = "29"
 
 # Secrets
 argon2 = "0.5"

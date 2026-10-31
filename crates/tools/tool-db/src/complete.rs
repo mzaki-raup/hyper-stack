@@ -110,11 +110,11 @@ fn is_ident(c: char) -> bool {
 
 /// The default schema whose tables are offered unqualified.
 fn default_schema(engine: Engine, catalog: &Catalog) -> String {
-    match engine {
-        Engine::Postgres => "public".into(),
-        Engine::Sqlite => "main".into(),
-        // MySQL: the schema the session uses is the first one listed.
-        Engine::Mysql => catalog
+    match engine.fixed_default_schema() {
+        Some(d) => d.into(),
+        // MySQL, ClickHouse, Oracle, Db2: the schema the session uses is
+        // the first one listed.
+        None => catalog
             .tables
             .first()
             .map(|t| t.0.clone())

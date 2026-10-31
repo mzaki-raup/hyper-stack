@@ -40,11 +40,13 @@ async fn exercise(cfg: ConnectConfig, table: &str) {
         Engine::Postgres => "id serial primary key",
         Engine::Mysql => "id int auto_increment primary key",
         Engine::Sqlite => "id integer primary key",
+        other => unreachable!("{other:?} is tested in engines.rs"),
     };
     let blob = match e {
         Engine::Postgres => "bytea",
         Engine::Mysql => "varbinary(16)",
         Engine::Sqlite => "blob",
+        other => unreachable!("{other:?} is tested in engines.rs"),
     };
     let parent = format!("{table}_parent");
     run(&mut s, &format!("drop table if exists {table}")).await;
@@ -168,6 +170,7 @@ async fn exercise(cfg: ConnectConfig, table: &str) {
         Engine::Postgres => "public".to_string(),
         Engine::Mysql => cfg.database.clone(),
         Engine::Sqlite => "main".to_string(),
+        other => unreachable!("{other:?} is tested in engines.rs"),
     };
     assert!(schemas.iter().any(|o| o.name == schema), "{schemas:?}");
     let tables = s
@@ -225,6 +228,7 @@ async fn exercise(cfg: ConnectConfig, table: &str) {
             "with recursive r(i) as (select 1 union all select i + 1 from r) select count(*) from r"
                 .to_string()
         }
+        other => unreachable!("{other:?} is tested in engines.rs"),
     };
     let cancel = s.canceller();
     let t = std::thread::spawn(move || {

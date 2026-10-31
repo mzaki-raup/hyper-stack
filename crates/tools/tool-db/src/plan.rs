@@ -69,15 +69,23 @@ impl Plan {
     }
 }
 
-/// The statement to run for a plan of `sql`.
-pub fn explain_sql(sql: &str, engine: Engine, analyze: bool) -> String {
-    match engine {
+/// The statement to run for a plan of `sql`, or `None` where a plan needs
+/// more than one statement (Oracle's and Db2's `EXPLAIN PLAN FOR` fill a
+/// plan table; SQL Server's `SET SHOWPLAN_XML` must be a batch of its own).
+pub fn explain_sql(sql: &str, engine: Engine, analyze: bool) -> Option<String> {
+    Some(match engine {
         Engine::Sqlite => format!("EXPLAIN QUERY PLAN {sql}"),
         Engine::Postgres if analyze => format!("EXPLAIN (ANALYZE, FORMAT JSON) {sql}"),
         Engine::Postgres => format!("EXPLAIN (FORMAT JSON) {sql}"),
         Engine::Mysql if analyze => format!("EXPLAIN ANALYZE {sql}"),
         Engine::Mysql => format!("EXPLAIN FORMAT=JSON {sql}"),
-    }
+        // Text plans, shown as a grid.
+        Engine::DuckDb if analyze => format!("EXPLAIN ANALYZE {sql}"),
+        Engine::DuckDb => format!("EXPLAIN {sql}"),
+        Engine::ClickHouse if analyze => format!("EXPLAIN PIPELINE {sql}"),
+        Engine::ClickHouse => format!("EXPLAIN indexes = 1 {sql}"),
+        Engine::Mssql | Engine::Oracle | Engine::Db2 => return None,
+    })
 }
 
 /// Whether a result came from an EXPLAIN this module can draw.
@@ -159,6 +167,8 @@ pub fn parse(engine: Engine, columns: &[Column], rows: &[Row]) -> Option<Plan> {
             };
             (!plan.roots.is_empty()).then(|| plan.finish())
         }
+        // Text plans stay a grid.
+        Engine::Mssql | Engine::ClickHouse | Engine::DuckDb | Engine::Oracle | Engine::Db2 => None,
     }
 }
 
@@ -396,15 +406,15 @@ mod tests {
     #[test]
     fn explain_sql_per_engine() {
         assert_eq!(
-            explain_sql("select 1", Engine::Sqlite, true),
+            explain_sql("select 1", Engine::Sqlite, true).unwrap(),
             "EXPLAIN QUERY PLAN select 1"
         );
         assert_eq!(
-            explain_sql("select 1", Engine::Postgres, true),
+            explain_sql("select 1", Engine::Postgres, true).unwrap(),
             "EXPLAIN (ANALYZE, FORMAT JSON) select 1"
         );
         assert_eq!(
-            explain_sql("select 1", Engine::Mysql, false),
+            explain_sql("select 1", Engine::Mysql, false).unwrap(),
             "EXPLAIN FORMAT=JSON select 1"
         );
         assert!(is_explain("  explain select 1"));

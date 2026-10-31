@@ -947,3 +947,46 @@ would be lost (Jira) or not at all (Confluence).
   key): they are tested against a mock server with answers written from the
   API references; Redmine and Forgejo run in containers; GitHub and GitLab
   are read on public projects.
+
+## ADR-030 · Five more SQL engines: SQL Server, ClickHouse, DuckDB natively; Oracle and DB2 through ODBC
+
+**Date** 2026-11-01 · **Status** accepted (see `docs/tools/database.md`
+§4) · **Owner's request** (FEAT-0068, 2026-11-01): Oracle, DB2, SQL Server,
+ClickHouse and DuckDB, each tested against a container.
+
+**Context.** ADR-007 put every engine behind `DbSession` and named the
+crates; phase C of the depth programme planned SQL Server, ClickHouse and
+DuckDB, and left Oracle and DB2 to ODBC. The exe is one static binary that
+must stay portable, and every crate must pass `cargo deny` (MIT, Apache,
+BSD… only).
+
+**Decision, per engine.**
+
+| Engine | Client | Licence | Why this one | Cost |
+|---|---|---|---|---|
+| SQL Server | `tiberius` (rustls, TDS 7.3+) | MIT / Apache-2.0 | pure Rust, async, the only maintained TDS client | no statement cancel in TDS through `tiberius`: Cancel runs `KILL <spid>` from a second connection, which ends the session; the tab reconnects on its next statement |
+| ClickHouse | its HTTP interface through `reqwest` (already a dependency) | — | no new crate; `default_format=JSONCompactEachRowWithNamesAndTypes` streams one row a line | no transactions; Cancel is `KILL QUERY WHERE query_id = …` |
+| DuckDB | `duckdb` with `bundled` | MIT | the engine is embedded, like SQLite; reads CSV and Parquet in place | measured 2026-11-01: the release exe grows from 131.7 MB (v0.113.0) to 171.5 MB with all five engines, nearly all of it DuckDB, and a clean release build of DuckDB's C++ takes about 20 minutes on the CI machine; accepted, because the owner asked for DuckDB in the shipped app |
+| Oracle | `odbc-api` + Oracle's ODBC driver (Instant Client) | MIT (the driver is Oracle's, installed by the user) | no pure-Rust Oracle client exists; the OCI crates need Instant Client anyway | the vendor driver must be installed on the machine; the form picks it from the drivers ODBC lists |
+| DB2 | `odbc-api` + IBM Data Server Driver for ODBC/CLI | MIT (driver IBM's, installed by the user) | DB2 has no other client | as Oracle |
+
+- **One ODBC session** (`driver::odbc`) serves Oracle and DB2; what differs
+  between them - the catalog queries, the identifier rules, the version
+  query - is a small dialect table, not a second driver.
+- ODBC calls block, so an ODBC session owns a thread of its own and the tab
+  talks to it through a channel; the UI thread never waits on it (ADR-013).
+- `odbc-api` links the platform's driver manager (`odbc32` on Windows,
+  unixODBC elsewhere). The tool crates must still build on Linux and macOS,
+  where unixODBC is a build dependency - recorded in the README's
+  requirements.
+
+**Consequences.**
+- Five `Engine` variants, each answering the same questions the existing
+  three do: quoting, statement splitting, the destructive classifier, the
+  default schema, DDL, the ER diagram, completion, explain.
+- Oracle and DB2 do nothing until their driver is installed; the form says
+  which drivers ODBC found and the connection error names the missing one.
+- Containers on the bench: `mcr.microsoft.com/mssql/server:2022-latest`,
+  `clickhouse/clickhouse-server`, `gvenzl/oracle-free`, `icr.io/db2_community/db2`;
+  DuckDB needs none. Each `drivers` test runs only when its `HS_*` variable
+  names a server.

@@ -11,7 +11,11 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 
+pub mod clickhouse;
+pub mod duckdb;
+pub mod mssql;
 pub mod mysql;
+pub mod odbc;
 pub mod postgres;
 pub mod sqlite;
 pub mod tls;
@@ -23,16 +27,39 @@ pub enum Engine {
     Postgres,
     /// MySQL and MariaDB.
     Mysql,
+    /// Microsoft SQL Server and Azure SQL (ADR-030).
+    Mssql,
+    ClickHouse,
+    DuckDb,
+    /// Oracle through its ODBC driver.
+    Oracle,
+    /// IBM Db2 through its ODBC/CLI driver.
+    Db2,
 }
 
 impl Engine {
-    pub const ALL: [Engine; 3] = [Engine::Postgres, Engine::Mysql, Engine::Sqlite];
-    /// Profile id: postgres | mysql | mariadb | sqlite.
+    pub const ALL: [Engine; 8] = [
+        Engine::Postgres,
+        Engine::Mysql,
+        Engine::Mssql,
+        Engine::Oracle,
+        Engine::Db2,
+        Engine::ClickHouse,
+        Engine::Sqlite,
+        Engine::DuckDb,
+    ];
+    /// Profile id: postgres | mysql | mariadb | sqlite | mssql | clickhouse |
+    /// duckdb | oracle | db2.
     pub fn parse(s: &str) -> Option<Engine> {
         match s.to_ascii_lowercase().as_str() {
             "postgres" | "postgresql" | "pg" => Some(Engine::Postgres),
             "mysql" | "mariadb" => Some(Engine::Mysql),
             "sqlite" | "sqlite3" => Some(Engine::Sqlite),
+            "mssql" | "sqlserver" | "sql-server" => Some(Engine::Mssql),
+            "clickhouse" => Some(Engine::ClickHouse),
+            "duckdb" => Some(Engine::DuckDb),
+            "oracle" => Some(Engine::Oracle),
+            "db2" => Some(Engine::Db2),
             _ => None,
         }
     }
@@ -42,6 +69,11 @@ impl Engine {
             Engine::Sqlite => "sqlite",
             Engine::Postgres => "postgres",
             Engine::Mysql => "mysql",
+            Engine::Mssql => "mssql",
+            Engine::ClickHouse => "clickhouse",
+            Engine::DuckDb => "duckdb",
+            Engine::Oracle => "oracle",
+            Engine::Db2 => "db2",
         }
     }
 
@@ -50,16 +82,71 @@ impl Engine {
             Engine::Sqlite => "SQLite",
             Engine::Postgres => "PostgreSQL",
             Engine::Mysql => "MySQL / MariaDB",
+            Engine::Mssql => "SQL Server",
+            Engine::ClickHouse => "ClickHouse",
+            Engine::DuckDb => "DuckDB",
+            Engine::Oracle => "Oracle",
+            Engine::Db2 => "Db2",
         }
     }
 
     pub fn default_port(self) -> u16 {
         match self {
-            Engine::Sqlite => 0,
+            Engine::Sqlite | Engine::DuckDb => 0,
             Engine::Postgres => 5432,
             Engine::Mysql => 3306,
+            Engine::Mssql => 1433,
+            // The HTTP interface, which is what the driver speaks.
+            Engine::ClickHouse => 8123,
+            Engine::Oracle => 1521,
+            Engine::Db2 => 50000,
         }
     }
+
+    /// The database is a file on this machine, not a server.
+    pub fn is_file(self) -> bool {
+        matches!(self, Engine::Sqlite | Engine::DuckDb)
+    }
+
+    /// Reached through an ODBC driver the user installs (ADR-030).
+    pub fn is_odbc(self) -> bool {
+        matches!(self, Engine::Oracle | Engine::Db2)
+    }
+
+    /// How the server folds an unquoted identifier: Postgres and DuckDB to
+    /// lower case, Oracle and Db2 to upper case, the others keep it.
+    pub fn folds(self) -> Fold {
+        match self {
+            Engine::Postgres | Engine::DuckDb => Fold::Lower,
+            Engine::Oracle | Engine::Db2 => Fold::Upper,
+            _ => Fold::Keep,
+        }
+    }
+
+    /// Strings take backslash escapes (MySQL, ClickHouse).
+    pub fn backslash_strings(self) -> bool {
+        matches!(self, Engine::Mysql | Engine::ClickHouse)
+    }
+
+    /// The schema a name with no schema of its own means, when it is fixed
+    /// for the engine; `None` where it is the session's (MySQL, ClickHouse,
+    /// Oracle, Db2 - the current database or user).
+    pub fn fixed_default_schema(self) -> Option<&'static str> {
+        match self {
+            Engine::Postgres => Some("public"),
+            Engine::Sqlite | Engine::DuckDb => Some("main"),
+            Engine::Mssql => Some("dbo"),
+            _ => None,
+        }
+    }
+}
+
+/// See [`Engine::folds`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fold {
+    Lower,
+    Upper,
+    Keep,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -185,8 +272,10 @@ pub struct ConnectConfig {
     /// disable | prefer | require | verify-ca | verify-full
     pub ssl: String,
     pub ssl_ca: Option<String>,
-    /// SQLite: the database file.
+    /// SQLite and DuckDB: the database file.
     pub path: String,
+    /// Oracle and Db2: the ODBC driver's name as ODBC lists it.
+    pub odbc_driver: String,
     pub read_only: bool,
     pub connect_timeout: Duration,
 }
@@ -202,6 +291,7 @@ impl std::fmt::Debug for ConnectConfig {
             .field("user", &self.user)
             .field("ssl", &self.ssl)
             .field("path", &self.path)
+            .field("odbc_driver", &self.odbc_driver)
             .field("read_only", &self.read_only)
             .finish_non_exhaustive()
     }
@@ -219,6 +309,7 @@ impl Default for ConnectConfig {
             ssl: "prefer".into(),
             ssl_ca: None,
             path: String::new(),
+            odbc_driver: String::new(),
             read_only: false,
             connect_timeout: Duration::from_secs(10),
         }
@@ -255,8 +346,17 @@ impl ObjectKind {
                 ObjectKind::Function,
                 ObjectKind::Sequence,
             ],
-            Engine::Mysql => &[ObjectKind::Table, ObjectKind::View, ObjectKind::Function],
-            Engine::Sqlite => &[ObjectKind::Table, ObjectKind::View],
+            Engine::Mysql | Engine::Mssql | Engine::Db2 => {
+                &[ObjectKind::Table, ObjectKind::View, ObjectKind::Function]
+            }
+            Engine::Oracle => &[
+                ObjectKind::Table,
+                ObjectKind::View,
+                ObjectKind::Function,
+                ObjectKind::Sequence,
+            ],
+            Engine::DuckDb => &[ObjectKind::Table, ObjectKind::View, ObjectKind::Sequence],
+            Engine::Sqlite | Engine::ClickHouse => &[ObjectKind::Table, ObjectKind::View],
         }
     }
 }
@@ -331,6 +431,10 @@ pub async fn connect(cfg: &ConnectConfig) -> Result<Box<dyn DbSession>> {
         Engine::Sqlite => Ok(Box::new(sqlite::SqliteSession::open(cfg).await?)),
         Engine::Postgres => Ok(Box::new(postgres::PgSession::connect(cfg).await?)),
         Engine::Mysql => Ok(Box::new(mysql::MySession::connect(cfg).await?)),
+        Engine::Mssql => Ok(Box::new(mssql::MssqlSession::connect(cfg).await?)),
+        Engine::ClickHouse => Ok(Box::new(clickhouse::ChSession::connect(cfg).await?)),
+        Engine::DuckDb => Ok(Box::new(duckdb::DuckSession::open(cfg).await?)),
+        Engine::Oracle | Engine::Db2 => Ok(Box::new(odbc::OdbcSession::connect(cfg).await?)),
     }
 }
 
@@ -390,7 +494,13 @@ mod tests {
     fn engines_parse_profile_ids() {
         assert_eq!(Engine::parse("MariaDB"), Some(Engine::Mysql));
         assert_eq!(Engine::parse("postgresql"), Some(Engine::Postgres));
-        assert_eq!(Engine::parse("mssql"), None);
+        assert_eq!(Engine::parse("mssql"), Some(Engine::Mssql));
+        assert_eq!(Engine::parse("DB2"), Some(Engine::Db2));
+        assert_eq!(Engine::parse("informix"), None);
+        // Every engine's id parses back to it.
+        for e in Engine::ALL {
+            assert_eq!(Engine::parse(e.id()), Some(e));
+        }
     }
 
     #[test]

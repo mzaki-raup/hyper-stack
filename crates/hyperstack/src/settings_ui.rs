@@ -8675,7 +8675,12 @@ fn db_form(
                 ("postgres", "PostgreSQL"),
                 ("mysql", "MySQL"),
                 ("mariadb", "MariaDB"),
+                ("mssql", "SQL Server"),
+                ("oracle", "Oracle"),
+                ("db2", "Db2"),
+                ("clickhouse", "ClickHouse"),
                 ("sqlite", "SQLite"),
+                ("duckdb", "DuckDB"),
             ];
             let current = engines
                 .iter()
@@ -8698,13 +8703,18 @@ fn db_form(
                     }
                 });
             ui.end_row();
-            if f.engine() == Some(Engine::Sqlite) {
+            if f.engine().is_some_and(Engine::is_file) {
                 form::label(ui, &s.t("conn-db-file"));
                 ui.horizontal(|ui| {
+                    let example = if f.engine() == Some(Engine::DuckDb) {
+                        "C:/data/app.duckdb  or  :memory:"
+                    } else {
+                        "C:/data/app.db"
+                    };
                     changed |= ui
                         .add(
                             egui::TextEdit::singleline(&mut f.path)
-                                .hint_text("C:/data/app.db")
+                                .hint_text(example)
                                 .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                         )
                         .changed();
@@ -8727,14 +8737,63 @@ fn db_form(
                     changed = true;
                 }
                 ui.end_row();
-                form::label(ui, &s.t("conn-db-database"));
+                // Oracle connects to a service, not a database.
+                let db_label = if f.engine() == Some(Engine::Oracle) {
+                    "conn-db-service"
+                } else {
+                    "conn-db-database"
+                };
+                form::label(ui, &s.t(db_label));
                 changed |= form::text_field(ui, &mut f.database, "").changed();
                 ui.end_row();
+                if let Some(engine) = f.engine().filter(|e| e.is_odbc()) {
+                    // Listing drivers reads the registry, so it is done once
+                    // for this form and kept.
+                    let drivers_id = egui::Id::new("db-odbc-drivers");
+                    let drivers: Vec<String> = ui.data_mut(|d| {
+                        d.get_temp_mut_or_insert_with(
+                            drivers_id,
+                            tool_db::driver::odbc::installed_drivers,
+                        )
+                        .clone()
+                    });
+                    let found = tool_db::driver::odbc::default_driver(engine, &drivers);
+                    form::label(ui, &s.t("conn-db-odbc-driver"));
+                    let shown = if f.odbc_driver.is_empty() {
+                        found.clone().unwrap_or_else(|| s.t("conn-db-odbc-none"))
+                    } else {
+                        f.odbc_driver.clone()
+                    };
+                    egui::ComboBox::from_id_salt("db-odbc-driver")
+                        .width(form::FIELD_MIN_WIDTH)
+                        .selected_text(shown)
+                        .show_ui(ui, |ui| {
+                            for d in &drivers {
+                                if ui.selectable_label(&f.odbc_driver == d, d).clicked() {
+                                    f.odbc_driver = d.clone();
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+                    if found.is_none() && f.odbc_driver.is_empty() {
+                        form::label(ui, "");
+                        ui.colored_label(
+                            theme.warning,
+                            s.t(if engine == Engine::Oracle {
+                                "conn-db-odbc-install-oracle"
+                            } else {
+                                "conn-db-odbc-install-db2"
+                            }),
+                        );
+                        ui.end_row();
+                    }
+                }
             }
         });
         form::hint(ui, theme, &s.t("conn-db-server-hint"));
     });
-    if f.engine() != Some(Engine::Sqlite) {
+    if !f.engine().is_some_and(Engine::is_file) {
         form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
             form::field_grid(ui, "db-auth", |ui| {
                 form::label(ui, &s.t("conn-db-user"));

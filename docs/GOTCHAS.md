@@ -311,6 +311,12 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **S3 without MinIO:** create a venv, `pip install "moto[server]"`, run `moto_server -H 127.0.0.1 -p 5055` with keys `testing` / `testing`, then `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
 - **Upload and Download** use native file dialogs. Test them through the client tests, not the GUI.
 
+## Tool-Specific: Scratchpad
+
+- **Ctrl+P hands a choice to the tab that listed it, not to the tab that should show it.** `quick_open_items` results come back as `OpenRequest::File` to the contributing tab directly (`qo:<tab>:<id>` in `app.rs`), bypassing `uri_affinity` routing. A tool whose tabs each hold one document must not just load whatever it is handed: the Scratchpad's `open` passes a note it does not hold back to the shell with `cx.open`, or a pick would overwrite another note's tab, unsaved edits included. This cannot loop, because the shell never routes a document to a tab whose affinity is `None` for it, nor to a dashboard home tab.
+- **Don't remember where a note's file is; look it up.** With folders a note can move while a tab has it open - another tab's sidebar drag does it. Saving to a cached path would write a second copy where the note used to be. `save` calls `find_note` every time; a cached path is only a hint for the header's timestamps.
+- **`download::safe_name("")` returns `"download"`.** Reused for a folder name, an empty name would silently create a folder called *download*. Check for an empty name before cleaning it.
+
 ## Headless and GUI Testing
 
 - **Click coordinates.** `click x y` takes client coordinates. `shot` and `rawshot` capture `GetWindowRect`, which includes an 8 px invisible border. A control seen at `(sx, sy)` in a screenshot is clicked at `(sx-8, sy-31)`. Using the screenshot's numbers lands a row or two low. Anything below client height (960 − 39 = 921) fails with "is not over the dev window".
@@ -343,6 +349,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Cross-Platform
 
+- **A folder name that differs only in case is the same folder.** NTFS and APFS compare names without case, so `Work` and `work` collide on disk. Name-clash checks for anything written to the file system must ignore case - `hs_core::storage::unique_name` does. The older copies in `tool-devtools::snippets::unique_name` (case-sensitive) and `tool-api::model::next_copy_name` are for names that never become paths.
 - **Platform code** lives only in `hs-core::secrets`, `hs-core::storage::paths`, `hs-core::clipboard_files`, `hs-core::env_path`, and `hs-term::pty`. Linux clippy catches leaks.
 - **BOM-less UTF-16 BE** is ambiguous. Don't guess it during automatic decode. Offer an explicit encoding choice to reopen the original bytes.
 - **`canonicalize` on Windows** adds `\\?\` (see Windows).

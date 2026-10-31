@@ -388,8 +388,8 @@ each removable; the AI assistant is review-only.
 |---|---|
 | ![Scratchpad](docs/screenshots/scratchpad.png) | ![Scratchpad AI assistant](docs/screenshots/scratchpad-ai.png) |
 | **Notes** — a collection of Markdown notes per workspace: the sidebar lists them newest first with pinned notes on top, one tab per note, source and preview side by side, saved 1.5 s after typing stops | **Assistant** — drafts checklists, tables, Mermaid diagrams and command fences; each block inserts at the cursor |
-| ![Pinned note](docs/screenshots/scratchpad-pin.png) | |
-| **Pinned notes** - right-click a note to pin it above the rest; source and preview share the pane and save a moment after typing stops | |
+| ![Pinned note](docs/screenshots/scratchpad-pin.png) | ![Folders of notes](docs/screenshots/scratchpad-folders.png) |
+| **Pinned notes** - right-click a note to pin it above the rest; source and preview share the pane and save a moment after typing stops | **Folders** — notes filed in folders and subfolders at any depth, each a real directory; drag a note by its grip to reorder it or onto a folder to move it in, a taken name gets ` 001`, folders stay collapsed across a restart, and search and Ctrl+P show the folder a note is in |
 | ![Dictation into an assistant](docs/screenshots/ai-dictation.png) | |
 | **Dictate to any assistant** — the microphone beside Send runs the operating system's own speech recognition (offline); phrases are typed into the box, a stop keeps the phrase in flight, the session ends on its own after a set time, and nothing is sent until you press Send | |
 

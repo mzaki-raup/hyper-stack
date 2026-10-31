@@ -145,9 +145,47 @@ pub fn slug(name: &str) -> String {
     }
 }
 
+/// A name not already in `taken`: `wanted` itself, then `wanted 001`,
+/// `wanted 002`, … - the suffix the rest of the app gives a clash.
+///
+/// Compared without regard to case: two names that differ only in case are
+/// the same file or folder on Windows and macOS, so treating them as
+/// different would hand back a name that collides on disk.
+pub fn unique_name<'a>(wanted: &str, taken: impl IntoIterator<Item = &'a str>) -> String {
+    let taken: Vec<String> = taken.into_iter().map(str::to_lowercase).collect();
+    let free = |name: &str| !taken.contains(&name.to_lowercase());
+    let wanted = wanted.trim();
+    if free(wanted) {
+        return wanted.to_string();
+    }
+    for n in 1..=999 {
+        let candidate = format!("{wanted} {n:03}");
+        if free(&candidate) {
+            return candidate;
+        }
+    }
+    // Past 999 the sequence is no help; fall back to something unique.
+    format!("{wanted} {}", crate::new_id())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_free_name_is_kept_and_a_clash_is_numbered() {
+        assert_eq!(unique_name("Work", ["Home"]), "Work");
+        assert_eq!(unique_name("Work", ["Work"]), "Work 001");
+        assert_eq!(unique_name("Work", ["Work", "Work 001"]), "Work 002");
+        assert_eq!(unique_name("  Work ", ["Home"]), "Work", "trimmed");
+    }
+
+    #[test]
+    fn a_name_differing_only_in_case_is_a_clash() {
+        // `work` and `Work` are one folder on Windows and macOS.
+        assert_eq!(unique_name("work", ["Work"]), "work 001");
+        assert_eq!(unique_name("Work", ["WORK", "work 001"]), "Work 002");
+    }
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, PartialEq, Debug)]

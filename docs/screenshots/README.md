@@ -522,3 +522,16 @@ Reaching that dialog through the editor does not work from the harness: it
 needs a statement naming a table, and focus kept staying on the schema tree,
 where the typed SQL goes nowhere. The table's **right-click → Compare Data…**
 takes no editor text and works first time; prefer it.
+
+Depth programme, phase O (2026-10-31): `scratchpad-folders.png` - the
+Scratchpad tree with a `Work` folder holding a nested `Clients`, the note
+*Client meeting* open from inside it, and two notes at the top level, each
+row with its grip. Three notes were seeded as plain `.md` files in
+`D:\Temp\hs-gui-data\workspaces\default\notes`; the folders were made in the
+app with **New Folder** and the folder's right-click, and the note dragged in
+with the harness's `drag` verb (a real press, move and release, which egui's
+drag-and-drop needs). The Scratchpad is not on the rail in that data folder,
+so it was opened from Home's launcher. The same pass checked a name clash
+(`work` beside `Work` became `work 001`), a search and Ctrl+P showing
+*Work / Clients*, collapse and order surviving a restart, a pinned note
+showing its folder, and the guarded folder delete.

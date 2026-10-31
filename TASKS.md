@@ -259,6 +259,92 @@ Change Request : CR-0024
 
 ---
 
+### FEAT-0085 · Tracker activity shell: crate, rail, dashboard, connections, Settings → Tracker
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- [ ] `hs_core::service_http` (moved from `tool-automation`), used by both activities
+- [ ] `tool-tracker` crate, the `Driver` trait and its types, the `Guarded` wrapper, `markup.rs`
+- [ ] registered after Automation under Infra; dashboard home; sidebar of saved trackers with reorder
+- [ ] connection kinds `jira`, `redmine`, `github-issues`, `gitlab-issues`, `forgejo-issues`, `confluence` with their fields and credential kinds
+- [ ] Settings → Tracker: kind buttons, list left, form right; limits
+- [ ] a tab per tracker: query bar and saved queries, items table with More, item pane (fields, description, comments, links), Edit with a field diff, Transition, Comment, New Item; read-only on a protected environment
+- [ ] palette commands and shortcuts of spec §9, AI assistant with Summarise, Draft a Reply, Suggest a Status
+- [ ] product icons for the Tracker kinds (CR-0024)
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add a tracker of each kind, open it, see an empty state and a connection error
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0086 · Jira (Cloud v3, Data Center v2)
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] JQL search with paging; an issue with fields, comments, links
+- [ ] ADF ⇄ Markdown (Cloud), wiki markup → Markdown (DC); a description that cannot round-trip edited only after a warning
+- [ ] transitions; edit fields; comment; create from the project's create metadata
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — recorded responses only
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Jira needs a licence key and cannot run here.
+
+### FEAT-0087 · Redmine
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] issues with filters and full text; an issue with journals
+- [ ] status, edit, note, create; Textile → Markdown
+- [ ] API key in `X-Redmine-API-Key`
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-redmine` container: filter, read, change status, comment, create
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0088 · GitHub Issues
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] search with GitHub syntax; an issue with comments; open / close; edit; comment; create
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a public repository read only (owner: writes stay local)
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes tested against recorded responses only.
+
+### FEAT-0089 · GitLab Issues
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] issues with filters and search; notes; open / close; edit; note; create
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a public project on gitlab.com read only
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes tested against recorded responses only.
+
+### FEAT-0090 · Forgejo Issues
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] issues with filters and search; comments; open / close; edit; comment; create
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — `hs-forgejo`: list, read, close, comment, create
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0091 · Confluence (Cloud v2, Data Center v1)
+- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **Branch:** feat/depth-n-tracker
+- **Depends on:** FEAT-0085
+- [ ] spaces and the page tree; a page in storage format → Markdown
+- [ ] edit as Markdown with the diff shown, publish back with the version bumped; a page with macros or layouts read-only
+- [ ] page comments
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — recorded responses only
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Confluence needs a licence key and cannot run here.
+
 ## Backlog
 
 ### FEAT-0084 · Puppet (PuppetDB, Puppet Enterprise orchestrator)

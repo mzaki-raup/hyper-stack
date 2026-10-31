@@ -907,3 +907,43 @@ code in this phase). Logs go to the Logs activity as a snapshot.
   TeamCity and Forgejo in containers); GitLab and AWX are too heavy for
   this machine and are tested against recorded responses only, which
   `TASKS.md` records.
+
+## ADR-029 · Tracker activity: REST per kind, markup converted at the edges, shared HTTP plumbing
+
+**Date** 2026-10-31 · **Status** proposed (specified; see
+`docs/tools/tracker.md`) · **Owner's request**: every kind the programme
+names, after Automation.
+
+**Context.** Phase N adds a Tracker activity for Jira, Redmine, GitHub,
+GitLab and Forgejo issues and Confluence pages
+([docs/tools/tracker.md](tools/tracker.md)). All have REST APIs; the hard
+part is the text: Jira Cloud stores descriptions as Atlassian Document
+Format (JSON), Jira Data Center as wiki markup, Redmine as Textile or
+Markdown, Confluence as XHTML "storage format". The tab shows and edits
+Markdown.
+
+**Options.**
+
+| Question | Option | For | Against |
+|---|---|---|---|
+| Clients | **`reqwest` and our own calls per kind**, as ADR-028 | no new dependency; each API is a dozen calls | we model the types |
+| HTTP plumbing | **move `tool-automation`'s `Http` (credential on each request, refusals in words) to `hs_core::service_http`** | one copy for two activities | a refactor of code shipped the same day |
+| HTTP plumbing | copy it into `tool-tracker` | no change to Automation | two copies |
+| Markup | **convert at the edges in `markup.rs`, for the subset each format shares with Markdown**, and refuse to write back what it cannot round-trip | edits never silently drop content | rich content (Jira panels, Confluence macros) is read-only |
+| Markup | send Markdown and let the server convert | simple | Jira and Confluence do not accept Markdown on their REST APIs |
+| Markup | an HTML / ADF library crate | complete | none is maintained for ADF; heavy for what is needed |
+
+**Decision.** REST through `reqwest`, one module per kind behind one
+`Driver` trait; `Http` moves to `hs_core::service_http` and both activities
+use it. Markup is converted in `markup.rs`: ADF ⇄ Markdown and Confluence
+storage ⇄ Markdown for paragraphs, headings, lists, code, links, emphasis and
+tables; Jira wiki and Textile → Markdown for reading. An item or page holding
+anything else is shown, and edited only with a warning that names what
+would be lost (Jira) or not at all (Confluence).
+
+**Consequences.**
+- No new crate. The markup converters are ours and are tested both ways.
+- Jira and Confluence cannot run here (Atlassian's images need a licence
+  key): they are tested against a mock server with answers written from the
+  API references; Redmine and Forgejo run in containers; GitHub and GitLab
+  are read on public projects.

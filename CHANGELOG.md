@@ -11,33 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Automation activity (depth programme, phase K).** A new activity for
-  build servers and automation controllers - **Jenkins**, **TeamCity**,
-  **GitHub Actions**, **GitLab CI**, **Forgejo Actions** and **AWX** - one
-  tab per server, after Containers in the rail. The tab lists the server's
-  jobs with their last run, a job's runs (state, ref, started, duration, who),
-  and the selected run's **log**, followed every 2 s while it runs. **Run**
-  asks for the job's parameters first (Jenkins parameters, workflow
-  `workflow_dispatch` inputs, GitLab variables, AWX survey and extra vars);
-  **Cancel** asks first; a protected environment's tab is read-only and the
-  driver refuses both. **Open in Logs** copies the log into a Logs tab, and
-  **Open in Browser** opens the run's own page. The home tab is a dashboard
-  of the saved servers with running and failed-today totals from the open
-  ones. Puppet, in the programme's list, is deferred.
-- **Settings → Automation** lists the servers and holds the refresh interval
-  and how much log is kept per run. Each server's credential is a username
-  and password, a token or an API key, whichever it takes, with the secret in
-  the vault; Connections → Test works for every kind.
-- The connection icons of the Queue and Automation kinds are now the
-  products' own marks where the bundled font has one (RabbitMQ, Kafka, NATS,
-  Jenkins, GitHub Actions, GitLab, Forgejo, Ansible).
-- **Fixed:** a Queue tab could drop the command queued behind a poll - a
-  Consumers or Bindings request sent just after a refresh never ran. The
-  runner merged repeated refreshes by reading past them and threw away the
-  first message that was not one.
-- `hs_core::service_auth` holds the credential every newer activity uses
-  (ADR-028), and `hs_core::fmt::sentence` the sentence-casing of a message
-  for a toast.
+- (nothing yet)
+
+## 0.112.0 — 2026-10-31
+
+### Added
+
+- Automation activity for Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX (depth programme phase K) (12af07c1)
+
+### Fixed
+
+- Keep the command queued behind a poll (4dd2ee0d)
 
 ## 0.111.0 — 2026-10-31
 

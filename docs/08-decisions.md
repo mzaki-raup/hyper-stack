@@ -867,3 +867,44 @@ settings the connection uses.
   and 5, over TCP or the workspace's rustls. The Queue activity holds no MQTT
   session between calls, so it needs no reconnect logic, in-flight store or
   keep-alive timer, which is most of what a full client is.
+
+## ADR-028 · Automation activity: REST only, one driver per kind, a shared service credential
+
+**Date** 2026-10-31 · **Status** proposed (specified; see
+`docs/tools/automation.md`) · **Owner's request**: every kind the
+programme names, Automation before Tracker.
+
+**Context.** Phase K adds an Automation activity for seven kinds - Jenkins,
+TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet
+([docs/tools/automation.md](tools/automation.md)). Every one of them has an
+HTTP API; none needs a wire protocol of its own. The Tracker activity
+(phase N) comes next and talks to the same kind of services with the same
+three credential kinds the Queue activity introduced (password, token,
+API key).
+
+**Options.**
+
+| Question | Option | For | Against |
+|---|---|---|---|
+| Clients | **`reqwest` and our own request code per kind** | already in the workspace; each API is a handful of JSON calls; no new dependency to `cargo deny` | we model each API's few types ourselves |
+| Clients | the per-service SDK crates (`octocrab`, `gitlab`, `jenkins_api`) | typed | five new dependency trees for a few calls each; several pull `aws-lc-rs` or native TLS; uneven maintenance |
+| Credential code | **move it to `hs_core::service_auth`** and use it here and in Tracker | written once, tested once; the fourth activity to need it | the Queue activity has its own copy |
+| Credential code | a copy per tool crate | no shared change | three copies of the code that moves secrets |
+| Run logs into Logs | **a snapshot through `OpenRequest::Text`**; the tab follows a running log itself | no new cross-tool plumbing | the Logs tab does not keep following |
+| Run logs into Logs | a new Logs source fed through `Services` | a live tail in Logs | a registry of log providers in `hs-core`; its own design |
+
+**Decision.** REST through `reqwest`, one module per kind behind one `Driver`
+trait, as in ADR-027. The credential fields and their resolution move to
+`hs_core::service_auth`; Automation and Tracker use it from the start, and the
+Queue activity moves to it when it is next touched (no refactor of working
+code in this phase). Logs go to the Logs activity as a snapshot.
+
+**Consequences.**
+- No new crate for this phase.
+- Seven API shapes are ours to keep up with. Each driver is tested against
+  recorded responses, and against a live server where one runs here (Jenkins,
+  TeamCity and Forgejo in containers); GitLab, AWX and Puppet are too heavy
+  for this machine and are tested against recorded responses only, which
+  `TASKS.md` records.
+- Puppet open source cannot be told to run; only a Puppet Enterprise
+  orchestrator can, and only that connection offers **Run**.

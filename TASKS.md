@@ -149,6 +149,115 @@ Refs: BUG-0003
 
 ---
 
+## v0.7.5 — In-Progress
+
+> Phase K (Automation), then phase N (Tracker), every kind the programme
+> names (owner, 2026-10-31). Writes are exercised only against local
+> containers; git.zacx.net and GitHub are read only.
+
+### FEAT-0077 · Automation activity shell: crate, rail, dashboard, connections, Settings → Automation
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- [ ] `hs_core::service_auth`: credential fields, resolution against the vault and variables, applying to a request
+- [ ] `tool-automation` crate, the `Driver` trait and its types (`Job`, `Run`, `RunState`, `Param`, `LogChunk`), the `Guarded` wrapper
+- [ ] registered after Containers under Infra; dashboard home; sidebar of saved servers with reorder
+- [ ] connection kinds `jenkins`, `teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions`, `awx`, `puppet` with their fields and credential kinds
+- [ ] Settings → Automation: kind buttons, list left, form right; refresh interval and log bound
+- [ ] a tab per server: jobs table, detail with Runs / Log / Parameters / Queue, Run form, guarded Cancel, read-only on a protected environment
+- [ ] Open in Logs (snapshot), palette commands and shortcuts of spec §9, AI assistant with Explain This Failure
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add a server of each kind, open it, see an empty state and a connection error
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0078 · Jenkins
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] jobs (folders flattened) with last build status, duration, who
+- [ ] builds of a job; parameters; build / buildWithParameters, following the queue item to its build
+- [ ] stop a build; the queue; progressive log
+- [ ] API token as basic; password with a CSRF crumb
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-jenkins` container: trigger a parameterised build, follow its log, stop one
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0079 · TeamCity
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] build configurations with last build; builds; parameters
+- [ ] trigger through the build queue with properties; cancel; the queue; the build log
+- [ ] bearer token or basic
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-teamcity` container: trigger, follow the log, cancel
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** TeamCity server wants ~2 GB; if it cannot run beside the other containers, the App box stays open and the driver is tested against recorded responses.
+
+### FEAT-0080 · GitHub Actions
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] workflows of a repository with the last run; runs; a run's jobs and a job's log
+- [ ] workflow_dispatch with inputs (offered only for dispatchable workflows); cancel
+- [ ] GitHub Enterprise through the API URL
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a public repository on github.com, read only (no writes: owner, 2026-10-31)
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes are tested against recorded responses only.
+
+### FEAT-0081 · GitLab CI
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] refs with pipelines as the jobs; pipelines; a pipeline's jobs and a job's trace
+- [ ] create a pipeline on a ref with variables; cancel
+- [ ] `PRIVATE-TOKEN` (api-key) or bearer
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — read a public project on gitlab.com
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** A GitLab server needs ~4 GB and cannot run here; writes are tested against recorded responses.
+
+### FEAT-0082 · Forgejo Actions
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] workflows of a repository with their runs; a run's jobs and logs where the API has them
+- [ ] workflow_dispatch with inputs; cancel where the API has it; a missing endpoint reported as such
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-forgejo` container with a repository and a workflow: dispatch, list, cancel
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0083 · AWX / Ansible Automation Platform
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] job templates with the last job; jobs; survey / extra-vars parameters
+- [ ] launch with extra vars; cancel; stdout
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — recorded responses only
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** AWX needs a Kubernetes operator and several GB; it cannot run here.
+
+### FEAT-0084 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [ ] nodes with the last report's status and time; a node's reports; a report's log lines
+- [ ] Run offered only with a Puppet Enterprise orchestrator URL (deploy one node)
+- [ ] `X-Authentication` RBAC token as api-key
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-puppetdb` container if it fits in memory, otherwise recorded responses
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Puppet Enterprise is licensed and cannot run here; the orchestrator call is tested against a recorded response.
+
 ## v0.7.4 — Planned
 
 ### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections

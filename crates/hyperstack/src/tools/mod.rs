@@ -31,6 +31,9 @@ pub fn factories(
         // as the owner described it. The rail is per workspace and
         // user-ordered, so this is only the default (ADR-026).
         Box::new(tool_containers::ContainersFactory),
+        // After Containers, where the programme puts it
+        // (docs/tools/automation.md §8).
+        Box::new(tool_automation::AutomationFactory),
         Box::new(tool_db::DbFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),

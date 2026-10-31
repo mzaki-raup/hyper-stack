@@ -274,9 +274,25 @@ pub fn pretty_as(text: &str, format: &str) -> Option<String> {
     (out != trimmed).then_some(out)
 }
 
+/// A message as a toast or a hint shows it: sentence case, so a driver's
+/// "purged “orders”" reads "Purged “orders”". Only the first letter moves.
+pub fn sentence(text: &str) -> String {
+    let mut c = text.chars();
+    match c.next() {
+        Some(first) => first.to_uppercase().chain(c).collect(),
+        None => String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_message_starts_with_a_capital() {
+        assert_eq!(sentence("purged “q”"), "Purged “q”");
+        assert_eq!(sentence(""), "");
+    }
 
     #[test]
     fn json_is_reindented_and_minified() {

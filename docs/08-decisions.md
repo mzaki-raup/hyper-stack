@@ -870,12 +870,13 @@ settings the connection uses.
 
 ## ADR-028 · Automation activity: REST only, one driver per kind, a shared service credential
 
-**Date** 2026-10-31 · **Status** proposed (specified; see
+**Date** 2026-10-31 · **Status** accepted (built; see
 `docs/tools/automation.md`) · **Owner's request**: every kind the
 programme names, Automation before Tracker.
 
-**Context.** Phase K adds an Automation activity for seven kinds - Jenkins,
-TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet
+**Context.** Phase K adds an Automation activity for six kinds - Jenkins,
+TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX (Puppet, in
+the programme's list, is deferred: owner, 2026-10-31)
 ([docs/tools/automation.md](tools/automation.md)). Every one of them has an
 HTTP API; none needs a wire protocol of its own. The Tracker activity
 (phase N) comes next and talks to the same kind of services with the same
@@ -901,10 +902,8 @@ code in this phase). Logs go to the Logs activity as a snapshot.
 
 **Consequences.**
 - No new crate for this phase.
-- Seven API shapes are ours to keep up with. Each driver is tested against
+- Six API shapes are ours to keep up with. Each driver is tested against
   recorded responses, and against a live server where one runs here (Jenkins,
-  TeamCity and Forgejo in containers); GitLab, AWX and Puppet are too heavy
-  for this machine and are tested against recorded responses only, which
+  TeamCity and Forgejo in containers); GitLab and AWX are too heavy for
+  this machine and are tested against recorded responses only, which
   `TASKS.md` records.
-- Puppet open source cannot be told to run; only a Puppet Enterprise
-  orchestrator can, and only that connection offers **Run**.

@@ -1,8 +1,8 @@
 # Tool spec — Automation
 
-**Crate:** `tool-automation` · **Status:** draft · **Last updated:** 2026-10-31 ·
+**Crate:** `tool-automation` · **Status:** implemented · **Last updated:** 2026-10-31 ·
 **Phase:** K of [docs/10-depth-programme.md](../10-depth-programme.md) ·
-**Ledger:** `FEAT-0077` to `FEAT-0084` ·
+**Ledger:** `FEAT-0077` to `FEAT-0083` ·
 **Decisions:** [ADR-028](../08-decisions.md)
 
 ## 1. Purpose
@@ -10,7 +10,7 @@
 See what the team's build servers and configuration-management tools are
 doing, and do the few things a developer reaches for between commits:
 start a build with its parameters, stop one that went wrong, read why it
-failed, and see whether the last Puppet run on a node succeeded.
+failed.
 
 It is **not** a CI administration console. It does not create or edit jobs,
 pipelines, workflows, job templates, agents, runners or credentials on the
@@ -24,8 +24,6 @@ server, and it does not replace the server's own UI for that.
   the job asks for, and watch it run.
 - As an on-call engineer, I want to stop a pipeline that is deploying the wrong
   thing, and I want the app to stop me doing that on production by accident.
-- As an operator, I want to see which Puppet nodes failed their last run and
-  open the report.
 - As a developer, I want the assistant to read a failed log with me and say
   what most likely broke.
 
@@ -45,7 +43,7 @@ The connection-per-tab shape of the Queue and Redis activities.
   and two panes:
   - left: the server's **jobs** as a `hs_ui::table::DataTable` — Jenkins jobs,
     TeamCity build configurations, workflows, GitLab projects' pipelines,
-    AWX job templates, Puppet nodes — with the last run's status, when, how
+    and AWX job templates — with the last run's status, when, how
     long and who, and a filter box;
   - right: the selected job's **detail** in tabs: *Runs* (the recent runs
     with status, number, branch or ref, started, duration, who), *Log* (the
@@ -60,22 +58,23 @@ The connection-per-tab shape of the Queue and Redis activities.
 
 One `Driver` per kind behind one trait (§8). What each shows and does:
 
-| | Jenkins | TeamCity | GitHub Actions | GitLab CI | Forgejo Actions | AWX / Automation Platform | Puppet |
-|---|---|---|---|---|---|---|---|
-| Server is | a Jenkins URL | a TeamCity URL | a repository (`owner/name`) on github.com or GHE | a project (`group/name` or id) on a GitLab URL | a repository on a Forgejo / Gitea URL | an AWX URL | a PuppetDB URL (Puppet Enterprise: also the orchestrator) |
-| A job is | a job (folders flattened to `folder/job`) | a build configuration | a workflow | the project's pipelines, by ref | a workflow | a job template | a node |
-| Runs | builds | builds | workflow runs | pipelines | runs | jobs | reports |
-| Run (trigger) | `build` / `buildWithParameters` | `buildQueue` with properties | `workflow_dispatch` with inputs | create a pipeline on a ref with variables | `workflow_dispatch` with inputs | `launch` with extra vars | Puppet Enterprise orchestrator `deploy` of one node |
-| Cancel | stop | cancel | cancel | cancel | cancel | cancel | — |
-| Log | progressive text | build log | a run's job logs | a job's trace | a run's job logs | stdout | the report's log lines |
-| Queue | yes | yes | — | — | — | — | — |
+| | Jenkins | TeamCity | GitHub Actions | GitLab CI | Forgejo Actions | AWX / Automation Platform |
+|---|---|---|---|---|---|---|
+| Server is | a Jenkins URL | a TeamCity URL | a repository (`owner/name`) on github.com or GHE | a project (`group/name` or id) on a GitLab URL | a repository on a Forgejo / Gitea URL | an AWX URL |
+| A job is | a job (folders flattened to `folder/job`) | a build configuration | a workflow | the project's pipelines, by ref | a workflow | a job template |
+| Runs | builds | builds | workflow runs | pipelines | runs | jobs |
+| Run (trigger) | `build` / `buildWithParameters` | `buildQueue` with properties | `workflow_dispatch` with inputs | create a pipeline on a ref with variables | `workflow_dispatch` with inputs | `launch` with extra vars |
+| Cancel | stop | cancel | cancel | cancel | cancel | cancel |
+| Log | progressive text | build log | a run's job logs | a job's trace | a run's job logs | stdout |
+| Queue | yes | yes | — | — | — | — |
 
 Notes per kind:
 
 - **Jenkins** is read and driven through its JSON API. A job with parameters
   is triggered with `buildWithParameters`; one without, with `build`. Jenkins
-  answers a trigger with a queue item, not a build number; the tab follows the
-  queue item until it becomes a build. A username and API token are sent as
+  answers a trigger with a queue item, not a build number (the toast names
+  it); the build appears in Runs on the next read, once Jenkins' quiet period
+  is over. A username and API token are sent as
   HTTP basic, which Jenkins exempts from the CSRF crumb; a password is sent
   with a crumb fetched first.
 - **TeamCity** through its REST API (`/app/rest`), JSON.
@@ -90,16 +89,12 @@ Notes per kind:
   not have (404) is reported as such, not as an error in the tab.
 - **AWX / Ansible Automation Platform** through `/api/v2`. A template that
   asks for variables on launch shows them as parameters.
-- **Puppet** through PuppetDB's query API (v4): nodes with their last report's
-  status and time, a node's reports, and a report's log lines. Open source
-  Puppet has no API to start a run; **Run** is offered only when the
-  connection names a Puppet Enterprise orchestrator.
 
 ## 5. Connections and credentials
 
 Connections live in `hs_core::connections` with the kinds `jenkins`,
-`teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions`, `awx` and
-`puppet`, so they travel with the workspace and take `{{variables}}` from
+`teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions` and `awx`, so
+they travel with the workspace and take `{{variables}}` from
 its environments. Fields per kind:
 
 | Kind | Fields |
@@ -110,7 +105,6 @@ its environments. Fields per kind:
 | gitlab-ci | URL, project (`group/name` or numeric id) |
 | forgejo-actions | URL, repository `owner/name` |
 | awx | URL |
-| puppet | PuppetDB URL; Puppet Enterprise orchestrator URL (optional) |
 
 **Credentials** follow the rule for every newer activity
 ([.claude/rules/security.md](../../.claude/rules/security.md)): one of
@@ -126,11 +120,6 @@ shared `hs_core::service_auth` (ADR-028), which the Tracker activity uses too.
 | GitLab CI | — | `Authorization: Bearer` | `PRIVATE-TOKEN` (the named header) |
 | Forgejo Actions | basic | `Authorization: token …` | — |
 | AWX | basic | `Authorization: Bearer` | — |
-| Puppet | — | — | `X-Authentication` (Puppet Enterprise RBAC token) |
-
-A Puppet open-source PuppetDB is usually reached over plain HTTP on a trusted
-network or through a TLS client certificate; client certificates are out of
-scope for this phase (§10).
 
 ## 6. Guards
 
@@ -165,7 +154,7 @@ channels drained at frame start; nothing blocks the UI thread.
   `src/driver.rs` holds the trait — `jobs`, `runs`, `parameters`, `trigger`,
   `cancel`, `log`, `queue` — and the shared types (`Job`, `Run`, `RunState`,
   `Param`, `LogChunk`); one module per kind (`jenkins.rs`, `teamcity.rs`,
-  `github.rs`, `gitlab.rs`, `forgejo.rs`, `awx.rs`, `puppet.rs`), all over
+  `github.rs`, `gitlab.rs`, `forgejo.rs`, `awx.rs`), all over
   `reqwest`. A `Guarded` wrapper refuses writes on a read-only session, as in
   the Queue activity.
 - `hs_core::service_auth` (new): the credential fields (`auth`, `user`,
@@ -196,11 +185,38 @@ Shift+Insert.
 
 1. **Live log into the Logs activity** needs a log source the Logs activity can
    own without depending on this crate; until then it is a snapshot.
-2. **Client-certificate TLS** (PuppetDB's usual setup, Jenkins behind mTLS).
+2. **Client-certificate TLS** (Jenkins behind mTLS).
 3. **Artifacts** (download a build's artifacts) and **test reports**.
 4. **Bamboo, CircleCI, Azure Pipelines, Buildkite, Argo Workflows** as later
    kinds.
+5. **Puppet** (PuppetDB nodes and reports; a run through a Puppet Enterprise
+   orchestrator) was in the programme's list and is **deferred** on the
+   owner's decision of 2026-10-31 (`FEAT-0084`, Backlog).
 
 ## What is implemented (2026-10-31)
 
-Nothing yet: this spec precedes the code, as the template requires.
+All six kinds as §3-§9 describe. Checked on screen and by `tests/live.rs`
+against a Jenkins 2.528.1 container (parameterised run, the log followed
+from its offset, stop with the confirmation, Open in Logs) and a Forgejo 11
+container with a host-mode runner (dispatch with inputs, the run picked up),
+and read-only against public repositories on github.com and gitlab.com.
+TeamCity and AWX could not run here (TeamCity's first start needs its setup
+wizard; AWX needs a Kubernetes operator), and the owner kept writes off
+GitHub and GitLab: those calls are tested in `tests/mock.rs` against a mock
+server whose answers are written from each API's reference, not captured
+from a server. Where the build differs from the text above:
+
+- **Forgejo** has no Log tab and no Cancel: its API (11.0) has neither. The
+  Queue tab shows the jobs waiting for a runner, and a run appears only once
+  a runner has taken it (the API lists tasks, not runs).
+- **GitHub** serves workflow logs only to a token, even for a public
+  repository; an anonymous connection says so once instead of failing per
+  job. Anonymous calls are also limited to 60 an hour, which a tab polling
+  every 10 s uses up in minutes: a GitHub connection wants a token.
+- **Jenkins** console notes (hidden markup in the plain-text log) are taken
+  out of what the pane shows.
+- A Log pane whose run ends reads the runs again once, so its state and
+  Cancel catch up without waiting for the next poll.
+- Kind icons are the products' own marks from the bundled Nerd Font where
+  Phosphor does not shadow them (CR-0024); TeamCity's does not show, so it
+  has a gear.

@@ -29,6 +29,7 @@ pub enum Page {
     Connections,
     Containers,
     Queue,
+    Automation,
     Security,
     Terminal,
     Editor,
@@ -39,7 +40,7 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 16] {
+    pub fn all() -> [(Page, &'static str); 17] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -51,6 +52,7 @@ impl Page {
             (Page::Connections, "settings-connections"),
             (Page::Containers, "settings-containers"),
             (Page::Queue, "settings-queue"),
+            (Page::Automation, "settings-automation"),
             (Page::Editor, "settings-editor"),
             (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
@@ -72,6 +74,7 @@ impl Page {
             Page::Connections => ph::PLUGS_CONNECTED,
             Page::Containers => ph::SHIPPING_CONTAINER,
             Page::Queue => ph::QUEUE,
+            Page::Automation => ph::FLOW_ARROW,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -440,6 +443,7 @@ pub fn page(
         Page::Connections => connections(ui, theme, services, state, effects),
         Page::Containers => containers(ui, theme, services, state, effects),
         Page::Queue => queue(ui, theme, services, state, effects),
+        Page::Automation => automation(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
@@ -3548,6 +3552,163 @@ fn queue(
     }
 }
 
+/// Settings → Automation (docs/tools/automation.md §3): the saved servers,
+/// kind buttons across the top, list left and form right, and the limits.
+/// The servers are ordinary connection profiles, so this is a filtered view
+/// of the one store, as Settings → Queue is.
+fn automation(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::{AUTOMATION_KINDS, kind_label};
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-automation"),
+        Some(&s.t("settings-automation-sub")),
+    );
+    form::section(ui, theme, &s.t("settings-automation-servers"), |ui| {
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        ui.horizontal_wrapped(|ui| {
+            for kind in AUTOMATION_KINDS {
+                let label = egui::RichText::new(format!(
+                    "{} {}",
+                    hs_ui::icons::connection_icon(kind, ""),
+                    kind_label(kind)
+                ))
+                .size(14.0);
+                if ui
+                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
+                    .tip(s.t("settings-automation-add-hint"))
+                    .clicked()
+                {
+                    let mut draft = hs_core::connections::ConnectionProfile {
+                        name: format!("New {}", kind_label(kind)),
+                        kind: (*kind).to_string(),
+                        ..Default::default()
+                    };
+                    tool_automation::profile::AutomationFields::from_table(kind, &draft.fields)
+                        .write_into(&mut draft.fields);
+                    state.conn_selected = Some(draft.id.clone());
+                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+                    state.conn_draft = Some((draft, text));
+                }
+            }
+        });
+        ui.add_space(10.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                let servers: Vec<(String, String, String, String)> = s
+                    .connections
+                    .read()
+                    .of_automation_kinds()
+                    .map(|c| {
+                        let f = tool_automation::profile::AutomationFields::from_table(
+                            &c.kind, &c.fields,
+                        );
+                        (
+                            c.id.clone(),
+                            c.kind.clone(),
+                            c.name.clone(),
+                            f.label_for(&c.kind),
+                        )
+                    })
+                    .collect();
+                if servers.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-automation-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("automation-settings-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name, subtitle)) in servers.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::connection_icon(kind, ""),
+                            name,
+                            Some(subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(AUTOMATION_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_server = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_automation_kind(&d.kind));
+                if !is_server {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-automation-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-automation-limits"), |ui| {
+        let mut st = s.settings.write();
+        let a = &mut st.automation;
+        form::field_grid(ui, "automation-limits", |ui| {
+            form::label(ui, &s.t("settings-automation-poll"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut a.poll_secs)
+                        .range(2..=600)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-automation-log"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut a.log_mb)
+                        .range(1..=100)
+                        .suffix(" MB"),
+                )
+                .changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-automation-limits-hint"));
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -3681,6 +3842,7 @@ fn save_draft(
     let is_redis = draft.kind == "redis";
     let is_nosql = matches!(draft.kind.as_str(), "mongodb" | "couchdb" | "qdrant");
     let is_queue = hs_core::connections::is_queue_kind(&draft.kind);
+    let is_automation = hs_core::connections::is_automation_kind(&draft.kind);
     let parsed = if is_ssh
         || is_s3
         || is_db
@@ -3689,6 +3851,7 @@ fn save_draft(
         || is_redis
         || is_nosql
         || is_queue
+        || is_automation
     {
         // These forms write into `draft.fields` directly,
         // so the text box is a view rather than the truth.
@@ -3759,6 +3922,13 @@ fn save_draft(
                 let mut f = tool_redis::profile::RedisFields::from_table(&table);
                 secrets_ok =
                     store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_automation {
+                let mut f =
+                    tool_automation::profile::AutomationFields::from_table(&draft.kind, &table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             } else if is_queue {
@@ -3919,6 +4089,8 @@ fn conn_detail(
         container_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_queue_kind(&draft.kind) {
         queue_form(ui, theme, s, draft, fields_text);
+    } else if hs_core::connections::is_automation_kind(&draft.kind) {
+        automation_form(ui, theme, s, draft, fields_text);
     } else {
         form::section(ui, theme, &s.t("conn-fields"), |ui| {
             form::code_field(ui, fields_text, 8);
@@ -4047,6 +4219,7 @@ fn conn_detail(
         let mut probe = draft.clone();
         if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
             && !hs_core::connections::is_queue_kind(&probe.kind)
+            && !hs_core::connections::is_automation_kind(&probe.kind)
             && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
         {
             probe.fields = table;
@@ -4757,6 +4930,13 @@ fn apply_secret_edit(
             f.password = std::mem::take(password);
             let ok =
                 store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_automation_kind(kind) => {
+            let mut f = tool_automation::profile::AutomationFields::from_table(kind, &table);
+            f.credential.secret = std::mem::take(password);
+            let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
             f.write_into(&mut table);
             ok
         }
@@ -8764,6 +8944,114 @@ fn queue_form(
             ("kafka", "token") => "conn-queue-hint-kafka-token",
             ("kafka", "api-key") => "conn-queue-hint-kafka-key",
             (_, "token") => "conn-queue-hint-token-password",
+            _ => "conn-ssh-secret-hint",
+        };
+        form::hint(ui, theme, &s.t(hint));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The build servers' form (`kind` one of `AUTOMATION_KINDS`): where the
+/// server is, the repository or project where the kind needs one, and one
+/// credential of the kinds that server can use, its secret into the vault
+/// on save (`.claude/rules/security.md`).
+fn automation_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_automation::profile::{AutomationFields, auth_kinds_for, default_header, wants_repo};
+    let kind = draft.kind.clone();
+    let mut f = AutomationFields::from_table(&kind, &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-automation-section-server"), |ui| {
+        form::field_grid(ui, "automation-server", |ui| {
+            let (label, example) = match kind.as_str() {
+                "github-actions" => ("conn-automation-api-url", "https://api.github.com"),
+                _ => ("conn-automation-url", "https://ci.example.com"),
+            };
+            form::label(ui, &s.t(label));
+            changed |= form::text_field(ui, &mut f.url, example).changed();
+            ui.end_row();
+            if wants_repo(&kind) {
+                form::label(ui, &s.t("conn-automation-repo"));
+                changed |= form::text_field(ui, &mut f.repo, "owner/name").changed();
+                ui.end_row();
+            }
+            if kind == "gitlab-ci" {
+                form::label(ui, &s.t("conn-automation-project"));
+                changed |= form::text_field(ui, &mut f.project, "group/name").changed();
+                ui.end_row();
+            }
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "automation-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "password" => "conn-queue-auth-password",
+                "token" => "conn-queue-auth-token",
+                "api-key" => "conn-queue-auth-api-key",
+                _ => "conn-queue-auth-none",
+            };
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-queue-credential"));
+            egui::ComboBox::from_id_salt("automation-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&c.auth)))
+                .show_ui(ui, |ui| {
+                    for a in auth_kinds_for(&kind) {
+                        if ui
+                            .selectable_label(c.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            c.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            match c.auth.as_str() {
+                "password" => {
+                    form::label(ui, &s.t("conn-queue-user"));
+                    changed |= form::text_field(ui, &mut c.user, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-password"));
+                    changed |=
+                        secret_field(ui, theme, s, "automation-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                "token" => {
+                    // A Jenkins API token belongs to a user.
+                    if kind == "jenkins" {
+                        form::label(ui, &s.t("conn-queue-user"));
+                        changed |= form::text_field(ui, &mut c.user, "").changed();
+                        ui.end_row();
+                    }
+                    form::label(ui, &s.t("conn-queue-token"));
+                    changed |=
+                        secret_field(ui, theme, s, "automation-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                "api-key" => {
+                    form::label(ui, &s.t("conn-queue-header"));
+                    changed |= form::text_field(ui, &mut c.header, default_header(&kind)).changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-key"));
+                    changed |=
+                        secret_field(ui, theme, s, "automation-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                _ => {}
+            }
+        });
+        let hint = match (kind.as_str(), f.credential.auth.as_str()) {
+            ("jenkins", "token") => "conn-automation-hint-jenkins-token",
+            ("jenkins", "password") => "conn-automation-hint-jenkins-password",
+            ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",
             _ => "conn-ssh-secret-hint",
         };
         form::hint(ui, theme, &s.t(hint));

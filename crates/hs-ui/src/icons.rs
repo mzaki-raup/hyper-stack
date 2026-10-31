@@ -214,6 +214,16 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "gitlab-ci" => "\u{e7eb}",
         "forgejo-actions" => "\u{e910}",
         "awx" => "\u{f109a}",
+        // The trackers (CR-0024): md-jira (the devicon Jira at U+E75C
+        // is under Phosphor), dev-confluence, the GitHub mark,
+        // dev-gitlab, dev-forgejo. Redmine has no mark anywhere and takes
+        // the bug.
+        "jira" => "\u{f0303}",
+        "confluence" => "\u{e799}",
+        "github-issues" => ph::GITHUB_LOGO,
+        "gitlab-issues" => "\u{e7eb}",
+        "forgejo-issues" => "\u{e910}",
+        "redmine" => ph::BUG,
         _ => container_kind_icon(kind),
     }
 }
@@ -382,4 +392,24 @@ pub fn named(key: &str) -> Option<&'static str> {
         .iter()
         .any(|(id, _)| *id == key)
         .then(|| language_icon(key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CR-0024: the activities' connections wear their products' marks,
+    /// so no kind may fall through to the container fallback.
+    #[test]
+    fn every_queue_automation_and_tracker_kind_has_a_mark_of_its_own() {
+        use hs_core::connections::{AUTOMATION_KINDS, QUEUE_KINDS, TRACKER_KINDS};
+        let fallback = connection_icon("no-such-kind", "");
+        for k in QUEUE_KINDS
+            .iter()
+            .chain(AUTOMATION_KINDS)
+            .chain(TRACKER_KINDS)
+        {
+            assert_ne!(connection_icon(k, ""), fallback, "{k}");
+        }
+    }
 }

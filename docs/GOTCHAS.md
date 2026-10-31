@@ -343,8 +343,21 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Kafka 4 dropped old protocol versions** (KIP-896). A client that sends fixed old versions gets nothing back; `kafka_groups.rs` asks `ApiVersions` first and picks the highest version both sides speak.
 - **`OffsetFetch` v10 names topics by id, not name.** Capped at v9 so the response still says which topic an offset is for.
 
+## Tool-Specific: Tracker (tool-tracker)
+
+- **Redmine 6 writes CommonMark by default**, older sites Textile, and the REST API does not say which. Reading Markdown as Textile turns `# heading` into a numbered list; the profile carries a Textile switch and converts only when it is on.
+- **Redmine's issue filters are all-or-nothing.** Once `f[]=` is in the query string, plain parameters such as `status_id=o` are ignored; write every filter as `f[]` / `op[]` / `v[][]`, as the web UI does (`project_id` is a scope and still works alone).
+- **Jira Cloud retired `/rest/api/3/search`** for `/search/jql`, which pages by `nextPageToken` and gives no total. Data Center keeps the offset search.
+- **Jira writes offsets without a colon** (`2026-10-31T10:00:00.000+0000`), which RFC 3339 parsing refuses; fall back to `%z`.
+- **gitlab.com serves a public issue anonymously but not its notes** (401). Open the issue and say why the comments are missing rather than failing it.
+- **GitHub's issue search needs `is:issue`** (or `is:pr`) and is limited to the first 1000 results.
+- **A method named like a trait method shadows nothing.** An inherent `fn item(&self, &Value)` beside the trait's `async fn item(&mut self, &str)` resolved to the trait in `.map(|i| self.item(i))` and failed with a confusing future-type error; give the helper another name (`row`).
+
 ## Headless and GUI Testing
 
+- **`gui-smoke.ps1 wheel` could not scroll down.** `mouse_event` takes the delta as a `uint`, so `-480` was refused, and masking with `0xFFFFFFFF` did nothing because PowerShell reads that literal as the Int32 `-1`; the mask is `0xFFFFFFFFL`. Fixed 2026-10-31.
+- **AdGuard breaks loopback connections to Windows-side servers.** With its filtering on, every mock-server test (and plain `curl` to a local Python server) timed out or was reset at random, while container ports forwarded from WSL kept answering - which made it look like the bench containers' fault. Pause AdGuard's filtering, or exclude localhost, before running the gate; the CI runner is this machine, so it fails there too. Found 2026-10-31.
+- **`keys` can drop or add characters** in a long text typed into a multi-line field (a comment arrived as `gfdChecked the **logs* rotaton`). Read back what the server stored before blaming the app, and keep typed test text short.
 - **Git Bash rewrites absolute paths in arguments to Windows programs**, `wsl` included: `wsl -e docker run … mosquitto -c /mosquitto-no-auth.conf` reached the container as `C:/Program Files/Git/mosquitto-no-auth.conf` and it restarted in a loop. Prefix the command with `MSYS_NO_PATHCONV=1`.
 
 - **Click coordinates.** `click x y` takes client coordinates. `shot` and `rawshot` capture `GetWindowRect`, which includes an 8 px invisible border. A control seen at `(sx, sy)` in a screenshot is clicked at `(sx-8, sy-31)`. Using the screenshot's numbers lands a row or two low. Anything below client height (960 − 39 = 921) fails with "is not over the dev window".

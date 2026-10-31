@@ -1,6 +1,6 @@
 # Tool spec — Tracker
 
-**Crate:** `tool-tracker` · **Status:** draft · **Last updated:** 2026-10-31 ·
+**Crate:** `tool-tracker` · **Status:** implemented · **Last updated:** 2026-10-31 ·
 **Phase:** N of [docs/10-depth-programme.md](../10-depth-programme.md) ·
 **Ledger:** `FEAT-0085` to `FEAT-0091` ·
 **Decisions:** [ADR-029](../08-decisions.md)
@@ -164,4 +164,40 @@ Connections live in `hs_core::connections` with the kinds `jira`,
 
 ## What is implemented (2026-10-31)
 
-Nothing yet: this spec precedes the code, as the template requires.
+All six kinds as §3-§9 describe. Checked on screen and by `tests/live.rs`
+against a Redmine 6 container (filter, read, change status through the
+workflow's allowed statuses, edit with the field review, comment, create,
+the API key kept in the vault) and the Forgejo 11 container (create,
+comment, close, reopen), and read-only against public projects on
+github.com and gitlab.com. Jira and Confluence need an Atlassian licence key
+and could not run here, and the owner kept writes off GitHub and GitLab:
+those calls are tested in `tests/mock.rs` against a mock server whose answers
+are written from each API's reference, not captured from a server. Where the
+build differs from the text above:
+
+- The driver trait folds `comments` into `item` (an item is always read
+  with its comments) and adds `mine_query`, the query the dashboard's
+  *Assigned to Me* counts; *Due This Week* counts the items listed in open
+  tabs.
+- **Redmine** has no search language: the query bar takes `project:`,
+  `status:` (`open`, `closed`, `all` or a status name), `assignee:` (`me` or
+  an id) and `tracker:`, and searches the rest in the subject. An assignee
+  is set as `me` or a user id. Redmine 6 writes CommonMark by default, so
+  the profile says whether the site writes **Textile** instead; only then is
+  text converted.
+- **Forgejo and GitLab** take the same words (`is:open`, `label:`,
+  `assignee:`), since neither has a search language either.
+- **gitlab.com** serves a public issue anonymously but not its notes; the
+  issue opens and says a token is needed for the comments.
+- **Jira Cloud** pages its search by token (`/search/jql`); Data Center by
+  offset. A description converted from ADF or wiki markup that dropped
+  anything says what (`Shown as Markdown without: panel, mention`), and
+  Edit repeats it before a new description is saved over it.
+- **Confluence**: Browse (a space and its page tree) or Search (CQL); Edit
+  is offered only on a page the converter can keep whole, and Publish shows
+  the line diff and sends the next version number.
+- Saved queries are kept in the profile (`queries`), so every tab of that
+  tracker shares them.
+- Kind icons are the products' own marks from the bundled Nerd Font where
+  Phosphor does not shadow them (CR-0024); Redmine has no mark and takes a
+  bug.

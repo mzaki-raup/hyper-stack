@@ -260,90 +260,92 @@ Change Request : CR-0024
 ---
 
 ### FEAT-0085 · Tracker activity shell: crate, rail, dashboard, connections, Settings → Tracker
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** Completed · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
-- [ ] `hs_core::service_http` (moved from `tool-automation`), used by both activities
-- [ ] `tool-tracker` crate, the `Driver` trait and its types, the `Guarded` wrapper, `markup.rs`
-- [ ] registered after Automation under Infra; dashboard home; sidebar of saved trackers with reorder
-- [ ] connection kinds `jira`, `redmine`, `github-issues`, `gitlab-issues`, `forgejo-issues`, `confluence` with their fields and credential kinds
-- [ ] Settings → Tracker: kind buttons, list left, form right; limits
-- [ ] a tab per tracker: query bar and saved queries, items table with More, item pane (fields, description, comments, links), Edit with a field diff, Transition, Comment, New Item; read-only on a protected environment
-- [ ] palette commands and shortcuts of spec §9, AI assistant with Summarise, Draft a Reply, Suggest a Status
-- [ ] product icons for the Tracker kinds (CR-0024)
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — add a tracker of each kind, open it, see an empty state and a connection error
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] `hs_core::service_http` (moved from `tool-automation`), used by both activities
+- [x] `tool-tracker` crate, the `Driver` trait and its types, the `Guarded` wrapper, `markup.rs`
+- [x] registered after Automation under Infra; dashboard home; sidebar of saved trackers with reorder
+- [x] connection kinds `jira`, `redmine`, `github-issues`, `gitlab-issues`, `forgejo-issues`, `confluence` with their fields and credential kinds
+- [x] Settings → Tracker: kind buttons, list left, form right; limits
+- [x] a tab per tracker: query bar and saved queries, items table with More, item pane (fields, description, comments, links), Edit with a field diff, Transition, Comment, New Item; read-only on a protected environment
+- [x] palette commands and shortcuts of spec §9, AI assistant with Summarise, Draft a Reply, Suggest a Status
+- [x] product icons for the Tracker kinds (CR-0024)
+- [x] Test: driver::tests (Guarded refuses every write on a read-only session, and a write the kind does not offer), ui::tests (protected tab read-only until unlocked; an edit carries only the changed fields; the page tree nests), profile::tests, markup::tests; `tests/mock.rs` a read-only connection sends no write
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — add a tracker of each kind, open it, see an empty state and a connection error
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Seen on screen 2026-10-31 against `D:\Temp\hs-gui-data`: dashboard figures, Settings → Tracker (a Redmine API key typed and kept in the vault, Test Connection, Connect), a tab per tracker, saved queries kept in the profile, a read-only profile disabling every write with the reason. Jira points at a closed port, which is the error state.
 
 ### FEAT-0086 · Jira (Cloud v3, Data Center v2)
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** In-Progress · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] JQL search with paging; an issue with fields, comments, links
-- [ ] ADF ⇄ Markdown (Cloud), wiki markup → Markdown (DC); a description that cannot round-trip edited only after a warning
-- [ ] transitions; edit fields; comment; create from the project's create metadata
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] JQL search with paging; an issue with fields, comments, links
+- [x] ADF ⇄ Markdown (Cloud), wiki markup → Markdown (DC); a description that cannot round-trip edited only after a warning
+- [x] transitions; edit fields; comment; create from the project's create metadata
+- [x] Test: `tests/mock.rs` Jira Cloud (token paging, ADF read and written back, transitions, edit with only changed fields and the accountId, comment, create metadata, create) and Data Center (offset paging, wiki markup both ways, bearer PAT); markup ADF and wiki tests
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — recorded responses only
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** Jira needs a licence key and cannot run here.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Jira needs a licence key and cannot run here; tested against a mock server only, and the App box stays open for that reason.
 
 ### FEAT-0087 · Redmine
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** Completed · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] issues with filters and full text; an issue with journals
-- [ ] status, edit, note, create; Textile → Markdown
-- [ ] API key in `X-Redmine-API-Key`
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a `hs-redmine` container: filter, read, change status, comment, create
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] issues with filters and full text; an issue with journals
+- [x] status, edit, note, create; Textile → Markdown
+- [x] API key in `X-Redmine-API-Key`
+- [x] Test: `tests/live.rs` against `hs-redmine` (redmine:6): create with tracker and priority, filter by subject, allowed statuses, transition, edit (subject, assignee me, due), note, read back, assigned-to-me query, read-only refusal; redmine filter test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a `hs-redmine` container: filter, read, change status, comment, create
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Redmine 6 writes CommonMark by default; the profile says when a site writes Textile.
 
 ### FEAT-0088 · GitHub Issues
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** Completed · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] search with GitHub syntax; an issue with comments; open / close; edit; comment; create
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a public repository read only (owner: writes stay local)
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] search with GitHub syntax; an issue with comments; open / close; edit; comment; create
+- [x] Test: `tests/live.rs` reads BurntSushi/ripgrep anonymously; `tests/mock.rs` close as not planned, labels, comment, create, the search scoped to the repository and to issues
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a public repository read only (owner: writes stay local)
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** Writes tested against recorded responses only.
 
 ### FEAT-0089 · GitLab Issues
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** Completed · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] issues with filters and search; notes; open / close; edit; note; create
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a public project on gitlab.com read only
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** Writes tested against recorded responses only.
+- [x] issues with filters and search; notes; open / close; edit; note; create
+- [x] Test: `tests/live.rs` reads gitlab-org/cli anonymously with paging; `tests/mock.rs` close, assignee by user id, due date, note, create with labels, PRIVATE-TOKEN
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a public project on gitlab.com read only
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes tested against recorded responses only. gitlab.com keeps notes from anonymous callers; the issue opens and says so.
 
 ### FEAT-0090 · Forgejo Issues
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** Completed · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] issues with filters and search; comments; open / close; edit; comment; create
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — `hs-forgejo`: list, read, close, comment, create
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] issues with filters and search; comments; open / close; edit; comment; create
+- [x] Test: `tests/live.rs` against `hs-forgejo`: create, comment, due date, close, closed search, reopen, text search
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — `hs-forgejo`: list, read, close, comment, create
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### FEAT-0091 · Confluence (Cloud v2, Data Center v1)
-- **State:** Pending · **Spec:** docs/tools/tracker.md · **Phase:** N
+- **State:** In-Progress · **Spec:** docs/tools/tracker.md · **Phase:** N
 - **Branch:** feat/depth-n-tracker
 - **Depends on:** FEAT-0085
-- [ ] spaces and the page tree; a page in storage format → Markdown
-- [ ] edit as Markdown with the diff shown, publish back with the version bumped; a page with macros or layouts read-only
-- [ ] page comments
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] spaces and the page tree; a page in storage format → Markdown
+- [x] edit as Markdown with the diff shown, publish back with the version bumped; a page with macros or layouts read-only
+- [x] page comments
+- [x] Test: `tests/mock.rs` Confluence Cloud (spaces, page tree, storage → Markdown, publish with version + 1, footer comment, CQL search, a macro page refused) and Data Center (ancestors, v1 publish); markup storage tests
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — recorded responses only
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** Confluence needs a licence key and cannot run here.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Confluence needs a licence key and cannot run here; tested against a mock server only, and the App box stays open for that reason.
 
 ## Backlog
 
@@ -374,22 +376,23 @@ Change Request : CR-0024
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections
-- **State:** In-Progress · 
+- **State:** Completed · 
 - **Scope:** Queue Activity, Tracker Activity, Automation Activity -> Connections Icon.
-- [ ] All connection icon use actual product icon. Refer on Database connection on how to do it.
-- [ ] Test:  <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a `icons` case per connections.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** Queue and Automation done 2026-10-31 and seen on screen: md-rabbit, md-apache_kafka, dev-nats, dev-jenkins, dev-githubactions, dev-gitlab, dev-forgejo, md-ansible from the bundled Nerd Font (the devicon RabbitMQ and JetBrains glyphs sit under Phosphor's EXCLUDE and BATTERY_PLUS and do not show, so TeamCity has a gear and MQTT keeps the broadcast). Tracker's kinds follow with phase N.
+- [x] All connection icon use actual respective product icon if available. Refer on Database connection on how to get it.
+- [x] Test: hs-ui icons::tests - every Queue, Automation and Tracker kind maps to a mark of its own, never the container fallback
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a `icons` case per connections.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Queue and Automation done 2026-10-31 and seen on screen: md-rabbit, md-apache_kafka, dev-nats, dev-jenkins, dev-githubactions, dev-gitlab, dev-forgejo, md-ansible from the bundled Nerd Font (the devicon RabbitMQ and JetBrains glyphs sit under Phosphor's EXCLUDE and BATTERY_PLUS and do not show, so TeamCity has a gear and MQTT keeps the broadcast). Tracker done 2026-10-31 and seen on screen: md-jira (the devicon Jira at U+E75C is under Phosphor), dev-confluence, the GitHub mark, dev-gitlab, dev-forgejo; Redmine has no mark anywhere and takes a bug.
 
-### FEAT-0076 · Scratchpad Dashboard Folder Count
+### FEAT-0076 · Scratchpad Dashboard Folder Count And Sidebar Column Folder Icon
 - **State:** Pending · 
-- **Scope:** Scratchpad Activity -> Dashboard page.
+- **Scope:** Scratchpad Activity -> Dashboard page, Sidebar Column.
 - [ ] Add card in summary for folder count before the Notes count card.
+- [ ] Make the icon for folder in sidebar column slightly bigger than the notes icon.
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a card displaying folder count.
+- [ ] App: `--data-dir ./tmp-data` — a card displaying folder count, folder icon bigger than notes icon.
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### FEAT-0068 · Oracle, DB2 and the other common relational engines

@@ -36,6 +36,8 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx" => {
             Some("automation")
         }
+        "jira" | "redmine" | "github-issues" | "gitlab-issues" | "forgejo-issues"
+        | "confluence" => Some("tracker"),
         _ => None,
     }
 }
@@ -431,6 +433,9 @@ mod tests {
         }
         for k in hs_core::connections::AUTOMATION_KINDS {
             assert_eq!(tool_for_kind(k), Some("automation"), "{k}");
+        }
+        for k in hs_core::connections::TRACKER_KINDS {
+            assert_eq!(tool_for_kind(k), Some("tracker"), "{k}");
         }
         // No tool opens these kinds yet.
         assert_eq!(tool_for_kind("cassandra"), None);

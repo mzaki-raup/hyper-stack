@@ -910,7 +910,7 @@ code in this phase). Logs go to the Logs activity as a snapshot.
 
 ## ADR-029 · Tracker activity: REST per kind, markup converted at the edges, shared HTTP plumbing
 
-**Date** 2026-10-31 · **Status** proposed (specified; see
+**Date** 2026-10-31 · **Status** accepted (built; see
 `docs/tools/tracker.md`) · **Owner's request**: every kind the programme
 names, after Automation.
 

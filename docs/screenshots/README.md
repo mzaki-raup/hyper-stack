@@ -568,3 +568,15 @@ and token from `forgejo admin user`, a repository `dev/demo` with a
 `docker:host` so steps run in the runner's own shell). The GitHub and GitLab
 tabs read BurntSushi/ripgrep and gitlab-org/cli anonymously. TeamCity and
 AWX point at ports nothing listens on, which is the error state.
+
+Depth programme, phase N (2026-10-31): `tracker.png` (the Tracker dashboard
+with five trackers open), `tracker-redmine.png` (a Redmine issue with its
+fields, description and comments beside the query's items),
+`tracker-review.png` (Edit's review of the changed fields before Save) and
+`tracker-settings.png` (Settings → Tracker with the Redmine form: an API key
+stored in the vault, Test connected). The bench adds `hs-redmine`
+(`redmine:6` on port 3010, default data loaded, the REST API switched on with
+`rails runner`, a public project `demo`) to `hs-forgejo`'s `dev/demo`
+repository. The GitHub and GitLab tabs read BurntSushi/ripgrep and
+gitlab-org/cli anonymously; Jira points at a port nothing listens on. The
+Redmine profile was made in the app; the others were written as files.

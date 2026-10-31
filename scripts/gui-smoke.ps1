@@ -169,7 +169,9 @@ switch ($cmd) {
     $x = $r.L + [int]$Args[1]; $y = $r.T + [int]$Args[2]
     [W]::SetCursorPos($x, $y) | Out-Null
     Start-Sleep -Milliseconds 120
-    [W]::mouse_event(0x0800, 0, 0, [int]$Args[3], [UIntPtr]::Zero)
+    # The delta is signed (negative scrolls down) but the parameter is a
+    # uint: pass its two's-complement bits, or a negative delta is refused.
+    [W]::mouse_event(0x0800, 0, 0, [uint32]([int64][int]$Args[3] -band 0xFFFFFFFFL), [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 300
     "wheeled $($Args[3]) at $x,$y"
   }

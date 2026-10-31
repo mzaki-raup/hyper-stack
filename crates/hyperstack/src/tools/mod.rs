@@ -35,6 +35,9 @@ pub fn factories(
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),
         Box::new(tool_logs::LogsFactory),
+        // After Logs: the programme puts it after Automation, which does
+        // not exist yet (docs/tools/queue.md §8).
+        Box::new(tool_queue::QueueFactory),
         Box::new(tool_api::ApiFactory),
         Box::new(tool_browser::BrowserFactory { hub: browser }),
         Box::new(tool_graphics::GraphicsFactory { hub: graphics }),

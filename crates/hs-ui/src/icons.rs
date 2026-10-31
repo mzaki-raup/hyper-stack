@@ -194,6 +194,17 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "nexus" => ph::PACKAGE,
         "ssh" => ph::COMPUTER_TOWER,
         "api" => ph::PAPER_PLANE_TILT,
+        // The brokers. Redis Streams is still a Redis server, so it keeps
+        // Redis' mark; the others have no brand glyph in the bundled
+        // fonts, so each wears what it does: RabbitMQ's rabbit, Kafka's
+        // log of stacked records, NATS' fan-out to subscribers (the paper
+        // plane drew as a bare triangle at list size), and MQTT's
+        // broadcast to whoever subscribed.
+        "redis-streams" => "\u{e76d}",
+        "rabbitmq" => ph::RABBIT,
+        "kafka" => ph::STACK,
+        "nats" => ph::SHARE_NETWORK,
+        "mqtt" => ph::BROADCAST,
         _ => container_kind_icon(kind),
     }
 }

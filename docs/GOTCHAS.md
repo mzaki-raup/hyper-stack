@@ -58,6 +58,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Heredocs.** Use `<<'EOF'` (quoted). An unquoted heredoc expands `` `backticks` `` (blanking names in doc comments) and `$name` (turning Fluent text into `Remove { }?`, a parse error that dropped the whole message). Better still, write the script to a file with the Write tool and run it.
 - **`the_bundled_locale_parses_without_junk`** fails the gate on bad Fluent entries. A locale error otherwise shows only as "locale en has 1 syntax errors" in the log.
 - **Quoting accidents.** Two lost patches came from quoting, not logic. Write scripts to files.
+- **Python on Windows writes CRLF.** `open(p, 'w')` translates `\n` to `\r\n`, so a patched LF file comes back with every line changed (git warns "CRLF will be replaced by LF"). Open with `newline=''` for reading and writing. Fix a damaged file with `sed -i 's/\r$//'`.
+- **The Bash tool can refuse a long heredoc** ("unexpected EOF while looking for matching `'`") even when quoted, depending on the text. Nothing in it ran. Write the script to a file with the Write tool and run the file.
 
 ## Windows Environment and Build
 
@@ -84,6 +86,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Items after a test module.** Appending functions to a file puts them after `#[cfg(test)] mod tests`, which clippy refuses ("items after a test module"). Insert before the test module. `cat >>` is safe only for files without one.
 - **`serde_json::Value::Object` is a sorted map.** Field order is lost. The JSON tree can't keep order without `preserve_order`, which would change every tool's JSON. For JWTs, re-serialising changes the signature input. Compact the user's text instead (`jwt::compact_json`).
 - **rust-embed.** `#[include]` and `#[exclude]` need the `include-exclude` feature. Without it the derive fails silently, and every `Locales::get` call reports "no associated function".
+- **`kafka-protocol` implements `Request` only with both `client` and `broker` on.** With `client` alone the messages encode, but `KEY`, the response type and `send::<R: Request>` do not exist ("the trait `Request` is not implemented for `ApiVersionsRequest`"). Neither feature adds a dependency; the compression features do (lz4 and zstd are C).
+- **`async-nats` consumer `Info::paused` is behind a server-version feature** (`server_2_11`); with only `server_2_10` on the field does not exist.
 - **bson extended JSON.** `Bson::try_from(serde_json::Value)` and `into_relaxed_extjson` need bson's `serde_json-1` feature, which the driver doesn't enable. Depend on `bson` directly with that feature.
 - **mysql_async + rustls.** `ClientConfig::builder()` panics when two crypto providers are compiled in (reqwest brings aws-lc-rs, the app uses ring). Install ring as the process default once before connecting (`driver::mysql::install_crypto_provider`).
 - **tokio-rustls, the same panic.** `Network Check`'s TLS pane hit it too:
@@ -317,7 +321,18 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Don't remember where a note's file is; look it up.** With folders a note can move while a tab has it open - another tab's sidebar drag does it. Saving to a cached path would write a second copy where the note used to be. `save` calls `find_note` every time; a cached path is only a hint for the header's timestamps.
 - **`download::safe_name("")` returns `"download"`.** Reused for a folder name, an empty name would silently create a folder called *download*. Check for an empty name before cleaning it.
 
+## Tool-Specific: Queue (tool-queue)
+
+- **RabbitMQ's management statistics lag.** `messages_ready` is updated on the statistics interval (5 s by default), so a queue read straight after a publish still shows the old depth. The live tests poll for the depth they expect instead of reading once.
+- **RabbitMQ 4 refuses new transient queues** (`PUT /api/queues/…` with `"durable": false` answers 400). Make test queues durable and delete them.
+- **RabbitMQ's `guest` user only signs in from localhost**, and a connection through Docker's port mapping is not localhost to the broker. The bench container sets `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS`.
+- **JetStream says "no stream found for given subject"** (not only "no responders") when no stream captures a subject. Either means "publish as plain NATS"; the error can come from the publish or from its acknowledgement.
+- **Kafka 4 dropped old protocol versions** (KIP-896). A client that sends fixed old versions gets nothing back; `kafka_groups.rs` asks `ApiVersions` first and picks the highest version both sides speak.
+- **`OffsetFetch` v10 names topics by id, not name.** Capped at v9 so the response still says which topic an offset is for.
+
 ## Headless and GUI Testing
+
+- **Git Bash rewrites absolute paths in arguments to Windows programs**, `wsl` included: `wsl -e docker run … mosquitto -c /mosquitto-no-auth.conf` reached the container as `C:/Program Files/Git/mosquitto-no-auth.conf` and it restarted in a loop. Prefix the command with `MSYS_NO_PATHCONV=1`.
 
 - **Click coordinates.** `click x y` takes client coordinates. `shot` and `rawshot` capture `GetWindowRect`, which includes an 8 px invisible border. A control seen at `(sx, sy)` in a screenshot is clicked at `(sx-8, sy-31)`. Using the screenshot's numbers lands a row or two low. Anything below client height (960 − 39 = 921) fails with "is not over the dev window".
 - **Minimum window size.** The window is at least 1720 × 860 (since 2026-10-23). Windows enforces that against user drags but lets other processes' `SetWindowPos` through, so `HyperStackApp::enforce_min_size` pushes back each frame. A harness asking for 1400 × 960 gets the small window for a frame, then 1720 × 860. Take screenshots after a pause, before clicking anything.

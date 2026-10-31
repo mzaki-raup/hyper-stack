@@ -11,7 +11,33 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- **Queue activity (depth programme, phase L).** A new activity for
+  message brokers - **RabbitMQ**, **Kafka**, **Redis Streams**, **NATS**
+  (JetStream) and **MQTT** (3.1.1 and 5) - one tab per broker, after Logs in
+  the rail. The tab lists the broker's queues, topics or streams with the
+  figures that kind has (ready / unacked / consumers / rates for RabbitMQ,
+  partitions and offsets for Kafka, length and groups for a stream, what was
+  seen in a bounded window for MQTT) and refreshes every 5 s while it is on
+  screen. **Peek** reads up to 50 messages without consuming them - RabbitMQ
+  requeues what it reads, and the pane says so - with JSON pretty-printed and
+  binary shown as hex; **Publish** sends to the selected destination with
+  headers, a key or routing key, a partition, or QoS and retain; **Consumers**
+  shows Kafka consumer groups with lag per partition (cancellable, with
+  progress), Redis stream groups with pending and lag, NATS consumers and
+  RabbitMQ's consumers; **Bindings** for a RabbitMQ queue. **Purge** asks
+  first and **Delete** asks for the name to be typed; on a protected
+  environment the tab is read-only and the driver refuses writes too. The
+  home tab is a dashboard of saved brokers with totals from the open ones.
+- **Settings → Queue** lists the brokers and holds the limits (messages per
+  Peek, refresh interval, MQTT listening window). Each broker's credential is
+  a username and password, a token or an API key - whichever that broker can
+  use - with the secret in the vault; Kafka takes SASL PLAIN, SCRAM-SHA-256/512
+  or OAUTHBEARER. Connections → Test works for every broker kind.
+- New dependencies (ADR-027): `rskafka`, `kafka-protocol`, `async-nats` and
+  `bytes`. MQTT uses a small client of its own instead of `rumqttc`, whose
+  current release pins a `rustls-webpki` with open advisories. Kafka records
+  compressed with lz4 or zstd cannot be peeked, because those codecs are C
+  libraries.
 
 ## 0.110.0 — 2026-10-31
 

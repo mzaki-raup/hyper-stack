@@ -125,6 +125,12 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.user;
             r.password = Password::read(&v.password);
         }
+        kind if hs_core::connections::is_queue_kind(kind) => {
+            let v = tool_queue::profile::QueueFields::from_table(kind, f);
+            r.host = v.address;
+            r.user = v.user;
+            r.password = Password::read(&v.secret);
+        }
         "s3" => {
             let v = hs_core::objstore::profile::S3Fields::from_table(f);
             r.host = v.endpoint;

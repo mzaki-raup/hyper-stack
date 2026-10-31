@@ -31,6 +31,11 @@ pub const KINDS: &[&str] = &[
     "cassandra",
     "webdav",
     "nexus",
+    "rabbitmq",
+    "kafka",
+    "redis-streams",
+    "nats",
+    "mqtt",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -70,6 +75,19 @@ pub fn is_redis_kind(kind: &str) -> bool {
     REDIS_KINDS.contains(&kind)
 }
 
+/// The kinds the **Queue** activity opens (`docs/tools/queue.md` §5).
+///
+/// `redis-streams` is a kind of its own rather than a reuse of `redis`:
+/// the Redis activity opens a `redis` profile, and one profile cannot
+/// belong to two activities without the sidebar of each listing the
+/// other's servers.
+pub const QUEUE_KINDS: &[&str] = &["rabbitmq", "kafka", "redis-streams", "nats", "mqtt"];
+
+/// Whether a kind is opened by the Queue activity.
+pub fn is_queue_kind(kind: &str) -> bool {
+    QUEUE_KINDS.contains(&kind)
+}
+
 /// Whether a kind belongs to the Container activity.
 pub fn is_container_kind(kind: &str) -> bool {
     CONTAINER_KINDS.contains(&kind)
@@ -104,6 +122,11 @@ pub fn kind_label(kind: &str) -> &str {
         "cassandra" => "Cassandra",
         "webdav" => "WebDAV",
         "nexus" => "Nexus",
+        "rabbitmq" => "RabbitMQ",
+        "kafka" => "Kafka",
+        "redis-streams" => "Redis Streams",
+        "nats" => "NATS",
+        "mqtt" => "MQTT",
         other => other,
     }
 }
@@ -220,6 +243,11 @@ impl Connections {
         self.profiles.iter().filter(|c| is_redis_kind(&c.kind))
     }
 
+    /// Every broker the Queue activity opens, in order.
+    pub fn of_queue_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_queue_kind(&c.kind))
+    }
+
     fn file_for(&self, c: &ConnectionProfile) -> PathBuf {
         self.dir
             .join(&c.kind)
@@ -334,7 +362,7 @@ mod tests {
     /// connection, or the tool opens something nobody can create.
     #[test]
     fn every_claimed_kind_is_one_a_user_can_add() {
-        for k in REDIS_KINDS.iter().chain(CONTAINER_KINDS) {
+        for k in REDIS_KINDS.iter().chain(CONTAINER_KINDS).chain(QUEUE_KINDS) {
             assert!(KINDS.contains(k), "{k} is claimed but not offered");
             assert_ne!(kind_label(k), *k, "{k} has no label of its own");
         }
@@ -344,6 +372,11 @@ mod tests {
         );
         assert!(is_redis_kind("redis"));
         assert!(!is_redis_kind("mongodb"));
+        // A Redis server used for streams is the Queue activity's, and
+        // a plain Redis profile stays the Redis activity's.
+        assert!(is_queue_kind("redis-streams"));
+        assert!(!is_queue_kind("redis"));
+        assert!(!is_redis_kind("redis-streams"));
     }
 
     #[test]

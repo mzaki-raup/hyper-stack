@@ -23,6 +23,7 @@ pub struct Settings {
     pub browser: Browser,
     pub git: Git,
     pub containers: Containers,
+    pub queue: Queue,
 }
 
 /// A container registry and how to sign in to it.
@@ -74,6 +75,30 @@ pub struct ChartRepo {
 impl ChartRepo {
     pub fn needs_auth(&self) -> bool {
         !self.user.trim().is_empty()
+    }
+}
+
+/// Settings → Queue: the bounds every broker tab works within
+/// (`docs/tools/queue.md` §7). The brokers themselves are connection
+/// profiles, not settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Queue {
+    /// How many messages Peek reads when nothing else is asked for.
+    pub peek_count: u32,
+    /// How often a visible tab re-reads its destinations' figures.
+    pub poll_secs: u32,
+    /// How long an MQTT tab listens before it shows what it saw.
+    pub mqtt_window_secs: u32,
+}
+
+impl Default for Queue {
+    fn default() -> Self {
+        Self {
+            peek_count: 10,
+            poll_secs: 5,
+            mqtt_window_secs: 3,
+        }
     }
 }
 
@@ -390,6 +415,7 @@ impl Default for Settings {
             browser: Browser::default(),
             git: Git::default(),
             containers: Containers::default(),
+            queue: Queue::default(),
         }
     }
 }

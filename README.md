@@ -35,8 +35,8 @@ and theme.
 > history) and Markdown preview with native Mermaid diagrams, an SSH + SFTP
 > tool with a synced dual pane, port forwarding and a file pane that copies
 > files and folders to and from the system clipboard, an S3 browser for AWS
-> and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB and
-> SQLite with a cell viewer that previews pictures and documents, a **Redis**
+> and S3-compatible stores, a SQL client for PostgreSQL, MySQL/MariaDB,
+> SQLite, SQL Server, ClickHouse, DuckDB, Oracle and Db2 with a cell viewer that previews pictures and documents, a **Redis**
 > key browser with type-aware viewers, a console and guards, a **NoSQL**
 > client for MongoDB and CouchDB, an **API
 > client** with collections, JavaScript scripts (`pm` API) and Postman
@@ -248,6 +248,11 @@ the lists.
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
 
 ### SQL databases (PostgreSQL, MySQL / MariaDB, SQLite)
+
+Also SQL Server, ClickHouse and DuckDB, and Oracle and Db2 through the
+vendor's ODBC driver, which you install (Oracle Instant Client ODBC, IBM Data
+Server Driver for ODBC and CLI); the connection form lists the drivers ODBC
+finds. Db2 is not yet verified against a server.
 
 <p align="center"><img src="docs/screenshots/database-walkthrough.gif" alt="Database tool walkthrough: expand the schema tree and open a table's rows, write a join with completion, run it, run a script whose last statement fails with the error underlined in the editor, then on the protected Production connection see a DELETE refused, allow writes, and get asked to type the table name" width="960"></p>
 
@@ -558,11 +563,14 @@ cargo clippy --workspace --all-targets --locked -- -D warnings && cargo test --w
 HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live   # S3 client against moto_server or MinIO
 # SQL drivers: SQLite always; PostgreSQL / MySQL when given host:port:user:password:database
 HS_PG=127.0.0.1:5432:postgres:pg:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers
+# The newer engines, each when its variable is set (DuckDB always, in process)
+HS_MSSQL=127.0.0.1:1433:sa:pw:master HS_CLICKHOUSE=127.0.0.1:8123:default:pw:default HS_ORACLE=127.0.0.1:1521:app:pw:FREEPDB1 cargo test -p tool-db --test engines
 ```
 
 On Linux, `cargo clippy --workspace` also needs `libwayland-dev`,
 `libxkbcommon-dev` and `pkg-config` (the UI test harness builds the Wayland
-backend).
+backend), and linking needs unixODBC (`unixodbc-dev`) for the Oracle and Db2
+connections.
 
 ### Running on a Mac via Parallels (beta testing)
 
@@ -601,7 +609,7 @@ hyper-stack/
 │   ├── hs-term/               # terminal grid, PTY, SSH shell transport
 │   └── tools/
 │       ├── tool-editor/
-│       ├── tool-db/           # SQL: driver/ (postgres, mysql, sqlite; mssql, … later), splitter + classifier, grid
+│       ├── tool-db/           # SQL: driver/ (postgres, mysql, sqlite, mssql, clickhouse, duckdb, odbc), splitter + classifier, grid
 │       ├── tool-nosql/        # documents: + drivers/ (mongodb, couchdb, elasticsearch, dynamodb, …)
 │       ├── tool-redis/
 │       ├── tool-logs/

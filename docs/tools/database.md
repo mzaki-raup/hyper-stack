@@ -646,3 +646,11 @@ them unchanged.
 - **Auto refresh.** A run that creates, drops, alters or renames something
   re-reads the schema list and the completion catalogue, so a new table is
   there without pressing Refresh (every engine).
+- **A driver fault is a statement error.** odbc-api panics on some data a
+  driver should not return; the ODBC session catches that, so the statement
+  fails with the reason and the session stays open.
+- **Verified** against containers in `tests/engines.rs` (SQL Server 2022,
+  ClickHouse, Oracle Free 23ai) and in process (DuckDB): connect, the
+  version, browse, a DDL round trip, `table_schema`, a row limit and Cancel.
+  **Db2 is not verified yet:** IBM's ODBC driver failed on the test machine
+  for every ODBC client, .NET's included (`docs/GOTCHAS.md`, Databases).

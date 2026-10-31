@@ -990,3 +990,7 @@ BSD… only).
   `clickhouse/clickhouse-server`, `gvenzl/oracle-free`, `icr.io/db2_community/db2`;
   DuckDB needs none. Each `drivers` test runs only when its `HS_*` variable
   names a server.
+- 2026-11-01: SQL Server, ClickHouse, DuckDB and Oracle pass
+  `tests/engines.rs`. Db2 does not yet: IBM's driver (v12.1.4 and v11.5.9)
+  failed on the test machine for every ODBC client, so the Db2 dialect is
+  written but unverified (`docs/GOTCHAS.md`, Databases).

@@ -377,16 +377,16 @@ Change Request : CR-0025
 
 ---
 
-## v0.7.4 — Planned
+## v0.7.4 — In-Progress
 
 ### BUG-0036 · Saved Git Credentials Not Showing in Settings -> Security -> Credentials
-- **State:** In-Progress ·
+- **State:** Completed ·
 - **Scope:** Settings -> Security -> Credentials
 - **Branch:** batch/v0.7.4
 - [x] Add saved git credentials to the list.
 - [x] Add other activities save credential that still not showing in Settings -> Security -> Credentials
 - [x] Test: hyperstack credentials::tests::every_saved_credential_is_listed_not_only_database_style_connections - Docker, Kubernetes, WebDAV and Nexus profiles, a Git credential, a container registry and an AI provider each get a row with the vault reference, and ids stay unique across sources (did not compile before the fix)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — displaying all list of connection credentials.
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** Seen on screen 2026-10-31: Docker, WebDAV, Git Credential · Forgejo, Container Registry and AI Provider · OpenAI-compatible rows; Reveal on the Git credential showed its token; Edit on the registry wrote a new `secret:` reference to `settings.toml`, and a grep of the data folder found no plaintext. Edit also now works on Valkey, WebDAV, Nexus and container profiles, which it refused before. README and CHECKLIST needed no change.
@@ -402,30 +402,44 @@ Change Request : CR-0025
 - **Notes:** Queue and Automation done 2026-10-31 and seen on screen: md-rabbit, md-apache_kafka, dev-nats, dev-jenkins, dev-githubactions, dev-gitlab, dev-forgejo, md-ansible from the bundled Nerd Font (the devicon RabbitMQ and JetBrains glyphs sit under Phosphor's EXCLUDE and BATTERY_PLUS and do not show, so TeamCity has a gear and MQTT keeps the broadcast). Tracker done 2026-10-31 and seen on screen: md-jira (the devicon Jira at U+E75C is under Phosphor), dev-confluence, the GitHub mark, dev-gitlab, dev-forgejo; Redmine has no mark anywhere and takes a bug.
 
 ### FEAT-0076 · Scratchpad Dashboard Folder Count And Sidebar Column Folder Icon
-- **State:** In-Progress ·
+- **State:** Completed ·
 - **Scope:** Scratchpad Activity -> Dashboard page, Sidebar Column.
 - **Branch:** batch/v0.7.4
 - [x] Add card in summary for folder count before the Notes count card.
 - [x] Make the icon for folder in sidebar column slightly bigger than the notes icon.
 - [x] Test: scratchpad::tests::the_dashboard_counts_folders_before_notes and a_folder_glyph_is_bigger_than_a_note_glyph (22 px against a note row's 20 px)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — a card displaying folder count, folder icon bigger than notes icon.
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** Seen on screen 2026-10-31: 2 Folders before 3 Notes; the Work and Clients folder glyphs draw larger than the note glyphs. README, CHECKLIST and GOTCHAS needed no change.
 
 ### FEAT-0068 · Oracle, DB2 and the other common relational engines
-- **State:** Pending · **Source:** `mynotes` L1-7 (1 request)
+- **State:** In-Progress · **Source:** `mynotes` L1-7 (1 request) · **Spec:** docs/tools/database.md · ADR-030
 - **Scope:** Driver, connection form, type mapping and catalog introspection per engine, the way SQL Server / ClickHouse / DuckDB were planned.
+- **Branch:** batch/v0.7.4
 - [ ] Add Oracle, DB2 and the other common relational databases.
-- [ ] Add auto refresh schema on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
+- [x] Add auto refresh schema on the database/table list column to refresh list of databases/table when user create/drop database/table in query.
 - [ ] All newly added databases engine can generate DDL and erd diagram too.
 - [ ] Test: a `drivers` case per engine, running when its `HS_*` variable names a server
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — connect, browse the catalog, run and cancel a query
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** the one item from `mynotes` that is not done. Needs an ADR
-  per engine (client crate, licence, `cargo deny`) and a `drivers` test that
-  runs when its `HS_*` variable names a server.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** SQL Server, ClickHouse, DuckDB and Oracle are done and verified;
+  Db2 is written but unverified, so the three boxes that cover every engine
+  stay open. `tests/engines.rs` passes against SQL Server 2022, ClickHouse
+  24.8 and Oracle Free 23.26 (HS_MSSQL, HS_CLICKHOUSE, HS_ORACLE) and DuckDB
+  in process: version, browse, a DDL round trip, `table_schema`, the row
+  limit and Cancel. Seen on screen 2026-11-01 on the release build: all nine
+  engines in the form; DuckDB scripts, ERD and DDL; SQL Server and ClickHouse
+  profiles; an Oracle profile made through the form (Service Name, ODBC
+  Driver preselected, password `secret:` in the vault, no plaintext in the
+  data folder), its schema tree, a script whose CREATE added the table to
+  the tree without Refresh, Cancel (ORA-01013), and a guarded DROP. Db2:
+  IBM's ODBC driver, v12.1.4 and v11.5.9, failed on this machine for every
+  ODBC client including .NET - SQL1042C at login, and with
+  `Authentication=SERVER` negative length indicators on every result
+  (docs/GOTCHAS.md, Databases). The ODBC session now turns such a driver
+  panic into the statement's error instead of losing the session.
 
 ---
 

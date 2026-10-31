@@ -90,7 +90,7 @@ fn case(e: Engine) -> Case {
             child: "CREATE TABLE hs_items (id int PRIMARY KEY, name varchar2(40) NOT NULL, \
                     price number(10, 2), parent_id int REFERENCES hs_parent (id))",
             one: "SELECT 1 FROM dual",
-            slow: "BEGIN DBMS_SESSION.SLEEP(20); END;",
+            slow: "SELECT COUNT(*) FROM all_objects a, all_objects b, all_objects c",
             schema: None,
             has_fk: true,
         },

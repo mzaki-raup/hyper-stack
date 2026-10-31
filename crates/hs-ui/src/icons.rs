@@ -173,11 +173,12 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
             "postgres" | "postgresql" => "\u{f07c6}",
             "mysql" | "mariadb" => "\u{f18b4}",
             "sqlite" => "\u{f0b1d}",
-            // ADR-030's engines (CR-0024): dev-oracle, dev-clickhouse,
-            // dev-duckdb; dev-microsoftsqlserver (U+E82E) is under
-            // Phosphor, so SQL Server takes dev-azuresqldatabase, the same
-            // family's mark. Db2 has no glyph anywhere.
-            "oracle" => "\u{e859}",
+            // ADR-030's engines (CR-0024): dev-clickhouse, dev-duckdb;
+            // dev-microsoftsqlserver (U+E82E) is under Phosphor, so SQL
+            // Server takes dev-azuresqldatabase, the same family's mark.
+            // dev-oracle (U+E859) is the ORACLE wordmark, unreadable at
+            // icon size, so Oracle keeps the database glyph, as Db2 does
+            // (it has no glyph anywhere).
             "clickhouse" => "\u{e8fe}",
             "duckdb" => "\u{e908}",
             "mssql" | "sqlserver" => "\u{e75b}",

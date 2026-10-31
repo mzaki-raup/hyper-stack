@@ -367,7 +367,7 @@ impl OdbcSession {
         let (tx, rx) = oneshot::channel();
         self.jobs
             .send(Box::new(move |c| {
-                let _ = tx.send(f(c));
+                let _ = tx.send(guarded(|| f(c)));
             }))
             .map_err(|_| DbError::msg("the ODBC connection is closed"))?;
         rx.await
@@ -677,9 +677,33 @@ impl DbSession for OdbcSession {
     }
 }
 
+/// Run one job, turning a panic into an error. A driver that breaks
+/// odbc-api's assumptions (a negative length indicator, say) panics inside
+/// it; that fails this statement instead of ending the ODBC thread and with
+/// it the session.
+fn guarded<T>(f: impl FnOnce() -> Result<T>) -> Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|p| {
+        let why = p
+            .downcast_ref::<String>()
+            .map(String::as_str)
+            .or_else(|| p.downcast_ref::<&str>().copied())
+            .unwrap_or("unknown cause");
+        Err(DbError::msg(format!(
+            "the ODBC driver returned something it cannot read: {why}"
+        )))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_panicking_job_is_an_error_not_a_dead_thread() {
+        let err = guarded::<()>(|| panic!("Length indicator must be non-negative")).unwrap_err();
+        assert!(err.message.contains("Length indicator"), "{}", err.message);
+        assert_eq!(guarded(|| Ok(7)).unwrap(), 7);
+    }
 
     #[test]
     fn connection_strings_name_the_driver_and_brace_awkward_values() {

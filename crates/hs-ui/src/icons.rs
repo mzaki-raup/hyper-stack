@@ -195,16 +195,25 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "ssh" => ph::COMPUTER_TOWER,
         "api" => ph::PAPER_PLANE_TILT,
         // The brokers. Redis Streams is still a Redis server, so it keeps
-        // Redis' mark; the others have no brand glyph in the bundled
-        // fonts, so each wears what it does: RabbitMQ's rabbit, Kafka's
-        // log of stacked records, NATS' fan-out to subscribers (the paper
-        // plane drew as a bare triangle at list size), and MQTT's
-        // broadcast to whoever subscribed.
+        // Redis' mark.
         "redis-streams" => "\u{e76d}",
-        "rabbitmq" => ph::RABBIT,
-        "kafka" => ph::STACK,
-        "nats" => ph::SHARE_NETWORK,
+        // Product marks where the bundled Nerd Font has one that Phosphor
+        // does not shadow (CR-0024): md-rabbit (the devicon RabbitMQ at
+        // U+E882 is under Phosphor's EXCLUDE), md-apache_kafka and
+        // dev-nats. MQTT has no mark anywhere and keeps the broadcast.
+        "rabbitmq" => "\u{f0907}",
+        "kafka" => "\u{f100f}",
+        "nats" => "\u{e8f0}",
         "mqtt" => ph::BROADCAST,
+        // The build servers (CR-0024): dev-jenkins, dev-githubactions,
+        // dev-gitlab, dev-forgejo, md-ansible. TeamCity has no mark that
+        // shows (dev-jetbrains sits under Phosphor's BATTERY_PLUS).
+        "jenkins" => "\u{e767}",
+        "teamcity" => ph::GEAR_SIX,
+        "github-actions" => "\u{e7e9}",
+        "gitlab-ci" => "\u{e7eb}",
+        "forgejo-actions" => "\u{e910}",
+        "awx" => "\u{f109a}",
         _ => container_kind_icon(kind),
     }
 }

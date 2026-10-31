@@ -321,8 +321,21 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Don't remember where a note's file is; look it up.** With folders a note can move while a tab has it open - another tab's sidebar drag does it. Saving to a cached path would write a second copy where the note used to be. `save` calls `find_note` every time; a cached path is only a hint for the header's timestamps.
 - **`download::safe_name("")` returns `"download"`.** Reused for a folder name, an empty name would silently create a folder called *download*. Check for an empty name before cleaning it.
 
+## Tool-Specific: Automation (tool-automation)
+
+- **Jenkins does not answer a trigger with a build.** `build` / `buildWithParameters` return a queue item in `Location`; the build exists only after the quiet period (5 s by default). Read the runs again rather than expecting a number.
+- **Jenkins hides console notes in the plain-text log** (`ESC[8mha:<base64>ESC[0m`, serialised hyperlinks). `logText/progressiveText` includes them; strip them before showing the text, never before computing offsets.
+- **Jenkins tree queries contain `[`, `]`, `{`, `}`.** reqwest sends them fine; curl needs `-g` (`--globoff`), or it fails with exit code 3.
+- **A Jenkins crumb is tied to the session that fetched it.** With a password, send the crumb's `Set-Cookie` back with the POST. An API token as basic auth needs no crumb at all.
+- **Forgejo's `actions/tasks` lists jobs a runner has taken, not runs.** Without a runner a dispatched workflow shows nothing there; the waiting jobs are under `actions/runners/jobs`. Forgejo 11 has no API to cancel a run or read its log.
+- **GitHub serves workflow logs only to a token**, even on a public repository (403 "Must have admin rights"). Anonymous calls are also limited to 60 an hour.
+- **TeamCity's first start stops at a setup wizard** (data directory, database, licence agreement) before its REST API answers, so it cannot be scripted into a bench container quickly.
+- **reqwest 0.13 puts `RequestBuilder::form` behind the `form` feature.** Enable it on the crate that posts forms, not workspace-wide.
+- **Windows port 8080 may already be taken** (another Java process here). The bench Jenkins runs on 8091.
+
 ## Tool-Specific: Queue (tool-queue)
 
+- **Merging repeated commands must not drop the next one.** `while let Ok(Cmd::Refresh) = rx.try_recv() {}` stops on the first message that is not a Refresh and throws it away; a poll's Refresh followed by Consumers lost the Consumers. Use `hs_core::runtime::next_coalesced`, which keeps it.
 - **RabbitMQ's management statistics lag.** `messages_ready` is updated on the statistics interval (5 s by default), so a queue read straight after a publish still shows the old depth. The live tests poll for the depth they expect instead of reading once.
 - **RabbitMQ 4 refuses new transient queues** (`PUT /api/queues/…` with `"durable": false` answers 400). Make test queues durable and delete them.
 - **RabbitMQ's `guest` user only signs in from localhost**, and a connection through Docker's port mapping is not localhost to the broker. The bench container sets `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS`.

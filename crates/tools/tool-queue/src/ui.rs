@@ -421,16 +421,6 @@ impl QueueTool {
     }
 }
 
-/// A driver's message as a toast: sentence case, so "purged “orders”"
-/// reads "Purged “orders”".
-fn sentence(text: &str) -> String {
-    let mut c = text.chars();
-    match c.next() {
-        Some(first) => first.to_uppercase().chain(c).collect(),
-        None => String::new(),
-    }
-}
-
 /// The Fluent key of what a kind calls its destinations.
 fn destination_word(kind: &str) -> &'static str {
     match kind {
@@ -919,7 +909,7 @@ impl QueueTool {
                 } else {
                     ToastLevel::Error
                 },
-                sentence(&text),
+                hs_core::fmt::sentence(&text),
             );
         }
         if self.state.conn_id.is_none() {
@@ -1008,7 +998,7 @@ impl QueueTool {
             return;
         };
         if let Some(n) = &listing.note {
-            form::hint(ui, theme, &sentence(n));
+            form::hint(ui, theme, &hs_core::fmt::sentence(n));
         }
         if listing.destinations.is_empty() {
             form::note(
@@ -1804,12 +1794,6 @@ mod tests {
         assert_eq!(t.publish.target, "orders.created");
         t.fill_publish(&dest("ALL", &["1", "2", "0", "events.>"]));
         assert_eq!(t.publish.target, "");
-    }
-
-    #[test]
-    fn toasts_start_with_a_capital() {
-        assert_eq!(sentence("purged “q”"), "Purged “q”");
-        assert_eq!(sentence(""), "");
     }
 
     #[test]

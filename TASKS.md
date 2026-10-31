@@ -145,20 +145,157 @@ Reference the id in the footer so history maps back to the ledger:
 fix(tool-db): keep the schema cache across a reconnect
 
 Refs: BUG-0003
+
 ```
+### Latest Register
+
+```
+Version : v0.7.5
+Features : FEAT-0084
+Bugs : BUG-0036
+Change Request : CR-0024
+```
+
+---
+
+## v0.7.5 — In-Progress
+
+> Phase K (Automation), then phase N (Tracker), every kind the programme
+> names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
+> containers; git.zacx.net and GitHub are read only.
+
+### FEAT-0077 · Automation activity shell: crate, rail, dashboard, connections, Settings → Automation
+- **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- [x] `hs_core::service_auth`: credential fields, resolution against the vault and variables, applying to a request
+- [x] `tool-automation` crate, the `Driver` trait and its types (`Job`, `Run`, `RunState`, `Param`, `LogChunk`), the `Guarded` wrapper
+- [x] registered after Containers under Infra; dashboard home; sidebar of saved servers with reorder
+- [x] connection kinds `jenkins`, `teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions`, `awx` with their fields and credential kinds
+- [x] Settings → Automation: kind buttons, list left, form right; refresh interval and log bound
+- [x] a tab per server: jobs table, detail with Runs / Log / Parameters / Queue, Run form, guarded Cancel, read-only on a protected environment
+- [x] Open in Logs (snapshot), palette commands and shortcuts of spec §9, AI assistant with Explain This Failure
+- [x] Test: `service_auth` (round trip, kinds a service cannot use, vault, variables, each scheme on the wire, no secret in Debug), `profile.rs`, `driver.rs` (read-only refuses Run and Cancel before the server sees them, log slicing, durations), `runner.rs` (log bound on a line), `hs_core::runtime::next_coalesced`; `mock.rs::a_read_only_session_refuses_a_run_before_the_server_sees_it`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — Jenkins and Forgejo added in Settings → Automation with tokens stored in the vault (data folder grepped: no plaintext) and Test connected; GitHub, GitLab, TeamCity and AWX as profile files; dashboard, sidebar and product icons seen; an empty state ("No runs yet") and a refused connection (TeamCity, nothing listening) seen
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Puppet was dropped from this item on the owner's decision (FEAT-0084, Backlog). The protected-environment path was not driven on screen; it shares `read_only()` and the driver's `Guarded` refusal with the read-only profile flag, which was (Queue, phase L).
+
+### FEAT-0078 · Jenkins
+- **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] jobs (folders flattened) with last build status, duration, who
+- [x] builds of a job; parameters; build / buildWithParameters, following the queue item to its build
+- [x] stop a build; the queue; progressive log
+- [x] API token as basic; password with a CSRF crumb
+- [x] Test: `jenkins.rs` (folders flattened, building is running, parameter kinds, console notes stripped); `live.rs::jenkins_runs_a_parameterised_job_follows_its_log_and_stops_it` against `hs-jenkins` (parameters, trigger, log from its offset, stop, 401 named)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `hs-jenkins` (port 8091): a parameterised build run from the form (qa, FAIL), a 20-step build followed to "Finished: SUCCESS", a 120-step build cancelled after the confirmation ("Build was aborted"), Open in Logs
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Password auth with a crumb is written but only token auth was exercised here. Folders need the cloudbees-folder plugin, which the bench does not have; flattening is unit-tested.
+
+### FEAT-0079 · TeamCity
+- **State:** In-Progress · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] build configurations with last build; builds; parameters
+- [x] trigger through the build queue with properties; cancel; the queue; the build log
+- [x] bearer token or basic
+- [x] Test: `teamcity.rs` (build state, dates, trigger user, cancelled); `mock.rs::teamcity_lists_triggers_and_cancels_through_the_build_queue` (the documented endpoints and bodies, against a mock server)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-teamcity` container: trigger, follow the log, cancel
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** TeamCity's first start stops at a setup wizard before its REST API answers, so no bench server: the App box stays open. The mock answers are written from the REST API reference, not captured from a server.
+
+### FEAT-0080 · GitHub Actions
+- **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] workflows of a repository with the last run; runs; a run's jobs and a job's log
+- [x] workflow_dispatch with inputs (offered only for dispatchable workflows); cancel
+- [x] GitHub Enterprise through the API URL
+- [x] Test: `github.rs` (dispatch inputs from every form of `on:`, states, runs); `live.rs::github_actions_lists_a_public_repositorys_workflows` (BurntSushi/ripgrep); `mock.rs::github_dispatches_with_inputs_and_cancels_a_run`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: BurntSushi/ripgrep read anonymously: seven workflows, a workflow's runs with refs, durations and authors, and the one-line message for logs without a token
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes (dispatch, cancel) only against the mock server, as the owner asked; job logs need a token, which this bench has no GitHub token for. GitHub Enterprise is the same code with another API URL and was not run.
+
+### FEAT-0081 · GitLab CI
+- **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] refs with pipelines as the jobs; pipelines; a pipeline's jobs and a job's trace
+- [x] create a pipeline on a ref with variables; cancel
+- [x] `PRIVATE-TOKEN` (api-key) or bearer
+- [x] Test: `gitlab.rs` (variables parsed per line, pipeline state and user); `live.rs::gitlab_ci_lists_a_public_projects_pipelines` (gitlab-org/cli); `mock.rs::gitlab_creates_a_pipeline_with_variables_and_cancels_it`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: gitlab-org/cli on gitlab.com read anonymously: 76 refs with their last pipelines
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Writes only against the mock server (owner: writes stay local; a GitLab server needs ~4 GB and cannot run here).
+
+### FEAT-0082 · Forgejo Actions
+- **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] workflows of a repository with their runs; a run's jobs and logs where the API has them
+- [x] workflow_dispatch with inputs; cancel where the API has it; a missing endpoint reported as such
+- [x] Test: `live.rs::forgejo_dispatches_a_workflow_and_lists_its_runs` against `hs-forgejo` with a host-mode runner (inputs read from the workflow file, dispatch, the run appearing)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `hs-forgejo`: build.yml with its runs, the Run form from the workflow's inputs, dispatch ("as run #3") and the run succeeding, the Queue tab
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Forgejo 11's API has no call to cancel a run or read its log, so neither is offered (spec "What is implemented"); the "cancel" of the App box could not be made.
+
+### FEAT-0083 · AWX / Ansible Automation Platform
+- **State:** In-Progress · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Branch:** feat/depth-k-automation
+- **Depends on:** FEAT-0077
+- [x] job templates with the last job; jobs; survey / extra-vars parameters
+- [x] launch with extra vars; cancel; stdout
+- [x] Test: `awx.rs` (survey questions, extra vars merged from YAML, job state and elapsed); `mock.rs::awx_launches_a_template_with_its_survey_and_cancels_the_job`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — recorded responses only
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** AWX needs a Kubernetes operator and several GB and cannot run here; the App box stays open. The mock answers are written from the API reference, not captured.
+
+---
+
+## Backlog
+
+### FEAT-0084 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
+- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **Depends on:** FEAT-0077
+- [ ] nodes with the last report's status and time; a node's reports; a report's log lines
+- [ ] Run offered only with a Puppet Enterprise orchestrator URL (deploy one node)
+- [ ] `X-Authentication` RBAC token as api-key
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `hs-puppetdb` container if it fits in memory, otherwise recorded responses
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** deferred out of v0.7.5 on the owner's decision (2026-10-31). Puppet Enterprise is licensed and cannot run here; PuppetDB could run in a container.
 
 ---
 
 ## v0.7.4 — Planned
 
-### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections
+### BUG-0036 · Saved Git Credentials Not Showing in Settings -> Security -> Credentials
 - **State:** Pending · 
+- **Scope:** Settings -> Security -> Credentials
+- [ ] Add saved git credentials to the list.
+- [ ] Add other activities save credential that still not showing in Settings -> Security -> Credentials
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — displaying all list of connection credentials.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections
+- **State:** In-Progress · 
 - **Scope:** Queue Activity, Tracker Activity, Automation Activity -> Connections Icon.
 - [ ] All connection icon use actual product icon. Refer on Database connection on how to do it.
 - [ ] Test:  <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — a `icons` case per connections.
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Queue and Automation done 2026-10-31 and seen on screen: md-rabbit, md-apache_kafka, dev-nats, dev-jenkins, dev-githubactions, dev-gitlab, dev-forgejo, md-ansible from the bundled Nerd Font (the devicon RabbitMQ and JetBrains glyphs sit under Phosphor's EXCLUDE and BATTERY_PLUS and do not show, so TeamCity has a gear and MQTT keeps the broadcast). Tracker's kinds follow with phase N.
 
 ### FEAT-0076 · Scratchpad Dashboard Folder Count
 - **State:** Pending · 

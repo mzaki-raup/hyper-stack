@@ -552,3 +552,19 @@ exchange and binding, `redis-cli XADD` / `XGROUP` / `XREADGROUP`,
 `natsio/nats-box` for the NATS stream and consumer, and `mosquitto_pub -r`.
 The RabbitMQ profile was made in the app; its password went to a scratch
 vault created for the pass. The other four profiles were written as files.
+
+Depth programme, phase K (2026-10-31): `automation.png` (the Automation
+dashboard with five servers open), `automation-jenkins-log.png` (a Jenkins
+build's log followed while it runs), `automation-cancel.png` (Cancel Run's
+confirmation) and `automation-settings.png` (Settings → Automation with the
+Jenkins form: a token credential stored in the vault, Test connected). The
+bench is WSL containers: `hs-jenkins` (`jenkins/jenkins:2.528.1-lts-jdk21`
+on port 8091, set up by an `init.groovy.d` script that creates the user
+`dev` and an API token, with two jobs made through `createItem`),
+`hs-forgejo` (`codeberg.org/forgejo/forgejo:11` with `INSTALL_LOCK`, a user
+and token from `forgejo admin user`, a repository `dev/demo` with a
+`workflow_dispatch` workflow) and `hs-forgejo-runner`
+(`data.forgejo.org/forgejo/runner:11`, registered with the label
+`docker:host` so steps run in the runner's own shell). The GitHub and GitLab
+tabs read BurntSushi/ripgrep and gitlab-org/cli anonymously. TeamCity and
+AWX point at ports nothing listens on, which is the error state.

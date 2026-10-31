@@ -36,6 +36,12 @@ pub const KINDS: &[&str] = &[
     "redis-streams",
     "nats",
     "mqtt",
+    "jenkins",
+    "teamcity",
+    "github-actions",
+    "gitlab-ci",
+    "forgejo-actions",
+    "awx",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -83,6 +89,22 @@ pub fn is_redis_kind(kind: &str) -> bool {
 /// other's servers.
 pub const QUEUE_KINDS: &[&str] = &["rabbitmq", "kafka", "redis-streams", "nats", "mqtt"];
 
+/// The kinds the **Automation** activity opens (`docs/tools/automation.md`
+/// §5).
+pub const AUTOMATION_KINDS: &[&str] = &[
+    "jenkins",
+    "teamcity",
+    "github-actions",
+    "gitlab-ci",
+    "forgejo-actions",
+    "awx",
+];
+
+/// Whether a kind is opened by the Automation activity.
+pub fn is_automation_kind(kind: &str) -> bool {
+    AUTOMATION_KINDS.contains(&kind)
+}
+
 /// Whether a kind is opened by the Queue activity.
 pub fn is_queue_kind(kind: &str) -> bool {
     QUEUE_KINDS.contains(&kind)
@@ -127,6 +149,12 @@ pub fn kind_label(kind: &str) -> &str {
         "redis-streams" => "Redis Streams",
         "nats" => "NATS",
         "mqtt" => "MQTT",
+        "jenkins" => "Jenkins",
+        "teamcity" => "TeamCity",
+        "github-actions" => "GitHub Actions",
+        "gitlab-ci" => "GitLab CI",
+        "forgejo-actions" => "Forgejo Actions",
+        "awx" => "AWX",
         other => other,
     }
 }
@@ -241,6 +269,11 @@ impl Connections {
     /// Redis-compatible server later is one list and not a hunt.
     pub fn of_redis_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
         self.profiles.iter().filter(|c| is_redis_kind(&c.kind))
+    }
+
+    /// Every server the Automation activity opens, in order.
+    pub fn of_automation_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_automation_kind(&c.kind))
     }
 
     /// Every broker the Queue activity opens, in order.
@@ -362,7 +395,12 @@ mod tests {
     /// connection, or the tool opens something nobody can create.
     #[test]
     fn every_claimed_kind_is_one_a_user_can_add() {
-        for k in REDIS_KINDS.iter().chain(CONTAINER_KINDS).chain(QUEUE_KINDS) {
+        for k in REDIS_KINDS
+            .iter()
+            .chain(CONTAINER_KINDS)
+            .chain(QUEUE_KINDS)
+            .chain(AUTOMATION_KINDS)
+        {
             assert!(KINDS.contains(k), "{k} is claimed but not offered");
             assert_ne!(kind_label(k), *k, "{k} has no label of its own");
         }

@@ -83,11 +83,11 @@ pub fn spawn(
         }
         waker.request_repaint();
         let progress = shared.lock().progress.clone();
-        while let Some(cmd) = rx.recv().await {
-            // Polls pile up behind a slow broker; one is enough.
-            if cmd == Cmd::Refresh {
-                while let Ok(Cmd::Refresh) = rx.try_recv() {}
-            }
+        // Polls pile up behind a slow broker; one is enough.
+        let mut pending = None;
+        while let Some(cmd) =
+            hs_core::runtime::next_coalesced(&mut rx, &mut pending, &Cmd::Refresh).await
+        {
             shared.lock().busy = Some(busy_key(&cmd));
             waker.request_repaint();
             let refresh_after = serve(cmd, d.as_mut(), &shared, &progress, &config).await;

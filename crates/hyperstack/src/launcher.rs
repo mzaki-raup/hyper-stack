@@ -33,6 +33,9 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         // go and its rail entry is un-hidden on save (ADR-026).
         "docker" | "podman" | "k8s" | "wincontainer" => Some("containers"),
         "rabbitmq" | "kafka" | "redis-streams" | "nats" | "mqtt" => Some("queue"),
+        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx" => {
+            Some("automation")
+        }
         _ => None,
     }
 }
@@ -326,6 +329,10 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
         "rabbitmq" | "kafka" | "redis-streams" | "nats" | "mqtt" => {
             egui::Color32::from_rgb(0xFF, 0x66, 0x00)
         }
+        // The build servers share the Automation activity's colour.
+        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx" => {
+            egui::Color32::from_rgb(0x22, 0xC5, 0x5E)
+        }
         _ => theme.secondary,
     };
     // The pill is a tint of that colour, not the colour itself, so the
@@ -421,6 +428,9 @@ mod tests {
         // Every broker kind opens in the Queue activity.
         for k in hs_core::connections::QUEUE_KINDS {
             assert_eq!(tool_for_kind(k), Some("queue"), "{k}");
+        }
+        for k in hs_core::connections::AUTOMATION_KINDS {
+            assert_eq!(tool_for_kind(k), Some("automation"), "{k}");
         }
         // No tool opens these kinds yet.
         assert_eq!(tool_for_kind("cassandra"), None);

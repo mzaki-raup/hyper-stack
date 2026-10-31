@@ -104,6 +104,7 @@ the fixtures behind them.
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
 | [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
+| [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX: jobs and runs, run with parameters, follow the log, guarded cancel |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -289,6 +290,22 @@ the lists.
 | **Parsers and filters** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL and JVM thread dumps detected from the first lines, levels normalised, terminal colour codes stripped at ingest so a coloured container log is readable *and* parsable, stack traces glued to their line; a thread dump becomes one record per thread with its state, locks and top frame as filterable fields (**Open Thread Dump…**, or paste one); filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, Save Filtered… | **App log in the dock** — the bottom dock's Logs tab shows HyperStack's own log at the level set in Settings → General → Behaviour, with a level picker, search, Copy and Clear; every error a tool reports lands there too |
 | ![Merged sources with statistics](docs/screenshots/logs-merge.png) | ![Windows Event Log](docs/screenshots/logs-eventlog.png) |
 | **Merge and statistics** — several saved sources in one view in time order, each record tagged with its source; the Statistics panel counts the filtered window by level, rate per minute, commonest messages and field values; highlight rules can **Alert** (a toast in front, a bell count on the tab behind, with a cooldown) | **journald and the Windows Event Log** — `journalctl -o json` on this machine or an SSH host with the unit's fields kept, and the Event Log followed through `Get-WinEvent` with levels mapped |
+
+### Automation
+
+One tab per build server or automation controller: **Jenkins**, **TeamCity**, **GitHub Actions**, **GitLab CI**, **Forgejo Actions** and **AWX** (Ansible Automation Platform). The home tab is a dashboard of the saved servers with what the open ones are running and what failed today; Settings → Automation holds the servers and the limits.
+
+| | |
+|---|---|
+| ![Automation dashboard](docs/screenshots/automation.png) | ![Following a Jenkins log](docs/screenshots/automation-jenkins-log.png) |
+| **Dashboard** - saved servers with their products' marks, and totals from the servers open in tabs | **Runs and the log** - a job's runs with state, ref, duration and who, and the selected run's log followed while it runs |
+| ![Cancel a run](docs/screenshots/automation-cancel.png) | ![Settings → Automation](docs/screenshots/automation-settings.png) |
+| **Guards** - Cancel asks first; a protected environment's tab is read-only and the driver refuses Run and Cancel too | **Settings → Automation** - a button per kind, and the credential the server takes (a Jenkins user and API token here), kept in the vault |
+
+- **Jobs** - Jenkins jobs (folders flattened), TeamCity build configurations, workflows, a GitLab project's refs with pipelines, AWX job templates, each with its last run.
+- **Run** opens a form of the job's parameters - Jenkins parameters, `workflow_dispatch` inputs read from the workflow file, GitLab pipeline variables, AWX survey and extra vars - and sends nothing until it is filled in; a secret parameter is typed for one run and never kept.
+- **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
+- **Credentials** - username and password, token or API key, whichever the server takes, in the vault.
 
 ### Queue
 

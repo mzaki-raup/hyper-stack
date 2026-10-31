@@ -24,6 +24,7 @@ pub struct Settings {
     pub git: Git,
     pub containers: Containers,
     pub queue: Queue,
+    pub automation: Automation,
 }
 
 /// A container registry and how to sign in to it.
@@ -75,6 +76,27 @@ pub struct ChartRepo {
 impl ChartRepo {
     pub fn needs_auth(&self) -> bool {
         !self.user.trim().is_empty()
+    }
+}
+
+/// Settings → Automation: how often a server is read and how much of a
+/// run's log is kept (`docs/tools/automation.md` §7). The servers
+/// themselves are connection profiles.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Automation {
+    /// How often a visible tab re-reads its jobs.
+    pub poll_secs: u32,
+    /// How much of one run's log is kept, in MB.
+    pub log_mb: u32,
+}
+
+impl Default for Automation {
+    fn default() -> Self {
+        Self {
+            poll_secs: 10,
+            log_mb: 5,
+        }
     }
 }
 
@@ -416,6 +438,7 @@ impl Default for Settings {
             git: Git::default(),
             containers: Containers::default(),
             queue: Queue::default(),
+            automation: Automation::default(),
         }
     }
 }

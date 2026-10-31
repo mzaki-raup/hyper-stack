@@ -207,15 +207,113 @@ Refs: BUG-0003
   beyond the existing list navigation; the reorder widget is mouse-driven
   everywhere in the app.
 
-### FEAT-0066 · Queue activity (RabbitMQ, Kafka)
-- **State:** Pending · **Spec:** docs/tools/queue.md (to be written) · **Phase:** L
-- [ ] spec written from .claude/templates/spec-tool.md before any code
-- [ ] ADR for the client crates (`lapin`, `rskafka` — not the C-bound `rdkafka`)
-- [ ] Test: <what it asserts>
+### FEAT-0066 · Queue activity (RabbitMQ, Kafka, Redis Streams, NATS, MQTT)
+- **State:** In-Progress · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- [x] spec written from .claude/templates/spec-tool.md before any code
+- [x] ADR for the client crates (`lapin`, `rskafka` — not the C-bound `rdkafka`)
+- [ ] Test: through the items it splits into
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — connect to a local broker, peek, publish
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** several steps; split into further FEAT ids once the spec exists.
+- **Notes:** the umbrella for phase L; the work is `FEAT-0069` to `FEAT-0075`,
+  and this item closes when they do. Scope widened on the owner's decision of
+  2026-10-31 from RabbitMQ and Kafka to all five kinds the programme names.
+  The ADR is ADR-027, and it departs from what this item's box anticipated:
+  **no `lapin`**. RabbitMQ is read and driven through its management HTTP API,
+  because AMQP cannot list queues or exchanges and the management API would be
+  needed for that anyway. Also found while writing it: `rskafka` 0.6 has **no
+  consumer-group API**, so lag comes from `kafka-protocol` messages on a small
+  client of our own (`FEAT-0072`). Live tail into Logs and the "explain this
+  backlog" assistant are open questions 1 and 2 in the spec, not in these
+  items.
+
+### FEAT-0069 · Queue activity shell: crate, rail, dashboard, connections, Settings → Queue
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- [ ] `tool-queue` crate, the `Driver` trait and its shared types (`Destination`, `Message`, `ConsumerGroup`, `Lag`)
+- [ ] registered after Logs under Infra; dashboard home; sidebar of saved brokers with reorder
+- [ ] connection kinds `rabbitmq`, `kafka`, `redis-streams`, `nats`, `mqtt` with their fields
+- [ ] credentials `password` / `token` / `api-key` per kind as the spec's table says, secrets as `secret:<ulid>`
+- [ ] Settings → Queue: brokers list left, form right; peek count and poll interval
+- [ ] a tab per broker: destinations table, detail pane with Messages / Publish / Consumers, protected-environment banner and read-only
+- [ ] palette commands and shortcuts of spec §9
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add a broker of each kind, open it, see an empty state and a connection error
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0070 · RabbitMQ through the management API
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0069
+- [ ] queues per vhost with ready, unacked, consumers and rates
+- [ ] peek by `get` with requeue, the side effect stated in the pane
+- [ ] publish to an exchange with routing key, headers and properties
+- [ ] exchanges and bindings
+- [ ] purge and delete, guarded (typed confirmation for delete)
+- [ ] a connection test that names a missing management plugin
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — connect to `hs-rabbitmq`, peek, publish, purge a test queue
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0071 · Kafka topics, offsets, peek and publish
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0069
+- [ ] topics with partitions, replication, earliest and latest offsets (`rskafka`)
+- [ ] peek from an offset, payloads by content type
+- [ ] publish to a partition or by key, with headers
+- [ ] purge (delete records below an offset), the Redpanda refusal explained
+- [ ] TLS and SASL PLAIN / SCRAM / OAUTHBEARER from the credential
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — connect to `hs-kafka`, peek, publish
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0072 · Kafka consumer groups and lag
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0071
+- [ ] a small client over `kafka-protocol`: framing, request header, API-version negotiation
+- [ ] `Metadata`, `ListGroups` on every broker, `FindCoordinator` and `OffsetFetch` per group
+- [ ] lag per partition (latest minus committed), as a Job with progress and cancel
+- [ ] the same TLS and SASL as the connection
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a consumer group on `hs-kafka` with lag shown per partition
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0073 · Redis Streams
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0069
+- [ ] streams found with `SCAN … TYPE stream`, bounded
+- [ ] length, groups, first and last id; groups with pending and lag (Redis 7)
+- [ ] peek by id range, publish with `XADD`, purge by trim, delete the key, guarded
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — streams on `hs-redis`, peek, publish
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0074 · NATS JetStream
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0069
+- [ ] JetStream streams with messages, bytes, consumers and subjects (`async-nats`)
+- [ ] durable consumers with pending and ack floor
+- [ ] peek by sequence, publish to any subject with headers, purge a stream, guarded
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — connect to `hs-nats`, peek a stream, publish
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+### FEAT-0075 · MQTT
+- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **Branch:** feat/depth-l-queue
+- **Depends on:** FEAT-0069
+- [ ] topics observed by subscribing for a bounded window (`rumqttc`), the bounds stated
+- [ ] retained and live messages, MQTT 3.1.1 and 5
+- [ ] publish with QoS and retain; clear a retained message, guarded
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — connect to `hs-mqtt`, observe topics, publish
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
 

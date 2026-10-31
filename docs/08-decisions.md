@@ -794,3 +794,56 @@ management. New assistant prompt buttons need no
 migration, because `prompts::resolve` already appends shipped defaults
 that a saved list does not mention. Eight phases, each releasable, with
 the `DataTable` fix first because nothing is readable without it.
+
+---
+
+## ADR-027 · Queue activity: one driver per broker, pure-Rust clients, RabbitMQ over its management API
+
+**Date** 2026-10-31 · **Status** proposed (specified; see
+`docs/tools/queue.md`) · **Owner's request**: all five broker kinds in
+one phase.
+
+**Context.** Phase L of the depth programme adds a Queue activity for five
+broker kinds — RabbitMQ, Kafka, Redis Streams, NATS and MQTT
+([docs/tools/queue.md](tools/queue.md)). Each speaks its own protocol, and the
+workspace's rules are pure Rust, rustls with the `ring` provider, nothing that
+needs a C toolchain at build time, and licences `deny.toml` allows. Kafka has a
+further problem: the activity must show consumer-group lag, which needs the
+group coordinator's committed offsets.
+
+**Options.**
+
+| Broker | Option | For | Against |
+|---|---|---|---|
+| RabbitMQ | **management HTTP API through `reqwest`** | already a dependency; it alone lists queues with depth, rates and consumers, exchanges and bindings, and has get (requeue), publish and purge | needs the management plugin, which almost every install has; peek requeues and sets `redelivered` |
+| RabbitMQ | `lapin` (AMQP 0-9-1) | consuming is native AMQP | cannot list queues or exchanges — the management API would be needed anyway; a second client for the same broker |
+| Kafka | **`rskafka` 0.6** (MIT / Apache-2.0) for topics, partitions, offsets, fetch and produce | pure Rust, `transport-tls` uses rustls, SASL PLAIN / SCRAM / OAUTHBEARER | **no consumer-group API**: `Client` has `list_topics`, `partition_client`, `controller_client`, and a partition client only `produce`, `fetch_records`, `get_offset`, `delete_records` (checked against the 0.6.0 docs, 2026-10-31) |
+| Kafka | **`kafka-protocol` 0.18** (MIT / Apache-2.0) for consumer groups | generated messages for `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch`, `ListOffsets` | messages only — no transport; we write the framing, TLS and SASL for those calls |
+| Kafka | `rdkafka` | complete, including groups | binds librdkafka (C); rejected by the programme |
+| NATS | **`async-nats` 0.51** (Apache-2.0) with `ring` | the official client; JetStream streams, consumers and direct get | MSRV 1.89, inside the workspace's toolchain |
+| MQTT | **`rumqttc` 0.25** (Apache-2.0) with `use-rustls-no-provider` | tokio, MQTT 3.1.1 and 5 | `use-rustls` would pull `tokio-rustls/default`, i.e. `aws-lc-rs` and a C build; the no-provider feature plus our `ring` avoids it |
+| Redis Streams | **the workspace's `redis` crate**, directly | no new dependency; `XINFO`, `XRANGE`, `XADD`, `XTRIM` | — |
+| Redis Streams | `tool-redis`'s client | already written | one tool may not depend on another (docs/03 §2) |
+
+**Decision.** One `Driver` trait in `tool-queue`, one module per kind, the
+clients in bold above. RabbitMQ through its management API only; no AMQP
+client in this phase. Kafka data through `rskafka`, Kafka consumer groups
+through `kafka-protocol` messages on a small client of our own
+(`kafka_groups.rs`): `Metadata` for the brokers, `ListGroups` on each,
+`FindCoordinator` and `OffsetFetch` per group, over the same TLS and SASL
+settings the connection uses.
+
+**Consequences.**
+- Four new crates (`rskafka`, `kafka-protocol`, `async-nats`, `rumqttc`) and
+  their trees, each to pass `cargo deny`; the CI build grows by their compile
+  time. Measured when they land, and recorded here.
+- `kafka_groups.rs` is protocol code we own: the size-prefixed framing, the
+  request header, API-version negotiation and SASL for four requests. It is the
+  riskiest part of the phase and gets its own tests against a live broker.
+- A RabbitMQ without the management plugin cannot be browsed at all. The
+  connection test says so instead of failing obscurely.
+- RabbitMQ peek has the side effect the RabbitMQ UI has (requeued, marked
+  redelivered); the spec makes the pane say it.
+- The live tail into the Logs activity, if it needs to *consume* from
+  RabbitMQ, may later need an AMQP client after all; that would be a new ADR,
+  not an amendment to this one.

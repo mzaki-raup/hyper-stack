@@ -11,7 +11,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Fixed: Settings → Security → Credentials lists Git credentials, container registries, AI provider keys and container, WebDAV and Nexus connections, and edits their secrets (BUG-0036)
 
 ## 0.113.0 — 2026-10-31
 

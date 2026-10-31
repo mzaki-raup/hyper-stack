@@ -385,6 +385,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 ## Security and Vault
 
 - **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.
+- **A new place that keeps a secret must reach Settings → Security.** The credentials table listed connection profiles only, so Git credentials, container registries, AI providers - and container, WebDAV and Nexus profiles, whose kinds `row` did not match - were stored in the vault but never shown (BUG-0036). Add the store to `crate::credentials::rows_from` and its write-back to `apply_secret_edit`.
 - **Vault-locked saves** must return an error (see Connection Forms).
 - **Protected environments** default to read-only. Check this when a new tool exposes a write action.
 

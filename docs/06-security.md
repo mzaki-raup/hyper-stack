@@ -232,6 +232,19 @@ without opening six forms. Owner's requirement, 2026-10-17.
   thing worth reading. Text sitting in a profile (which the forms refuse to
   write) is masked like a vault secret.
 
+## Addendum (2026-10-31): every saved credential, not only connections (BUG-0036)
+
+The table listed connection profiles only, and not all of them: Git
+credentials, container registries and AI provider keys live outside the
+connection store and never showed, and container hosts, WebDAV and Nexus
+profiles had no row either. `crate::credentials::rows_from` now gathers
+every place a secret is kept - connection profiles, then Git credentials
+(Type *Git Credential · GitLab*), container registries and AI providers (Type
+*AI Provider · OpenAI-compatible*, the Bedrock secret key in the Key column).
+Reveal and Edit work on all of them; an edit is written back to where the
+credential lives (the Git credentials file, or `settings.toml` for
+registries and providers). A store added later must be added there too.
+
 ## Addendum (2026-10-19): editing credentials and exporting environments
 
 - **Reveal Secret uncovers every secret in the row.** The Action column has

@@ -153,8 +153,22 @@ Refs: BUG-0003
 Version : v0.7.5
 Features : FEAT-0084
 Bugs : BUG-0036
-Change Request : CR-0024
+Change Request : CR-0025
 ```
+
+---
+
+## v0.7.6 — Planned
+
+### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
+- **State:** Pending · 
+- **Scope:** All UI Components.
+- [ ] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
+- [ ] Create standard rule for agent reference for next usage of these components
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a uniform and standard UI and UX layout components.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
 
@@ -366,14 +380,16 @@ Change Request : CR-0024
 ## v0.7.4 — Planned
 
 ### BUG-0036 · Saved Git Credentials Not Showing in Settings -> Security -> Credentials
-- **State:** Pending · 
+- **State:** In-Progress ·
 - **Scope:** Settings -> Security -> Credentials
-- [ ] Add saved git credentials to the list.
-- [ ] Add other activities save credential that still not showing in Settings -> Security -> Credentials
-- [ ] Test: <what it asserts>
+- **Branch:** batch/v0.7.4
+- [x] Add saved git credentials to the list.
+- [x] Add other activities save credential that still not showing in Settings -> Security -> Credentials
+- [x] Test: hyperstack credentials::tests::every_saved_credential_is_listed_not_only_database_style_connections - Docker, Kubernetes, WebDAV and Nexus profiles, a Git credential, a container registry and an AI provider each get a row with the vault reference, and ids stay unique across sources (did not compile before the fix)
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — displaying all list of connection credentials.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] App: `--data-dir ./tmp-data` — displaying all list of connection credentials.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Seen on screen 2026-10-31: Docker, WebDAV, Git Credential · Forgejo, Container Registry and AI Provider · OpenAI-compatible rows; Reveal on the Git credential showed its token; Edit on the registry wrote a new `secret:` reference to `settings.toml`, and a grep of the data folder found no plaintext. Edit also now works on Valkey, WebDAV, Nexus and container profiles, which it refused before. README and CHECKLIST needed no change.
 
 ### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections
 - **State:** Completed · 

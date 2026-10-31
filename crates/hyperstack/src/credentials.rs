@@ -48,8 +48,13 @@ impl Password {
 pub struct Row {
     pub id: String,
     pub name: String,
-    /// The profile's kind (`db`, `ssh`, …); the page turns it into a label.
+    /// The profile's kind (`db`, `ssh`, …), or the source of a credential
+    /// that is not a connection (`git`, `registry`, `ai`); the page turns
+    /// it into a label.
     pub kind: String,
+    /// What the source adds to that label: the forge for a Git credential,
+    /// the provider for an AI key. Empty for connections.
+    pub detail: String,
     /// Host, endpoint, the URI a document store was given, or the file for
     /// SQLite — whatever this profile points at, in one column. A separate
     /// connection-string column was dropped: it was empty for every kind
@@ -74,17 +79,7 @@ fn port(p: u16) -> String {
 /// collection) return `None` rather than an empty row.
 pub fn row(profile: &ConnectionProfile) -> Option<Row> {
     let f = &profile.fields;
-    let mut r = Row {
-        id: profile.id.clone(),
-        name: profile.name.clone(),
-        kind: profile.kind.clone(),
-        host: String::new(),
-        port: String::new(),
-        user: String::new(),
-        password: Password::None,
-        key_secret: Password::None,
-        key: String::new(),
-    };
+    let mut r = blank(profile.id.clone(), profile.name.clone(), &profile.kind);
     match profile.kind.as_str() {
         "ssh" => {
             let v = hs_ssh::SshFields::from_table(f);
@@ -149,15 +144,127 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.access_key;
             r.password = Password::read(&v.secret_key);
         }
+        "webdav" => {
+            let v = hs_core::objstore::http_profile::WebdavFields::from_table(f);
+            r.host = v.url;
+            r.user = v.user;
+            r.password = Password::read(&v.password);
+        }
+        "nexus" => {
+            let v = hs_core::objstore::http_profile::NexusFields::from_table(f);
+            r.host = v.url;
+            r.user = v.user;
+            r.password = Password::read(&v.password);
+        }
+        "k8s" => {
+            // A cluster signs in with a token, or with credentials inside
+            // a kubeconfig pasted into the profile.
+            let v = hs_container::profile::ContainerFields::from_table(f);
+            r.host = if v.context.is_empty() {
+                v.kubeconfig_path
+            } else {
+                v.context
+            };
+            r.user = v.impersonate_user;
+            r.password = Password::read(&v.token);
+            r.key_secret = vault_only(&v.kubeconfig_inline);
+        }
+        kind if hs_core::connections::is_container_kind(kind) => {
+            // An engine's secrets are the registry it pushes to and the
+            // TLS client key, which may instead be a file path.
+            let v = hs_container::profile::ContainerFields::from_table(f);
+            r.host = if v.host.is_empty() { v.socket } else { v.host };
+            r.port = port(v.port);
+            r.user = v.registry_user;
+            r.password = Password::read(&v.registry_password);
+            r.key_secret = vault_only(&v.tls_key);
+            if r.key_secret == Password::None {
+                r.key = v.tls_key;
+            }
+        }
         _ => return None,
     }
     Some(r)
 }
 
-/// Every connection that has something to show, in the order the store
-/// keeps them.
-pub fn rows(connections: &hs_core::connections::Connections) -> Vec<Row> {
-    connections.all().iter().filter_map(row).collect()
+/// A field that is either a vault reference or something else entirely (a
+/// file path): only the reference is a secret to show.
+fn vault_only(value: &str) -> Password {
+    match SecretRef::parse(value.trim()) {
+        Some(r) => Password::Vault(r),
+        None => Password::None,
+    }
+}
+
+/// The id prefix of a row that is not a connection profile.
+pub const GIT: &str = "git:";
+pub const REGISTRY: &str = "registry:";
+pub const AI: &str = "ai:";
+
+fn blank(id: String, name: String, kind: &str) -> Row {
+    Row {
+        id,
+        name,
+        kind: kind.to_string(),
+        detail: String::new(),
+        host: String::new(),
+        port: String::new(),
+        user: String::new(),
+        password: Password::None,
+        key_secret: Password::None,
+        key: String::new(),
+    }
+}
+
+/// Every saved credential, from every place one is kept: the connection
+/// profiles, then Git credentials, container registries and AI providers.
+pub fn rows_from(
+    profiles: &[ConnectionProfile],
+    git: &[hs_core::git_hosts::GitCredential],
+    registries: &[hs_core::settings::Registry],
+    providers: &[hs_core::settings::AiProvider],
+) -> Vec<Row> {
+    let mut out: Vec<Row> = profiles.iter().filter_map(row).collect();
+    for g in git {
+        let mut r = blank(format!("{GIT}{}", g.id), g.label(), "git");
+        r.detail = g.kind.name().to_string();
+        r.host = g.host();
+        r.user = g.username.clone();
+        r.password = Password::read(&g.token);
+        out.push(r);
+    }
+    for (i, reg) in registries.iter().enumerate() {
+        let name = if reg.name.trim().is_empty() {
+            reg.host().to_string()
+        } else {
+            reg.name.clone()
+        };
+        let mut r = blank(format!("{REGISTRY}{i}"), name, "registry");
+        r.host = reg.host().to_string();
+        r.user = reg.user.clone();
+        r.password = Password::read(&reg.password);
+        out.push(r);
+    }
+    for p in providers {
+        let mut r = blank(format!("{AI}{}", p.id), p.name.clone(), "ai");
+        r.detail = p.kind.label().to_string();
+        r.host = p.base_url.clone();
+        r.password = Password::read(&p.api_key);
+        r.key_secret = Password::read(&p.secret_key);
+        out.push(r);
+    }
+    out
+}
+
+/// Every saved credential the services know of, for Settings → Security.
+pub fn rows(s: &hs_core::Services) -> Vec<Row> {
+    let settings = s.settings.read();
+    rows_from(
+        s.connections.read().all(),
+        s.git_credentials.read().all(),
+        &settings.containers.registries,
+        &settings.ai.providers,
+    )
 }
 
 #[cfg(test)]
@@ -268,6 +375,103 @@ password = ""
             Password::None,
             "a key-auth host has no password of its own"
         );
+    }
+
+    /// BUG-0036: Git credentials, container registries, AI providers and
+    /// the container, WebDAV and Nexus connections all keep secrets in the
+    /// vault, and none of them were on the page.
+    #[test]
+    fn every_saved_credential_is_listed_not_only_database_style_connections() {
+        let mut conns = Vec::new();
+        for (kind, table) in [
+            (
+                "docker",
+                "[container]
+host = \"10.0.0.5\"
+port = 2376
+registry_user = \"ci\"
+registry_password = \"secret:01DK\"
+",
+            ),
+            (
+                "k8s",
+                "[container]
+context = \"prod\"
+token = \"secret:01K8\"
+",
+            ),
+            (
+                "webdav",
+                "[webdav]
+url = \"https://dav.example\"
+user = \"me\"
+password = \"secret:01WD\"
+",
+            ),
+            (
+                "nexus",
+                "[nexus]
+url = \"https://nexus.example\"
+user = \"ci\"
+password = \"secret:01NX\"
+",
+            ),
+        ] {
+            conns.push(profile(kind, table));
+        }
+        let git = vec![hs_core::git_hosts::GitCredential {
+            name: "Work GitLab".into(),
+            kind: hs_core::git_hosts::HostKind::GitLab,
+            base_url: "https://gitlab.example".into(),
+            username: "ada".into(),
+            token: "secret:01GT".into(),
+            ..Default::default()
+        }];
+        let registries = vec![hs_core::settings::Registry {
+            name: "Harbour".into(),
+            url: "harbour.example:8082".into(),
+            user: "robot".into(),
+            password: "secret:01RG".into(),
+        }];
+        let providers = vec![hs_core::settings::AiProvider {
+            id: "ai1".into(),
+            name: "Work OpenAI".into(),
+            api_key: "secret:01AI".into(),
+            ..Default::default()
+        }];
+        let rows = rows_from(&conns, &git, &registries, &providers);
+        let find = |kind: &str| {
+            rows.iter()
+                .find(|r| r.kind == kind)
+                .unwrap_or_else(|| panic!("no {kind} row in {rows:#?}"))
+        };
+        assert_eq!(
+            find("docker").password,
+            Password::Vault(SecretRef("01DK".into()))
+        );
+        assert_eq!(find("docker").user, "ci");
+        assert_eq!(
+            find("k8s").password,
+            Password::Vault(SecretRef("01K8".into()))
+        );
+        assert_eq!(find("webdav").host, "https://dav.example");
+        assert_eq!(
+            find("nexus").password,
+            Password::Vault(SecretRef("01NX".into()))
+        );
+        let g = find("git");
+        assert_eq!((g.name.as_str(), g.user.as_str()), ("Work GitLab", "ada"));
+        assert_eq!(g.password, Password::Vault(SecretRef("01GT".into())));
+        assert_eq!(find("registry").host, "harbour.example:8082");
+        assert_eq!(
+            find("ai").password,
+            Password::Vault(SecretRef("01AI".into()))
+        );
+        // Ids stay unique across sources, so reveal and edit find the row.
+        let mut ids: Vec<&str> = rows.iter().map(|r| r.id.as_str()).collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), rows.len());
     }
 
     #[test]

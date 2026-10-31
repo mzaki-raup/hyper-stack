@@ -11,26 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- **Scratchpad folders (depth programme, phase O).** Notes can be filed in
-  folders and subfolders at any depth. A folder is a real directory under
-  `notes/`, so the tree reads with any file manager. **New Folder** (the
-  folder-plus icon, a folder's right-click, or the palette) makes one with
-  its name ready to type; drag a row by its grip to reorder it within its
-  level, between rows of another level, or onto a folder's header to move it
-  in — a collapsed or empty folder takes a drop too. Each level keeps its
-  own order, folders stay collapsed across a restart, a rename or a move,
-  and a folder name that is taken gets the usual ` 001` suffix, case
-  ignored as Windows and macOS ignore it. Pinned notes keep their place at
-  the top whatever folder they are in. Searching lists matches flat, each
-  with its folder, and **Ctrl+P** now lists every note with the folder as
-  its subtitle. Notes keep their ids, so an open tab follows its note
-  through a move.
-- **Fixed in passing:** choosing a note in Ctrl+P could have replaced the
-  note in whichever Scratchpad tab listed it, unsaved edits included,
-  because the palette hands a choice to the tab that offered it rather than
-  routing it. A tab holding another note now passes the request on, so a
-  note always opens in its own tab. (Unreachable before this release, as
-  the Scratchpad listed nothing in Ctrl+P.)
+- (nothing yet)
+
+## 0.110.0 — 2026-10-31
+
+### Added
+
+- Folders and subfolders for notes (depth programme phase O) (3e82911f)
 
 ## 0.109.0 — 2026-10-30
 

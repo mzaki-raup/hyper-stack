@@ -8,7 +8,6 @@ pub mod driver;
 pub mod forgejo;
 pub mod github;
 pub mod gitlab;
-pub mod http;
 pub mod jenkins;
 pub mod profile;
 pub mod runner;

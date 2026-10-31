@@ -14,9 +14,9 @@ use crate::driver::{
     Caps, Driver, Job, Listing, LogChunk, MAX_JOBS, MAX_RUNS, Param, ParamKind, QueueItem, Result,
     Run, RunForm, RunState, ServerInfo,
 };
-use crate::http::{Http, s, seg};
 use crate::profile::ConnectConfig;
 use hs_core::service_auth::Auth;
+use hs_core::service_http::{Http, s, seg};
 
 /// How deep folders are followed.
 const DEPTH: usize = 4;
@@ -161,7 +161,7 @@ pub fn strip_notes(text: &str) -> String {
 
 impl Jenkins {
     pub async fn connect(cfg: &ConnectConfig) -> Result<Jenkins> {
-        let http = Http::new(cfg, &cfg.url)?;
+        let http = cfg.http(&cfg.url)?;
         let resp = http
             .send(http.request(Method::GET, "/api/json?tree=mode"))
             .await?;

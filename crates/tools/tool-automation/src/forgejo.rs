@@ -19,8 +19,8 @@ use crate::driver::{
     RunForm, ServerInfo, iso_ms,
 };
 use crate::github::{REF, dispatch_inputs, gh_state};
-use crate::http::{Http, s, seg};
 use crate::profile::ConnectConfig;
+use hs_core::service_http::{Http, s, seg};
 
 /// Where a repository keeps its workflows, in the order Forgejo reads them.
 const WORKFLOW_DIRS: &[&str] = &[
@@ -59,7 +59,7 @@ fn run(t: &Value, web: &str, repo: &str) -> Run {
 
 impl Forgejo {
     pub async fn connect(cfg: &ConnectConfig) -> Result<Forgejo> {
-        let http = Http::new(cfg, &format!("{}/api/v1", cfg.url))?;
+        let http = cfg.http(&format!("{}/api/v1", cfg.url))?;
         let v = http.get_json("/version").await?;
         let r = http.get_json(&format!("/repos/{}", cfg.repo)).await?;
         Ok(Forgejo {

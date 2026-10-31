@@ -10,8 +10,8 @@ use crate::driver::{
     Caps, Driver, Job, Listing, LogChunk, MAX_JOBS, MAX_RUNS, Param, ParamKind, Result, Run,
     RunForm, RunState, ServerInfo, iso_ms, slice_from,
 };
-use crate::http::{Http, s};
 use crate::profile::ConnectConfig;
+use hs_core::service_http::{Http, s};
 
 pub struct Awx {
     http: Http,
@@ -106,7 +106,7 @@ pub fn extra_vars(values: &[(String, String)]) -> std::result::Result<Map<String
 
 impl Awx {
     pub async fn connect(cfg: &ConnectConfig) -> Result<Awx> {
-        let http = Http::new(cfg, &format!("{}/api/v2", cfg.url))?;
+        let http = cfg.http(&format!("{}/api/v2", cfg.url))?;
         let ping = http.get_json("/ping/").await?;
         // Ping answers anyone; this says whether the credential works.
         http.get_json("/me/").await?;

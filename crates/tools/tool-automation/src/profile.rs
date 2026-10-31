@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use hs_core::secrets::SecretStore;
 use hs_core::service_auth::{Auth, AuthError, Credential, TokenAs};
+use hs_core::service_http::Http;
 
 /// The credential kinds a server kind can use (the spec's §5 table). A
 /// kind that has no use for one does not offer it.
@@ -91,6 +92,13 @@ impl std::fmt::Display for ProfileError {
             ProfileError::MissingVariables(v) => write!(f, "undefined variables: {}", v.join(", ")),
             ProfileError::Invalid(e) => f.write_str(e),
         }
+    }
+}
+
+impl ConnectConfig {
+    /// The HTTP client for this server, rooted at `base`.
+    pub fn http(&self, base: &str) -> Result<Http, String> {
+        Http::new(base, self.auth.clone(), self.token_as, self.timeout)
     }
 }
 

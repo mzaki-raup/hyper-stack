@@ -9,8 +9,8 @@ use crate::driver::{
     Caps, Driver, Job, Listing, LogChunk, MAX_JOBS, MAX_RUNS, Param, ParamKind, QueueItem, Result,
     Run, RunForm, RunState, ServerInfo, slice_from,
 };
-use crate::http::{Http, s, seg};
 use crate::profile::ConnectConfig;
+use hs_core::service_http::{Http, s, seg};
 
 pub struct TeamCity {
     http: Http,
@@ -73,7 +73,9 @@ fn run(b: &Value) -> Run {
 
 impl TeamCity {
     pub async fn connect(cfg: &ConnectConfig) -> Result<TeamCity> {
-        let http = Http::new(cfg, &cfg.url)?.with_header("Accept", "application/json");
+        let http = cfg
+            .http(&cfg.url)?
+            .with_header("Accept", "application/json");
         let v = http.get_json("/app/rest/server").await?;
         Ok(TeamCity {
             info: ServerInfo {

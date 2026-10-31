@@ -47,6 +47,7 @@ pub mod runtime;
 pub mod search;
 pub mod secrets;
 pub mod service_auth;
+pub mod service_http;
 pub mod services;
 pub mod settings;
 pub mod shortcuts;

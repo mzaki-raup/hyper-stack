@@ -402,14 +402,16 @@ Change Request : CR-0025
 - **Notes:** Queue and Automation done 2026-10-31 and seen on screen: md-rabbit, md-apache_kafka, dev-nats, dev-jenkins, dev-githubactions, dev-gitlab, dev-forgejo, md-ansible from the bundled Nerd Font (the devicon RabbitMQ and JetBrains glyphs sit under Phosphor's EXCLUDE and BATTERY_PLUS and do not show, so TeamCity has a gear and MQTT keeps the broadcast). Tracker done 2026-10-31 and seen on screen: md-jira (the devicon Jira at U+E75C is under Phosphor), dev-confluence, the GitHub mark, dev-gitlab, dev-forgejo; Redmine has no mark anywhere and takes a bug.
 
 ### FEAT-0076 · Scratchpad Dashboard Folder Count And Sidebar Column Folder Icon
-- **State:** Pending · 
+- **State:** In-Progress ·
 - **Scope:** Scratchpad Activity -> Dashboard page, Sidebar Column.
-- [ ] Add card in summary for folder count before the Notes count card.
-- [ ] Make the icon for folder in sidebar column slightly bigger than the notes icon.
-- [ ] Test: <what it asserts>
+- **Branch:** batch/v0.7.4
+- [x] Add card in summary for folder count before the Notes count card.
+- [x] Make the icon for folder in sidebar column slightly bigger than the notes icon.
+- [x] Test: scratchpad::tests::the_dashboard_counts_folders_before_notes and a_folder_glyph_is_bigger_than_a_note_glyph (22 px against a note row's 20 px)
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a card displaying folder count, folder icon bigger than notes icon.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] App: `--data-dir ./tmp-data` — a card displaying folder count, folder icon bigger than notes icon.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Seen on screen 2026-10-31: 2 Folders before 3 Notes; the Work and Clients folder glyphs draw larger than the note glyphs. README, CHECKLIST and GOTCHAS needed no change.
 
 ### FEAT-0068 · Oracle, DB2 and the other common relational engines
 - **State:** Pending · **Source:** `mynotes` L1-7 (1 request)

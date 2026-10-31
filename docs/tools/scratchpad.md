@@ -98,7 +98,8 @@ saved travels in the layout as a draft.
   the `LayoutJob` and hit-tests clicks against the galley it drew.
 - **Dashboard** (the activity's home tab, reworked 2026-10-27): a
   bordered band carrying the icon, the name and the subtitle; a rule;
-  the **summaries** - Notes and Open Tabs - each in a rounded box with
+  the **summaries** - Folders, Notes and Open Tabs (Folders added
+  2026-10-31, FEAT-0076; it counts every folder, nested ones included) - each in a rounded box with
   the figure above an icon-and-label line, every box one width taken
   from the widest of them; a rule; **Start Here** with the New Note
   button; a rule; **Saved Notes**, every note a clickable button in a
@@ -106,6 +107,10 @@ saved travels in the layout as a draft.
   tabs. The furniture is `hs_ui::dashboard` (`head`, `rule`, `section`,
   `Stat`/`stats`, `open_tabs_section`) so the other activities can take
   the same shape without it drifting apart.
+
+- **Folder rows** draw their folder glyph at 22 px, a little bigger than
+  a note row's 20 px glyph, so a folder reads as the container at a
+  glance (FEAT-0076).
 
 ## 4. AI assistant
 

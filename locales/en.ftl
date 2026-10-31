@@ -3445,6 +3445,7 @@ scratchpad-dashboard-sub = Notes are opened from the sidebar; each gets its own 
 api-dashboard-sub = Requests are opened from the list; each gets its own tab.
 dash-shells = Shells
 dash-tools = Tools
+dash-folders = Folders
 dash-notes = Notes
 dash-requests = Requests
 dash-collections = Collections

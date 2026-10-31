@@ -670,6 +670,51 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
     note_actions(&r, t, n, acts);
 }
 
+/// A note row draws its glyph at 20 px (`form::list_row`); a folder's is a
+/// little bigger, so a folder reads as the container at a glance
+/// (FEAT-0076).
+const FOLDER_GLYPH: f32 = 22.0;
+
+/// A folder header: the glyph at [`FOLDER_GLYPH`], the name in `body`.
+fn folder_header(name: &str, body: egui::FontId, colour: egui::Color32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        ph::FOLDER,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(FOLDER_GLYPH),
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job.append(
+        name,
+        6.0,
+        egui::TextFormat {
+            font_id: body,
+            color: colour,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job
+}
+
+/// The dashboard's figures, in the order they are shown: folders before
+/// notes (FEAT-0076), then the open tabs.
+fn dashboard_figures(
+    folders: usize,
+    notes: usize,
+    tabs: usize,
+) -> [(&'static str, usize, &'static str); 3] {
+    [
+        (ph::FOLDER, folders, "dash-folders"),
+        (ph::NOTE, notes, "dash-notes"),
+        (ph::COLUMNS, tabs, "dash-open-tabs"),
+    ]
+}
+
 /// One level of the tree: its folders and unpinned notes in their saved
 /// order, each draggable. A folder is a collapsing header with its own level
 /// inside; a row can be dropped between two others - in this level or
@@ -685,7 +730,9 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
         match entry {
             Entry::Folder(f) => {
                 let r = reorder.row(ui, index, |ui| {
-                    egui::CollapsingHeader::new(format!("{} {}", ph::FOLDER, leaf_of(f)))
+                    let body = egui::TextStyle::Body.resolve(ui.style());
+                    let colour = ui.visuals().text_color();
+                    egui::CollapsingHeader::new(folder_header(leaf_of(f), body, colour))
                         .id_salt(("scratchpad-folder", f))
                         .default_open(!t.collapsed.contains(f))
                         .show(ui, |ui| draw_level(ui, t, f, acts))
@@ -808,22 +855,19 @@ impl Scratchpad {
                 );
                 hs_ui::dashboard::rule(ui, &theme);
 
-                hs_ui::dashboard::stats(
-                    ui,
-                    &theme,
-                    &[
-                        hs_ui::dashboard::Stat {
-                            icon: ph::NOTE,
-                            value: &notes.len().to_string(),
-                            label: &s.t("dash-notes"),
-                        },
-                        hs_ui::dashboard::Stat {
-                            icon: ph::COLUMNS,
-                            value: &tabs.len().to_string(),
-                            label: &s.t("dash-open-tabs"),
-                        },
-                    ],
-                );
+                let figures = dashboard_figures(self.folders.len(), notes.len(), tabs.len());
+                let values: Vec<String> = figures.iter().map(|f| f.1.to_string()).collect();
+                let stat_labels: Vec<String> = figures.iter().map(|f| s.t(f.2)).collect();
+                let stats: Vec<hs_ui::dashboard::Stat> = figures
+                    .iter()
+                    .zip(values.iter().zip(&stat_labels))
+                    .map(|(f, (value, label))| hs_ui::dashboard::Stat {
+                        icon: f.0,
+                        value,
+                        label,
+                    })
+                    .collect();
+                hs_ui::dashboard::stats(ui, &theme, &stats);
                 hs_ui::dashboard::rule(ui, &theme);
 
                 hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
@@ -1883,6 +1927,31 @@ impl Tool for Scratchpad {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// FEAT-0076: the folder count comes first, before the notes.
+    #[test]
+    fn the_dashboard_counts_folders_before_notes() {
+        let f = dashboard_figures(3, 12, 2);
+        assert_eq!(
+            f.map(|x| x.2),
+            ["dash-folders", "dash-notes", "dash-open-tabs"]
+        );
+        assert_eq!(f.map(|x| x.1), [3, 12, 2]);
+    }
+
+    /// FEAT-0076: a folder's glyph is drawn bigger than a note row's 20 px.
+    #[test]
+    fn a_folder_glyph_is_bigger_than_a_note_glyph() {
+        let job = folder_header(
+            "Work",
+            egui::FontId::proportional(14.0),
+            egui::Color32::WHITE,
+        );
+        assert_eq!(job.text, format!("{}Work", ph::FOLDER));
+        let glyph = job.sections[0].format.font_id.size;
+        assert!(glyph > 20.0, "{glyph}");
+        assert_eq!(job.sections[1].format.font_id.size, 14.0);
+    }
 
     #[test]
     fn title_comes_from_the_first_heading_or_line() {

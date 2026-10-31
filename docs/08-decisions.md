@@ -799,7 +799,7 @@ the `DataTable` fix first because nothing is readable without it.
 
 ## ADR-027 · Queue activity: one driver per broker, pure-Rust clients, RabbitMQ over its management API
 
-**Date** 2026-10-31 · **Status** proposed (specified; see
+**Date** 2026-10-31 · **Status** accepted (built; see
 `docs/tools/queue.md`) · **Owner's request**: all five broker kinds in
 one phase.
 
@@ -820,7 +820,7 @@ group coordinator's committed offsets.
 | Kafka | **`rskafka` 0.6** (MIT / Apache-2.0) for topics, partitions, offsets, fetch and produce | pure Rust, `transport-tls` uses rustls, SASL PLAIN / SCRAM / OAUTHBEARER | **no consumer-group API**: `Client` has `list_topics`, `partition_client`, `controller_client`, and a partition client only `produce`, `fetch_records`, `get_offset`, `delete_records` (checked against the 0.6.0 docs, 2026-10-31) |
 | Kafka | **`kafka-protocol` 0.18** (MIT / Apache-2.0) for consumer groups | generated messages for `ListGroups`, `DescribeGroups`, `FindCoordinator`, `OffsetFetch`, `ListOffsets` | messages only — no transport; we write the framing, TLS and SASL for those calls |
 | Kafka | `rdkafka` | complete, including groups | binds librdkafka (C); rejected by the programme |
-| NATS | **`async-nats` 0.51** (Apache-2.0) with `ring` | the official client; JetStream streams, consumers and direct get | MSRV 1.89, inside the workspace's toolchain |
+| NATS | **`async-nats` 0.50** (Apache-2.0) with `ring` | the official client; JetStream streams, consumers and direct get | MSRV 1.89, inside the workspace's toolchain |
 | MQTT | **`rumqttc` 0.25** (Apache-2.0) with `use-rustls-no-provider` | tokio, MQTT 3.1.1 and 5 | `use-rustls` would pull `tokio-rustls/default`, i.e. `aws-lc-rs` and a C build; the no-provider feature plus our `ring` avoids it |
 | Redis Streams | **the workspace's `redis` crate**, directly | no new dependency; `XINFO`, `XRANGE`, `XADD`, `XTRIM` | — |
 | Redis Streams | `tool-redis`'s client | already written | one tool may not depend on another (docs/03 §2) |
@@ -847,3 +847,23 @@ settings the connection uses.
 - The live tail into the Logs activity, if it needs to *consume* from
   RabbitMQ, may later need an AMQP client after all; that would be a new ADR,
   not an amendment to this one.
+- *As built (2026-10-31).* `async-nats` is pinned to **0.50**: 0.51 had been
+  out five days when the crate was added, inside the two-week wait the
+  workspace keeps for new releases. `rskafka` is built without its default
+  `lz4` and `zstd` codecs, which bind C libraries; records compressed with
+  either cannot be peeked, and the error says so. gzip and snappy (pure Rust)
+  are kept. `kafka_groups.rs` negotiates each request's version with
+  `ApiVersions` rather than fixing one, because Kafka 4 removed many old
+  versions (KIP-896), and caps `OffsetFetch` at v9, the last that names topics
+  rather than giving their ids. Its SASL covers PLAIN, SCRAM-SHA-256/512
+  (written against RFC 5802 and tested with RFC 7677's example exchange) and
+  OAUTHBEARER.
+- *As built: no `rumqttc`.* Its latest release (0.25.1) pins
+  `rustls-webpki` 0.102, which has five open advisories (RUSTSEC-2026-0049,
+  -0098, -0099, -0104, -0382), and the unmaintained `rustls-pemfile`;
+  `cargo deny` fails on them. Rather than ignore vulnerability advisories,
+  MQTT is a small client of our own (`mqtt_wire.rs`, about 400 lines with its
+  tests): CONNECT, SUBSCRIBE, PUBLISH at QoS 0/1/2 and DISCONNECT for 3.1.1
+  and 5, over TCP or the workspace's rustls. The Queue activity holds no MQTT
+  session between calls, so it needs no reconnect logic, in-flight store or
+  keep-alive timer, which is most of what a full client is.

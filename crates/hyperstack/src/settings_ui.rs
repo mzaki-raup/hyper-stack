@@ -28,6 +28,7 @@ pub enum Page {
     Environments,
     Connections,
     Containers,
+    Queue,
     Security,
     Terminal,
     Editor,
@@ -38,7 +39,7 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 15] {
+    pub fn all() -> [(Page, &'static str); 16] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -49,6 +50,7 @@ impl Page {
             (Page::Terminal, "settings-terminal"),
             (Page::Connections, "settings-connections"),
             (Page::Containers, "settings-containers"),
+            (Page::Queue, "settings-queue"),
             (Page::Editor, "settings-editor"),
             (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
@@ -69,6 +71,7 @@ impl Page {
             Page::Environments => ph::GLOBE_HEMISPHERE_WEST,
             Page::Connections => ph::PLUGS_CONNECTED,
             Page::Containers => ph::SHIPPING_CONTAINER,
+            Page::Queue => ph::QUEUE,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -436,6 +439,7 @@ pub fn page(
         Page::Environments => environments(ui, theme, services, state, effects),
         Page::Connections => connections(ui, theme, services, state, effects),
         Page::Containers => containers(ui, theme, services, state, effects),
+        Page::Queue => queue(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
@@ -3380,6 +3384,170 @@ fn container_tools(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     });
 }
 
+/// Settings → Queue (docs/tools/queue.md §3): the saved brokers, list
+/// left and form right, and the bounds every broker tab works within.
+/// The brokers are ordinary connection profiles, so this is a filtered
+/// view of the one store, as Settings → Containers is.
+fn queue(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::{QUEUE_KINDS, kind_label};
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-queue"),
+        Some(&s.t("settings-queue-sub")),
+    );
+    form::section(ui, theme, &s.t("settings-queue-brokers"), |ui| {
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        // One button per kind across the section, as Containers has.
+        ui.horizontal(|ui| {
+            for kind in QUEUE_KINDS {
+                let label = egui::RichText::new(format!(
+                    "{} {}",
+                    hs_ui::icons::connection_icon(kind, ""),
+                    kind_label(kind)
+                ))
+                .size(14.0);
+                if ui
+                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
+                    .tip(s.t("settings-queue-add-hint"))
+                    .clicked()
+                {
+                    let mut draft = hs_core::connections::ConnectionProfile {
+                        name: format!("New {}", kind_label(kind)),
+                        kind: (*kind).to_string(),
+                        ..Default::default()
+                    };
+                    // The kind's usual local address, so the form opens on
+                    // something that would work.
+                    tool_queue::profile::QueueFields::from_table(kind, &draft.fields)
+                        .write_into(&mut draft.fields);
+                    state.conn_selected = Some(draft.id.clone());
+                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+                    state.conn_draft = Some((draft, text));
+                }
+            }
+        });
+        ui.add_space(10.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                let brokers: Vec<(String, String, String, String)> = s
+                    .connections
+                    .read()
+                    .of_queue_kinds()
+                    .map(|c| {
+                        let f = tool_queue::profile::QueueFields::from_table(&c.kind, &c.fields);
+                        (
+                            c.id.clone(),
+                            c.kind.clone(),
+                            c.name.clone(),
+                            f.label_for(&c.kind),
+                        )
+                    })
+                    .collect();
+                if brokers.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-queue-none"));
+                }
+                // The order the activity's sidebar inherits.
+                let mut reorder = hs_ui::reorder::Reorder::new("queue-settings-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name, subtitle)) in brokers.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::connection_icon(kind, ""),
+                            name,
+                            Some(subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(QUEUE_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_broker = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_queue_kind(&d.kind));
+                if !is_broker {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-queue-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-queue-limits"), |ui| {
+        let mut st = s.settings.write();
+        let q = &mut st.queue;
+        form::field_grid(ui, "queue-limits", |ui| {
+            form::label(ui, &s.t("settings-queue-peek-count"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut q.peek_count).range(1..=50))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-queue-poll"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut q.poll_secs)
+                        .range(1..=300)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-queue-mqtt-window"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut q.mqtt_window_secs)
+                        .range(1..=60)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-queue-limits-hint"));
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -3512,14 +3680,22 @@ fn save_draft(
     let is_http_store = matches!(draft.kind.as_str(), "webdav" | "nexus");
     let is_redis = draft.kind == "redis";
     let is_nosql = matches!(draft.kind.as_str(), "mongodb" | "couchdb" | "qdrant");
-    let parsed =
-        if is_ssh || is_s3 || is_db || is_container || is_http_store || is_redis || is_nosql {
-            // These forms write into `draft.fields` directly,
-            // so the text box is a view rather than the truth.
-            Ok(draft.fields.clone())
-        } else {
-            toml::from_str::<toml::Table>(fields_text)
-        };
+    let is_queue = hs_core::connections::is_queue_kind(&draft.kind);
+    let parsed = if is_ssh
+        || is_s3
+        || is_db
+        || is_container
+        || is_http_store
+        || is_redis
+        || is_nosql
+        || is_queue
+    {
+        // These forms write into `draft.fields` directly,
+        // so the text box is a view rather than the truth.
+        Ok(draft.fields.clone())
+    } else {
+        toml::from_str::<toml::Table>(fields_text)
+    };
     match parsed {
         Ok(mut table) => {
             let mut secrets_ok = true;
@@ -3583,6 +3759,11 @@ fn save_draft(
                 let mut f = tool_redis::profile::RedisFields::from_table(&table);
                 secrets_ok =
                     store_typed_secrets(s, &draft.name, [("password", &mut f.password)], effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_queue {
+                let mut f = tool_queue::profile::QueueFields::from_table(&draft.kind, &table);
+                secrets_ok = store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             } else if is_nosql {
@@ -3736,6 +3917,8 @@ fn conn_detail(
         nosql_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_container_kind(&draft.kind) {
         container_form(ui, theme, s, draft, fields_text);
+    } else if hs_core::connections::is_queue_kind(&draft.kind) {
+        queue_form(ui, theme, s, draft, fields_text);
     } else {
         form::section(ui, theme, &s.t("conn-fields"), |ui| {
             form::code_field(ui, fields_text, 8);
@@ -3863,6 +4046,7 @@ fn conn_detail(
         // Test what is on the form, not what was last saved.
         let mut probe = draft.clone();
         if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
+            && !hs_core::connections::is_queue_kind(&probe.kind)
             && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
         {
             probe.fields = table;
@@ -4573,6 +4757,13 @@ fn apply_secret_edit(
             f.password = std::mem::take(password);
             let ok =
                 store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_queue_kind(kind) => {
+            let mut f = tool_queue::profile::QueueFields::from_table(kind, &table);
+            f.secret = std::mem::take(password);
+            let ok = store_typed_secrets(s, &profile.name, f.secret_fields(), effects);
             f.write_into(&mut table);
             ok
         }
@@ -8416,6 +8607,168 @@ fn nosql_form(
     if changed {
         // The kind may have moved with a pasted URL.
         f.kind = draft.kind.clone();
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The broker kinds' form (`kind` one of `QUEUE_KINDS`): where the broker
+/// is, and one credential of the kinds that broker can use - only that
+/// kind's fields are shown, and the secret goes to the vault on save
+/// (`.claude/rules/security.md`).
+fn queue_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_queue::profile::{
+        MQTT_VERSIONS, QueueFields, SASL_MECHANISMS, auth_kinds_for, sasl_label,
+    };
+    let kind = draft.kind.clone();
+    let mut f = QueueFields::from_table(&kind, &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-queue-section-broker"), |ui| {
+        form::field_grid(ui, "queue-broker", |ui| {
+            let (label, example) = match kind.as_str() {
+                "rabbitmq" => ("conn-queue-management-url", "http://127.0.0.1:15672"),
+                "kafka" => ("conn-queue-bootstrap", "broker1:9092, broker2:9092"),
+                "nats" => ("conn-queue-servers", "nats://127.0.0.1:4222"),
+                _ => ("conn-queue-host-port", "127.0.0.1:1883"),
+            };
+            form::label(ui, &s.t(label));
+            changed |= form::text_field(ui, &mut f.address, example).changed();
+            ui.end_row();
+            match kind.as_str() {
+                "rabbitmq" => {
+                    form::label(ui, &s.t("conn-queue-vhost"));
+                    changed |=
+                        form::text_field(ui, &mut f.vhost, &s.t("conn-queue-vhost-all")).changed();
+                    ui.end_row();
+                }
+                "redis-streams" => {
+                    form::label(ui, &s.t("conn-redis-db"));
+                    let mut db = f.db.to_string();
+                    if form::text_field(ui, &mut db, "0").changed() {
+                        f.db = db.trim().parse().unwrap_or(f.db);
+                        changed = true;
+                    }
+                    ui.end_row();
+                }
+                "mqtt" => {
+                    form::label(ui, &s.t("conn-queue-client-id"));
+                    changed |=
+                        form::text_field(ui, &mut f.client_id, &s.t("conn-queue-client-id-auto"))
+                            .changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-protocol"));
+                    egui::ComboBox::from_id_salt("queue-mqtt-version")
+                        .width(form::FIELD_MIN_WIDTH)
+                        .selected_text(f.protocol.clone())
+                        .show_ui(ui, |ui| {
+                            for v in MQTT_VERSIONS {
+                                if ui.selectable_label(f.protocol == *v, *v).clicked() {
+                                    f.protocol = (*v).to_string();
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+                }
+                _ => {}
+            }
+            // RabbitMQ's TLS is in its URL's scheme.
+            if kind != "rabbitmq" {
+                form::label(ui, &s.t("conn-queue-tls"));
+                changed |= ui.checkbox(&mut f.tls, "").changed();
+                ui.end_row();
+            }
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "queue-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "password" => "conn-queue-auth-password",
+                "token" => "conn-queue-auth-token",
+                "api-key" => "conn-queue-auth-api-key",
+                _ => "conn-queue-auth-none",
+            };
+            form::label(ui, &s.t("conn-queue-credential"));
+            egui::ComboBox::from_id_salt("queue-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&f.auth)))
+                .show_ui(ui, |ui| {
+                    for a in auth_kinds_for(&kind) {
+                        if ui
+                            .selectable_label(f.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            f.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            match f.auth.as_str() {
+                "password" => {
+                    form::label(ui, &s.t("conn-queue-user"));
+                    changed |= form::text_field(ui, &mut f.user, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-password"));
+                    changed |=
+                        secret_field(ui, theme, s, "queue-secret", &mut f.secret, scratch, 0);
+                    ui.end_row();
+                    if kind == "kafka" {
+                        form::label(ui, &s.t("conn-queue-sasl"));
+                        egui::ComboBox::from_id_salt("queue-sasl")
+                            .width(form::FIELD_MIN_WIDTH)
+                            .selected_text(sasl_label(&f.sasl))
+                            .show_ui(ui, |ui| {
+                                for m in SASL_MECHANISMS {
+                                    if ui.selectable_label(f.sasl == *m, sasl_label(m)).clicked() {
+                                        f.sasl = (*m).to_string();
+                                        changed = true;
+                                    }
+                                }
+                            });
+                        ui.end_row();
+                    }
+                }
+                "token" => {
+                    form::label(ui, &s.t("conn-queue-token"));
+                    changed |=
+                        secret_field(ui, theme, s, "queue-secret", &mut f.secret, scratch, 0);
+                    ui.end_row();
+                }
+                "api-key" => {
+                    // RabbitMQ sends the key in a header; Kafka takes a key
+                    // id and its secret.
+                    if kind == "kafka" {
+                        form::label(ui, &s.t("conn-queue-key-id"));
+                        changed |= form::text_field(ui, &mut f.user, "").changed();
+                    } else {
+                        form::label(ui, &s.t("conn-queue-header"));
+                        changed |= form::text_field(ui, &mut f.header, "X-Api-Key").changed();
+                    }
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-key"));
+                    changed |=
+                        secret_field(ui, theme, s, "queue-secret", &mut f.secret, scratch, 0);
+                    ui.end_row();
+                }
+                _ => {}
+            }
+        });
+        let hint = match (kind.as_str(), f.auth.as_str()) {
+            ("rabbitmq", "token") => "conn-queue-hint-rabbit-token",
+            ("kafka", "token") => "conn-queue-hint-kafka-token",
+            ("kafka", "api-key") => "conn-queue-hint-kafka-key",
+            (_, "token") => "conn-queue-hint-token-password",
+            _ => "conn-ssh-secret-hint",
+        };
+        form::hint(ui, theme, &s.t(hint));
+    });
+    if changed {
         f.write_into(&mut draft.fields);
     }
 }

@@ -1324,6 +1324,7 @@ impl HyperStackApp {
             "print.tab" => self.print_active(),
             "settings:connections" => self.open_settings(Some(settings_ui::Page::Connections)),
             "settings:containers" => self.open_settings(Some(settings_ui::Page::Containers)),
+            "settings:queue" => self.open_settings(Some(settings_ui::Page::Queue)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
             // Add a project: Settings -> Editor with an empty form in
             // the detail column. `:pick` also opens the folder chooser,
@@ -4625,6 +4626,8 @@ fn shows_new_tab(group: Option<&str>) -> bool {
                 | "home"
                 | "devtools"
                 | "logs"
+                // A broker tab is a saved connection, like a database's.
+                | "queue"
                 // A container tab is a host, picked on the dashboard or
                 // in the sidebar; a tab with no host in it is not a new
                 // document, it is the dashboard in a closable tab
@@ -4829,6 +4832,8 @@ pub(crate) fn activity_colour(id: &str) -> egui::Color32 {
         // else; distinct from the editor's and the database's blues.
         "containers" => egui::Color32::from_rgb(0x81, 0x9a, 0xff),
         "scratchpad" => egui::Color32::from_rgb(0xfa, 0xcc, 0x15),
+        // RabbitMQ's orange, a shade apart from Git's and S3's.
+        "queue" => egui::Color32::from_rgb(0xff, 0x7a, 0x45),
         "settings" => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
         _ => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
     }
@@ -4949,6 +4954,7 @@ mod tests {
             "devtools",
             "logs",
             "containers",
+            "queue",
         ] {
             assert!(
                 !shows_new_tab(Some(g)),

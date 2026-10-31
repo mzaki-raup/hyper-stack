@@ -62,6 +62,15 @@ fn redis_error(e: tool_redis::profile::ProfileError) -> Outcome {
     }
 }
 
+fn queue_error(e: tool_queue::profile::ProfileError) -> Outcome {
+    use tool_queue::profile::ProfileError as E;
+    match e {
+        E::VaultLocked => Outcome::VaultLocked,
+        E::MissingVariables(v) => Outcome::MissingVariables(v.join(", ")),
+        other => Outcome::Failed(other.to_string()),
+    }
+}
+
 fn nosql_error(e: tool_nosql::profile::ProfileError) -> Outcome {
     use tool_nosql::profile::ProfileError as E;
     match e {
@@ -137,6 +146,11 @@ pub fn testable(kind: &str) -> bool {
             | "podman"
             | "wincontainer"
             | "k8s"
+            | "rabbitmq"
+            | "kafka"
+            | "redis-streams"
+            | "nats"
+            | "mqtt"
     )
 }
 
@@ -206,6 +220,20 @@ fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
                         })
                     }
                     Err(e) => Outcome::Failed(e.to_string()),
+                }
+            }))
+        }
+        kind if hs_core::connections::is_queue_kind(kind) => {
+            let cfg = tool_queue::profile::QueueFields::from_table(kind, fields)
+                .resolve(kind, read_only, secrets, &lookup)
+                .map_err(queue_error)?;
+            Ok(Box::pin(async move {
+                match tool_queue::driver::connect(&cfg).await {
+                    Ok(d) => {
+                        let i = d.info();
+                        Outcome::Ok(format!("{} {}", i.product, i.version).trim().to_string())
+                    }
+                    Err(e) => Outcome::Failed(e),
                 }
             }))
         }
@@ -387,6 +415,11 @@ mod tests {
             "podman",
             "wincontainer",
             "k8s",
+            "rabbitmq",
+            "kafka",
+            "redis-streams",
+            "nats",
+            "mqtt",
         ] {
             assert!(testable(k), "{k}");
         }

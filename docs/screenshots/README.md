@@ -535,3 +535,20 @@ so it was opened from Home's launcher. The same pass checked a name clash
 (`work` beside `Work` became `work 001`), a search and Ctrl+P showing
 *Work / Clients*, collapse and order surviving a restart, a pinned note
 showing its folder, and the guarded folder delete.
+
+Depth programme, phase L (2026-10-31): `queue.png` (the Queue dashboard with
+five brokers open), `queue-rabbitmq.png` (a RabbitMQ queue peeked, with the
+requeue warning, headers and the JSON body), `queue-kafka-lag.png` (Kafka
+consumer group *billing* with lag per partition, on a profile marked
+read-only so Purge is disabled) and `queue-settings.png` (Settings → Queue
+with the RabbitMQ form). Brokers are the WSL containers `hs-rabbitmq`
+(`rabbitmq:4-management`, user `dev`), `hs-kafka` (`apache/kafka:4.0.0`),
+`hs-redis`, `hs-nats` (`nats:2.11 -js`) and `hs-mqtt` (`eclipse-mosquitto:2`
+with `/mosquitto-no-auth.conf`; start it with `MSYS_NO_PATHCONV=1` from Git
+Bash). Demo data came from the brokers' own tools: `kafka-topics.sh`,
+`kafka-console-producer.sh` and `kafka-console-consumer.sh --group billing
+--max-messages 9` in `hs-kafka`, the management API for the RabbitMQ queues,
+exchange and binding, `redis-cli XADD` / `XGROUP` / `XREADGROUP`,
+`natsio/nats-box` for the NATS stream and consumer, and `mosquitto_pub -r`.
+The RabbitMQ profile was made in the app; its password went to a scratch
+vault created for the pass. The other four profiles were written as files.

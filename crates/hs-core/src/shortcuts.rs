@@ -240,6 +240,8 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("db.ddl", "Ctrl+Alt+G"),
     ("db.compare_schema", "Ctrl+Alt+K"),
     ("db.compare_data", "Ctrl+Alt+Shift+K"),
+    ("queue.peek", "Ctrl+Alt+M"),
+    ("queue.publish", "Ctrl+Alt+Shift+M"),
     ("vault.lock", "Ctrl+Shift+L"),
     ("zoom.in", "Ctrl+="),
     ("zoom.out", "Ctrl+-"),

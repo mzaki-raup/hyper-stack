@@ -1,0 +1,38 @@
+[package]
+name = "tool-queue"
+description = "HyperStack Queue tool: RabbitMQ, Kafka, Redis Streams, NATS and MQTT brokers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+secrecy = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util"] }
+tracing = { workspace = true }
+chrono = { workspace = true }
+futures-util = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+rand = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
+reqwest = { workspace = true }
+redis = { workspace = true }
+rustls = { workspace = true }
+rustls-platform-verifier = { workspace = true }
+tokio-rustls = { workspace = true }
+bytes = { workspace = true }
+rskafka = { workspace = true }
+kafka-protocol = { workspace = true }
+async-nats = { workspace = true }

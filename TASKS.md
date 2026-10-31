@@ -151,6 +151,24 @@ Refs: BUG-0003
 
 ## v0.7.4 — Planned
 
+### CR-0024 · Actual Icon For Queue, Tracker And Automation Activity Connections
+- **State:** Pending · 
+- **Scope:** Queue Activity, Tracker Activity, Automation Activity -> Connections Icon.
+- [ ] All connection icon use actual product icon. Refer on Database connection on how to do it.
+- [ ] Test:  <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a `icons` case per connections.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0076 · Scratchpad Dashboard Folder Count
+- **State:** Pending · 
+- **Scope:** Scratchpad Activity -> Dashboard page.
+- [ ] Add card in summary for folder count before the Notes count card.
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a card displaying folder count.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
 ### FEAT-0068 · Oracle, DB2 and the other common relational engines
 - **State:** Pending · **Source:** `mynotes` L1-7 (1 request)
 - **Scope:** Driver, connection form, type mapping and catalog introspection per engine, the way SQL Server / ClickHouse / DuckDB were planned.
@@ -229,91 +247,102 @@ Refs: BUG-0003
   items.
 
 ### FEAT-0069 · Queue activity shell: crate, rail, dashboard, connections, Settings → Queue
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
-- [ ] `tool-queue` crate, the `Driver` trait and its shared types (`Destination`, `Message`, `ConsumerGroup`, `Lag`)
-- [ ] registered after Logs under Infra; dashboard home; sidebar of saved brokers with reorder
-- [ ] connection kinds `rabbitmq`, `kafka`, `redis-streams`, `nats`, `mqtt` with their fields
-- [ ] credentials `password` / `token` / `api-key` per kind as the spec's table says, secrets as `secret:<ulid>`
-- [ ] Settings → Queue: brokers list left, form right; peek count and poll interval
-- [ ] a tab per broker: destinations table, detail pane with Messages / Publish / Consumers, protected-environment banner and read-only
-- [ ] palette commands and shortcuts of spec §9
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — add a broker of each kind, open it, see an empty state and a connection error
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] `tool-queue` crate, the `Driver` trait and its shared types (`Destination`, `Message`, `ConsumerGroup`, `Lag`)
+- [x] registered after Logs under Infra; dashboard home; sidebar of saved brokers with reorder
+- [x] connection kinds `rabbitmq`, `kafka`, `redis-streams`, `nats`, `mqtt` with their fields
+- [x] credentials `password` / `token` / `api-key` per kind as the spec's table says, secrets as `secret:<ulid>`
+- [x] Settings → Queue: brokers list left, form right; peek count and poll interval
+- [x] a tab per broker: destinations table, detail pane with Messages / Publish / Consumers, protected-environment banner and read-only
+- [x] palette commands and shortcuts of spec §9
+- [x] Test: `profile.rs` (defaults, round trip, credential kinds per broker, vault locked, Kafka API key, undefined variables, addresses), `driver.rs` (read-only refuses every write before the broker sees it, no default target, peek bounds), `ui.rs` (publish form filled per destination, protected tab read-only, sentence-case toasts); `live.rs::a_read_only_session_refuses_writes_on_a_real_broker`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — RabbitMQ added in Settings → Queue with its password stored in the vault and Test → "Connected. RabbitMQ 4.4.0"; the other four as profile files; empty dashboard and Settings states seen; a refused connection shown by Test on a closed port; a read-only profile's Purge disabled
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** the protected-environment path was not driven on screen: the read-only profile flag was, and both go through the same `read_only()` and the driver's `Guarded` refusal (unit-tested).
+
 ### FEAT-0070 · RabbitMQ through the management API
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0069
-- [ ] queues per vhost with ready, unacked, consumers and rates
-- [ ] peek by `get` with requeue, the side effect stated in the pane
-- [ ] publish to an exchange with routing key, headers and properties
-- [ ] exchanges and bindings
-- [ ] purge and delete, guarded (typed confirmation for delete)
-- [ ] a connection test that names a missing management plugin
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect to `hs-rabbitmq`, peek, publish, purge a test queue
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] queues per vhost with ready, unacked, consumers and rates
+- [x] peek by `get` with requeue, the side effect stated in the pane
+- [x] publish to an exchange with routing key, headers and properties
+- [x] exchanges and bindings
+- [x] purge and delete, guarded (typed confirmation for delete)
+- [x] a connection test that names a missing management plugin
+- [x] Test: `rabbitmq.rs` unit tests (path encoding, rates, missing plugin named); `live.rs::rabbitmq_lists_peeks_publishes_and_purges_a_queue` against `hs-rabbitmq` (list, publish, peek without taking, purge, bindings, delete, 401 named)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — `hs-rabbitmq`: queues listed, peek with the requeue note and Ready unchanged, publish (12 → 13, toast "Routed"), bindings, purge of `emails.outbound` after the confirmation
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Delete's typed confirmation was not driven on screen; delete itself runs in the live test.
+
 ### FEAT-0071 · Kafka topics, offsets, peek and publish
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** In-Progress · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0069
-- [ ] topics with partitions, replication, earliest and latest offsets (`rskafka`)
-- [ ] peek from an offset, payloads by content type
-- [ ] publish to a partition or by key, with headers
-- [ ] purge (delete records below an offset), the Redpanda refusal explained
+- [x] topics with partitions, earliest and latest offsets (`rskafka`; no replication factor, see Notes)
+- [x] peek from an offset, payloads by content type
+- [x] publish to a partition or by key, with headers
+- [x] purge (delete records below an offset), the Redpanda refusal explained
 - [ ] TLS and SASL PLAIN / SCRAM / OAUTHBEARER from the credential
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect to `hs-kafka`, peek, publish
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Test: `kafka.rs` murmur2 against the Java partitioner's values; `live.rs::kafka_lists_peeks_publishes_and_purges_a_topic` against `hs-kafka`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — `hs-kafka`: topics with offsets, a keyed publish ("Partition 0, offset 0") and its peek with key and JSON body
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** no replication column: `rskafka` lists partitions only (spec "What is implemented"). The TLS / SASL box stays open: the code is written (rskafka's SASL config; SCRAM in our groups client tested against RFC 7677's exchange) but no TLS or SASL broker was run here.
+
 ### FEAT-0072 · Kafka consumer groups and lag
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** In-Progress · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0071
-- [ ] a small client over `kafka-protocol`: framing, request header, API-version negotiation
-- [ ] `Metadata`, `ListGroups` on every broker, `FindCoordinator` and `OffsetFetch` per group
+- [x] a small client over `kafka-protocol`: framing, request header, API-version negotiation
+- [x] `Metadata`, `ListGroups` on every broker, `FindCoordinator` and `OffsetFetch` per group
 - [ ] lag per partition (latest minus committed), as a Job with progress and cancel
 - [ ] the same TLS and SASL as the connection
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a consumer group on `hs-kafka` with lag shown per partition
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Test: `kafka_groups.rs` (SCRAM-SHA-256 against RFC 7677, nonce check, name escaping, lag arithmetic); the live Kafka test reads groups for a fresh topic
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — group `billing` on `hs-kafka` (9 of 24 consumed) shows lag 15, and 10 / 0 / 5 per partition
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** lag per partition works; the progress and Stop are in the Consumers pane rather than a shell Job (spec §7 updated) and were not seen on screen, because one group answers too fast to catch. TLS / SASL as FEAT-0071.
+
 ### FEAT-0073 · Redis Streams
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0069
-- [ ] streams found with `SCAN … TYPE stream`, bounded
-- [ ] length, groups, first and last id; groups with pending and lag (Redis 7)
-- [ ] peek by id range, publish with `XADD`, purge by trim, delete the key, guarded
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — streams on `hs-redis`, peek, publish
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] streams found with `SCAN … TYPE stream`, bounded
+- [x] length, groups, first and last id; groups with pending and lag (Redis 7)
+- [x] peek by id range, publish with `XADD`, purge by trim, delete the key, guarded
+- [x] Test: `redis_streams.rs` unit tests (entry parsing, payload of fields, `data` field split); `live.rs::redis_streams_lists_peeks_publishes_and_purges_a_stream`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — `hs-redis`: streams listed, group `mailer` with pending 2 and lag 4, an entry added with a field and a payload and peeked back
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
 ### FEAT-0074 · NATS JetStream
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0069
-- [ ] JetStream streams with messages, bytes, consumers and subjects (`async-nats`)
-- [ ] durable consumers with pending and ack floor
-- [ ] peek by sequence, publish to any subject with headers, purge a stream, guarded
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect to `hs-nats`, peek a stream, publish
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] JetStream streams with messages, bytes, consumers and subjects (`async-nats`)
+- [x] durable consumers with pending and ack floor
+- [x] peek by sequence, publish to any subject with headers, purge a stream, guarded
+- [x] Test: `live.rs::nats_lists_peeks_publishes_and_purges_a_stream` (stream publish, peek, purge, and a subject no stream captures published as plain NATS)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — `hs-nats`: stream `ORDERS` peeked by sequence with its subject, consumer `shipper` with lag 9, a publish to `orders.paid` stored at sequence 9
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
 ### FEAT-0075 · MQTT
-- **State:** Pending · **Spec:** docs/tools/queue.md · **Phase:** L
+- **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L
 - **Branch:** feat/depth-l-queue
 - **Depends on:** FEAT-0069
-- [ ] topics observed by subscribing for a bounded window (`rumqttc`), the bounds stated
-- [ ] retained and live messages, MQTT 3.1.1 and 5
-- [ ] publish with QoS and retain; clear a retained message, guarded
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect to `hs-mqtt`, observe topics, publish
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] topics observed by subscribing for a bounded window, the bounds stated
+- [x] retained and live messages, MQTT 3.1.1 and 5
+- [x] publish with QoS and retain; clear a retained message, guarded
+- [x] Test: `mqtt_wire.rs` (remaining-length encoding, CONNECT layout, PUBLISH round trip, property skipping, refusal reasons), `mqtt.rs` (folding, topic bound); `live.rs::mqtt_sees_retained_topics_and_clears_them` on 3.1.1 and 5
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir` scratch — `hs-mqtt` (MQTT 5): retained topics seen in the 3 s look, a retained QoS 2 publish to `home/kitchen/light` peeked back
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** not `rumqttc` as first planned: its current release pins a `rustls-webpki` with open advisories, so MQTT is our own `mqtt_wire.rs` (ADR-027).
 
 ---
 

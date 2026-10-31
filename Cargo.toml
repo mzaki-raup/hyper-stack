@@ -26,6 +26,7 @@ members = [
   "crates/tools/tool-logs",
   "crates/tools/tool-containers",
   "crates/tools/tool-git",
+  "crates/tools/tool-queue",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -65,6 +66,7 @@ tool-redis = { path = "crates/tools/tool-redis" }
 tool-nosql = { path = "crates/tools/tool-nosql" }
 tool-logs = { path = "crates/tools/tool-logs" }
 tool-git = { path = "crates/tools/tool-git" }
+tool-queue = { path = "crates/tools/tool-queue" }
 
 # UI
 eframe = "0.35"
@@ -202,6 +204,23 @@ mongodb = { version = "3.9", default-features = false, features = [
     "compat-3-3-0",
     "bson-3",
 ] }
+# Message brokers (ADR-027). No C-bound crate: rskafka and kafka-protocol
+# without their lz4 and zstd codecs (C libraries), async-nats on the same
+# rustls + ring stack. MQTT is tool-queue's own small client.
+rskafka = { version = "0.6", default-features = false, features = [
+    "transport-tls",
+    "compression-gzip",
+    "compression-snappy",
+] }
+# `Request` (key, response type) is implemented only with both features on;
+# neither pulls a dependency.
+kafka-protocol = { version = "0.18", default-features = false, features = ["client", "broker"] }
+async-nats = { version = "0.50", default-features = false, features = [
+    "ring",
+    "jetstream",
+    "server_2_10",
+] }
+bytes = "1"
 # The driver re-exports this; `serde_json-1` is what gives us Extended JSON
 # in both directions, which is how documents reach the editor.
 bson = { version = "3", features = ["serde", "serde_json-1"] }

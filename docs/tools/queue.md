@@ -1,6 +1,6 @@
 # Tool spec — Queue
 
-**Crate:** `tool-queue` · **Status:** draft · **Last updated:** 2026-10-31 ·
+**Crate:** `tool-queue` · **Status:** implemented · **Last updated:** 2026-10-31 ·
 **Phase:** L of [docs/10-depth-programme.md](../10-depth-programme.md) ·
 **Ledger:** `FEAT-0066` and the items it splits into ·
 **Decisions:** [ADR-027](../08-decisions.md)
@@ -67,7 +67,7 @@ talking to. What each kind shows and does:
 | | RabbitMQ | Kafka | Redis Streams | NATS | MQTT |
 |---|---|---|---|---|---|
 | Destination | queue (per vhost) | topic | stream key | JetStream stream | topic, as seen |
-| Columns | ready, unacked, consumers, publish / deliver rate, state | partitions, replication, earliest / latest offset, size | length, groups, first / last id | messages, bytes, consumers, subjects | last payload size, retained, last seen |
+| Columns | vhost, ready, unacked, consumers, publish / deliver rate, state | partitions, earliest / latest offset (summed), messages | length, groups, first / last id | messages, bytes, consumers, subjects | last payload size, retained, last seen |
 | Peek | yes, requeued | yes, from an offset | yes, by id range | yes, by sequence | retained and live, for a window |
 | Publish | to an exchange, routing key, headers, properties | to a partition or by key, headers | `XADD`, fields | to a subject, headers | topic, QoS, retain |
 | Consumers | consumers per queue | groups, lag per partition | groups, pending, lag | durable consumers, pending, ack floor | — |
@@ -105,7 +105,9 @@ Notes per kind:
 
 **Payloads** are shown by content type — JSON pretty-printed, text as text,
 anything else as a hex dump with its length — with the headers or properties
-above, through the cell viewer the database grid already has.
+above, through the same `hs_core::sniff` and `hs_core::fmt` helpers the
+database cell viewer uses (the viewer itself is `tool-db`'s, which this tool
+may not depend on).
 
 ## 5. Connections and credentials
 
@@ -150,8 +152,11 @@ offering a field that would be ignored.
 - **Peek** never consumes. Where the broker cannot read without a side effect
   (RabbitMQ's requeue), the pane says what the side effect is before the first
   peek.
-- Nothing is published to a destination the user did not choose; the Publish
-  form has no default target.
+- Nothing is published to a destination the user did not choose. The Publish
+  form is filled for the destination selected in the table — RabbitMQ's
+  default exchange with the queue's name as routing key, a NATS stream's first
+  plain subject, otherwise the topic or stream itself — and shows it before
+  anything is sent; with no destination selected there is no form at all.
 
 ## 7. Work and progress
 
@@ -165,8 +170,9 @@ channels drained at frame start; nothing blocks the UI thread.
 - **MQTT** observation runs for a bounded window (default 3 s) and a bounded
   number of topics (2 000); the table says when either bound was reached.
 - Kafka group discovery asks every broker (`ListGroups`) and each group's
-  coordinator (`FindCoordinator`, `OffsetFetch`): a Job with progress and
-  cancel, because a large cluster has many groups.
+  coordinator (`FindCoordinator`, `OffsetFetch`), so it shows progress
+  ("Group n of m") and can be stopped between groups, in the Consumers pane
+  as the Redis big-key finder does, because a large cluster has many groups.
 - A connection that has not answered in 10 s is reported, not waited on.
 
 ## 8. Implementation notes
@@ -176,13 +182,14 @@ channels drained at frame start; nothing blocks the UI thread.
   `consumers`, `purge`, `delete`, `bindings` — and the shared types
   (`Destination`, `Message`, `ConsumerGroup`, `Lag`); one module per kind
   implements it (`rabbitmq.rs`, `kafka.rs`, `kafka_groups.rs`,
-  `redis_streams.rs`, `nats.rs`, `mqtt.rs`). Drivers are plain async and
+  `redis_streams.rs`, `nats.rs`, `mqtt.rs` on `mqtt_wire.rs`). Drivers are plain async and
   tested without the UI; the tab only sees the trait.
 - Dependencies (ADR-027): `reqwest` and `redis` are already in the workspace;
-  `rskafka` (with `transport-tls`), `kafka-protocol`, `async-nats` (with
-  `ring`) and `rumqttc` (with `use-rustls-no-provider`, so it uses the
-  workspace's `ring` provider rather than pulling `aws-lc-rs`) are new. No
-  C-bound crate: not `rdkafka`, not `lapin`'s native-tls build.
+  `rskafka` (with `transport-tls`, gzip and snappy only), `kafka-protocol`
+  and `async-nats` (with `ring`) are new. MQTT is a small client of our own
+  (`mqtt_wire.rs`): `rumqttc`'s current release pins a `rustls-webpki` with
+  open advisories. No C-bound crate: not `rdkafka`, not `lapin`'s native-tls
+  build, not the lz4 or zstd codecs.
 - Registered in `crates/hyperstack/src/tools/mod.rs::factories()` after Logs,
   under **Infra**. The programme placed it after Automation, which does not
   exist yet; it moves there when phase K lands. The rail is user-ordered per
@@ -221,4 +228,21 @@ Shift+Insert.
 
 ## What is implemented (2026-10-31)
 
-Nothing yet: this spec precedes the code, as the template requires.
+All five kinds, as §3-§9 describe, checked on screen against local brokers
+(RabbitMQ 4.4, Kafka 4.0, Redis 7.4, NATS 2.11, Mosquitto 2) and by
+`tests/live.rs` against the same servers. Where the build differs from the
+text above:
+
+- **Kafka** shows no replication factor (`rskafka` lists partitions only) and
+  hides topics whose names start with `__`. Its offsets are read for the first
+  200 topics. Records compressed with lz4 or zstd cannot be peeked.
+- **Settings → Queue** holds the brokers and three limits: messages per Peek,
+  the refresh interval and the MQTT listening window.
+- **Kafka group discovery** runs inside the tab rather than as a shell Job: the
+  Consumers pane shows "Group n of m" and a Stop button that ends the look
+  between groups.
+- The **Explain This Backlog** quick action (open question 2) is in: the
+  assistant is told the selected destination's figures. The live tail into
+  Logs, SQS / Service Bus and the Schema Registry remain open.
+- **Delete** is offered for RabbitMQ queues and Redis streams only, as §4's
+  table says.

@@ -103,6 +103,7 @@ the fixtures behind them.
 | [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
+| [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -288,6 +289,24 @@ the lists.
 | **Parsers and filters** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL and JVM thread dumps detected from the first lines, levels normalised, terminal colour codes stripped at ingest so a coloured container log is readable *and* parsable, stack traces glued to their line; a thread dump becomes one record per thread with its state, locks and top frame as filterable fields (**Open Thread Dump…**, or paste one); filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, Save Filtered… | **App log in the dock** — the bottom dock's Logs tab shows HyperStack's own log at the level set in Settings → General → Behaviour, with a level picker, search, Copy and Clear; every error a tool reports lands there too |
 | ![Merged sources with statistics](docs/screenshots/logs-merge.png) | ![Windows Event Log](docs/screenshots/logs-eventlog.png) |
 | **Merge and statistics** — several saved sources in one view in time order, each record tagged with its source; the Statistics panel counts the filtered window by level, rate per minute, commonest messages and field values; highlight rules can **Alert** (a toast in front, a bell count on the tab behind, with a cooldown) | **journald and the Windows Event Log** — `journalctl -o json` on this machine or an SSH host with the unit's fields kept, and the Event Log followed through `Get-WinEvent` with levels mapped |
+
+### Queue
+
+One tab per message broker: **RabbitMQ** (through its management API), **Kafka**, **Redis Streams**, **NATS** JetStream and **MQTT** 3.1.1 / 5. The home tab is a dashboard of the saved brokers with totals from the open ones; Settings → Queue holds the brokers and the limits.
+
+| | |
+|---|---|
+| ![Queue dashboard](docs/screenshots/queue.png) | ![RabbitMQ peek](docs/screenshots/queue-rabbitmq.png) |
+| **Dashboard** - saved brokers, and totals of queues, topics and ready messages from the brokers open in tabs | **Peek** - a RabbitMQ queue read without losing its messages: the requeue is stated first, then headers, properties and the body |
+| ![Kafka consumer lag](docs/screenshots/queue-kafka-lag.png) | ![Settings → Queue](docs/screenshots/queue-settings.png) |
+| **Consumer lag** - a Kafka group's lag per partition; the profile is read-only, so Purge is disabled | **Settings → Queue** - one button per broker kind, the brokers list, and a credential of whichever kind the broker takes, kept in the vault |
+
+- **Destinations** - queues, topics or streams with the figures their kind has (RabbitMQ ready / unacked / consumers / rates per vhost, Kafka partitions and offsets, a stream's length and groups, NATS messages and consumers, and for MQTT the topics seen during a bounded look at `#`), refreshed while the tab is on screen.
+- **Peek** reads up to 50 messages (1 MB) without consuming them, JSON pretty-printed and binary shown as hex with its headers; RabbitMQ can only read by requeueing, and the pane says so before the first peek.
+- **Publish** to the selected destination with headers, a routing key or record key, a partition, or QoS and retain.
+- **Consumers** - Kafka groups with lag per partition (cancellable, with progress), Redis stream groups with pending and lag, NATS consumers, RabbitMQ consumers; **Bindings** for a RabbitMQ queue.
+- **Guards** - Purge asks first, Delete asks for the name to be typed, and a protected environment's tab is read-only with the driver refusing writes too.
+- **Credentials** - username and password, token or API key, whichever the broker takes, in the vault; Kafka SASL PLAIN, SCRAM-SHA-256/512 and OAUTHBEARER.
 
 ### NoSQL (MongoDB and CouchDB)
 

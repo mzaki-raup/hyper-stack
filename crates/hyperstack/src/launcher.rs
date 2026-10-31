@@ -32,6 +32,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         // host pinned to Home or saved from Settings has somewhere to
         // go and its rail entry is un-hidden on save (ADR-026).
         "docker" | "podman" | "k8s" | "wincontainer" => Some("containers"),
+        "rabbitmq" | "kafka" | "redis-streams" | "nats" | "mqtt" => Some("queue"),
         _ => None,
     }
 }
@@ -320,6 +321,11 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
         "webdav" => egui::Color32::from_rgb(0x64, 0x74, 0x8B),
         "nexus" => egui::Color32::from_rgb(0x1B, 0xA0, 0xE1),
         "api" => egui::Color32::from_rgb(0xEC, 0x48, 0x99),
+        // The brokers share one colour, the Queue activity's: the pill
+        // says "a message broker", and the icon says which.
+        "rabbitmq" | "kafka" | "redis-streams" | "nats" | "mqtt" => {
+            egui::Color32::from_rgb(0xFF, 0x66, 0x00)
+        }
         _ => theme.secondary,
     };
     // The pill is a tint of that colour, not the colour itself, so the
@@ -412,6 +418,10 @@ mod tests {
         // One tool opens both document stores.
         assert_eq!(tool_for_kind("mongodb"), Some("nosql"));
         assert_eq!(tool_for_kind("couchdb"), Some("nosql"));
+        // Every broker kind opens in the Queue activity.
+        for k in hs_core::connections::QUEUE_KINDS {
+            assert_eq!(tool_for_kind(k), Some("queue"), "{k}");
+        }
         // No tool opens these kinds yet.
         assert_eq!(tool_for_kind("cassandra"), None);
         assert_eq!(tool_for_kind("elasticsearch"), None);

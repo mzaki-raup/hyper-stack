@@ -131,6 +131,12 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.credential.user;
             r.password = Password::read(&v.credential.secret);
         }
+        kind if hs_core::connections::is_tracker_kind(kind) => {
+            let v = tool_tracker::profile::TrackerFields::from_table(kind, f);
+            r.host = v.url;
+            r.user = v.credential.user;
+            r.password = Password::read(&v.credential.secret);
+        }
         kind if hs_core::connections::is_queue_kind(kind) => {
             let v = tool_queue::profile::QueueFields::from_table(kind, f);
             r.host = v.address;

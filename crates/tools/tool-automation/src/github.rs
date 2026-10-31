@@ -13,8 +13,8 @@ use crate::driver::{
     Caps, Driver, Job, Listing, LogChunk, MAX_RUNS, Param, ParamKind, Result, Run, RunForm,
     RunState, ServerInfo, iso_ms, slice_from,
 };
-use crate::http::{Http, s, seg};
 use crate::profile::ConnectConfig;
+use hs_core::service_http::{Http, s, seg};
 
 pub struct GitHub {
     http: Http,
@@ -123,7 +123,8 @@ pub const REF: &str = "ref";
 
 impl GitHub {
     pub async fn connect(cfg: &ConnectConfig) -> Result<GitHub> {
-        let http = Http::new(cfg, &cfg.url)?
+        let http = cfg
+            .http(&cfg.url)?
             .with_header("Accept", "application/vnd.github+json")
             .with_header("X-GitHub-Api-Version", "2022-11-28");
         let v = http.get_json(&format!("/repos/{}", cfg.repo)).await?;

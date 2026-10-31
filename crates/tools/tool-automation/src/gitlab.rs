@@ -13,8 +13,8 @@ use crate::driver::{
     Caps, Driver, Job, Listing, LogChunk, MAX_JOBS, MAX_RUNS, Param, ParamKind, Result, Run,
     RunForm, RunState, ServerInfo, iso_ms, slice_from,
 };
-use crate::http::{Http, s, seg};
 use crate::profile::ConnectConfig;
+use hs_core::service_http::{Http, s, seg};
 
 pub struct GitLab {
     http: Http,
@@ -70,7 +70,7 @@ pub fn parse_vars(text: &str) -> Vec<(String, String)> {
 
 impl GitLab {
     pub async fn connect(cfg: &ConnectConfig) -> Result<GitLab> {
-        let http = Http::new(cfg, &format!("{}/api/v4", cfg.url))?;
+        let http = cfg.http(&format!("{}/api/v4", cfg.url))?;
         let project = seg(&cfg.project);
         // The project first: it says whether the credential can see it.
         http.get_json(&format!("/projects/{project}")).await?;

@@ -42,6 +42,12 @@ pub const KINDS: &[&str] = &[
     "gitlab-ci",
     "forgejo-actions",
     "awx",
+    "jira",
+    "redmine",
+    "github-issues",
+    "gitlab-issues",
+    "forgejo-issues",
+    "confluence",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -100,6 +106,24 @@ pub const AUTOMATION_KINDS: &[&str] = &[
     "awx",
 ];
 
+/// The kinds the **Tracker** activity opens (`docs/tools/tracker.md` §5).
+/// The forges' kinds are their own (`github-issues`, not `github`): one
+/// repository may be a CI source and an issue tracker, two profiles in
+/// two activities.
+pub const TRACKER_KINDS: &[&str] = &[
+    "jira",
+    "redmine",
+    "github-issues",
+    "gitlab-issues",
+    "forgejo-issues",
+    "confluence",
+];
+
+/// Whether a kind is opened by the Tracker activity.
+pub fn is_tracker_kind(kind: &str) -> bool {
+    TRACKER_KINDS.contains(&kind)
+}
+
 /// Whether a kind is opened by the Automation activity.
 pub fn is_automation_kind(kind: &str) -> bool {
     AUTOMATION_KINDS.contains(&kind)
@@ -155,6 +179,12 @@ pub fn kind_label(kind: &str) -> &str {
         "gitlab-ci" => "GitLab CI",
         "forgejo-actions" => "Forgejo Actions",
         "awx" => "AWX",
+        "jira" => "Jira",
+        "redmine" => "Redmine",
+        "github-issues" => "GitHub Issues",
+        "gitlab-issues" => "GitLab Issues",
+        "forgejo-issues" => "Forgejo Issues",
+        "confluence" => "Confluence",
         other => other,
     }
 }
@@ -274,6 +304,11 @@ impl Connections {
     /// Every server the Automation activity opens, in order.
     pub fn of_automation_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
         self.profiles.iter().filter(|c| is_automation_kind(&c.kind))
+    }
+
+    /// Every tracker the Tracker activity opens, in order.
+    pub fn of_tracker_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_tracker_kind(&c.kind))
     }
 
     /// Every broker the Queue activity opens, in order.
@@ -400,6 +435,7 @@ mod tests {
             .chain(CONTAINER_KINDS)
             .chain(QUEUE_KINDS)
             .chain(AUTOMATION_KINDS)
+            .chain(TRACKER_KINDS)
         {
             assert!(KINDS.contains(k), "{k} is claimed but not offered");
             assert_ne!(kind_label(k), *k, "{k} has no label of its own");

@@ -25,6 +25,7 @@ pub struct Settings {
     pub containers: Containers,
     pub queue: Queue,
     pub automation: Automation,
+    pub tracker: Tracker,
 }
 
 /// A container registry and how to sign in to it.
@@ -97,6 +98,21 @@ impl Default for Automation {
             poll_secs: 10,
             log_mb: 5,
         }
+    }
+}
+
+/// Settings → Tracker: how often a visible tab re-reads its query
+/// (`docs/tools/tracker.md` §7). The trackers themselves are connection
+/// profiles.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Tracker {
+    pub poll_secs: u32,
+}
+
+impl Default for Tracker {
+    fn default() -> Self {
+        Self { poll_secs: 60 }
     }
 }
 
@@ -439,6 +455,7 @@ impl Default for Settings {
             containers: Containers::default(),
             queue: Queue::default(),
             automation: Automation::default(),
+            tracker: Tracker::default(),
         }
     }
 }

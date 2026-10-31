@@ -83,6 +83,18 @@ fn automation_error(e: tool_automation::profile::ProfileError) -> Outcome {
     }
 }
 
+fn tracker_error(e: tool_tracker::profile::ProfileError) -> Outcome {
+    use hs_core::service_auth::AuthError;
+    use tool_tracker::profile::ProfileError as E;
+    match e {
+        E::Auth(AuthError::VaultLocked) => Outcome::VaultLocked,
+        E::MissingVariables(v) | E::Auth(AuthError::MissingVariables(v)) => {
+            Outcome::MissingVariables(v.join(", "))
+        }
+        other => Outcome::Failed(other.to_string()),
+    }
+}
+
 fn nosql_error(e: tool_nosql::profile::ProfileError) -> Outcome {
     use tool_nosql::profile::ProfileError as E;
     match e {
@@ -169,6 +181,12 @@ pub fn testable(kind: &str) -> bool {
             | "gitlab-ci"
             | "forgejo-actions"
             | "awx"
+            | "jira"
+            | "redmine"
+            | "github-issues"
+            | "gitlab-issues"
+            | "forgejo-issues"
+            | "confluence"
     )
 }
 
@@ -247,6 +265,20 @@ fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
                 .map_err(automation_error)?;
             Ok(Box::pin(async move {
                 match tool_automation::driver::connect(&cfg).await {
+                    Ok(d) => {
+                        let i = d.info();
+                        Outcome::Ok(format!("{} {}", i.product, i.version).trim().to_string())
+                    }
+                    Err(e) => Outcome::Failed(e),
+                }
+            }))
+        }
+        kind if hs_core::connections::is_tracker_kind(kind) => {
+            let cfg = tool_tracker::profile::TrackerFields::from_table(kind, fields)
+                .resolve(kind, read_only, secrets, &lookup)
+                .map_err(tracker_error)?;
+            Ok(Box::pin(async move {
+                match tool_tracker::driver::connect(&cfg).await {
                     Ok(d) => {
                         let i = d.info();
                         Outcome::Ok(format!("{} {}", i.product, i.version).trim().to_string())
@@ -458,6 +490,12 @@ mod tests {
             "gitlab-ci",
             "forgejo-actions",
             "awx",
+            "jira",
+            "redmine",
+            "github-issues",
+            "gitlab-issues",
+            "forgejo-issues",
+            "confluence",
         ] {
             assert!(testable(k), "{k}");
         }

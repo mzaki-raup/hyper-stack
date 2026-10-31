@@ -1,13 +1,15 @@
-//! The HTTP plumbing every kind shares: one client, the credential put on
-//! each request the way the kind wants it, and the server's refusals said
-//! in words.
+//! The HTTP plumbing the REST-based activities share (Automation,
+//! Tracker; ADR-029): one client, the credential put on each request the
+//! way the service wants it, and the server's refusals said in words.
+
+use std::time::Duration;
 
 use reqwest::{Method, RequestBuilder, Response};
 use serde_json::Value;
 
-use crate::driver::Result;
-use crate::profile::ConnectConfig;
-use hs_core::service_auth::{Auth, TokenAs};
+use crate::service_auth::{Auth, TokenAs};
+
+pub type Result<T> = std::result::Result<T, String>;
 
 #[derive(Clone)]
 pub struct Http {
@@ -75,9 +77,9 @@ pub fn transport_error(e: &reqwest::Error) -> String {
 }
 
 impl Http {
-    pub fn new(cfg: &ConnectConfig, base: &str) -> Result<Http> {
+    pub fn new(base: &str, auth: Auth, token_as: TokenAs, timeout: Duration) -> Result<Http> {
         let client = reqwest::Client::builder()
-            .timeout(cfg.timeout)
+            .timeout(timeout)
             // GitHub refuses a request without one.
             .user_agent(concat!("HyperStack/", env!("CARGO_PKG_VERSION")))
             .build()
@@ -85,8 +87,8 @@ impl Http {
         Ok(Http {
             client,
             base: base.trim_end_matches('/').to_string(),
-            auth: cfg.auth.clone(),
-            token_as: cfg.token_as,
+            auth,
+            token_as,
             headers: Vec::new(),
         })
     }

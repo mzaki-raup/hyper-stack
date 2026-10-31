@@ -34,6 +34,9 @@ pub fn factories(
         // After Containers, where the programme puts it
         // (docs/tools/automation.md §8).
         Box::new(tool_automation::AutomationFactory),
+        // After Automation, where the programme puts it
+        // (docs/tools/tracker.md §8).
+        Box::new(tool_tracker::TrackerFactory),
         Box::new(tool_db::DbFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),

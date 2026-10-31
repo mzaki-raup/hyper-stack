@@ -30,6 +30,7 @@ pub enum Page {
     Containers,
     Queue,
     Automation,
+    Tracker,
     Security,
     Terminal,
     Editor,
@@ -40,7 +41,7 @@ pub enum Page {
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 17] {
+    pub fn all() -> [(Page, &'static str); 18] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -53,6 +54,7 @@ impl Page {
             (Page::Containers, "settings-containers"),
             (Page::Queue, "settings-queue"),
             (Page::Automation, "settings-automation"),
+            (Page::Tracker, "settings-tracker"),
             (Page::Editor, "settings-editor"),
             (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
@@ -75,6 +77,7 @@ impl Page {
             Page::Containers => ph::SHIPPING_CONTAINER,
             Page::Queue => ph::QUEUE,
             Page::Automation => ph::FLOW_ARROW,
+            Page::Tracker => ph::KANBAN,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -444,6 +447,7 @@ pub fn page(
         Page::Containers => containers(ui, theme, services, state, effects),
         Page::Queue => queue(ui, theme, services, state, effects),
         Page::Automation => automation(ui, theme, services, state, effects),
+        Page::Tracker => tracker(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
@@ -3709,6 +3713,153 @@ fn automation(
     }
 }
 
+/// Settings → Tracker (docs/tools/tracker.md §3): the saved trackers, kind
+/// buttons across the top, list left and form right, and the limits. The
+/// trackers are ordinary connection profiles, so this is a filtered view of
+/// the one store, as Settings → Automation is.
+fn tracker(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::{TRACKER_KINDS, kind_label};
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-tracker"),
+        Some(&s.t("settings-tracker-sub")),
+    );
+    form::section(ui, theme, &s.t("settings-tracker-servers"), |ui| {
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        ui.horizontal_wrapped(|ui| {
+            for kind in TRACKER_KINDS {
+                let label = egui::RichText::new(format!(
+                    "{} {}",
+                    hs_ui::icons::connection_icon(kind, ""),
+                    kind_label(kind)
+                ))
+                .size(14.0);
+                if ui
+                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
+                    .tip(s.t("settings-tracker-add-hint"))
+                    .clicked()
+                {
+                    let mut draft = hs_core::connections::ConnectionProfile {
+                        name: format!("New {}", kind_label(kind)),
+                        kind: (*kind).to_string(),
+                        ..Default::default()
+                    };
+                    tool_tracker::profile::TrackerFields::from_table(kind, &draft.fields)
+                        .write_into(&mut draft.fields);
+                    state.conn_selected = Some(draft.id.clone());
+                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+                    state.conn_draft = Some((draft, text));
+                }
+            }
+        });
+        ui.add_space(10.0);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                let trackers: Vec<(String, String, String, String)> = s
+                    .connections
+                    .read()
+                    .of_tracker_kinds()
+                    .map(|c| {
+                        let f =
+                            tool_tracker::profile::TrackerFields::from_table(&c.kind, &c.fields);
+                        (
+                            c.id.clone(),
+                            c.kind.clone(),
+                            c.name.clone(),
+                            f.label_for(&c.kind),
+                        )
+                    })
+                    .collect();
+                if trackers.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-tracker-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("tracker-settings-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name, subtitle)) in trackers.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::connection_icon(kind, ""),
+                            name,
+                            Some(subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(TRACKER_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_tracker = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_tracker_kind(&d.kind));
+                if !is_tracker {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-tracker-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-tracker-limits"), |ui| {
+        let mut st = s.settings.write();
+        let t = &mut st.tracker;
+        form::field_grid(ui, "tracker-limits", |ui| {
+            form::label(ui, &s.t("settings-tracker-poll"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut t.poll_secs)
+                        .range(10..=3600)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-tracker-limits-hint"));
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -3843,6 +3994,7 @@ fn save_draft(
     let is_nosql = matches!(draft.kind.as_str(), "mongodb" | "couchdb" | "qdrant");
     let is_queue = hs_core::connections::is_queue_kind(&draft.kind);
     let is_automation = hs_core::connections::is_automation_kind(&draft.kind);
+    let is_tracker = hs_core::connections::is_tracker_kind(&draft.kind);
     let parsed = if is_ssh
         || is_s3
         || is_db
@@ -3852,6 +4004,7 @@ fn save_draft(
         || is_nosql
         || is_queue
         || is_automation
+        || is_tracker
     {
         // These forms write into `draft.fields` directly,
         // so the text box is a view rather than the truth.
@@ -3927,6 +4080,12 @@ fn save_draft(
             } else if is_automation {
                 let mut f =
                     tool_automation::profile::AutomationFields::from_table(&draft.kind, &table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_tracker {
+                let mut f = tool_tracker::profile::TrackerFields::from_table(&draft.kind, &table);
                 secrets_ok =
                     store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
                 f.write_into(&mut table);
@@ -4091,6 +4250,8 @@ fn conn_detail(
         queue_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_automation_kind(&draft.kind) {
         automation_form(ui, theme, s, draft, fields_text);
+    } else if hs_core::connections::is_tracker_kind(&draft.kind) {
+        tracker_form(ui, theme, s, draft, fields_text);
     } else {
         form::section(ui, theme, &s.t("conn-fields"), |ui| {
             form::code_field(ui, fields_text, 8);
@@ -4220,6 +4381,7 @@ fn conn_detail(
         if !matches!(probe.kind.as_str(), "ssh" | "s3" | "db")
             && !hs_core::connections::is_queue_kind(&probe.kind)
             && !hs_core::connections::is_automation_kind(&probe.kind)
+            && !hs_core::connections::is_tracker_kind(&probe.kind)
             && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
         {
             probe.fields = table;
@@ -4935,6 +5097,13 @@ fn apply_secret_edit(
         }
         kind if hs_core::connections::is_automation_kind(kind) => {
             let mut f = tool_automation::profile::AutomationFields::from_table(kind, &table);
+            f.credential.secret = std::mem::take(password);
+            let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_tracker_kind(kind) => {
+            let mut f = tool_tracker::profile::TrackerFields::from_table(kind, &table);
             f.credential.secret = std::mem::take(password);
             let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
             f.write_into(&mut table);
@@ -9052,6 +9221,145 @@ fn automation_form(
             ("jenkins", "token") => "conn-automation-hint-jenkins-token",
             ("jenkins", "password") => "conn-automation-hint-jenkins-password",
             ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",
+            _ => "conn-ssh-secret-hint",
+        };
+        form::hint(ui, theme, &s.t(hint));
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// The trackers' form (`kind` one of `TRACKER_KINDS`): where the tracker
+/// is, Cloud or Data Center for Atlassian's, the repository, project or
+/// space, and one credential of the kinds that tracker takes, its secret
+/// into the vault on save (`.claude/rules/security.md`).
+fn tracker_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_tracker::profile::{
+        TrackerFields, auth_kinds_for, default_header, is_atlassian, wants_repo,
+    };
+    let kind = draft.kind.clone();
+    let mut f = TrackerFields::from_table(&kind, &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-tracker-section"), |ui| {
+        form::field_grid(ui, "tracker-server", |ui| {
+            let (label, example) = match kind.as_str() {
+                "github-issues" => ("conn-automation-api-url", "https://api.github.com"),
+                "jira" | "confluence" => ("conn-tracker-site", "https://your-site.atlassian.net"),
+                _ => ("conn-automation-url", "https://tracker.example.com"),
+            };
+            form::label(ui, &s.t(label));
+            changed |= form::text_field(ui, &mut f.url, example).changed();
+            ui.end_row();
+            if is_atlassian(&kind) {
+                form::label(ui, &s.t("conn-tracker-deployment"));
+                ui.horizontal(|ui| {
+                    changed |= ui
+                        .radio_value(&mut f.cloud, true, s.t("conn-tracker-cloud"))
+                        .changed();
+                    changed |= ui
+                        .radio_value(&mut f.cloud, false, s.t("conn-tracker-data-center"))
+                        .changed();
+                });
+                ui.end_row();
+            }
+            if wants_repo(&kind) {
+                form::label(ui, &s.t("conn-automation-repo"));
+                changed |= form::text_field(ui, &mut f.repo, "owner/name").changed();
+                ui.end_row();
+            }
+            let project = match kind.as_str() {
+                "gitlab-issues" => Some(("conn-automation-project", "group/name")),
+                "jira" => Some(("conn-tracker-project-key", "OPS")),
+                "redmine" => Some(("conn-tracker-project-id", "ops")),
+                "confluence" => Some(("conn-tracker-space", "DOCS")),
+                _ => None,
+            };
+            if let Some((label, example)) = project {
+                form::label(ui, &s.t(label));
+                changed |= form::text_field(ui, &mut f.project, example).changed();
+                ui.end_row();
+            }
+            if kind == "redmine" {
+                form::label(ui, &s.t("conn-tracker-formatting"));
+                ui.horizontal(|ui| {
+                    changed |= ui.radio_value(&mut f.textile, false, "Markdown").changed();
+                    changed |= ui.radio_value(&mut f.textile, true, "Textile").changed();
+                });
+                ui.end_row();
+            }
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "tracker-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "password" => "conn-queue-auth-password",
+                "token" => "conn-queue-auth-token",
+                "api-key" => "conn-queue-auth-api-key",
+                _ => "conn-queue-auth-none",
+            };
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-queue-credential"));
+            egui::ComboBox::from_id_salt("tracker-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&c.auth)))
+                .show_ui(ui, |ui| {
+                    for a in auth_kinds_for(&kind) {
+                        if ui
+                            .selectable_label(c.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            c.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            match c.auth.as_str() {
+                "password" => {
+                    form::label(ui, &s.t("conn-queue-user"));
+                    changed |= form::text_field(ui, &mut c.user, "").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-password"));
+                    changed |=
+                        secret_field(ui, theme, s, "tracker-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                "token" => {
+                    // Atlassian Cloud pairs the token with the account's email.
+                    if is_atlassian(&kind) && f.cloud {
+                        form::label(ui, &s.t("conn-tracker-email"));
+                        changed |= form::text_field(ui, &mut c.user, "you@example.com").changed();
+                        ui.end_row();
+                    }
+                    form::label(ui, &s.t("conn-queue-token"));
+                    changed |=
+                        secret_field(ui, theme, s, "tracker-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                "api-key" => {
+                    form::label(ui, &s.t("conn-queue-header"));
+                    changed |= form::text_field(ui, &mut c.header, default_header(&kind)).changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-key"));
+                    changed |=
+                        secret_field(ui, theme, s, "tracker-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
+                _ => {}
+            }
+        });
+        let hint = match (kind.as_str(), f.credential.auth.as_str(), f.cloud) {
+            ("jira" | "confluence", "token", true) => "conn-tracker-hint-cloud-token",
+            ("jira" | "confluence", "token", false) => "conn-tracker-hint-dc-token",
+            ("redmine", "api-key", _) => "conn-tracker-hint-redmine-key",
+            ("gitlab-issues", "api-key", _) => "conn-automation-hint-gitlab-key",
             _ => "conn-ssh-secret-hint",
         };
         form::hint(ui, theme, &s.t(hint));

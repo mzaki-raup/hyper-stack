@@ -105,6 +105,7 @@ the fixtures behind them.
 | [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
 | [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
 | [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX: jobs and runs, run with parameters, follow the log, guarded cancel |
+| [Tracker](#tracker) | Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages: queries, read, change status, edit with a review, comment, file new items |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -306,6 +307,23 @@ One tab per build server or automation controller: **Jenkins**, **TeamCity**, **
 - **Run** opens a form of the job's parameters - Jenkins parameters, `workflow_dispatch` inputs read from the workflow file, GitLab pipeline variables, AWX survey and extra vars - and sends nothing until it is filled in; a secret parameter is typed for one run and never kept.
 - **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
 - **Credentials** - username and password, token or API key, whichever the server takes, in the vault.
+
+### Tracker
+
+One tab per issue tracker or wiki: **Jira** (Cloud and Data Center), **Redmine**, **GitHub Issues**, **GitLab Issues**, **Forgejo Issues** and **Confluence** pages. The home tab is a dashboard of the saved trackers with what is assigned to you and due this week in the open ones; Settings → Tracker holds the trackers and how often they are read.
+
+| | |
+|---|---|
+| ![Tracker dashboard](docs/screenshots/tracker.png) | ![A Redmine issue](docs/screenshots/tracker-redmine.png) |
+| **Dashboard** - saved trackers with their products' marks, and totals from the trackers open in tabs | **Query and item** - the tracker's own query language with saved queries, the items with More, and the selected item's fields, description and comments as Markdown |
+| ![Review an edit](docs/screenshots/tracker-review.png) | ![Settings → Tracker](docs/screenshots/tracker-settings.png) |
+| **Guards** - Edit shows what will change, field by field, before it is sent; a read-only or protected connection disables every write and the driver refuses them too | **Settings → Tracker** - a button per kind, Cloud or Data Center for Atlassian's, and the credential the tracker takes (a Redmine API key here), kept in the vault |
+
+- **Query** - JQL for Jira, CQL for Confluence, and for the others the words GitHub uses (`is:open label:bug assignee:ada`); saved queries are kept with the tracker.
+- **Change Status** offers what the tracker's workflow allows - Jira transitions, Redmine's allowed statuses, open and closed on the forges.
+- **Text** - Jira's Atlassian Document Format and wiki markup, Confluence's storage format and Redmine's Textile are shown and edited as Markdown; content Markdown cannot keep is named, and a Confluence page holding it is read-only.
+- **Assistant** - Summarise This Ticket, Draft a Reply (Insert puts it in the comment box; nothing is sent by it), Suggest a Status.
+- **Credentials** - username and password, token or API key, whichever the tracker takes, in the vault.
 
 ### Queue
 

@@ -11,7 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Added: Tracker activity for Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages, with Settings → Tracker (depth programme phase N)
+- Added: Markdown converters for Atlassian Document Format, Confluence storage format, Jira wiki markup and Textile
+- Changed: the Automation activity's HTTP plumbing moved to `hs_core::service_http`, shared with the Tracker activity
+- Fixed: `scripts/gui-smoke.ps1 wheel` refused a negative (scroll-down) delta
 
 ## 0.112.0 — 2026-10-31
 

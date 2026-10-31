@@ -167,20 +167,45 @@ Refs: BUG-0003
 
 ---
 
-## v0.7.3 — Planned
+## v0.7.3 — In-Progress
 
 ### FEAT-0067 · Scratchpad folders and subfolders
-- **State:** Pending · **Spec:** docs/tools/scratchpad.md · **Phase:** O
-- [ ] folders and subfolders at any depth in the sidebar
-- [ ] drag to reorder within a level, drop onto a folder to move; pinned notes keep their place
-- [ ] name clash on move or create gets the existing `name 001` suffix
-- [ ] folders collapse and remember it; quick-open and search show the path
-- [ ] notes-on-disk layout gains directories
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — create nested folders, drag a note in, clash a name
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** phase O of docs/10-depth-programme.md.
+- **State:** Completed · **Spec:** docs/tools/scratchpad.md · **Phase:** O
+- **Branch:** batch/v0.7.3
+- [x] folders and subfolders at any depth in the sidebar
+- [x] drag to reorder within a level, drop onto a folder to move; pinned notes keep their place
+- [x] name clash on move or create gets the existing `name 001` suffix
+- [x] folders collapse and remember it; quick-open and search show the path
+- [x] notes-on-disk layout gains directories
+- [x] Test: 12 new in `tools::scratchpad` — the tree read whole with a
+  dot-directory skipped; a note found after a move, keeping its id and
+  content; a level holding only its own folders and unpinned notes, unlisted
+  rows first; a saved order kept and one from before folders still read; a
+  clash taking ` 001` with case ignored; a case-only rename not a clash; a
+  folder moving with its notes and never into itself; collapsed folders
+  following a rename; folder names cleaned for every platform — plus 2 for
+  `hs_core::storage::unique_name`. The 4 existing scratchpad tests unchanged
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: on screen with `scripts/gui-smoke.ps1` against `D:\Temp\hs-gui-data`
+  (the harness's data folder, not `./tmp-data`): **Work** and nested
+  **Clients** made in the app, a note dragged onto each, `work` beside `Work`
+  becoming `work 001` on disk, search and Ctrl+P showing *Work / Clients*,
+  a reorder within the top level, collapse and order surviving a restart,
+  an edited note saving in place inside its folder with no stray copy, a
+  pinned note showing its folder, and the guarded folder delete
+  (`docs/screenshots/scratchpad-folders.png`)
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** phase O of docs/10-depth-programme.md. Design calls made without
+  a spec to settle them: pinned notes stay in one group at the top whatever
+  folder they are in (unpin to move one); ` 001` applies to folder names,
+  since notes are stored by id and cannot clash; a search lists matches flat
+  with their folder rather than pruning the tree; each folder keeps its own
+  `order.json`, folders keyed `/Name` there. Found on the way: Ctrl+P hands a
+  choice to the tab that listed it, so `open` now passes a note it does not
+  hold back to the shell — otherwise a pick could overwrite another tab's
+  unsaved note. Rows in a folder are not given a keyboard path of their own
+  beyond the existing list navigation; the reorder widget is mouse-driven
+  everywhere in the app.
 
 ### FEAT-0066 · Queue activity (RabbitMQ, Kafka)
 - **State:** Pending · **Spec:** docs/tools/queue.md (to be written) · **Phase:** L

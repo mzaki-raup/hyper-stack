@@ -578,7 +578,7 @@ and ADR-025.
 | L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | Pending | Added 2026-10-30 |
 | M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
 | N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | Pending | Added 2026-10-30; name suggested as "Tracker" |
-| O — Scratchpad folders: folders and subfolders, drag to reorder or move (pinned notes excepted), `name 001` on a clash | Pending | Added 2026-10-30 |
+| O — Scratchpad folders: folders and subfolders, drag to reorder or move (pinned notes excepted), `name 001` on a clash | Completed | Added 2026-10-30. `hyperstack::tools::scratchpad`: folders are real directories under `notes/`, `find_note`, per-level `order.json` (folders keyed `/Name`), `collapsed.json`, `level_entries`, `{create,rename,move}_folder`, `move_note`; the tree drawn with `hs_ui::reorder` the way the Browser's favourites are; Ctrl+P lists notes with their folder; `hs_core::storage::unique_name` (case-insensitive ` 001`). 12 new tests. Exercised on screen 2026-10-31 — nested folders, a drag in, a name clash, search and Ctrl+P paths, restart survival, an in-folder save with no stray copy, the guarded delete (`docs/screenshots/scratchpad-folders.png`); `TASKS.md` `FEAT-0067` |
 | Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | Pending | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials" |
 
 ## Owner's requests, 2026-10-22 (UI batch)

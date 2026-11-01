@@ -11,9 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Added: the Scratchpad dashboard counts folders, before the notes; a folder's glyph in the sidebar is drawn a little bigger than a note's (FEAT-0076)
-- Added: SQL Server, ClickHouse and DuckDB connections, and Oracle and Db2 through the vendor's ODBC driver, with the schema browser, completion, DDL, the ER diagram and Cancel; the schema list refreshes itself after a CREATE, DROP or ALTER (FEAT-0068)
-- Fixed: Settings → Security → Credentials lists Git credentials, container registries, AI provider keys and container, WebDAV and Nexus connections, and edits their secrets (BUG-0036)
+- (nothing yet)
+
+## 0.114.0 — 2026-11-01
+
+### Added
+
+- Verify the new engines and keep an ODBC session alive on a driver panic (cadceab6)
+- SQL Server, ClickHouse, DuckDB, Oracle and Db2 engines (e19d6983)
+- Count folders on the dashboard and draw folder glyphs larger (398f2bba)
+
+### Fixed
+
+- List every saved credential in Settings -> Security (a31c27f2)
 
 ## 0.113.0 — 2026-10-31
 

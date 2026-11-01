@@ -4481,7 +4481,7 @@ fn credentials_section(
                 .request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
-    let rows = crate::credentials::rows(&s.connections.read());
+    let rows = crate::credentials::rows(s);
     form::section(ui, theme, &s.t("settings-credentials"), |ui| {
         form::hint(ui, theme, &s.t("settings-credentials-hint"));
         if rows.is_empty() {
@@ -4524,7 +4524,7 @@ fn credentials_section(
                         ui.end_row();
                         for r in &rows {
                             ui.label(&r.name);
-                            ui.label(hs_core::connections::kind_label(&r.kind));
+                            ui.label(credential_type(s, r));
                             cred_cell(ui, s, theme, &r.host, None, effects);
                             ui.label(&r.port);
                             cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
@@ -4570,6 +4570,22 @@ fn credentials_section(
     });
     reveal_dialog(ui, theme, s, state, now);
     edit_secret_dialog(ui, theme, s, state, effects);
+}
+
+/// The Type column: a connection's kind, or where a credential that is
+/// not a connection comes from, with its forge or provider.
+fn credential_type(s: &Services, r: &crate::credentials::Row) -> String {
+    let source = match r.kind.as_str() {
+        "git" => s.t("settings-cred-type-git"),
+        "registry" => s.t("settings-cred-type-registry"),
+        "ai" => s.t("settings-cred-type-ai"),
+        kind => return hs_core::connections::kind_label(kind).to_string(),
+    };
+    if r.detail.is_empty() {
+        source
+    } else {
+        format!("{source} · {}", r.detail)
+    }
 }
 
 /// How wide the Username and Password columns both are: whatever the
@@ -4925,9 +4941,7 @@ fn reveal_dialog(
         (ask.row.clone(), ask.edit, unlocked, close)
     };
     if unlocked {
-        let row = crate::credentials::rows(&s.connections.read())
-            .into_iter()
-            .find(|r| r.id == id);
+        let row = crate::credentials::rows(s).into_iter().find(|r| r.id == id);
         if let Some(r) = row {
             if edit {
                 state.edit_secret = Some(EditSecret {
@@ -5045,6 +5059,9 @@ fn apply_secret_edit(
     key_editable: bool,
     effects: &mut Vec<SettingsEffect>,
 ) -> bool {
+    if let Some(saved) = apply_other_secret_edit(s, id, password, key, key_editable, effects) {
+        return saved;
+    }
     let Some(profile) = s.connections.read().by_id(id).cloned() else {
         return false;
     };
@@ -5087,11 +5104,48 @@ fn apply_secret_edit(
             f.write_into(&mut table);
             ok
         }
-        "redis" => {
+        "redis" | "valkey" => {
             let mut f = tool_redis::profile::RedisFields::from_table(&table);
             f.password = std::mem::take(password);
             let ok =
                 store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        "webdav" => {
+            let mut f = hs_core::objstore::http_profile::WebdavFields::from_table(&table);
+            f.password = std::mem::take(password);
+            let ok =
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        "nexus" => {
+            let mut f = hs_core::objstore::http_profile::NexusFields::from_table(&table);
+            f.password = std::mem::take(password);
+            let ok =
+                store_typed_secrets(s, &profile.name, [("password", &mut f.password)], effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_container_kind(kind) => {
+            // The same fields the row read: a token or a registry password,
+            // and a pasted kubeconfig or a TLS key held in the vault.
+            let mut f = hs_container::profile::ContainerFields::from_table(&table);
+            let cluster = hs_core::connections::is_cluster_kind(kind);
+            if key_editable {
+                let k = if cluster {
+                    &mut f.kubeconfig_inline
+                } else {
+                    &mut f.tls_key
+                };
+                *k = std::mem::take(key);
+            } else if cluster {
+                f.token = std::mem::take(password);
+            } else {
+                f.registry_password = std::mem::take(password);
+            }
+            let ok = store_typed_secrets(s, &profile.name, f.secret_fields(), effects);
             f.write_into(&mut table);
             ok
         }
@@ -5152,6 +5206,80 @@ fn apply_secret_edit(
             false
         }
     }
+}
+
+/// Save an edited secret of a row that is not a connection profile: a Git
+/// credential, a container registry or an AI provider. `None` when `id`
+/// is a connection's, which the caller handles.
+fn apply_other_secret_edit(
+    s: &Services,
+    id: &str,
+    password: &mut String,
+    key: &mut String,
+    key_editable: bool,
+    effects: &mut Vec<SettingsEffect>,
+) -> Option<bool> {
+    use crate::credentials::{AI, GIT, REGISTRY};
+    if let Some(gid) = id.strip_prefix(GIT) {
+        let mut g = s.git_credentials.read().by_id(gid).cloned()?;
+        g.token = std::mem::take(password);
+        let name = g.label();
+        if !store_typed_secrets(s, &name, [("token", &mut g.token)], effects) {
+            return Some(false);
+        }
+        return Some(match s.git_credentials.write().upsert(g) {
+            Ok(()) => true,
+            Err(e) => {
+                effects.push(SettingsEffect::Toast(
+                    hs_core::tool::ToastLevel::Error,
+                    e.to_string(),
+                ));
+                false
+            }
+        });
+    }
+    let saved = if let Some(i) = id.strip_prefix(REGISTRY) {
+        let i: usize = i.parse().ok()?;
+        let name = s.settings.read().containers.registries.get(i)?.name.clone();
+        let mut value = std::mem::take(password);
+        if !store_typed_secrets(s, &name, [("registry password", &mut value)], effects) {
+            return Some(false);
+        }
+        let mut st = s.settings.write();
+        st.containers.registries.get_mut(i)?.password = value;
+        true
+    } else {
+        // Not a connection's id either way: None for anything unknown.
+        let pid = id.strip_prefix(AI)?;
+        let (name, mut api_key, mut secret_key) = {
+            let st = s.settings.read();
+            let p = st.ai.providers.iter().find(|p| p.id == pid)?;
+            (p.name.clone(), p.api_key.clone(), p.secret_key.clone())
+        };
+        // Only the field the dialog showed is replaced.
+        if key_editable {
+            secret_key = std::mem::take(key);
+        } else {
+            api_key = std::mem::take(password);
+        }
+        if !store_typed_secrets(
+            s,
+            &name,
+            [("API key", &mut api_key), ("secret key", &mut secret_key)],
+            effects,
+        ) {
+            return Some(false);
+        }
+        let mut st = s.settings.write();
+        let p = st.ai.providers.iter_mut().find(|p| p.id == pid)?;
+        p.api_key = api_key;
+        p.secret_key = secret_key;
+        true
+    };
+    if saved {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+    Some(saved)
 }
 
 /// Commands the Terminal page offers when they are found on PATH:
@@ -8547,7 +8675,12 @@ fn db_form(
                 ("postgres", "PostgreSQL"),
                 ("mysql", "MySQL"),
                 ("mariadb", "MariaDB"),
+                ("mssql", "SQL Server"),
+                ("oracle", "Oracle"),
+                ("db2", "Db2"),
+                ("clickhouse", "ClickHouse"),
                 ("sqlite", "SQLite"),
+                ("duckdb", "DuckDB"),
             ];
             let current = engines
                 .iter()
@@ -8570,13 +8703,18 @@ fn db_form(
                     }
                 });
             ui.end_row();
-            if f.engine() == Some(Engine::Sqlite) {
+            if f.engine().is_some_and(Engine::is_file) {
                 form::label(ui, &s.t("conn-db-file"));
                 ui.horizontal(|ui| {
+                    let example = if f.engine() == Some(Engine::DuckDb) {
+                        "C:/data/app.duckdb  or  :memory:"
+                    } else {
+                        "C:/data/app.db"
+                    };
                     changed |= ui
                         .add(
                             egui::TextEdit::singleline(&mut f.path)
-                                .hint_text("C:/data/app.db")
+                                .hint_text(example)
                                 .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                         )
                         .changed();
@@ -8599,14 +8737,63 @@ fn db_form(
                     changed = true;
                 }
                 ui.end_row();
-                form::label(ui, &s.t("conn-db-database"));
+                // Oracle connects to a service, not a database.
+                let db_label = if f.engine() == Some(Engine::Oracle) {
+                    "conn-db-service"
+                } else {
+                    "conn-db-database"
+                };
+                form::label(ui, &s.t(db_label));
                 changed |= form::text_field(ui, &mut f.database, "").changed();
                 ui.end_row();
+                if let Some(engine) = f.engine().filter(|e| e.is_odbc()) {
+                    // Listing drivers reads the registry, so it is done once
+                    // for this form and kept.
+                    let drivers_id = egui::Id::new("db-odbc-drivers");
+                    let drivers: Vec<String> = ui.data_mut(|d| {
+                        d.get_temp_mut_or_insert_with(
+                            drivers_id,
+                            tool_db::driver::odbc::installed_drivers,
+                        )
+                        .clone()
+                    });
+                    let found = tool_db::driver::odbc::default_driver(engine, &drivers);
+                    form::label(ui, &s.t("conn-db-odbc-driver"));
+                    let shown = if f.odbc_driver.is_empty() {
+                        found.clone().unwrap_or_else(|| s.t("conn-db-odbc-none"))
+                    } else {
+                        f.odbc_driver.clone()
+                    };
+                    egui::ComboBox::from_id_salt("db-odbc-driver")
+                        .width(form::FIELD_MIN_WIDTH)
+                        .selected_text(shown)
+                        .show_ui(ui, |ui| {
+                            for d in &drivers {
+                                if ui.selectable_label(&f.odbc_driver == d, d).clicked() {
+                                    f.odbc_driver = d.clone();
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+                    if found.is_none() && f.odbc_driver.is_empty() {
+                        form::label(ui, "");
+                        ui.colored_label(
+                            theme.warning,
+                            s.t(if engine == Engine::Oracle {
+                                "conn-db-odbc-install-oracle"
+                            } else {
+                                "conn-db-odbc-install-db2"
+                            }),
+                        );
+                        ui.end_row();
+                    }
+                }
             }
         });
         form::hint(ui, theme, &s.t("conn-db-server-hint"));
     });
-    if f.engine() != Some(Engine::Sqlite) {
+    if !f.engine().is_some_and(Engine::is_file) {
         form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
             form::field_grid(ui, "db-auth", |ui| {
                 form::label(ui, &s.t("conn-db-user"));

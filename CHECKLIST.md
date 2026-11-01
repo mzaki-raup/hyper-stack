@@ -238,7 +238,7 @@ store that already exists.
 |---|---|---|
 | Containers: Docker/Podman, Compose, remote over SSH | Completed | The Container activity, 2026-10-24: Docker, Podman, Kubernetes and Windows containers, images, Compose, pod logs into Logs, a shell in a pod (see the Container activity section above) |
 | API: Rhai scripts, runner, WebSocket/SSE, GraphQL, cookies/proxy/certs | Pending | |
-| SQL: SQL Server, inline editing, explain, CSV import, Excel export | In-Progress | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); the ER diagram, DDL generator and the schema and data compares as phase H (2026-10-31); SQL Server is phase C |
+| SQL: SQL Server, inline editing, explain, CSV import, Excel export | Completed | Inline editing, explain tree, CSV import and Excel export landed as depth programme phase B (2026-10-30); the ER diagram, DDL generator and the schema and data compares as phase H (2026-10-31); SQL Server with FEAT-0068 (2026-11-01) |
 | NoSQL: Elasticsearch/OpenSearch, DynamoDB, indexes, schema inference, import/export, copy collection, CouchDB views/replication | Pending | |
 | Redis: dashboard, slowlog, pub/sub, streams, big-key finder, bulk ops | Completed | Depth programme phase A, 2026-10-30 |
 | Logs: Docker/k8s/journalctl/Event Log sources, merge, statistics, alerts | Completed | Docker and Kubernetes sources through the Container activity (2026-10-24); journald, Event Log, merge, statistics and alerts as depth programme phase D (2026-10-30) |
@@ -261,7 +261,7 @@ store that already exists.
 |---|---|---|
 | Kubernetes | Completed | In the Container activity, 2026-10-24: contexts, namespaces, workloads, pod logs/exec/port-forward, describe, apply with a dry-run diff |
 | gRPC, mock server, OpenAPI export | Pending | |
-| SQL: ER diagram, DDL, schema/data compare, ClickHouse/DuckDB | Pending | |
+| SQL: ER diagram, DDL, schema/data compare, ClickHouse/DuckDB | Completed | ER diagram, DDL and the compares in phase H (2026-10-31); ClickHouse and DuckDB with FEAT-0068 (2026-11-01), verified by `tests/engines.rs` and on screen |
 | NoSQL: Cassandra/ScyllaDB | Pending | |
 | Forge integration (GitHub/GitLab/Forgejo) | In-Progress | Project listing, clone and avatars done (Git activity phase 4, 2026-10-29); PRs, issues and CI status pending |
 | Plugin API (WASM) | Pending | |
@@ -566,7 +566,7 @@ and ADR-025.
 |---|---|---|
 | A — Redis depth: Info dashboard with sparklines, Slowlog, Client List, Pub/Sub, Streams, big-key finder, bulk ops with dry run | Completed | `tool-redis::depth`, `runner::{parse_sample, big_keys, bulk, subscribe}`, `client::{slowlog, client_list, client_kill, memory_usages, expire_many, persist_many, rename_many, stream_view, publish, pubsub}`; live test against Redis 8.6.3 in WSL; verified on screen 2026-10-30 |
 | B — SQL depth 1: Explain tree, inline editing, CSV import, Excel export | Completed | `tool-db::{plan, edit, import}`, `export::XlsxSink`; verified on SQLite on screen 2026-10-30, PostgreSQL / MySQL plan parsing by tests on captured JSON (the WSL PostgreSQL refused TCP from Windows this session, so the drivers test could not reach it) |
-| C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Pending | |
+| C — SQL engines: SQL Server (tiberius), ClickHouse (HTTP), DuckDB (feature-gated) | Completed | FEAT-0068 (ADR-030), 2026-11-01: `driver::{mssql, clickhouse, duckdb}`, with Oracle through `driver::odbc`; DuckDB is bundled, not feature-gated, because the owner asked for it in the shipped app. Verified by `tests/engines.rs` against SQL Server 2022, ClickHouse 24.8 and Oracle Free, and on screen. Db2 (also `driver::odbc`) is unverified: IBM's driver failed on the test machine |
 | D — Logs depth: journalctl and Windows Event Log sources, merge, statistics panel, alerts | Completed | `parse::{Journal, EventLog, journal_command, eventlog_command}`, `SourceSpec::Merge` + `engine::merge_loop`, `ui::{compute_stats, AlertScan}`; verified on screen 2026-10-30 |
 | E — SSH depth: port-forward manager, broadcast input, server monitor | Completed | `SshTool::{tunnels_panel, start_saved_forwards, monitor_strip}`, `tool-ssh::{broadcast, monitor}`, `SshFields::forwards`, `TerminalResponse::input`, `Session::writer`; verified on screen 2026-10-30 against WSL sshd |
 | F — S3 depth: object metadata / tags / versions, sync with dry run, policy and CORS viewer | Completed | `objstore::s3::{get_tags, put_tags, list_versions, restore_version, delete_version, bucket_policy, bucket_cors}`, `S3Tool::details_pane`, `tool-s3::sync`; verified on screen 2026-10-30 against MinIO |

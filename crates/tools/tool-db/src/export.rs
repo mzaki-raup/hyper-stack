@@ -88,7 +88,12 @@ pub fn sql_literal(v: &Value, engine: Engine) -> String {
             let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
             match engine {
                 Engine::Postgres => format!("'\\x{hex}'::bytea"),
-                _ => format!("X'{hex}'"),
+                Engine::Mssql => format!("0x{hex}"),
+                Engine::Oracle => format!("HEXTORAW('{hex}')"),
+                Engine::Db2 => format!("BX'{hex}'"),
+                Engine::ClickHouse => format!("unhex('{hex}')"),
+                Engine::DuckDb => format!("from_hex('{hex}')"),
+                Engine::Sqlite | Engine::Mysql => format!("X'{hex}'"),
             }
         }
     }

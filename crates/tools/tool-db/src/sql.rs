@@ -51,6 +51,10 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
     let at = |i: usize| b.get(i).map(|x| x.1);
     let off = |i: usize| b.get(i).map(|x| x.0).unwrap_or(text.len());
     let mysql = engine == Engine::Mysql;
+    // `#` starts a comment in MySQL and ClickHouse.
+    let hash_comment = matches!(engine, Engine::Mysql | Engine::ClickHouse);
+    // E'…' strings, $tag$ quoting and nested comments: Postgres and DuckDB.
+    let pg_like = matches!(engine, Engine::Postgres | Engine::DuckDb);
     let mut out = Vec::new();
     let mut i = 0;
     while i < n {
@@ -62,7 +66,7 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
             continue;
         }
         // Comments
-        if c == '-' && at(i + 1) == Some('-') || (mysql && c == '#') {
+        if c == '-' && at(i + 1) == Some('-') || (hash_comment && c == '#') {
             while i < n && b[i].1 != '\n' {
                 i += 1;
             }
@@ -75,7 +79,7 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
                 if b[i].1 == '*' && at(i + 1) == Some('/') {
                     depth -= 1;
                     i += 2;
-                } else if engine == Engine::Postgres && b[i].1 == '/' && at(i + 1) == Some('*') {
+                } else if pg_like && b[i].1 == '/' && at(i + 1) == Some('*') {
                     depth += 1;
                     i += 2;
                 } else {
@@ -86,13 +90,13 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
         }
         // Strings: '…' with '' doubling; backslash escapes in MySQL and in
         // Postgres E'…'.
-        let e_string = engine == Engine::Postgres
+        let e_string = pg_like
             && (c == 'E' || c == 'e')
             && at(i + 1) == Some('\'')
             && !out.last().is_some_and(|t: &Token| t.end == start);
         if c == '\'' || e_string || (mysql && c == '"') {
             let quote = if e_string { '\'' } else { c };
-            let backslash = mysql || e_string;
+            let backslash = engine.backslash_strings() || e_string;
             i += if e_string { 2 } else { 1 };
             while i < n {
                 let d = b[i].1;
@@ -117,8 +121,8 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
             });
             continue;
         }
-        // Dollar quoting: $tag$ … $tag$ (Postgres).
-        if engine == Engine::Postgres && c == '$' {
+        // Dollar quoting: $tag$ … $tag$ (Postgres, DuckDB).
+        if pg_like && c == '$' {
             let mut j = i + 1;
             while j < n && (b[j].1.is_alphanumeric() || b[j].1 == '_') {
                 j += 1;
@@ -145,7 +149,7 @@ pub fn tokenize(text: &str, engine: Engine) -> Vec<Token> {
         let close = match c {
             '"' => Some('"'),
             '`' => Some('`'),
-            '[' if engine == Engine::Sqlite => Some(']'),
+            '[' if matches!(engine, Engine::Sqlite | Engine::Mssql) => Some(']'),
             _ => None,
         };
         if let Some(q) = close {
@@ -492,6 +496,17 @@ fn unbounded(toks: &[Token], k: usize) -> bool {
     true
 }
 
+/// Whether a statement changes what the schema browser lists: it creates,
+/// drops, alters or renames a database, schema or object (FEAT-0068). A
+/// `TRUNCATE` empties a table but lists nothing new.
+pub fn changes_catalog(stmt: &str, engine: Engine) -> bool {
+    let toks = tokenize(stmt, engine);
+    matches!(
+        toks.first().and_then(word),
+        Some("CREATE" | "DROP" | "ALTER" | "RENAME" | "ATTACH" | "DETACH" | "IMPORT")
+    )
+}
+
 /// Classify one statement (as produced by [`split`]).
 pub fn classify(stmt: &str, engine: Engine) -> Classified {
     let toks = tokenize(stmt, engine);
@@ -664,16 +679,26 @@ pub fn classify(stmt: &str, engine: Engine) -> Classified {
     }
 }
 
-/// Wrap an identifier in the dialect's quotes when it needs them.
+/// Wrap an identifier in the dialect's quotes when it needs them: when it
+/// is not a plain word, or when the server would fold its case into a
+/// different name (Postgres and DuckDB fold to lower case, Oracle and Db2
+/// to upper case).
 pub fn quote_ident(name: &str, engine: Engine) -> String {
+    use crate::driver::Fold;
+    let folds_away = match engine.folds() {
+        Fold::Lower => name.chars().any(|c| c.is_ascii_uppercase()),
+        Fold::Upper => name.chars().any(|c| c.is_ascii_lowercase()),
+        Fold::Keep => false,
+    };
     let plain = name.chars().next().is_some_and(is_word_start)
         && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-        && (engine != Engine::Postgres || !name.chars().any(|c| c.is_ascii_uppercase()));
+        && !folds_away;
     if plain {
         return name.to_string();
     }
     match engine {
-        Engine::Mysql => format!("`{}`", name.replace('`', "``")),
+        Engine::Mysql | Engine::ClickHouse => format!("`{}`", name.replace('`', "``")),
+        Engine::Mssql => format!("[{}]", name.replace(']', "]]")),
         _ => format!("\"{}\"", name.replace('"', "\"\"")),
     }
 }
@@ -681,7 +706,7 @@ pub fn quote_ident(name: &str, engine: Engine) -> String {
 /// A string literal in the dialect.
 pub fn quote_literal(s: &str, engine: Engine) -> String {
     let body = s.replace('\'', "''");
-    if engine == Engine::Mysql {
+    if engine.backslash_strings() {
         format!("'{}'", body.replace('\\', "\\\\"))
     } else {
         format!("'{body}'")
@@ -835,6 +860,20 @@ mod tests {
     }
 
     #[test]
+    fn catalogue_changes_are_recognised() {
+        let e = Engine::Postgres;
+        assert!(changes_catalog("create table t (a int)", e));
+        assert!(changes_catalog("  DROP DATABASE shop", Engine::Mysql));
+        assert!(changes_catalog("alter table t add b int", e));
+        assert!(changes_catalog("RENAME TABLE a TO b", Engine::Mysql));
+        assert!(!changes_catalog("truncate table t", e));
+        assert!(!changes_catalog("insert into t values (1)", e));
+        assert!(!changes_catalog("select 'create'", e));
+        // A comment before the verb is not the verb.
+        assert!(changes_catalog("-- make it\ncreate view v as select 1", e));
+    }
+
+    #[test]
     fn classifies_ddl_and_admin() {
         let c = classify("DROP TABLE IF EXISTS shop.orders CASCADE", Engine::Mysql);
         assert_eq!(c.class, Class::DdlDestructive);
@@ -868,5 +907,14 @@ mod tests {
         assert_eq!(quote_ident("a\"b", Engine::Sqlite), "\"a\"\"b\"");
         assert_eq!(quote_literal("it's", Engine::Postgres), "'it''s'");
         assert_eq!(quote_literal("a\\b", Engine::Mysql), "'a\\\\b'");
+        // ADR-030 engines.
+        assert_eq!(quote_ident("Orders", Engine::Mssql), "Orders");
+        assert_eq!(quote_ident("a]b", Engine::Mssql), "[a]]b]");
+        assert_eq!(quote_ident("orders", Engine::Oracle), "\"orders\"");
+        assert_eq!(quote_ident("ORDERS", Engine::Db2), "ORDERS");
+        assert_eq!(quote_ident("Orders", Engine::DuckDb), "\"Orders\"");
+        assert_eq!(quote_ident("a b", Engine::ClickHouse), "`a b`");
+        assert_eq!(quote_literal("a\\b", Engine::ClickHouse), "'a\\\\b'");
+        assert_eq!(quote_literal("a\\b", Engine::Oracle), "'a\\b'");
     }
 }

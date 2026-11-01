@@ -678,8 +678,8 @@ impl DbTool {
         };
         self.conn_name = name;
         // What the header band calls the session: a server is
-        // user@host:port, a SQLite database is simply its file.
-        self.session_label = if fields.engine == "sqlite" {
+        // user@host:port, a SQLite or DuckDB database is simply its file.
+        self.session_label = if fields.engine().is_some_and(Engine::is_file) {
             fields.path.clone()
         } else if fields.user.is_empty() {
             format!("{}:{}", fields.host, fields.port)
@@ -741,7 +741,7 @@ impl DbTool {
         }
         self.catalog_cached = false;
         // SSH tunnel: ask the Tunnels service for a local port first.
-        let tunnel = (!fields.tunnel_ssh.is_empty() && engine != Engine::Sqlite).then(|| {
+        let tunnel = (!fields.tunnel_ssh.is_empty() && !engine.is_file()).then(|| {
             s.tunnels
                 .ensure_local_forward(&fields.tunnel_ssh, &cfg.host, cfg.port)
         });
@@ -1018,6 +1018,14 @@ impl DbTool {
         } else {
             usize::MAX
         };
+        if explain.is_some() && plan::explain_sql("", self.engine, false).is_none() {
+            self.shared.lock().messages.push((
+                false,
+                s.i18n
+                    .t_args("db-explain-unsupported", &[("engine", self.engine.label())]),
+            ));
+            return;
+        }
         let stmts: Vec<RunStmt> = sql::split(&substituted, self.engine)
             .into_iter()
             .map(|st| {
@@ -1026,6 +1034,7 @@ impl DbTool {
                     Some(analyze) => {
                         let read = sql::classify(&st.text, self.engine).class == Class::Read;
                         plan::explain_sql(&st.text, self.engine, analyze && read)
+                            .unwrap_or_else(|| st.text.clone())
                     }
                     None => st.text.clone(),
                 };
@@ -1171,11 +1180,10 @@ impl DbTool {
     /// Qualified, quoted name of a tree object.
     fn qualified(&self, schema: &str, name: &str) -> String {
         let q = |x: &str| sql::quote_ident(x, self.engine);
-        let default = match self.engine {
-            Engine::Postgres => schema == "public",
-            Engine::Sqlite => schema == "main",
-            Engine::Mysql => false,
-        };
+        let default = self
+            .engine
+            .fixed_default_schema()
+            .is_some_and(|d| d == schema);
         if default || schema.is_empty() {
             q(name)
         } else {
@@ -1479,6 +1487,19 @@ impl DbTool {
             self.plan_raw = false;
         }
         if history_changed {
+            // A run that created, dropped or altered something refreshes
+            // the schema list and completion, so the new table is there
+            // without pressing Refresh (FEAT-0068).
+            let engine = self.engine;
+            let changed = self.shared.lock().results.iter().any(|r| {
+                !r.running
+                    && !r.skipped
+                    && r.error.is_none()
+                    && sql::changes_catalog(&r.sql, engine)
+            });
+            if changed && self.ready() {
+                self.refresh_schema(s);
+            }
             self.reload_history(s);
             self.mark_errors();
             // A finished run shows the statement that failed, if one did.
@@ -3432,10 +3453,11 @@ impl DbTool {
 
     /// The default schema an unqualified table name means.
     fn default_schema(&self) -> String {
-        match self.engine {
-            Engine::Postgres => "public".into(),
-            Engine::Sqlite => "main".into(),
-            Engine::Mysql => match &self.shared.lock().status {
+        match self.engine.fixed_default_schema() {
+            Some(d) => d.into(),
+            // MySQL and ClickHouse: the current database; Oracle and Db2:
+            // the current schema, which the session reports as its database.
+            None => match &self.shared.lock().status {
                 Some(Status::Ready(info)) => info.database.clone(),
                 _ => String::new(),
             },
@@ -4774,7 +4796,7 @@ impl DbTool {
                     // a server is user@host:port, a SQLite database is
                     // simply its file.
                     let f = DbFields::from_table(&c.fields);
-                    let detail = if f.engine == "sqlite" {
+                    let detail = if f.engine().is_some_and(Engine::is_file) {
                         f.path.clone()
                     } else if f.user.is_empty() {
                         format!("{}:{}", f.host, f.port)

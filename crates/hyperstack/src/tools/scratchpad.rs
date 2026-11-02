@@ -594,6 +594,10 @@ struct Tree<'a> {
     untitled: &'a str,
     theme: &'a Theme,
     s: &'a Services,
+    /// Whether this activity draws the Material item icons (FEAT-0084).
+    /// Read once a frame rather than per row: every row would otherwise
+    /// take the settings lock.
+    material: bool,
 }
 
 impl Tree<'_> {
@@ -653,7 +657,8 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
                 egui::vec2(hs_ui::reorder::GRIP_WIDTH, 22.0),
                 egui::Sense::hover(),
             );
-            let r = form::list_row(ui, t.theme, selected, ph::NOTE, t.title_of(n), Some(&place));
+            let icon = hs_ui::fileicons::item_icon(t.material, "note", ph::NOTE);
+            let r = form::list_row_icon(ui, t.theme, selected, &icon, t.title_of(n), Some(&place));
             if n.pinned {
                 let body = ui.min_rect();
                 ui.painter().text(
@@ -674,6 +679,25 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
 /// little bigger, so a folder reads as the container at a glance
 /// (FEAT-0076).
 const FOLDER_GLYPH: f32 = 22.0;
+
+/// One folder header row: the Material folder icon when this activity has
+/// them on, else the enlarged glyph of FEAT-0076, then the folder's name.
+/// Drawn by hand because the row lives inside `CollapsingState::show_header`
+/// (FEAT-0084).
+fn folder_header_row(ui: &mut egui::Ui, t: &Tree, name: &str) {
+    ui.spacing_mut().item_spacing.x = 6.0;
+    match hs_ui::fileicons::folder_icon(t.material, name, ph::FOLDER) {
+        hs_ui::tree::TreeIcon::Image(src) => {
+            ui.add(egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(FOLDER_GLYPH)));
+            ui.label(name);
+        }
+        hs_ui::tree::TreeIcon::Glyph(_) => {
+            let body = egui::TextStyle::Body.resolve(ui.style());
+            let colour = ui.visuals().text_color();
+            ui.label(folder_header(name, body, colour));
+        }
+    }
+}
 
 /// A folder header: the glyph at [`FOLDER_GLYPH`], the name in `body`.
 fn folder_header(name: &str, body: egui::FontId, colour: egui::Color32) -> egui::text::LayoutJob {
@@ -729,20 +753,41 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
     for (index, entry) in entries.iter().enumerate() {
         match entry {
             Entry::Folder(f) => {
+                // `CollapsingHeader` draws its title as one `LayoutJob`,
+                // which cannot hold a picture, so the header is built from
+                // `CollapsingState` instead: `show_header` lets the row be
+                // drawn by hand (the Material folder icon, or the enlarged
+                // glyph of FEAT-0076 when Material icons are off) and
+                // `body` hands back the same full-width header response the
+                // click, the drop target and the context menu below used to
+                // get from `CollapsingHeader` (FEAT-0084).
+                let header_id = ui.make_persistent_id(("scratchpad-folder", f));
+                let open_now = !t.collapsed.contains(f);
                 let r = reorder.row(ui, index, |ui| {
-                    let body = egui::TextStyle::Body.resolve(ui.style());
-                    let colour = ui.visuals().text_color();
-                    egui::CollapsingHeader::new(folder_header(leaf_of(f), body, colour))
-                        .id_salt(("scratchpad-folder", f))
-                        .default_open(!t.collapsed.contains(f))
-                        .show(ui, |ui| draw_level(ui, t, f, acts))
+                    let state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                        ui.ctx(),
+                        header_id,
+                        open_now,
+                    );
+                    let (_, header, _) = state
+                        .show_header(ui, |ui| folder_header_row(ui, t, leaf_of(f)))
+                        .body(|ui| draw_level(ui, t, f, acts));
+                    header.response
                 });
-                if r.header_response.clicked() {
+                if r.clicked() {
+                    // The caret toggles itself; a click on the rest of the
+                    // row has to say so, as `CollapsingHeader` used to.
+                    if let Some(mut st) =
+                        egui::collapsing_header::CollapsingState::load(ui.ctx(), header_id)
+                    {
+                        st.toggle(ui);
+                        st.store(ui.ctx());
+                    }
                     acts.push(SideAct::Collapse(f.clone()));
                 }
                 // A folder takes a drop of its own, so a collapsed or empty
                 // one can still be where a note goes.
-                let rect = r.header_response.rect;
+                let rect = r.rect;
                 if hs_ui::reorder::dragged_scope(ui.ctx()).is_some() {
                     if ui
                         .input(|i| i.pointer.interact_pos())
@@ -759,7 +804,7 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
                         });
                     }
                 }
-                r.header_response.context_menu(|ui| {
+                r.context_menu(|ui| {
                     if ui
                         .button(format!(
                             "{} {}",
@@ -796,7 +841,8 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
                 let selected = t.selected == Some(n.id.as_str());
                 let sub = when(n.modified);
                 let r = reorder.row(ui, index, |ui| {
-                    form::list_row(ui, t.theme, selected, ph::NOTE, t.title_of(n), Some(&sub))
+                    let icon = hs_ui::fileicons::item_icon(t.material, "note", ph::NOTE);
+                    form::list_row_icon(ui, t.theme, selected, &icon, t.title_of(n), Some(&sub))
                 });
                 note_actions(&r, t, n, acts);
             }
@@ -1542,6 +1588,7 @@ impl Tool for Scratchpad {
                     untitled: &self.untitled,
                     theme: &theme,
                     s,
+                    material: s.settings.read().appearance.material_icons("scratchpad"),
                 };
                 if filter.is_empty() {
                     // Pinned notes keep their place at the top, whichever

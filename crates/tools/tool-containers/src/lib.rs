@@ -2436,6 +2436,17 @@ impl ContainersTool {
             form::hint(ui, theme, &s.t(empty_key(res)));
             return;
         }
+        // Every row here is the same kind of thing, so one icon serves
+        // the whole list. The Kubernetes table above keeps its glyphs:
+        // pods and deployments have no Material icon (FEAT-0084).
+        let icons: Vec<egui::ImageSource<'static>> =
+            if s.settings.read().appearance.material_icons("containers") {
+                hs_ui::fileicons::for_kind(res.kind())
+                    .map(|i| vec![i; rows.len()])
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
         let table = hs_ui::table::DataTable {
             theme,
             columns: &columns,
@@ -2444,7 +2455,7 @@ impl ContainersTool {
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
-            row_icons: None,
+            row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
         };
         let resp = table.show(ui, &mut self.table);
         // The table reports the index into the data it was given, not

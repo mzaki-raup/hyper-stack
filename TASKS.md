@@ -160,12 +160,12 @@ Change Request : CR-0040
 
 ## v0.7.7 — Planned
 
-### CR-0026 · Editor Workspace UI/UX Changes
+### CR-0026 · Workspace UI/UX Changes
 - **State:** Pending ·
-- **Scope:** Editor Activity.
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. 
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar.
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). 
+- **Scope:** All Related Activities's Work Pane
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — Open one of the project in editor, and open one of the file from the project.
@@ -241,26 +241,52 @@ Change Request : CR-0040
 - **Notes:** found on 2026-11-02 running the gate for BUG-0037, diagnosed to outside the workspace and cleared the same day by stopping `Adguard Service` (owner). **It was already recorded**: `docs/GOTCHAS.md` had "AdGuard breaks loopback connections to Windows-side servers" from 2026-10-31, filed under "Headless and GUI Testing" where a network fault is not looked for, and its advice to "pause AdGuard's filtering" is not enough - pausing leaves the WFP and socket drivers attached and the resets continue. The two entries are now one, under "Windows Environment and Build", and this item is what the re-diagnosis added: that the service must be stopped, and `scripts/loopback-probe.py` to tell this apart from a real bug in seconds. No code changed: the only edits are this item and the `docs/GOTCHAS.md` entry, so the next session recognises the symptom in minutes instead of suspecting the drivers or the tests. Nothing in the product was wrong. Note that AdGuard will filter again after a restart unless its service is left stopped. `docs/tools/automation.md` records these tests as checked on 2026-10-31, so the machine changed since. The five affected are `teamcity_lists_triggers_and_cancels_through_the_build_queue`, `github_dispatches_with_inputs_and_cancels_a_run`, `gitlab_creates_a_pipeline_with_variables_and_cancels_it`, `awx_launches_a_template_with_its_survey_and_cancels_the_job` and `a_read_only_session_refuses_a_run_before_the_server_sees_it`.
 
 ### FEAT-0084 · Material Icon inside Activity Work Pane
-- **State:** Pending · 
+- **State:** Completed · 
 - **Scope:** All Icon Usage in All Activity Except API Client Activity, Terminal Activity, Automation Activity, Tracker Activity, Graphics Activity, Devtools Activity, Browser Activity and Logs Activity.
-- [ ] Create settings for Material Icons (Use in work pane). Add Settings -> Appearance -> Material Icon Card below Activity Rail Card.
-- [ ] User can enable/disable Material Icon on each activity listed. By default, all activity is enable. If disabled, use generic icon for respective item (folder and file).
-- [ ] Add this activity can show material icon or generic icon: Scratchpad's Sidebar Column - Folder and Note lists.
-- [ ] Add this activity can show material icon or generic icon: Editor's Work Pane; Project and Source Control Tab Icon, Folder and File list, 
-- [ ] Add this activity can show material icon or generic icon: Git's Work Pane -> Workspace column; Workspace, Branches, Remotes, Tags, Stashes with all its sub item/child (where applicable).
-- [ ] Add this activity can show material icon or generic icon: SSH's SFTP - File and Folder list. 
-- [ ] Add this activity can show material icon or generic icon: Container's Work Pane - Item list (Container, Projects, Images, Volumes, Network, Stacks, Services, Nodes, etc).
-- [ ] Add this activity can show material icon or generic icon: Database's Work Pane - Item list (Database, Tables, Table Item, Table Column, View, Functions, Saved Queries, History, all sub item/child, etc).
-- [ ] Add this activity can show material icon or generic icon: NoSQL's Work Pane - Item list (Database, Collections, Documents, Fields, all sub item/child, etc).
-- [ ] Add this activity can show material icon or generic icon: Redis's Work Pane - Item list (Folders, Keys, all sub item/child, etc).
-- [ ] Add this activity can show material icon or generic icon: S3's Work Pane - Item list (Bucket, Object, Value, Key, Metadata, Folder and Files (webdav), all sub item/child, etc).
-- [ ] Add this activity can show material icon or generic icon: Queue's Work Pane - Item list (Queue, Topic, etc).
-- [ ] Only these Activities are allowed to enable/disable material icon: Scratchpad, Editor, Git, SSH, Container, Database, NoSQL, Redis, S3, Queue.
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Enable and disable Material icon for each activities reflect immediately.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Create settings for Material Icons (Use in work pane). Add Settings -> Appearance -> Material Icon Card below Activity Rail Card.
+  - `appearance.material_icons_off` (a set of tool ids, so the default of "on" needs nothing written) with `material_icons(tool)` / `set_material_icons(tool, on)` helpers, and the card drawn below Activity Rail in Settings -> Appearance.
+- [x] User can enable/disable Material Icon on each activity listed. By default, all activity is enable. If disabled, use generic icon for respective item (folder and file).
+- [x] Add this activity can show material icon or generic icon: Scratchpad's Sidebar Column - Folder and Note lists.
+  - The folder header needed reworking: `CollapsingHeader` draws its title as one `LayoutJob`, which cannot hold a picture, so it is built from `CollapsingState::show_header` and `body()` returns the same full-width header response the click, drop target and context menu already used. The row click toggles explicitly, since only the caret does so by itself.
+- [x] Add this activity can show material icon or generic icon: Editor's Work Pane; Project and Source Control Tab Icon, Folder and File list, 
+  - The two tabs are a segmented control whose glyph was inline in the label, so `segmented` now takes an optional picture per segment and centres picture and text as one unit. The old glyph-only wrapper became unused and was removed rather than kept behind an allow.
+- [x] Add this activity can show material icon or generic icon: Git's Work Pane -> Workspace column; Workspace, Branches, Remotes, Tags, Stashes with all its sub item/child (where applicable).
+  - The tree's own `row` helper gained a picture form. The tick on the current branch stays a glyph: it is state, not a kind.
+- [x] Add this activity can show material icon or generic icon: SSH's SFTP - File and Folder list. 
+  - Already drew Material file icons; it now honours the switch and drops the icon column when off.
+- [x] Add this activity can show material icon or generic icon: Container's Work Pane - Item list (Container, Projects, Images, Volumes, Network, Stacks, Services, Nodes, etc).
+  - One icon serves the whole table, from a new `Resource::kind()`. The Kubernetes table keeps its glyphs: pods and deployments have no Material picture, and a wrong picture is worse than a glyph.
+- [x] Add this activity can show material icon or generic icon: Database's Work Pane - Item list (Database, Tables, Table Item, Table Column, View, Functions, Saved Queries, History, all sub item/child, etc).
+  - Schema, tables, views, functions, columns and primary keys all draw their own picture. A foreign key keeps the link glyph and the loading and error nodes keep theirs: those are status, not item kinds.
+- [x] Add this activity can show material icon or generic icon: NoSQL's Work Pane - Item list (Database, Collections, Documents, Fields, all sub item/child, etc).
+  - Database and collection rows. The caret stays as the expand state and the picture is part of the click target, so clicking the icon selects as clicking the name does.
+- [x] Add this activity can show material icon or generic icon: Redis's Work Pane - Item list (Folders, Keys, all sub item/child, etc).
+  - Key folders and keys, with the caret kept and the picture inside the click target.
+- [x] Add this activity can show material icon or generic icon: S3's Work Pane - Item list (Bucket, Object, Value, Key, Metadata, Folder and Files (webdav), all sub item/child, etc).
+  - The glyph was inline in the name cell, so the cell drops it and the table draws the picture in its own column.
+- [x] Add this activity can show material icon or generic icon: Queue's Work Pane - Item list (Queue, Topic, etc).
+  - A new `destination_kind()` maps RabbitMQ to a queue and Kafka and MQTT to a topic; streams read as queues, being an ordered backlog someone consumes.
+- [x] Only these Activities are allowed to enable/disable material icon: Scratchpad, Editor, Git, SSH, Container, Database, NoSQL, Redis, S3, Queue.
+  - `settings::MATERIAL_ICON_TOOLS` is that list and the card is generated from it, so the two cannot drift. `material_icons()` returns false for any activity outside it.
+- [x] Test: `every_item_kind_an_activity_uses_has_an_icon` (every kind a pane passes resolves, plurals and case included, and an unmapped kind returns `None` so the pane keeps its glyph) and `the_switch_decides_between_a_picture_and_the_panes_own_glyph` in `hs-ui`; `material_icons_are_on_by_default_and_only_for_the_listed_activities` in `hs-core`, which also pins that the setting stores only the exceptions.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — Enable and disable Material icon for each activities reflect immediately. Checked on 2026-11-03 against a release build: the Editor's tab pictures and project tree draw the Material icons, unchecking Editor in Settings -> Appearance -> Material Icon turns **both** back to plain glyphs at once, and checking it again restores them without a restart and without collapsing the tree. The 26 new icons were also rendered at 96 px and reviewed one by one before use; `view` and `stash` were redrawn because they did not read.
+  **Not seen with live data**: the item lists in Container, Database, NoSQL, Redis, S3, Queue and Git need a connection of each kind, which this machine has only for Forgejo. Their wiring is covered by the unit tests and by `clippy`, not by a screenshot.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS — `docs/04-ui-design.md` describes the item-icon language, the ten activities and the no-misleading-picture rule; `assets/icons/material/README.md` records that the 26 new icons are ours rather than upstream MIT art, with the palette convention; CHANGELOG has its line. README and CHECKLIST need nothing: no requirement, build command or roadmap phase changed.
 
+- **Notes:** done 2026-11-03. 26 item icons drawn for the
+  kinds the upstream Material theme has nothing for (owner's decision over
+  glyph fallbacks), registered in `fileicons::ICONS`, resolved by
+  `fileicons::for_kind`, with the per-activity switch and the Appearance card.
+  Provenance is recorded in `assets/icons/material/README.md`: these 26 are
+  ours, not upstream MIT art. The per-activity wiring (the ten boxes below) is
+  what remains; the owner asked for the whole item in one commit, so nothing is
+  committed in one change, as the owner asked. Two panes needed rework rather
+  than wiring: Scratchpad's folder header (a `CollapsingHeader` title is one
+  `LayoutJob` and cannot hold a picture) and the Editor's sidebar tabs (the
+  glyph was inline in a segmented control's label). Three kinds deliberately
+  keep their glyphs - Kubernetes pods, a foreign-key column and the loading
+  and error rows - because no Material picture says those things.
 ### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
 - **State:** In-Progress ·
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.

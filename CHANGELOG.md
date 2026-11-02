@@ -17,6 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Material icons for the items each work pane lists — files, folders, branches, containers, tables, collections, keys, buckets, queues and the rest — with a per-activity switch in Settings -> Appearance -> Material Icon, on by default for the ten activities that have such lists
 - `scripts/loopback-probe.py`, which tells a machine resetting concurrent loopback connections from a genuine failure in a test that starts its own server
 
 ### Fixed

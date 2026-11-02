@@ -6,6 +6,7 @@ use egui::{CornerRadius, Margin, RichText, Stroke, Vec2};
 
 use crate::theme::Theme;
 use crate::tip::TipExt;
+use crate::tree::TreeIcon;
 
 /// Minimum width of a text field; fields grow to the available width.
 pub const FIELD_MIN_WIDTH: f32 = 260.0;
@@ -414,6 +415,53 @@ pub fn list_row_image(
     title: &str,
     subtitle: Option<&str>,
 ) -> egui::Response {
+    let art = match image {
+        Some(uri) => RowArt::Uri(uri),
+        None => RowArt::Glyph(icon),
+    };
+    list_row_art(ui, theme, selected, art, title, subtitle)
+}
+
+/// [`list_row`] drawn with a [`TreeIcon`], so a caller can hand over
+/// whatever [`crate::fileicons::for_kind`] gave it without caring which
+/// of the two it is (FEAT-0084).
+///
+/// This exists rather than reusing [`list_row_image`]'s URI because an
+/// `include_image!` source registers its bytes with the context the first
+/// time the **source** is drawn; a bare URI has nothing to register and
+/// renders as a broken image.
+pub fn list_row_icon(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    icon: &TreeIcon,
+    title: &str,
+    subtitle: Option<&str>,
+) -> egui::Response {
+    let art = match icon {
+        TreeIcon::Glyph(g) => RowArt::Glyph(g),
+        TreeIcon::Image(src) => RowArt::Source(src),
+    };
+    list_row_art(ui, theme, selected, art, title, subtitle)
+}
+
+/// What a row draws in its icon column.
+enum RowArt<'a> {
+    Glyph(&'a str),
+    /// An egui image URI whose bytes the context already holds.
+    Uri(&'a str),
+    /// An embedded source, which registers its own bytes when drawn.
+    Source(&'a egui::ImageSource<'static>),
+}
+
+fn list_row_art(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    art: RowArt<'_>,
+    title: &str,
+    subtitle: Option<&str>,
+) -> egui::Response {
     let height = if subtitle.is_some() { 44.0 } else { 34.0 };
     let (rect, resp) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), height),
@@ -442,22 +490,34 @@ pub fn list_row_image(
     } else {
         theme.text_muted
     };
-    match image {
-        Some(uri) => {
-            let size = Vec2::splat(22.0);
-            let at = egui::Rect::from_center_size(
+    let picture_at = || {
+        let size = Vec2::splat(22.0);
+        (
+            size,
+            egui::Rect::from_center_size(
                 egui::pos2(rect.left() + 12.0 + size.x / 2.0, rect.center().y),
                 size,
-            );
+            ),
+        )
+    };
+    match art {
+        RowArt::Uri(uri) => {
+            let (size, at) = picture_at();
             egui::Image::from_uri(uri.to_string())
                 .fit_to_exact_size(size)
                 .paint_at(ui, at);
         }
-        None => {
+        RowArt::Source(src) => {
+            let (size, at) = picture_at();
+            egui::Image::new(src.clone())
+                .fit_to_exact_size(size)
+                .paint_at(ui, at);
+        }
+        RowArt::Glyph(glyph) => {
             ui.painter().text(
                 egui::pos2(rect.left() + 12.0, rect.center().y),
                 egui::Align2::LEFT_CENTER,
-                icon,
+                glyph,
                 egui::FontId::proportional(20.0),
                 icon_col,
             );

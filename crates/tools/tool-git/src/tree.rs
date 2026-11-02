@@ -10,6 +10,7 @@ use hs_core::tool::{ToastLevel, ToolContext};
 use hs_git::{Branch, Remote, Stash};
 use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
+use hs_ui::tree::TreeIcon;
 use parking_lot::Mutex;
 
 type Slot<T> = Arc<Mutex<Option<T>>>;
@@ -113,6 +114,9 @@ impl Tree {
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) -> Option<Pick> {
+        // Read once for the whole tree rather than per row (FEAT-0084).
+        let material = cx.services.settings.read().appearance.material_icons("git");
+        let art = |kind: &str, glyph: &str| hs_ui::fileicons::item_icon(material, kind, glyph);
         self.poll(cx);
         let s = cx.services;
         let mut pick = None;
@@ -150,8 +154,12 @@ impl Tree {
                         if b.behind > 0 {
                             label.push_str(&format!(" \u{2193}{}", b.behind));
                         }
-                        let icon = if b.current { ph::CHECK } else { ph::GIT_BRANCH };
-                        let r = row(ui, theme, b.current, icon, &label, b.upstream.as_deref())
+                        let icon = if b.current {
+                            art("", ph::CHECK)
+                        } else {
+                            art("branch", ph::GIT_BRANCH)
+                        };
+                        let r = row_art(ui, theme, b.current, &icon, &label, b.upstream.as_deref())
                             .on_hover_text(&b.subject);
                         if r.double_clicked() && !b.current {
                             pick = Some(Pick::Checkout(b.name.clone()));
@@ -238,11 +246,11 @@ impl Tree {
                             {
                                 ui.horizontal(|ui| {
                                     ui.add_space(16.0);
-                                    let resp = row(
+                                    let resp = row_art(
                                         ui,
                                         theme,
                                         false,
-                                        ph::CLOUD,
+                                        &art("remote", ph::CLOUD),
                                         &b.name[prefix.len()..],
                                         None,
                                     )
@@ -287,17 +295,19 @@ impl Tree {
                     Some((n, &mut self.open_tags)),
                 ) {
                     for t in &self.refs.tags {
-                        row(ui, theme, false, ph::TAG, t, None).context_menu(|ui| {
-                            if ui.button(s.t("git-menu-push-tag")).clicked() {
-                                pick = Some(Pick::PushTag(t.clone()));
-                                ui.close();
-                            }
-                            ui.separator();
-                            if ui.button(s.t("git-menu-delete-tag")).clicked() {
-                                pick = Some(Pick::DeleteTag(t.clone()));
-                                ui.close();
-                            }
-                        });
+                        row_art(ui, theme, false, &art("tag", ph::TAG), t, None).context_menu(
+                            |ui| {
+                                if ui.button(s.t("git-menu-push-tag")).clicked() {
+                                    pick = Some(Pick::PushTag(t.clone()));
+                                    ui.close();
+                                }
+                                ui.separator();
+                                if ui.button(s.t("git-menu-delete-tag")).clicked() {
+                                    pick = Some(Pick::DeleteTag(t.clone()));
+                                    ui.close();
+                                }
+                            },
+                        );
                     }
                 }
                 let n = self.refs.stashes.len();
@@ -308,23 +318,29 @@ impl Tree {
                     Some((n, &mut self.open_stashes)),
                 ) {
                     for st in &self.refs.stashes {
-                        row(ui, theme, false, ph::ARCHIVE, &st.message, Some(&st.id)).context_menu(
-                            |ui| {
-                                if ui.button(s.t("git-menu-stash-apply")).clicked() {
-                                    pick = Some(Pick::StashApply(st.id.clone()));
-                                    ui.close();
-                                }
-                                if ui.button(s.t("git-menu-stash-pop")).clicked() {
-                                    pick = Some(Pick::StashPop(st.id.clone()));
-                                    ui.close();
-                                }
-                                ui.separator();
-                                if ui.button(s.t("git-menu-stash-drop")).clicked() {
-                                    pick = Some(Pick::StashDrop(st.id.clone()));
-                                    ui.close();
-                                }
-                            },
-                        );
+                        row_art(
+                            ui,
+                            theme,
+                            false,
+                            &art("stash", ph::ARCHIVE),
+                            &st.message,
+                            Some(&st.id),
+                        )
+                        .context_menu(|ui| {
+                            if ui.button(s.t("git-menu-stash-apply")).clicked() {
+                                pick = Some(Pick::StashApply(st.id.clone()));
+                                ui.close();
+                            }
+                            if ui.button(s.t("git-menu-stash-pop")).clicked() {
+                                pick = Some(Pick::StashPop(st.id.clone()));
+                                ui.close();
+                            }
+                            ui.separator();
+                            if ui.button(s.t("git-menu-stash-drop")).clicked() {
+                                pick = Some(Pick::StashDrop(st.id.clone()));
+                                ui.close();
+                            }
+                        });
                     }
                 }
             });
@@ -391,6 +407,28 @@ fn row(
     label: &str,
     detail: Option<&str>,
 ) -> egui::Response {
+    row_art(
+        ui,
+        theme,
+        selected,
+        &TreeIcon::Glyph(icon.to_string()),
+        label,
+        detail,
+    )
+}
+
+/// [`row`] whose icon may be a Material picture rather than a glyph
+/// (FEAT-0084). The picture is painted in the same 20 px slot the glyph
+/// uses, so a row is the same height and the labels stay aligned whether
+/// the activity has Material icons on or off.
+fn row_art(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    icon: &TreeIcon,
+    label: &str,
+    detail: Option<&str>,
+) -> egui::Response {
     let (rect, resp) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), 24.0), egui::Sense::click());
     let fill = if selected {
@@ -402,13 +440,27 @@ fn row(
     };
     ui.painter().rect_filled(rect, 3.0, fill);
     let p = ui.painter().with_clip_rect(rect);
-    p.text(
-        egui::pos2(rect.left() + 12.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        icon,
-        egui::FontId::proportional(13.0),
-        theme.text_muted,
-    );
+    match icon {
+        TreeIcon::Glyph(g) => {
+            p.text(
+                egui::pos2(rect.left() + 12.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                g,
+                egui::FontId::proportional(13.0),
+                theme.text_muted,
+            );
+        }
+        TreeIcon::Image(src) => {
+            let size = egui::Vec2::splat(15.0);
+            let at = egui::Rect::from_center_size(
+                egui::pos2(rect.left() + 12.0 + size.x / 2.0, rect.center().y),
+                size,
+            );
+            egui::Image::new(src.clone())
+                .fit_to_exact_size(size)
+                .paint_at(ui, at);
+        }
+    }
     let text = match detail {
         Some(d) => format!("{label}  {d}"),
         None => label.to_string(),

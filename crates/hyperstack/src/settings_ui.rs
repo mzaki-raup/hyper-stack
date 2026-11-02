@@ -1877,6 +1877,22 @@ fn appearance(
         form::hint(ui, theme, &s.t("settings-rail-order-hint"));
     });
 
+    // Material item icons, per activity (FEAT-0084). Only the activities
+    // whose work panes list files or items of their own appear here; the
+    // rest have nothing to draw them for.
+    form::section(ui, theme, &s.t("settings-section-material-icons"), |ui| {
+        form::hint(ui, theme, &s.t("settings-material-icons-hint"));
+        ui.add_space(8.0);
+        for tool in hs_core::settings::MATERIAL_ICON_TOOLS {
+            let mut on = settings.appearance.material_icons(tool);
+            let label = s.t(&format!("tool-{tool}"));
+            if ui.checkbox(&mut on, label).changed() {
+                settings.appearance.set_material_icons(tool, on);
+                changed = true;
+            }
+        }
+    });
+
     if theme_changed {
         effects.push(SettingsEffect::ThemeChanged);
     }

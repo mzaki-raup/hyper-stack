@@ -55,6 +55,17 @@ Regions, top to bottom:
    File and folder listings use the VS Code Material Icon Theme SVGs
    (`assets/icons/material/`, MIT) through `hs_ui::fileicons`, so a project
    tree reads like VS Code's. Owner's request, 2026-10-11.
+   **Work-pane item lists use the same language** (FEAT-0084): a branch, a
+   volume, a table column, a topic and the rest resolve through
+   `fileicons::for_kind`, whose icons were drawn for HyperStack because the
+   upstream theme is file-type oriented and has none of them (provenance in
+   `assets/icons/material/README.md`). The ten activities with such lists —
+   `settings::MATERIAL_ICON_TOOLS`: Scratchpad, Editor, Git, SSH, Container,
+   Database, NoSQL, Redis, S3 and Queue — each have a switch in
+   Settings → Appearance → Material Icon, on by default; off, that activity
+   draws the glyphs it drew before. A kind with no sensible picture keeps its
+   glyph rather than taking a misleading one, so a Kubernetes pod, a foreign
+   key and a loading row stay glyphs even with the switch on.
    Width persisted per tool.
    **Every sidebar list is a vertical scroll area with a fixed header**
    (`egui::ScrollArea::vertical().auto_shrink([false, false])` and a stable

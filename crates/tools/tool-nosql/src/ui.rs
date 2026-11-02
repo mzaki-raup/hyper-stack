@@ -948,6 +948,8 @@ impl NoSqlTool {
 
     /// Databases, and the containers inside the open ones.
     fn container_tree(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        // Read once for the whole tree rather than per row (FEAT-0084).
+        let material = s.settings.read().appearance.material_icons("nosql");
         let (databases, containers) = {
             let sh = self.shared.lock();
             (sh.databases.clone(), sh.containers.clone())
@@ -996,13 +998,30 @@ impl NoSqlTool {
                     } else {
                         ph::CARET_RIGHT
                     };
-                    if ui
-                        .add(egui::Button::selectable(
-                            self.state.database.as_deref() == Some(db.as_str()),
-                            format!("{icon} {db}"),
-                        ))
-                        .clicked()
-                    {
+                    // The caret is the expand state and stays either way;
+                    // the database picture sits between it and the name
+                    // (FEAT-0084).
+                    let clicked = ui
+                        .horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 4.0;
+                            let mut r = ui.add(egui::Button::selectable(
+                                self.state.database.as_deref() == Some(db.as_str()),
+                                format!("{icon} {db}"),
+                            ));
+                            if let Some(src) = material
+                                .then(|| hs_ui::fileicons::for_kind("database"))
+                                .flatten()
+                            {
+                                r |= ui.add(
+                                    egui::Image::new(src)
+                                        .fit_to_exact_size(egui::vec2(15.0, 15.0))
+                                        .sense(egui::Sense::click()),
+                                );
+                            }
+                            r.clicked()
+                        })
+                        .inner;
+                    if clicked {
                         open_db = Some(db.clone());
                     }
                     if !expanded {
@@ -1015,11 +1034,34 @@ impl NoSqlTool {
                                     && self.state.container.as_deref() == Some(c.name.as_str());
                                 ui.horizontal(|ui| {
                                     ui.add_space(14.0);
-                                    let label = match c.count {
-                                        Some(n) => format!("{} {} ({n})", ph::TABLE, c.name),
-                                        None => format!("{} {}", ph::TABLE, c.name),
+                                    ui.spacing_mut().item_spacing.x = 4.0;
+                                    let picture = material
+                                        .then(|| hs_ui::fileicons::for_kind("collection"))
+                                        .flatten();
+                                    let label = match (&picture, c.count) {
+                                        (Some(_), Some(n)) => format!("{} ({n})", c.name),
+                                        (Some(_), None) => c.name.clone(),
+                                        (None, Some(n)) => {
+                                            format!("{} {} ({n})", ph::TABLE, c.name)
+                                        }
+                                        (None, None) => format!("{} {}", ph::TABLE, c.name),
                                     };
-                                    if ui.add(egui::Button::selectable(selected, label)).clicked() {
+                                    let mut r = None;
+                                    if let Some(src) = picture {
+                                        r = Some(
+                                            ui.add(
+                                                egui::Image::new(src)
+                                                    .fit_to_exact_size(egui::vec2(15.0, 15.0))
+                                                    .sense(egui::Sense::click()),
+                                            ),
+                                        );
+                                    }
+                                    let lr = ui.add(egui::Button::selectable(selected, label));
+                                    let hit = match r {
+                                        Some(ir) => (lr | ir).clicked(),
+                                        None => lr.clicked(),
+                                    };
+                                    if hit {
                                         pick = Some((db.clone(), c.name.clone()));
                                     }
                                 });

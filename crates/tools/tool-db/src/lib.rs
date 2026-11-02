@@ -2888,6 +2888,9 @@ impl DbTool {
     // ---- sidebar pieces -------------------------------------------------------
 
     fn schema_nodes(&self, s: &Services) -> Vec<TreeNode> {
+        // Read once for the whole tree, not per node (FEAT-0084).
+        let material = s.settings.read().appearance.material_icons("db");
+        let art = |kind: &str, glyph: &str| hs_ui::fileicons::item_icon(material, kind, glyph);
         let sh = self.shared.lock();
         let filter = self.tree_filter.to_lowercase();
         let loaded = |id: &str| -> Option<Vec<driver::SchemaObject>> {
@@ -2930,10 +2933,10 @@ impl DbTool {
                                 .map(|o| {
                                     let oid = node_id(&["o", &sc.name, kind_id(k), &o.name]);
                                     let icon = match k {
-                                        ObjectKind::Table => ph::TABLE,
-                                        ObjectKind::View => ph::EYE,
-                                        ObjectKind::Function => ph::FUNCTION,
-                                        _ => ph::LIST_NUMBERS,
+                                        ObjectKind::Table => art("table", ph::TABLE),
+                                        ObjectKind::View => art("view", ph::EYE),
+                                        ObjectKind::Function => art("function", ph::FUNCTION),
+                                        _ => art("", ph::LIST_NUMBERS),
                                     };
                                     if matches!(k, ObjectKind::Table | ObjectKind::View) {
                                         let mut kids: Vec<TreeNode> = loaded(&oid)
@@ -2944,11 +2947,14 @@ impl DbTool {
                                                 let fk =
                                                     c.badges.iter().any(|b| b.starts_with("FK"));
                                                 let icon = if pk {
-                                                    ph::KEY
+                                                    art("key", ph::KEY)
                                                 } else if fk {
-                                                    ph::LINK
+                                                    // No Material picture
+                                                    // says "foreign key";
+                                                    // the link glyph does.
+                                                    art("", ph::LINK)
                                                 } else {
-                                                    ph::COLUMNS
+                                                    art("column", ph::COLUMNS)
                                                 };
                                                 let mut n = TreeNode::leaf(
                                                     node_id(&["c", &sc.name, &o.name, &c.name]),
@@ -2967,7 +2973,7 @@ impl DbTool {
                                             let mut x = TreeNode::branch(
                                                 xid.clone(),
                                                 s.t("db-kind-indexes"),
-                                                ph::LIGHTNING,
+                                                art("", ph::LIGHTNING),
                                                 Vec::new(),
                                             );
                                             x.children = loaded(&xid).map(|ix| {
@@ -2979,9 +2985,9 @@ impl DbTool {
                                                             ]),
                                                             i.name.clone(),
                                                             if i.badges.is_empty() {
-                                                                ph::LIGHTNING
+                                                                art("", ph::LIGHTNING)
                                                             } else {
-                                                                ph::KEY
+                                                                art("key", ph::KEY)
                                                             },
                                                         );
                                                         n.badge = Some(i.detail.clone());
@@ -3016,7 +3022,7 @@ impl DbTool {
                         let mut g = TreeNode::branch(
                             gid.clone(),
                             s.t(kind_key(k)),
-                            ph::FOLDER_SIMPLE,
+                            art("", ph::FOLDER_SIMPLE),
                             Vec::new(),
                         );
                         g.children = match (children, failed_or_loading(&gid)) {
@@ -3028,7 +3034,7 @@ impl DbTool {
                         g
                     })
                     .collect();
-                TreeNode::branch(sid, sc.name.clone(), ph::DATABASE, groups)
+                TreeNode::branch(sid, sc.name.clone(), art("database", ph::DATABASE), groups)
             })
             .collect()
     }

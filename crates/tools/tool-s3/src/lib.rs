@@ -2033,13 +2033,40 @@ impl S3Tool {
         if rows.is_empty() {
             form::note(ui, theme, ph::INFO, &s.t("s3-empty-prefix"));
         }
+        // With Material icons on the table draws the picture in its own
+        // column, so the name cell drops the glyph it would otherwise
+        // carry inline (FEAT-0084).
+        let material = s.settings.read().appearance.material_icons("s3");
+        let icons: Vec<egui::ImageSource<'static>> = if material {
+            rows.iter()
+                .map(|r| match r {
+                    Row::Folder(p) => {
+                        let name = p.strip_prefix(&self.state.prefix).unwrap_or(p);
+                        hs_ui::fileicons::for_folder(name.trim_end_matches('/'))
+                    }
+                    Row::Object(o) => {
+                        let name = o.key.strip_prefix(&self.state.prefix).unwrap_or(&o.key);
+                        hs_ui::fileicons::for_file(name)
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let named = |glyph: &str, name: &str| {
+            if material {
+                name.to_string()
+            } else {
+                format!("{glyph} {name}")
+            }
+        };
         let cells: Vec<Vec<String>> = rows
             .iter()
             .map(|r| match r {
                 Row::Folder(p) => {
                     let name = p.strip_prefix(&self.state.prefix).unwrap_or(p).to_string();
                     vec![
-                        format!("{} {name}", ph::FOLDER_SIMPLE),
+                        named(ph::FOLDER_SIMPLE, &name),
                         String::new(),
                         String::new(),
                         String::new(),
@@ -2053,7 +2080,7 @@ impl S3Tool {
                         .unwrap_or(&o.key)
                         .to_string();
                     vec![
-                        format!("{} {name}", ph::FILE),
+                        named(ph::FILE, &name),
                         human_size(o.size),
                         short_time(&o.modified),
                         o.storage_class.clone(),
@@ -2082,7 +2109,7 @@ impl S3Tool {
                     show_filter: true,
                     copy_row_label: &copy_label,
                     built_in_menu: true,
-                    row_icons: None,
+                    row_icons: material.then_some(icons.as_slice()),
                 }
                 .show(ui, &mut self.table)
             })

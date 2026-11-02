@@ -83,6 +83,21 @@ impl Resource {
             Resource::Nodes => ph::DESKTOP,
         }
     }
+
+    /// The word `hs_ui::fileicons::for_kind` knows this resource by, for
+    /// the Material item icons (FEAT-0084).
+    pub fn kind(self) -> &'static str {
+        match self {
+            Resource::Containers => "container",
+            Resource::Projects => "project",
+            Resource::Images => "image",
+            Resource::Volumes => "volume",
+            Resource::Networks => "network",
+            Resource::Stacks => "stack",
+            Resource::Services => "service",
+            Resource::Nodes => "node",
+        }
+    }
 }
 
 /// Why a verb is not available. Saying which is the point: "you cannot"

@@ -147,12 +147,12 @@ fix(tool-db): keep the schema cache across a reconnect
 Refs: BUG-0003
 
 ```
-### Latest Register
+### Latest Registered Task
 
 ```
 Version : v0.7.5
-Features : FEAT-0084
-Bugs : BUG-0036
+Features : FEAT-0092
+Bugs : BUG-0037
 Change Request : CR-0025
 ```
 
@@ -160,14 +160,495 @@ Change Request : CR-0025
 
 ## v0.7.6 — Planned
 
-### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
-- **State:** Pending · 
-- **Scope:** All UI Components.
-- [ ] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
-- [ ] Create standard rule for agent reference for next usage of these components
+> CR-0025 was split into the themed items below on the owner's decision
+> (2026-11-02); every box kept its original wording. The shared primitives
+> (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
+
+### BUG-0037 · Miscellaneous Bug
+- **State:** Pending ·
+- **Scope:** All related Activities.
+- [ ] In Editor Activity -> Work Pane -> When Enable Debug Panel, Dont't auto resize the Panel when user move the mouse. User can resize the panel and it will persist for that project work pane.
+- [ ] In Editor Activity -> Work Pane -> When User Click "Go To Line"; Why the Label "Go To Line" didn't have left padding/margin?
+- [ ] In Git Activity -> Work Pane; When click "Fetch", there is error "git fetch: fatal: 'origin' does not appear to be a git repository fatal: Could not read from remote repository. Please make sure you have the correct access rights and the repository exists.". This repository is clone from the Settings -> Git -> Add Repository with selected Credential. Why its error?
+- [ ] In Automation Activity -> Forgejo Action -> Work Pane -> Runs Pane; When double click a run, its not open any logs. And there is no logs tab to click.
+- [ ] In Logs Activity -> Work Pane -> Logs Pane; When Click Open In Editor button, it will open Editor Activity, but nothing display in the file.
+- [ ] In Settings -> Editor -> Project List -> Project Detail Setting Form; When click button "Close", it didn't close the project detail settings. Check other settings close button too.
+
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a uniform and standard UI and UX layout components.
+- [ ] App: `--data-dir ./tmp-data` — All visual of resolved issues.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0084 · Material Icon inside Activity Work Pane
+- **State:** Pending · 
+- **Scope:** All Icon Usage in All Activity Except API Client Activity, Terminal Activity, Automation Activity, Tracker Activity, Graphics Activity, Devtools Activity, Browser Activity and Logs Activity.
+- [ ] Create settings for Material Icons (Use in work pane). Add Settings -> Appearance -> Material Icon Card below Activity Rail Card.
+- [ ] User can enable/disable Material Icon on each activity listed. By default, all activity is enable. If disabled, use generic icon for respective item (folder and file).
+- [ ] Add this activity can show material icon or generic icon: Scratchpad's Sidebar Column - Folder and Note lists.
+- [ ] Add this activity can show material icon or generic icon: Editor's Work Pane; Project and Source Control Tab Icon, Folder and File list, 
+- [ ] Add this activity can show material icon or generic icon: Git's Work Pane -> Workspace column; Workspace, Branches, Remotes, Tags, Stashes with all its sub item/child (where applicable).
+- [ ] Add this activity can show material icon or generic icon: SSH's SFTP - File and Folder list. 
+- [ ] Add this activity can show material icon or generic icon: Container's Work Pane - Item list (Container, Projects, Images, Volumes, Network, Stacks, Services, Nodes, etc).
+- [ ] Add this activity can show material icon or generic icon: Database's Work Pane - Item list (Database, Tables, Table Item, Table Column, View, Functions, Saved Queries, History, all sub item/child, etc).
+- [ ] Add this activity can show material icon or generic icon: NoSQL's Work Pane - Item list (Database, Collections, Documents, Fields, all sub item/child, etc).
+- [ ] Add this activity can show material icon or generic icon: Redis's Work Pane - Item list (Folders, Keys, all sub item/child, etc).
+- [ ] Add this activity can show material icon or generic icon: S3's Work Pane - Item list (Bucket, Object, Value, Key, Metadata, Folder and Files (webdav), all sub item/child, etc).
+- [ ] Add this activity can show material icon or generic icon: Queue's Work Pane - Item list (Queue, Topic, etc).
+- [ ] Only these Activities are allowed to enable/disable material icon: Scratchpad, Editor, Git, SSH, Container, Database, NoSQL, Redis, S3, Queue.
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Enable and disable Material icon for each activities reflect immediately.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
+- **State:** In-Progress ·
+- **Scope:** All related UI components. Umbrella item — the work lives in its children.
+- **Depends on:** FEAT-0084
+- [ ] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
+- [ ] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
+- [ ] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
+- [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
+- [ ] CR-0030 · Sidebar column header standard across every activity
+- [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
+- [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
+- [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
+- [ ] CR-0035 · Editor work pane and Source Control tab layout
+- [ ] CR-0036 · Multi-coloured product icons for every connection kind
+- [ ] CR-0031 · Spacing pass: Redis, S3 and Queue work panes
+- [ ] CR-0032 · Spacing pass: Database result and message panels
+- [ ] CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
+- [ ] CR-0034 · Container and SSH work pane layout
+- [ ] CR-0039 · Spacing pass: NoSQL work pane
+- [ ] FEAT-0095 · Server-populated fields: Tracker and Automation
+- [ ] FEAT-0096 · Database: results retained per query tab, and double-click a cell to edit
+- [ ] FEAT-0097 · S3: a collapse/expand folder hierarchy column
+- [ ] FEAT-0098 · SSH: name a tunnel when creating it
+- [ ] CR-0037 · Redis key list sorted folders first
+- [ ] CR-0038 · Settings polish, and the UI standard written down
+- **Notes:** split on 2026-11-02 (owner's decision). This item holds no work of
+  its own; it is `Completed` when every child above is `Completed`. The 218
+  original boxes were distributed verbatim across the children — none was dropped.
+  "Close button didn't close the project detail form" stayed with BUG-0037, whose
+  sixth box is the same defect, and FEAT-0093 builds on that fix.
+
+### CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
+- **State:** Pending ·
+- **Scope:** `hs-ui` button, form and dropdown primitives; every activity inherits them.
+- **Parent:** CR-0025
+- [ ] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
+- [ ] In All Activities -> Resize all text field height, slightly higher; For example in Home -> Dashboard Page, "What do you want to do?" field height is too small. Please follow text field height size in Settings -> Accessibility - Speech To Text -> Language. Make also the height size of all dropdown field, same height with the new text field height.
+- [ ] In All Activities -> All Inline Buttons, Label, Text Fields, Dropdown menu, Slider, Checkbox, radio button, etc; Vetical middle align all of it.
+- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, do not magnify/resize Match Case,Whole Word and Regular Expression button. Make it as a proper button so that user know it is a button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Message button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Unfocus result button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Please vertical middle align label with input text, vertical middle align label with checkbox and checkbox label. Apply this to all activities that have form to look professional and standard.
+- [ ] Test: a widget snapshot proves a hovered button keeps its rect, and that a text field, a dropdown and a checkbox row share one baseline
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — hover every toolbar and inline button in three activities — nothing grows; the Home "What do you want to do?" field matches Settings -> Accessibility -> Language
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
+- **State:** Pending ·
+- **Scope:** `hs_ui::toolbar` and every activity's toolbar and sub-toolbar.
+- **Parent:** CR-0025
+- **Depends on:** CR-0026
+- [ ] Label all icon buttons. For example, in Scratchpad Activity -> Scratchpad Sidebar Column -> Header; Add label "Add Folder" for Make a folder button.
+- [ ] In All Activities -> Toolbar Strip -> Label and Icon; Please color the label and icon with suitable and appropriate color (depends on mode dark/light; maybe follow accent, harmony, contrast, etc where do you think is professional and acceptable), that Showing it is a toolbar and important.
+- [ ] In All Activities -> Toolbar Strip -> Toolbar Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+- [ ] In All Activities -> Toolbar Strip -> Status Label with Icon (Connected, Disconneted, etc); make all icon and text slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+- [ ] In All Activities -> Sidebar Column -> Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button.
+- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Match Case,Whole Word, Regular Expression, Previous and Next button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, why the other button (Older Match, Newer Match, Find text field, Match Case, Regular Expression, etc) overlapped with the main toolbar button. It should be in a row below the main toolbar row.
+- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Older Match, Newer Match, Match Case, Regular Expression). Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Action (Run, Count, New Document, Delete Matching, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper label for page button (The page before this one, The next page).
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Result Format (Table, Tree, Json, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+- [ ] In Redis Activity -> Work Pane; Please add all the button in this Activity with top/right/bottom/left padding/margin and add proper icon for each button if none. (Clear, Bulk Ops - Delete, Expire, Persist, Rename Prefix, Apply. etc)
+- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Put AI Assistant button on the first row of the toolbar strip.
+- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Draw the horizontal line separator in first row and second row full width. Apply this to all AI Assistant button and horizontal line that have a same characteristic in other activities.
+- [ ] In Browser Activity -> Sidebar Column -> Favorites Tab; Add label for "New Folder" on the button with the icon.
+- [ ] In Browser Activity -> Sidebar Column -> Passwords Tab; Add label for "New Login" on the button with the icon.
+- [ ] Test: the toolbar builder emits a label for every button, and a sub-toolbar row lays out below the main row rather than inside it
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the Terminal and Editor Find rows sit below the main toolbar with labels; Logs draws the AI assistant on the first row
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
+- **State:** Pending ·
+- **Scope:** `hs_ui::table::DataTable`, the shared key/value renderer and every scrollable text area.
+- **Parent:** CR-0025
+- **Depends on:** CR-0026
+- [ ] In All Activities -> All Work Pane -> Table Component (Where applicable); Make the table size and value inside it slightly bigger (cell, row, etc). Make all table header text and row, emphasized (bold, upsize, fill header cell color, etc) to show it is a header (where applicable).
+- [ ] In All Activities -> All Work Pane -> All Vertical Scrollable Text Area (Status, Logs, etc) put a darker background (for dark mode) in the text area, or light background (for light mode) in the text area (Where applicable). So that user will notice it can be scrollable.
+- [ ] In All Activities -> All Work Pane -> All Item And Value Data (e.g Type   Bug, Author     Redmine Admin, etc); Make a proper table without header for it to look professional, tidy and structured.
+- [ ] In NoSQL Activity -> Work Pane -> Result Header; Make the header icon and label slightly bigger to show it is a header.
+- [ ] In Devtools Activity -> Listening Port -> Make the Listening Port list background darker.
+- [ ] In Settings -> Browser -> Extra Block Hosts Card; Do not make the text area auto expanded. Use fix height and vertical scrollable for the text area.
+- [ ] Test: DataTable renders an emphasised header row, and the key/value helper produces a two-column headerless table
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a wide table in Database and Tracker reads as a table; the Devtools listening-port list and the Settings -> Browser block-hosts box show their scroll background
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0029 · Tab strip heights, icon sizing and position-aware context menus
+- **State:** Pending ·
+- **Scope:** `hs_ui::tabs`, the Settings -> Appearance -> Tab Card, every main and inner tab strip.
+- **Parent:** CR-0025
+- [ ] In All Activities -> Main Tab Strip -> Make the tab size slightly higher, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Main Tab Height.
+- [ ] In All Activities -> Main Tab Strip -> Make the icon,title and close button in the tab slightly bigger. The size will be suitable with the main tab height settings.
+- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the tab size slightly higher but not high than main tab height, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Sub/Child/Inner Tab Height.
+- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the icon,title and close button in the tab slightly bigger but not biggeer than main tab icon and text size. The size will be suitable with the Sub/Child/Inner tab height settings.
+- [ ] In All Activities -> Main Tab Strip; If the Tab is the first after the fixed/permanent tab, remove right click menu "Close To The Left". If no other tab at right of the tab, remove right click menu "Close Others", "Close To The Left", "Close To The Right". If there is a tab or more at right of the tab, remove right click menu "Close To The Left". If a tab is the last tab on the right of the strip with some other non fixed/permanent/pinned tab on its left, remove right click menu "Close To The Right". Apply to all Activities where applicable.
+- [ ] In Scratchpad Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Editor Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Git Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Terminal Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In SSH Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Container Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Database Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In NoSQL Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Redis Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In S3 Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Queue Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In API Client Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Automation Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Tracker Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Logs Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Graphics Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Devtools Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [ ] In Browser Activity -> Inner Tab Strip; If the tab is the first left, remove the right click menu "Close To The Left" menu and "Close To The Right" menu. If the tab is the last most right, remove the right click menu "Close To The Right" menu. Please use suitable logic on this for every tab position right click menu.
+- [ ] In Settings Page -> Main Windows Tab Strip; Remove "New Tab" button and remove right click menu for the fixed tab of Settings.
+- [ ] Test: the context-menu builder omits Close To The Left for the first closable tab and Close To The Right for the last, and the height settings round-trip through the workspace file
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — change both heights in Settings -> Appearance -> Tab Card and watch every strip follow; right-click tabs at each position in three activities
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0030 · Sidebar column header standard across every activity
+- **State:** Pending ·
+- **Scope:** Every activity's sidebar header; the Container header is the reference.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027
+- [ ] In Scratchpad Activity -> Sidebar Column -> Header; Add label for "Add Folder" and "Add Note" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and Search Note Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Scratchpad Activity -> Sidebar Column -> Header; When user click "Add Folder" button, make the Add Note form in the same section with the Add Folder and Add Note button, but hide those 2 button. When after user rename or cancel, hide the form and show back the 2 buttons. Make a horizontal separator between with Add Folder/Add Note button and the Search Note with top/bottom margin/padding.
+- [ ] In Scratchpad Activity -> Sidebar Column; Color the pin icon for Pinned Noted (prefer red).
+- [ ] In Editor Activity -> Sidebar Column -> Header; Add label for "Add Project Folder" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Project Folder" and Project Folder Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Editor Activity -> Sidebar Column -> Header; Add label "Add Project Folder" for add project folder button.
+- [ ] In Git Activity -> Sidebar Column -> Header; Add label for "Add Repository" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Repository" and Repository Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Git Activity -> Sidebar Column -> Header; Add label "Add Repository" for add repository button.
+- [ ] In SSH Activity -> Sidebar Column -> Header; Add label for "Add Host" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Host" and SSH Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Container Activity -> Sidebar Column -> Header; Add top/bottom margin/padding between Header separator and "Add Container" button. Add horizontal separator between the "Add Container" and Container Saved Connection List Section (with top/bottom margin/padding) and remove the Second "Containers" subtitle.
+- [ ] In Database Activity -> Sidebar Column -> Header; Change the header title from "Database Connections" to "Database". Add label for "Add Database" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Database" and Database Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In NoSQL Activity -> Sidebar Column -> Header; Add label for "Add NoSQL" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add NoSQL" and NoSQL Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Redis Activity -> Sidebar Column -> Header; Add label for "Add Redis" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Redis" and Redis Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In S3 Activity -> Sidebar Column -> Header; Add label for "Import" and "Add S3 Profile" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and S3 Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Queue Activity -> Sidebar Column -> Header; Add label for "Add Broker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Broker Button and Broker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Automation Activity -> Sidebar Column -> Header; Add label for "Add Server" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Server Button and Server Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] In Tracker Activity -> Sidebar Column -> Header; Add label for "Add Tracker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Tracker Button and Tracker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [ ] Test: the shared sidebar-header helper draws a labelled Add button and one separator, and no activity emits a second title
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk all twelve sidebars — one titled header, labelled Add buttons, no duplicated title; Scratchpad's inline Add Folder form replaces the buttons while open
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
+- **State:** Pending ·
+- **Scope:** `Services`/`OpenRequest` navigation, the Settings pages and every Add button.
+- **Parent:** CR-0025
+- **Depends on:** CR-0030
+- [ ] In Almost all Activity Connection -> Sidebar Column; When User click button Add Activity's New Connection, straight away go to Settings -> Connections / Containers / Queue / Automation / Tracker / Git, with add new empty form to add those and the page will focus to the section. 
+- [ ] In Editor Activity -> Sidebar Column -> Header; When user click "Add Project Folder" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
+- [ ] In Editor Activity -> Sidebar Column -> Tab Strip; When user click "New Tab", direct focus on the supposed settings page section - Settings -> Editor -> Project List -> Add Project Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Editor's Activity of the new added project Folder. Please check if other new tab button for other activities connections as well.
+- [ ] In Git Activity -> Sidebar Column -> Header; When user click "Add Repository" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
+- [ ] In Git Activity -> Sidebar Column -> Tab Strip; When user click "New Tab" button, direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
+- [ ] In Git Activity -> Main Windows Tab Strip -> When user click "New Tab" button; direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
+- [ ] In SSH Activity -> Sidebar Column -> Header; When user click "Add Host" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select SSH in Kind dropdown. And will focus to that form section. 
+- [ ] In Database Activity -> Sidebar Column -> Header; When user click "Add Database" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select DB in Kind dropdown. And will focus to that form section. 
+- [ ] In NoSQL Activity -> Sidebar Column -> Header; When user click "Add NoSQL" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select MongoDB in Kind dropdown. And will focus to that form section. 
+- [ ] In Redis Activity -> Sidebar Column -> Header; When user click "Add Redis" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select Redis in Kind dropdown. And will focus to that form section. 
+- [ ] In S3 Activity -> Sidebar Column -> Header; When user click "Add S3 Profile" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select S3 in Kind dropdown. And will focus to that form section. 
+- [ ] In Queue Activity -> Sidebar Column -> Header; When user click "Add Broker" button, straight away go to Settings -> Queue -> Brokers, and will focus to the section. 
+- [ ] In Automation Activity -> Sidebar Column -> Header; When user click "Add Server" button, straight away go to Settings -> Automation -> Server, and will focus to the section. 
+- [ ] In Tracker Activity -> Sidebar Column -> Header; When user click "Add Tracker" button, straight away go to Settings -> Tracker -> Tracker List, and will focus to the section. 
+- [ ] In Settings -> Containers -> Add New Container; When User click Save for the detail, save and close the setting form and then open the newly added connections in new tab in respective Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Connections -> Add New Connection; When User click Save for the detail, save and close the setting form and then open the newly added Container in new tab in Containers Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Queue -> Add Broker; When User click Save the detail, save and close the setting form and then open the newly added broker in new tab in Queue Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Automation -> Add Server; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Automation Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Tracker -> Add Tracker; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Tracker Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Editor -> Add Project Folder; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Git -> Add Repository; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. In the same time, It will also create a Project Folder of the repository in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [ ] In Settings -> Git -> Add Credential; When User click Save the detail, save and close the setting form. Close button will close the form.
+- [ ] Test: a jump request resolves to the right Settings page, section and empty form for each kind, and a Save event carries the new id to its activity
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — from every activity press Add, land on a focused empty form, save it, and see the new connection open in a tab; Close closes the form
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
+- **State:** Pending ·
+- **Scope:** Nine activity sidebars, the connection store and the vault.
+- **Parent:** CR-0025
+- [ ] In SSH Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the Connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Containers Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Host" menu. It will delete the host profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Database Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In NoSQL Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Redis Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In S3 Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Queue Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Automation Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [ ] In Tracker Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the tracker profile with credential tied to it and confirmation dialog will appear before.
+- [ ] Test: removing a profile deletes its `secret:<ulid>` from the vault, the data folder greps clean afterwards, and a cancelled confirmation changes nothing
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — remove a saved profile in SSH and Database, confirm the dialog, and check Settings -> Security -> Credentials no longer lists its credential
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
+- **State:** Pending ·
+- **Scope:** The Editor work pane's Source Control tab.
+- **Parent:** CR-0025
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Refresh Status button not working.
+- [ ] Test: a reproducing test: Refresh Status re-runs `git status` and replaces the cached entries
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — edit a file in a git project, press Refresh Status, and watch the list change
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0035 · Editor work pane and Source Control tab layout
+- **State:** Pending ·
+- **Scope:** The Editor work pane: folder sidebar, toolbar and Source Control tab.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027, FEAT-0084
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Header; Remove Open folder as another project and close this project buttons. Add button with action before "Add File", named "Add Folder", where user can add folder inside the project directory
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar; When resize the sidebar column, make the header title (Project) and buttons (New Folder, New File, Refresh), responsive.
+- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; Remove Open Folder button and Open File button.
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; When the project folder is not a git, do not show the Error "git status: fatal: detected dubious ownership...To add an exception for this directory, call:git config --global --add safe.directory D:/WORKSPACES/DOTNET/flex-taskbar" Show proper error like (Not a Git repository). And disable the "Show this repository History" unless it is a git project folder.
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Fix the header icon (folder icon for folder name, move the branch icon left beside the branch name). 
+- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Please have a proper top/bottom margin/padding between sections: Toolbars (Fetch, Pull, Push, Stashes, Branches, Tag), Commit Message Text Area, Prefix Button, Commit Group (Commit button, Commit and Push button , Ammend the Last Commit checkbox).
+- [ ] In Editor Activity -> Work Pane; When user open file to edit, make the tab for the file (inner tab), follow the colored material icon (If material Icon enabled in settings) or generic icon on the file list column.  
+- [ ] Test: a non-git folder yields the "Not a Git repository" state with history disabled instead of a raw git error
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — open a non-git folder and a git one; add a folder from the sidebar header; narrow the sidebar and watch the header stay readable
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0036 · Multi-coloured product icons for every connection kind
+- **State:** Pending ·
+- **Scope:** `hs_ui::icons` and every list, tab and header that draws a connection icon.
+- **Parent:** CR-0025
+- [ ] In All Activities -> Every connection icon, use multi-colored icon, same with the actual product icon color. It will reflect to all component that use the icon (Connection lists, tabs, etc)
+- [ ] In Git Activity -> Work Pane Header -> Repostory Title Icon; Use the icon that been save in the Git Repository Settings, same like the repository list icon and the tab icon for the repository. Don't use generic icon.
+- [ ] Test: each connection kind resolves to its product icon, and the same icon is returned for the sidebar, the tab and the work-pane header
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — every connection list, tab and header shows the product's own colours in both themes
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0031 · Spacing pass: Redis, S3 and Queue work panes
+- **State:** Pending ·
+- **Scope:** The Redis, S3 and Queue work panes.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027, CR-0028
+- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between below Header separator and Action Button (Reload, Rename, Set TTL, Delete, Add Member). Make the button proper with top/right/bottom/left padding/margin. 
+- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Action Button (Reload, Rename, Set TTL, Delete, Add Member, etc) and Filter row.
+- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Filter row and Data Table.
+- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between below Header separator and Subscribe row. 
+- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between Subscribe row and Publish row. 
+- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between publish row and message section. 
+- [ ] In Redis Activity -> Work Pane -> Streams Pane; Please add top/bottom padding/margin between below Header separator and Stream row. 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane; Please add top/bottom padding/margin between below Header separator and Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Action button (Reload, etc) and slow log message. 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Action button (Reload, etc) and Client list table. Make that table proper, follow other activity's connections standard. 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between below Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Pattern row (Find Big Keys, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between Pattern row (Find Big Keys, etc) and big keys table. Make that table proper, follow other activity's connections standard. 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Delete, Expire, Persist, Rename Prefix, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Action button (Delete, Expire, Persist, Rename Prefix, etc) and Pattern Row (Pattern, Preview, etc). 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Pattern Row (Pattern, Preview, etc) and Preview Result. 
+- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Preview Result and Action button (Apply). 
+- [ ] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Toolbars bottom header and Database drop down row.
+- [ ] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Database drop down row and Filter key Row (Filter filed text, Scan button, New Key button).
+- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button), where the New key button is far right near the apps windows. Please add right margin/padding for that button and apps windows border. 
+- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button) alignment by vertical align the input text and those 2 buttons.
+- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row button (Scan button, New Key button) by Adding text/label next to the button icon.
+- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between separator below Bucket Name Breadcrumb and Filter row. 
+- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Filter row and Data Table. 
+- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Data Table and Bucket Status (e.g. 2 items loaded). 
+- [ ] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between Queue Title header and filter row.
+- [ ] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between filter row and Data table.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Topic Name and Message Queue.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Message Queue and count row.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between count row and Peek Table.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Peek Table and Exchange Section.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Exchange Section and Payload.
+- [ ] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section; Please use Sentence case for Exchange header title. Use a proper table view.
+- [ ] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section -> Payload; Please add card/frame to put payload message inside.
+- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
+- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Section.
+- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Exchange/Routing Key Section and Header Section.
+- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Header Section and Payload Section.
+- [ ] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Topic Name and Action button row (Load).
+- [ ] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Action button row (Load) and Consumer data detail.
+- [ ] In Queue Activity -> Work Pane -> Bindings Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Table. Use a proper table view.
+- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk every pane in Redis, S3 and Queue — sections are separated, buttons are padded, the Redis filter row is aligned and clear of the window edge
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0032 · Spacing pass: Database result and message panels
+- **State:** Pending ·
+- **Scope:** The Database work pane's result and message panels.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027, CR-0028
+- [ ] In Database Activity -> Work Pane -> Result And Message Section Header; Add separator between result button(s) and message button with proper left/right padding/margin.
+- [ ] In Database Activity -> Work Pane -> Result Section Header Row; Please add left margin/padding on the first result button. Its too near the pane border.
+- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please insert the all the result lists : message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) inside a some card or frame to look professional and tidy.
+- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add left margin/padding on the message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms). Its too near the pane border.
+- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add separator between result message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) with top/bottom margin/padding on the separator.
+- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add top/bottom padding/margin between the result datatable and toolbar below.
+- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add left margin/padding on the result stat (e.g. 27 rows · Editable (F2)) and right margin/padding on the Export button.
+- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — run a multi-statement query and read the result and message panels — cards, separators and padding on both
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
+- **State:** Pending ·
+- **Scope:** The Automation, Tracker and Logs work panes, including the Highlight Rules popup.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027, CR-0028
+- [ ] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between Job Title header and filter row.
+- [ ] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between filter row and job list data table.
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Action button (Runs, Log, Run, Queue, etc) and job title.
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between job title and Job Activity data table.
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Job Activity data table and Job Status (e.g. #4 · Running. Double-click a run to read its log.).
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job title and job status (e.g. #5 · Success).
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job status (e.g. #5 · Success) and job log text area.
+- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between below Header separator and query row (Query text input, Run This QUery, Saved Queries,etc). 
+- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between query row (Query text input, Run This Query, Saved Queries,etc) and Item count (e.g. Items 3 of 3).
+- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between Item count (e.g. Items 3 of 3) and filter row.
+- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between filter row and Ticket data table.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details header.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details separator and ticket detail table (e.g. Project    Demo, Type     Bug, etc). 
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details table.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details table separator and Ticket Descriptions (e.g. The disk is full.Rotate logs daily.. , etc).
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Descriptions.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Descriptions separator and Ticket Comment List.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Comment List.
+- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Comment List separator and Comment Form.
+- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please add top/bottom padding/margin between due date row and description form.
+- [ ] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please add top/bottom padding/margin between summary row and description form.
+- [ ] In Logs Activity -> Work Pane -> Logs Pane; Resize the Record column to most suitable size, because its too wide. auto resize it to match value in it.
+- [ ] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between log record list and Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc).
+- [ ] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc) and Log detail text area.
+- [ ] In Logs Activity -> Work Pane -> Highlight Rules Popup; Please make this professional, tidy and structured. It look messy (vertical middle align, short regex field, padding/margin between checkbox and input field, etc).
+- [ ] Test: the Logs record column sizes to its content rather than to the pane
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk the Automation job panes, the Tracker ticket detail and the Logs pane and popup
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0034 · Container and SSH work pane layout
+- **State:** Pending ·
+- **Scope:** The Container work panes (Docker, Kubernetes, Podman, Windows) and the SSH shell pane.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027
+- [ ] In SSH Activity -> Shell Pane; Make Tunnel Card and Monitor Card have some color to differentiate with the shell terminal.
+- [ ] In SSH Activity -> Shell Pane -> Monitor Card; Add proper icon to the Items (Cpu, Load, Memory, Disk, Up and Top) and color both the icon and lavel with proper color
+- [ ] In Container Activity -> Docker Work Pane -> Docker Summaries (Running, Stopped, Images, Volumes, Network), Follow the Dashboard summary format (rounded box, icon with lable below, horizontal align center, vertical align middle, same max box size, etc). Apply these in kubernetes, podman, windows container too (Where applicable).
+- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Ports (Open In Browser activity, etc) with top/right/bottom/left padding/margin. 
+- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Action (Logs, Shell, Restart, Stop, Kill, Remove) with top/right/bottom/left padding/margin and add proper icon for each button if none. Please check other activities that have same characteristic of these button and apply to it also.
+- [ ] In Container Activity -> Sidebar Panel -> Saved Command And Config Section; Add a sample for saved command and config, so that user can reference it later and can delete it later.
+- [ ] Test: the Docker summary row uses the shared `hs_ui::dashboard` summary box
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Docker summaries match the dashboard language; port and action buttons are real buttons; SSH tunnel and monitor cards stand out from the terminal
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0039 · Spacing pass: NoSQL work pane
+- **State:** Pending ·
+- **Scope:** The NoSQL work pane: Find, Aggregate, Index and their detail panels.
+- **Parent:** CR-0025
+- **Depends on:** CR-0027, CR-0028
+- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between below Header separator and Search Criteria (Filter, Project, Sort).
+- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between Search Criteria (Filter, Project, Sort) and buttons (Run, Count, New Document, Delete Matching, etc).
+- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between below Header separator and Json Array Label and Text Area.
+- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between Json Array Text Area and buttons (Run, etc).
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between buttons (Run, Count, New Document, Delete Matching, etc) and Result format (Table, Tree, Json, etc).
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between Result format (Table, Tree, Json, etc) and Result table.
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between id row and data view text area. 
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between data view text area and action button below (Save, Delete, Cancel) 
+- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please make a proper button for Action Button (Save, Delete, Cancel) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+- [ ] In NoSQL Activity -> Work Pane -> Index Pane -> Detail Panel Below; Please add top/bottom padding/margin between below Header separator and Table (Name, Definition, Unique). Please make it as a proper table with header, column and row line.
+- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk the Find, Aggregate and Index panes and their detail panels
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0095 · Server-populated fields: Tracker and Automation
+- **State:** Pending ·
+- **Scope:** The Tracker edit, new-item and change-status panes; the Automation Run tab.
+- **Parent:** CR-0025
+- **Depends on:** CR-0026
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Make the Ref Selection as a drop down menu where it will populate branch from the automation server. Apply this to all activities that a text field but the value can be auto populate making it a drop down menu.
+- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab -> Job Log text area; Please pretify the log in proper format (indent, blank line, etc) for user to know and differentiate each step of the runs.
+- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Assignee text field and Priority text field to dropdown menu where the data auto populate from the server.
+- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Due Date text field to date calendar select menu where the date format will auto format follow server date format when selecting date.
+- [ ] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please make Type dropdown list and Priority drop down list auto populate from the server.
+- [ ] In Tracker Activity -> Work Pane -> Change Status Ticket Pane; Please make a proper UI UX on this to look professiona, tidy and structured.
+- [ ] Test: a populated dropdown falls back to a free-text field when the server cannot be reached, and the date field formats to the server's format
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — edit a Redmine ticket — Assignee, Priority and Type come from the server, Due Date opens a calendar; run a Forgejo job and pick a ref from the list
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0096 · Database: results retained per query tab, and double-click a cell to edit
+- **State:** Pending ·
+- **Scope:** The Database work pane's query tabs and result data table.
+- **Parent:** CR-0025
+- [ ] In Database Activity -> Work Pane -> Query Tab; Every query tab persist its own results data. Results/Multi-Result per Query Tab. If user click other tab, it can view the result/multi-result last run by the query tab.
+- [ ] In Database Activity -> Work Pane -> Result Data Table; When user double click on the cell, show edit popup for user edit the value in that cell, same like user right click menu > "Edit Cell".
+- [ ] Test: switching query tabs restores each tab's own result set and messages rather than the last run's
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — run different queries in three tabs, switch between them, then double-click a cell and edit it (synthetic clicks never form double-clicks, so this box needs the app)
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0097 · S3: a collapse/expand folder hierarchy column
+- **State:** Pending ·
+- **Scope:** The S3 work pane's folder column and breadcrumb.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0084
+- [ ] In S3 Activity -> All Connection -> Folder List Column; Show folder as hierarchy navigation style (collapse/expand), instead of current navigation style. Don't display Up button on the folder hierarchy. User can use Up button on the toolbar.
+- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add icon for child breadcrumb (e.g. hs-raw > docs). Use colored material icon.
+- [ ] Test: the hierarchy builds lazily from the delimiter-listed prefixes and keeps expansion state across a refresh
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — browse a bucket with nested prefixes — expand and collapse in place, no Up button in the tree, coloured breadcrumb icons
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0098 · SSH: name a tunnel when creating it
+- **State:** Pending ·
+- **Scope:** The SSH sidebar's Tunnels section and the stored host profile.
+- **Parent:** CR-0025
+- [ ] In SSH Activity -> Sidebar Column -> Tunnels; When Create Tunnel, allow naming it, so that user can easy to references it in tunnel list. In tunnel list, 
+- [ ] Test: a named tunnel round-trips through the workspace file and the name is what the list shows
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — create two tunnels on one host with names and tell them apart in the list
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0037 · Redis key list sorted folders first
+- **State:** Pending ·
+- **Scope:** The Redis work pane's key list column.
+- **Parent:** CR-0025
+- [ ] In Redis Activity -> Work Pane -> Key List Column; Sort the key list by parent folder first, key without parent, then by name for both.
+- [ ] Test: the sort puts parent folders first, then keys without a parent, each group by name
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — scan a database with mixed foldered and bare keys and read the order
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0038 · Settings polish, and the UI standard written down
+- **State:** Pending ·
+- **Scope:** Settings -> Security, Settings -> Appearance, the database connection form, `.claude/rules/ui.md` and `docs/04-ui-design.md`.
+- **Parent:** CR-0025
+- **Depends on:** CR-0026, CR-0027, CR-0028, CR-0029, CR-0030
+- [ ] In Settings -> Security -> Credentials; Make the Credentials Card wider, so that user need less horizontal scrolling.
+- [ ] In Settings -> Security -> Credentials; Remove Key column if not being used.
+- [ ] In Settings Page -> Database Connections; State the guide and requirement to use oracle client and db2 cli if user select either both in DB Engine.
+- [ ] Make a Settings -> Appearance -> Activity Rail for Home -> Dashboard Page -> Dashboard Toolbar -> Activity Icon, user can show/hide label of activity (below icon). Make standard width for all the icon with left/right margin/padding if enabled.
+- [ ] Create standard rules of all above items for agent reference for building next activity, features, function, etc where applicable.
+- [ ] Test: the bundled locale parses and the Oracle/Db2 requirement text is present for those engines
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the credentials card needs no horizontal scrolling; the activity rail label toggle takes effect on the Home dashboard
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
@@ -192,7 +673,7 @@ Change Request : CR-0025
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir` scratch — Jenkins and Forgejo added in Settings → Automation with tokens stored in the vault (data folder grepped: no plaintext) and Test connected; GitHub, GitLab, TeamCity and AWX as profile files; dashboard, sidebar and product icons seen; an empty state ("No runs yet") and a refused connection (TeamCity, nothing listening) seen
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** Puppet was dropped from this item on the owner's decision (FEAT-0084, Backlog). The protected-environment path was not driven on screen; it shares `read_only()` and the driver's `Guarded` refusal with the read-only profile flag, which was (Queue, phase L).
+- **Notes:** Puppet was dropped from this item on the owner's decision (FEAT-0092, Backlog). The protected-environment path was not driven on screen; it shares `read_only()` and the driver's `Guarded` refusal with the read-only profile flag, which was (Queue, phase L).
 
 ### FEAT-0078 · Jenkins
 - **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K
@@ -363,7 +844,7 @@ Change Request : CR-0025
 
 ## Backlog
 
-### FEAT-0084 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
+### FEAT-0092 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
 - **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
 - **Depends on:** FEAT-0077
 - [ ] nodes with the last report's status and time; a node's reports; a report's log lines

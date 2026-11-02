@@ -191,7 +191,7 @@ Shift+Insert.
    kinds.
 5. **Puppet** (PuppetDB nodes and reports; a run through a Puppet Enterprise
    orchestrator) was in the programme's list and is **deferred** on the
-   owner's decision of 2026-10-31 (`FEAT-0084`, Backlog).
+   owner's decision of 2026-10-31 (`FEAT-0092`, Backlog).
 
 ## What is implemented (2026-10-31)
 

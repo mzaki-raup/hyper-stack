@@ -63,7 +63,9 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Windows Environment and Build
 
-- **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions.
+- **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions. On 2026-11-02 it did it again at a far larger size: D: was down to **16 MB** free and deleting that one folder returned **523 GB**. Check free space *first* when a build misbehaves - a full disk does not announce itself, it shows up as `LNK1140: limit exceeded for program database` (the linker cannot write the PDB) and as mock-server tests failing with `error sending request for url (http://127.0.0.1:…)`, neither of which looks like "disk full".
+- **Concurrent loopback connections get reset here (2026-11-02).** Tests that start a server on `127.0.0.1` and connect to it fail with `os error 10054` (WSAECONNRESET, "forcibly closed by the remote host") when several run at once: `tool-automation`'s five `tests/mock.rs` tests failed three-to-five at a time, varying per run, while `--test-threads=1` passed four of five. **It is not the project's code.** Four ephemeral loopback servers written in plain Python with `socket` and `threading` - no tokio, no reqwest, nothing of ours - fail at the same rate with the same error. Closing the server socket politely (FIN the write half, drain to EOF) does not fix it either, so a `TcpStream::shutdown` in the harness is not the answer. The Winsock catalog has no third-party LSP and Defender is the only AV, so the suspects are a WFP callout, the Hyper-V/WSL switch or a container network stack. Before blaming a driver or a test for "cannot reach its own mock server", reproduce it with the Python probes; if they fail, the machine is the problem and `cargo test --workspace` cannot be green (BUG-0039).
+- **`du -sh target/debug` is not the way to check this.** It took minutes against a folder that size and had to be killed. `Get-PSDrive D | Select-Object Free` answers instantly, and free space is the number that matters.
 - **`LNK1140: limit exceeded for program database`.** The PDB outgrew its format limit. No code change causes or fixes it. Don't set `CARGO_PROFILE_DEV_DEBUG=0` on the command line. That changes every fingerprint, rebuilds the whole workspace, and fills D: quickly. If it recurs, set the debug level in `Cargo.toml` so the fingerprint is stable.
 - **Paging file exhaustion.** `cargo test --workspace` can fail with "the paging file is too small" (os error 1455), then "found invalid metadata files for crate …" on every later run. The parallel build exhausts the commit limit, not RAM. Delete `target/debug` and use `-j 4`. A rustc killed mid-write leaves corrupt `.rmeta`/`.rlib` files.
 - **Two cargo invocations on one target folder** serialise on the build lock.
@@ -78,6 +80,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Clipboard files (CF_HDROP).** A Windows file list is a 20-byte `DROPFILES` header followed by UTF-16 paths, each NUL-terminated, with an extra NUL ending the list. It carries paths, not bytes. "Copy a remote file" must download to `HyperStackData/tmp/` first (cleared at start). See `hs_core::clipboard_files`.
 - **Global shortcuts.** Ctrl+Shift+L is `vault.lock`. The editor uses Alt+F3 for select-all-occurrences. Pick a different combo when there's a collision.
 - **Release build fails with "Access is denied".** A running `HyperStack.exe` keeps its own file locked. Run `Stop-Process -Name HyperStack -Force` before `cargo build --release`. During development, always use `--data-dir ./tmp-data` so the real `HyperStackData/` is never touched.
+- **Two GnuPG installations share one `~/.gnupg` here.** `gpg` on the Git Bash PATH is MSYS GnuPG 2.4.5 and cannot read the keyboxd `pubring.db` that `common.conf`'s `use-keyboxd` selects: it reports `skipped "<key>": No secret key` and lists no keys at all, which looks like a lost key and is not. Only `C:\Program Files\GnuPG\bin\gpg.exe` (2.5.16) sees them, and it is what `gpg.program` points git at. Probe signing with that full path, never the bare `gpg`. The harmless-looking `sending fd … to keyboxd: Input/output error` it prints is not the failure; read the `[GNUPG:]` status lines for `SIG_CREATED` or `Timeout`.
 
 ## Build and Dependency Gotchas (Rust)
 
@@ -185,6 +188,20 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **A detail pane drawn from a draft closes by clearing the draft, not
+  the selection.** Settings panes draw their detail form while
+  `state.<thing>_draft` is `Some` and highlight the list row from
+  `state.<thing>_selected`. A Close button that clears only the
+  selection leaves the form on screen and reads as a dead button; Save
+  looked right because it cleared both. The draft is also mutably
+  borrowed across the section closure, so the clear cannot be done
+  inline - set a local `close` flag and act on it after the closure, as
+  the credential and repository forms do (BUG-0037).
+- **A bar with no `Frame` sits flush against the pane edge.** The
+  editor's find bar wraps itself in
+  `Frame::new().fill(theme.gutter_bg).inner_margin(Margin::symmetric(8, 6))`;
+  the go-to-line bar beside it had none, so its label touched the left
+  border. Bars that appear in the same place want the same frame.
 
 ## Tool-Specific: Terminal and Editor
 
@@ -336,6 +353,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **TeamCity's first start stops at a setup wizard** (data directory, database, licence agreement) before its REST API answers, so it cannot be scripted into a bench container quickly.
 - **reqwest 0.13 puts `RequestBuilder::form` behind the `form` feature.** Enable it on the crate that posts forms, not workspace-wide.
 - **Windows port 8080 may already be taken** (another Java process here). The bench Jenkins runs on 8091.
+- **A capability the server lacks still owes the user an answer.** Double-clicking a run switched to the Log tab only `if caps.log`, so on Forgejo - which has no run-log API - the gesture did nothing at all and looked broken. A kind without the capability opens the run's own page in the browser instead, and the runs hint says why there is no Log tab. Every `caps` branch wants that second arm (BUG-0037).
 
 ## Tool-Specific: Queue (tool-queue)
 
@@ -356,6 +374,11 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **gitlab.com serves a public issue anonymously but not its notes** (401). Open the issue and say why the comments are missing rather than failing it.
 - **GitHub's issue search needs `is:issue`** (or `is:pr`) and is limited to the first 1000 results.
 - **A method named like a trait method shadows nothing.** An inherent `fn item(&self, &Value)` beside the trait's `async fn item(&mut self, &str)` resolved to the trait in `.map(|i| self.item(i))` and failed with a confusing future-type error; give the helper another name (`row`).
+
+## Tool-Specific: Git activity (tool-git + hs-git)
+
+- **"Unset the key so it inherits" does not hold for `remote.origin.url`.** Every other key the project form writes (`user.name`, `user.email`, `user.signingkey`, `commit.gpgsign`, `init.defaultBranch`) has a global value behind it, so clearing the box and unsetting the key hands the repository back to git's own setting. A remote URL has nothing behind it: `git config --local --unset remote.origin.url` leaves the rest of the `[remote "origin"]` section in place, and `git fetch --all --prune` then reads "origin" as a URL and dies with `fatal: 'origin' does not appear to be a git repository` plus `Could not read from remote repository`. A freshly cloned repository broke this way the first time its settings were saved with the URL box empty. An empty URL field must leave the remote alone; removing a remote belongs to the Remotes tree, which runs `git remote remove` and drops the whole section (BUG-0037).
+- **That error names a remote, so it reads like a credential or network fault.** It is neither — check `git config --local --get-regexp '^remote\.'` for a remote with a `fetch` refspec and no `url` before looking at access rights.
 
 ## Headless and GUI Testing
 

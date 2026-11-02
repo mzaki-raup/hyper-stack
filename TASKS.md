@@ -151,9 +151,9 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.5
-Features : FEAT-0092
-Bugs : BUG-0037
-Change Request : CR-0025
+Features : FEAT-0098
+Bugs : BUG-0038
+Change Request : CR-0039
 ```
 
 ---
@@ -165,19 +165,54 @@ Change Request : CR-0025
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
 
 ### BUG-0037 · Miscellaneous Bug
-- **State:** Pending ·
+- **State:** In-Progress ·
 - **Scope:** All related Activities.
 - [ ] In Editor Activity -> Work Pane -> When Enable Debug Panel, Dont't auto resize the Panel when user move the mouse. User can resize the panel and it will persist for that project work pane.
 - [ ] In Editor Activity -> Work Pane -> When User Click "Go To Line"; Why the Label "Go To Line" didn't have left padding/margin?
-- [ ] In Git Activity -> Work Pane; When click "Fetch", there is error "git fetch: fatal: 'origin' does not appear to be a git repository fatal: Could not read from remote repository. Please make sure you have the correct access rights and the repository exists.". This repository is clone from the Settings -> Git -> Add Repository with selected Credential. Why its error?
+- [x] In Git Activity -> Work Pane; When click "Fetch", there is error "git fetch: fatal: 'origin' does not appear to be a git repository fatal: Could not read from remote repository. Please make sure you have the correct access rights and the repository exists.". This repository is clone from the Settings -> Git -> Add Repository with selected Credential. Why its error?
 - [ ] In Automation Activity -> Forgejo Action -> Work Pane -> Runs Pane; When double click a run, its not open any logs. And there is no logs tab to click.
 - [ ] In Logs Activity -> Work Pane -> Logs Pane; When Click Open In Editor button, it will open Editor Activity, but nothing display in the file.
 - [ ] In Settings -> Editor -> Project List -> Project Detail Setting Form; When click button "Close", it didn't close the project detail settings. Check other settings close button too.
 
-- [ ] Test: <what it asserts>
+- [x] Test: `an_empty_url_field_leaves_the_remote_fetchable` asserts an empty URL field leaves `remote.origin.url` and the listed remote intact; confirmed failing without the fix. The existing `a_projects_own_config_is_written_to_and_read_from_the_repository` had asserted the opposite - the behaviour that caused this bug - so its expectation was narrowed to exempt that one key, with the reason in the test. Nothing was skipped or deleted (owner agreed, 2026-11-02).
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — All visual of resolved issues.
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** four of the six are fixed in code (go-to-line padding, the Fetch
+  failure, the Forgejo double-click, the Settings Close button) and committed;
+  only the Fetch box is ticked, because a test proves it. The padding, the
+  double-click and the Close button are implemented and pass `fmt` and
+  `clippy -D warnings`, but they are visual or interactive and stay unticked
+  until they are seen in the running app.
+  The debug-panel resize and the Logs "Open In Editor" boxes are **not done**:
+  both need reproducing in the app. The panel is set up identically to the
+  problems panel beside it, which was not reported, and the Logs path does
+  toast `editor-open-failed` for an unreadable file and does open a fresh tab
+  for a path outside the project, so neither cause is visible in the source.
+  **Gate** cannot be ticked on this machine: `test --workspace` is red through
+  BUG-0039, which is outside the workspace (concurrent loopback connections
+  are reset here). `fmt`, `clippy -D warnings` and the other 626 tests pass.
+  The Forgejo box was answered by opening the run on the server rather than a
+  Log tab, on the owner's decision (2026-11-02): Forgejo 11's API serves no
+  run log, as `docs/tools/automation.md` records.
+
+### BUG-0039 · This machine resets concurrent loopback connections, which fails every mock-server test
+- **State:** Blocked · **Spec:** docs/tools/automation.md
+- **Scope:** The machine, not the workspace. Surfaces in `crates/tools/tool-automation/tests/mock.rs` and in any test that talks to a server on `127.0.0.1`.
+- [x] Symptom: all five tests in `tests/mock.rs` fail with `error sending request for url (http://127.0.0.1:<port>/...)`. The error chain ends in `Os { code: 10054, kind: ConnectionReset }` - WSAECONNRESET, "An existing connection was forcibly closed by the remote host".
+- [x] Not the v0.7.6 work: the same five fail on a clean tree at `d9d2aad` with this branch's changes stashed.
+- [x] Not disk: they fail the same way with 523 GB free (see the disk entry in `docs/GOTCHAS.md`).
+- [x] Not a proxy and not a timeout: `ProxyEnable` is 0, no `*_proxy` variables are set, the client's timeout is 5 s and the suite fails in 0.03-0.11 s.
+- [x] Concurrency is the trigger: with `--test-threads=1`, four of the five pass. In parallel, between three and five fail, and which ones varies per run.
+- [x] **Not HyperStack's code.** A pure-Python reproduction using nothing but `socket` and `threading` - four ephemeral loopback servers, one GET each, no tokio, no reqwest, no project code - fails at the same rate with the same `WinError 10054`. Scripts: `loopback_probe.py` (plain close) and `loopback_probe2.py` (FIN then drain before close).
+- [x] Not an abortive close: the polite-close variant that shuts down the write half and drains to EOF before closing still resets on two runs out of three, so adding `TcpStream::shutdown` to the harness does not fix it. That speculative change was reverted rather than left in.
+- [x] Not a third-party Winsock LSP: `netsh winsock show catalog` lists only Microsoft base providers. Windows Defender is the only AV registered and its real-time protection is on; the firewall is enabled on all three profiles, which does not normally filter loopback.
+- [ ] Find what resets the connections - the remaining suspects are a WFP callout driver (Defender's network inspection), the Hyper-V or WSL virtual switch, or a container networking stack. **This needs the owner: it is a machine-level change, not a code change.**
+- [ ] Test: `cargo test -p tool-automation --test mock` passes repeatedly in parallel, and the Python probes pass four of four on several consecutive runs.
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: no app surface — nothing in the product is wrong.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** found on 2026-11-02 running the gate for BUG-0037, and diagnosed to outside the workspace. While it stands, `cargo test --workspace` cannot go green on this machine for any item in this batch, and `--test-threads=1` is a partial workaround only (four of five). `docs/tools/automation.md` records these tests as checked on 2026-10-31, so the machine changed since. The five affected are `teamcity_lists_triggers_and_cancels_through_the_build_queue`, `github_dispatches_with_inputs_and_cancels_a_run`, `gitlab_creates_a_pipeline_with_variables_and_cancels_it`, `awx_launches_a_template_with_its_survey_and_cancels_the_job` and `a_read_only_session_refuses_a_run_before_the_server_sees_it`.
 
 ### FEAT-0084 · Material Icon inside Activity Work Pane
 - **State:** Pending · 

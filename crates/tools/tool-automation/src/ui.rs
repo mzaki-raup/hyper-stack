@@ -1078,14 +1078,15 @@ impl AutomationTool {
         ui.strong(&job.name);
         ui.add_space(4.0);
         match self.state.detail {
-            Detail::Runs => self.runs_pane(ui, theme, s, &job),
+            Detail::Runs => self.runs_pane(ui, theme, cx, &job),
             Detail::Log => self.log_pane(ui, theme, s, &job),
             Detail::Run => self.run_pane(ui, theme, cx, &job),
             Detail::Queue => self.queue_pane(ui, theme, s),
         }
     }
 
-    fn runs_pane(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services, job: &Job) {
+    fn runs_pane(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext, job: &Job) {
+        let s = cx.services;
         let got = self.shared.lock().runs.clone();
         let Some(got) = got.filter(|g| g.job == job.id) else {
             ui.spinner();
@@ -1145,9 +1146,17 @@ impl AutomationTool {
             && let Some(run) = runs.get(i)
         {
             self.state.run = Some(run.id.clone());
-            if r.double_clicked.is_some() && self.shared.lock().caps.log {
-                self.state.detail = Detail::Log;
-                self.load_detail();
+            if r.double_clicked.is_some() {
+                if self.shared.lock().caps.log {
+                    self.state.detail = Detail::Log;
+                    self.load_detail();
+                } else {
+                    // A kind with no log API (Forgejo 11 has neither a
+                    // run log nor a cancel) used to answer a double-click
+                    // with nothing at all (BUG-0037). The run's own page
+                    // shows the log, so send the gesture there.
+                    self.open_browser(cx);
+                }
             }
         }
         if let Some(run) = self
@@ -1162,7 +1171,12 @@ impl AutomationTool {
                 ui.colored_label(colour, glyph);
                 ui.label(format!("{} · {}", run.number, s.t(run.state.key())));
             });
-            form::hint(ui, theme, &s.t("automation-runs-hint"));
+            let hint = if self.shared.lock().caps.log {
+                "automation-runs-hint"
+            } else {
+                "automation-runs-hint-web"
+            };
+            form::hint(ui, theme, &s.t(hint));
         }
     }
 

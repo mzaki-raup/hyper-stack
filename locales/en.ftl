@@ -4191,6 +4191,7 @@ automation-tab-run = Run
 automation-tab-queue = Queue
 automation-no-runs = No runs yet.
 automation-runs-hint = Double-click a run to read its log.
+automation-runs-hint-web = This server does not serve run logs through its API. Double-click a run to open it on the server.
 automation-pick-run = Choose a run in Runs to read its log.
 automation-following = Following
 automation-log-cut = The beginning of this log was dropped to keep it inside the limit in Settings → Automation.

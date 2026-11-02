@@ -5904,6 +5904,7 @@ fn project_detail(
     };
     let mut save = false;
     let mut remove = false;
+    let mut close = false;
     form::section(ui, theme, &draft.entry.label(), |ui| {
         form::field_grid(ui, "project-detail", |ui| {
             form::label(ui, &s.t("settings-project-name"));
@@ -6109,7 +6110,7 @@ fn project_detail(
                 save = true;
             }
             if ui.button(s.t("close")).clicked() {
-                state.project_selected = None;
+                close = true;
             }
             // A plain right-aligned scope: `toolbar::hard_right` is for a
             // tool's toolbar, where the shell reserves it a corner.
@@ -6121,6 +6122,13 @@ fn project_detail(
         });
     });
 
+    // The detail is drawn while the draft is `Some`, so clearing only the
+    // selection left the form on screen and Close read as a dead button
+    // (BUG-0037). Save clears both; so does Close.
+    if close {
+        state.project_draft = None;
+        state.project_selected = None;
+    }
     if save && let Some(draft) = state.project_draft.clone() {
         let mut entry = draft.entry.clone();
         // A project with no folder is not a project: saving one would

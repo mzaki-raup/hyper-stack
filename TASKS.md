@@ -153,8 +153,23 @@ Refs: BUG-0003
 Version : v0.7.5
 Features : FEAT-0098
 Bugs : BUG-0039
-Change Request : CR-0039
+Change Request : CR-0040
 ```
+
+---
+
+## v0.7.7 — Planned
+
+### CR-0026 · Editor Workspace UI/UX Changes
+- **State:** Pending ·
+- **Scope:** Editor Activity.
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. 
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar.
+- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). 
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Open one of the project in editor, and open one of the file from the project.
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
 
@@ -165,35 +180,41 @@ Change Request : CR-0039
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
 
 ### BUG-0037 · Miscellaneous Bug
-- **State:** In-Progress ·
+- **State:** Completed ·
 - **Scope:** All related Activities.
 - [x] In Editor Activity -> Work Pane -> When Enable Debug Panel, Dont't auto resize the Panel when user move the mouse. User can resize the panel and it will persist for that project work pane.
   - Cause, found by instrumenting the panel and logging its stored height per frame: `egui::Panel` stores the rect its **content** produced, not the size it was given (`show_inside_dyn` shadows `shifted_outer_rect` with `inner_response.response.rect` before storing it, egui 0.35 `panel.rs`), so content that under-fills ratchets the panel smaller every frame. The measured sequence with no interaction at all was 197, 194, 191 ... 122, 121, then steady - about 3 px per repaint down to the content's own minimum. A repaint happens on every mouse move, which is exactly how the owner saw it, and it ate any dragged size within a second.
   - Fix: `ui.set_min_height(ui.available_height())` as the first call in `Debugger::panel_ui`, so the content rect equals the panel rect. Nine lines, all comment but one. This is why the shell's sidebar and dock never showed it - their content already fills.
   - A first attempt was reverted, not left in: feeding `default_size` from a stored height and reading it back with `PanelState::load`, as `app.rs` does. It cannot work, because `outer_size()` prefers the persisted `PanelState` over the default - the default was never consulted.
   - Verified in the app: the panel holds its height across 28 cursor moves (tab row 535 throughout, where it previously moved every repaint), a drag resizes it and sticks, and the size survives closing and reopening the panel. The grab row is one pixel below the drawn separator line.
-- [ ] In Editor Activity -> Work Pane -> When User Click "Go To Line"; Why the Label "Go To Line" didn't have left padding/margin?
+- [x] In Editor Activity -> Work Pane -> When User Click "Go To Line"; Why the Label "Go To Line" didn't have left padding/margin?
+  - The bar had no `Frame` at all while the find bar above it wraps in one; it now uses the same frame. Confirmed on screen: the two bars' left insets line up exactly.
 - [x] In Git Activity -> Work Pane; When click "Fetch", there is error "git fetch: fatal: 'origin' does not appear to be a git repository fatal: Could not read from remote repository. Please make sure you have the correct access rights and the repository exists.". This repository is clone from the Settings -> Git -> Add Repository with selected Credential. Why its error?
-- [ ] In Automation Activity -> Forgejo Action -> Work Pane -> Runs Pane; When double click a run, its not open any logs. And there is no logs tab to click.
-- [ ] In Logs Activity -> Work Pane -> Logs Pane; When Click Open In Editor button, it will open Editor Activity, but nothing display in the file.
-- [ ] In Settings -> Editor -> Project List -> Project Detail Setting Form; When click button "Close", it didn't close the project detail settings. Check other settings close button too.
-
-- [x] Test: `an_empty_url_field_leaves_the_remote_fetchable` asserts an empty URL field leaves `remote.origin.url` and the listed remote intact; confirmed failing without the fix. The existing `a_projects_own_config_is_written_to_and_read_from_the_repository` had asserted the opposite - the behaviour that caused this bug - so its expectation was narrowed to exempt that one key, with the reason in the test. Nothing was skipped or deleted (owner agreed, 2026-11-02).
+- [x] In Automation Activity -> Forgejo Action -> Work Pane -> Runs Pane; When double click a run, its not open any logs. And there is no logs tab to click.
+  - Implemented on the owner's decision (2026-11-02): Forgejo 11 serves no run log through its API, as `docs/tools/automation.md` records, so a double-click on a kind without `caps.log` now opens that run on the server through the existing `open_browser`, and the runs hint says why there is no Log tab.
+  - Verified against the owner's bench `hs-forgejo` container (Forgejo 11.0.16, `dev/demo`, four runs). The profile was seeded anonymously - `actions/tasks` answers without a credential, and `none` is an allowed auth kind - so no token was needed. Double-clicking run #4 opened `http://127.0.0.1:3000/dev/demo/actions/runs/4` in the Browser activity, showing the job's expandable step logs, and the hint reads "This server does not serve run logs through its API. Double-click a run to open it on the server." The pane's tabs are Runs / Run / Queue with no Log tab, as the spec says.
+- [x] In Logs Activity -> Work Pane -> Logs Pane; When Click Open In Editor button, it will open Editor Activity, but nothing display in the file.
+  - Cause: `PATH_LINE` captures the path as the program wrote it, which is almost always relative (`crates/hs-core/src/lib.rs`), and that went to `OpenRequest::File` unresolved. The editor resolves a relative path against the **process's working directory**, so outside a shell started in the right folder it matched nothing: no editor tab claimed it, the shell opened a new one, and that tab failed to read the file - a blank Untitled editor with a toast as the only clue, which is exactly "nothing display in the file".
+  - Fix: resolve in Logs before opening - as written, then beside the log file, then under each saved project root - and warn naming the path when nothing matches, as the terminal's `LinkTarget::Path` branch already does. Test: `a_records_path_resolves_beside_the_log_or_under_a_project`.
+  - Verified in the app with it deliberately started from a different working directory so that could not mask the bug: the record's relative path opens `lib.rs` at line 12, and a record naming a file that does not exist warns "Could not find nowhere/not-a-real-file.rs beside the log or in any saved project." and opens no editor tab. Started from the repository root it had appeared to work, because the relative path resolved by accident - that trap is now in GOTCHAS.
+- [x] In Settings -> Editor -> Project List -> Project Detail Setting Form; When click button "Close", it didn't close the project detail settings. Check other settings close button too.
+  - The detail is drawn while `project_draft` is `Some` and Close cleared only `project_selected`. It needed a deferred flag, since the draft is mutably borrowed across the section closure. Confirmed on screen. The other five Settings close buttons (credential, repository, variable editor, the two secret dialogs) were checked and already clear their own draft.
+- [x] Test: two reproducing tests. `an_empty_url_field_leaves_the_remote_fetchable` asserts an empty URL field leaves `remote.origin.url` and the listed remote intact; confirmed failing without the fix. The existing `a_projects_own_config_is_written_to_and_read_from_the_repository` had asserted the opposite - the behaviour that caused this bug - so its expectation was narrowed to exempt that one key, with the reason in the test. Nothing was skipped or deleted (owner agreed, 2026-11-02). `a_records_path_resolves_beside_the_log_or_under_a_project` covers the Logs path resolution, including the two cases that must not open an editor at all. The debug-panel and Close-button boxes have no unit test: both are layout and panel-state behaviour that only the running app shows, and `egui_kittest`'s synthetic input does not reproduce a panel resize drag.
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — all four green on 2026-11-02 once BUG-0039 was cleared: fmt and clippy exit 0 with no warnings, 1241 tests passed / 0 failed / 0 ignored across 79 suites, and `--self-test` passed its 11 checks on the release exe built from 5b2a50c.
-- [ ] App: `--data-dir ./tmp-data` — All visual of resolved issues. Four of the five fixed boxes are confirmed on screen (2026-11-02, release build, scratch data folder): the go-to-line padding and its match with the find bar above it, the project detail form closing on Close, and the debug panel holding its height across 28 cursor moves, a drag and a close/reopen. The Forgejo double-click is **not** confirmed on screen - it needs an Automation connection to a Forgejo server, which is not set up here.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** four of the six are fixed in code (go-to-line padding, the Fetch
-  failure, the Forgejo double-click, the Settings Close button) and committed;
-  only the Fetch box is ticked, because a test proves it. The padding, the
-  double-click and the Close button are implemented and pass `fmt` and
-  `clippy -D warnings`, but they are visual or interactive and stay unticked
-  until they are seen in the running app.
+- [x] App: `--data-dir ./tmp-data` — All visual of resolved issues. All six confirmed on screen (2026-11-02, release build, scratch data folder): the go-to-line padding and its match with the find bar above it; the project detail form closing on Close; the debug panel holding its height across 28 cursor moves, a drag and a close/reopen; the Fetch failure via its test and the repaired `remote.origin.url` semantics; Open in Editor resolving a record's relative path from a working directory that could not mask it, and warning instead of opening a blank tab; and the Forgejo double-click opening the run on the server, against the bench container.
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS — `docs/tools/editor.md` (the remote-URL exception), `docs/tools/automation.md` (the Forgejo double-click), CHANGELOG under Unreleased, and six GOTCHAS entries. README needs nothing: no feature, requirement, build command or restriction changed. CHECKLIST needs nothing either — it mirrors the roadmap phases and carries no rows for `BUG-` items.
+- **Notes:** all six reports are fixed and verified; every box is ticked.
+  Two of the six turned out not to be HyperStack's own defects: the debug
+  panel was `egui::Panel` storing its content's rect as the panel size, and
+  the Forgejo box was a documented API limitation answered by opening the run
+  on the server (the owner's decision). Two needed conditions this machine
+  masked: the Logs box only appears when the app's working directory does not
+  happen to contain the log's relative path, and the gate only went green once
+  AdGuard's filters were out of the way (BUG-0039).
   The debug-panel box is **fixed and verified in the app** - see the note under
   it; the cause was in `egui::Panel`, not in our panel setup. The Logs
-  "Open In Editor" box is still not reproduced; the
-  path does toast `editor-open-failed` for an unreadable file and does open a
-  fresh tab for a path outside the project, so the cause is not visible in the
-  source and it needs a log source with a record that carries a path.
+  "Open In Editor" box is **fixed and verified** - see the note under it; it
+  needed the app started from a different working directory to show at all.
   **Gate** cannot be ticked on this machine: `test --workspace` is red through
   BUG-0039, which is outside the workspace (concurrent loopback connections
   are reset here). `fmt`, `clippy -D warnings` and the other 626 tests pass.

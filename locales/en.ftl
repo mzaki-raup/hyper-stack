@@ -3727,6 +3727,7 @@ logs-copy = Copy
 logs-copy-json = Copy as JSON
 logs-bookmark = Bookmark
 logs-open-in-editor = Open in Editor
+logs-open-missing = Could not find { $path } beside the log or in any saved project.
 logs-filter-by = Filter by this value
 logs-exclude = Exclude this value
 logs-pin-column = Show this field as a column

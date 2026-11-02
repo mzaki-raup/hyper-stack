@@ -21,6 +21,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Open the file a log record names, resolving its path beside the log and under the saved projects instead of against the working directory, and say so when the file cannot be found rather than opening an empty editor tab
 - Hold the editor's debug panel at the size it is dragged to, instead of shrinking it a few pixels on every repaint until it reached its minimum
 - Keep a cloned repository fetchable after its project settings are saved: an empty remote URL field no longer unsets `remote.origin.url` and leaves a remote git cannot resolve
 - Close the project detail form in Settings -> Editor when Close is pressed

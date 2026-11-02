@@ -15,8 +15,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Split CR-0025 into themed items so each piece of the UI/UX standard carries its own checklist, and renumbered the Backlog Puppet item to FEAT-0092 after an id clash
 
+### Added
+
+- `scripts/loopback-probe.py`, which tells a machine resetting concurrent loopback connections from a genuine failure in a test that starts its own server
+
 ### Fixed
 
+- Hold the editor's debug panel at the size it is dragged to, instead of shrinking it a few pixels on every repaint until it reached its minimum
 - Keep a cloned repository fetchable after its project settings are saved: an empty remote URL field no longer unsets `remote.origin.url` and leaves a remote git cannot resolve
 - Close the project detail form in Settings -> Editor when Close is pressed
 - Pad the editor's go-to-line bar so its label is not flush against the pane edge

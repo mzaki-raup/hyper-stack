@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.5
 Features : FEAT-0098
-Bugs : BUG-0038
+Bugs : BUG-0039
 Change Request : CR-0039
 ```
 
@@ -167,7 +167,11 @@ Change Request : CR-0039
 ### BUG-0037 · Miscellaneous Bug
 - **State:** In-Progress ·
 - **Scope:** All related Activities.
-- [ ] In Editor Activity -> Work Pane -> When Enable Debug Panel, Dont't auto resize the Panel when user move the mouse. User can resize the panel and it will persist for that project work pane.
+- [x] In Editor Activity -> Work Pane -> When Enable Debug Panel, Dont't auto resize the Panel when user move the mouse. User can resize the panel and it will persist for that project work pane.
+  - Cause, found by instrumenting the panel and logging its stored height per frame: `egui::Panel` stores the rect its **content** produced, not the size it was given (`show_inside_dyn` shadows `shifted_outer_rect` with `inner_response.response.rect` before storing it, egui 0.35 `panel.rs`), so content that under-fills ratchets the panel smaller every frame. The measured sequence with no interaction at all was 197, 194, 191 ... 122, 121, then steady - about 3 px per repaint down to the content's own minimum. A repaint happens on every mouse move, which is exactly how the owner saw it, and it ate any dragged size within a second.
+  - Fix: `ui.set_min_height(ui.available_height())` as the first call in `Debugger::panel_ui`, so the content rect equals the panel rect. Nine lines, all comment but one. This is why the shell's sidebar and dock never showed it - their content already fills.
+  - A first attempt was reverted, not left in: feeding `default_size` from a stored height and reading it back with `PanelState::load`, as `app.rs` does. It cannot work, because `outer_size()` prefers the persisted `PanelState` over the default - the default was never consulted.
+  - Verified in the app: the panel holds its height across 28 cursor moves (tab row 535 throughout, where it previously moved every repaint), a drag resizes it and sticks, and the size survives closing and reopening the panel. The grab row is one pixel below the drawn separator line.
 - [ ] In Editor Activity -> Work Pane -> When User Click "Go To Line"; Why the Label "Go To Line" didn't have left padding/margin?
 - [x] In Git Activity -> Work Pane; When click "Fetch", there is error "git fetch: fatal: 'origin' does not appear to be a git repository fatal: Could not read from remote repository. Please make sure you have the correct access rights and the repository exists.". This repository is clone from the Settings -> Git -> Add Repository with selected Credential. Why its error?
 - [ ] In Automation Activity -> Forgejo Action -> Work Pane -> Runs Pane; When double click a run, its not open any logs. And there is no logs tab to click.
@@ -175,8 +179,8 @@ Change Request : CR-0039
 - [ ] In Settings -> Editor -> Project List -> Project Detail Setting Form; When click button "Close", it didn't close the project detail settings. Check other settings close button too.
 
 - [x] Test: `an_empty_url_field_leaves_the_remote_fetchable` asserts an empty URL field leaves `remote.origin.url` and the listed remote intact; confirmed failing without the fix. The existing `a_projects_own_config_is_written_to_and_read_from_the_repository` had asserted the opposite - the behaviour that caused this bug - so its expectation was narrowed to exempt that one key, with the reason in the test. Nothing was skipped or deleted (owner agreed, 2026-11-02).
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — All visual of resolved issues.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — all four green on 2026-11-02 once BUG-0039 was cleared: fmt and clippy exit 0 with no warnings, 1241 tests passed / 0 failed / 0 ignored across 79 suites, and `--self-test` passed its 11 checks on the release exe built from 5b2a50c.
+- [ ] App: `--data-dir ./tmp-data` — All visual of resolved issues. Four of the five fixed boxes are confirmed on screen (2026-11-02, release build, scratch data folder): the go-to-line padding and its match with the find bar above it, the project detail form closing on Close, and the debug panel holding its height across 28 cursor moves, a drag and a close/reopen. The Forgejo double-click is **not** confirmed on screen - it needs an Automation connection to a Forgejo server, which is not set up here.
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** four of the six are fixed in code (go-to-line padding, the Fetch
   failure, the Forgejo double-click, the Settings Close button) and committed;
@@ -184,11 +188,12 @@ Change Request : CR-0039
   double-click and the Close button are implemented and pass `fmt` and
   `clippy -D warnings`, but they are visual or interactive and stay unticked
   until they are seen in the running app.
-  The debug-panel resize and the Logs "Open In Editor" boxes are **not done**:
-  both need reproducing in the app. The panel is set up identically to the
-  problems panel beside it, which was not reported, and the Logs path does
-  toast `editor-open-failed` for an unreadable file and does open a fresh tab
-  for a path outside the project, so neither cause is visible in the source.
+  The debug-panel box is **fixed and verified in the app** - see the note under
+  it; the cause was in `egui::Panel`, not in our panel setup. The Logs
+  "Open In Editor" box is still not reproduced; the
+  path does toast `editor-open-failed` for an unreadable file and does open a
+  fresh tab for a path outside the project, so the cause is not visible in the
+  source and it needs a log source with a record that carries a path.
   **Gate** cannot be ticked on this machine: `test --workspace` is red through
   BUG-0039, which is outside the workspace (concurrent loopback connections
   are reset here). `fmt`, `clippy -D warnings` and the other 626 tests pass.
@@ -196,23 +201,23 @@ Change Request : CR-0039
   Log tab, on the owner's decision (2026-11-02): Forgejo 11's API serves no
   run log, as `docs/tools/automation.md` records.
 
-### BUG-0039 · This machine resets concurrent loopback connections, which fails every mock-server test
-- **State:** Blocked · **Spec:** docs/tools/automation.md
+### BUG-0039 · AdGuard's network filter resets concurrent loopback connections, failing every mock-server test
+- **State:** Completed · **Spec:** docs/tools/automation.md
 - **Scope:** The machine, not the workspace. Surfaces in `crates/tools/tool-automation/tests/mock.rs` and in any test that talks to a server on `127.0.0.1`.
 - [x] Symptom: all five tests in `tests/mock.rs` fail with `error sending request for url (http://127.0.0.1:<port>/...)`. The error chain ends in `Os { code: 10054, kind: ConnectionReset }` - WSAECONNRESET, "An existing connection was forcibly closed by the remote host".
 - [x] Not the v0.7.6 work: the same five fail on a clean tree at `d9d2aad` with this branch's changes stashed.
 - [x] Not disk: they fail the same way with 523 GB free (see the disk entry in `docs/GOTCHAS.md`).
 - [x] Not a proxy and not a timeout: `ProxyEnable` is 0, no `*_proxy` variables are set, the client's timeout is 5 s and the suite fails in 0.03-0.11 s.
 - [x] Concurrency is the trigger: with `--test-threads=1`, four of the five pass. In parallel, between three and five fail, and which ones varies per run.
-- [x] **Not HyperStack's code.** A pure-Python reproduction using nothing but `socket` and `threading` - four ephemeral loopback servers, one GET each, no tokio, no reqwest, no project code - fails at the same rate with the same `WinError 10054`. Scripts: `loopback_probe.py` (plain close) and `loopback_probe2.py` (FIN then drain before close).
+- [x] **Not HyperStack's code.** A pure-Python reproduction using nothing but `socket` and `threading` - four ephemeral loopback servers, one GET each, no tokio, no reqwest, no project code - fails at the same rate with the same `WinError 10054`. The plain-close probe is kept as `scripts/loopback-probe.py` for the next time this symptom appears; the FIN-then-drain variant was only to rule out an abortive close and was not kept.
 - [x] Not an abortive close: the polite-close variant that shuts down the write half and drains to EOF before closing still resets on two runs out of three, so adding `TcpStream::shutdown` to the harness does not fix it. That speculative change was reverted rather than left in.
 - [x] Not a third-party Winsock LSP: `netsh winsock show catalog` lists only Microsoft base providers. Windows Defender is the only AV registered and its real-time protection is on; the firewall is enabled on all three profiles, which does not normally filter loopback.
-- [ ] Find what resets the connections - the remaining suspects are a WFP callout driver (Defender's network inspection), the Hyper-V or WSL virtual switch, or a container networking stack. **This needs the owner: it is a machine-level change, not a code change.**
-- [ ] Test: `cargo test -p tool-automation --test mock` passes repeatedly in parallel, and the Python probes pass four of four on several consecutive runs.
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: no app surface — nothing in the product is wrong.
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** found on 2026-11-02 running the gate for BUG-0037, and diagnosed to outside the workspace. While it stands, `cargo test --workspace` cannot go green on this machine for any item in this batch, and `--test-threads=1` is a partial workaround only (four of five). `docs/tools/automation.md` records these tests as checked on 2026-10-31, so the machine changed since. The five affected are `teamcity_lists_triggers_and_cancels_through_the_build_queue`, `github_dispatches_with_inputs_and_cancels_a_run`, `gitlab_creates_a_pipeline_with_variables_and_cancels_it`, `awx_launches_a_template_with_its_survey_and_cancels_the_job` and `a_read_only_session_refuses_a_run_before_the_server_sees_it`.
+- [x] Cause: **AdGuard.** Its WFP callout and socket filter drivers (`adgnetworkwfpdrv`, `adgnetworksockdrv`) reset concurrent loopback flows. Disabling protection in AdGuard's own interface is **not enough** - the drivers stay attached and the resets continue. Stopping `Adguard Service` clears it, even though both drivers still show as Running afterwards: without the service they no longer act.
+- [x] Test: with the service stopped, the Python probes passed 4 of 4 on three consecutive runs (12 of 12), and `cargo test -p tool-automation --test mock` passed 5 of 5 on three consecutive runs. Both had been failing minutes earlier on the same tree.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: no app surface — nothing in the product is wrong, and no code changed.
+- [x] Docs: GOTCHAS entry written; no spec, README, CHANGELOG or CHECKLIST change, since nothing shipped.
+- **Notes:** found on 2026-11-02 running the gate for BUG-0037, diagnosed to outside the workspace and cleared the same day by stopping `Adguard Service` (owner). **It was already recorded**: `docs/GOTCHAS.md` had "AdGuard breaks loopback connections to Windows-side servers" from 2026-10-31, filed under "Headless and GUI Testing" where a network fault is not looked for, and its advice to "pause AdGuard's filtering" is not enough - pausing leaves the WFP and socket drivers attached and the resets continue. The two entries are now one, under "Windows Environment and Build", and this item is what the re-diagnosis added: that the service must be stopped, and `scripts/loopback-probe.py` to tell this apart from a real bug in seconds. No code changed: the only edits are this item and the `docs/GOTCHAS.md` entry, so the next session recognises the symptom in minutes instead of suspecting the drivers or the tests. Nothing in the product was wrong. Note that AdGuard will filter again after a restart unless its service is left stopped. `docs/tools/automation.md` records these tests as checked on 2026-10-31, so the machine changed since. The five affected are `teamcity_lists_triggers_and_cancels_through_the_build_queue`, `github_dispatches_with_inputs_and_cancels_a_run`, `gitlab_creates_a_pipeline_with_variables_and_cancels_it`, `awx_launches_a_template_with_its_survey_and_cancels_the_job` and `a_read_only_session_refuses_a_run_before_the_server_sees_it`.
 
 ### FEAT-0084 · Material Icon inside Activity Work Pane
 - **State:** Pending · 

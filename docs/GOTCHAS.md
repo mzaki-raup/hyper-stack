@@ -64,7 +64,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 ## Windows Environment and Build
 
 - **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions. On 2026-11-02 it did it again at a far larger size: D: was down to **16 MB** free and deleting that one folder returned **523 GB**. Check free space *first* when a build misbehaves - a full disk does not announce itself, it shows up as `LNK1140: limit exceeded for program database` (the linker cannot write the PDB) and as mock-server tests failing with `error sending request for url (http://127.0.0.1:…)`, neither of which looks like "disk full".
-- **Concurrent loopback connections get reset here (2026-11-02).** Tests that start a server on `127.0.0.1` and connect to it fail with `os error 10054` (WSAECONNRESET, "forcibly closed by the remote host") when several run at once: `tool-automation`'s five `tests/mock.rs` tests failed three-to-five at a time, varying per run, while `--test-threads=1` passed four of five. **It is not the project's code.** Four ephemeral loopback servers written in plain Python with `socket` and `threading` - no tokio, no reqwest, nothing of ours - fail at the same rate with the same error. Closing the server socket politely (FIN the write half, drain to EOF) does not fix it either, so a `TcpStream::shutdown` in the harness is not the answer. The Winsock catalog has no third-party LSP and Defender is the only AV, so the suspects are a WFP callout, the Hyper-V/WSL switch or a container network stack. Before blaming a driver or a test for "cannot reach its own mock server", reproduce it with the Python probes; if they fail, the machine is the problem and `cargo test --workspace` cannot be green (BUG-0039).
+- **AdGuard resets loopback connections, and "cannot reach its own mock server" is the symptom (found 2026-10-31, diagnosed 2026-11-02).** This cost an afternoon twice, because the first note lived under "Headless and GUI Testing" where nobody looks for a network fault, and because "pause AdGuard" reads as sufficient and is not. Tests that start a server on `127.0.0.1` fail with `os error 10054` (WSAECONNRESET, "forcibly closed by the remote host") when several run at once: `tool-automation`'s five `tests/mock.rs` tests failed three-to-five at a time, varying per run, while `--test-threads=1` passed four of five. It is **not** the project's code - four ephemeral loopback servers in plain Python (`socket` + `threading`, no tokio, no reqwest) fail at the same rate - and it is **not** an abortive close, so adding `TcpStream::shutdown` to a harness does not help. The cause is AdGuard's `adgnetworkwfpdrv` / `adgnetworksockdrv` filters. **Disabling protection in AdGuard's own interface does not fix it**: the drivers stay attached. `Stop-Service 'Adguard Service' -Force` does, even though both drivers still report Running afterwards. Diagnose with `python -I scripts/loopback-probe.py` before suspecting a driver or a test: four `ok` lines mean loopback is fine and the fault is in the code, any `10054` means it is not (BUG-0039).
 - **`du -sh target/debug` is not the way to check this.** It took minutes against a folder that size and had to be killed. `Get-PSDrive D | Select-Object Free` answers instantly, and free space is the number that matters.
 - **`LNK1140: limit exceeded for program database`.** The PDB outgrew its format limit. No code change causes or fixes it. Don't set `CARGO_PROFILE_DEV_DEBUG=0` on the command line. That changes every fingerprint, rebuilds the whole workspace, and fills D: quickly. If it recurs, set the debug level in `Cargo.toml` so the fingerprint is stable.
 - **Paging file exhaustion.** `cargo test --workspace` can fail with "the paging file is too small" (os error 1455), then "found invalid metadata files for crate …" on every later run. The parallel build exhausts the commit limit, not RAM. Delete `target/debug` and use `-j 4`. A rustc killed mid-write leaves corrupt `.rmeta`/`.rlib` files.
@@ -188,6 +188,27 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **An `egui::Panel` remembers the size its *content* produced, not the
+  size it was given, so content that under-fills ratchets the panel
+  smaller every frame.** In `egui` 0.35's `panel.rs`, `show_inside_dyn`
+  computes `shifted_outer_rect` from the panel's own rect and then
+  shadows it with `inner_response.response.rect` before storing it as
+  `PanelState`. The stored size therefore follows the content. The
+  editor's debug panel lost about 3 px per repaint and settled at its
+  content's minimum of ~121 px; because a repaint happens on every mouse
+  move, it read as the panel resizing itself whenever the pointer moved,
+  and any size the user dragged was eaten within a second. The fix is on
+  our side: `ui.set_min_height(ui.available_height())` as the content's
+  first call, so the content rect equals the panel rect and there is
+  nothing to ratchet. This is why the shell's sidebar and dock never
+  showed it - their content fills the space already. Feeding
+  `default_size` from stored state does **not** help, because
+  `outer_size()` prefers the persisted `PanelState` over the default
+  (BUG-0037).
+- **The resize handle is a row below the line you can see.** Measuring
+  the separator in a screenshot and dragging from that row selects the
+  text underneath instead; the grab area centre was one pixel lower
+  (`631` drawn, `632` grabbable). Drag a row or two into the panel.
 - **A detail pane drawn from a draft closes by clearing the draft, not
   the selection.** Settings panes draw their detail form while
   `state.<thing>_draft` is `Some` and highlight the list row from
@@ -383,7 +404,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 ## Headless and GUI Testing
 
 - **`gui-smoke.ps1 wheel` could not scroll down.** `mouse_event` takes the delta as a `uint`, so `-480` was refused, and masking with `0xFFFFFFFF` did nothing because PowerShell reads that literal as the Int32 `-1`; the mask is `0xFFFFFFFFL`. Fixed 2026-10-31.
-- **AdGuard breaks loopback connections to Windows-side servers.** With its filtering on, every mock-server test (and plain `curl` to a local Python server) timed out or was reset at random, while container ports forwarded from WSL kept answering - which made it look like the bench containers' fault. Pause AdGuard's filtering, or exclude localhost, before running the gate; the CI runner is this machine, so it fails there too. Found 2026-10-31.
+- **AdGuard breaks loopback connections to Windows-side servers.** Found 2026-10-31; the full entry with the 2026-11-02 diagnosis and the fix that actually works now lives under "Windows Environment and Build", since it is a machine/network problem rather than a GUI-testing one. The short version: pause is not enough, stop `Adguard Service`, and the CI runner is this machine so it fails there too.
 - **`keys` can drop or add characters** in a long text typed into a multi-line field (a comment arrived as `gfdChecked the **logs* rotaton`). Read back what the server stored before blaming the app, and keep typed test text short.
 - **Git Bash rewrites absolute paths in arguments to Windows programs**, `wsl` included: `wsl -e docker run … mosquitto -c /mosquitto-no-auth.conf` reached the container as `C:/Program Files/Git/mosquitto-no-auth.conf` and it restarted in a loop. Prefix the command with `MSYS_NO_PATHCONV=1`.
 

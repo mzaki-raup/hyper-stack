@@ -14,9 +14,21 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked -j 4
 ```
 
+```bash
+cargo deny check
+```
+
 Then `--self-test` on the built exe, then the feature exercised in the running
 app with a scratch `--data-dir`. All of it, not just the affected test — check
 the other crates and tools that call the changed code.
+
+`cargo deny check` is in the gate because CI runs it and its result does not
+depend on the branch: advisories come from the RustSec database, so a branch
+that was green yesterday can fail today with no change of its own. Run 485
+failed that way on `RUSTSEC-2026-0433` (`pulldown-cmark` 0.13.5) after a
+clean local gate. The fix is usually `cargo update -p <crate>` for a patch
+bump — but check whether the code actually reaches the vulnerable path and
+say so either way, rather than implying a vulnerability shipped.
 
 ## What to write
 

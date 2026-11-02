@@ -23,7 +23,7 @@ A live `HyperStack.exe` locks its own file and a release build fails with
 Stop-Process -Name HyperStack -Force
 ```
 
-## 2. The three checks, exit codes checked
+## 2. The four checks, exit codes checked
 
 ```bash
 cargo fmt --all --check
@@ -36,6 +36,17 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 ```bash
 cargo test --workspace --locked -j 4
 ```
+
+```bash
+cargo deny check
+```
+
+`cargo deny check` is here because CI runs it and its result does not depend
+on the branch: advisories come from the RustSec database, so a branch that
+passed yesterday can fail today having changed nothing. Run 485 failed that
+way on `RUSTSEC-2026-0433` after a clean local gate. The usual fix is
+`cargo update -p <crate>` for a patch bump; check whether the code actually
+reaches the vulnerable path before describing it.
 
 `-j 4` is not optional on this machine. Don't eyeball output — chain on the
 exit code when the next step depends on it, e.g.

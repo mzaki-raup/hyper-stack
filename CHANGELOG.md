@@ -20,6 +20,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Material icons for the items each work pane lists — files, folders, branches, containers, tables, collections, keys, buckets, queues and the rest — with a per-activity switch in Settings -> Appearance -> Material Icon, on by default for the ten activities that have such lists
 - `scripts/loopback-probe.py`, which tells a machine resetting concurrent loopback connections from a genuine failure in a test that starts its own server
 
+### Security
+
+- Update `pulldown-cmark` to 0.13.6 for RUSTSEC-2026-0433 (quadratic parsing of nested image wikilinks). HyperStack never enabled `ENABLE_WIKILINKS`, so it was not exposed; the bump clears the dependency audit
+
 ### Fixed
 
 - Open the file a log record names, resolving its path beside the log and under the saved projects instead of against the working directory, and say so when the file cannot be found rather than opening an empty editor tab

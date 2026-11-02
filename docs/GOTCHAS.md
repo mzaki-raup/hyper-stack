@@ -84,6 +84,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Build and Dependency Gotchas (Rust)
 
+- **CI runs `cargo deny check`; the local gate does not.** A branch whose `fmt`, `clippy`, tests and `--self-test` all pass locally can still go red on the runner, because `cargo deny`'s advisories come from the RustSec database and that moves on its own: run 485 failed on `RUSTSEC-2026-0433` (`pulldown-cmark` 0.13.5) with no dependency change on the branch at all. The fix is usually one line - `cargo update -p <crate>` for a patch bump - but find out first whether the code is actually exposed and say so, rather than implying a vulnerability was shipped. Run `cargo deny check` before a push if the branch has been open a while; the other CI step the local gate skips is the release build plus `--version` / `--self-test` on the exe.
 - **Edition 2024 reserved keyword.** `gen` fails to parse ("expected identifier, found reserved keyword"), which broke 18 places from one field. Name it `generate`.
 - **`egui::Id::new(x)`** needs `x: Hash + Debug`. A helper taking `id_salt: impl Hash` must add `+ std::fmt::Debug`, or use `Id::new(base).with(salt)`.
 - **Items after a test module.** Appending functions to a file puts them after `#[cfg(test)] mod tests`, which clippy refuses ("items after a test module"). Insert before the test module. `cat >>` is safe only for files without one.

@@ -84,8 +84,9 @@ The four that bite hardest if you skip them:
 
 - **The gate is the definition of done**: `cargo fmt --all --check`, `cargo
   clippy --workspace --all-targets --locked -- -D warnings`, `cargo test
-  --workspace --locked -j 4`, `--self-test` on the built exe, **and** the
-  feature exercised in the running app with `--data-dir` on a scratch folder.
+  --workspace --locked -j 4`, `cargo deny check`, `--self-test` on the built
+  exe, **and** the feature exercised in the running app with `--data-dir` on
+  a scratch folder.
   See [.claude/rules/testing.md](.claude/rules/testing.md) and
   [.claude/rules/build-and-run.md](.claude/rules/build-and-run.md).
 - **The UI thread never blocks**, and secrets never touch plaintext —

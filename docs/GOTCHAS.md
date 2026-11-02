@@ -210,6 +210,22 @@ Known mistakes and their fixes. Read the section for your area before starting w
   the separator in a screenshot and dragging from that row selects the
   text underneath instead; the grab area centre was one pixel lower
   (`631` drawn, `632` grabbable). Drag a row or two into the panel.
+- **A panic on the UI thread looks like a hang, not a crash.** eframe's
+  event loop dies while the window stays on screen, so the app reports
+  `Responding = False` at **near-zero CPU** with no dialog and nothing in
+  the log past startup. Low CPU is the tell: a layout or repaint loop
+  burns a core, a panic burns nothing. `Get-Process HyperStack |
+  Select-Object Responding, CPU` separates the two in one command, and an
+  A/B against an older `target/debug/HyperStack.exe` says at once whether
+  it is yours.
+- **`CollapsingState::body` may only be called on a vertical `Ui`.** It
+  indents, and `Ui::indent` opens with
+  `assert!(self.layout().is_vertical())`. `hs_ui::reorder::Reorder::row`
+  runs its closure inside a `ui.horizontal`, so a collapsing header built
+  by hand in a reorderable list must wrap itself in `ui.vertical` first.
+  `CollapsingHeader::show` never trips this because it makes its own
+  vertical child - which is why swapping one for the other to host a
+  picture froze the Scratchpad (BUG-0040, shipped in v0.115.0).
 - **A detail pane drawn from a draft closes by clearing the draft, not
   the selection.** Settings panes draw their detail form while
   `state.<thing>_draft` is `Some` and highlight the list row from

@@ -764,15 +764,28 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
                 let header_id = ui.make_persistent_id(("scratchpad-folder", f));
                 let open_now = !t.collapsed.contains(f);
                 let r = reorder.row(ui, index, |ui| {
-                    let state = egui::collapsing_header::CollapsingState::load_with_default_open(
-                        ui.ctx(),
-                        header_id,
-                        open_now,
-                    );
-                    let (_, header, _) = state
-                        .show_header(ui, |ui| folder_header_row(ui, t, leaf_of(f)))
-                        .body(|ui| draw_level(ui, t, f, acts));
-                    header.response
+                    // `ui.vertical` is required, not tidiness:
+                    // `CollapsingState::body` indents, and
+                    // `Ui::indent` asserts the layout is vertical.
+                    // `Reorder::row` runs this closure inside a
+                    // `ui.horizontal`, so calling `body` on that `ui`
+                    // panics the UI thread - which reads as a frozen
+                    // window at near-zero CPU rather than a crash
+                    // (BUG-0040). `CollapsingHeader` never tripped it
+                    // because it makes its own vertical child.
+                    ui.vertical(|ui| {
+                        let state =
+                            egui::collapsing_header::CollapsingState::load_with_default_open(
+                                ui.ctx(),
+                                header_id,
+                                open_now,
+                            );
+                        let (_, header, _) = state
+                            .show_header(ui, |ui| folder_header_row(ui, t, leaf_of(f)))
+                            .body(|ui| draw_level(ui, t, f, acts));
+                        header.response
+                    })
+                    .inner
                 });
                 if r.clicked() {
                     // The caret toggles itself; a click on the rest of the
@@ -1974,6 +1987,63 @@ impl Tool for Scratchpad {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder row draws its header and body inside the horizontal layout
+    /// `Reorder::row` provides. `CollapsingState::body` indents and
+    /// `Ui::indent` asserts the layout is vertical, so without the
+    /// `ui.vertical` wrap this panics the UI thread - which in the running
+    /// app looked like a frozen window at near-zero CPU rather than a crash
+    /// (BUG-0040, a regression shipped in v0.115.0).
+    #[test]
+    fn a_folder_level_draws_inside_a_horizontal_parent() {
+        use std::sync::Arc;
+
+        use egui_kittest::Harness;
+        use hs_core::paths::DataDir;
+        use hs_core::runtime::NoopWaker;
+        use hs_core::secrets::KdfParams;
+
+        let tmp = std::env::temp_dir().join(format!("hs-scratch-{}", hs_core::new_id()));
+        let paths = DataDir::resolve(Some(&tmp)).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let s = &boot.services;
+        let theme = Theme::dark();
+        let notes = vec![NoteMeta {
+            id: "n1".into(),
+            title: "a note".into(),
+            modified: SystemTime::UNIX_EPOCH,
+            pinned: false,
+            folder: "Design".into(),
+        }];
+        let folders = vec!["Design".to_string()];
+        let orders = std::collections::HashMap::new();
+        let collapsed = std::collections::HashSet::new();
+
+        for material in [true, false] {
+            let t = Tree {
+                notes: &notes,
+                folders: &folders,
+                orders: &orders,
+                collapsed: &collapsed,
+                selected: None,
+                untitled: "Untitled",
+                theme: &theme,
+                s,
+                material,
+            };
+            let mut harness = Harness::new_ui(|ui| {
+                hs_ui::icons::install_fonts(ui.ctx());
+                // The parent layout `Reorder::row` hands the folder arm.
+                ui.horizontal(|ui| {
+                    let mut acts = Vec::new();
+                    draw_level(ui, &t, "", &mut acts);
+                });
+            });
+            harness.run();
+        }
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     /// FEAT-0076: the folder count comes first, before the notes.
     #[test]

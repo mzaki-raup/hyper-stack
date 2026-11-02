@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- Opening the Scratchpad activity no longer hangs the app. v0.115.0's folder header called a collapsing body inside the horizontal layout its row provides, which panicked the UI thread and left the window frozen at near-zero CPU
 
 ## 0.115.0 — 2026-11-02
 

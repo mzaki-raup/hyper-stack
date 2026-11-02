@@ -21,6 +21,14 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/babel.svg"),
     ),
     (
+        "branch",
+        egui::include_image!("../../../assets/icons/material/branch.svg"),
+    ),
+    (
+        "bucket",
+        egui::include_image!("../../../assets/icons/material/bucket.svg"),
+    ),
+    (
         "c",
         egui::include_image!("../../../assets/icons/material/c.svg"),
     ),
@@ -37,8 +45,20 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/clojure.svg"),
     ),
     (
+        "collection",
+        egui::include_image!("../../../assets/icons/material/collection.svg"),
+    ),
+    (
+        "column",
+        egui::include_image!("../../../assets/icons/material/column.svg"),
+    ),
+    (
         "console",
         egui::include_image!("../../../assets/icons/material/console.svg"),
+    ),
+    (
+        "container",
+        egui::include_image!("../../../assets/icons/material/container.svg"),
     ),
     (
         "cpp",
@@ -95,6 +115,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
     (
         "exe",
         egui::include_image!("../../../assets/icons/material/exe.svg"),
+    ),
+    (
+        "field",
+        egui::include_image!("../../../assets/icons/material/field.svg"),
     ),
     (
         "folder-api",
@@ -261,6 +285,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/fsharp.svg"),
     ),
     (
+        "function",
+        egui::include_image!("../../../assets/icons/material/function.svg"),
+    ),
+    (
         "git",
         egui::include_image!("../../../assets/icons/material/git.svg"),
     ),
@@ -307,6 +335,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
     (
         "hcl",
         egui::include_image!("../../../assets/icons/material/hcl.svg"),
+    ),
+    (
+        "history",
+        egui::include_image!("../../../assets/icons/material/history.svg"),
     ),
     (
         "hpp",
@@ -389,6 +421,14 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/maven.svg"),
     ),
     (
+        "metadata",
+        egui::include_image!("../../../assets/icons/material/metadata.svg"),
+    ),
+    (
+        "network",
+        egui::include_image!("../../../assets/icons/material/network.svg"),
+    ),
+    (
         "nginx",
         egui::include_image!("../../../assets/icons/material/nginx.svg"),
     ),
@@ -397,12 +437,24 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/nim.svg"),
     ),
     (
+        "node",
+        egui::include_image!("../../../assets/icons/material/node.svg"),
+    ),
+    (
         "nodejs",
         egui::include_image!("../../../assets/icons/material/nodejs.svg"),
     ),
     (
+        "note",
+        egui::include_image!("../../../assets/icons/material/note.svg"),
+    ),
+    (
         "npm",
         egui::include_image!("../../../assets/icons/material/npm.svg"),
+    ),
+    (
+        "object",
+        egui::include_image!("../../../assets/icons/material/object.svg"),
     ),
     (
         "ocaml",
@@ -437,6 +489,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/prisma.svg"),
     ),
     (
+        "project",
+        egui::include_image!("../../../assets/icons/material/project.svg"),
+    ),
+    (
         "proto",
         egui::include_image!("../../../assets/icons/material/proto.svg"),
     ),
@@ -447,6 +503,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
     (
         "python",
         egui::include_image!("../../../assets/icons/material/python.svg"),
+    ),
+    (
+        "queue",
+        egui::include_image!("../../../assets/icons/material/queue.svg"),
     ),
     (
         "r",
@@ -461,6 +521,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/readme.svg"),
     ),
     (
+        "remote",
+        egui::include_image!("../../../assets/icons/material/remote.svg"),
+    ),
+    (
         "ruby",
         egui::include_image!("../../../assets/icons/material/ruby.svg"),
     ),
@@ -473,12 +537,32 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/sass.svg"),
     ),
     (
+        "saved-query",
+        egui::include_image!("../../../assets/icons/material/saved-query.svg"),
+    ),
+    (
         "scala",
         egui::include_image!("../../../assets/icons/material/scala.svg"),
     ),
     (
+        "service",
+        egui::include_image!("../../../assets/icons/material/service.svg"),
+    ),
+    (
         "settings",
         egui::include_image!("../../../assets/icons/material/settings.svg"),
+    ),
+    (
+        "source-control",
+        egui::include_image!("../../../assets/icons/material/source-control.svg"),
+    ),
+    (
+        "stack",
+        egui::include_image!("../../../assets/icons/material/stack.svg"),
+    ),
+    (
+        "stash",
+        egui::include_image!("../../../assets/icons/material/stash.svg"),
     ),
     (
         "storybook",
@@ -501,6 +585,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/table.svg"),
     ),
     (
+        "tag",
+        egui::include_image!("../../../assets/icons/material/tag.svg"),
+    ),
+    (
         "tailwindcss",
         egui::include_image!("../../../assets/icons/material/tailwindcss.svg"),
     ),
@@ -519,6 +607,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
     (
         "toml",
         egui::include_image!("../../../assets/icons/material/toml.svg"),
+    ),
+    (
+        "topic",
+        egui::include_image!("../../../assets/icons/material/topic.svg"),
     ),
     (
         "tune",
@@ -541,6 +633,10 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/video.svg"),
     ),
     (
+        "view",
+        egui::include_image!("../../../assets/icons/material/view.svg"),
+    ),
+    (
         "vite",
         egui::include_image!("../../../assets/icons/material/vite.svg"),
     ),
@@ -549,12 +645,20 @@ pub static ICONS: &[(&str, ImageSource<'static>)] = &[
         egui::include_image!("../../../assets/icons/material/vitest.svg"),
     ),
     (
+        "volume",
+        egui::include_image!("../../../assets/icons/material/volume.svg"),
+    ),
+    (
         "vue",
         egui::include_image!("../../../assets/icons/material/vue.svg"),
     ),
     (
         "webpack",
         egui::include_image!("../../../assets/icons/material/webpack.svg"),
+    ),
+    (
+        "workspace",
+        egui::include_image!("../../../assets/icons/material/workspace.svg"),
     ),
     (
         "xml",
@@ -761,6 +865,97 @@ fn document() -> ImageSource<'static> {
     by_name("document").expect("document is bundled")
 }
 
+/// The icon a work pane should draw for one item: the Material picture for
+/// `kind` when this activity has Material icons on and a picture exists,
+/// and `glyph` otherwise (FEAT-0084).
+///
+/// Every activity's list goes through this one call, so "off" means the
+/// same thing everywhere and an unmapped kind degrades to the glyph the
+/// pane used before rather than to nothing. `on` comes from
+/// `settings.appearance.material_icons(<tool id>)`.
+pub fn item_icon(on: bool, kind: &str, glyph: &str) -> crate::tree::TreeIcon {
+    match on.then(|| for_kind(kind)).flatten() {
+        Some(src) => crate::tree::TreeIcon::Image(src),
+        None => crate::tree::TreeIcon::Glyph(glyph.to_string()),
+    }
+}
+
+/// [`item_icon`] for a file, by its name, so a pane listing real files
+/// gets the language icon rather than one generic picture.
+pub fn file_icon(on: bool, name: &str, glyph: &str) -> crate::tree::TreeIcon {
+    if on {
+        crate::tree::TreeIcon::Image(for_file(name))
+    } else {
+        crate::tree::TreeIcon::Glyph(glyph.to_string())
+    }
+}
+
+/// [`item_icon`] for a folder, by its name.
+pub fn folder_icon(on: bool, name: &str, glyph: &str) -> crate::tree::TreeIcon {
+    if on {
+        crate::tree::TreeIcon::Image(for_folder(name))
+    } else {
+        crate::tree::TreeIcon::Glyph(glyph.to_string())
+    }
+}
+
+/// The icon for an **item kind** a work pane lists - a branch, a volume, a
+/// table column, a topic - rather than for a file or folder name
+/// (FEAT-0084).
+///
+/// `kind` is the word the pane itself uses, singular or plural; the aliases
+/// below exist so a pane can pass its own vocabulary ("brokers",
+/// "collections") without every caller normalising first. A kind with no
+/// icon returns `None`, and the caller keeps whatever glyph it drew before -
+/// that is deliberate, so a new list shows a plain glyph rather than a
+/// wrong picture.
+pub fn for_kind(kind: &str) -> Option<ImageSource<'static>> {
+    let k = kind.to_ascii_lowercase();
+    let name = match k.trim_end_matches('s') {
+        // Git refs and the workspace column
+        "workspace" => "workspace",
+        "branch" | "branche" => "branch",
+        "remote" => "remote",
+        "tag" => "tag",
+        "stash" | "stashe" => "stash",
+        "source-control" | "source control" => "source-control",
+        // Containers
+        "container" => "container",
+        "project" | "compose-project" => "project",
+        "image" => "image",
+        "volume" => "volume",
+        "network" => "network",
+        "stack" => "stack",
+        "service" => "service",
+        "node" => "node",
+        // Relational
+        "database" | "db" | "schema" | "schemata" => "database",
+        "table" => "table",
+        "column" => "column",
+        "view" => "view",
+        "function" | "procedure" | "routine" => "function",
+        "saved-query" | "saved query" | "query" | "querie" => "saved-query",
+        "history" | "historie" => "history",
+        // Document stores
+        "collection" => "collection",
+        "document" | "doc" => "document",
+        "field" => "field",
+        // Keys and objects
+        "key" => "key",
+        "bucket" => "bucket",
+        "object" => "object",
+        "metadata" => "metadata",
+        // Messaging
+        "queue" => "queue",
+        "topic" => "topic",
+        "broker" => "node",
+        // Notes
+        "note" => "note",
+        _ => return None,
+    };
+    by_name(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -785,5 +980,80 @@ mod tests {
             assert!(by_name(n).is_some(), "{n} is bundled");
         }
         assert!(ICONS.len() > 100);
+    }
+
+    /// Every kind an activity asks `for_kind` about must resolve, or that
+    /// list silently falls back to a glyph and the switch looks broken
+    /// (FEAT-0084).
+    #[test]
+    fn every_item_kind_an_activity_uses_has_an_icon() {
+        for kind in [
+            // Git
+            "workspace",
+            "branch",
+            "remote",
+            "tag",
+            "stash",
+            "source-control",
+            // Containers
+            "container",
+            "project",
+            "image",
+            "volume",
+            "network",
+            "stack",
+            "service",
+            "node",
+            // Relational
+            "database",
+            "table",
+            "column",
+            "view",
+            "function",
+            "saved-query",
+            "history",
+            // Documents
+            "collection",
+            "document",
+            "field",
+            "note",
+            // Keys and objects
+            "key",
+            "bucket",
+            "object",
+            "metadata",
+            // Messaging
+            "queue",
+            "topic",
+            "broker",
+        ] {
+            assert!(for_kind(kind).is_some(), "{kind} has no icon");
+        }
+        // Plurals and case are the pane's own vocabulary, not a mistake.
+        assert!(for_kind("Branches").is_some());
+        assert!(for_kind("volumes").is_some());
+        // A kind with no sensible picture gets none, so the caller keeps
+        // its glyph rather than drawing something misleading.
+        assert!(for_kind("").is_none());
+        assert!(for_kind("pod").is_none());
+        assert!(for_kind("foreign-key").is_none());
+    }
+
+    /// `item_icon` is the one call every activity makes, so the switch has
+    /// to mean the same thing everywhere.
+    #[test]
+    fn the_switch_decides_between_a_picture_and_the_panes_own_glyph() {
+        use crate::tree::TreeIcon;
+        assert!(matches!(item_icon(true, "table", "T"), TreeIcon::Image(_)));
+        assert!(matches!(item_icon(false, "table", "T"), TreeIcon::Glyph(g) if g == "T"));
+        // On, but nothing sensible to draw: the glyph stands.
+        assert!(matches!(item_icon(true, "pod", "P"), TreeIcon::Glyph(g) if g == "P"));
+        assert!(matches!(
+            file_icon(true, "main.rs", "F"),
+            TreeIcon::Image(_)
+        ));
+        assert!(matches!(file_icon(false, "main.rs", "F"), TreeIcon::Glyph(g) if g == "F"));
+        assert!(matches!(folder_icon(true, "src", "D"), TreeIcon::Image(_)));
+        assert!(matches!(folder_icon(false, "src", "D"), TreeIcon::Glyph(g) if g == "D"));
     }
 }

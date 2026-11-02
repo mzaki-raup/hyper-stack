@@ -1120,17 +1120,24 @@ impl SshTool {
             })
             .collect();
         // The same Material icon set the editor's project tree uses, so a
-        // remote listing reads like a local one.
-        let icons: Vec<egui::ImageSource<'static>> = shown
-            .iter()
-            .map(|(_, e): &(usize, &Entry)| {
-                if e.is_dir {
-                    hs_ui::fileicons::for_folder(&e.name)
-                } else {
-                    hs_ui::fileicons::for_file(&e.name)
-                }
-            })
-            .collect();
+        // remote listing reads like a local one - unless this activity has
+        // them turned off, when the table draws no icon column at all and
+        // the names stand alone (FEAT-0084).
+        let material = s.settings.read().appearance.material_icons("ssh");
+        let icons: Vec<egui::ImageSource<'static>> = if material {
+            shown
+                .iter()
+                .map(|(_, e): &(usize, &Entry)| {
+                    if e.is_dir {
+                        hs_ui::fileicons::for_folder(&e.name)
+                    } else {
+                        hs_ui::fileicons::for_file(&e.name)
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         let columns = [
             ColumnSpec::new(s.t("ssh-col-name"), 240.0),
             ColumnSpec::new(s.t("ssh-col-size"), 80.0).numeric(),
@@ -1147,7 +1154,7 @@ impl SshTool {
             copy_row_label: &copy_label,
             // The pane has a menu of its own, below.
             built_in_menu: false,
-            row_icons: Some(&icons),
+            row_icons: material.then_some(icons.as_slice()),
         };
         let resp = table.show(ui, &mut self.table);
         // Map table row (shown index) back to the entry index.

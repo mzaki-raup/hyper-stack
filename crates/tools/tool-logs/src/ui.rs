@@ -4,7 +4,7 @@
 //! pane. Everything the list shows comes from [`crate::engine::Shared`].
 
 use std::borrow::Cow;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -1156,6 +1156,37 @@ fn saved_icon(src: &SavedSource) -> &'static str {
 
 /// The glyph for a source, from what it points at: a known service gets
 /// its own mark, anything else the kind's.
+/// Turn the path fragment a log line carries into a file that exists, or
+/// `None`.
+///
+/// Tried in order: as written (an absolute path, or one that happens to
+/// resolve from the working directory); beside the log file itself, for a
+/// local-file source; then under each saved project root, which is where
+/// a build's relative paths belong. Only a path that is a file is
+/// returned, so the caller never hands the editor something it cannot
+/// open (BUG-0037).
+fn resolve_record_path(raw: &str, spec: Option<&SourceSpec>, roots: &[PathBuf]) -> Option<String> {
+    let as_given = Path::new(raw);
+    if as_given.is_file() {
+        return Some(raw.to_string());
+    }
+    if let Some(SourceSpec::LocalFile { path }) = spec
+        && let Some(dir) = Path::new(path).parent()
+    {
+        let beside = dir.join(as_given);
+        if beside.is_file() {
+            return Some(beside.to_string_lossy().to_string());
+        }
+    }
+    for root in roots {
+        let under = root.join(as_given);
+        if under.is_file() {
+            return Some(under.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
 fn saved_icon_for(spec: &SourceSpec) -> &'static str {
     let text = match spec {
         SourceSpec::LocalFile { path } | SourceSpec::SshFile { path, .. } => path.as_str(),
@@ -4211,9 +4242,30 @@ impl LogsTool {
                     .tip(c.get(0).map(|m| m.as_str().to_string()).unwrap_or_default())
                     .clicked()
             {
-                let path = c.get(1).unwrap().as_str().to_string();
+                let raw = c.get(1).unwrap().as_str().to_string();
                 let line = c.get(2).and_then(|m| m.as_str().parse::<u32>().ok());
-                cx.open("editor", Some(OpenRequest::File { uri: path, line }));
+                // A log line carries a path as the program that wrote it saw
+                // it, which is usually relative ("crates/hs-core/src/lib.rs").
+                // Handing that to the editor unresolved made it resolve
+                // against the process's working directory: outside a shell
+                // started in the right folder it matched nothing, the editor
+                // opened a blank Untitled tab and the only clue was a toast
+                // (BUG-0037). Resolve it here, as the terminal's link handler
+                // does, and say so rather than opening an empty editor.
+                let roots: Vec<PathBuf> = s
+                    .projects
+                    .read()
+                    .all()
+                    .iter()
+                    .map(|p| p.root.clone())
+                    .collect();
+                match resolve_record_path(&raw, self.state.spec.as_ref(), &roots) {
+                    Some(uri) => cx.open("editor", Some(OpenRequest::File { uri, line })),
+                    None => cx.toast(
+                        ToastLevel::Warning,
+                        s.i18n.t_args("logs-open-missing", &[("path", &raw)]),
+                    ),
+                }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button(ph::X).clicked() {
@@ -5020,6 +5072,58 @@ mod tests {
         assert_eq!(c.get(1).unwrap().as_str(), r"C:\app\run.py");
         assert_eq!(c.get(2).unwrap().as_str(), "7");
         assert!(PATH_LINE.captures("no path here 12:30").is_none());
+    }
+
+    /// A log line's path is relative far more often than not, and handing
+    /// it to the editor unresolved made the editor resolve it against the
+    /// process's working directory - which matched nothing unless the app
+    /// happened to be started in the right folder, so Open in Editor left
+    /// a blank Untitled tab (BUG-0037).
+    #[test]
+    fn a_records_path_resolves_beside_the_log_or_under_a_project() {
+        let tmp = tempfile::tempdir().unwrap();
+        let logs = tmp.path().join("logs");
+        let proj = tmp.path().join("proj");
+        std::fs::create_dir_all(logs.join("sub")).unwrap();
+        std::fs::create_dir_all(proj.join("crates/core/src")).unwrap();
+        std::fs::write(logs.join("sub/beside.rs"), "// beside the log\n").unwrap();
+        std::fs::write(proj.join("crates/core/src/lib.rs"), "// in the project\n").unwrap();
+        let log_file = logs.join("app.log");
+        std::fs::write(&log_file, "line\n").unwrap();
+        let spec = SourceSpec::LocalFile {
+            path: log_file.to_string_lossy().to_string(),
+        };
+        let roots = vec![proj.clone()];
+
+        // Beside the log file.
+        let got = resolve_record_path("sub/beside.rs", Some(&spec), &roots).unwrap();
+        assert_eq!(
+            std::fs::canonicalize(got).unwrap(),
+            std::fs::canonicalize(logs.join("sub/beside.rs")).unwrap()
+        );
+
+        // Under a saved project root, which is where a build's own
+        // relative paths belong.
+        let got = resolve_record_path("crates/core/src/lib.rs", Some(&spec), &roots).unwrap();
+        assert_eq!(
+            std::fs::canonicalize(got).unwrap(),
+            std::fs::canonicalize(proj.join("crates/core/src/lib.rs")).unwrap()
+        );
+
+        // An absolute path that exists is taken as written.
+        let abs = proj
+            .join("crates/core/src/lib.rs")
+            .to_string_lossy()
+            .to_string();
+        assert_eq!(
+            resolve_record_path(&abs, Some(&spec), &roots).as_deref(),
+            Some(abs.as_str())
+        );
+
+        // Nothing that exists: the caller must say so rather than open an
+        // editor on a path that is not there.
+        assert!(resolve_record_path("nope/missing.rs", Some(&spec), &roots).is_none());
+        assert!(resolve_record_path("crates/core/src/lib.rs", Some(&spec), &[]).is_none());
     }
 
     #[test]

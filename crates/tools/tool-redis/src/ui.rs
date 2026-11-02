@@ -1128,6 +1128,8 @@ impl RedisTool {
     /// The key tree itself.
     fn key_list(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         let theme = theme.clone();
+        // Read once for the whole list rather than per row (FEAT-0084).
+        let material = s.settings.read().appearance.material_icons("redis");
         let delimiter = self.fields.delimiter.clone();
         let scanning = self.shared.lock().scanning;
         if let Some(e) = &self.conn_error {
@@ -1165,15 +1167,41 @@ impl RedisTool {
                         } else {
                             ph::KEY
                         };
-                        let label = if row.is_group {
-                            format!("{icon} {} ({})", row.label, row.count)
-                        } else {
-                            format!("{icon} {}", row.label)
+                        // With Material icons on, a group keeps its caret -
+                        // that is the expand state, not decoration - and
+                        // gains a folder picture; a key trades its glyph for
+                        // the key picture (FEAT-0084).
+                        let picture = material.then(|| {
+                            if row.is_group {
+                                hs_ui::fileicons::for_folder(&row.label)
+                            } else {
+                                hs_ui::fileicons::for_kind("key")
+                                    .unwrap_or_else(|| hs_ui::fileicons::for_file(&row.label))
+                            }
+                        });
+                        let label = match (&picture, row.is_group) {
+                            (Some(_), true) => format!("{icon} {} ({})", row.label, row.count),
+                            (Some(_), false) => row.label.clone(),
+                            (None, true) => format!("{icon} {} ({})", row.label, row.count),
+                            (None, false) => format!("{icon} {}", row.label),
                         };
+                        // The picture is part of the row's click target, so
+                        // clicking the icon selects as clicking the name does.
+                        let pic_r = picture.map(|src| {
+                            ui.add(
+                                egui::Image::new(src)
+                                    .fit_to_exact_size(egui::vec2(16.0, 16.0))
+                                    .sense(egui::Sense::click()),
+                            )
+                        });
                         // A selectable label sizes to its text, so every row
                         // starts at the same left edge; a stretched button
                         // centres its text and makes the list look ragged.
                         let r = ui.selectable_label(is_selected, label);
+                        let r = match pic_r {
+                            Some(p) => r | p,
+                            None => r,
+                        };
                         if r.clicked() {
                             if row.is_group {
                                 toggle = Some(row.path.clone());

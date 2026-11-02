@@ -412,6 +412,50 @@ pub struct Appearance {
     /// for it, Ctrl+clicking a link, opening a remote file in the editor)
     /// puts its entry back.
     pub rail_hidden: Vec<String>,
+    /// Activities drawing **generic** glyphs in their work pane lists
+    /// instead of the Material item icons, keyed by tool id. Material
+    /// icons are the default, so an activity is in this set only once
+    /// someone turns it off (FEAT-0084); an id that is not in
+    /// [`MATERIAL_ICON_TOOLS`] is ignored, since the other activities
+    /// have no file- or item-shaped lists to draw.
+    #[serde(default)]
+    pub material_icons_off: std::collections::BTreeSet<String>,
+}
+
+/// The activities whose work-pane lists can draw Material item icons, and
+/// so the only ones the Appearance card offers a switch for (FEAT-0084).
+/// The rest - API Client, Terminal, Automation, Tracker, Graphics,
+/// Devtools, Browser and Logs - have no file- or item-shaped lists.
+pub const MATERIAL_ICON_TOOLS: &[&str] = &[
+    "scratchpad",
+    "editor",
+    "git",
+    "ssh",
+    "containers",
+    "db",
+    "nosql",
+    "redis",
+    "s3",
+    "queue",
+];
+
+impl Appearance {
+    /// Whether `tool` draws Material item icons. True unless someone has
+    /// turned that activity off; an activity outside
+    /// [`MATERIAL_ICON_TOOLS`] is always false, so a caller that asks
+    /// about one gets generic glyphs rather than a surprise.
+    pub fn material_icons(&self, tool: &str) -> bool {
+        MATERIAL_ICON_TOOLS.contains(&tool) && !self.material_icons_off.contains(tool)
+    }
+
+    /// Turn Material item icons on or off for one activity.
+    pub fn set_material_icons(&mut self, tool: &str, on: bool) {
+        if on {
+            self.material_icons_off.remove(tool);
+        } else {
+            self.material_icons_off.insert(tool.to_string());
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -780,6 +824,9 @@ impl Default for Appearance {
             rail_icon_outline: true,
             rail_order: Vec::new(),
             rail_hidden: Vec::new(),
+            // Empty: Material item icons are on for every activity that
+            // has them until someone turns one off (FEAT-0084).
+            material_icons_off: std::collections::BTreeSet::new(),
         }
     }
 }
@@ -827,6 +874,50 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
+
+    /// Material item icons are on for the ten activities that have lists
+    /// and meaningless for the rest, and the setting stores only the
+    /// exceptions so a fresh install writes nothing (FEAT-0084).
+    #[test]
+    fn material_icons_are_on_by_default_and_only_for_the_listed_activities() {
+        let mut a = Appearance::default();
+        assert!(
+            a.material_icons_off.is_empty(),
+            "nothing written by default"
+        );
+        for tool in MATERIAL_ICON_TOOLS {
+            assert!(a.material_icons(tool), "{tool} starts on");
+        }
+        for tool in [
+            "logs",
+            "terminal",
+            "automation",
+            "tracker",
+            "api",
+            "browser",
+        ] {
+            assert!(!a.material_icons(tool), "{tool} has no item lists");
+        }
+
+        a.set_material_icons("editor", false);
+        assert!(!a.material_icons("editor"));
+        assert!(
+            a.material_icons("git"),
+            "one activity off does not affect another"
+        );
+        assert_eq!(a.material_icons_off.len(), 1);
+
+        a.set_material_icons("editor", true);
+        assert!(a.material_icons("editor"));
+        assert!(
+            a.material_icons_off.is_empty(),
+            "back on removes the exception rather than storing a true"
+        );
+
+        // Turning an activity off that was never on is not a way in.
+        a.set_material_icons("logs", false);
+        assert!(!a.material_icons("logs"));
+    }
     use super::*;
 
     #[test]

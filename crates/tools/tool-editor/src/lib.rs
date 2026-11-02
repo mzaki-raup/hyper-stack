@@ -894,6 +894,10 @@ pub struct EditorTool {
     confirm_unsaved: Option<UnsavedFor>,
     id: egui::Id,
     tab_id: u64,
+    /// Whether this activity draws the Material file icons, refreshed at
+    /// the top of each frame so the tree does not take the settings lock
+    /// once per node (FEAT-0084).
+    material: bool,
     ai: ai_panel::AiPanel,
     /// The editor's own terminal, at the foot of the pane.
     terminal: terminal::TerminalPanel,
@@ -957,6 +961,7 @@ impl EditorTool {
             ws_name: String::new(),
             id,
             tab_id: 0,
+            material: true,
             ai: ai_panel::AiPanel::default(),
             terminal: terminal::TerminalPanel::default(),
             split_off: Vec::new(),
@@ -1576,7 +1581,7 @@ impl EditorTool {
         for d in dirs {
             let id = d.to_string_lossy().to_string();
             if !node_has_children(&self.nodes, &id) {
-                set_children(&mut self.nodes, &id, load_children(d));
+                set_children(&mut self.nodes, &id, load_children(d, self.material));
             }
             self.tree.expanded.insert(id);
         }
@@ -1704,7 +1709,7 @@ impl EditorTool {
         for dir in dirs_to_refresh {
             let id = dir.to_string_lossy().to_string();
             if node_has_children(&self.nodes, &id) {
-                set_children(&mut self.nodes, &id, load_children(&dir));
+                set_children(&mut self.nodes, &id, load_children(&dir, self.material));
             }
         }
         for pr in &mut self.projects {
@@ -1723,7 +1728,7 @@ impl EditorTool {
         for id in expanded {
             let dir = PathBuf::from(&id);
             if dir.is_dir() && node_has_children(&self.nodes, &id) {
-                set_children(&mut self.nodes, &id, load_children(&dir));
+                set_children(&mut self.nodes, &id, load_children(&dir, self.material));
             }
         }
         for p in &mut self.projects {
@@ -2876,8 +2881,9 @@ impl EditorTool {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| id.clone());
-        let icon = fileicons::for_folder(&name);
-        let mut node = TreeNode::branch(id.clone(), name, icon, load_children(&root));
+        let icon = fileicons::folder_icon(self.material, &name, hs_ui::icons::ph::FOLDER);
+        let mut node =
+            TreeNode::branch(id.clone(), name, icon, load_children(&root, self.material));
         node.leaf = false;
         self.nodes.push(node);
         self.tree.expanded.insert(id);
@@ -2927,20 +2933,38 @@ impl EditorTool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
         let changes = self.git.change_count();
+        // With Material icons on the pictures are drawn beside the words,
+        // so the labels drop the glyph they carry inline (FEAT-0084).
+        let arts: [Option<egui::ImageSource<'static>>; 2] = if self.material {
+            [
+                fileicons::for_kind("project"),
+                fileicons::for_kind("source-control"),
+            ]
+        } else {
+            [None, None]
+        };
+        let lead = |glyph: &str, i: usize| -> String {
+            if arts[i].is_some() {
+                String::new()
+            } else {
+                format!("{glyph} ")
+            }
+        };
         let git_label = if changes > 0 {
             format!(
-                "{} {} ({changes})",
-                ph::GIT_BRANCH,
+                "{}{} ({changes})",
+                lead(ph::GIT_BRANCH, 1),
                 s.t("git-source-control")
             )
         } else {
-            format!("{} {}", ph::GIT_BRANCH, s.t("git-source-control"))
+            format!("{}{}", lead(ph::GIT_BRANCH, 1), s.t("git-source-control"))
         };
-        let files_label = format!("{} {}", ph::FOLDERS, s.t("editor-project"));
+        let files_label = format!("{}{}", lead(ph::FOLDERS, 0), s.t("editor-project"));
         if let Some(i) = segmented(
             ui,
             &theme,
             &[&files_label, &git_label],
+            &arts,
             usize::from(self.git.sidebar),
         ) {
             self.git.sidebar = i == 1;
@@ -3050,7 +3074,7 @@ impl EditorTool {
             .inner;
         for id in resp.load {
             let dir = PathBuf::from(&id);
-            set_children(&mut self.nodes, &id, load_children(&dir));
+            set_children(&mut self.nodes, &id, load_children(&dir, self.material));
         }
         if let Some(id) = resp.clicked.or(resp.double_clicked) {
             let p = PathBuf::from(&id);
@@ -3457,6 +3481,20 @@ impl Tool for EditorTool {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let material = cx
+            .services
+            .settings
+            .read()
+            .appearance
+            .material_icons("editor");
+        if material != self.material {
+            // The tree bakes an icon into every node as it loads, so a
+            // switch in Settings has to re-resolve the ones already
+            // built; without this the change only showed on folders
+            // expanded afterwards (FEAT-0084).
+            self.material = material;
+            retheme_nodes(&mut self.nodes, material);
+        }
         let zipped = self.zip_result.as_ref().and_then(|slot| slot.lock().take());
         if let Some(result) = zipped {
             self.zip_result = None;
@@ -4241,7 +4279,17 @@ const LANGUAGE_MENU: &[(&str, &str)] = &[
 
 /// A row of equal-width toggle segments across the available width (never
 /// wider, so a resizable side panel does not grow). Returns the clicked one.
-fn segmented(ui: &mut egui::Ui, theme: &Theme, labels: &[&str], selected: usize) -> Option<usize> {
+/// A segmented control. A segment may show a Material picture beside its
+/// text instead of a leading glyph (FEAT-0084): `arts` is index-aligned
+/// with `labels`, and a missing or `None` entry draws the label alone,
+/// which is what an activity with Material icons off gets.
+fn segmented(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    labels: &[&str],
+    arts: &[Option<egui::ImageSource<'static>>],
+    selected: usize,
+) -> Option<usize> {
     let (rect, _) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), 26.0), egui::Sense::hover());
     let w = rect.width() / labels.len().max(1) as f32;
@@ -4272,13 +4320,40 @@ fn segmented(ui: &mut egui::Ui, theme: &Theme, labels: &[&str], selected: usize)
         ui.painter()
             .rect_filled(r, egui::CornerRadius::same(4), fill);
         let p = ui.painter().with_clip_rect(r);
-        p.text(
-            r.center(),
-            egui::Align2::CENTER_CENTER,
-            *label,
-            egui::FontId::proportional(13.0),
-            if on { theme.text } else { theme.text_muted },
-        );
+        let colour = if on { theme.text } else { theme.text_muted };
+        let font = egui::FontId::proportional(13.0);
+        match arts.get(i).and_then(|a| a.clone()) {
+            // Picture and text are centred as one unit, so the segment
+            // reads the same as the glyph-and-text one beside it.
+            Some(src) => {
+                let icon = 15.0;
+                let gap = 5.0;
+                let galley = p.layout_no_wrap(label.to_string(), font, colour);
+                let total = icon + gap + galley.size().x;
+                let left = r.center().x - total / 2.0;
+                let at = egui::Rect::from_min_size(
+                    egui::pos2(left, r.center().y - icon / 2.0),
+                    egui::Vec2::splat(icon),
+                );
+                egui::Image::new(src)
+                    .fit_to_exact_size(egui::Vec2::splat(icon))
+                    .paint_at(ui, at);
+                p.galley(
+                    egui::pos2(left + icon + gap, r.center().y - galley.size().y / 2.0),
+                    galley,
+                    colour,
+                );
+            }
+            None => {
+                p.text(
+                    r.center(),
+                    egui::Align2::CENTER_CENTER,
+                    *label,
+                    font,
+                    colour,
+                );
+            }
+        }
         if resp.clicked() {
             clicked = Some(i);
         }
@@ -4305,7 +4380,24 @@ fn human_size(n: u64) -> String {
     }
 }
 
-fn load_children(dir: &Path) -> Vec<TreeNode> {
+/// Re-resolve every loaded node's icon after the Material switch moved.
+/// A node's label is its file or folder name and `leaf` says which, so
+/// the tree can be re-iconed in place and keep what is expanded
+/// (FEAT-0084).
+fn retheme_nodes(nodes: &mut [TreeNode], material: bool) {
+    for n in nodes.iter_mut() {
+        n.icon = if n.leaf {
+            fileicons::file_icon(material, &n.label, hs_ui::icons::ph::FILE)
+        } else {
+            fileicons::folder_icon(material, &n.label, hs_ui::icons::ph::FOLDER)
+        };
+        if let Some(kids) = n.children.as_mut() {
+            retheme_nodes(kids, material);
+        }
+    }
+}
+
+fn load_children(dir: &Path, material: bool) -> Vec<TreeNode> {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -4319,12 +4411,14 @@ fn load_children(dir: &Path) -> Vec<TreeNode> {
             if name == ".git" {
                 continue;
             }
-            let mut n = TreeNode::leaf(id, name.clone(), fileicons::for_folder(&name));
+            let icon = fileicons::folder_icon(material, &name, hs_ui::icons::ph::FOLDER);
+            let mut n = TreeNode::leaf(id, name.clone(), icon);
             n.leaf = false;
             n.children = None;
             dirs.push(n);
         } else {
-            files.push(TreeNode::leaf(id, name.clone(), fileicons::for_file(&name)));
+            let icon = fileicons::file_icon(material, &name, hs_ui::icons::ph::FILE);
+            files.push(TreeNode::leaf(id, name.clone(), icon));
         }
     }
     dirs.sort_by_key(|n| n.label.to_lowercase());
@@ -4616,7 +4710,7 @@ mod tests {
         std::fs::write(tmp.join("b.txt"), "b").unwrap();
         std::fs::write(tmp.join("a.rs"), "a").unwrap();
         std::fs::write(tmp.join("src/main.rs"), "fn main() {}").unwrap();
-        let children = load_children(&tmp);
+        let children = load_children(&tmp, true);
         let labels: Vec<&str> = children.iter().map(|n| n.label.as_str()).collect();
         assert_eq!(labels, vec!["src", "a.rs", "b.txt"]);
         let root_id = tmp.to_string_lossy().to_string();
@@ -4631,14 +4725,18 @@ mod tests {
         assert!(set_children(
             &mut nodes,
             &src_id,
-            load_children(&tmp.join("src"))
+            load_children(&tmp.join("src"), true)
         ));
         assert!(node_has_children(&nodes, &src_id));
         // Reloading the parent (a refresh, a file saved there) keeps the
         // expanded subfolder's children instead of collapsing it.
         let root_id = tmp.to_string_lossy().to_string();
         std::fs::write(tmp.join("c.txt"), "c").unwrap();
-        assert!(set_children(&mut nodes, &root_id, load_children(&tmp)));
+        assert!(set_children(
+            &mut nodes,
+            &root_id,
+            load_children(&tmp, true)
+        ));
         assert!(node_has_children(&nodes, &src_id));
         std::fs::remove_file(tmp.join("c.txt")).unwrap();
         let mut index = Vec::new();

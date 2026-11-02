@@ -1103,6 +1103,15 @@ impl Debugger {
         theme: &Theme,
         root: Option<&Path>,
     ) {
+        // Claim the whole height the panel was given. `egui::Panel` stores
+        // the rect its *content* produced as the panel's remembered size
+        // (`inner_response.response.rect`, panel.rs), so content that lays
+        // out shorter than the panel ratchets it smaller every frame: this
+        // panel lost about 3 px per repaint and settled at its own minimum
+        // of ~121 px, which read as the panel resizing itself whenever the
+        // mouse moved (BUG-0037). Filling the height keeps the two rects
+        // equal, so a dragged size survives.
+        ui.set_min_height(ui.available_height());
         let mut close = false;
         ui.horizontal(|ui| {
             for (tab, key) in [

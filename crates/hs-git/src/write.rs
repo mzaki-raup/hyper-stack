@@ -907,6 +907,10 @@ pub fn repo_config(root: &Path) -> RepoConfig {
 /// hands the repository back to the global value instead of leaving it,
 /// say, committing as "". Unsetting a key that was never set is not an
 /// error here, which is why that failure is dropped.
+///
+/// `remote.origin.url` is the exception: there is no global value behind
+/// it, and unsetting it alone leaves a remote with no url, which breaks
+/// `git fetch`. An empty URL field leaves the remote untouched.
 pub fn set_repo_config(root: &Path, cfg: &RepoConfig) -> Result<()> {
     let sign = cfg.sign_commits.map(|b| b.to_string()).unwrap_or_default();
     let values: [&str; 6] = [
@@ -919,6 +923,18 @@ pub fn set_repo_config(root: &Path, cfg: &RepoConfig) -> Result<()> {
     ];
     for (key, value) in KEYS.iter().zip(values) {
         if value.is_empty() {
+            // `remote.origin.url` is the one key here with no global
+            // value to fall back to, so the rule above does not apply to
+            // it. Unsetting the url alone leaves the rest of the
+            // `[remote "origin"]` section behind, and `git fetch --all`
+            // then reads "origin" as a URL: "fatal: 'origin' does not
+            // appear to be a git repository" (BUG-0037). An empty field
+            // means "leave the remote as it is"; a remote is removed in
+            // the Git activity's Remotes tree, which drops the whole
+            // section.
+            if *key == "remote.origin.url" {
+                continue;
+            }
             let _ = git(root, &["config", "--local", "--unset", key]);
         } else {
             git(root, &["config", "--local", key, value])?;
@@ -979,14 +995,57 @@ mod tests {
         // repository inherits again rather than committing as "" - and
         // `None` really does remove the key, which is what lets a project
         // hand signing back to the global setting.
+        //
+        // `remote.origin.url` is the one exception and keeps its value:
+        // there is no global remote to inherit, and unsetting it leaves a
+        // remote git cannot fetch from (BUG-0037, and
+        // `an_empty_url_field_leaves_the_remote_fetchable`).
         set_repo_config(root, &RepoConfig::default()).unwrap();
-        assert_eq!(repo_config(root), RepoConfig::default());
+        assert_eq!(
+            repo_config(root),
+            RepoConfig {
+                remote_url: want.remote_url.clone(),
+                ..RepoConfig::default()
+            }
+        );
         assert!(
             git(root, &["config", "--local", "--get", "commit.gpgsign"]).is_err(),
             "an inherited setting leaves no key behind"
         );
         // Unsetting what was never set is not an error.
         set_repo_config(root, &RepoConfig::default()).unwrap();
+    }
+
+    /// Saving the project form with the URL box empty used to unset
+    /// `remote.origin.url` and leave the rest of the `[remote "origin"]`
+    /// section behind. `git fetch --all --prune` then reads "origin" as a
+    /// URL and fails with "fatal: 'origin' does not appear to be a git
+    /// repository", which is what a freshly cloned repository showed
+    /// after its settings were saved once (BUG-0037).
+    #[test]
+    fn an_empty_url_field_leaves_the_remote_fetchable() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        git(root, &["init", "-q", "--initial-branch=main"]).unwrap();
+        git(root, &["config", "commit.gpgsign", "false"]).unwrap();
+        let url = "https://example.invalid/ada/engine.git";
+        add_remote(root, "origin", url).unwrap();
+
+        // The form is saved with every box empty, as it is when nothing
+        // was typed into it.
+        set_repo_config(root, &RepoConfig::default()).unwrap();
+
+        assert_eq!(
+            repo_config(root).remote_url,
+            url,
+            "an empty URL field leaves the remote alone; unsetting its url \
+             would leave a remote git cannot resolve"
+        );
+        assert_eq!(
+            remotes(root).unwrap().first().map(|r| r.url.clone()),
+            Some(url.to_string()),
+            "and the remote is still listed with its url"
+        );
     }
 
     #[test]

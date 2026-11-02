@@ -11,7 +11,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Split CR-0025 into themed items so each piece of the UI/UX standard carries its own checklist, and renumbered the Backlog Puppet item to FEAT-0092 after an id clash
+
+### Added
+
+- Material icons for the items each work pane lists — files, folders, branches, containers, tables, collections, keys, buckets, queues and the rest — with a per-activity switch in Settings -> Appearance -> Material Icon, on by default for the ten activities that have such lists
+- `scripts/loopback-probe.py`, which tells a machine resetting concurrent loopback connections from a genuine failure in a test that starts its own server
+
+### Security
+
+- Update `pulldown-cmark` to 0.13.6 for RUSTSEC-2026-0433 (quadratic parsing of nested image wikilinks). HyperStack never enabled `ENABLE_WIKILINKS`, so it was not exposed; the bump clears the dependency audit
+
+### Fixed
+
+- Open the file a log record names, resolving its path beside the log and under the saved projects instead of against the working directory, and say so when the file cannot be found rather than opening an empty editor tab
+- Hold the editor's debug panel at the size it is dragged to, instead of shrinking it a few pixels on every repaint until it reached its minimum
+- Keep a cloned repository fetchable after its project settings are saved: an empty remote URL field no longer unsets `remote.origin.url` and leaves a remote git cannot resolve
+- Close the project detail form in Settings -> Editor when Close is pressed
+- Pad the editor's go-to-line bar so its label is not flush against the pane edge
+- Answer a double-click on a run whose server serves no logs by opening that run on the server, and say so in the runs hint
 
 ## 0.114.0 — 2026-11-01
 

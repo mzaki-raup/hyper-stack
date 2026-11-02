@@ -1877,6 +1877,22 @@ fn appearance(
         form::hint(ui, theme, &s.t("settings-rail-order-hint"));
     });
 
+    // Material item icons, per activity (FEAT-0084). Only the activities
+    // whose work panes list files or items of their own appear here; the
+    // rest have nothing to draw them for.
+    form::section(ui, theme, &s.t("settings-section-material-icons"), |ui| {
+        form::hint(ui, theme, &s.t("settings-material-icons-hint"));
+        ui.add_space(8.0);
+        for tool in hs_core::settings::MATERIAL_ICON_TOOLS {
+            let mut on = settings.appearance.material_icons(tool);
+            let label = s.t(&format!("tool-{tool}"));
+            if ui.checkbox(&mut on, label).changed() {
+                settings.appearance.set_material_icons(tool, on);
+                changed = true;
+            }
+        }
+    });
+
     if theme_changed {
         effects.push(SettingsEffect::ThemeChanged);
     }
@@ -5904,6 +5920,7 @@ fn project_detail(
     };
     let mut save = false;
     let mut remove = false;
+    let mut close = false;
     form::section(ui, theme, &draft.entry.label(), |ui| {
         form::field_grid(ui, "project-detail", |ui| {
             form::label(ui, &s.t("settings-project-name"));
@@ -6109,7 +6126,7 @@ fn project_detail(
                 save = true;
             }
             if ui.button(s.t("close")).clicked() {
-                state.project_selected = None;
+                close = true;
             }
             // A plain right-aligned scope: `toolbar::hard_right` is for a
             // tool's toolbar, where the shell reserves it a corner.
@@ -6121,6 +6138,13 @@ fn project_detail(
         });
     });
 
+    // The detail is drawn while the draft is `Some`, so clearing only the
+    // selection left the form on screen and Close read as a dead button
+    // (BUG-0037). Save clears both; so does Close.
+    if close {
+        state.project_draft = None;
+        state.project_selected = None;
+    }
     if save && let Some(draft) = state.project_draft.clone() {
         let mut entry = draft.entry.clone();
         // A project with no folder is not a project: saving one would

@@ -422,6 +422,17 @@ impl QueueTool {
 }
 
 /// The Fluent key of what a kind calls its destinations.
+/// The word `hs_ui::fileicons::for_kind` knows a broker's destinations by:
+/// a queue for RabbitMQ, a topic for the publish/subscribe kinds. Streams
+/// read as queues - they are an ordered backlog someone consumes
+/// (FEAT-0084).
+fn destination_kind(kind: &str) -> &'static str {
+    match kind {
+        "kafka" | "mqtt" => "topic",
+        _ => "queue",
+    }
+}
+
 fn destination_word(kind: &str) -> &'static str {
     match kind {
         "rabbitmq" => "queue-word-queues",
@@ -1045,6 +1056,16 @@ impl QueueTool {
                 .iter()
                 .position(|d| &d.scope == scope && &d.name == name)
         });
+        // One icon for the whole list: every row is the same kind of
+        // destination for this broker (FEAT-0084).
+        let icons: Vec<egui::ImageSource<'static>> =
+            if s.settings.read().appearance.material_icons("queue") {
+                hs_ui::fileicons::for_kind(destination_kind(&self.kind))
+                    .map(|i| vec![i; rows.len()])
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
         let table = DataTable {
             theme,
             columns: &columns,
@@ -1053,7 +1074,7 @@ impl QueueTool {
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
-            row_icons: None,
+            row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
         };
         // Each table in the tab needs its own id scope, or egui sees the
         // destinations and the consumers as one table drawn twice.

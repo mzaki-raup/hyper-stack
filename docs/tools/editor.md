@@ -589,7 +589,14 @@ root, language, order and the repository identity).
   repository-local Git keys (name, email, signing key, a three-state Sign
   Commits, default branch and remote URL) written to the repository's own
   `.git/config`. An empty field *unsets* the key rather than writing a
-  blank one, so the global identity is inherited again.
+  blank one, so the global identity is inherited again — **except the
+  remote URL**, which has no global value to fall back on. Unsetting
+  `remote.origin.url` alone leaves the rest of the `[remote "origin"]`
+  section behind and `git fetch` can no longer resolve the remote, so an
+  empty URL field leaves the remote as it is. A remote is removed in the
+  Git activity's Remotes tree, which drops the whole section.
+- **Close** leaves the form without saving and returns to the list, the
+  same place Save returns to.
 - **Language.** `projects::detect_language` reads the folder's manifest
   (`Cargo.toml` → Rust, `go.mod` → Go, a `package.json` beside a
   `tsconfig.json` → TypeScript, …), which is right for most folders and

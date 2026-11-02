@@ -63,7 +63,9 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Windows Environment and Build
 
-- **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions.
+- **Disk filled by `target/debug`.** It reached 280 GB (150 GB in `debug/incremental`) and filled D:, causing `os error 112` in the middle of `cargo test --workspace`. Delete `target/debug/incremental` (cache only; `debug/deps` stays, and the next build isn't a full rebuild). Check after long sessions. On 2026-11-02 it did it again at a far larger size: D: was down to **16 MB** free and deleting that one folder returned **523 GB**. Check free space *first* when a build misbehaves - a full disk does not announce itself, it shows up as `LNK1140: limit exceeded for program database` (the linker cannot write the PDB) and as mock-server tests failing with `error sending request for url (http://127.0.0.1:…)`, neither of which looks like "disk full".
+- **AdGuard resets loopback connections, and "cannot reach its own mock server" is the symptom (found 2026-10-31, diagnosed 2026-11-02).** This cost an afternoon twice, because the first note lived under "Headless and GUI Testing" where nobody looks for a network fault, and because "pause AdGuard" reads as sufficient and is not. Tests that start a server on `127.0.0.1` fail with `os error 10054` (WSAECONNRESET, "forcibly closed by the remote host") when several run at once: `tool-automation`'s five `tests/mock.rs` tests failed three-to-five at a time, varying per run, while `--test-threads=1` passed four of five. It is **not** the project's code - four ephemeral loopback servers in plain Python (`socket` + `threading`, no tokio, no reqwest) fail at the same rate - and it is **not** an abortive close, so adding `TcpStream::shutdown` to a harness does not help. The cause is AdGuard's `adgnetworkwfpdrv` / `adgnetworksockdrv` filters. **Disabling protection in AdGuard's own interface does not fix it**: the drivers stay attached. `Stop-Service 'Adguard Service' -Force` does, even though both drivers still report Running afterwards. Diagnose with `python -I scripts/loopback-probe.py` before suspecting a driver or a test: four `ok` lines mean loopback is fine and the fault is in the code, any `10054` means it is not (BUG-0039).
+- **`du -sh target/debug` is not the way to check this.** It took minutes against a folder that size and had to be killed. `Get-PSDrive D | Select-Object Free` answers instantly, and free space is the number that matters.
 - **`LNK1140: limit exceeded for program database`.** The PDB outgrew its format limit. No code change causes or fixes it. Don't set `CARGO_PROFILE_DEV_DEBUG=0` on the command line. That changes every fingerprint, rebuilds the whole workspace, and fills D: quickly. If it recurs, set the debug level in `Cargo.toml` so the fingerprint is stable.
 - **Paging file exhaustion.** `cargo test --workspace` can fail with "the paging file is too small" (os error 1455), then "found invalid metadata files for crate …" on every later run. The parallel build exhausts the commit limit, not RAM. Delete `target/debug` and use `-j 4`. A rustc killed mid-write leaves corrupt `.rmeta`/`.rlib` files.
 - **Two cargo invocations on one target folder** serialise on the build lock.
@@ -78,9 +80,11 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Clipboard files (CF_HDROP).** A Windows file list is a 20-byte `DROPFILES` header followed by UTF-16 paths, each NUL-terminated, with an extra NUL ending the list. It carries paths, not bytes. "Copy a remote file" must download to `HyperStackData/tmp/` first (cleared at start). See `hs_core::clipboard_files`.
 - **Global shortcuts.** Ctrl+Shift+L is `vault.lock`. The editor uses Alt+F3 for select-all-occurrences. Pick a different combo when there's a collision.
 - **Release build fails with "Access is denied".** A running `HyperStack.exe` keeps its own file locked. Run `Stop-Process -Name HyperStack -Force` before `cargo build --release`. During development, always use `--data-dir ./tmp-data` so the real `HyperStackData/` is never touched.
+- **Two GnuPG installations share one `~/.gnupg` here.** `gpg` on the Git Bash PATH is MSYS GnuPG 2.4.5 and cannot read the keyboxd `pubring.db` that `common.conf`'s `use-keyboxd` selects: it reports `skipped "<key>": No secret key` and lists no keys at all, which looks like a lost key and is not. Only `C:\Program Files\GnuPG\bin\gpg.exe` (2.5.16) sees them, and it is what `gpg.program` points git at. Probe signing with that full path, never the bare `gpg`. The harmless-looking `sending fd … to keyboxd: Input/output error` it prints is not the failure; read the `[GNUPG:]` status lines for `SIG_CREATED` or `Timeout`.
 
 ## Build and Dependency Gotchas (Rust)
 
+- **CI runs `cargo deny check`; the local gate does not.** A branch whose `fmt`, `clippy`, tests and `--self-test` all pass locally can still go red on the runner, because `cargo deny`'s advisories come from the RustSec database and that moves on its own: run 485 failed on `RUSTSEC-2026-0433` (`pulldown-cmark` 0.13.5) with no dependency change on the branch at all. The fix is usually one line - `cargo update -p <crate>` for a patch bump - but find out first whether the code is actually exposed and say so, rather than implying a vulnerability was shipped. Run `cargo deny check` before a push if the branch has been open a while; the other CI step the local gate skips is the release build plus `--version` / `--self-test` on the exe.
 - **Edition 2024 reserved keyword.** `gen` fails to parse ("expected identifier, found reserved keyword"), which broke 18 places from one field. Name it `generate`.
 - **`egui::Id::new(x)`** needs `x: Hash + Debug`. A helper taking `id_salt: impl Hash` must add `+ std::fmt::Debug`, or use `Id::new(base).with(salt)`.
 - **Items after a test module.** Appending functions to a file puts them after `#[cfg(test)] mod tests`, which clippy refuses ("items after a test module"). Insert before the test module. `cat >>` is safe only for files without one.
@@ -185,6 +189,41 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **An `egui::Panel` remembers the size its *content* produced, not the
+  size it was given, so content that under-fills ratchets the panel
+  smaller every frame.** In `egui` 0.35's `panel.rs`, `show_inside_dyn`
+  computes `shifted_outer_rect` from the panel's own rect and then
+  shadows it with `inner_response.response.rect` before storing it as
+  `PanelState`. The stored size therefore follows the content. The
+  editor's debug panel lost about 3 px per repaint and settled at its
+  content's minimum of ~121 px; because a repaint happens on every mouse
+  move, it read as the panel resizing itself whenever the pointer moved,
+  and any size the user dragged was eaten within a second. The fix is on
+  our side: `ui.set_min_height(ui.available_height())` as the content's
+  first call, so the content rect equals the panel rect and there is
+  nothing to ratchet. This is why the shell's sidebar and dock never
+  showed it - their content fills the space already. Feeding
+  `default_size` from stored state does **not** help, because
+  `outer_size()` prefers the persisted `PanelState` over the default
+  (BUG-0037).
+- **The resize handle is a row below the line you can see.** Measuring
+  the separator in a screenshot and dragging from that row selects the
+  text underneath instead; the grab area centre was one pixel lower
+  (`631` drawn, `632` grabbable). Drag a row or two into the panel.
+- **A detail pane drawn from a draft closes by clearing the draft, not
+  the selection.** Settings panes draw their detail form while
+  `state.<thing>_draft` is `Some` and highlight the list row from
+  `state.<thing>_selected`. A Close button that clears only the
+  selection leaves the form on screen and reads as a dead button; Save
+  looked right because it cleared both. The draft is also mutably
+  borrowed across the section closure, so the clear cannot be done
+  inline - set a local `close` flag and act on it after the closure, as
+  the credential and repository forms do (BUG-0037).
+- **A bar with no `Frame` sits flush against the pane edge.** The
+  editor's find bar wraps itself in
+  `Frame::new().fill(theme.gutter_bg).inner_margin(Margin::symmetric(8, 6))`;
+  the go-to-line bar beside it had none, so its label touched the left
+  border. Bars that appear in the same place want the same frame.
 
 ## Tool-Specific: Terminal and Editor
 
@@ -220,6 +259,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Time-range filters** replace the after/before chips. Two overlapping time windows combine with AND and filter to nothing, which looks like a broken feature.
 - **Record identity.** A record is reached by line number, never by filtered position. The window drops old records, so a position means a different record later. `GOTO_MIME` scrolls to a line. `OpenRequest::File` would reopen the source and lose the place.
 - **Logs over SSH** use `hs_ssh::SshClient::exec`. Wait on this path in the running app.
+- **A path in a log line is relative, and `OpenRequest::File` resolves it against the process's working directory.** `PATH_LINE` captures the fragment the program wrote (`crates/hs-core/src/lib.rs`, `OrderSvc.java`), which is almost never resolvable from where the app happens to have been started. Open in Editor handed that over unresolved: the shell found no editor tab with affinity for it, opened a **new** one, and that tab failed to read the file - leaving a blank Untitled editor and a toast as the only clue, which reads as "the editor opened but nothing is in it". Resolve before opening (as written, then beside the log file, then under each saved project root) and say so when nothing matches, the way the terminal's `LinkTarget::Path` branch already does. **Beware when testing this**: a harness that starts the app from the repository root makes the relative path resolve by accident, so it looks fixed when it is not - launch with `-WorkingDirectory` somewhere else to see the real behaviour (BUG-0037).
 
 ## Tool-Specific: Containers (tool-containers)
 - **"could not reach the engine" against a WSL host leaves three
@@ -336,6 +376,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **TeamCity's first start stops at a setup wizard** (data directory, database, licence agreement) before its REST API answers, so it cannot be scripted into a bench container quickly.
 - **reqwest 0.13 puts `RequestBuilder::form` behind the `form` feature.** Enable it on the crate that posts forms, not workspace-wide.
 - **Windows port 8080 may already be taken** (another Java process here). The bench Jenkins runs on 8091.
+- **A capability the server lacks still owes the user an answer.** Double-clicking a run switched to the Log tab only `if caps.log`, so on Forgejo - which has no run-log API - the gesture did nothing at all and looked broken. A kind without the capability opens the run's own page in the browser instead, and the runs hint says why there is no Log tab. Every `caps` branch wants that second arm (BUG-0037).
 
 ## Tool-Specific: Queue (tool-queue)
 
@@ -357,10 +398,15 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **GitHub's issue search needs `is:issue`** (or `is:pr`) and is limited to the first 1000 results.
 - **A method named like a trait method shadows nothing.** An inherent `fn item(&self, &Value)` beside the trait's `async fn item(&mut self, &str)` resolved to the trait in `.map(|i| self.item(i))` and failed with a confusing future-type error; give the helper another name (`row`).
 
+## Tool-Specific: Git activity (tool-git + hs-git)
+
+- **"Unset the key so it inherits" does not hold for `remote.origin.url`.** Every other key the project form writes (`user.name`, `user.email`, `user.signingkey`, `commit.gpgsign`, `init.defaultBranch`) has a global value behind it, so clearing the box and unsetting the key hands the repository back to git's own setting. A remote URL has nothing behind it: `git config --local --unset remote.origin.url` leaves the rest of the `[remote "origin"]` section in place, and `git fetch --all --prune` then reads "origin" as a URL and dies with `fatal: 'origin' does not appear to be a git repository` plus `Could not read from remote repository`. A freshly cloned repository broke this way the first time its settings were saved with the URL box empty. An empty URL field must leave the remote alone; removing a remote belongs to the Remotes tree, which runs `git remote remove` and drops the whole section (BUG-0037).
+- **That error names a remote, so it reads like a credential or network fault.** It is neither — check `git config --local --get-regexp '^remote\.'` for a remote with a `fetch` refspec and no `url` before looking at access rights.
+
 ## Headless and GUI Testing
 
 - **`gui-smoke.ps1 wheel` could not scroll down.** `mouse_event` takes the delta as a `uint`, so `-480` was refused, and masking with `0xFFFFFFFF` did nothing because PowerShell reads that literal as the Int32 `-1`; the mask is `0xFFFFFFFFL`. Fixed 2026-10-31.
-- **AdGuard breaks loopback connections to Windows-side servers.** With its filtering on, every mock-server test (and plain `curl` to a local Python server) timed out or was reset at random, while container ports forwarded from WSL kept answering - which made it look like the bench containers' fault. Pause AdGuard's filtering, or exclude localhost, before running the gate; the CI runner is this machine, so it fails there too. Found 2026-10-31.
+- **AdGuard breaks loopback connections to Windows-side servers.** Found 2026-10-31; the full entry with the 2026-11-02 diagnosis and the fix that actually works now lives under "Windows Environment and Build", since it is a machine/network problem rather than a GUI-testing one. The short version: pause is not enough, stop `Adguard Service`, and the CI runner is this machine so it fails there too.
 - **`keys` can drop or add characters** in a long text typed into a multi-line field (a comment arrived as `gfdChecked the **logs* rotaton`). Read back what the server stored before blaming the app, and keep typed test text short.
 - **Git Bash rewrites absolute paths in arguments to Windows programs**, `wsl` included: `wsl -e docker run … mosquitto -c /mosquitto-no-auth.conf` reached the container as `C:/Program Files/Git/mosquitto-no-auth.conf` and it restarted in a loop. Prefix the command with `MSYS_NO_PATHCONV=1`.
 
@@ -377,6 +423,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Overlay-only checks.** Test a toolbar hard-right layout in a narrow window (`hard_right` in toolbars).
 - **`gui-smoke.ps1` takes window-rect coordinates, not client ones.** Its `click` adds the `GetWindowRect` origin to the numbers you pass, and `shot` captures that same rect - so a control at `(sx, sy)` in the screenshot is clicked at exactly `sx, sy`. The `screenshot - (8, 31)` rule recorded for the screenshot sets belongs to the later `hs.ps1` harness, which works in client coordinates. Mixing them puts every click 31 px high, which lands on nothing and looks exactly like the window not being focused. Found 2026-10-31.
 - **`$env:TEMP` is not `%LOCALAPPDATA%\Temp` on this machine.** It is `D:\Temp`, so `gui-smoke.ps1`'s scratch data folder is `D:\Temp\hs-gui-data`. Seeding fixtures into the AppData path instead silently does nothing - the app starts fine and simply shows no connections. Read it with `pwsh -NoProfile -c '$env:TEMP'` rather than assuming.
+- **A seeded connection profile also needs to be in a per-kind subdirectory.** `Connections::load` walks the *directories* under `<workspace>/connections/` and reads the `.toml` files inside each, so a profile dropped straight into `connections/` is never seen - the activity just says "no servers yet" with nothing in the log. It belongs at `connections/<kind>/<name>.toml`, e.g. `connections/forgejo-actions/forgejo-bench.toml`.
+- **An Automation or Tracker profile can be seeded with no credential at all.** `auth_kinds_for` allows `none` for every kind bar GitHub/GitLab, and Forgejo's `actions/tasks` answers anonymously, so a bench server can be driven in the app with `auth = "none"` and no vault and no token. Worth knowing before minting an access token to test a read-only path.
 - **A seeded connection profile needs its kind table at the top level.** `ConnectionProfile.fields` is `#[serde(flatten)]`, so a SQLite profile is `[db]`, not `[fields.db]`; a file using the latter parses, loads and contributes no connection. Older hand-written fixtures in the scratch folders still have the wrong shape, which is why they do not appear either.
 - **Prefer a context-menu route over typing into the editor.** Driving a feature that reads the editor's statement means getting focus into the editor, and clicking into it does not reliably take focus from the schema tree - the keys land nowhere and the shortcut then does nothing, which looks like the shortcut being unbound. Where the same action exists on a tree node's right-click menu (Compare Data…, Import CSV…), use that: it needs no typing and works first time.
 - **A native file dialog leaves focus on the tab that opened it.** After an rfd save or open returns, the next `keys` can reach a different tab than the one you mean. Re-focus with `focus-hs.ps1` and click the intended tab before sending more keys; clicking into an editor does not always take focus from the schema tree.

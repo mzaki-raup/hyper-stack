@@ -293,7 +293,7 @@ impl EditorView {
 
         // Bars above the text.
         self.find_bar(ui, buf, cursors, theme, &mut resp);
-        self.goto_bar(ui, buf, cursors);
+        self.goto_bar(ui, buf, cursors, theme);
 
         let (font, cell) = self.cell(ui);
         let gutter_w = if self.show_gutter {
@@ -1640,35 +1640,50 @@ impl EditorView {
         }
     }
 
-    fn goto_bar(&mut self, ui: &mut egui::Ui, buf: &Buffer, cursors: &mut Cursors) {
+    fn goto_bar(
+        &mut self,
+        ui: &mut egui::Ui,
+        buf: &Buffer,
+        cursors: &mut Cursors,
+        theme: &EditorTheme,
+    ) {
         if !self.goto_open {
             return;
         }
-        ui.horizontal(|ui| {
-            ui.label("Go to Line");
-            let r = ui.add(egui::TextEdit::singleline(&mut self.goto_text).desired_width(80.0));
-            if self.goto_text.is_empty() {
-                r.request_focus();
-            }
-            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                let mut parts = self.goto_text.split(':');
-                let line: usize = parts
-                    .next()
-                    .and_then(|p| p.trim().parse().ok())
-                    .unwrap_or(1);
-                let col: usize = parts
-                    .next()
-                    .and_then(|p| p.trim().parse().ok())
-                    .unwrap_or(1);
-                let pos = buf.line_col_to_char(line.saturating_sub(1), col.saturating_sub(1));
-                cursors.set_single(Cursor::at(pos));
-                self.goto_open = false;
-                self.scroll_to_cursor = true;
-            }
-            if ui.small_button("✕").clicked() {
-                self.goto_open = false;
-            }
-        });
+        // The same frame as the find bar: without it the label sits flush
+        // against the pane's left edge (BUG-0037).
+        egui::Frame::new()
+            .fill(theme.gutter_bg)
+            .inner_margin(egui::Margin::symmetric(8, 6))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Go to Line");
+                    let r =
+                        ui.add(egui::TextEdit::singleline(&mut self.goto_text).desired_width(80.0));
+                    if self.goto_text.is_empty() {
+                        r.request_focus();
+                    }
+                    if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        let mut parts = self.goto_text.split(':');
+                        let line: usize = parts
+                            .next()
+                            .and_then(|p| p.trim().parse().ok())
+                            .unwrap_or(1);
+                        let col: usize = parts
+                            .next()
+                            .and_then(|p| p.trim().parse().ok())
+                            .unwrap_or(1);
+                        let pos =
+                            buf.line_col_to_char(line.saturating_sub(1), col.saturating_sub(1));
+                        cursors.set_single(Cursor::at(pos));
+                        self.goto_open = false;
+                        self.scroll_to_cursor = true;
+                    }
+                    if ui.small_button("✕").clicked() {
+                        self.goto_open = false;
+                    }
+                });
+            });
     }
 }
 

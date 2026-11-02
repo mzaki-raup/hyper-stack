@@ -191,7 +191,7 @@ Shift+Insert.
    kinds.
 5. **Puppet** (PuppetDB nodes and reports; a run through a Puppet Enterprise
    orchestrator) was in the programme's list and is **deferred** on the
-   owner's decision of 2026-10-31 (`FEAT-0084`, Backlog).
+   owner's decision of 2026-10-31 (`FEAT-0092`, Backlog).
 
 ## What is implemented (2026-10-31)
 
@@ -208,7 +208,11 @@ from a server. Where the build differs from the text above:
 
 - **Forgejo** has no Log tab and no Cancel: its API (11.0) has neither. The
   Queue tab shows the jobs waiting for a runner, and a run appears only once
-  a runner has taken it (the API lists tasks, not runs).
+  a runner has taken it (the API lists tasks, not runs). Double-clicking a
+  run therefore opens it in the Browser activity, where Forgejo's own pages
+  show the log, and the runs hint says why there is no Log tab — a kind
+  without `caps.log` answers the gesture rather than ignoring it
+  (BUG-0037).
 - **GitHub** serves workflow logs only to a token, even for a public
   repository; an anonymous connection says so once instead of failing per
   job. Anonymous calls are also limited to 60 an hour, which a tab polling

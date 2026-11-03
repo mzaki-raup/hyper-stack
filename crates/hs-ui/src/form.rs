@@ -106,18 +106,25 @@ pub fn field_grid<R>(
     id: impl std::hash::Hash + std::fmt::Debug,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
+    let h = field_height(ui);
     egui::Grid::new(id)
         .num_columns(2)
         .spacing([18.0, 10.0])
         .min_col_width(170.0)
-        .show(ui, add_contents)
+        .show(ui, |ui| {
+            // Every cell in a form row is a field's height tall, so a
+            // checkbox or a ComboBox beside a label centres on the same
+            // line as the label's text instead of hugging the row's top.
+            ui.spacing_mut().interact_size.y = h;
+            add_contents(ui)
+        })
         .inner
 }
 
 /// A row label inside [`field_grid`]: muted, vertically centred with the field.
 pub fn label(ui: &mut egui::Ui, text: &str) {
     ui.add_sized(
-        [170.0, 32.0],
+        [170.0, field_height(ui)],
         egui::Label::new(RichText::new(text)).halign(egui::Align::LEFT),
     );
 }
@@ -174,6 +181,16 @@ pub fn code_field(ui: &mut egui::Ui, value: &mut String, rows: usize) -> egui::R
 /// Muted explanatory text under a control.
 pub fn hint(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add(egui::Label::new(RichText::new(text).color(theme.text_muted).size(12.5)).wrap());
+}
+
+/// A [`hint`] under a form row, on a row of its own inside [`field_grid`].
+/// A grid cell is centred in its row, so a description stacked under the
+/// control makes that row tall and drags the label below the control's
+/// middle; on its own row the control's label stays level with it.
+pub fn field_hint_row(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label("");
+    hint(ui, theme, text);
+    ui.end_row();
 }
 
 /// A framed note panel with an info icon: instructions, tips, warnings.
@@ -604,6 +621,41 @@ pub fn icon_menu(
     let r = icon_button(ui, theme, icon, size, active);
     egui::Popup::menu(&r).show(add_contents);
     r
+}
+
+/// A toggle that is always visibly a button.
+///
+/// `egui::Button::selectable` draws **no frame while unselected**
+/// (`frame_when_inactive(selected)`), so the control is invisible until the
+/// pointer touches it and then sprouts a box around its text - which reads
+/// as the button growing on hover, and leaves someone with no way to tell
+/// it was a button at all. This keeps the frame in every state, so hovering
+/// only changes the highlight (CR-0026).
+///
+/// Use it for a toggle that sits in a toolbar or a button row. A row in a
+/// list is not one: a frame per row turns a list into a wall of buttons.
+pub fn toggle_button(ui: &mut egui::Ui, on: &mut bool, text: &str) -> egui::Response {
+    let r = selectable_button(ui, *on, text);
+    if r.clicked() {
+        *on = !*on;
+    }
+    r
+}
+
+/// [`toggle_button`] for a choice among several - a result tab, a view
+/// picker - where the caller sets the value itself rather than flipping a
+/// `bool`. Framed in every state for the same reason (CR-0026).
+pub fn selectable_button(
+    ui: &mut egui::Ui,
+    selected: bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    ui.add(
+        egui::Button::new(text)
+            .selected(selected)
+            .frame_when_inactive(true)
+            .frame(true),
+    )
 }
 
 pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {

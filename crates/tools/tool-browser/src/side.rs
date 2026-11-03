@@ -127,6 +127,7 @@ pub fn sidebar(
     ui.add(
         egui::TextEdit::singleline(&mut t.side.filter)
             .hint_text(s.t("browser-side-filter"))
+            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(f32::INFINITY),
     );
     ui.add_space(4.0);

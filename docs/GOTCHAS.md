@@ -189,6 +189,14 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **A `Grid` centres each cell in its row** (`Align2::LEFT_CENTER`), so
+  nothing you do to the *label* cell can line it up with a control that
+  shares its row with a description: the row is as tall as the stack and
+  the label lands in the middle of it. `add_sized`, `allocate_space` and a
+  `new_child` on the returned rect all come out at the same place, because
+  the grid has already aligned the cell before you see it. Put the
+  description on its own row (`form::field_hint_row`) and the row is a
+  field tall again. Found on the Automation Run tab, 2026-11-03 (CR-0026).
 - **An `egui::Panel` remembers the size its *content* produced, not the
   size it was given, so content that under-fills ratchets the panel
   smaller every frame.** In `egui` 0.35's `panel.rs`, `show_inside_dyn`

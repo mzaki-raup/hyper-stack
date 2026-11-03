@@ -1227,6 +1227,7 @@ impl RepoPane {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter)
                             .hint_text(s.t("git-filter-hint"))
+                            .margin(hs_ui::form::FIELD_MARGIN)
                             .desired_width(f32::INFINITY),
                     );
                 });

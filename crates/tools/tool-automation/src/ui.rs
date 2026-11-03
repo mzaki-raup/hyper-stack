@@ -1296,44 +1296,42 @@ impl AutomationTool {
                     name
                 };
                 form::label(ui, &label);
-                ui.vertical(|ui| {
-                    match &p.kind {
-                        ParamKind::Bool => {
-                            let mut on = value == "true";
-                            if ui.checkbox(&mut on, "").changed() {
-                                *value = on.to_string();
-                            }
-                        }
-                        ParamKind::Choice(options) => {
-                            egui::ComboBox::from_id_salt(("automation-choice", i))
-                                .width(form::FIELD_MIN_WIDTH)
-                                .selected_text(value.clone())
-                                .show_ui(ui, |ui| {
-                                    for o in options {
-                                        ui.selectable_value(value, o.clone(), o);
-                                    }
-                                });
-                        }
-                        ParamKind::LongText => {
-                            ui.add(
-                                egui::TextEdit::multiline(value)
-                                    .code_editor()
-                                    .desired_rows(4)
-                                    .desired_width(form::FIELD_MIN_WIDTH * 1.5),
-                            );
-                        }
-                        ParamKind::Secret => {
-                            form::secret_field(ui, value, "", form::FIELD_MIN_WIDTH);
-                        }
-                        ParamKind::Text => {
-                            form::text_field(ui, value, "");
+                match &p.kind {
+                    ParamKind::Bool => {
+                        let mut on = value == "true";
+                        if ui.checkbox(&mut on, "").changed() {
+                            *value = on.to_string();
                         }
                     }
-                    if !p.description.is_empty() {
-                        ui.weak(&p.description);
+                    ParamKind::Choice(options) => {
+                        egui::ComboBox::from_id_salt(("automation-choice", i))
+                            .width(form::FIELD_MIN_WIDTH)
+                            .selected_text(value.clone())
+                            .show_ui(ui, |ui| {
+                                for o in options {
+                                    ui.selectable_value(value, o.clone(), o);
+                                }
+                            });
                     }
-                });
+                    ParamKind::LongText => {
+                        ui.add(
+                            egui::TextEdit::multiline(value)
+                                .code_editor()
+                                .desired_rows(4)
+                                .desired_width(form::FIELD_MIN_WIDTH * 1.5),
+                        );
+                    }
+                    ParamKind::Secret => {
+                        form::secret_field(ui, value, "", form::FIELD_MIN_WIDTH);
+                    }
+                    ParamKind::Text => {
+                        form::text_field(ui, value, "");
+                    }
+                }
                 ui.end_row();
+                if !p.description.is_empty() {
+                    form::field_hint_row(ui, theme, &p.description);
+                }
             }
         });
         let missing: Vec<String> = form_spec

@@ -1504,6 +1504,7 @@ impl Tool for Scratchpad {
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text(s.t("scratchpad-search"))
+                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(4.0);

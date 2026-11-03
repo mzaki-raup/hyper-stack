@@ -1570,12 +1570,18 @@ impl EditorView {
                         step = Some(!ui.input(|i| i.modifiers.shift));
                         r.request_focus();
                     }
-                    ui.toggle_value(&mut self.find.case_sensitive, "Aa")
-                        .tip("Match Case");
-                    ui.toggle_value(&mut self.find.whole_word, "ab")
-                        .tip("Whole Word");
-                    ui.toggle_value(&mut self.find.regex, ".*")
-                        .tip("Regular Expression");
+                    // Framed buttons, not `toggle_value`: a frameless
+                    // toggle is invisible until the pointer touches it and
+                    // then sprouts a box around the text, which reads as
+                    // the control growing. A button that is always a
+                    // button only changes its highlight (CR-0026).
+                    for (on, text, tip) in [
+                        (&mut self.find.case_sensitive, "Aa", "Match Case"),
+                        (&mut self.find.whole_word, "ab", "Whole Word"),
+                        (&mut self.find.regex, ".*", "Regular Expression"),
+                    ] {
+                        hs_ui::form::toggle_button(ui, on, text).tip(tip);
+                    }
                     let n = self.find.matches.len();
                     let label = if n == 0 {
                         "No results".to_string()

@@ -1627,19 +1627,21 @@ impl DbTool {
                 } else {
                     color
                 });
-                let r = ui
-                    .selectable_label(i == self.active_result, label)
+                // Framed in every state: a frameless tab is invisible
+                // until hovered and then sprouts a box, which reads as the
+                // button growing (CR-0026).
+                let r = form::selectable_button(ui, i == self.active_result, label)
                     .tip(short_sql(&r.sql));
                 if r.clicked() {
                     self.active_result = i;
                 }
             }
-            if ui
-                .selectable_label(
-                    self.active_result == messages_tab,
-                    format!("{} {}", ph::CHAT_TEXT, s.t("db-messages")),
-                )
-                .clicked()
+            if form::selectable_button(
+                ui,
+                self.active_result == messages_tab,
+                format!("{} {}", ph::CHAT_TEXT, s.t("db-messages")),
+            )
+            .clicked()
             {
                 self.active_result = messages_tab;
             }
@@ -4460,6 +4462,7 @@ impl DbTool {
         ui.add(
             egui::TextEdit::singleline(&mut self.tree_filter)
                 .hint_text(s.t("db-filter-objects"))
+                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(2.0);
@@ -4561,6 +4564,7 @@ impl DbTool {
                         .add(
                             egui::TextEdit::singleline(&mut self.history_search)
                                 .hint_text(s.t("db-history-search"))
+                                .margin(hs_ui::form::FIELD_MARGIN)
                                 .desired_width(f32::INFINITY),
                         )
                         .changed()

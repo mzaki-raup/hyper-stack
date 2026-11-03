@@ -854,6 +854,22 @@ what it was in the API client's method picker beside the URL.
 the field beside it. Use it for any control sharing a row with a text
 field. Owner's report, 2026-10-17.
 
+### A form row: one control, label level with it (2026-11-03)
+
+`form::field_grid` does for a whole form what `field_row` does for one
+row: it runs its cells with `interact_size.y` at `form::field_height`, so
+every dropdown, checkbox and button in a form matches the fields around
+it without each call site asking.
+
+A form row holds **one** control. egui centres a grid cell in its row
+(`Align2::LEFT_CENTER`), so a cell that stacks a description under its
+control makes the row tall and drags the label opposite it down to the
+middle of the pair — which is how the Automation Run tab read. A
+description goes on a row of its own, through `form::field_hint_row`. A
+cell that genuinely holds several controls (Settings → Workspace's name
+field with its Rename button) keeps centring on the stack, which is
+right. Owner's report, 2026-11-03.
+
 
 ### The tab menu: no splitting, and Duplicate knows when to refuse (2026-10-17)
 

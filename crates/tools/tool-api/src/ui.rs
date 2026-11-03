@@ -460,6 +460,7 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
     ui.add(
         egui::TextEdit::singleline(&mut t.filter)
             .hint_text(s.t("api-filter"))
+            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(f32::INFINITY),
     );
     ui.add_space(4.0);

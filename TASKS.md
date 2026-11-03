@@ -178,7 +178,8 @@ Change Request : CR-0040
 ## v0.7.6 — Planned
 
 > **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
-> v0.115.0 (2026-11-02), merge `9dc90f2`. The heading stays Planned
+> v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
+> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`. The heading stays Planned
 > because CR-0025's children have not been started: a release carried
 > the finished items, not the batch.
 
@@ -311,7 +312,7 @@ Change Request : CR-0040
 - **State:** In-Progress ·
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.
 - **Depends on:** FEAT-0084
-- [ ] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
+- [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
 - [ ] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
 - [ ] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
 - [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
@@ -339,20 +340,31 @@ Change Request : CR-0040
   sixth box is the same defect, and FEAT-0093 builds on that fix.
 
 ### CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
-- **State:** Pending ·
+- **State:** Completed · one box skipped on the owner's decision (no "Unfocus result" control exists)
 - **Scope:** `hs-ui` button, form and dropdown primitives; every activity inherits them.
 - **Parent:** CR-0025
-- [ ] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
-- [ ] In All Activities -> Resize all text field height, slightly higher; For example in Home -> Dashboard Page, "What do you want to do?" field height is too small. Please follow text field height size in Settings -> Accessibility - Speech To Text -> Language. Make also the height size of all dropdown field, same height with the new text field height.
-- [ ] In All Activities -> All Inline Buttons, Label, Text Fields, Dropdown menu, Slider, Checkbox, radio button, etc; Vetical middle align all of it.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, do not magnify/resize Match Case,Whole Word and Regular Expression button. Make it as a proper button so that user know it is a button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Message button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Unfocus result button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Please vertical middle align label with input text, vertical middle align label with checkbox and checkbox label. Apply this to all activities that have form to look professional and standard.
-- [ ] Test: a widget snapshot proves a hovered button keeps its rect, and that a text field, a dropdown and a checkbox row share one baseline
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — hover every toolbar and inline button in three activities — nothing grows; the Home "What do you want to do?" field matches Settings -> Accessibility -> Language
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
+  - Measured in the running app first (2026-11-03). A plain toolbar button does **not** scale: hovering paints a 54x18 background and the label's bounding box is identical to the pixel. What does change size is a **frameless** control - `toggle_value` / a bare `selectable_label` - which is invisible until the pointer touches it and then sprouts a box around the text. The Find bar's `Aa` / `ab` / `.*` went from nothing to a 49x26 box around an 11 px label. So "do not magnify" and box 28's "make it a proper button" are the same defect, and the fix is a persistent frame rather than anything about hover itself.
+  - Not a blanket sweep: there are 13 `toggle_value` and 119 `selectable_label` call sites, and most of the latter are list rows, where a frame would be wrong. Only the ones that sit in a toolbar or a button row are converted.
+- [x] In All Activities -> Resize all text field height, slightly higher; For example in Home -> Dashboard Page, "What do you want to do?" field height is too small. Please follow text field height size in Settings -> Accessibility - Speech To Text -> Language. Make also the height size of all dropdown field, same height with the new text field height.
+  - The standard already exists and the Language field you named uses it: `form::text_field` applies `FIELD_MARGIN` (7 px top and bottom), `form::field_height` computes the result and `form::field_row` sizes a ComboBox or button beside one to match. The short fields are the ones that bypass all three.
+  - The launcher's "What do you want to do?" box is fixed - it was a bare `TextEdit::singleline` with egui's default `Margin::symmetric(4, 2)`.
+  - **Reach decided by the owner (2026-11-03): form-like fields only.** Raised the nine full-width sidebar search and filter boxes plus the NoSQL query field - Scratchpad, API Client, Browser, Database (objects and history), Devtools snippets, Git (history and filter), NoSQL - and the launcher box. Deliberately left alone: the filter inside a ComboBox popup in Settings -> Git, and the inline editors inside tables, where a 30 px control in a 20 px row would be worse than what is there.
+  - **Dropdowns, done for forms.** `form::field_grid` now sets `interact_size.y` to `field_height` for its cells, so every ComboBox, checkbox and button *inside a form* comes out at the field height without each call site saying so. Dropdowns that sit in a toolbar rather than a form - Database's "500 rows", "30 s timeout", "Auto-Commit" - are left at egui's height; raising those is CR-0027's toolbar sizing, which does it for buttons and dropdowns together.
+  - There is no global knob for the fields themselves: egui hard-codes a `TextEdit`'s margin and does not read it from the style, so each field must be told. There are 145 `TextEdit::singleline` call sites against 11 uses of `FIELD_MARGIN`. Many of those are not form fields - inline table-cell editors, the palette's search, filter boxes inside lists - where a 30 px control would be wrong. Awaiting the owner's call on whether this means every field or only the form-like ones.
+- [x] In All Activities -> All Inline Buttons, Label, Text Fields, Dropdown menu, Slider, Checkbox, radio button, etc; Vetical middle align all of it.
+  - A `ui.horizontal` already centres what it holds (`Align::Center`), so inline rows were not the defect. Form rows were: an egui `Grid` centres each cell in its row (`Align2::LEFT_CENTER`), so a cell holding a control *and* a description under it makes the row tall and the label beside it drops to the middle of the pair. Both halves of the fix live in `hs_ui::form` - the grid sizes its cells to a field's height, and `form::field_hint_row` puts a description on its own row.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, do not magnify/resize Match Case,Whole Word and Regular Expression button. Make it as a proper button so that user know it is a button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [x] In Database Activity -> Work Pane -> Result Section Header; When hover Message button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+- [~] In Database Activity -> Work Pane -> Result Section Header; When hover Unfocus result button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+  - **Skipped on the owner's decision (2026-11-03).** No control named "Unfocus" exists in the code or `locales/en.ftl` - the only match in the workspace is an unrelated comment about browser focus - so it could not be identified without guessing. The Message button beside it and the result tabs are now framed, so if it shares that strip it is already covered.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Please vertical middle align label with input text, vertical middle align label with checkbox and checkbox label. Apply this to all activities that have form to look professional and standard.
+  - Checked against the Forgejo bench's `build.yml`, whose form has all three kinds: `Ref *` now sits level with the text field, `target` with the dropdown and `verbose` with the checkbox. The Settings forms inherit the same grid. The stacked cells in Settings -> Workspace (a field with a button and a hint under it) keep centring on the stack, which is what a multi-control cell should do.
+- [x] Test: a widget snapshot proves a hovered button keeps its rect, and that a text field, a dropdown and a checkbox row share one baseline
+  - `crates/hs-ui/tests/form_rows.rs`: a checkbox in a form row comes out at `field_height` and a looser one does not, and a `form::toggle_button` has the same rect hovered as cold. Whether the frame is *painted* when the pointer is away is not observable headlessly - that one is the app check below.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — hover every toolbar and inline button in three activities — nothing grows; the Home "What do you want to do?" field matches Settings -> Accessibility -> Language
+- [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
 - **State:** Pending ·

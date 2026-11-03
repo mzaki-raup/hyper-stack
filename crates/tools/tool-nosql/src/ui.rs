@@ -1134,6 +1134,7 @@ impl NoSqlTool {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.state.filter)
                         .hint_text(example)
+                        .margin(hs_ui::form::FIELD_MARGIN)
                         .desired_width(f32::INFINITY)
                         .font(egui::TextStyle::Monospace),
                 );

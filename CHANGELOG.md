@@ -11,6 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Changed
+
+- Toolbar toggles that were invisible until the pointer touched them — the editor's Find bar `Aa` / `ab` / `.*`, the Database result strip's Messages button and the result tabs — are drawn as proper framed buttons, so hovering only highlights one instead of making a box appear
+- Form-like text fields are taller, matching the Settings → Accessibility → Language field: the Home launcher box, the sidebar search and filter boxes in Scratchpad, API Client, Browser, Database, Devtools, Git and NoSQL, and the NoSQL query field
+- A dropdown, checkbox or button inside a form row now comes out at the field height, and a form row's label sits level with its control — a description under a control goes on its own row instead of pushing the label down
+
 ### Fixed
 
 - Opening the Scratchpad activity no longer hangs the app. v0.115.0's folder header called a collapsing body inside the horizontal layout its row provides, which panicked the UI thread and left the window frozen at near-zero CPU

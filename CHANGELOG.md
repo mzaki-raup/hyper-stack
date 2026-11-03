@@ -11,15 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.116.0 — 2026-11-03
+
 ### Added
 
-- Remove From List on every connection row in the SSH, Containers, Database, NoSQL, Redis, S3, Queue, Automation and Tracker sidebars deletes the saved profile and its vault credentials after a confirmation, and closes its tabs
-- Every activity's Add goes straight to an empty Settings form with the keyboard in its Name field, and saving a new connection, container host, broker, server or tracker closes the form and opens it in its activity; the connection form gains Close, the Git tab strip's + opens Add Repository, and a repository saved in Settings is also listed as an Editor project
+- Remove From List deletes a profile and its credentials (9edbe88f)
+- Add lands on a focused form, and Save opens what it added (364613f8)
 
 ### Fixed
 
-- Deleting a connection in Settings deletes the credentials it stored in the vault too, instead of leaving them behind
-- The self-test's terminal check retries once with a longer wait and reports a crash as a failed check, and every check's line is written out as it finishes — a release check on the build machine could end inside it with nothing said
+- Deleting a connection deletes its stored credentials too (17eb9dc7)
+- A slow or crashing terminal probe no longer sinks the run (2983ba93)
 
 ## 0.115.2 — 2026-11-03
 

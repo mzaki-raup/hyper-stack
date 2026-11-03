@@ -672,7 +672,7 @@ impl Tool for RedisTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:connections".into(),
+                id: "settings:connection:new:redis".into(),
             });
         }
         // The kind's own mark, from the table every list shares.

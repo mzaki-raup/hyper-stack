@@ -4178,7 +4178,7 @@ impl Tool for DbTool {
         }
         match form::sidebar_head(ui, &theme, &s.t("db-sidebar-title"), &actions) {
             Some(0) => cx.actions.push(Action::RunCommand {
-                id: "settings:connections".into(),
+                id: "settings:connection:new:db".into(),
             }),
             Some(1) => self.refresh_schema(s),
             _ => {}

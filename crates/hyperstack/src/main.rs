@@ -17,6 +17,8 @@ mod editor_tests;
 mod launcher;
 mod self_test;
 mod settings_ai;
+#[cfg(test)]
+mod settings_tests;
 mod settings_ui;
 mod tabspace;
 #[cfg(test)]

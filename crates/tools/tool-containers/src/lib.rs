@@ -1026,7 +1026,7 @@ impl ContainersTool {
             });
         match act {
             Some(0) => cx.actions.push(Action::RunCommand {
-                id: "settings:containers".into(),
+                id: "settings:containers:new".into(),
             }),
             Some(1) => self.start_scan(&s),
             _ => {}
@@ -3354,7 +3354,7 @@ impl Tool for ContainersTool {
         match id {
             "containers.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:containers".into(),
+                    id: "settings:containers:new".into(),
                 });
                 true
             }
@@ -3414,7 +3414,7 @@ impl Tool for ContainersTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:containers".into(),
+                id: "settings:containers:new".into(),
             });
         }
 

@@ -598,7 +598,7 @@ impl Tool for QueueTool {
             }
             "queue.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:queue".into(),
+                    id: "settings:queue:new".into(),
                 });
                 true
             }
@@ -630,7 +630,7 @@ impl Tool for QueueTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:queue".into(),
+                id: "settings:queue:new".into(),
             });
         }
         let profiles: Vec<(String, String, String, bool, &'static str)> = {
@@ -898,7 +898,7 @@ impl QueueTool {
         match pick {
             Some(hs_ui::dashboard::Pick::Action(_)) => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:queue".into(),
+                    id: "settings:queue:new".into(),
                 });
             }
             Some(hs_ui::dashboard::Pick::Open(id)) => {

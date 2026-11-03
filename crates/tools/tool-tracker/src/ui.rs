@@ -733,7 +733,7 @@ impl Tool for TrackerTool {
             }
             "tracker.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:tracker".into(),
+                    id: "settings:tracker:new".into(),
                 });
                 true
             }
@@ -765,7 +765,7 @@ impl Tool for TrackerTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:tracker".into(),
+                id: "settings:tracker:new".into(),
             });
         }
         let profiles: Vec<(String, String, String, bool, &'static str)> = {
@@ -1071,7 +1071,7 @@ impl TrackerTool {
         match pick {
             Some(hs_ui::dashboard::Pick::Action(_)) => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:tracker".into(),
+                    id: "settings:tracker:new".into(),
                 });
             }
             Some(hs_ui::dashboard::Pick::Open(id)) => {

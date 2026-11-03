@@ -1356,6 +1356,25 @@ impl HyperStackApp {
             "settings:automation" => self.open_settings(Some(settings_ui::Page::Automation)),
             "settings:tracker" => self.open_settings(Some(settings_ui::Page::Tracker)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
+            // Add, from the sidebar of an activity whose kinds each have
+            // their own form: the page with no form open and its list
+            // section, kind buttons first, scrolled into view (FEAT-0093).
+            "settings:containers:new"
+            | "settings:queue:new"
+            | "settings:automation:new"
+            | "settings:tracker:new" => {
+                let page = match action {
+                    "settings:containers:new" => settings_ui::Page::Containers,
+                    "settings:queue:new" => settings_ui::Page::Queue,
+                    "settings:automation:new" => settings_ui::Page::Automation,
+                    _ => settings_ui::Page::Tracker,
+                };
+                self.open_settings(Some(page));
+                let mut ui = self.settings_ui.lock();
+                ui.state.conn_selected = None;
+                ui.state.conn_draft = None;
+                ui.state.focus_form = true;
+            }
             // Add a project: Settings -> Editor with an empty form in
             // the detail column. `:pick` also opens the folder chooser,
             // which is what the Editor sidebar's + means by "add a
@@ -1372,17 +1391,21 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.project_selected = None;
                 ui.state.project_draft = Some(draft);
+                ui.state.focus_form = true;
             }
             // Add a connection of a given kind, from an activity's
             // dashboard: Settings -> Connections with an empty form
             // already set to that kind, so the reader is not left to
             // pick "db" out of a list after asking for an SSH host
             // (owner's requirement, 2026-10-29).
+            // The kind decides the page: a container, queue, automation
+            // or tracker kind has its own, and the form takes the focus
+            // (FEAT-0093).
             _ if action.starts_with("settings:connection:new:") => {
                 let kind = action
                     .trim_start_matches("settings:connection:new:")
                     .to_string();
-                self.open_settings(Some(settings_ui::Page::Connections));
+                self.open_settings(Some(settings_ui::page_for_kind(&kind)));
                 let c = hs_core::connections::ConnectionProfile {
                     name: "new".into(),
                     kind,
@@ -1391,6 +1414,7 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.conn_selected = Some(c.id.clone());
                 ui.state.conn_draft = Some((c, String::new()));
+                ui.state.focus_form = true;
             }
             // Add CLI, from the Terminal dashboard: Settings -> Terminal
             // with an empty CLI form open.
@@ -1444,6 +1468,7 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.repo_selected = None;
                 ui.state.repo_draft = Some(settings_ui::RepoDraft::blank(source));
+                ui.state.focus_form = true;
             }
             _ if action.starts_with("settings:git:repo:") => {
                 let id = action.trim_start_matches("settings:git:repo:").to_string();
@@ -2992,6 +3017,12 @@ impl HyperStackApp {
                 // belongs to nothing (owner's requirement, 2026-10-27).
                 Some(g) if g == "editor" => {
                     self.run_action("settings:project:new");
+                }
+                // The same for the Git activity: its tabs are repositories,
+                // and a repository is added on the form in Settings -> Git
+                // (FEAT-0093).
+                Some(g) if g == "git" => {
+                    self.run_action("settings:git:repo:new");
                 }
                 // A new tab of this activity, not "open this activity":
                 // for one with a dashboard home those are different

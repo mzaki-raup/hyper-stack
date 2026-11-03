@@ -2353,7 +2353,7 @@ impl Tool for SshTool {
         .is_some()
         {
             cx.actions.push(hs_core::tool::Action::RunCommand {
-                id: "settings:connections".into(),
+                id: "settings:connection:new:ssh".into(),
             });
         }
         // The fourth piece is the host's own OS logo, once a connect has

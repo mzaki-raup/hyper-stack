@@ -253,6 +253,22 @@ impl Projects {
         self.save()
     }
 
+    /// Register `root` as a project named `name`, unless a project for
+    /// that folder is already listed. `true` when an entry was added. A
+    /// repository saved in Settings -> Git becomes an Editor project this
+    /// way (FEAT-0093), without renaming one the user already has.
+    pub fn add_root(&mut self, root: &Path, name: &str) -> storage::Result<bool> {
+        if self.by_root(root).is_some() {
+            return Ok(false);
+        }
+        let mut entry = ProjectEntry::for_root(root);
+        if !name.trim().is_empty() {
+            entry.name = name.to_string();
+        }
+        self.upsert(entry)?;
+        Ok(true)
+    }
+
     /// Drop an entry from the list.
     ///
     /// **This never touches the folder it points at.** The project list
@@ -414,6 +430,23 @@ mod tests {
 
     fn touch(dir: &Path, name: &str) {
         std::fs::write(dir.join(name), "").unwrap();
+    }
+
+    /// A repository saved in Settings -> Git is listed once as a project,
+    /// and a folder already listed keeps the name the user gave it.
+    #[test]
+    fn add_root_lists_a_folder_once_and_keeps_an_existing_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        let mut list = Projects::load(&dir.path().join("projects.toml"));
+        assert!(list.add_root(&repo, "My Repo").unwrap());
+        assert_eq!(list.by_root(&repo).unwrap().name, "My Repo");
+        assert!(!list.add_root(&repo, "Other").unwrap());
+        assert_eq!(list.all().len(), 1);
+        assert_eq!(list.by_root(&repo).unwrap().name, "My Repo");
+        let back = Projects::load(&dir.path().join("projects.toml"));
+        assert_eq!(back.all().len(), 1, "the entry is written to disk");
     }
 
     /// Every language the picker offers has to have an icon and a name,

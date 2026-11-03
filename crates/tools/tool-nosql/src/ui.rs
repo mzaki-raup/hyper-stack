@@ -553,7 +553,7 @@ impl Tool for NoSqlTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:connections".into(),
+                id: "settings:connection:new:mongodb".into(),
             });
         }
         // One pass over the store, not one per kind, so the list is in the

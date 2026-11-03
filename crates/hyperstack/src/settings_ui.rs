@@ -40,6 +40,42 @@ pub enum Page {
     About,
 }
 
+/// The Settings page that holds connection profiles of `kind`: container,
+/// queue, automation and tracker kinds have pages of their own; every
+/// other kind is on Connections.
+pub fn page_for_kind(kind: &str) -> Page {
+    use hs_core::connections as c;
+    if c::is_container_kind(kind) {
+        Page::Containers
+    } else if c::is_queue_kind(kind) {
+        Page::Queue
+    } else if c::is_automation_kind(kind) {
+        Page::Automation
+    } else if c::is_tracker_kind(kind) {
+        Page::Tracker
+    } else {
+        Page::Connections
+    }
+}
+
+/// An Add jump's focus, taken by the field it was meant for: scroll it
+/// into view and give it the keyboard (FEAT-0093).
+fn take_focus(focus: &mut bool, field: &egui::Response) {
+    if std::mem::take(focus) {
+        field.request_focus();
+        field.scroll_to_me(Some(egui::Align::Center));
+    }
+}
+
+/// An Add jump on a page whose form waits for a kind: bring the list
+/// section, title and kind buttons, to the top of the view. Called just
+/// before the section, so its title is not scrolled out above.
+fn take_section_focus(ui: &egui::Ui, state: &mut SettingsState) {
+    if state.conn_draft.is_none() && std::mem::take(&mut state.focus_form) {
+        ui.scroll_to_cursor(Some(egui::Align::TOP));
+    }
+}
+
 impl Page {
     pub fn all() -> [(Page, &'static str); 18] {
         [
@@ -248,6 +284,10 @@ pub struct SettingsState {
     pub cli_confirm: Option<String>,
     /// Terminal page: commands found on PATH that are not in the list yet.
     pub cli_suggestions: Option<Vec<String>>,
+    /// Set by an activity's Add jump (FEAT-0093): the next form drawn on
+    /// the page scrolls into view and takes the keyboard, or, on a page
+    /// whose form waits for a kind, its list section scrolls into view.
+    pub focus_form: bool,
 }
 
 /// What the master-password prompt is for.
@@ -3060,6 +3100,7 @@ fn container_list(
     effects: &mut Vec<SettingsEffect>,
 ) {
     use hs_core::connections::{CONTAINER_KINDS, kind_label};
+    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-container-list"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-list-hint"));
         ui.add_space(8.0);
@@ -3492,6 +3533,7 @@ fn queue(
         &s.t("settings-queue"),
         Some(&s.t("settings-queue-sub")),
     );
+    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-queue-brokers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
@@ -3656,6 +3698,7 @@ fn automation(
         &s.t("settings-automation"),
         Some(&s.t("settings-automation-sub")),
     );
+    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-automation-servers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
@@ -3813,6 +3856,7 @@ fn tracker(
         &s.t("settings-tracker"),
         Some(&s.t("settings-tracker-sub")),
     );
+    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-tracker-servers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
@@ -4241,7 +4285,8 @@ fn conn_detail(
     form::section(ui, theme, &s.t("conn-section-details"), |ui| {
         form::field_grid(ui, "conn-form", |ui| {
             form::label(ui, &s.t("conn-name"));
-            form::text_field(ui, &mut draft.name, &s.t("conn-name"));
+            let name = form::text_field(ui, &mut draft.name, &s.t("conn-name"));
+            take_focus(&mut state.focus_form, &name);
             ui.end_row();
             form::label(ui, &s.t("conn-kind"));
             egui::ComboBox::from_id_salt("conn-kind")
@@ -4345,9 +4390,13 @@ fn conn_detail(
     let mut start_test = false;
     let mut do_save = false;
     let mut do_connect = false;
+    let mut close = false;
     ui.horizontal(|ui| {
         if form::primary_button(ui, theme, &s.t("save")).clicked() {
             do_save = true;
+        }
+        if ui.button(s.t("close")).clicked() {
+            close = true;
         }
 
         // A kind with no driver has nothing to open, so the button
@@ -4389,9 +4438,13 @@ fn conn_detail(
         }
     });
     if do_save || do_connect {
+        // Decided before the save puts it in the store.
+        let is_new = s.connections.read().by_id(&draft.id).is_none();
         let saved = save_draft(s, draft, fields_text, effects);
-        if do_connect
-            && saved
+        // A profile just added opens in its activity, as Connect does,
+        // and the form closes behind it (FEAT-0093).
+        if saved
+            && (do_connect || is_new)
             && let Some(tool) = crate::launcher::tool_for_kind(&draft.kind)
         {
             effects.push(SettingsEffect::OpenConnection {
@@ -4399,6 +4452,12 @@ fn conn_detail(
                 id: draft.id.clone(),
             });
         }
+        close |= saved && is_new;
+    }
+    if close {
+        state.conn_draft = None;
+        state.conn_selected = None;
+        return;
     }
     if let Some(test) = &state.conn_test
         && test.profile_id == draft.id
@@ -5990,11 +6049,12 @@ fn project_detail(
     form::section(ui, theme, &draft.entry.label(), |ui| {
         form::field_grid(ui, "project-detail", |ui| {
             form::label(ui, &s.t("settings-project-name"));
-            form::text_field(
+            let name = form::text_field(
                 ui,
                 &mut draft.entry.name,
                 &s.t("settings-project-name-hint"),
             );
+            take_focus(&mut state.focus_form, &name);
             ui.end_row();
 
             form::label(ui, &s.t("settings-project-root"));
@@ -6309,6 +6369,22 @@ impl RepoDraft {
     }
     pub fn open(entry: hs_core::git_repos::RepoEntry) -> Self {
         Self { entry }
+    }
+}
+
+/// A repository added in Settings -> Git is also an Editor project, so
+/// its folder is one click away there too (FEAT-0093). A folder already
+/// listed is left as the user named it.
+fn register_repo_project(
+    s: &Services,
+    entry: &hs_core::git_repos::RepoEntry,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    if let Err(e) = s.projects.write().add_root(&entry.path, &entry.label()) {
+        effects.push(SettingsEffect::Toast(
+            hs_core::tool::ToastLevel::Error,
+            e.to_string(),
+        ));
     }
 }
 
@@ -6896,6 +6972,7 @@ fn repo_detail(
                         s.i18n
                             .t_args("settings-git-repo-cloned", &[("name", &entry.label())]),
                     ));
+                    register_repo_project(s, &entry, effects);
                     effects.push(SettingsEffect::OpenRepo(entry.path.clone()));
                 }
                 Err(e) => effects.push(SettingsEffect::Toast(
@@ -6939,7 +7016,8 @@ fn repo_detail(
             ui.end_row();
 
             form::label(ui, &s.t("settings-git-repo-name"));
-            form::text_field(ui, &mut e.name, &s.t("settings-git-repo-name-hint"));
+            let name = form::text_field(ui, &mut e.name, &s.t("settings-git-repo-name-hint"));
+            take_focus(&mut state.focus_form, &name);
             ui.end_row();
 
             form::label(ui, &s.t("settings-git-repo-icon"));
@@ -7400,6 +7478,7 @@ fn repo_detail(
                     s.t("toast-saved"),
                 ));
                 if is_new {
+                    register_repo_project(s, &entry, effects);
                     effects.push(SettingsEffect::OpenRepo(entry.path.clone()));
                 }
             }

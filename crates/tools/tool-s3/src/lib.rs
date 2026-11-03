@@ -2287,7 +2287,7 @@ impl Tool for S3Tool {
             ],
         ) {
             Some(0) => cx.actions.push(Action::RunCommand {
-                id: "settings:connections".into(),
+                id: "settings:connection:new:s3".into(),
             }),
             Some(1) => {
                 self.dialog = Some(DialogState::ImportAws {

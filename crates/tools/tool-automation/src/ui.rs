@@ -514,7 +514,7 @@ impl Tool for AutomationTool {
             }
             "automation.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:automation".into(),
+                    id: "settings:automation:new".into(),
                 });
                 true
             }
@@ -546,7 +546,7 @@ impl Tool for AutomationTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:automation".into(),
+                id: "settings:automation:new".into(),
             });
         }
         let profiles: Vec<(String, String, String, bool, &'static str)> = {
@@ -841,7 +841,7 @@ impl AutomationTool {
         match pick {
             Some(hs_ui::dashboard::Pick::Action(_)) => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:automation".into(),
+                    id: "settings:automation:new".into(),
                 });
             }
             Some(hs_ui::dashboard::Pick::Open(id)) => {

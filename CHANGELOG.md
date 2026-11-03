@@ -29,6 +29,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The Scratchpad's tabs no longer offer Duplicate: a note tab is the note
 - A Scratchpad note has one pin: pinning it in the sidebar pins its tab and the other way round, the pinned tabs sit in the sidebar's order, and a pinned note's tab cannot be closed until it is unpinned. A pinned note wears the pin in the sidebar and on its tab, in a colour chosen under Settings → Appearance → Scratchpad → Pin Colour (red by default); an unpinned note's tab wears the same Material icon as its sidebar row
 - The Settings tab has no context menu, and its strip no New Tab button
+- Every activity's sidebar header follows one standard: the title, a row of labelled Add buttons under it, and a rule before the list. Database's header reads Database; Containers loses the subtitle that repeated its title
+- The Scratchpad's Add Folder asks for the folder's name in the header itself, in place of the buttons, and only then makes the folder — Cancel leaves nothing behind
 
 ### Fixed
 

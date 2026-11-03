@@ -3382,11 +3382,15 @@ impl Tool for EditorTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
-        if hs_ui::form::sidebar_header(
+        if hs_ui::form::sidebar_head(
             ui,
             &theme,
             &s.t("editor-projects"),
-            &[(ph::FOLDER_PLUS, &s.t("editor-add-project"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::FOLDER_PLUS,
+                label: &s.t("editor-add-project"),
+                tip: "",
+            }],
         )
         .is_some()
         {

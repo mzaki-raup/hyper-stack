@@ -2267,13 +2267,23 @@ impl Tool for S3Tool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        match form::sidebar_header(
+        // Add first, as the primary action, and Import beside it in the
+        // same row (owner's standard, CR-0030).
+        match form::sidebar_head(
             ui,
             &theme,
             &s.t("s3-profiles"),
             &[
-                (ph::PLUS, &s.t("s3-new-profile")),
-                (ph::CLOUD_ARROW_DOWN, &s.t("s3-import-title")),
+                form::SideAction {
+                    icon: ph::PLUS,
+                    label: &s.t("s3-add-profile"),
+                    tip: &s.t("s3-new-profile"),
+                },
+                form::SideAction {
+                    icon: ph::CLOUD_ARROW_DOWN,
+                    label: &s.t("s3-import"),
+                    tip: &s.t("s3-import-title"),
+                },
             ],
         ) {
             Some(0) => cx.actions.push(Action::RunCommand {

@@ -3397,36 +3397,29 @@ impl Tool for ContainersTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.sync_configs(&s);
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("tool-containers"))
-                    .strong()
-                    .size(15.0),
-            );
-        });
         // Add goes to Settings, as Add Connection does from every other
-        // activity: one place manages a host, not two.
-        if form::primary_button(
+        // activity: one place manages a host, not two. The header is the
+        // shared one this sidebar was the model for; the "Containers"
+        // subtitle under it only repeated the title (CR-0030).
+        if form::sidebar_head(
             ui,
             &theme,
-            &format!("{} {}", ph::PLUS, s.t("container-add")),
+            &s.t("tool-containers"),
+            &[form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("container-add"),
+                tip: "",
+            }],
         )
-        .clicked()
+        .is_some()
         {
             cx.actions.push(Action::RunCommand {
                 id: "settings:containers".into(),
             });
         }
-        ui.add_space(6.0);
 
         let full = ui.available_height();
         let hosts_height = (full * 0.40).max(90.0);
-        ui.label(
-            egui::RichText::new(s.t("container-section-hosts"))
-                .small()
-                .strong()
-                .color(theme.text_muted),
-        );
         let all = hosts(&s);
         let current = self.current_uri();
         let mut open: Option<String> = None;

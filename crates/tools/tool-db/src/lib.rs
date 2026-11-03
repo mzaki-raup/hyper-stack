@@ -4156,12 +4156,27 @@ impl Tool for DbTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let mut actions: Vec<(&str, String)> = vec![(ph::PLUS, s.t("db-new-profile"))];
+        // Add Database, and Refresh Schema once a session is open. Both
+        // labelled, under a title that names the activity rather than
+        // repeating "connections" (owner's standard, CR-0030).
+        let (add, add_tip, refresh) = (
+            s.t("db-add-database"),
+            s.t("db-new-profile"),
+            s.t("db-refresh-schema"),
+        );
+        let mut actions = vec![form::SideAction {
+            icon: ph::PLUS,
+            label: &add,
+            tip: &add_tip,
+        }];
         if self.cmd.is_some() {
-            actions.push((ph::ARROW_CLOCKWISE, s.t("db-refresh-schema")));
+            actions.push(form::SideAction {
+                icon: ph::ARROW_CLOCKWISE,
+                label: &refresh,
+                tip: "",
+            });
         }
-        let actions: Vec<(&str, &str)> = actions.iter().map(|(i, t)| (*i, t.as_str())).collect();
-        match form::sidebar_header(ui, &theme, &s.t("db-connections"), &actions) {
+        match form::sidebar_head(ui, &theme, &s.t("db-sidebar-title"), &actions) {
             Some(0) => cx.actions.push(Action::RunCommand {
                 id: "settings:connections".into(),
             }),

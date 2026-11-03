@@ -335,15 +335,6 @@ pub fn sidebar_header_icon(
     sidebar_header_inner(ui, theme, Some((icon, fallback)), title, actions)
 }
 
-pub fn sidebar_header(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    title: &str,
-    actions: &[(&str, &str)],
-) -> Option<usize> {
-    sidebar_header_inner(ui, theme, None, title, actions)
-}
-
 fn sidebar_header_inner(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -397,6 +388,91 @@ fn sidebar_header_inner(
         );
     });
     clicked
+}
+
+/// One action in a sidebar header's button row: drawn as `icon label`,
+/// with `tip` on hover when it has more to say than the label.
+pub struct SideAction<'a> {
+    pub icon: &'a str,
+    pub label: &'a str,
+    pub tip: &'a str,
+}
+
+/// A sidebar's header, in the shape the Containers sidebar set: the
+/// title in its bar, then a row of labelled actions with air above and
+/// below, then a rule before the list. The first action is the primary
+/// one; any others sit beside it as framed buttons. Returns the index
+/// of the action clicked (owner's standard, CR-0030).
+///
+/// Icon-only header buttons left the reader to hover each one to learn
+/// what it did; every action here carries its words.
+pub fn sidebar_head(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    actions: &[SideAction<'_>],
+) -> Option<usize> {
+    header_bar(ui, theme, |ui| {
+        ui.set_min_height(SIDEBAR_HEADER_HEIGHT);
+        ui.horizontal(|ui| {
+            ui.set_min_height(SIDEBAR_HEADER_HEIGHT);
+            ui.label(RichText::new(title).strong().size(15.0));
+        });
+    });
+    if actions.is_empty() {
+        return None;
+    }
+    let mut clicked = None;
+    sidebar_action_row(ui, theme, |ui| {
+        for (i, a) in actions.iter().enumerate() {
+            let r = if i == 0 {
+                primary_button(ui, theme, &format!("{} {}", a.icon, a.label))
+            } else {
+                crate::toolbar::btn(ui, theme, a.icon, a.label)
+            };
+            let r = if a.tip.is_empty() { r } else { r.tip(a.tip) };
+            if r.clicked() {
+                clicked = Some(i);
+            }
+        }
+    });
+    clicked
+}
+
+/// The band under a sidebar's title where its actions sit: air above, a
+/// wrapping row, air below and a rule across the column. Separate from
+/// [`sidebar_head`] so a sidebar can put something else in the same
+/// place - the Scratchpad's folder-name form takes the buttons' row
+/// while it is open (CR-0030).
+pub fn sidebar_action_row<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let r = egui::Frame::new()
+        .inner_margin(Margin {
+            left: 8,
+            right: 8,
+            top: 8,
+            bottom: 8,
+        })
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                add(ui)
+            })
+            .inner
+        })
+        .inner;
+    let w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 1.0), egui::Sense::hover());
+    ui.painter().hline(
+        rect.x_range(),
+        rect.center().y,
+        Stroke::new(1.0, theme.border),
+    );
+    ui.add_space(6.0);
+    r
 }
 
 /// A selectable list row with an icon, hover highlight and selection colour

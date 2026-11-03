@@ -659,11 +659,15 @@ impl Tool for RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         // The same header, list rows and add button as the SSH, S3 and
         // database sidebars; the Sidebar toggle hides all of it.
-        if form::sidebar_header(
+        if form::sidebar_head(
             ui,
             &theme,
             &s.t("redis-connections"),
-            &[(ph::PLUS, &s.t("redis-new-profile"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("redis-add"),
+                tip: &s.t("redis-new-profile"),
+            }],
         )
         .is_some()
         {

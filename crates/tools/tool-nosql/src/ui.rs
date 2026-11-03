@@ -540,11 +540,15 @@ impl Tool for NoSqlTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        if form::sidebar_header(
+        if form::sidebar_head(
             ui,
             &theme,
             &s.t("nosql-connections"),
-            &[(ph::PLUS, &s.t("nosql-new-profile"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("nosql-add"),
+                tip: &s.t("nosql-new-profile"),
+            }],
         )
         .is_some()
         {

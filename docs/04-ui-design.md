@@ -924,6 +924,22 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-03): one sidebar header (CR-0030)
+
+Every activity's sidebar opens with `hs_ui::form::sidebar_head`, in the
+shape the Containers sidebar set: the title in its bar, then one row of
+**labelled** actions with air above and below, then a rule before the
+list. The first action is the primary one (accent-filled); a second —
+S3's Import, Database's Refresh Schema, the Scratchpad's Add Folder —
+sits beside it as a framed toolbar button. A sidebar never repeats its
+title as a subtitle under the buttons.
+
+`form::sidebar_action_row` is that band on its own, so a sidebar can put
+something else in the same place: the Scratchpad's folder-name form
+replaces the buttons while it is open and gives them back on Create or
+Cancel. The folder is named before it exists, so Cancel leaves nothing
+behind. Home keeps its own header, with the workspace's logo.
+
 ## Addendum (2026-11-03): one toolbar standard (CR-0027)
 
 Everything a toolbar draws comes from `hs_ui::toolbar`, so the strip reads

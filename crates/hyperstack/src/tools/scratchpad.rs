@@ -68,6 +68,8 @@ impl ToolFactory for ScratchpadFactory {
             // sidebar, which is where the rescan lives, and the strip
             // asks every tab whether its note is pinned (CR-0041).
             pins: load_pins(&notes_dir(services)),
+            folder_form: None,
+            folder_focus: false,
             order: Vec::new(),
             folders: Vec::new(),
             orders: Default::default(),
@@ -132,6 +134,11 @@ pub struct Scratchpad {
     saved: String,
     notes: Vec<NoteMeta>,
     pins: Vec<String>,
+    /// The header's Add Folder form, with what has been typed so far;
+    /// `None` while the buttons show (CR-0030).
+    folder_form: Option<String>,
+    /// Focus the form's field on the frame it opens.
+    folder_focus: bool,
     /// Saved order of unpinned notes; ids missing here sort newest first.
     order: Vec<String>,
     /// Every folder under `notes/`, as paths relative to it, sorted.
@@ -1131,6 +1138,17 @@ impl Scratchpad {
     }
 
     /// Make a folder inside `parent` and put its name up for editing.
+    /// Make a top-level folder with the name typed into the header's
+    /// form. Named before it exists, so a Cancel leaves nothing behind
+    /// (CR-0030).
+    fn create_named_folder(&mut self, name: &str, cx: &mut ToolContext) {
+        let root = notes_dir(cx.services);
+        match create_folder(&root, "", name) {
+            Ok(_) => self.rescan(cx.services),
+            Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+        }
+    }
+
     fn new_folder(&mut self, parent: &str, cx: &mut ToolContext) {
         let root = notes_dir(cx.services);
         match create_folder(&root, parent, &cx.services.t("scratchpad-new-folder")) {
@@ -1546,42 +1564,83 @@ impl Tool for Scratchpad {
         if self.scanned.is_none_or(|t| t.elapsed() > RESCAN_EVERY) {
             self.rescan(s);
         }
-        let mut new_folder = false;
-        // The title on its own line and the two buttons under it: both
-        // carry labels now (owner's report, CR-0027), and labelled they
-        // do not fit beside the title in a sidebar column.
-        form::header_bar(ui, &theme, |ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    egui::RichText::new(s.t("scratchpad-notes"))
-                        .strong()
-                        .size(15.0),
+        // The shared sidebar header (CR-0030): the title, then Add Note
+        // and Add Folder in one row. While a folder is being named, the
+        // form takes the buttons' place in that same band, and Create or
+        // Cancel brings the buttons back.
+        if let Some(mut name) = self.folder_form.take() {
+            form::sidebar_head(ui, &theme, &s.t("scratchpad-notes"), &[]);
+            let mut done: Option<bool> = None;
+            form::sidebar_action_row(ui, &theme, |ui| {
+                let r = form::text_field_width(
+                    ui,
+                    &mut name,
+                    &s.t("scratchpad-folder-name"),
+                    ui.available_width().min(form::FIELD_MAX_WIDTH),
                 );
-                ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
-                    if ui
-                        .button(format!("{} {}", ph::PLUS, s.t("scratchpad-new")))
-                        .tip(s.t("scratchpad-new-tip"))
-                        .clicked()
-                    {
-                        cx.open_new_tab("scratchpad", None);
-                    }
-                    if ui
-                        .button(format!(
-                            "{} {}",
-                            ph::FOLDER_PLUS,
-                            s.t("scratchpad-add-folder")
-                        ))
-                        .tip(s.t("scratchpad-new-folder-tip"))
-                        .clicked()
-                    {
-                        new_folder = true;
-                    }
-                });
+                if self.folder_focus {
+                    r.request_focus();
+                    self.folder_focus = false;
+                }
+                let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let esc = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                let named = !name.trim().is_empty();
+                if ui
+                    .add_enabled(
+                        named,
+                        egui::Button::new(
+                            egui::RichText::new(format!(
+                                "{} {}",
+                                ph::CHECK,
+                                s.t("scratchpad-folder-create")
+                            ))
+                            .color(egui::Color32::WHITE),
+                        )
+                        .fill(theme.accent),
+                    )
+                    .clicked()
+                    || (enter && named)
+                {
+                    done = Some(true);
+                }
+                // Words only: `ph::X` draws as a boxed cross, not a plain
+                // one, and the label says it better.
+                if hs_ui::toolbar::btn(ui, &theme, "", &s.t("scratchpad-folder-cancel")).clicked()
+                    || esc
+                {
+                    done = Some(false);
+                }
             });
-        });
-        if new_folder {
-            self.new_folder("", cx);
+            match done {
+                Some(true) => self.create_named_folder(name.trim(), cx),
+                Some(false) => {}
+                None => self.folder_form = Some(name),
+            }
+        } else {
+            match form::sidebar_head(
+                ui,
+                &theme,
+                &s.t("scratchpad-notes"),
+                &[
+                    form::SideAction {
+                        icon: ph::PLUS,
+                        label: &s.t("scratchpad-add-note"),
+                        tip: &s.t("scratchpad-new-tip"),
+                    },
+                    form::SideAction {
+                        icon: ph::FOLDER_PLUS,
+                        label: &s.t("scratchpad-add-folder"),
+                        tip: &s.t("scratchpad-new-folder-tip"),
+                    },
+                ],
+            ) {
+                Some(0) => cx.open_new_tab("scratchpad", None),
+                Some(1) => {
+                    self.folder_form = Some(String::new());
+                    self.folder_focus = true;
+                }
+                _ => {}
+            }
         }
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)

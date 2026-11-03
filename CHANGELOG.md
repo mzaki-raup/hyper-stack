@@ -31,6 +31,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The Settings tab has no context menu, and its strip no New Tab button
 - Every activity's sidebar header follows one standard: the title, a row of labelled Add buttons under it, and a rule before the list. Database's header reads Database, Queue's reads Queue and Automation's reads Automation; Containers loses the subtitle that repeated its title
 - Every activity's fixed tab draws its icon in the activity's own colour while Coloured Activity Icons is on, never outlined; the Editor's, the API Client's and the Browser's keep their pictures
+- Fixed tabs, and pinned tabs that show their name, size themselves to their icon and label instead of truncating them in a fixed-width slot
 - The Editor's fixed tab shows the workspace's logo, as the API Client's and the Browser's do, instead of a plain folder glyph. All three take one copy the shell loads when the workspace changes or its logo is set; the API Client used to read the file on every frame, and the Browser to check it on disk every frame
 - The Scratchpad's Add Folder asks for the folder's name in the header itself, in place of the buttons, and only then makes the folder — Cancel leaves nothing behind
 

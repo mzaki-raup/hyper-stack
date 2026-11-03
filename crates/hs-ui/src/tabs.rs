@@ -145,6 +145,9 @@ pub struct TabLayout {
     /// Row 0's fixed slots, in the order they are drawn: the permanent tab
     /// first, then the pinned ones. Owner's requirement, 2026-10-17.
     pub lead: Vec<usize>,
+    /// Each lead slot's width, in `lead`'s order: what its icon and name
+    /// need, so a fixed tab never truncates its label (CR-0043).
+    pub lead_widths: Vec<f32>,
 }
 
 impl TabLayout {
@@ -160,20 +163,31 @@ impl TabLayout {
 /// room for the "+" button. The permanent tab leads the strip and the
 /// pinned tabs follow it, so pinning never puts a tab in front of the
 /// activity's home. Owner's requirement, 2026-10-17.
+// One slice per fact about each tab, read side by side; a struct of five
+// slices would only rename them.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_tab_layout(
     pinned: &[bool],
     permanent: &[bool],
     icon_only: &[bool],
     pin_rank: &[Option<usize>],
+    fit_width: &[f32],
     full_width: f32,
     min_width: f32,
     gap: f32,
 ) -> TabLayout {
     let is_permanent = |i: usize| permanent.get(i).copied().unwrap_or(false);
     // A permanent tab keeps its name even where a pinned one would be an
-    // icon: it is the activity's front page, not a bookmark.
+    // icon: it is the activity's front page, not a bookmark. A slot that
+    // shows a name is as wide as the name needs (`fit_width`, measured by
+    // the strip), so it never truncates; a caller with nothing measured
+    // gets the old fixed width (CR-0043).
     let slot_width = |i: usize| {
-        pinned_slot_width(icon_only.get(i).copied().unwrap_or(false) && !is_permanent(i))
+        if icon_only.get(i).copied().unwrap_or(false) && !is_permanent(i) {
+            PINNED_WIDTH
+        } else {
+            fit_width.get(i).copied().unwrap_or(PINNED_TEXT_WIDTH)
+        }
     };
     // The pinned slots follow the permanent tab, in the order the tool
     // gives them when it keeps one (the Scratchpad's sidebar), and in
@@ -197,6 +211,7 @@ pub fn compute_tab_layout(
         return TabLayout {
             rows: vec![Vec::new()],
             tab_width: min_width,
+            lead_widths: lead.iter().map(|&i| slot_width(i)).collect(),
             lead,
         };
     }
@@ -208,6 +223,7 @@ pub fn compute_tab_layout(
         return TabLayout {
             rows: vec![regular],
             tab_width: one_row_width.min(MAX_TAB_WIDTH),
+            lead_widths: lead.iter().map(|&i| slot_width(i)).collect(),
             lead,
         };
     }
@@ -245,6 +261,7 @@ pub fn compute_tab_layout(
     TabLayout {
         rows,
         tab_width,
+        lead_widths: lead.iter().map(|&i| slot_width(i)).collect(),
         lead,
     }
 }
@@ -262,6 +279,7 @@ pub fn tab_row_count(
         pinned,
         permanent,
         icon_only,
+        &[],
         &[],
         full_width,
         min_width,
@@ -430,11 +448,41 @@ impl TabStrip<'_> {
             .collect();
         let scopes = close_scopes(&closable);
         let ranks: Vec<Option<usize>> = tabs.iter().map(TabItem::pin_rank).collect();
+        // What a fixed or pinned tab's name needs: the icon, the gap after
+        // it, the name, and the right edge the painter leaves. Measured
+        // with the font the tab is drawn in, so a taller strip's bigger
+        // text still fits (CR-0043).
+        let m = self.metrics();
+        let font = egui::FontId::proportional(m.font);
+        let fit: Vec<f32> = tabs
+            .iter()
+            .map(|t| {
+                if !(t.pinned() || t.permanent()) {
+                    return 0.0;
+                }
+                let text = |s: String| {
+                    ui.painter()
+                        .layout_no_wrap(s, font.clone(), Color32::WHITE)
+                        .size()
+                        .x
+                };
+                let prefix = t.title_prefix().map(|(p, _)| text(p) + 6.0).unwrap_or(0.0);
+                let w = 16.0 + m.icon + prefix + text(t.title()) + 12.0;
+                // A pinned note's title can be long; a fixed tab's name
+                // is an activity's or a workspace's, and is shown whole.
+                if t.permanent() {
+                    w
+                } else {
+                    w.min(MAX_TAB_WIDTH)
+                }
+            })
+            .collect();
         let layout = compute_tab_layout(
             &pinned,
             &permanent,
             &icon_only,
             &ranks,
+            &fit,
             layout_width,
             self.min_width,
             self.gap,
@@ -452,9 +500,9 @@ impl TabStrip<'_> {
         for (row_i, row) in layout.rows.iter().enumerate() {
             let mut x = strip_rect.left();
             if row_i == 0 {
-                for &i in &layout.lead {
+                for (k, &i) in layout.lead.iter().enumerate() {
                     let only_icon = icon_only[i] && !permanent[i];
-                    let w = pinned_slot_width(only_icon);
+                    let w = layout.lead_widths[k];
                     let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, self.row_h()));
                     self.draw_tab(
                         ui, &painter, rect, &tabs[i], only_icon, &mut resp, i, scopes[i],
@@ -854,6 +902,7 @@ mod tests {
             &[false; 3],
             &[false; 3],
             &[],
+            &[],
             1000.0,
             140.0,
             4.0,
@@ -873,6 +922,7 @@ mod tests {
             &[false; 6],
             &[false; 6],
             &[false; 6],
+            &[],
             &[],
             600.0,
             140.0,
@@ -898,8 +948,10 @@ mod tests {
         let names = [false, false, false, false];
         // Narrow enough that the tabs are not already at MAX_TAB_WIDTH,
         // or both answers are the cap and the test proves nothing.
-        let with_icon = compute_tab_layout(&pinned, &[false; 4], &icons, &[], 700.0, 140.0, 4.0);
-        let with_name = compute_tab_layout(&pinned, &[false; 4], &names, &[], 700.0, 140.0, 4.0);
+        let with_icon =
+            compute_tab_layout(&pinned, &[false; 4], &icons, &[], &[], 700.0, 140.0, 4.0);
+        let with_name =
+            compute_tab_layout(&pinned, &[false; 4], &names, &[], &[], 700.0, 140.0, 4.0);
         assert!(
             with_name.tab_width < with_icon.tab_width,
             "a named pinned tab should take more of the row"
@@ -916,7 +968,7 @@ mod tests {
         let icon_only = vec![false; 20];
         let width = 900.0;
         let gap = 4.0;
-        let l = compute_tab_layout(&pinned, &permanent, &icon_only, &[], width, 120.0, gap);
+        let l = compute_tab_layout(&pinned, &permanent, &icon_only, &[], &[], width, 120.0, gap);
         let lead_span: f32 = l.lead.iter().map(|_| pinned_slot_width(false) + gap).sum();
         for (i, row) in l.rows.iter().enumerate() {
             let used =
@@ -933,7 +985,16 @@ mod tests {
     #[test]
     fn pinned_tabs_take_first_row_space_and_are_not_counted_as_regular() {
         let pinned = [true, false, true, false, false];
-        let l = compute_tab_layout(&pinned, &[false; 5], &[true; 5], &[], 800.0, 140.0, 4.0);
+        let l = compute_tab_layout(
+            &pinned,
+            &[false; 5],
+            &[true; 5],
+            &[],
+            &[],
+            800.0,
+            140.0,
+            4.0,
+        );
         assert_eq!(l.lead, vec![0, 2]);
         let regular: Vec<usize> = l.rows.concat();
         assert_eq!(regular, vec![1, 3, 4]);
@@ -945,7 +1006,7 @@ mod tests {
         // drawn first whatever the strip order is.
         let pinned = [true, false, false, true, false];
         let permanent = [false, false, true, false, false];
-        let l = compute_tab_layout(&pinned, &permanent, &[true; 5], &[], 800.0, 140.0, 4.0);
+        let l = compute_tab_layout(&pinned, &permanent, &[true; 5], &[], &[], 800.0, 140.0, 4.0);
         assert_eq!(l.lead, vec![2, 0, 3]);
         assert_eq!(l.rows.concat(), vec![1, 4]);
     }
@@ -957,12 +1018,54 @@ mod tests {
         assert!(wide > narrow);
     }
 
+    /// A fixed or pinned slot that shows a name is as wide as the name
+    /// needs - wider than the old fixed slot for a long one, narrower for
+    /// a short one - so it never truncates (CR-0043). An icon-only pinned
+    /// slot keeps its small fixed width.
+    #[test]
+    fn a_named_lead_slot_is_as_wide_as_its_name() {
+        // Permanent, a pinned name, an icon-only pin, then two regular tabs.
+        let pinned = [false, true, true, false, false];
+        let permanent = [true, false, false, false, false];
+        let icon_only = [false, false, true, false, false];
+        let fit = [190.0, 80.0, 999.0, 0.0, 0.0];
+        let l = compute_tab_layout(
+            &pinned,
+            &permanent,
+            &icon_only,
+            &[],
+            &fit,
+            1400.0,
+            140.0,
+            4.0,
+        );
+        assert_eq!(l.lead, vec![0, 1, 2]);
+        assert_eq!(l.lead_widths, vec![190.0, 80.0, PINNED_WIDTH]);
+        // Measured or not, a slot is the same width everywhere: with no
+        // measurement it falls back to the old fixed width.
+        let fixed = compute_tab_layout(
+            &pinned,
+            &permanent,
+            &icon_only,
+            &[],
+            &[],
+            1400.0,
+            140.0,
+            4.0,
+        );
+        assert_eq!(
+            fixed.lead_widths,
+            vec![PINNED_TEXT_WIDTH, PINNED_TEXT_WIDTH, PINNED_WIDTH]
+        );
+    }
+
     #[test]
     fn no_regular_tabs_is_one_empty_row() {
         let l = compute_tab_layout(
             &[true, true],
             &[false, false],
             &[true, true],
+            &[],
             &[],
             500.0,
             140.0,

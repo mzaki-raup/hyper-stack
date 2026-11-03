@@ -217,6 +217,13 @@ Activity Icons* says: at a tab's size a ring reads as a smudge. The
 Editor, the API Client and the Browser are left out, because their fixed
 tab wears a picture rather than a glyph.
 
+A fixed tab, and a pinned tab that shows its name, is **as wide as its
+icon and label need** — measured in the font the strip draws, so a taller
+tab height with its bigger text still fits — rather than sitting in a
+fixed 132 px slot that truncated "Scratchpad" and "Containers" once the
+text grew. A pinned note's slot stops at the regular maximum tab width,
+since a note's title can be long; a fixed tab's name is shown whole.
+
 The Editor's and the API Client's home tabs are the workspace's front
 page, so they wear the workspace's logo (Settings → Workspace → Logo)
 when it has one. A tool asks for it with `Tool::tab_wears_workspace_logo`

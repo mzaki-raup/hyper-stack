@@ -478,6 +478,55 @@ pub trait Tool: Send {
     /// Owner's report, 2026-10-17.
     fn set_home_tab(&mut self, _home: bool, _services: &Services) {}
 
+    /// Whether this tab's pin belongs to the tool rather than to the
+    /// shell, and what it currently is.
+    ///
+    /// `None` - the usual answer - leaves pinning to the shell, which
+    /// keeps a flag per tab. The Scratchpad answers `Some`, because a
+    /// note is pinned in its sidebar and a tab showing that note has to
+    /// agree: two pins for one note were two different answers to the
+    /// same question (owner's rule, CR-0041).
+    fn tab_pinned(&self) -> Option<bool> {
+        None
+    }
+
+    /// What kind of item this tab holds, for the Material icon the rest
+    /// of the activity already uses for it ("note", "query", …). The
+    /// shell draws that picture on the tab when Material icons are on
+    /// for the activity, so a tab and its sidebar row wear the same icon
+    /// (owner's report, CR-0041). `None` keeps the tool's own glyph.
+    fn tab_item_kind(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Whether the tab's icon should be the pin rather than the tool's
+    /// own glyph or picture. A pinned note wears the pin, in the pinned
+    /// colour, so the strip says at a glance which notes are kept; an
+    /// unpinned one keeps its Material icon (owner's rule, CR-0041).
+    fn tab_icon_is_pin(&self) -> bool {
+        false
+    }
+
+    /// Whether this tab can be closed at all. A pinned Scratchpad note
+    /// cannot: pinning a note is how you say it stays, so the cross and
+    /// the menu's Close both go (owner's rule, CR-0041). Close Others
+    /// and Close to the Right already spare pinned tabs.
+    fn tab_closable(&self) -> bool {
+        true
+    }
+
+    /// Pin or unpin from the tab's own menu, for a tool that answered
+    /// [`Tool::tab_pinned`]. The tool writes wherever it keeps the state
+    /// and tells the other tabs - the shell does not touch its own flag.
+    fn set_tab_pinned(&mut self, _pinned: bool, _services: &Services) {}
+
+    /// Where this tab sits among the pinned ones, for a tool that owns
+    /// its pins. The strip orders its pinned slots by this, so the tabs
+    /// read in the order the tool's own list does (CR-0041).
+    fn pin_rank(&self) -> Option<usize> {
+        None
+    }
+
     /// Whether this activity has a permanent home tab at all. The shell
     /// makes the first tab of such a tool its home: a dashboard that
     /// cannot be closed, pinned or duplicated. The editor says no, because

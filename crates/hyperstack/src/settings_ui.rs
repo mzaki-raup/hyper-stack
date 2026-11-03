@@ -1708,6 +1708,28 @@ fn appearance(
                 )
                 .changed();
             ui.end_row();
+            form::label(ui, &s.t("settings-tab-height"));
+            changed |= ui
+                .add(
+                    egui::Slider::new(
+                        &mut settings.appearance.tab_height,
+                        hs_core::settings::TAB_HEIGHT_RANGE,
+                    )
+                    .suffix(" px"),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-sub-tab-height"));
+            changed |= ui
+                .add(
+                    egui::Slider::new(
+                        &mut settings.appearance.sub_tab_height,
+                        hs_core::settings::SUB_TAB_HEIGHT_RANGE,
+                    )
+                    .suffix(" px"),
+                )
+                .changed();
+            ui.end_row();
             form::label(ui, &s.t("settings-tab-gap"));
             changed |= ui
                 .add(egui::Slider::new(&mut settings.appearance.tab_gap, 0.0..=24.0).suffix(" px"))
@@ -1715,6 +1737,50 @@ fn appearance(
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("settings-min-file-tab-width-hint"));
+        form::hint(ui, theme, &s.t("settings-sub-tab-height-hint"));
+    });
+
+    // The Scratchpad's own card: the pin mark it draws in the sidebar
+    // and on a pinned note's tab (owner's request, CR-0041).
+    form::section(ui, theme, &s.t("settings-section-scratchpad"), |ui| {
+        form::field_grid(ui, "appearance-scratchpad", |ui| {
+            form::label(ui, &s.t("settings-pin-colour"));
+            form::field_row(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (id, hex) in hs_core::settings::PIN_COLOURS {
+                        let on = settings.appearance.pin_colour == *id;
+                        let fill = hs_ui::theme::parse_hex(hex).unwrap_or(theme.error);
+                        let size = egui::vec2(26.0, form::field_height(ui));
+                        let stroke = if on {
+                            egui::Stroke::new(2.0, theme.text)
+                        } else {
+                            egui::Stroke::new(1.0, theme.border)
+                        };
+                        if ui
+                            .add(
+                                egui::Button::new("")
+                                    .fill(fill)
+                                    .stroke(stroke)
+                                    .min_size(size),
+                            )
+                            .tip(s.t(&format!("pin-colour-{id}")))
+                            .clicked()
+                        {
+                            settings.appearance.pin_colour = (*id).to_string();
+                            // The pin lives in the palette the shell
+                            // caches, so this is a theme change: the
+                            // sidebar builds its theme every frame and
+                            // followed at once while the tab strip,
+                            // which reads the cached one, did not
+                            // (owner's report, CR-0041).
+                            theme_changed = true;
+                        }
+                    }
+                });
+            });
+            ui.end_row();
+        });
+        form::hint(ui, theme, &s.t("settings-pin-colour-hint"));
     });
 
     form::section(ui, theme, &s.t("settings-section-rail"), |ui| {

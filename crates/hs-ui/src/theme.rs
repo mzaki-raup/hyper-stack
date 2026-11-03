@@ -96,6 +96,11 @@ pub struct Theme {
     pub env_test: Color32,
     pub env_staging: Color32,
     pub env_prod: Color32,
+    /// The pin mark: a pinned Scratchpad note wears it in the sidebar
+    /// and on its tab. Chosen in Settings -> Appearance -> Scratchpad,
+    /// so it defaults to the scheme's red and follows the setting when
+    /// the theme is built from one (CR-0041).
+    pub pin: Color32,
 }
 
 impl Theme {
@@ -133,6 +138,7 @@ impl Theme {
             env_test: Color32::from_rgb(0x3C, 0xB3, 0x71),
             env_staging: Color32::from_rgb(0xD9, 0xB0, 0x2A),
             env_prod: Color32::from_rgb(0xE5, 0x4D, 0x4D),
+            pin: Color32::from_rgb(0xE5, 0x4D, 0x4D),
         }
     }
 
@@ -158,12 +164,17 @@ impl Theme {
             env_test: Color32::from_rgb(0x1F, 0x8A, 0x4C),
             env_staging: BRAND_GOLD,
             env_prod: Color32::from_rgb(0xC6, 0x2A, 0x2A),
+            pin: Color32::from_rgb(0xC6, 0x2A, 0x2A),
         }
     }
 
     /// The theme the Appearance settings select right now (see `scheme_id`).
     pub fn from_settings(app: &Appearance) -> Self {
-        Self::by_name(scheme_id(app))
+        let mut t = Self::by_name(scheme_id(app));
+        if let Some(c) = parse_hex(hs_core::settings::pin_colour_hex(&app.pin_colour)) {
+            t.pin = c;
+        }
+        t
     }
 
     pub fn by_name(name: &str) -> Self {
@@ -238,6 +249,7 @@ impl Theme {
             env_test: success,
             env_staging: warning,
             env_prod: error,
+            pin: error,
         }
     }
 

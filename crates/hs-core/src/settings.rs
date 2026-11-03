@@ -381,6 +381,19 @@ pub struct Appearance {
     pub min_tab_width: f32,
     /// Minimum width of a file tab inside an editor project tab.
     pub min_file_tab_width: f32,
+    /// Which colour a pinned Scratchpad note's mark is drawn in: one of
+    /// [`PIN_COLOURS`] by id. The pin is the one place a note says "this
+    /// one stays", so the owner picks the colour (CR-0041).
+    #[serde(default = "default_pin_colour")]
+    pub pin_colour: String,
+    /// How tall a row of the window's tab strip is (CR-0029).
+    #[serde(default = "default_tab_height")]
+    pub tab_height: f32,
+    /// How tall a row of an inner strip is - the editor's file tabs, the
+    /// browser's pages, a database tab's queries. Never taller than
+    /// [`Appearance::tab_height`]; `sub_tab_height()` enforces that.
+    #[serde(default = "default_sub_tab_height")]
+    pub sub_tab_height: f32,
     pub tab_gap: f32,
     pub sidebar_width: f32,
     /// Per-activity sidebar widths, keyed by tool id; an activity without
@@ -439,7 +452,65 @@ pub const MATERIAL_ICON_TOOLS: &[&str] = &[
     "queue",
 ];
 
+/// A window tab row's height. Taller than it was before CR-0029, where
+/// the strip read as cramped beside the toolbar under it.
+pub const TAB_HEIGHT_RANGE: std::ops::RangeInclusive<f32> = 28.0..=48.0;
+/// An inner strip's. Its own floor, since it is the smaller of the two.
+pub const SUB_TAB_HEIGHT_RANGE: std::ops::RangeInclusive<f32> = 22.0..=44.0;
+
+/// The colours a pin may be drawn in: `(id, hex)`. Eight that read on
+/// a dark scheme and on a light one; the name each is shown under comes
+/// from the locale (`pin-colour-<id>`).
+pub const PIN_COLOURS: &[(&str, &str)] = &[
+    ("red", "#E54D4D"),
+    ("orange", "#E8833A"),
+    ("amber", "#D9B02A"),
+    ("green", "#3CB371"),
+    ("teal", "#2FB3A8"),
+    ("blue", "#3F9CEE"),
+    ("violet", "#8B5CF6"),
+    ("pink", "#E05A9C"),
+];
+
+/// The hex for a pin colour id, falling back to the first of
+/// [`PIN_COLOURS`] for an id the file does not know.
+pub fn pin_colour_hex(id: &str) -> &'static str {
+    PIN_COLOURS
+        .iter()
+        .find(|(k, _)| *k == id)
+        .map(|(_, hex)| *hex)
+        .unwrap_or(PIN_COLOURS[0].1)
+}
+
+fn default_pin_colour() -> String {
+    PIN_COLOURS[0].0.to_string()
+}
+
+fn default_tab_height() -> f32 {
+    36.0
+}
+
+fn default_sub_tab_height() -> f32 {
+    30.0
+}
+
 impl Appearance {
+    /// The window strip's row height, kept inside [`TAB_HEIGHT_RANGE`]
+    /// however the file was edited.
+    pub fn tab_height(&self) -> f32 {
+        self.tab_height
+            .clamp(*TAB_HEIGHT_RANGE.start(), *TAB_HEIGHT_RANGE.end())
+    }
+
+    /// An inner strip's row height: inside its own range, and never
+    /// taller than the window strip's, so the main tabs stay the ones
+    /// that read as main (owner's requirement, CR-0029).
+    pub fn sub_tab_height(&self) -> f32 {
+        self.sub_tab_height
+            .clamp(*SUB_TAB_HEIGHT_RANGE.start(), *SUB_TAB_HEIGHT_RANGE.end())
+            .min(self.tab_height())
+    }
+
     /// Whether `tool` draws Material item icons. True unless someone has
     /// turned that activity off; an activity outside
     /// [`MATERIAL_ICON_TOOLS`] is always false, so a caller that asks
@@ -808,6 +879,9 @@ impl Default for Appearance {
             ui_font: String::new(),
             min_tab_width: 140.0,
             min_file_tab_width: 160.0,
+            pin_colour: default_pin_colour(),
+            tab_height: default_tab_height(),
+            sub_tab_height: default_sub_tab_height(),
             tab_gap: 4.0,
             sidebar_width: 260.0,
             sidebar_widths: std::collections::HashMap::new(),
@@ -921,6 +995,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn tab_heights_round_trip_and_the_inner_strip_never_outgrows_the_main_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.toml");
+        let mut s = Settings::default();
+        s.appearance.tab_height = 42.0;
+        s.appearance.sub_tab_height = 34.0;
+        s.save(&p).unwrap();
+        let back = Settings::load(&p).unwrap();
+        assert_eq!(back.appearance.tab_height(), 42.0);
+        assert_eq!(back.appearance.sub_tab_height(), 34.0);
+
+        // An inner strip asked to be taller than the window's is held to
+        // the window's, so the main tabs stay the main ones.
+        let mut a = Appearance {
+            tab_height: 30.0,
+            sub_tab_height: 44.0,
+            ..Default::default()
+        };
+        assert_eq!(a.sub_tab_height(), 30.0);
+
+        // And a file edited to something absurd is clamped, not obeyed.
+        a.tab_height = 400.0;
+        a.sub_tab_height = 1.0;
+        assert_eq!(a.tab_height(), *TAB_HEIGHT_RANGE.end());
+        assert_eq!(a.sub_tab_height(), *SUB_TAB_HEIGHT_RANGE.start());
+    }
+
+    #[test]
     fn defaults_round_trip_and_missing_fields_fill_in() {
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("settings.toml");
@@ -932,6 +1034,10 @@ mod tests {
         assert_eq!(s2.appearance.min_tab_width, 200.0);
         assert_eq!(s2.appearance.min_file_tab_width, 160.0);
         assert_eq!(s2.appearance.tab_gap, 4.0);
+        // The tab heights are new, so a settings file written before
+        // them has to come back with the defaults rather than zero.
+        assert_eq!(s2.appearance.tab_height, 36.0);
+        assert_eq!(s2.appearance.sub_tab_height, 30.0);
         assert_eq!(s2.general.startup_workspace, "default");
     }
 

@@ -793,7 +793,13 @@ impl Tool for BrowserTool {
             duplicate_blocked: String::new(),
             copy_path: s.t("browser-copy-url"),
         };
-        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let (min_width, sub_h) = {
+            let st = s.settings.read();
+            (
+                st.appearance.min_file_tab_width,
+                st.appearance.sub_tab_height(),
+            )
+        };
         let active = Some(self.page().id);
         let r = ui
             .push_id(("browser-tabs", cx.tab_id), |ui| {
@@ -805,6 +811,7 @@ impl Tool for BrowserTool {
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,
+                    height: Some(sub_h),
                 }
                 .show(ui, &tabs)
             })
@@ -828,6 +835,22 @@ impl Tool for BrowserTool {
                 TabMenuAction::Close => close.push(id),
                 TabMenuAction::CloseOthers => {
                     close.extend(self.state.pages.iter().map(|p| p.id).filter(|x| *x != id))
+                }
+                // The strip offers these only where they close something
+                // (CR-0029); before that they were in the menu and did
+                // nothing here.
+                TabMenuAction::CloseLeft | TabMenuAction::CloseRight => {
+                    let left = matches!(action, TabMenuAction::CloseLeft);
+                    if let Some(at) = self.state.pages.iter().position(|p| p.id == id) {
+                        close.extend(
+                            self.state
+                                .pages
+                                .iter()
+                                .enumerate()
+                                .filter(|(i, _)| if left { *i < at } else { *i > at })
+                                .map(|(_, p)| p.id),
+                        );
+                    }
                 }
                 TabMenuAction::Duplicate => {
                     if let Some(p) = self.state.pages.iter().find(|p| p.id == id).cloned() {

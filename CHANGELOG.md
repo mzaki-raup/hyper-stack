@@ -24,6 +24,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - A scrollable list or block of output sits in a well — darker on a dark theme, lighter on a light one — so it is visibly something you can scroll: the Devtools listening ports and the Automation run log
 - The facts a detail pane lists (Tracker's fields, a container's and a cluster's details) are drawn as a two-column table with no header instead of loose pairs
 - Settings → Browser's Extra Blocked Hosts box keeps a fixed six rows and scrolls, instead of growing with the list
+- Tabs are taller, and how tall is a setting: Settings → Appearance → Tabs has Minimum Main Tab Height and Minimum Sub Tab Height, with the icon, title and close button scaling to match. An inner strip is never taller than the window's
+- A tab's context menu offers Close Others, Close to the Left and Close to the Right only where each would close something different: the activity's permanent tab and the tabs at either end get Close Others alone, and a tab between two closable ones gets all three. A pinned tab gets Close, and either direction that has something to close, but no Close Others — that action spares the other pinned tabs
+- The Scratchpad's tabs no longer offer Duplicate: a note tab is the note
+- A Scratchpad note has one pin: pinning it in the sidebar pins its tab and the other way round, the pinned tabs sit in the sidebar's order, and a pinned note's tab cannot be closed until it is unpinned. A pinned note wears the pin in the sidebar and on its tab, in a colour chosen under Settings → Appearance → Scratchpad → Pin Colour (red by default); an unpinned note's tab wears the same Material icon as its sidebar row
+- The Settings tab has no context menu, and its strip no New Tab button
 
 ### Fixed
 

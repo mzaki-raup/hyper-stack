@@ -50,10 +50,37 @@ pub trait TabItem {
     fn icon_only_when_pinned(&self) -> bool {
         false
     }
+    /// Whether the tab can be closed at all. A pinned Scratchpad note
+    /// cannot: pinning a note is how you say it stays (owner's rule,
+    /// CR-0041). The close cross and the menu's Close both go.
+    fn can_close(&self) -> bool {
+        true
+    }
     /// Whether this tab may be unpinned from the strip (for mandatory app
     /// tabs such as Settings).
     fn can_unpin(&self) -> bool {
         true
+    }
+    /// A picture to draw instead of [`TabItem::icon`], already loaded as
+    /// an [`egui::ImageSource`]. The shell hands over the activity's
+    /// Material item icon this way, since the bytes come from
+    /// `include_image!` and a bare `bytes://` uri would have nothing
+    /// behind it (CR-0041).
+    fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+        None
+    }
+    /// Draw this tab's icon as the pin, in the pinned colour, instead of
+    /// its glyph or picture: a pinned Scratchpad note wears the mark so
+    /// the strip says which notes are kept (owner's rule, CR-0041).
+    fn pin_icon(&self) -> bool {
+        false
+    }
+    /// Where this tab sits among the pinned ones, when the tool keeps
+    /// its own pin order (the Scratchpad's notes). The strip sorts its
+    /// pinned slots by this, so they read in that order rather than in
+    /// the order the tabs happen to be in (CR-0041).
+    fn pin_rank(&self) -> Option<usize> {
+        None
     }
     /// Whether this tab is the activity's permanent home. It cannot be
     /// closed, closed-to-the-left past, pinned or duplicated, so its menu
@@ -64,6 +91,13 @@ pub trait TabItem {
     }
     /// Whether this tab has a context menu at all.
     fn has_menu(&self) -> bool {
+        true
+    }
+    /// Whether Duplicate appears in the menu at all. False drops the
+    /// entry; `can_duplicate` only greys it out. An activity whose tabs
+    /// are all one document - the Scratchpad's notes - has nothing a
+    /// second tab would show (owner's report, CR-0029).
+    fn shows_duplicate(&self) -> bool {
         true
     }
     /// Whether Duplicate is offered. A tab bound to a connection is a view
@@ -124,6 +158,7 @@ pub fn compute_tab_layout(
     pinned: &[bool],
     permanent: &[bool],
     icon_only: &[bool],
+    pin_rank: &[Option<usize>],
     full_width: f32,
     min_width: f32,
     gap: f32,
@@ -134,9 +169,16 @@ pub fn compute_tab_layout(
     let slot_width = |i: usize| {
         pinned_slot_width(icon_only.get(i).copied().unwrap_or(false) && !is_permanent(i))
     };
+    // The pinned slots follow the permanent tab, in the order the tool
+    // gives them when it keeps one (the Scratchpad's sidebar), and in
+    // tab order otherwise (CR-0041).
+    let mut slots: Vec<usize> = (0..pinned.len())
+        .filter(|&i| pinned[i] && !is_permanent(i))
+        .collect();
+    slots.sort_by_key(|&i| (pin_rank.get(i).copied().flatten().unwrap_or(usize::MAX), i));
     let lead: Vec<usize> = (0..pinned.len())
         .filter(|&i| is_permanent(i))
-        .chain((0..pinned.len()).filter(|&i| pinned[i] && !is_permanent(i)))
+        .chain(slots)
         .collect();
     let regular: Vec<usize> = (0..pinned.len()).filter(|i| !lead.contains(i)).collect();
     let min_width = min_width.max(48.0);
@@ -210,7 +252,16 @@ pub fn tab_row_count(
     min_width: f32,
     gap: f32,
 ) -> usize {
-    compute_tab_layout(pinned, permanent, icon_only, full_width, min_width, gap).row_count()
+    compute_tab_layout(
+        pinned,
+        permanent,
+        icon_only,
+        &[],
+        full_width,
+        min_width,
+        gap,
+    )
+    .row_count()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -265,14 +316,95 @@ pub struct TabStrip<'a> {
     /// from Home, and a + there opened an untitled one nobody asked for.
     /// Owner's requirement, 2026-10-17.
     pub show_new_tab: bool,
+    /// A row's height, from Settings -> Appearance -> Tabs. `None` takes
+    /// the built-in height for this kind of strip, which is what the
+    /// tests and a strip drawn outside the app use.
+    pub height: Option<f32>,
+}
+
+/// Which of the "close the others" entries a tab's menu offers. An
+/// entry that would close nothing is not drawn, and neither is one that
+/// would close exactly what Close Others closes - a second way to do the
+/// same thing reads as two different things (owner's report, CR-0029).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CloseScope {
+    /// There is a closable tab before this one.
+    pub left: bool,
+    /// There is a closable tab after it.
+    pub right: bool,
+}
+
+impl CloseScope {
+    /// Close Others closes something.
+    pub fn others(self) -> bool {
+        self.left || self.right
+    }
+    /// Close to the Left closes something, and leaves something.
+    pub fn close_left(self) -> bool {
+        self.left && self.right
+    }
+    /// Close to the Right, likewise.
+    pub fn close_right(self) -> bool {
+        self.left && self.right
+    }
+}
+
+/// Which tabs each one has closable neighbours on either side of.
+/// `closable` is per tab, in the order the strip was given them.
+///
+/// A tab that is not closable is the permanent one or a pinned one, and
+/// both are drawn in the lead zone at the strip's head - so every
+/// closable tab is to its right whatever its place in the list. Taking
+/// the list's order there would offer Close to the Left for tabs that
+/// are drawn to its right (owner's report, CR-0029).
+pub fn close_scopes(closable: &[bool]) -> Vec<CloseScope> {
+    let any = closable.iter().any(|&c| c);
+    (0..closable.len())
+        .map(|i| {
+            if closable[i] {
+                CloseScope {
+                    left: closable[..i].iter().any(|&c| c),
+                    right: closable[i + 1..].iter().any(|&c| c),
+                }
+            } else {
+                CloseScope {
+                    left: false,
+                    right: any,
+                }
+            }
+        })
+        .collect()
+}
+
+/// What a tab's parts measure at a given row height. Everything scales
+/// with the row, so raising the height in Settings makes the icon, the
+/// title and the close cross grow with it rather than leaving a taller
+/// box around the same small tab (owner's requirement, CR-0029).
+struct TabMetrics {
+    font: f32,
+    icon: f32,
+    close_glyph: f32,
+    close_box: f32,
 }
 
 impl TabStrip<'_> {
     fn row_h(&self) -> f32 {
-        if self.compact {
+        self.height.unwrap_or(if self.compact {
             COMPACT_ROW_HEIGHT
         } else {
             ROW_HEIGHT
+        })
+    }
+
+    /// The proportions the strip was drawn at before the height became a
+    /// setting: a 32 px row with a 14 px title.
+    fn metrics(&self) -> TabMetrics {
+        let h = self.row_h();
+        TabMetrics {
+            font: (h * 0.4375).round().clamp(11.0, 20.0),
+            icon: (h * 0.4375).round().clamp(11.0, 22.0),
+            close_glyph: (h * 0.41).round().clamp(10.0, 19.0),
+            close_box: (h * 0.56).round().clamp(14.0, 26.0),
         }
     }
 
@@ -283,10 +415,20 @@ impl TabStrip<'_> {
         let pinned: Vec<bool> = tabs.iter().map(TabItem::pinned).collect();
         let permanent: Vec<bool> = tabs.iter().map(TabItem::permanent).collect();
         let icon_only: Vec<bool> = tabs.iter().map(TabItem::icon_only_when_pinned).collect();
+        // What Close Others, Close to the Left and Close to the Right
+        // would actually close from each tab. A pinned tab and the
+        // activity's permanent tab survive all three, so neither counts
+        // as a neighbour worth closing.
+        let closable: Vec<bool> = (0..tabs.len())
+            .map(|i| !pinned[i] && !permanent[i])
+            .collect();
+        let scopes = close_scopes(&closable);
+        let ranks: Vec<Option<usize>> = tabs.iter().map(TabItem::pin_rank).collect();
         let layout = compute_tab_layout(
             &pinned,
             &permanent,
             &icon_only,
+            &ranks,
             layout_width,
             self.min_width,
             self.gap,
@@ -308,7 +450,9 @@ impl TabStrip<'_> {
                     let only_icon = icon_only[i] && !permanent[i];
                     let w = pinned_slot_width(only_icon);
                     let rect = Rect::from_min_size(Pos2::new(x, y), Vec2::new(w, self.row_h()));
-                    self.draw_tab(ui, &painter, rect, &tabs[i], only_icon, &mut resp, i);
+                    self.draw_tab(
+                        ui, &painter, rect, &tabs[i], only_icon, &mut resp, i, scopes[i],
+                    );
                     rects.push((i, rect));
                     x += w + self.gap;
                 }
@@ -316,7 +460,7 @@ impl TabStrip<'_> {
             for &i in row {
                 let rect =
                     Rect::from_min_size(Pos2::new(x, y), Vec2::new(layout.tab_width, self.row_h()));
-                self.draw_tab(ui, &painter, rect, &tabs[i], false, &mut resp, i);
+                self.draw_tab(ui, &painter, rect, &tabs[i], false, &mut resp, i, scopes[i]);
                 rects.push((i, rect));
                 x += layout.tab_width + self.gap;
             }
@@ -379,6 +523,7 @@ impl TabStrip<'_> {
         icon_only: bool,
         resp: &mut TabStripResponse,
         index: usize,
+        scope: CloseScope,
     ) {
         let id = ui.id().with(("tab", tab.id()));
         let r = ui.interact(rect, id, Sense::click_and_drag());
@@ -417,27 +562,39 @@ impl TabStrip<'_> {
             );
         }
 
-        let font = egui::FontId::proportional(if self.compact { 13.0 } else { 14.0 });
+        let m = self.metrics();
+        let font = egui::FontId::proportional(m.font);
         let icon_pos = Pos2::new(rect.left() + 10.0, rect.center().y);
         // A favicon if the tab has one, the glyph otherwise. The image is
         // drawn at the glyph's size so the two cases line up and a tab does
         // not shift when its favicon arrives.
-        match tab.icon_uri() {
-            Some(uri) => {
-                let size = Vec2::splat(14.0);
+        let picture = (!tab.pin_icon())
+            .then(|| {
+                tab.icon_image()
+                    .or_else(|| tab.icon_uri().map(egui::ImageSource::from))
+            })
+            .flatten();
+        match picture {
+            Some(src) => {
+                let size = Vec2::splat(m.icon);
                 let at =
                     Rect::from_center_size(Pos2::new(icon_pos.x + size.x / 2.0, icon_pos.y), size);
-                egui::Image::from_uri(uri)
+                egui::Image::new(src)
                     .fit_to_exact_size(size)
                     .paint_at(ui, at);
             }
             None => {
+                let (glyph, colour) = if tab.pin_icon() {
+                    (crate::icons::ph::PUSH_PIN, self.theme.pin)
+                } else {
+                    (tab.icon(), self.theme.text_muted)
+                };
                 painter.text(
                     icon_pos,
                     egui::Align2::LEFT_CENTER,
-                    tab.icon(),
+                    glyph,
                     font.clone(),
-                    self.theme.text_muted,
+                    colour,
                 );
             }
         }
@@ -460,10 +617,10 @@ impl TabStrip<'_> {
             // No close button on a pinned tab: pinning is for the tabs
             // somebody means to keep, and the name wants the room.
             let close_rect = Rect::from_center_size(
-                Pos2::new(rect.right() - 14.0, rect.center().y),
-                Vec2::splat(18.0),
+                Pos2::new(rect.right() - m.close_box * 0.78, rect.center().y),
+                Vec2::splat(m.close_box),
             );
-            let mut text_left = rect.left() + 30.0;
+            let mut text_left = rect.left() + 16.0 + m.icon;
             let text_right = if is_pinned {
                 rect.right() - 6.0
             } else {
@@ -538,7 +695,7 @@ impl TabStrip<'_> {
                         close_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         crate::icons::TAB_CLOSE,
-                        egui::FontId::proportional(13.0),
+                        egui::FontId::proportional(m.close_glyph),
                         c,
                     );
                 }
@@ -571,6 +728,12 @@ impl TabStrip<'_> {
             return;
         }
         let permanent = tab.permanent();
+        // A permanent tab on its own has nothing to offer: every entry
+        // acts on the tabs beside it, and there are none. An empty menu
+        // reads as a broken one (CR-0029).
+        if permanent && !scope.others() {
+            return;
+        }
         r.context_menu(|ui| {
             let mut pick = |ui: &mut egui::Ui, label: &str, action: TabMenuAction| {
                 if !ui.button(label).clicked() {
@@ -597,14 +760,33 @@ impl TabStrip<'_> {
             // A permanent tab is the activity's home: closing it, closing
             // past it or pinning it are all meaningless, so only the two
             // that act on the tabs beside it are offered.
-            if !permanent {
+            if !permanent && tab.can_close() {
                 pick(ui, &labels.close, TabMenuAction::Close);
             }
-            pick(ui, &labels.close_others, TabMenuAction::CloseOthers);
-            if !permanent {
-                pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
+            // Only the entries that would do something, and no two that
+            // would do the same thing (CR-0029).
+            if pinned {
+                // A pinned tab is not offered Close Others: that action
+                // spares the other pinned tabs, so from a pinned tab it
+                // does not mean what it says. Close to the Right does -
+                // a pinned tab is drawn at the strip's head, so every
+                // closable tab is to its right whatever its place in the
+                // list, and nothing is ever to its left (owner's rule,
+                // CR-0029).
+                if scope.right {
+                    pick(ui, &labels.close_right, TabMenuAction::CloseRight);
+                }
+            } else {
+                if scope.others() {
+                    pick(ui, &labels.close_others, TabMenuAction::CloseOthers);
+                }
+                if scope.close_left() {
+                    pick(ui, &labels.close_left, TabMenuAction::CloseLeft);
+                }
+                if scope.close_right() {
+                    pick(ui, &labels.close_right, TabMenuAction::CloseRight);
+                }
             }
-            pick(ui, &labels.close_right, TabMenuAction::CloseRight);
             if permanent {
                 return;
             }
@@ -624,11 +806,13 @@ impl TabStrip<'_> {
             // menu in 2026-10-17 because they rearranged the whole tab
             // space from a menu meant for one tab, and splitting left the
             // app entirely on 2026-10-23 (docs/04 §2.4).
-            if tab.can_duplicate() {
-                pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
-            } else {
-                ui.add_enabled(false, egui::Button::new(&labels.duplicate))
-                    .tip_disabled(&labels.duplicate_blocked);
+            if tab.shows_duplicate() {
+                if tab.can_duplicate() {
+                    pick(ui, &labels.duplicate, TabMenuAction::Duplicate);
+                } else {
+                    ui.add_enabled(false, egui::Button::new(&labels.duplicate))
+                        .tip_disabled(&labels.duplicate_blocked);
+                }
             }
         });
     }
@@ -656,7 +840,15 @@ mod tests {
 
     #[test]
     fn one_row_when_tabs_fit_and_width_is_capped() {
-        let l = compute_tab_layout(&[false; 3], &[false; 3], &[false; 3], 1000.0, 140.0, 4.0);
+        let l = compute_tab_layout(
+            &[false; 3],
+            &[false; 3],
+            &[false; 3],
+            &[],
+            1000.0,
+            140.0,
+            4.0,
+        );
         assert_eq!(l.rows.len(), 1);
         assert_eq!(l.tab_width, MAX_TAB_WIDTH);
         assert_eq!(
@@ -668,7 +860,15 @@ mod tests {
     #[test]
     fn tabs_shrink_to_minimum_then_wrap_instead_of_going_thinner() {
         // 6 tabs × 140 + gaps + "+" needs more than 600 px → wraps.
-        let l = compute_tab_layout(&[false; 6], &[false; 6], &[false; 6], 600.0, 140.0, 4.0);
+        let l = compute_tab_layout(
+            &[false; 6],
+            &[false; 6],
+            &[false; 6],
+            &[],
+            600.0,
+            140.0,
+            4.0,
+        );
         assert!(l.rows.len() >= 2, "expected wrapping, got {:?}", l.rows);
         assert!(l.tab_width >= 140.0);
         let total: usize = l.rows.iter().map(Vec::len).sum();
@@ -689,8 +889,8 @@ mod tests {
         let names = [false, false, false, false];
         // Narrow enough that the tabs are not already at MAX_TAB_WIDTH,
         // or both answers are the cap and the test proves nothing.
-        let with_icon = compute_tab_layout(&pinned, &[false; 4], &icons, 700.0, 140.0, 4.0);
-        let with_name = compute_tab_layout(&pinned, &[false; 4], &names, 700.0, 140.0, 4.0);
+        let with_icon = compute_tab_layout(&pinned, &[false; 4], &icons, &[], 700.0, 140.0, 4.0);
+        let with_name = compute_tab_layout(&pinned, &[false; 4], &names, &[], 700.0, 140.0, 4.0);
         assert!(
             with_name.tab_width < with_icon.tab_width,
             "a named pinned tab should take more of the row"
@@ -707,7 +907,7 @@ mod tests {
         let icon_only = vec![false; 20];
         let width = 900.0;
         let gap = 4.0;
-        let l = compute_tab_layout(&pinned, &permanent, &icon_only, width, 120.0, gap);
+        let l = compute_tab_layout(&pinned, &permanent, &icon_only, &[], width, 120.0, gap);
         let lead_span: f32 = l.lead.iter().map(|_| pinned_slot_width(false) + gap).sum();
         for (i, row) in l.rows.iter().enumerate() {
             let used =
@@ -724,7 +924,7 @@ mod tests {
     #[test]
     fn pinned_tabs_take_first_row_space_and_are_not_counted_as_regular() {
         let pinned = [true, false, true, false, false];
-        let l = compute_tab_layout(&pinned, &[false; 5], &[true; 5], 800.0, 140.0, 4.0);
+        let l = compute_tab_layout(&pinned, &[false; 5], &[true; 5], &[], 800.0, 140.0, 4.0);
         assert_eq!(l.lead, vec![0, 2]);
         let regular: Vec<usize> = l.rows.concat();
         assert_eq!(regular, vec![1, 3, 4]);
@@ -736,7 +936,7 @@ mod tests {
         // drawn first whatever the strip order is.
         let pinned = [true, false, false, true, false];
         let permanent = [false, false, true, false, false];
-        let l = compute_tab_layout(&pinned, &permanent, &[true; 5], 800.0, 140.0, 4.0);
+        let l = compute_tab_layout(&pinned, &permanent, &[true; 5], &[], 800.0, 140.0, 4.0);
         assert_eq!(l.lead, vec![2, 0, 3]);
         assert_eq!(l.rows.concat(), vec![1, 4]);
     }
@@ -754,6 +954,7 @@ mod tests {
             &[true, true],
             &[false, false],
             &[true, true],
+            &[],
             500.0,
             140.0,
             4.0,

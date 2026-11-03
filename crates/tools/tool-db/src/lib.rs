@@ -4677,7 +4677,13 @@ impl DbTool {
             duplicate_blocked: String::new(),
             copy_path: String::new(),
         };
-        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let (min_width, sub_h) = {
+            let st = s.settings.read();
+            (
+                st.appearance.min_file_tab_width,
+                st.appearance.sub_tab_height(),
+            )
+        };
         let r = ui
             .push_id(self.id.with("query-tabs"), |ui| {
                 hs_ui::tabs::TabStrip {
@@ -4688,6 +4694,7 @@ impl DbTool {
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,
+                    height: Some(sub_h),
                 }
                 .show(ui, &tabs)
             })

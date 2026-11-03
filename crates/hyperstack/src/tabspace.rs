@@ -76,6 +76,19 @@ pub struct TabView {
     /// there is nothing on it that applies to them. Owner's requirement,
     /// 2026-10-17.
     pub has_menu: bool,
+    /// Whether Duplicate is in the menu at all (owner's rule for the
+    /// Scratchpad, CR-0029).
+    pub shows_duplicate: bool,
+    /// Where the tab sits among the pinned ones, when its tool keeps
+    /// that order itself (CR-0041).
+    pub pin_rank: Option<usize>,
+    /// Whether the tab can be closed (CR-0041: a pinned note cannot).
+    pub can_close: bool,
+    /// Whether the icon is drawn as the pin (CR-0041).
+    pub pin_icon: bool,
+    /// The activity's Material icon for the kind of item this tab holds,
+    /// when that activity has Material icons on (CR-0041).
+    pub icon_image: Option<egui::ImageSource<'static>>,
 }
 
 impl TabItem for TabView {
@@ -102,6 +115,21 @@ impl TabItem for TabView {
     }
     fn can_duplicate(&self) -> bool {
         self.can_duplicate && !self.permanent
+    }
+    fn shows_duplicate(&self) -> bool {
+        self.shows_duplicate
+    }
+    fn pin_rank(&self) -> Option<usize> {
+        self.pin_rank
+    }
+    fn can_close(&self) -> bool {
+        self.can_close
+    }
+    fn pin_icon(&self) -> bool {
+        self.pin_icon
+    }
+    fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+        self.icon_image.clone()
     }
     fn permanent(&self) -> bool {
         self.permanent
@@ -136,7 +164,13 @@ impl TabSpace {
         }
     }
 
-    pub fn views(&self, activity_title: &dyn Fn(&str) -> String) -> Vec<TabView> {
+    /// `material` says whether an activity draws Material item icons, so
+    /// a tab can wear the same picture its sidebar row does (CR-0041).
+    pub fn views(
+        &self,
+        activity_title: &dyn Fn(&str) -> String,
+        material: &dyn Fn(&str) -> bool,
+    ) -> Vec<TabView> {
         // How many tabs each connection already has. Duplicating one would
         // start a second session against the same server, so it is refused
         // once the tool's budget is used up - one for most, three for SSH.
@@ -159,7 +193,18 @@ impl TabSpace {
                 icon: t.tool.tab_icon().unwrap_or(t.tool.descriptor().icon),
                 icon_uri: t.tool.tab_icon_uri(),
                 prefix: t.tool.tab_title_prefix(),
-                pinned: t.pinned,
+                // A tool that keeps its own pin answers for the tab: the
+                // Scratchpad's note is pinned in the sidebar, and a tab
+                // showing that note has to agree (CR-0041).
+                pinned: t.tool.tab_pinned().unwrap_or(t.pinned),
+                pin_rank: t.tool.pin_rank(),
+                can_close: t.tool.tab_closable(),
+                pin_icon: t.tool.tab_icon_is_pin(),
+                icon_image: t
+                    .tool
+                    .tab_item_kind()
+                    .filter(|_| material(&t.factory_id))
+                    .and_then(hs_ui::fileicons::for_kind),
                 dirty: t.tool.dirty(),
                 // The tab's own colour, when the user chose one. It used
                 // to fall back to the colour of the environment the tool
@@ -170,7 +215,16 @@ impl TabSpace {
                 // ("api"): the id is a key, not something to read.
                 tooltip: format!("{}\n{}", t.tool.title(), activity_title(&t.factory_id)),
                 permanent: t.home,
-                has_menu: !matches!(t.factory_id.as_str(), "home" | "browser"),
+                // Settings joins Home and the browser's host tab: it is
+                // a fixture of the window, and every entry in the menu
+                // either acts on it or on tabs it has no business
+                // closing (owner's report, CR-0029).
+                has_menu: !matches!(t.factory_id.as_str(), "home" | "browser" | "settings"),
+                // A note tab is the note. A second tab on the same note
+                // would be two views of one document with one cursor
+                // between them, so the Scratchpad does not offer the
+                // entry at all (owner's report, CR-0029).
+                shows_duplicate: t.factory_id != "scratchpad",
                 can_duplicate: t.tool.can_duplicate_tab()
                     && match t.tool.current_connection() {
                         None => true,

@@ -64,7 +64,10 @@ impl ToolFactory for ScratchpadFactory {
             stamped: None,
             home_title: None,
             notes: Vec::new(),
-            pins: Vec::new(),
+            // From the file, not empty: a background tab never draws the
+            // sidebar, which is where the rescan lives, and the strip
+            // asks every tab whether its note is pinned (CR-0041).
+            pins: load_pins(&notes_dir(services)),
             order: Vec::new(),
             folders: Vec::new(),
             orders: Default::default(),
@@ -330,6 +333,10 @@ fn save_order(dir: &Path, order: &[String]) -> std::io::Result<()> {
         serde_json::to_string_pretty(order).unwrap_or_default(),
     )
 }
+
+/// Broadcast when the pin list changes, so the other note tabs reload
+/// it rather than waiting for their next rescan (CR-0041).
+const PINS_TOPIC: &str = "scratchpad.pins";
 
 /// Ids of the notes pinned to the top, in `notes/pins.json`.
 fn load_pins(dir: &Path) -> Vec<String> {
@@ -666,7 +673,9 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
                     egui::Align2::CENTER_CENTER,
                     ph::PUSH_PIN,
                     egui::FontId::proportional(11.0),
-                    t.theme.text_muted,
+                    // The same mark the tab wears, in the colour chosen
+                    // in Settings -> Appearance -> Scratchpad (CR-0041).
+                    t.theme.pin,
                 );
             }
             r
@@ -1233,16 +1242,37 @@ impl Scratchpad {
     /// Pin a note to the top of the list, or unpin it.
     fn toggle_pin(&mut self, id: &str, cx: &mut ToolContext) {
         tracing::debug!(id, pins = ?self.pins, "scratchpad: toggle pin");
-        match self.pins.iter().position(|p| p == id) {
-            Some(i) => {
-                self.pins.remove(i);
-            }
-            None => self.pins.push(id.to_string()),
-        }
-        if let Err(e) = save_pins(&notes_dir(cx.services), &self.pins) {
+        if let Err(e) = self.write_pins(id, None, cx.services) {
             cx.toast(ToastLevel::Error, e.to_string());
         }
-        self.rescan(cx.services);
+    }
+
+    /// Add or remove `id` in the pin list, save it, and tell the other
+    /// note tabs. One list is the whole truth: the sidebar reads it for
+    /// its order and the tab strip reads it through
+    /// [`Tool::tab_pinned`], so a pin set in either place is the same
+    /// pin (owner's rule, CR-0041).
+    fn write_pins(&mut self, id: &str, pinned: Option<bool>, s: &Services) -> std::io::Result<()> {
+        // From disk, not from this tab's copy: another note tab may have
+        // pinned something since this one last looked, and a toggle has
+        // to flip what is actually stored.
+        let dir = notes_dir(s);
+        self.pins = load_pins(&dir);
+        let pinned = pinned.unwrap_or_else(|| !self.pins.iter().any(|p| p == id));
+        match (pinned, self.pins.iter().position(|p| p == id)) {
+            (true, None) => self.pins.push(id.to_string()),
+            (false, Some(i)) => {
+                self.pins.remove(i);
+            }
+            _ => {}
+        }
+        let out = save_pins(&dir, &self.pins);
+        s.events.publish(hs_core::events::Event::Custom {
+            topic: PINS_TOPIC.into(),
+            payload: String::new(),
+        });
+        self.rescan(s);
+        out
     }
 
     /// Write the note (giving it an id on the first save).
@@ -1426,6 +1456,51 @@ impl Tool for Scratchpad {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
+
+    /// A note is pinned in one place - the sidebar's list - and the tab
+    /// showing it says the same thing. The home tab and a note that has
+    /// never been saved have nothing to pin, so they leave the shell's
+    /// own flag alone (owner's rule, CR-0041).
+    fn tab_pinned(&self) -> Option<bool> {
+        let id = self.state.id.as_ref()?;
+        Some(self.pins.iter().any(|p| p == id))
+    }
+
+    fn pin_rank(&self) -> Option<usize> {
+        let id = self.state.id.as_ref()?;
+        self.pins.iter().position(|p| p == id)
+    }
+
+    /// A pinned note's tab stays: pinning it is how you say so. Unpin it
+    /// and the cross comes back (owner's rule, CR-0041).
+    fn tab_closable(&self) -> bool {
+        !self.tab_pinned().unwrap_or(false)
+    }
+
+    /// A pinned note wears the pin on its tab; an unpinned one keeps its
+    /// Material icon (owner's rule, CR-0041).
+    fn tab_icon_is_pin(&self) -> bool {
+        self.tab_pinned().unwrap_or(false)
+    }
+
+    /// A note tab wears the same Material note icon its sidebar row
+    /// does. The home tab is the activity's, not a note (CR-0041).
+    fn tab_item_kind(&self) -> Option<&'static str> {
+        self.home_title.is_none().then_some("note")
+    }
+
+    /// Pin or unpin from the tab's menu: the same list the sidebar
+    /// writes, and the same broadcast, so the other note tabs and the
+    /// sidebar follow within the frame (CR-0041).
+    fn set_tab_pinned(&mut self, pinned: bool, services: &Services) {
+        let Some(id) = self.state.id.clone() else {
+            return;
+        };
+        if let Err(e) = self.write_pins(&id, Some(pinned), services) {
+            tracing::warn!(error = %e, "scratchpad: could not save the pins");
+        }
+    }
+
     fn set_home_tab(&mut self, home: bool, services: &Services) {
         self.home_title = home.then(|| services.t("tool-scratchpad"));
     }
@@ -1714,6 +1789,16 @@ impl Tool for Scratchpad {
             && let Some(env) = cx.env_id
         {
             self.state.environment = Some(env.to_string());
+        }
+    }
+
+    /// Another note tab changed the pin list: reload it, so this tab's
+    /// sidebar order and its own pin both follow (CR-0041).
+    fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
+        if let hs_core::events::Event::Custom { topic, .. } = ev
+            && topic == PINS_TOPIC
+        {
+            self.rescan(cx.services);
         }
     }
 

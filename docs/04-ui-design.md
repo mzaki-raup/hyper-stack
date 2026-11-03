@@ -173,6 +173,79 @@ Tab anatomy: `[tool icon] [title, middle-elided] [dirty dot | env dot] [✕]`.
 Hover shows a tooltip with the full title, the connection, the environment and
 the file path or URL.
 
+**Row height is a setting** (Settings → Appearance → Tabs, 2026-11-03):
+*Minimum Main Tab Height* for the window strip (28–48, default 36) and
+*Minimum Sub Tab Height* for an inner strip — the editor's files, the
+browser's pages, a database tab's queries (22–44, default 30). The inner
+one is held to the main one's height however the file is edited, so the
+main tabs stay the ones that read as main. Everything inside a tab
+scales with its row: the icon and the title at 0.44 of the height, the
+close cross a little smaller, so a taller strip means bigger tabs rather
+than a taller box around the same small ones (CR-0029).
+
+**The close-the-others entries follow the tab's position.** An entry is
+offered only when it would close something, and never when it would
+close exactly what Close Others closes — two ways to do one thing read
+as two different things. So: Close Others whenever another closable tab
+exists; Close to the Left and Close to the Right only on a tab with
+closable tabs on *both* sides. The activity's permanent tab therefore
+offers Close Others alone, the first and last tabs offer Close Others
+alone, and a lone tab beside the permanent one has no menu at all.
+Pinned and permanent tabs survive all three actions, so they never count
+as a neighbour worth closing.
+
+**A pinned tab is the exception**, and for the same reason: Close Others
+spares the other pinned tabs, so from a pinned tab it does not mean what
+it says and is not offered. A pinned tab is drawn in the lead zone at
+the strip's head, so every closable tab is to its *right* whatever its
+place in the tab list and nothing is ever to its left: its menu is Close
+and Close to the Right, and that entry closes every closable tab while
+sparing the other pinned ones. The same holds for the permanent tab,
+whose scope is read from where it is drawn rather than where it sits in
+the list. **Duplicate** can
+also be dropped rather than greyed out (`TabItem::shows_duplicate`): the
+Scratchpad does, because a note tab *is* the note and a second view of
+it would share one cursor (owner's rules, CR-0029).
+
+### One pin for a Scratchpad note (2026-11-03, CR-0041)
+
+A note is pinned in one place — the sidebar's list, `notes/pins.json` —
+and everything else reads it. **The Scratchpad only**; every other
+activity keeps the shell's own per-tab pin.
+
+- `Tool::tab_pinned()` answers `Some` for a tab holding a saved note, so
+  the strip draws it pinned when the sidebar says so. Pin or unpin in
+  the sidebar and the tab follows.
+- Pin or unpin in the tab's menu goes to `Tool::set_tab_pinned`, which
+  writes that same list and broadcasts `Event::Custom` on
+  `scratchpad.pins`; the other note tabs reload it and the sidebar
+  follows. The shell does not touch its own flag for such a tab, so the
+  two cannot disagree.
+- `Tool::pin_rank()` is the note's place in that list, and the strip
+  sorts its pinned slots by it — so the pinned tabs read in the
+  sidebar's order.
+- `Tool::tab_closable()` is false while a note is pinned: pinning a note
+  is how you say it stays. The cross goes, Close leaves the menu, and
+  the shell refuses a close however it was asked for (Ctrl+W, a middle
+  click, a sweep). Unpinning brings it all back.
+- `Tool::tab_icon_is_pin()` puts the pin on the tab in place of the
+  note's own icon, drawn in `theme.pin` — the same colour the sidebar's
+  pin wears, so the two lists agree at a glance. The colour is a setting
+  (Appearance → Scratchpad → Pin Colour, one of eight in
+  `hs_core::settings::PIN_COLOURS`, red by default) and choosing one is a
+  theme change, so the shell's cached theme — which the strip reads — is
+  rebuilt with it.
+- An unpinned note's tab wears the Material note icon its sidebar row
+  does. `Tool::tab_item_kind()` names the kind; the shell maps it through
+  `fileicons::for_kind` when the activity has Material icons on and hands
+  the strip the image itself (`TabItem::icon_image`), since an
+  `include_image!` source has no loadable `bytes://` uri on its own.
+  With Material icons off the tab keeps the tool's glyph.
+
+The **Settings tab has no context menu and its strip no `+`**: it is one
+tab, always open, and every entry would act on tabs it has no business
+closing (CR-0029).
+
 ### 2.3 Tab interactions
 
 | Action | Mouse | Keyboard |

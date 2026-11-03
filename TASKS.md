@@ -315,7 +315,8 @@ Change Request : CR-0040
 - [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
 - [x] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
 - [x] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
-- [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
+- [x] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
+- [x] CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab (added 2026-11-03)
 - [ ] CR-0030 · Sidebar column header standard across every activity
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
@@ -431,37 +432,63 @@ Change Request : CR-0040
 - [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
 
 ### CR-0029 · Tab strip heights, icon sizing and position-aware context menus
-- **State:** Pending ·
+- **State:** Completed · checked in the running app on the Scratchpad, Editor and Settings strips
 - **Scope:** `hs_ui::tabs`, the Settings -> Appearance -> Tab Card, every main and inner tab strip.
 - **Parent:** CR-0025
-- [ ] In All Activities -> Main Tab Strip -> Make the tab size slightly higher, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Main Tab Height.
-- [ ] In All Activities -> Main Tab Strip -> Make the icon,title and close button in the tab slightly bigger. The size will be suitable with the main tab height settings.
-- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the tab size slightly higher but not high than main tab height, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Sub/Child/Inner Tab Height.
-- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the icon,title and close button in the tab slightly bigger but not biggeer than main tab icon and text size. The size will be suitable with the Sub/Child/Inner tab height settings.
-- [ ] In All Activities -> Main Tab Strip; If the Tab is the first after the fixed/permanent tab, remove right click menu "Close To The Left". If no other tab at right of the tab, remove right click menu "Close Others", "Close To The Left", "Close To The Right". If there is a tab or more at right of the tab, remove right click menu "Close To The Left". If a tab is the last tab on the right of the strip with some other non fixed/permanent/pinned tab on its left, remove right click menu "Close To The Right". Apply to all Activities where applicable.
-- [ ] In Scratchpad Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Editor Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Git Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Terminal Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In SSH Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Container Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Database Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In NoSQL Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Redis Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In S3 Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Queue Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In API Client Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Automation Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Tracker Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Logs Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Graphics Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Devtools Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Browser Activity -> Inner Tab Strip; If the tab is the first left, remove the right click menu "Close To The Left" menu and "Close To The Right" menu. If the tab is the last most right, remove the right click menu "Close To The Right" menu. Please use suitable logic on this for every tab position right click menu.
-- [ ] In Settings Page -> Main Windows Tab Strip; Remove "New Tab" button and remove right click menu for the fixed tab of Settings.
-- [ ] Test: the context-menu builder omits Close To The Left for the first closable tab and Close To The Right for the last, and the height settings round-trip through the workspace file
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — change both heights in Settings -> Appearance -> Tab Card and watch every strip follow; right-click tabs at each position in three activities
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> Main Tab Strip -> Make the tab size slightly higher, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Main Tab Height.
+- [x] In All Activities -> Main Tab Strip -> Make the icon,title and close button in the tab slightly bigger. The size will be suitable with the main tab height settings.
+- [x] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the tab size slightly higher but not high than main tab height, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Sub/Child/Inner Tab Height.
+- [x] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the icon,title and close button in the tab slightly bigger but not biggeer than main tab icon and text size. The size will be suitable with the Sub/Child/Inner tab height settings.
+- [x] In All Activities -> Main Tab Strip; If the Tab is the first after the fixed/permanent tab, remove right click menu "Close To The Left". If no other tab at right of the tab, remove right click menu "Close Others", "Close To The Left", "Close To The Right". If there is a tab or more at right of the tab, remove right click menu "Close To The Left". If a tab is the last tab on the right of the strip with some other non fixed/permanent/pinned tab on its left, remove right click menu "Close To The Right". Apply to all Activities where applicable.
+  - **One rule, confirmed by the owner (2026-11-03):** an entry is offered only when it closes something, and never when it closes exactly what Close Others closes - "Close To The Right will have the same effect of it". So the permanent tab and the tabs at either end get Close Others alone, and a tab with closable tabs on both sides gets all three.
+  - **A pinned tab is the exception.** Close Others spares the other pinned tabs, so from a pinned tab it does not mean what it says and is not offered; its menu is Close plus whichever direction has something to close. Neither duplicates anything, because Close Others is not there.
+- [x] In Scratchpad Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Editor Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Git Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Terminal Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In SSH Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Container Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Database Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In NoSQL Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Redis Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In S3 Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Queue Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In API Client Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Automation Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Tracker Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Logs Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Graphics Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Devtools Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Browser Activity -> Inner Tab Strip; If the tab is the first left, remove the right click menu "Close To The Left" menu and "Close To The Right" menu. If the tab is the last most right, remove the right click menu "Close To The Right" menu. Please use suitable logic on this for every tab position right click menu.
+- [x] In Scratchpad Activity -> Main Windows Tab Strip; Remove the Duplicate right-click menu on every tab.
+  - Added 2026-11-03 at the owner's request. `TabItem::shows_duplicate` drops the entry rather than greying it out, which is what `can_duplicate` does.
+- [x] In Settings Page -> Main Windows Tab Strip; Remove "New Tab" button and remove right click menu for the fixed tab of Settings.
+- [x] Test: the context-menu builder omits Close To The Left for the first closable tab and Close To The Right for the last, and the height settings round-trip through the workspace file
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — change both heights in Settings -> Appearance -> Tab Card and watch every strip follow; right-click tabs at each position in three activities
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab
+- **State:** Completed · checked in the running app
+- **Scope:** `hs_core::tool::Tool`, `hs_ui::tabs`, the shell's tab strip, `tool-scratchpad`. **The Scratchpad only** - every other activity keeps the shell's own tab pinning (owner, 2026-11-03).
+- **Parent:** CR-0025
+- **Depends on:** CR-0029
+- [x] Pinning a note in the sidebar column pins its tab; unpinning there unpins the tab.
+- [x] Pin in the tab's right-click menu pins the note in the sidebar as well; Unpin there unpins it in both.
+- [x] The pinned tabs' order follows the sidebar's pinned order.
+- [x] A pinned note's tab cannot be closed; its menu offers Close to the Right whenever there is a closable tab, whatever the tab's position, and that never closes another pinned note.
+  - Added 2026-11-03 at the owner's request. A pinned tab is drawn in the lead zone, so every closable tab is to its right wherever it sits in the list; `close_scopes` reads the scope from where a tab is *drawn*, and the shell's Close to the Right from a pinned tab closes every closable tab (the pinned ones are spared by `close_others`/`close_side` already).
+- [x] The pin mark is red, in the sidebar and on the tab; a pinned note's tab shows the pin in place of its icon, while an unpinned note keeps its Material icon and colour.
+  - Added 2026-11-03 at the owner's request. `Tool::tab_icon_is_pin()` carries it; the strip draws `ph::PUSH_PIN` in `theme.error`.
+- [x] Settings -> Appearance -> Scratchpad -> Pin Colour, from a predefined set.
+  - Added 2026-11-03 at the owner's request. Eight colours that read on dark and light schemes (`hs_core::settings::PIN_COLOURS`); `Theme::pin` carries the choice, so the sidebar and the strip draw the same one. Picking a colour is a *theme* change: the strip reads the shell's cached theme, which a plain settings change did not rebuild, so the tab's pin stayed the old colour while the sidebar's followed - the owner's report, fixed.
+- [x] An unpinned note's tab wears the Material note icon its sidebar row does, when Material icons are on for the Scratchpad, and the plain glyph when they are off.
+  - Added 2026-11-03 at the owner's request. `Tool::tab_item_kind()` names the kind ("note"); the shell maps it through `fileicons::for_kind` and hands the strip the image directly, since an `include_image!` source has no loadable `bytes://` uri on its own.
+- [x] Test: a note's pin state drives its tab's, whichever side set it, and the lead slots sort by the sidebar's order
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — pin two notes in the sidebar, watch the tabs pin in that order; unpin one from the tab menu and watch the sidebar follow
+- [x] Docs: spec · CHANGELOG
+- **Notes:** The owner's words, 2026-11-03: "Pinned note on the sidebar column, will pinned the note on the tab too. If unpinned note on the sidebar column the note, it will unpinned on the tab too. Same goes to pinned in tab right click menu will pin the note in the tab and the sidebar column, while unpinned the tab in the right click menu will unpinned the note in tab and sidebar column too. Pinned order in the tab will follow pinned order in sidebar column." Filed as its own item because CR-0029 is about tab heights and menus; this is one activity's pin model.
 
 ### CR-0030 · Sidebar column header standard across every activity
 - **State:** Pending ·

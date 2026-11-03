@@ -150,7 +150,7 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.7.5
+Version : v0.7.7
 Features : FEAT-0098
 Bugs : BUG-0039
 Change Request : CR-0040
@@ -160,20 +160,27 @@ Change Request : CR-0040
 
 ## v0.7.7 — Planned
 
-### CR-0026 · Workspace UI/UX Changes
+### CR-0040 · Workspace UI/UX Changes
 - **State:** Pending ·
 - **Scope:** All Related Activities's Work Pane
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
+- [ ] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only.
+- [ ] In Settings -> Workspace -> Workspace List; User can swith workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Open one of the project in editor, and open one of the file from the project.
+- [ ] App: `--data-dir ./tmp-data` — <what to click>
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
 
 ## v0.7.6 — Planned
+
+> **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
+> v0.115.0 (2026-11-02), merge `9dc90f2`. The heading stays Planned
+> because CR-0025's children have not been started: a release carried
+> the finished items, not the batch.
 
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
@@ -221,6 +228,19 @@ Change Request : CR-0040
   The Forgejo box was answered by opening the run on the server rather than a
   Log tab, on the owner's decision (2026-11-02): Forgejo 11's API serves no
   run log, as `docs/tools/automation.md` records.
+
+### BUG-0040 · Opening the Scratchpad activity hangs the app (regression in v0.115.0)
+- **State:** Completed ·
+- **Scope:** `crates/hyperstack/src/tools/scratchpad.rs`, the folder header reworked for FEAT-0084.
+- [x] Reported by the owner on 2026-11-03: the app hangs on opening Scratchpad. Both running instances showed `Responding = False` at **0.6 s CPU** - blocked, not spinning - and the log stopped after startup with no panic line.
+- [x] Mine, and released: the 31 October build is responsive against the same data folder and the current one is not, which pinned it to this session's work. Reverting only the folder-header rework made it responsive again, and it still hung with Scratchpad's Material icons switched off, so the pictures were not the cause - the `CollapsingState` rework was.
+- [x] Cause: `CollapsingState::body` indents, and `Ui::indent` opens with `assert!(self.layout().is_vertical())`. `Reorder::row` runs its closure inside a `ui.horizontal`, so calling `body` on that `ui` panics the UI thread. eframe's loop dies while the window stays up, which presents as a frozen window at near-zero CPU rather than a crash. `CollapsingHeader::show` never tripped it because it makes its own vertical child.
+- [x] Fix: wrap the header and body in `ui.vertical`, with the reason in a comment so nobody "tidies" it away.
+- [x] Test: `scratchpad_folder_rows_draw_in_a_horizontal_parent` renders the folder level inside a horizontal layout headlessly, which panics without the fix.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · cargo deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — Scratchpad opens, the folder draws its icon and caret, and two expand/collapse toggles leave the app responsive.
+- [x] Docs: GOTCHAS entry; CHANGELOG line. No spec change: the behaviour is what it always was.
+- **Notes:** **how it escaped.** FEAT-0084's App box was verified on the Editor, and I listed the activities I could not see with live data - but Scratchpad needs no connection and I reworked its folder header without ever opening Scratchpad in the running app. The ticked box was honest about connections and silent about the one activity I changed structurally and never looked at. A panic on the UI thread is also easy to misread: no dialog, no crash, just a window that stops responding.
 
 ### BUG-0039 · AdGuard's network filter resets concurrent loopback connections, failing every mock-server test
 - **State:** Completed · **Spec:** docs/tools/automation.md
@@ -273,7 +293,6 @@ Change Request : CR-0040
 - [x] App: `--data-dir ./tmp-data` — Enable and disable Material icon for each activities reflect immediately. Checked on 2026-11-03 against a release build: the Editor's tab pictures and project tree draw the Material icons, unchecking Editor in Settings -> Appearance -> Material Icon turns **both** back to plain glyphs at once, and checking it again restores them without a restart and without collapsing the tree. The 26 new icons were also rendered at 96 px and reviewed one by one before use; `view` and `stash` were redrawn because they did not read.
   **Not seen with live data**: the item lists in Container, Database, NoSQL, Redis, S3, Queue and Git need a connection of each kind, which this machine has only for Forgejo. Their wiring is covered by the unit tests and by `clippy`, not by a screenshot.
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS — `docs/04-ui-design.md` describes the item-icon language, the ten activities and the no-misleading-picture rule; `assets/icons/material/README.md` records that the 26 new icons are ours rather than upstream MIT art, with the palette convention; CHANGELOG has its line. README and CHECKLIST need nothing: no requirement, build command or roadmap phase changed.
-
 - **Notes:** done 2026-11-03. 26 item icons drawn for the
   kinds the upstream Material theme has nothing for (owner's decision over
   glyph fallbacks), registered in `fileicons::ICONS`, resolved by
@@ -287,6 +306,7 @@ Change Request : CR-0040
   glyph was inline in a segmented control's label). Three kinds deliberately
   keep their glyphs - Kubernetes pods, a foreign-key column and the loading
   and error rows - because no Material picture says those things.
+  
 ### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
 - **State:** In-Progress ·
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.

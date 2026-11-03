@@ -268,6 +268,10 @@ pub struct HyperStackApp {
     confirm_remove_project: Option<(String, String)>,
     /// Remove From List on a Git repository, awaiting the owner's yes.
     confirm_remove_repo: Option<(String, String)>,
+    /// Remove From List on a saved connection, from an activity's
+    /// sidebar (FEAT-0094): (id, name). Unlike a project or repository,
+    /// this deletes the profile and its vault credentials.
+    confirm_remove_connection: Option<(String, String)>,
     last_input: Instant,
     /// When a secret copied from Settings → Security leaves the clipboard.
     clear_clipboard_at: Option<Instant>,
@@ -398,6 +402,7 @@ impl HyperStackApp {
             confirm_close: None,
             confirm_remove_project: None,
             confirm_remove_repo: None,
+            confirm_remove_connection: None,
             last_input: Instant::now(),
             clear_clipboard_at: None,
             last_layout_save: Instant::now(),
@@ -1356,6 +1361,25 @@ impl HyperStackApp {
             "settings:automation" => self.open_settings(Some(settings_ui::Page::Automation)),
             "settings:tracker" => self.open_settings(Some(settings_ui::Page::Tracker)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
+            // Add, from the sidebar of an activity whose kinds each have
+            // their own form: the page with no form open and its list
+            // section, kind buttons first, scrolled into view (FEAT-0093).
+            "settings:containers:new"
+            | "settings:queue:new"
+            | "settings:automation:new"
+            | "settings:tracker:new" => {
+                let page = match action {
+                    "settings:containers:new" => settings_ui::Page::Containers,
+                    "settings:queue:new" => settings_ui::Page::Queue,
+                    "settings:automation:new" => settings_ui::Page::Automation,
+                    _ => settings_ui::Page::Tracker,
+                };
+                self.open_settings(Some(page));
+                let mut ui = self.settings_ui.lock();
+                ui.state.conn_selected = None;
+                ui.state.conn_draft = None;
+                ui.state.focus_form = true;
+            }
             // Add a project: Settings -> Editor with an empty form in
             // the detail column. `:pick` also opens the folder chooser,
             // which is what the Editor sidebar's + means by "add a
@@ -1372,17 +1396,21 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.project_selected = None;
                 ui.state.project_draft = Some(draft);
+                ui.state.focus_form = true;
             }
             // Add a connection of a given kind, from an activity's
             // dashboard: Settings -> Connections with an empty form
             // already set to that kind, so the reader is not left to
             // pick "db" out of a list after asking for an SSH host
             // (owner's requirement, 2026-10-29).
+            // The kind decides the page: a container, queue, automation
+            // or tracker kind has its own, and the form takes the focus
+            // (FEAT-0093).
             _ if action.starts_with("settings:connection:new:") => {
                 let kind = action
                     .trim_start_matches("settings:connection:new:")
                     .to_string();
-                self.open_settings(Some(settings_ui::Page::Connections));
+                self.open_settings(Some(settings_ui::page_for_kind(&kind)));
                 let c = hs_core::connections::ConnectionProfile {
                     name: "new".into(),
                     kind,
@@ -1391,6 +1419,7 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.conn_selected = Some(c.id.clone());
                 ui.state.conn_draft = Some((c, String::new()));
+                ui.state.focus_form = true;
             }
             // Add CLI, from the Terminal dashboard: Settings -> Terminal
             // with an empty CLI form open.
@@ -1444,6 +1473,7 @@ impl HyperStackApp {
                 let mut ui = self.settings_ui.lock();
                 ui.state.repo_selected = None;
                 ui.state.repo_draft = Some(settings_ui::RepoDraft::blank(source));
+                ui.state.focus_form = true;
             }
             _ if action.starts_with("settings:git:repo:") => {
                 let id = action.trim_start_matches("settings:git:repo:").to_string();
@@ -1452,6 +1482,12 @@ impl HyperStackApp {
                     let mut ui = self.settings_ui.lock();
                     ui.state.repo_selected = Some(r.id.clone());
                     ui.state.repo_draft = Some(settings_ui::RepoDraft::open(r));
+                }
+            }
+            _ if action.starts_with("connection:remove:") => {
+                let id = action.trim_start_matches("connection:remove:").to_string();
+                if let Some(c) = self.services.connections.read().by_id(&id) {
+                    self.confirm_remove_connection = Some((id.clone(), c.name.clone()));
                 }
             }
             _ if action.starts_with("git:remove:") => {
@@ -2993,6 +3029,12 @@ impl HyperStackApp {
                 Some(g) if g == "editor" => {
                     self.run_action("settings:project:new");
                 }
+                // The same for the Git activity: its tabs are repositories,
+                // and a repository is added on the form in Settings -> Git
+                // (FEAT-0093).
+                Some(g) if g == "git" => {
+                    self.run_action("settings:git:repo:new");
+                }
                 // A new tab of this activity, not "open this activity":
                 // for one with a dashboard home those are different
                 // things, and the second does nothing when the dashboard
@@ -4313,7 +4355,8 @@ impl eframe::App for HyperStackApp {
             || self.fallback_notice_open
             || self.settings_ui.lock().state.confirm_delete.is_some()
             || self.confirm_remove_project.is_some()
-            || self.confirm_remove_repo.is_some();
+            || self.confirm_remove_repo.is_some()
+            || self.confirm_remove_connection.is_some();
         let (blocklist, devtools_panel) = {
             let st = self.services.settings.read();
             (st.browser.blocklist.clone(), st.browser.devtools_panel)
@@ -4374,10 +4417,18 @@ impl eframe::App for HyperStackApp {
                 true,
             ) {
                 DialogResult::Ok => {
+                    // A connection takes the vault secrets only it used
+                    // with it, as Remove From List does; deleting just the
+                    // file left them in the vault (BUG-0043).
                     let res = if is_env {
-                        s.environments.write().remove(&id)
+                        s.environments
+                            .write()
+                            .remove(&id)
+                            .map_err(hs_core::connections::RemoveError::Storage)
                     } else {
-                        s.connections.write().remove(&id)
+                        s.connections
+                            .write()
+                            .remove_with_secrets(&id, s.secrets.as_ref())
                     };
                     match res {
                         Ok(()) => {
@@ -4398,6 +4449,11 @@ impl eframe::App for HyperStackApp {
                                 self.close_tabs_for_connection(&id);
                             }
                         }
+                        Err(hs_core::connections::RemoveError::VaultLocked) => self.toasts.push(
+                            ToastLevel::Warning,
+                            s.i18n
+                                .t_args("conn-remove-vault-locked", &[("name", &name)]),
+                        ),
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
                     }
                     self.settings_ui.lock().state.confirm_delete = None;
@@ -4442,6 +4498,51 @@ impl eframe::App for HyperStackApp {
                     self.confirm_remove_project = None;
                 }
                 DialogResult::Cancel => self.confirm_remove_project = None,
+                DialogResult::Open => {}
+            }
+        }
+        let confirm_connection = self.confirm_remove_connection.clone();
+        if let Some((id, name)) = confirm_connection {
+            let s = self.services.clone();
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "remove-connection",
+                &s.t("conn-remove-title"),
+                // Unlike Remove From List on a project, this one deletes:
+                // the body says so, and says the credentials go too.
+                &s.i18n.t_args("conn-remove-confirm", &[("name", &name)]),
+                &s.t("conn-remove"),
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    let res = s
+                        .connections
+                        .write()
+                        .remove_with_secrets(&id, s.secrets.as_ref());
+                    match res {
+                        Ok(()) => {
+                            {
+                                let mut hub = self.settings_ui.lock();
+                                if hub.state.conn_selected.as_deref() == Some(id.as_str()) {
+                                    hub.state.conn_draft = None;
+                                    hub.state.conn_selected = None;
+                                }
+                            }
+                            self.close_tabs_for_connection(&id);
+                            s.events.publish(Event::ConnectionsChanged);
+                        }
+                        Err(hs_core::connections::RemoveError::VaultLocked) => self.toasts.push(
+                            ToastLevel::Warning,
+                            s.i18n
+                                .t_args("conn-remove-vault-locked", &[("name", &name)]),
+                        ),
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                    self.confirm_remove_connection = None;
+                }
+                DialogResult::Cancel => self.confirm_remove_connection = None,
                 DialogResult::Open => {}
             }
         }

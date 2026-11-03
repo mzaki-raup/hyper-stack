@@ -12,12 +12,17 @@ use secrecy::{ExposeSecret, SecretString};
 
 pub fn run(paths: DataDir, _logging: Logging) -> i32 {
     let mut failures = Vec::new();
-    let mut check = |name: &str, ok: Result<(), String>| match ok {
-        Ok(()) => println!("ok      {name}"),
-        Err(e) => {
-            println!("FAILED  {name}: {e}");
-            failures.push(name.to_string());
+    let mut check = |name: &str, ok: Result<(), String>| {
+        match ok {
+            Ok(()) => println!("ok      {name}"),
+            Err(e) => {
+                println!("FAILED  {name}: {e}");
+                failures.push(name.to_string());
+            }
         }
+        // Out to the pipe now, not when the buffer fills: a run that ends
+        // inside a check still shows the last one it passed (BUG-0042).
+        let _ = std::io::Write::flush(&mut std::io::stdout());
     };
 
     println!(
@@ -176,17 +181,21 @@ pub fn run(paths: DataDir, _logging: Logging) -> i32 {
         })(),
     );
 
+    // The release check runs this as LocalSystem in session 0, straight
+    // after a release build, where the pseudo-console can be slow to open:
+    // a second, longer attempt, and a panic reported rather than ending the
+    // run (BUG-0042).
     check(
         "pty spawn",
-        (|| {
+        retrying(&[PTY_FIRST_WAIT, PTY_SECOND_WAIT], |wait| {
             let (cmd, args) = hs_term::pty::probe_command();
-            let out = hs_term::pty::run_capture(cmd, &args, std::time::Duration::from_secs(10))?;
+            let out = hs_term::pty::run_capture(cmd, &args, wait)?;
             if out.contains("HS_PTY_OK") {
                 Ok(())
             } else {
                 Err(format!("unexpected output {out:?}"))
             }
-        })(),
+        }),
     );
 
     check(
@@ -365,5 +374,86 @@ fn wait_status(
             return hs_core::updater::UpdateStatus::Error("timed out".into());
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+/// How long the terminal probe waits on its first try, and on its second.
+const PTY_FIRST_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+const PTY_SECOND_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Run `attempt` once per wait in `waits`, stopping at the first success.
+/// A panic inside an attempt is that attempt's failure, not the end of the
+/// self-test; when every attempt fails, the reason names each of them
+/// (BUG-0042).
+fn retrying(
+    waits: &[std::time::Duration],
+    mut attempt: impl FnMut(std::time::Duration) -> Result<(), String>,
+) -> Result<(), String> {
+    let mut reasons = Vec::new();
+    for (i, &wait) in waits.iter().enumerate() {
+        let tried = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| attempt(wait)));
+        match tried {
+            Ok(Ok(())) => return Ok(()),
+            Ok(Err(e)) => reasons.push(format!("try {} ({wait:?}): {e}", i + 1)),
+            Err(panic) => {
+                let what = panic
+                    .downcast_ref::<&str>()
+                    .map(|s| s.to_string())
+                    .or_else(|| panic.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "a panic".to_string());
+                reasons.push(format!("try {} ({wait:?}): panicked: {what}", i + 1));
+            }
+        }
+    }
+    Err(reasons.join("; "))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    const WAITS: [Duration; 2] = [Duration::from_millis(1), Duration::from_millis(2)];
+
+    /// A slow first try is not a failure if the second one answers
+    /// (BUG-0042).
+    #[test]
+    fn a_later_attempt_that_succeeds_passes() {
+        let mut tries = 0;
+        let r = retrying(&WAITS, |_| {
+            tries += 1;
+            if tries == 1 {
+                Err("slow".into())
+            } else {
+                Ok(())
+            }
+        });
+        assert_eq!(r, Ok(()));
+        assert_eq!(tries, 2);
+    }
+
+    #[test]
+    fn every_attempt_is_named_when_none_succeeds() {
+        let r = retrying(&WAITS, |_| Err("no console".into()));
+        let e = r.unwrap_err();
+        assert!(e.contains("try 1") && e.contains("try 2"), "{e}");
+        assert!(e.contains("no console"), "{e}");
+    }
+
+    /// A panic inside an attempt is reported as that attempt's reason and
+    /// the next attempt still runs - it does not end the self-test.
+    #[test]
+    fn a_panic_is_a_reason_not_the_end_of_the_run() {
+        let mut tries = 0;
+        let r = retrying(&WAITS, |_| {
+            tries += 1;
+            if tries == 1 {
+                panic!("boom");
+            }
+            Err("still no console".into())
+        });
+        let e = r.unwrap_err();
+        assert_eq!(tries, 2, "the second attempt ran");
+        assert!(e.contains("panicked: boom"), "{e}");
     }
 }

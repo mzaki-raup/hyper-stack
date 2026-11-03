@@ -179,9 +179,11 @@ Change Request : CR-0040
 
 > **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
 > v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
-> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`. The heading stays Planned
-> because CR-0025's children have not been started: a release carried
-> the finished items, not the batch.
+> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`;
+> CR-0026 to CR-0030, CR-0041 to CR-0043 and BUG-0041 in v0.115.2
+> (2026-11-03), merge `a54ceab`. The heading stays Planned because most
+> of CR-0025's children are still open: a release carried the finished
+> items, not the batch.
 
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
@@ -321,6 +323,7 @@ Change Request : CR-0040
 - [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
 - [x] CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo (added 2026-11-03)
 - [x] BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip (added 2026-11-03)
+- [ ] BUG-0042 · The release check's terminal probe can sink the whole self-test (added 2026-11-04)
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
 - [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
@@ -567,55 +570,80 @@ Change Request : CR-0040
 - [x] Docs: CHANGELOG
 - **Notes:** Filed 2026-11-03 from the owner's report. Checked in the running app: a note whose tab was closed came back as a pinned tab the moment Pin to Top was chosen on its row. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
 
+### BUG-0042 · The release check's terminal probe can sink the whole self-test
+- **State:** In-Progress ·
+- **Scope:** `hyperstack::self_test`.
+- [x] Reproduce: release run 494 (v0.115.2) went red in "Verify the published release" - the downloaded exe's `--self-test` printed `ok background job` and nothing more, no `FAILED` line and no summary, so the process ended inside the `pty spawn` check. The same exe passes every check on the desktop, and `scripts/verify-release.ps1 -Tag v0.115.2` verified the release locally.
+- [x] Fix: every check's line is flushed as it is printed, so a log always shows the last check reached; the terminal probe runs inside `catch_unwind`, so a panic in it is a `FAILED` line rather than the end of the run; and it gets a second attempt with a longer wait (10 s, then 30 s), since the runner opens the console straight after a release build, as LocalSystem in session 0.
+- [x] Test: the retry helper passes when a later attempt succeeds, reports every attempt's reason when none does, and turns a panic into a reason
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
+- [x] Docs: GOTCHAS · CHANGELOG
+- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; the **App** box stays open until a release run's verify step has run it on the runner.
+
+### BUG-0043 · Deleting a connection in Settings leaves its credentials in the vault
+- **State:** Completed ·
+- **Scope:** the shell's Delete confirmation for Settings -> Connections (and the four pages that share its form).
+- [x] Reproduce: in the running app (release build, scratch data folder) the vault file was 79 bytes empty and 209 bytes after saving an SSH profile with a password; Settings -> Connections -> Delete removed the profile's file and left the vault at 209 bytes, so the password stayed in it with nothing referencing it. Found while doing FEAT-0094.
+- [x] Fix: the Delete confirmation goes through `Connections::remove_with_secrets`, as Remove From List does, and says the stored credentials go too; a locked vault refuses with the same toast.
+- [x] Test: `hs_core::connections` covers the removal (secret deleted, data folder grepped clean, shared secret kept, locked vault changes nothing); the shell's dialog is not reachable headlessly, so the reproduction above is re-run in the app
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — save an SSH profile with a password, Delete it in Settings, and see the vault file shrink back
+- [x] Docs: GOTCHAS · CHANGELOG · docs/06-security.md
+- **Notes:** Filed 2026-11-04 at the owner's request. Re-run on the fixed build: 79 bytes empty, 209 with the password, 79 again after Delete, and the dialog now says the credentials go too.
+
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** `Services`/`OpenRequest` navigation, the Settings pages and every Add button.
 - **Parent:** CR-0025
 - **Depends on:** CR-0030
-- [ ] In Almost all Activity Connection -> Sidebar Column; When User click button Add Activity's New Connection, straight away go to Settings -> Connections / Containers / Queue / Automation / Tracker / Git, with add new empty form to add those and the page will focus to the section. 
-- [ ] In Editor Activity -> Sidebar Column -> Header; When user click "Add Project Folder" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
-- [ ] In Editor Activity -> Sidebar Column -> Tab Strip; When user click "New Tab", direct focus on the supposed settings page section - Settings -> Editor -> Project List -> Add Project Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Editor's Activity of the new added project Folder. Please check if other new tab button for other activities connections as well.
-- [ ] In Git Activity -> Sidebar Column -> Header; When user click "Add Repository" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
-- [ ] In Git Activity -> Sidebar Column -> Tab Strip; When user click "New Tab" button, direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
-- [ ] In Git Activity -> Main Windows Tab Strip -> When user click "New Tab" button; direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
-- [ ] In SSH Activity -> Sidebar Column -> Header; When user click "Add Host" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select SSH in Kind dropdown. And will focus to that form section. 
-- [ ] In Database Activity -> Sidebar Column -> Header; When user click "Add Database" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select DB in Kind dropdown. And will focus to that form section. 
-- [ ] In NoSQL Activity -> Sidebar Column -> Header; When user click "Add NoSQL" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select MongoDB in Kind dropdown. And will focus to that form section. 
-- [ ] In Redis Activity -> Sidebar Column -> Header; When user click "Add Redis" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select Redis in Kind dropdown. And will focus to that form section. 
-- [ ] In S3 Activity -> Sidebar Column -> Header; When user click "Add S3 Profile" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select S3 in Kind dropdown. And will focus to that form section. 
-- [ ] In Queue Activity -> Sidebar Column -> Header; When user click "Add Broker" button, straight away go to Settings -> Queue -> Brokers, and will focus to the section. 
-- [ ] In Automation Activity -> Sidebar Column -> Header; When user click "Add Server" button, straight away go to Settings -> Automation -> Server, and will focus to the section. 
-- [ ] In Tracker Activity -> Sidebar Column -> Header; When user click "Add Tracker" button, straight away go to Settings -> Tracker -> Tracker List, and will focus to the section. 
-- [ ] In Settings -> Containers -> Add New Container; When User click Save for the detail, save and close the setting form and then open the newly added connections in new tab in respective Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Connections -> Add New Connection; When User click Save for the detail, save and close the setting form and then open the newly added Container in new tab in Containers Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Queue -> Add Broker; When User click Save the detail, save and close the setting form and then open the newly added broker in new tab in Queue Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Automation -> Add Server; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Automation Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Tracker -> Add Tracker; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Tracker Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Editor -> Add Project Folder; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Git -> Add Repository; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. In the same time, It will also create a Project Folder of the repository in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
-- [ ] In Settings -> Git -> Add Credential; When User click Save the detail, save and close the setting form. Close button will close the form.
-- [ ] Test: a jump request resolves to the right Settings page, section and empty form for each kind, and a Save event carries the new id to its activity
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — from every activity press Add, land on a focused empty form, save it, and see the new connection open in a tab; Close closes the form
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Almost all Activity Connection -> Sidebar Column; When User click button Add Activity's New Connection, straight away go to Settings -> Connections / Containers / Queue / Automation / Tracker / Git, with add new empty form to add those and the page will focus to the section. 
+- [x] In Editor Activity -> Sidebar Column -> Header; When user click "Add Project Folder" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
+- [x] In Editor Activity -> Sidebar Column -> Tab Strip; When user click "New Tab", direct focus on the supposed settings page section - Settings -> Editor -> Project List -> Add Project Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Editor's Activity of the new added project Folder. Please check if other new tab button for other activities connections as well.
+- [x] In Git Activity -> Sidebar Column -> Header; When user click "Add Repository" button, straight away go to Settings -> Git -> Add Repository -> Add new repository form. And will focus to that form section. 
+- [x] In Git Activity -> Sidebar Column -> Tab Strip; When user click "New Tab" button, direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
+- [x] In Git Activity -> Main Windows Tab Strip -> When user click "New Tab" button; direct focus on the supposed settings page section - Settings -> Git -> Repository List -> Add Repository Detail Form. Then, when it is saved, close the detail page and direct open the new tab in Git's Activity of the new added repository. It will also register Project In Editor Activity (Only if from Git Setting -> Repository). Please check if other new tab button for other activities connections as well.
+- [x] In SSH Activity -> Sidebar Column -> Header; When user click "Add Host" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select SSH in Kind dropdown. And will focus to that form section. 
+- [x] In Database Activity -> Sidebar Column -> Header; When user click "Add Database" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select DB in Kind dropdown. And will focus to that form section. 
+- [x] In NoSQL Activity -> Sidebar Column -> Header; When user click "Add NoSQL" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select MongoDB in Kind dropdown. And will focus to that form section. 
+- [x] In Redis Activity -> Sidebar Column -> Header; When user click "Add Redis" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select Redis in Kind dropdown. And will focus to that form section. 
+- [x] In S3 Activity -> Sidebar Column -> Header; When user click "Add S3 Profile" button, straight away go to Settings -> Connections -> New Connection -> Add new connection form with Auto Select S3 in Kind dropdown. And will focus to that form section. 
+- [x] In Queue Activity -> Sidebar Column -> Header; When user click "Add Broker" button, straight away go to Settings -> Queue -> Brokers, and will focus to the section. 
+- [x] In Automation Activity -> Sidebar Column -> Header; When user click "Add Server" button, straight away go to Settings -> Automation -> Server, and will focus to the section. 
+- [x] In Tracker Activity -> Sidebar Column -> Header; When user click "Add Tracker" button, straight away go to Settings -> Tracker -> Tracker List, and will focus to the section. 
+- [x] In Settings -> Containers -> Add New Container; When User click Save for the detail, save and close the setting form and then open the newly added connections in new tab in respective Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Connections -> Add New Connection; When User click Save for the detail, save and close the setting form and then open the newly added Container in new tab in Containers Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Queue -> Add Broker; When User click Save the detail, save and close the setting form and then open the newly added broker in new tab in Queue Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Automation -> Add Server; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Automation Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Tracker -> Add Tracker; When User click Save the detail, save and close the setting form and then open the newly added server in new tab in Tracker Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Editor -> Add Project Folder; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Git -> Add Repository; When User click Save the detail, save and close the setting form and then open the newly added project in new tab in Editor Activity. In the same time, It will also create a Project Folder of the repository in Editor Activity. Close button will close the form. Please check if other connection can follow this flow and implement it where applicable.
+- [x] In Settings -> Git -> Add Credential; When User click Save the detail, save and close the setting form. Close button will close the form.
+- **Decisions (owner, 2026-11-04):** the Editor's Add Project Folder opens Settings -> **Editor** -> Add Project (box 2's "Git" read as a copy of box 4); a new repository saved in Settings -> Git opens in the **Git** activity and is registered as an Editor project (boxes 5-6 over box 21); the Containers, Queue, Automation and Tracker pages are wired now, on today's pages, and CR-0040 keeps the routing when it reshapes them. Boxes 15 and 16 swap their activity names; each page's Save opens the new item in that page's own activity.
+- [x] Test: a jump request resolves to the right Settings page, section and empty form for each kind, and a Save event carries the new id to its activity
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — from every activity press Add, land on a focused empty form, save it, and see the new connection open in a tab; Close closes the form
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Built on `SettingsState::focus_form`, `settings_ui::page_for_kind`, the `settings:<page>:new` jumps and `Projects::add_root`; tests in `settings_tests.rs` and `hs_core::projects`. Exercised in the running app (release build, scratch data folder): Add from SSH, Database, NoSQL, Redis, S3 lands on a focused empty form of that kind; Containers, Queue, Automation, Tracker land on their kind buttons; Redis and RabbitMQ Save closed the form and opened the tab; Close discarded an SSH draft; the Git and Editor `+` and the Editor sidebar's Add Project Folder (after its folder chooser) landed on the focused form; a saved repository opened in Git and was listed as an Editor project; a saved credential closed its form. Git has one tab strip, so boxes 5 and 6 are the same `+`. The other strips' `+` (API Client, Graphics, Scratchpad) make documents and were left alone. README has nothing on these jumps, so it is unchanged.
 
 ### FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** Nine activity sidebars, the connection store and the vault.
 - **Parent:** CR-0025
-- [ ] In SSH Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the Connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Containers Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Host" menu. It will delete the host profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Database Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In NoSQL Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Redis Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In S3 Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Queue Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Automation Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
-- [ ] In Tracker Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the tracker profile with credential tied to it and confirmation dialog will appear before.
-- [ ] Test: removing a profile deletes its `secret:<ulid>` from the vault, the data folder greps clean afterwards, and a cancelled confirmation changes nothing
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — remove a saved profile in SSH and Database, confirm the dialog, and check Settings -> Security -> Credentials no longer lists its credential
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In SSH Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the Connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Containers Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Host" menu. It will delete the host profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Database Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In NoSQL Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Redis Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In S3 Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Queue Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Automation Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the connection profile with credential tied to it and confirmation dialog will appear before.
+- [x] In Tracker Activity -> Sidebar Column -> Right Click On The List; Add "Remove From List" menu below "Edit This Connection" menu. It will delete the tracker profile with credential tied to it and confirmation dialog will appear before.
+- [x] Test: removing a profile deletes its `secret:<ulid>` from the vault, the data folder greps clean afterwards, and a cancelled confirmation changes nothing
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — remove a saved profile in SSH and Database, confirm the dialog, and check Settings -> Security -> Credentials no longer lists its credential
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** One menu item in `hs_ui::form::row_menu`, so all nine sidebars got it together; the shell asks (`connection:remove:<id>`) and deletes through `Connections::remove_with_secrets`, which keeps a secret another profile still references and refuses on a locked vault when the profile holds secrets. Tests: `hs_core::connections` (secret deleted, data folder grepped for the value and the id, shared secret kept, locked vault changes nothing) and `hs-ui/tests/row_menu.rs`. Cancel is a dialog answer, checked in the app rather than a test: Cancel on an SSH profile left its file in place. In the app (release build, scratch data folder, vault created): an SSH profile and a Database profile, each with a password, were removed after the dialog; their tabs closed and Settings -> Security -> Credentials listed neither; seeded Containers, NoSQL, Redis, S3, Queue, Automation and Tracker profiles were removed from their own sidebars. Settings' own Delete button still removes only the profile, not its secrets; that is outside this item. CHECKLIST has no row for this batch, and README nothing on sidebar menus.
 
 ### BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
 - **State:** Pending ·

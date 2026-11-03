@@ -1026,7 +1026,7 @@ impl ContainersTool {
             });
         match act {
             Some(0) => cx.actions.push(Action::RunCommand {
-                id: "settings:containers".into(),
+                id: "settings:containers:new".into(),
             }),
             Some(1) => self.start_scan(&s),
             _ => {}
@@ -3354,7 +3354,7 @@ impl Tool for ContainersTool {
         match id {
             "containers.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:containers".into(),
+                    id: "settings:containers:new".into(),
                 });
                 true
             }
@@ -3414,7 +3414,7 @@ impl Tool for ContainersTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:containers".into(),
+                id: "settings:containers:new".into(),
             });
         }
 
@@ -3428,6 +3428,7 @@ impl Tool for ContainersTool {
         // already selected: one place manages a host, and the sidebar is
         // where the user is looking when they want to change one.
         let mut edit: Option<String> = None;
+        let mut remove: Option<String> = None;
         egui::ScrollArea::vertical()
             .id_salt("container-hosts")
             .max_height(hosts_height)
@@ -3455,6 +3456,7 @@ impl Tool for ContainersTool {
                                 pin: &s.t("conn-pin-home"),
                                 unpin: &s.t("conn-unpin-home"),
                                 edit: &s.t("container-edit-host"),
+                                remove: &s.t("conn-remove"),
                             },
                         );
                         if row.response.clicked() {
@@ -3465,6 +3467,9 @@ impl Tool for ContainersTool {
                         }
                         if row.edit {
                             edit = Some(p.id.clone());
+                        }
+                        if row.remove {
+                            remove = Some(p.id.clone());
                         }
                     });
                     ui.add_space(2.0);
@@ -3488,6 +3493,12 @@ impl Tool for ContainersTool {
         if let Some(id) = edit {
             cx.actions.push(Action::RunCommand {
                 id: format!("settings:container:{id}"),
+            });
+        }
+        // Remove From List: the shell asks first (FEAT-0094).
+        if let Some(id) = remove {
+            cx.actions.push(Action::RunCommand {
+                id: format!("connection:remove:{id}"),
             });
         }
         if let Some(id) = open {

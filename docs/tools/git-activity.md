@@ -106,6 +106,12 @@ Three cards, in the shared `hs_ui::form` style:
    - **Save** is disabled until the mandatory fields hold: Name, Path,
      and for Remote a URL; the hint under the button names what is
      missing. **Close** discards the draft.
+   - Saving a **new** repository closes the form, opens the repository
+     in the Git activity, and lists its folder as an **Editor project**
+     too (`Projects::add_root`), unless that folder is already a
+     project, whose name is then left alone (FEAT-0093). The Git tab
+     strip's `+` lands on this form with the Name field focused, as the
+     sidebar's Add Repository does.
 
 ## 4. Sidebar
 

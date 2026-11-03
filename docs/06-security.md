@@ -55,6 +55,14 @@ Rules:
   to be unlocked, so a typed secret never reaches the profile's TOML file.
   `{{variable}}` references are kept as typed.
 - Deleting a workspace offers to delete its secrets.
+- **Remove From List** on a connection, in an activity's sidebar, and
+  **Delete** on its form in Settings both delete the profile **and** the
+  vault secrets its fields reference
+  (`Connections::remove_with_secrets`), after a confirmation that says
+  so. A secret another profile still references is kept. With the vault
+  locked, a profile that holds secrets is not removed at all, so a
+  credential is never left in the vault with nothing pointing at it
+  (FEAT-0094).
 
 ## 3. Environment protection
 

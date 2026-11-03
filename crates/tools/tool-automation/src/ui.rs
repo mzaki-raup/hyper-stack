@@ -514,7 +514,7 @@ impl Tool for AutomationTool {
             }
             "automation.add" => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:automation".into(),
+                    id: "settings:automation:new".into(),
                 });
                 true
             }
@@ -546,7 +546,7 @@ impl Tool for AutomationTool {
         .is_some()
         {
             cx.actions.push(Action::RunCommand {
-                id: "settings:automation".into(),
+                id: "settings:automation:new".into(),
             });
         }
         let profiles: Vec<(String, String, String, bool, &'static str)> = {
@@ -576,6 +576,7 @@ impl Tool for AutomationTool {
                 let mut open: Option<(String, bool)> = None;
                 let mut pin: Option<(String, bool)> = None;
                 let mut edit: Option<String> = None;
+                let mut remove: Option<String> = None;
                 for (i, (id, name, label, pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
@@ -591,6 +592,7 @@ impl Tool for AutomationTool {
                                 pin: &s.t("conn-pin-home"),
                                 unpin: &s.t("conn-unpin-home"),
                                 edit: &s.t("conn-edit"),
+                                remove: &s.t("conn-remove"),
                             },
                         );
                         if row.response.tip(s.t("automation-open-server")).clicked() {
@@ -601,6 +603,9 @@ impl Tool for AutomationTool {
                         }
                         if row.edit {
                             edit = Some(id.clone());
+                        }
+                        if row.remove {
+                            remove = Some(id.clone());
                         }
                     });
                     ui.add_space(2.0);
@@ -613,6 +618,12 @@ impl Tool for AutomationTool {
                 if let Some(id) = edit {
                     cx.actions.push(Action::RunCommand {
                         id: format!("settings:connection:{id}"),
+                    });
+                }
+                // Remove From List: the shell asks first (FEAT-0094).
+                if let Some(id) = remove {
+                    cx.actions.push(Action::RunCommand {
+                        id: format!("connection:remove:{id}"),
                     });
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {
@@ -841,7 +852,7 @@ impl AutomationTool {
         match pick {
             Some(hs_ui::dashboard::Pick::Action(_)) => {
                 cx.actions.push(Action::RunCommand {
-                    id: "settings:automation".into(),
+                    id: "settings:automation:new".into(),
                 });
             }
             Some(hs_ui::dashboard::Pick::Open(id)) => {

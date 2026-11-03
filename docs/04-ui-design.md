@@ -954,6 +954,52 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-04): Remove From List on a connection row (FEAT-0094)
+
+Every connection row's context menu (`hs_ui::form::row_menu`, so all
+nine sidebars — SSH, Containers, Database, NoSQL, Redis, S3, Queue,
+Automation and Tracker — get it together) has **Remove From List**
+directly under Edit This Connection / Edit This Host. The row only
+reports the choice; the shell (`connection:remove:<id>`) asks first, in
+a danger dialog whose body says the profile **and its stored
+credentials** are deleted and its tabs close — unlike Remove From List on
+a project or repository, which only forgets a folder. Yes deletes through
+`Connections::remove_with_secrets` (docs/06-security.md §2), closes the
+profile's tabs and clears it from Settings if it was open there; Cancel
+changes nothing. A locked vault refuses with a toast that asks for it to
+be unlocked. Owner's requirement, 2026-11-04.
+
+## Addendum (2026-11-04): Add lands on a focused form, Save opens it (FEAT-0093)
+
+Every Add in an activity's sidebar (and its palette `*.add` command) goes
+straight to the Settings form that adds one, and the form takes the
+keyboard. Owner's requirement, 2026-11-04.
+
+- **SSH, Database, NoSQL, Redis and S3** send `settings:connection:new:<kind>`
+  (`ssh`, `db`, `mongodb`, `redis`, `s3`): Settings → Connections with an
+  empty form already set to that kind. The command picks the page from the
+  kind (`settings_ui::page_for_kind`), so a container, queue, automation or
+  tracker kind lands on its own page.
+- **Containers, Queue, Automation and Tracker** have one form per kind, and
+  the kind is chosen on the page: their Add sends
+  `settings:<page>:new`, which opens the page with no form and scrolls the
+  list section, kind buttons first, into view.
+- **Editor** (Add Project Folder, and the strip's `+`) opens Settings →
+  Editor with an empty project form; **Git** (Add Repository, and the
+  strip's `+`) opens Settings → Git with an empty Add Repository form.
+- The focus is one flag, `SettingsState::focus_form`, set by the jump and
+  taken by the first form drawn: its Name field is scrolled into view and
+  given the keyboard. A page whose form waits for a kind takes it on its
+  list instead.
+- **Save on a new profile closes the form** and opens the profile in its
+  own activity, as Connect does; saving an edit keeps the form open, as
+  before. The connection form gains **Close**, beside Save, which discards
+  the draft. Projects and repositories already behaved this way; a new
+  repository is also registered as an Editor project. Git credentials
+  close on Save and open nothing, having no tab of their own.
+- The other strips' `+` (API Client, Graphics, the Scratchpad) make a new
+  document and are unchanged; the connection activities hide theirs.
+
 ## Addendum (2026-11-03): one sidebar header (CR-0030)
 
 Every activity's sidebar opens with `hs_ui::form::sidebar_head`, in the

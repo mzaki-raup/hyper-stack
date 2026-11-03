@@ -4417,10 +4417,18 @@ impl eframe::App for HyperStackApp {
                 true,
             ) {
                 DialogResult::Ok => {
+                    // A connection takes the vault secrets only it used
+                    // with it, as Remove From List does; deleting just the
+                    // file left them in the vault (BUG-0043).
                     let res = if is_env {
-                        s.environments.write().remove(&id)
+                        s.environments
+                            .write()
+                            .remove(&id)
+                            .map_err(hs_core::connections::RemoveError::Storage)
                     } else {
-                        s.connections.write().remove(&id)
+                        s.connections
+                            .write()
+                            .remove_with_secrets(&id, s.secrets.as_ref())
                     };
                     match res {
                         Ok(()) => {
@@ -4441,6 +4449,11 @@ impl eframe::App for HyperStackApp {
                                 self.close_tabs_for_connection(&id);
                             }
                         }
+                        Err(hs_core::connections::RemoveError::VaultLocked) => self.toasts.push(
+                            ToastLevel::Warning,
+                            s.i18n
+                                .t_args("conn-remove-vault-locked", &[("name", &name)]),
+                        ),
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
                     }
                     self.settings_ui.lock().state.confirm_delete = None;

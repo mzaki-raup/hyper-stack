@@ -504,6 +504,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.
 - **A new place that keeps a secret must reach Settings → Security.** The credentials table listed connection profiles only, so Git credentials, container registries, AI providers - and container, WebDAV and Nexus profiles, whose kinds `row` did not match - were stored in the vault but never shown (BUG-0036). Add the store to `crate::credentials::rows_from` and its write-back to `apply_secret_edit`.
 - **Vault-locked saves** must return an error (see Connection Forms).
+- **Deleting a profile must delete its secrets too.** Settings' Delete called `Connections::remove`, which only deletes the profile's TOML file, so every password, token and key the profile had moved into the vault stayed there with nothing pointing at it (BUG-0043). Delete a connection through `Connections::remove_with_secrets`, which also refuses on a locked vault rather than orphaning them. The Credentials table lists by profile, so an orphan never shows; the vault file's size is what gives it away (79 bytes empty, 209 with one password, and still 209 after the delete).
 - **Protected environments** default to read-only. Check this when a new tool exposes a write action.
 
 ## Cross-Platform

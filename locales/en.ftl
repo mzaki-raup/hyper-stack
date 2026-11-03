@@ -883,7 +883,7 @@ conn-environment = Environment
 conn-read-only = Read-Only
 conn-fields = Kind-Specific Fields (TOML)
 conn-new = New Connection
-conn-delete-confirm = Delete connection "{ $name }"?
+conn-delete-confirm = Delete connection "{ $name }"? The credentials stored with it are deleted from the vault too.
 conn-none = No connections yet.
 conn-toml-error = The fields are not valid TOML: { $error }
 

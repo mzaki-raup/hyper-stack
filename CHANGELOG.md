@@ -18,6 +18,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Deleting a connection in Settings deletes the credentials it stored in the vault too, instead of leaving them behind
 - The self-test's terminal check retries once with a longer wait and reports a crash as a failed check, and every check's line is written out as it finishes — a release check on the build machine could end inside it with nothing said
 
 ## 0.115.2 — 2026-11-03

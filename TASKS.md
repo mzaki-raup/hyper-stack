@@ -581,6 +581,17 @@ Change Request : CR-0040
 - [x] Docs: GOTCHAS · CHANGELOG
 - **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; the **App** box stays open until a release run's verify step has run it on the runner.
 
+### BUG-0043 · Deleting a connection in Settings leaves its credentials in the vault
+- **State:** Completed ·
+- **Scope:** the shell's Delete confirmation for Settings -> Connections (and the four pages that share its form).
+- [x] Reproduce: in the running app (release build, scratch data folder) the vault file was 79 bytes empty and 209 bytes after saving an SSH profile with a password; Settings -> Connections -> Delete removed the profile's file and left the vault at 209 bytes, so the password stayed in it with nothing referencing it. Found while doing FEAT-0094.
+- [x] Fix: the Delete confirmation goes through `Connections::remove_with_secrets`, as Remove From List does, and says the stored credentials go too; a locked vault refuses with the same toast.
+- [x] Test: `hs_core::connections` covers the removal (secret deleted, data folder grepped clean, shared secret kept, locked vault changes nothing); the shell's dialog is not reachable headlessly, so the reproduction above is re-run in the app
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — save an SSH profile with a password, Delete it in Settings, and see the vault file shrink back
+- [x] Docs: GOTCHAS · CHANGELOG · docs/06-security.md
+- **Notes:** Filed 2026-11-04 at the owner's request. Re-run on the fixed build: 79 bytes empty, 209 with the password, 79 again after Delete, and the dialog now says the credentials go too.
+
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - **State:** Completed ·
 - **Scope:** `Services`/`OpenRequest` navigation, the Settings pages and every Add button.

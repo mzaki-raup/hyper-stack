@@ -620,7 +620,7 @@ impl Tool for QueueTool {
         if form::sidebar_head(
             ui,
             &theme,
-            &s.t("queue-brokers"),
+            &s.t("tool-queue"),
             &[hs_ui::form::SideAction {
                 icon: ph::PLUS,
                 label: &s.t("queue-add-broker"),

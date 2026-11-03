@@ -318,6 +318,7 @@ Change Request : CR-0040
 - [x] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
 - [x] CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab (added 2026-11-03)
 - [x] CR-0030 · Sidebar column header standard across every activity
+- [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
 - [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
@@ -519,6 +520,20 @@ Change Request : CR-0040
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — walk all twelve sidebars — one titled header, labelled Add buttons, no duplicated title; Scratchpad's inline Add Folder form replaces the buttons while open
 - [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
+
+### CR-0042 · Queue and Automation sidebars titled after their activity
+- **State:** In-Progress ·
+- **Scope:** The Queue and Automation sidebar headers.
+- **Parent:** CR-0025
+- **Depends on:** CR-0030
+- [x] In Queue Activity -> Queue Sidebar Column -> Header; Change title "Brokers" to "Queue".
+- [x] In Automation Activity -> Automation Sidebar Column -> Header; Change title "Servers" to "Automation".
+  - Both now use the activity's own name (`tool-queue`, `tool-automation`), as Containers does. The `queue-brokers` and `automation-servers` strings had no other use and are removed; `settings-queue-brokers` and `settings-automation-servers` are different keys and stay.
+- [x] Test: covered by the bundled-locale parse test and CR-0030's header test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the two sidebars read Queue and Automation
+- [x] Docs: CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's message after CR-0030 shipped. **App box open:** the owner was using this machine, so the app was not driven; the change is two string keys with no logic.
 
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - **State:** Pending ·

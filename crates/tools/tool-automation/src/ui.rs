@@ -536,7 +536,7 @@ impl Tool for AutomationTool {
         if form::sidebar_head(
             ui,
             &theme,
-            &s.t("automation-servers"),
+            &s.t("tool-automation"),
             &[hs_ui::form::SideAction {
                 icon: ph::PLUS,
                 label: &s.t("automation-add-server"),

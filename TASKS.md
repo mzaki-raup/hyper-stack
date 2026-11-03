@@ -179,9 +179,11 @@ Change Request : CR-0040
 
 > **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
 > v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
-> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`. The heading stays Planned
-> because CR-0025's children have not been started: a release carried
-> the finished items, not the batch.
+> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`;
+> CR-0026 to CR-0030, CR-0041 to CR-0043 and BUG-0041 in v0.115.2
+> (2026-11-03), merge `a54ceab`. The heading stays Planned because most
+> of CR-0025's children are still open: a release carried the finished
+> items, not the batch.
 
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
@@ -321,6 +323,7 @@ Change Request : CR-0040
 - [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
 - [x] CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo (added 2026-11-03)
 - [x] BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip (added 2026-11-03)
+- [ ] BUG-0042 · The release check's terminal probe can sink the whole self-test (added 2026-11-04)
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
 - [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
@@ -566,6 +569,17 @@ Change Request : CR-0040
 - [x] App: `--data-dir ./tmp-data` — pin a note that is not open; its pinned tab appears
 - [x] Docs: CHANGELOG
 - **Notes:** Filed 2026-11-03 from the owner's report. Checked in the running app: a note whose tab was closed came back as a pinned tab the moment Pin to Top was chosen on its row. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
+
+### BUG-0042 · The release check's terminal probe can sink the whole self-test
+- **State:** In-Progress ·
+- **Scope:** `hyperstack::self_test`.
+- [x] Reproduce: release run 494 (v0.115.2) went red in "Verify the published release" - the downloaded exe's `--self-test` printed `ok background job` and nothing more, no `FAILED` line and no summary, so the process ended inside the `pty spawn` check. The same exe passes every check on the desktop, and `scripts/verify-release.ps1 -Tag v0.115.2` verified the release locally.
+- [x] Fix: every check's line is flushed as it is printed, so a log always shows the last check reached; the terminal probe runs inside `catch_unwind`, so a panic in it is a `FAILED` line rather than the end of the run; and it gets a second attempt with a longer wait (10 s, then 30 s), since the runner opens the console straight after a release build, as LocalSystem in session 0.
+- [x] Test: the retry helper passes when a later attempt succeeds, reports every attempt's reason when none does, and turns a panic into a reason
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
+- [x] Docs: GOTCHAS · CHANGELOG
+- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; the **App** box stays open until a release run's verify step has run it on the runner.
 
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - **State:** Pending ·

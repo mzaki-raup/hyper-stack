@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- The self-test's terminal check retries once with a longer wait and reports a crash as a failed check, and every check's line is written out as it finishes — a release check on the build machine could end inside it with nothing said
 
 ## 0.115.2 — 2026-11-03
 

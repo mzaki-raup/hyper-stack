@@ -167,7 +167,7 @@ fn favorites(
     let mut acts = FavActions::default();
     ui.horizontal(|ui| {
         if ui
-            .small_button(ph::FOLDER_PLUS)
+            .button(format!("{} {}", ph::FOLDER_PLUS, s.t("browser-new-folder")))
             .tip(s.t("browser-new-folder"))
             .clicked()
         {
@@ -427,7 +427,7 @@ fn passwords(
     let mut move_to: Option<(usize, usize)> = None;
     ui.horizontal(|ui| {
         if ui
-            .small_button(ph::PLUS)
+            .button(format!("{} {}", ph::PLUS, s.t("browser-new-login")))
             .tip(s.t("browser-new-login"))
             .clicked()
         {

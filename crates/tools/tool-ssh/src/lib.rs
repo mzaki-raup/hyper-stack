@@ -2268,30 +2268,23 @@ impl Tool for SshTool {
         // The host's name is in the header band above, so the toolbar
         // starts with the light that says what the connection is doing
         // (owner's requirement, 2026-10-26).
-        ui.colored_label(dot, "●");
-        ui.label(label);
+        hs_ui::toolbar::status(ui, &theme, dot, "●", &label);
         match self.status {
             Status::Connected | Status::Connecting => {
-                if ui
-                    .button(format!("{} {}", ph::PLUGS, s.t("ssh-disconnect")))
-                    .clicked()
-                {
+                if hs_ui::toolbar::btn(ui, &theme, ph::PLUGS, &s.t("ssh-disconnect")).clicked() {
                     self.disconnect();
                 }
             }
             _ => {
                 if self.state.conn_id.is_some()
-                    && ui
-                        .button(format!("{} {}", ph::PLUGS_CONNECTED, s.t("ssh-connect")))
+                    && hs_ui::toolbar::btn(ui, &theme, ph::PLUGS_CONNECTED, &s.t("ssh-connect"))
                         .clicked()
                 {
                     self.connect(s);
                 }
             }
         }
-        if ui
-            .button(format!("{} {}", ph::ERASER, s.t("terminal-clear")))
-            .clicked()
+        if hs_ui::toolbar::btn(ui, &theme, ph::ERASER, &s.t("terminal-clear")).clicked()
             && let Some(sess) = &self.session
         {
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
@@ -2335,8 +2328,7 @@ impl Tool for SshTool {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away
             // from the buttons that act on what is selected.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

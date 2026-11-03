@@ -269,15 +269,17 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         ui.horizontal(|ui| {
-            for (v, key) in [
-                (ToolView::Slowlog, "redis-tools-slowlog"),
-                (ToolView::Clients, "redis-tools-clients"),
-                (ToolView::BigKeys, "redis-tools-bigkeys"),
-                (ToolView::Bulk, "redis-tools-bulk"),
+            for (v, icon, key) in [
+                (
+                    ToolView::Slowlog,
+                    ph::CLOCK_COUNTDOWN,
+                    "redis-tools-slowlog",
+                ),
+                (ToolView::Clients, ph::USERS_THREE, "redis-tools-clients"),
+                (ToolView::BigKeys, ph::KEY, "redis-tools-bigkeys"),
+                (ToolView::Bulk, ph::STACK, "redis-tools-bulk"),
             ] {
-                if ui
-                    .add(egui::Button::selectable(self.depth.tool == v, s.t(key)))
-                    .clicked()
+                if hs_ui::toolbar::tab(ui, &theme, self.depth.tool == v, icon, &s.t(key)).clicked()
                 {
                     self.depth.tool = v;
                     match v {
@@ -504,17 +506,17 @@ impl RedisTool {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-bulk-action"));
-            for (a, key) in [
-                (BulkAction::Delete, "redis-bulk-delete"),
-                (BulkAction::Expire, "redis-bulk-expire"),
-                (BulkAction::Persist, "redis-bulk-persist"),
-                (BulkAction::RenamePrefix, "redis-bulk-rename"),
+            for (a, icon, key) in [
+                (BulkAction::Delete, ph::TRASH, "redis-bulk-delete"),
+                (BulkAction::Expire, ph::CLOCK_COUNTDOWN, "redis-bulk-expire"),
+                (BulkAction::Persist, ph::INFINITY, "redis-bulk-persist"),
+                (
+                    BulkAction::RenamePrefix,
+                    ph::PENCIL_SIMPLE,
+                    "redis-bulk-rename",
+                ),
             ] {
-                if ui
-                    .add(egui::Button::selectable(
-                        self.depth.bulk_action == a,
-                        s.t(key),
-                    ))
+                if hs_ui::toolbar::tab(ui, theme, self.depth.bulk_action == a, icon, &s.t(key))
                     .clicked()
                 {
                     self.depth.bulk_action = a;
@@ -664,7 +666,7 @@ impl RedisTool {
                     });
                 }
             }
-            if ui.small_button(s.t("redis-pubsub-clear")).clicked() {
+            if hs_ui::toolbar::btn(ui, &theme, ph::ERASER, &s.t("redis-pubsub-clear")).clicked() {
                 self.shared.lock().pubsub_msgs.clear();
             }
         });

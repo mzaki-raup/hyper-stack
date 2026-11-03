@@ -1885,8 +1885,7 @@ impl Tool for LogsTool {
             Status::Failed(_) => theme.error,
             Status::Done | Status::Idle => theme.text_muted,
         };
-        ui.label(egui::RichText::new("●").color(dot));
-        ui.label(status_label(s, &status));
+        hs_ui::toolbar::status(ui, &theme, dot, "●", &status_label(s, &status));
         if self.state.spec.is_some() {
             ui.separator();
             ui.label(
@@ -1900,27 +1899,27 @@ impl Tool for LogsTool {
                 .color(theme.text_muted),
             );
             ui.separator();
-            if ui
-                .selectable_label(
-                    self.state.follow,
-                    format!("{} {}", ph::ARROW_LINE_DOWN, s.t("logs-follow")),
-                )
-                .tip(s.t("logs-follow-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.state.follow,
+                ph::ARROW_LINE_DOWN,
+                &s.t("logs-follow"),
+            )
+            .tip(s.t("logs-follow-tip"))
+            .clicked()
             {
                 self.toggle_follow();
             }
-            if ui
-                .selectable_label(
-                    self.paused,
-                    format!(
-                        "{} {}",
-                        if self.paused { ph::PLAY } else { ph::PAUSE },
-                        s.t("logs-pause")
-                    ),
-                )
-                .tip(s.t("logs-pause-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.paused,
+                if self.paused { ph::PLAY } else { ph::PAUSE },
+                &s.t("logs-pause"),
+            )
+            .tip(s.t("logs-pause-tip"))
+            .clicked()
             {
                 self.paused = !self.paused;
             }
@@ -1949,76 +1948,83 @@ impl Tool for LogsTool {
             // Second row: what the list shows, rather than what it is
             // following (owner's requirement, 2026-10-27).
             hs_ui::toolbar::row_break(ui, &theme);
-            if ui
-                .selectable_label(
-                    self.state.local_time,
-                    format!("{} {}", ph::CLOCK, s.t("logs-local-time")),
-                )
-                .tip(s.t("logs-local-time-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.state.local_time,
+                ph::CLOCK,
+                &s.t("logs-local-time"),
+            )
+            .tip(s.t("logs-local-time-tip"))
+            .clicked()
             {
                 self.state.local_time = !self.state.local_time;
             }
             // Mask Secrets governs the view and every export at once, so
             // what is on screen is what would leave the tab.
-            if ui
-                .selectable_label(
-                    self.state.mask,
-                    format!("{} {}", ph::EYE_SLASH, s.t("logs-mask")),
-                )
-                .tip(s.t("logs-mask-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.state.mask,
+                ph::EYE_SLASH,
+                &s.t("logs-mask"),
+            )
+            .tip(s.t("logs-mask-tip"))
+            .clicked()
             {
                 self.state.mask = !self.state.mask;
             }
-            if ui
-                .add_enabled(
-                    self.selected.is_some(),
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::MAGNIFYING_GLASS_PLUS,
-                        s.t("logs-find-everywhere")
-                    )),
-                )
-                .tip(s.t("logs-find-everywhere-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                self.selected.is_some(),
+                ph::MAGNIFYING_GLASS_PLUS,
+                &s.t("logs-find-everywhere"),
+            )
+            .tip(s.t("logs-find-everywhere-tip"))
+            .clicked()
             {
                 self.run_command("logs.find_everywhere", cx);
             }
-            if ui
-                .button(format!("{} {}", ph::HIGHLIGHTER, s.t("logs-highlights")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::HIGHLIGHTER, &s.t("logs-highlights"))
                 .tip(s.t("logs-highlights-hint"))
                 .clicked()
             {
                 self.highlights_open = true;
             }
-            if ui
-                .selectable_label(
-                    self.state.chart_open,
-                    format!("{} {}", ph::CHART_BAR, s.t("logs-chart")),
-                )
-                .tip(s.t("logs-chart-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.state.chart_open,
+                ph::CHART_BAR,
+                &s.t("logs-chart"),
+            )
+            .tip(s.t("logs-chart-tip"))
+            .clicked()
             {
                 self.state.chart_open = !self.state.chart_open;
             }
-            if ui
-                .selectable_label(
-                    self.stats_open,
-                    format!("{} {}", ph::CHART_PIE, s.t("logs-statistics")),
-                )
-                .tip(s.t("logs-statistics-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.stats_open,
+                ph::CHART_PIE,
+                &s.t("logs-statistics"),
+            )
+            .tip(s.t("logs-statistics-tip"))
+            .clicked()
             {
                 self.stats_open = !self.stats_open;
             }
-            if ui
-                .selectable_label(
-                    self.state.collapse,
-                    format!("{} {}", ph::ARROWS_IN_LINE_VERTICAL, s.t("logs-collapse")),
-                )
-                .tip(s.t("logs-collapse-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.state.collapse,
+                ph::ARROWS_IN_LINE_VERTICAL,
+                &s.t("logs-collapse"),
+            )
+            .tip(s.t("logs-collapse-tip"))
+            .clicked()
             {
                 self.state.collapse = !self.state.collapse;
                 self.expanded.clear();
@@ -2029,8 +2035,7 @@ impl Tool for LogsTool {
             }
             // Third row: what leaves the tab.
             hs_ui::toolbar::row_break(ui, &theme);
-            if ui
-                .button(format!("{} {}", ph::FLOPPY_DISK, s.t("logs-save-source")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::FLOPPY_DISK, &s.t("logs-save-source"))
                 .tip(s.t("logs-save-source-tip"))
                 .clicked()
             {
@@ -2045,18 +2050,12 @@ impl Tool for LogsTool {
                     Err(e) => cx.toast(ToastLevel::Error, e),
                 }
             }
-            if ui
-                .button(format!(
-                    "{} {}",
-                    ph::DOWNLOAD_SIMPLE,
-                    s.t("logs-save-filtered")
-                ))
+            if hs_ui::toolbar::btn(ui, &theme, ph::DOWNLOAD_SIMPLE, &s.t("logs-save-filtered"))
                 .clicked()
             {
                 self.run_command("logs.save_filtered", cx);
             }
-            if ui
-                .button(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("logs-reopen")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("logs-reopen"))
                 .tip(s.t("logs-reopen-tip"))
                 .clicked()
             {
@@ -2069,8 +2068,7 @@ impl Tool for LogsTool {
         // control there would be a toggle that does nothing.
         if !cx.is_home {
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui
-                    .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+                if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                     .tip(s.t("ai-shared-button-tip"))
                     .clicked()
                 {

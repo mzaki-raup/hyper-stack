@@ -3113,7 +3113,7 @@ impl HyperStackApp {
                     );
                     ui.scope_builder(egui::UiBuilder::new().max_rect(row), |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 8.0;
+                            hs_ui::toolbar::strip_style(ui);
                             let mut cx = ToolContext {
                                 services: &services,
                                 tab_id: a,
@@ -3264,6 +3264,9 @@ impl HyperStackApp {
         let mut actions = Vec::new();
         let services = self.services.clone();
         let mut drew = false;
+        // A sidebar's buttons are the toolbar's size, so the column reads
+        // as part of the same app rather than as a smaller one (CR-0027).
+        ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
         if let Some(t) = self.tabs.get_mut(a) {
             let is_home = t.home;
             let mut cx = ToolContext {

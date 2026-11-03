@@ -654,16 +654,13 @@ impl Tool for NoSqlTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         for (tab, icon, key) in [
             (Tab::Find, ph::MAGNIFYING_GLASS, "nosql-tab-find"),
             (Tab::Aggregate, ph::FUNNEL, "nosql-tab-aggregate"),
             (Tab::Indexes, ph::LIST_BULLETS, "nosql-tab-indexes"),
         ] {
-            let label = format!("{icon} {}", s.t(key));
-            if ui
-                .add(egui::Button::selectable(self.state.tab == tab, label))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, self.state.tab == tab, icon, &s.t(key)).clicked() {
                 self.state.tab = tab;
                 if tab == Tab::Indexes
                     && let Some(c) = self.container()
@@ -682,8 +679,7 @@ impl Tool for NoSqlTool {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
@@ -1166,7 +1162,7 @@ impl NoSqlTool {
             if form::primary_button(ui, theme, &s.t("nosql-run")).clicked() {
                 self.run_find();
             }
-            if ui.button(s.t("nosql-count")).clicked()
+            if hs_ui::toolbar::btn(ui, theme, ph::HASH, &s.t("nosql-count")).clicked()
                 && let Some(c) = self.container()
             {
                 self.send(Cmd::Count {
@@ -1186,23 +1182,29 @@ impl NoSqlTool {
             {
                 self.state.limit = limit;
             }
-            if ui.button("‹").tip(s.t("nosql-previous")).clicked() {
+            if hs_ui::toolbar::btn(ui, theme, ph::CARET_LEFT, &s.t("nosql-previous-page"))
+                .tip(s.t("nosql-previous"))
+                .clicked()
+            {
                 self.state.skip = (self.state.skip - limit).max(0);
                 self.run_find();
             }
             ui.label(format!("{}", self.state.skip));
-            if ui.button("›").tip(s.t("nosql-next")).clicked() {
+            if hs_ui::toolbar::btn(ui, theme, ph::CARET_RIGHT, &s.t("nosql-next-page"))
+                .tip(s.t("nosql-next"))
+                .clicked()
+            {
                 self.state.skip += limit;
                 self.run_find();
             }
-            if ui.button(s.t("nosql-new-document")).clicked() {
+            if hs_ui::toolbar::btn(ui, theme, ph::FILE_PLUS, &s.t("nosql-new-document")).clicked() {
                 self.editing = Some((
                     Document::new(serde_json::json!({}), "", None),
                     "{\n  \n}".to_string(),
                 ));
                 self.inserting = true;
             }
-            if ui.button(s.t("nosql-delete-matching")).clicked() {
+            if hs_ui::toolbar::btn(ui, theme, ph::TRASH, &s.t("nosql-delete-matching")).clicked() {
                 self.popup = Some(Popup::DeleteMany {
                     filter: self.state.filter.clone(),
                     typed: String::new(),
@@ -1238,13 +1240,12 @@ impl NoSqlTool {
             self.table = TableState::default();
         }
         ui.horizontal(|ui| {
-            for (view, key) in [
-                (View::Table, "nosql-view-table"),
-                (View::Tree, "nosql-view-tree"),
-                (View::Json, "nosql-view-json"),
+            for (view, icon, key) in [
+                (View::Table, ph::TABLE, "nosql-view-table"),
+                (View::Tree, ph::TREE_STRUCTURE, "nosql-view-tree"),
+                (View::Json, ph::BRACKETS_CURLY, "nosql-view-json"),
             ] {
-                if ui
-                    .add(egui::Button::selectable(self.state.view == view, s.t(key)))
+                if hs_ui::toolbar::tab(ui, theme, self.state.view == view, icon, &s.t(key))
                     .clicked()
                 {
                     self.state.view = view;

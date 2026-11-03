@@ -3379,12 +3379,8 @@ impl Tool for ContainersTool {
         if self.is_home || self.state.host_id.is_empty() {
             return;
         }
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::ARROW_CLOCKWISE,
-                s.t("container-refresh")
-            ))
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        if hs_ui::toolbar::btn(ui, &theme, ph::ARROW_CLOCKWISE, &s.t("container-refresh"))
             .tip(s.t("container-refresh-tip"))
             .clicked()
         {
@@ -3395,10 +3391,7 @@ impl Tool for ContainersTool {
         // scope: that scope only gets the width left on the current row,
         // so in a narrow window the control is the first thing to vanish.
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .clicked()
-            {
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant")).clicked() {
                 self.assistant.toggle("Containers");
             }
         });

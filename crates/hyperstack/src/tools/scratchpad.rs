@@ -1472,30 +1472,37 @@ impl Tool for Scratchpad {
             self.rescan(s);
         }
         let mut new_folder = false;
+        // The title on its own line and the two buttons under it: both
+        // carry labels now (owner's report, CR-0027), and labelled they
+        // do not fit beside the title in a sidebar column.
         form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("scratchpad-notes"))
-                    .strong()
-                    .size(15.0),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(format!("{} {}", ph::PLUS, s.t("scratchpad-new")))
-                    .tip(s.t("scratchpad-new-tip"))
-                    .clicked()
-                {
-                    cx.open_new_tab("scratchpad", None);
-                }
-                // The icon alone, like the other sidebar headers' add
-                // buttons: two labelled buttons do not fit beside the
-                // title in a sidebar column.
-                if ui
-                    .small_button(ph::FOLDER_PLUS)
-                    .tip(s.t("scratchpad-new-folder-tip"))
-                    .clicked()
-                {
-                    new_folder = true;
-                }
+            ui.vertical(|ui| {
+                ui.label(
+                    egui::RichText::new(s.t("scratchpad-notes"))
+                        .strong()
+                        .size(15.0),
+                );
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(format!("{} {}", ph::PLUS, s.t("scratchpad-new")))
+                        .tip(s.t("scratchpad-new-tip"))
+                        .clicked()
+                    {
+                        cx.open_new_tab("scratchpad", None);
+                    }
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            ph::FOLDER_PLUS,
+                            s.t("scratchpad-add-folder")
+                        ))
+                        .tip(s.t("scratchpad-new-folder-tip"))
+                        .clicked()
+                    {
+                        new_folder = true;
+                    }
+                });
             });
         });
         if new_folder {
@@ -1640,22 +1647,18 @@ impl Tool for Scratchpad {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         for (view, icon, key) in [
             (View::Edit, ph::PENCIL_SIMPLE, "scratchpad-view-edit"),
             (View::Split, ph::COLUMNS, "scratchpad-view-split"),
             (View::Preview, ph::EYE, "scratchpad-view-preview"),
         ] {
-            if ui
-                .selectable_label(self.state.view == view, format!("{} {}", icon, s.t(key)))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, self.state.view == view, icon, &s.t(key)).clicked() {
                 self.state.view = view;
             }
         }
         ui.separator();
-        if ui
-            .button(format!("{} {}", hs_ui::icons::CHECK, s.t("save")))
-            .clicked()
+        if hs_ui::toolbar::btn(ui, &theme, hs_ui::icons::CHECK, &s.t("save")).clicked()
             && self.save(cx)
         {
             cx.toast(ToastLevel::Success, s.t("toast-saved"));
@@ -1667,15 +1670,11 @@ impl Tool for Scratchpad {
             } else {
                 (ph::PUSH_PIN, "scratchpad-pin")
             };
-            if ui
-                .selectable_label(pinned, format!("{} {}", icon, s.t(key)))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, pinned, icon, &s.t(key)).clicked() {
                 self.toggle_pin(&id, cx);
             }
         }
-        if ui
-            .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
+        if hs_ui::toolbar::btn(ui, &theme, ph::DOWNLOAD_SIMPLE, &s.t("download"))
             .tip(s.t("scratchpad-download-tip"))
             .clicked()
         {
@@ -1698,13 +1697,15 @@ impl Tool for Scratchpad {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .selectable_label(
-                    self.assistant.open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
-                .tip(s.t("scratchpad-ai-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.assistant.open,
+                ph::SPARKLE,
+                &s.t("ai-assistant"),
+            )
+            .tip(s.t("scratchpad-ai-tip"))
+            .clicked()
             {
                 self.assistant.toggle("Scratchpad");
             }

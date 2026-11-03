@@ -723,6 +723,7 @@ impl Tool for QueueTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         if self.state.conn_id.is_some() && !cx.is_home {
             let (caps, busy) = {
                 let sh = self.shared.lock();
@@ -730,24 +731,28 @@ impl Tool for QueueTool {
             };
             let ready = matches!(self.shared.lock().status, Some(Status::Ready));
             let has_dest = self.state.selected.is_some();
-            if ui
-                .add_enabled(
-                    ready && !busy,
-                    egui::Button::new(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("queue-refresh"))),
-                )
-                .tip(s.t("queue-refresh-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                ready && !busy,
+                ph::ARROWS_CLOCKWISE,
+                &s.t("queue-refresh"),
+            )
+            .tip(s.t("queue-refresh-tip"))
+            .clicked()
             {
                 self.refresh();
             }
             ui.separator();
-            if ui
-                .add_enabled(
-                    ready && has_dest,
-                    egui::Button::new(format!("{} {}", ph::ENVELOPE_OPEN, s.t("queue-peek"))),
-                )
-                .tip(s.t("queue-peek-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                ready && has_dest,
+                ph::ENVELOPE_OPEN,
+                &s.t("queue-peek"),
+            )
+            .tip(s.t("queue-peek-tip"))
+            .clicked()
             {
                 self.peek();
             }
@@ -758,11 +763,7 @@ impl Tool for QueueTool {
             };
             let writable = ready && has_dest && !self.read_only();
             if caps.purge
-                && ui
-                    .add_enabled(
-                        writable,
-                        egui::Button::new(format!("{} {}", ph::BROOM, s.t("queue-purge"))),
-                    )
+                && hs_ui::toolbar::btn_enabled(ui, &theme, writable, ph::BROOM, &s.t("queue-purge"))
                     .tip(s.t("queue-purge-tip"))
                     .tip_disabled(if self.read_only() {
                         reason.clone()
@@ -774,17 +775,19 @@ impl Tool for QueueTool {
                 self.ask_purge(cx);
             }
             if caps.delete
-                && ui
-                    .add_enabled(
-                        writable,
-                        egui::Button::new(format!("{} {}", ph::TRASH, s.t("queue-delete"))),
-                    )
-                    .tip_disabled(if self.read_only() {
-                        reason.clone()
-                    } else {
-                        s.t("queue-select-first")
-                    })
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    writable,
+                    ph::TRASH,
+                    &s.t("queue-delete"),
+                )
+                .tip_disabled(if self.read_only() {
+                    reason.clone()
+                } else {
+                    s.t("queue-select-first")
+                })
+                .clicked()
             {
                 self.ask_delete(cx);
             }
@@ -800,8 +803,7 @@ impl Tool for QueueTool {
             }
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

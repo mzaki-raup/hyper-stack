@@ -16,9 +16,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Toolbar toggles that were invisible until the pointer touched them — the editor's Find bar `Aa` / `ab` / `.*`, the Database result strip's Messages button and the result tabs — are drawn as proper framed buttons, so hovering only highlights one instead of making a box appear
 - Form-like text fields are taller, matching the Settings → Accessibility → Language field: the Home launcher box, the sidebar search and filter boxes in Scratchpad, API Client, Browser, Database, Devtools, Git and NoSQL, and the NoSQL query field
 - A dropdown, checkbox or button inside a form row now comes out at the field height, and a form row's label sits level with its control — a description under a control goes on its own row instead of pushing the label down
+- Every activity's toolbar is drawn to one standard: medium buttons with real padding, dropdowns and status chips at the same height, and each item's icon in the accent with its label in the ordinary text colour. Sidebar buttons match
+- Icon-only buttons carry their words: Scratchpad's Add Folder, the Browser sidebar's New Folder and New Login, the editor's Match Case, Whole Word, Regular Expression, Previous and Next, and the terminal's Older Match, Newer Match and Close
+- Connection and follow state — SSH, Logs, the Database transaction and read-only marks, the Git branch — is drawn as a chip the height of the buttons beside it
+- NoSQL's Count, New Document, Delete Matching, page and result-format controls are framed buttons with icons, and the Redis panes' buttons match the toolbar's size
 
 ### Fixed
 
+- The AI Assistant sat between the toolbar's rows when the buttons wrapped, instead of on the first row
+- The toolbar's row rule stopped short of the AI Assistant instead of running the full width
+- The terminal's find controls overlapped the main toolbar; they now have a row of their own under it
 - Opening the Scratchpad activity no longer hangs the app. v0.115.0's folder header called a collapsing body inside the horizontal layout its row provides, which panicked the UI thread and left the window frozen at near-zero CPU
 
 ## 0.115.0 — 2026-11-02

@@ -189,6 +189,23 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **A `TextEdit` in a wrapping row does not ask for its own width.** It
+  takes what is left, so after a full-width allocation (a toolbar row
+  break) it collapses to a sliver and the widgets after it wrap on top of
+  it - which looks like controls drawn over each other, not like a
+  layout that ran out of room. `add_sized` does not help: the field is
+  still measured against the space left. Draw the strip in its own
+  `allocate_ui_with_layout` after the break. Terminal find bar,
+  2026-11-03 (CR-0027).
+- **`hard_right` measured the corner against `min_rect`,** which by the
+  time a tool's toolbar ends is every row its buttons took - so the AI
+  Assistant centred *between* the rows on any toolbar that wrapped. The
+  corner is one row tall (`interact_size.y`); the strip's height is not
+  the row's. Found in Logs, 2026-11-03 (CR-0027).
+- **A `LayoutJob`'s colours survive `add_enabled(false, ..)`.** egui dims
+  a widget by multiplying the *style's* colours, and a job carries its
+  own, so a disabled button drawn from one keeps a bright icon. Build the
+  muted job yourself (`toolbar::btn_enabled`). 2026-11-03.
 - **A `Grid` centres each cell in its row** (`Align2::LEFT_CENTER`), so
   nothing you do to the *label* cell can line it up with a control that
   shares its row with a description: the row is as tall as the stack and

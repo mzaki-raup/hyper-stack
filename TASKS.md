@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0098
-Bugs : BUG-0039
+Bugs : BUG-0040
 Change Request : CR-0040
 ```
 
@@ -313,7 +313,7 @@ Change Request : CR-0040
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.
 - **Depends on:** FEAT-0084
 - [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
-- [ ] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
+- [x] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
 - [ ] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
 - [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
 - [ ] CR-0030 · Sidebar column header standard across every activity
@@ -367,30 +367,45 @@ Change Request : CR-0040
 - [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
-- **State:** Pending ·
+- **State:** Completed · the NoSQL pane was not exercised (no MongoDB or CouchDB server on this machine)
 - **Scope:** `hs_ui::toolbar` and every activity's toolbar and sub-toolbar.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026
-- [ ] Label all icon buttons. For example, in Scratchpad Activity -> Scratchpad Sidebar Column -> Header; Add label "Add Folder" for Make a folder button.
-- [ ] In All Activities -> Toolbar Strip -> Label and Icon; Please color the label and icon with suitable and appropriate color (depends on mode dark/light; maybe follow accent, harmony, contrast, etc where do you think is professional and acceptable), that Showing it is a toolbar and important.
-- [ ] In All Activities -> Toolbar Strip -> Toolbar Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
-- [ ] In All Activities -> Toolbar Strip -> Status Label with Icon (Connected, Disconneted, etc); make all icon and text slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
-- [ ] In All Activities -> Sidebar Column -> Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Match Case,Whole Word, Regular Expression, Previous and Next button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, why the other button (Older Match, Newer Match, Find text field, Match Case, Regular Expression, etc) overlapped with the main toolbar button. It should be in a row below the main toolbar row.
-- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Older Match, Newer Match, Match Case, Regular Expression). Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Action (Run, Count, New Document, Delete Matching, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper label for page button (The page before this one, The next page).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Result Format (Table, Tree, Json, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In Redis Activity -> Work Pane; Please add all the button in this Activity with top/right/bottom/left padding/margin and add proper icon for each button if none. (Clear, Bulk Ops - Delete, Expire, Persist, Rename Prefix, Apply. etc)
-- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Put AI Assistant button on the first row of the toolbar strip.
-- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Draw the horizontal line separator in first row and second row full width. Apply this to all AI Assistant button and horizontal line that have a same characteristic in other activities.
-- [ ] In Browser Activity -> Sidebar Column -> Favorites Tab; Add label for "New Folder" on the button with the icon.
-- [ ] In Browser Activity -> Sidebar Column -> Passwords Tab; Add label for "New Login" on the button with the icon.
-- [ ] Test: the toolbar builder emits a label for every button, and a sub-toolbar row lays out below the main row rather than inside it
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the Terminal and Editor Find rows sit below the main toolbar with labels; Logs draws the AI assistant on the first row
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Label all icon buttons. For example, in Scratchpad Activity -> Scratchpad Sidebar Column -> Header; Add label "Add Folder" for Make a folder button.
+  - Scratchpad's folder button is labelled Add Folder, and the Browser sidebar's New Folder and New Login buttons carry theirs. Labelled, two buttons no longer fit beside a sidebar title, so the Scratchpad header puts its title on one line and the buttons under it.
+- [x] In All Activities -> Toolbar Strip -> Label and Icon; Please color the label and icon with suitable and appropriate color (depends on mode dark/light; maybe follow accent, harmony, contrast, etc where do you think is professional and acceptable), that Showing it is a toolbar and important.
+  - `hs_ui::toolbar::item_text` builds a toolbar item's text in two colours - the icon in the accent, the label in the ordinary text colour - and `btn` / `btn_enabled` / `tab` / `toggle` draw with it. Every activity's `fn toolbar` now goes through them (about 60 call sites). A disabled button mutes both, since a `LayoutJob`'s own colours survive egui's dimming.
+- [x] In All Activities -> Toolbar Strip -> Toolbar Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+  - `hs_ui::toolbar::strip_style`, applied once where the shell draws a tool's toolbar: `button_padding` 10x6 and `interact_size.y` at `form::field_height`. Every button, dropdown and chip in every toolbar inherits it, which also finishes CR-0026's dropdown clause for toolbars.
+- [x] In All Activities -> Toolbar Strip -> Status Label with Icon (Connected, Disconneted, etc); make all icon and text slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+  - `hs_ui::toolbar::status` draws a chip the height of the buttons beside it: the mark in the state's colour, the text in the ordinary one. Used by SSH's connection light, Logs' follow state, the Database transaction and read-only marks and the Git branch.
+- [x] In All Activities -> Sidebar Column -> Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button.
+  - The shell sets the toolbar's `button_padding` on the sidebar column too, so a sidebar button is the same size as a toolbar one.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Match Case,Whole Word, Regular Expression, Previous and Next button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+  - The editor is a library with no locale of its own, so the find bar's words come from the app through a new `hs_editor::view::FindLabels` (the shape `TabStripLabels` already uses), filled from Fluent in `tool-editor`. Aa / ab / .* are now Match Case, Whole Word and Regular Expression, and the arrows are Previous and Next.
+- [x] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, why the other button (Older Match, Newer Match, Find text field, Match Case, Regular Expression, etc) overlapped with the main toolbar button. It should be in a row below the main toolbar row.
+  - The find controls are drawn after a `toolbar::row_break` in a strip of their own. Drawn straight into the toolbar's wrapping row they were squeezed against its right edge and the rest wrapped on top of them, which is what the overlap was.
+- [x] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Older Match, Newer Match, Match Case, Regular Expression). Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Action (Run, Count, New Document, Delete Matching, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+  - Run keeps the primary button; Count, New Document and Delete Matching are framed toolbar buttons with Hash, File Plus and Trash.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper label for page button (The page before this one, The next page).
+  - The bare < and > are Previous Page and Next Page with caret icons; the sentence tooltips stay as tooltips.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Result Format (Table, Tree, Json, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+  - Table, Tree and JSON are framed selectable buttons with Table, Tree Structure and Brackets Curly.
+- [x] In Redis Activity -> Work Pane; Please add all the button in this Activity with top/right/bottom/left padding/margin and add proper icon for each button if none. (Clear, Bulk Ops - Delete, Expire, Persist, Rename Prefix, Apply. etc)
+  - The activity's panes get the toolbar's padding, the four bulk actions get icons and frames, the Tools sub-tabs are framed with icons, and Pub/Sub's Clear has an eraser.
+- [x] In Logs Activity -> Work Pane -> Toolbar Strip; Put AI Assistant button on the first row of the toolbar strip.
+  - `toolbar::hard_right` measured the corner against `min_rect`, which by then was every row the buttons had taken, so the assistant centred between the rows. It is one row tall now, in every activity.
+- [x] In Logs Activity -> Work Pane -> Toolbar Strip; Draw the horizontal line separator in first row and second row full width. Apply this to all AI Assistant button and horizontal line that have a same characteristic in other activities.
+  - `toolbar::row_break` draws its rule across the toolbar's whole rectangle rather than the row the shell narrowed to keep the corner clear.
+- [x] In Browser Activity -> Sidebar Column -> Favorites Tab; Add label for "New Folder" on the button with the icon.
+- [x] In Browser Activity -> Sidebar Column -> Passwords Tab; Add label for "New Login" on the button with the icon.
+- [x] Test: the toolbar builder emits a label for every button, and a sub-toolbar row lays out below the main row rather than inside it
+  - `crates/hs-ui/tests/toolbar_rows.rs`: a toolbar item's text ends with its label and colours the icon with the accent, and what follows a row break starts below the row before it, back at the left edge. That every *call site* passes a label was checked by eye in the app.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the Terminal and Editor Find rows sit below the main toolbar with labels; Logs draws the AI assistant on the first row
+  - All three checked, plus the Database, Editor, Terminal and Redis toolbars, the Scratchpad and Browser sidebars, and Redis' Tools sub-tabs and Bulk Ops against a live server on 6379. **Not checked: the NoSQL pane** - there is no MongoDB or CouchDB on this machine, so boxes 9-11 are code-reviewed only.
+- [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
 - **State:** Pending ·

@@ -2176,6 +2176,7 @@ impl Tool for S3Tool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         let in_bucket = self.state.bucket.is_some() && self.client.is_some();
         let selected = self.selected_row();
         let is_object = matches!(selected, Some(Row::Object(_)));
@@ -2230,9 +2231,12 @@ impl Tool for S3Tool {
         // and Nexus have no tagging, versions or bucket policy.
         if self.s3_client.is_some() {
             ui.separator();
-            ui.toggle_value(
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
                 &mut self.details_open,
-                format!("{} {}", ph::INFO, s.t("s3-details")),
+                ph::INFO,
+                &s.t("s3-details"),
             )
             .tip(s.t("s3-details-tip"));
             if btn(ui, in_bucket, ph::ARROWS_LEFT_RIGHT, "s3-sync") {
@@ -2251,8 +2255,7 @@ impl Tool for S3Tool {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

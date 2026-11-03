@@ -3982,7 +3982,7 @@ impl Tool for DbTool {
         let km = s.shortcuts.read();
         let sc = |a: &str| km.get(a).map(|c| c.display()).unwrap_or_default();
         let btn = |ui: &mut egui::Ui, enabled: bool, icon: &str, key: &str, tip: String| {
-            ui.add_enabled(enabled, egui::Button::new(format!("{icon} {}", s.t(key))))
+            hs_ui::toolbar::btn_enabled(ui, &theme, enabled, icon, &s.t(key))
                 .tip(tip)
                 .clicked()
         };
@@ -4062,9 +4062,12 @@ impl Tool for DbTool {
                 self.control("ROLLBACK", s);
             }
             if in_tx {
-                ui.colored_label(
+                hs_ui::toolbar::status(
+                    ui,
+                    &theme,
                     theme.warning,
-                    format!("{} {}", ph::HOURGLASS, s.t("db-tx-pending")),
+                    ph::HOURGLASS,
+                    &s.t("db-tx-pending"),
                 );
             }
         }
@@ -4106,16 +4109,16 @@ impl Tool for DbTool {
             });
         ui.separator();
         if self.read_only_profile {
-            ui.colored_label(
-                theme.text_muted,
-                format!("{} {}", ph::LOCK, s.t("db-read-only")),
-            )
-            .tip(s.t("db-read-only-tip"));
+            hs_ui::toolbar::status(ui, &theme, theme.text_muted, ph::LOCK, &s.t("db-read-only"))
+                .tip(s.t("db-read-only-tip"));
         } else if self.protected {
             if self.writes_unlocked {
-                ui.colored_label(
+                hs_ui::toolbar::status(
+                    ui,
+                    &theme,
                     theme.env_prod,
-                    format!("{} {}", ph::LOCK_OPEN, s.t("db-writes-allowed")),
+                    ph::LOCK_OPEN,
+                    &s.t("db-writes-allowed"),
                 );
             } else if ui
                 .button(format!("{} {}", ph::LOCK, s.t("db-allow-writes")))

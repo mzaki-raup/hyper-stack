@@ -639,6 +639,7 @@ impl Tool for AutomationTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         if self.state.conn_id.is_some() && !cx.is_home {
             let (caps, busy, ready) = {
                 let sh = self.shared.lock();
@@ -650,17 +651,15 @@ impl Tool for AutomationTool {
             };
             let has_job = self.job().is_some();
             let run = self.run();
-            if ui
-                .add_enabled(
-                    ready && !busy,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROWS_CLOCKWISE,
-                        s.t("automation-refresh")
-                    )),
-                )
-                .tip(s.t("automation-refresh-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                ready && !busy,
+                ph::ARROWS_CLOCKWISE,
+                &s.t("automation-refresh"),
+            )
+            .tip(s.t("automation-refresh-tip"))
+            .clicked()
             {
                 self.refresh();
             }
@@ -678,60 +677,60 @@ impl Tool for AutomationTool {
                 }
             };
             if caps.run
-                && ui
-                    .add_enabled(
-                        ready && has_job && !self.read_only(),
-                        egui::Button::new(format!("{} {}", ph::PLAY, s.t("automation-run"))),
-                    )
-                    .tip(s.t("automation-run-tip"))
-                    .tip_disabled(blocked(false))
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    ready && has_job && !self.read_only(),
+                    ph::PLAY,
+                    &s.t("automation-run"),
+                )
+                .tip(s.t("automation-run-tip"))
+                .tip_disabled(blocked(false))
+                .clicked()
             {
                 self.open_run_form(cx);
             }
             let can_cancel = run.as_ref().is_some_and(|r| r.state.is_active());
             if caps.cancel
-                && ui
-                    .add_enabled(
-                        ready && can_cancel && !self.read_only(),
-                        egui::Button::new(format!("{} {}", ph::STOP, s.t("automation-cancel"))),
-                    )
-                    .tip_disabled(if self.read_only() {
-                        reason.clone()
-                    } else {
-                        s.t("automation-cancel-needs-active")
-                    })
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    ready && can_cancel && !self.read_only(),
+                    ph::STOP,
+                    &s.t("automation-cancel"),
+                )
+                .tip_disabled(if self.read_only() {
+                    reason.clone()
+                } else {
+                    s.t("automation-cancel-needs-active")
+                })
+                .clicked()
             {
                 self.ask_cancel(cx);
             }
             ui.separator();
             if caps.log
-                && ui
-                    .add_enabled(
-                        run.is_some(),
-                        egui::Button::new(format!(
-                            "{} {}",
-                            ph::FILE_TEXT,
-                            s.t("automation-open-log")
-                        )),
-                    )
-                    .tip(s.t("automation-open-log-tip"))
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    run.is_some(),
+                    ph::FILE_TEXT,
+                    &s.t("automation-open-log"),
+                )
+                .tip(s.t("automation-open-log-tip"))
+                .clicked()
             {
                 self.open_log(cx);
             }
-            if ui
-                .add_enabled(
-                    has_job,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROW_SQUARE_OUT,
-                        s.t("automation-browser")
-                    )),
-                )
-                .tip(s.t("automation-browser-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                has_job,
+                ph::ARROW_SQUARE_OUT,
+                &s.t("automation-browser"),
+            )
+            .tip(s.t("automation-browser-tip"))
+            .clicked()
             {
                 self.open_browser(cx);
             }
@@ -751,8 +750,7 @@ impl Tool for AutomationTool {
             }
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

@@ -818,6 +818,38 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-03): one toolbar standard (CR-0027)
+
+Everything a toolbar draws comes from `hs_ui::toolbar`, so the strip reads
+the same in every activity:
+
+- **Metrics.** `strip_style`, applied once where the shell hands a tool
+  its row, sets `button_padding` to 10 × 6 and `interact_size.y` to
+  `form::field_height`. A button, a dropdown and a status chip in a
+  toolbar are therefore the same height as a form field, and the sidebar
+  column gets the same padding so its buttons match.
+- **Colour.** `item_text` builds an item's text in two colours — the icon
+  in the accent, the label in the ordinary text colour — and `btn`,
+  `btn_enabled`, `tab` and `toggle` draw with it. A disabled button mutes
+  both: a `LayoutJob`'s own colours survive egui's dimming of the widget
+  around them, so muting has to be explicit.
+- **Every button says what it does.** An icon with no label is a
+  guess-and-hover; the label is the control and the tooltip is the
+  detail. The editor's find bar takes its words from the app through
+  `hs_editor::view::FindLabels`, the way the tab strip takes
+  `TabStripLabels`, because the editor is a library with no locale.
+- **Status** is a chip (`toolbar::status`), not loose text: the mark in
+  the state's colour, the text beside it, the strip's padding around
+  both.
+- **Rows.** `hard_right` pins the assistant to the **first** row — one
+  row tall, whatever the strip grew to — and `row_break` ends a row with
+  a rule across the toolbar's whole width. A sub-toolbar with a text
+  field in it (the terminal's find bar) draws inside its own strip after
+  the break: a `TextEdit` in a wrapping row takes the width that is left
+  rather than asking for its own, and after a row break there is none.
+
+Owner's report, 2026-11-03.
+
 ## Addendum (2026-10-17): Home's sidebar, and where the buttons go
 
 **Home's sidebar is "where you were".** The page answers *what can I do* —

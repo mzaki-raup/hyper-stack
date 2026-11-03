@@ -858,6 +858,7 @@ impl Tool for TrackerTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         if self.state.conn_id.is_some() && !cx.is_home {
             let (caps, busy, ready) = {
                 let sh = self.shared.lock();
@@ -867,17 +868,15 @@ impl Tool for TrackerTool {
                     matches!(sh.status, Some(Status::Ready)),
                 )
             };
-            if ui
-                .add_enabled(
-                    ready && !busy,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROWS_CLOCKWISE,
-                        s.t("tracker-refresh")
-                    )),
-                )
-                .tip(s.t("tracker-refresh-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                ready && !busy,
+                ph::ARROWS_CLOCKWISE,
+                &s.t("tracker-refresh"),
+            )
+            .tip(s.t("tracker-refresh-tip"))
+            .clicked()
             {
                 self.refresh();
             }
@@ -887,20 +886,22 @@ impl Tool for TrackerTool {
             if self.is_pages() {
                 let page = self.page();
                 let editable = page.as_ref().is_some_and(|p| p.read_only.is_none());
-                if ui
-                    .add_enabled(
-                        ready && editable && !ro && self.page_edit.is_none(),
-                        egui::Button::new(format!("{} {}", ph::PENCIL_SIMPLE, s.t("tracker-edit"))),
-                    )
-                    .tip(s.t("tracker-edit-page-tip"))
-                    .tip_disabled(if ro {
-                        reason.clone()
-                    } else if page.is_some() {
-                        s.t("tracker-page-read-only")
-                    } else {
-                        s.t("tracker-select-page")
-                    })
-                    .clicked()
+                if hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    ready && editable && !ro && self.page_edit.is_none(),
+                    ph::PENCIL_SIMPLE,
+                    &s.t("tracker-edit"),
+                )
+                .tip(s.t("tracker-edit-page-tip"))
+                .tip_disabled(if ro {
+                    reason.clone()
+                } else if page.is_some() {
+                    s.t("tracker-page-read-only")
+                } else {
+                    s.t("tracker-select-page")
+                })
+                .clicked()
                 {
                     self.open_edit(cx);
                 }
@@ -912,62 +913,58 @@ impl Tool for TrackerTool {
                     s.t("tracker-select-first")
                 };
                 if caps.transition
-                    && ui
-                        .add_enabled(
-                            ready && has_item && !ro,
-                            egui::Button::new(format!(
-                                "{} {}",
-                                ph::ARROW_FAT_LINES_RIGHT,
-                                s.t("tracker-status")
-                            )),
-                        )
-                        .tip(s.t("tracker-status-tip"))
-                        .tip_disabled(blocked.clone())
-                        .clicked()
+                    && hs_ui::toolbar::btn_enabled(
+                        ui,
+                        &theme,
+                        ready && has_item && !ro,
+                        ph::ARROW_FAT_LINES_RIGHT,
+                        &s.t("tracker-status"),
+                    )
+                    .tip(s.t("tracker-status-tip"))
+                    .tip_disabled(blocked.clone())
+                    .clicked()
                 {
                     self.open_status(cx);
                 }
                 if caps.edit
-                    && ui
-                        .add_enabled(
-                            ready && has_item && !ro,
-                            egui::Button::new(format!(
-                                "{} {}",
-                                ph::PENCIL_SIMPLE,
-                                s.t("tracker-edit")
-                            )),
-                        )
-                        .tip(s.t("tracker-edit-tip"))
-                        .tip_disabled(blocked)
-                        .clicked()
+                    && hs_ui::toolbar::btn_enabled(
+                        ui,
+                        &theme,
+                        ready && has_item && !ro,
+                        ph::PENCIL_SIMPLE,
+                        &s.t("tracker-edit"),
+                    )
+                    .tip(s.t("tracker-edit-tip"))
+                    .tip_disabled(blocked)
+                    .clicked()
                 {
                     self.open_edit(cx);
                 }
                 if caps.create
-                    && ui
-                        .add_enabled(
-                            ready && !ro,
-                            egui::Button::new(format!("{} {}", ph::PLUS, s.t("tracker-new"))),
-                        )
-                        .tip(s.t("tracker-new-tip"))
-                        .tip_disabled(reason)
-                        .clicked()
+                    && hs_ui::toolbar::btn_enabled(
+                        ui,
+                        &theme,
+                        ready && !ro,
+                        ph::PLUS,
+                        &s.t("tracker-new"),
+                    )
+                    .tip(s.t("tracker-new-tip"))
+                    .tip_disabled(reason)
+                    .clicked()
                 {
                     self.open_new(cx);
                 }
             }
             ui.separator();
-            if ui
-                .add_enabled(
-                    self.state.item.is_some() || self.state.page.is_some(),
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROW_SQUARE_OUT,
-                        s.t("tracker-browser")
-                    )),
-                )
-                .tip(s.t("tracker-browser-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                self.state.item.is_some() || self.state.page.is_some(),
+                ph::ARROW_SQUARE_OUT,
+                &s.t("tracker-browser"),
+            )
+            .tip(s.t("tracker-browser-tip"))
+            .clicked()
             {
                 self.open_browser(cx);
             }
@@ -983,8 +980,7 @@ impl Tool for TrackerTool {
             }
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

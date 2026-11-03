@@ -1406,7 +1406,7 @@ impl ContainersTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 20.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1482,16 +1482,13 @@ impl ContainersTool {
             });
         });
         ui.add_space(2.0);
-        egui::Grid::new(("cluster-detail-grid", res as u8, i))
-            .num_columns(2)
-            .spacing([12.0, 4.0])
-            .show(ui, |ui| {
-                for (label, value) in cluster::summary(res, s, inv, i) {
-                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
-                    ui.add(egui::Label::new(value).selectable(true).truncate());
-                    ui.end_row();
-                }
-            });
+        let summary = cluster::summary(res, s, inv, i);
+        hs_ui::form::detail_table(
+            ui,
+            theme,
+            ("cluster-detail-grid", res as u8, i),
+            summary.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        );
 
         let Some(target) = cluster::row_target(res, inv, i) else {
             // An event has nothing to fetch; its row above is all of it.
@@ -2451,7 +2448,7 @@ impl ContainersTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 20.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -2789,16 +2786,12 @@ impl ContainersTool {
         ui.add_space(4.0);
         // Keyed by the row it shows, so a grid never keeps the tallest
         // height a previous selection gave it (the Logs lesson).
-        egui::Grid::new(("container-facts", res as u8, id))
-            .num_columns(2)
-            .spacing([12.0, 4.0])
-            .show(ui, |ui| {
-                for (label, value) in &facts {
-                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
-                    ui.add(egui::Label::new(value.as_str()).selectable(true).truncate());
-                    ui.end_row();
-                }
-            });
+        hs_ui::form::detail_table(
+            ui,
+            theme,
+            ("container-facts", res as u8, id),
+            facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        );
         ui.add_space(4.0);
         if ui.small_button(s.t("container-detail-copy")).clicked() {
             let text = facts

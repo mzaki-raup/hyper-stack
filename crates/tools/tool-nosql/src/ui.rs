@@ -1262,19 +1262,16 @@ impl NoSqlTool {
                         ("ms", &sum.elapsed.as_millis().to_string()),
                     ],
                 );
-                ui.label(egui::RichText::new(text).small().color(theme.text_muted));
+                // The result strip is a header, so its words are body
+                // size rather than small print (owner's report, CR-0028).
+                ui.label(egui::RichText::new(text).color(theme.text_muted));
                 if sum.more {
-                    ui.label(
-                        egui::RichText::new(s.t("nosql-more"))
-                            .small()
-                            .color(theme.warning),
-                    );
+                    ui.label(egui::RichText::new(s.t("nosql-more")).color(theme.warning));
                 }
             }
             if let Some(n) = count {
                 ui.label(
                     egui::RichText::new(s.i18n.t_args("nosql-count-is", &[("n", &n.to_string())]))
-                        .small()
                         .color(theme.text_muted),
                 );
             }
@@ -1307,7 +1304,7 @@ impl NoSqlTool {
                         theme,
                         columns: &specs,
                         rows: &rows,
-                        row_height: 22.0,
+                        row_height: hs_ui::table::ROW_HEIGHT,
                         show_filter: false,
                         copy_row_label: &s.t("nosql-copy-row"),
                         built_in_menu: true,

@@ -126,9 +126,11 @@ fn cell_preview(v: &Value) -> String {
 
 /// The fixed strip that carries the row number, beside the scrolling table.
 const ROW_NUMBER_WIDTH: f32 = 48.0;
-/// Shared by the table and the gutter, which have to line up.
-const HEADER_HEIGHT: f32 = 24.0;
-const ROW_HEIGHT: f32 = 22.0;
+/// Shared by the table and the gutter, which have to line up. Both come
+/// from `hs_ui::table`, so a result grid reads like every other table
+/// in the app (CR-0028).
+const HEADER_HEIGHT: f32 = hs_ui::table::HEADER_HEIGHT;
+const ROW_HEIGHT: f32 = hs_ui::table::ROW_HEIGHT;
 
 fn initial_width(col: &Column, rows: &[Row], i: usize) -> f32 {
     let sample = rows
@@ -280,9 +282,12 @@ fn grid_table(
                         Some((col, false)) if col == i => " ▼",
                         _ => "",
                     };
+                    hs_ui::table::header_band(ui, theme);
                     let r = ui.add(
                         egui::Label::new(
-                            egui::RichText::new(format!("{}{arrow}", c.name)).strong(),
+                            egui::RichText::new(format!("{}{arrow}", c.name))
+                                .strong()
+                                .size(hs_ui::table::HEADER_TEXT),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -301,7 +306,7 @@ fn grid_table(
                     }
                 });
             }
-            header.col(|_| {});
+            header.col(|ui| hs_ui::table::header_band(ui, theme));
         })
         .body(|body| {
             // Columns are: the row-number column, one per data column, then
@@ -426,6 +431,18 @@ fn paint_gutter(
 ) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 0.0, theme.panel_bg);
+    // The gutter's own header cell is part of the table's header band,
+    // so the strip does not break where it meets the columns (CR-0028).
+    let head = egui::Rect::from_min_max(
+        rect.min,
+        egui::pos2(rect.right(), rect.top() + HEADER_HEIGHT),
+    );
+    painter.rect_filled(head, 0.0, theme.surface);
+    painter.hline(
+        head.x_range(),
+        head.bottom() - 0.5,
+        egui::Stroke::new(1.0, theme.border),
+    );
     painter.line_segment(
         [rect.right_top(), rect.right_bottom()],
         egui::Stroke::new(1.0, theme.border),

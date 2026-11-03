@@ -397,6 +397,39 @@ needed in `OpenRequest::Terminal`).
 | `Palette` | shell | commands + quick-open |
 | `EnvBanner`, `Badge`, `Toast`, `Dialog`, `ProgressBar`, `KeyValueEditor` (headers, params, variables with enable checkboxes), `CodeView` (read-only highlighted text with copy), `Breadcrumb` (paths, prefixes, URLs) | everywhere | |
 
+### A table's own measurements (2026-11-03, CR-0028)
+
+`hs_ui::table::ROW_HEIGHT` (26) and `HEADER_HEIGHT` (30) are the one pair
+of numbers a table is built from — the `DataTable` call sites and the
+Database result grid both take them, so a row is the same to read and
+the same to hit wherever it is drawn. A header is a **band**, not a
+first row in bold: `table::header_band` fills its cells with
+`theme.surface` and rules them off, and the names are bold at 13.5. A
+grid with a fixed gutter beside it (the result grid's row numbers)
+paints the same band over the gutter's header, or the strip breaks where
+the two meet.
+
+Three more things follow from "a table says what it is":
+
+- **A well for anything scrollable.** `form::well` and
+  `form::scroll_well` draw a field-coloured, bordered panel — darker on
+  a dark theme, lighter on a light one, both from `theme.field_bg()` —
+  so a list or a block of output reads as something you scroll rather
+  than as text that happens to stop. A pane that paints its own
+  background (the Logs view, the editors) keeps it.
+- **Item-and-value data is a table with no header.**
+  `form::detail_table`: striped, two columns, rows a table's height, the
+  name muted. The facts a detail pane lists are data, not a form. A list
+  whose values carry their own formatting (monospace, a colour that
+  means something) keeps the formatting and takes only the striping and
+  the row height.
+- **A text box in a settings card does not grow with its content.** A
+  fixed height in a `ScrollArea` (`max_height` with
+  `min_scrolled_height`), or a long list pushes the rest of the page out
+  of reach.
+
+Owner's report, 2026-11-03.
+
 ## 7. Keyboard
 
 Global defaults (all rebindable via `HyperStackData/shortcuts.toml`):

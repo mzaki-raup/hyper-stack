@@ -1507,7 +1507,7 @@ impl RedisTool {
                     theme: &theme,
                     columns: &columns,
                     rows: &self.rows,
-                    row_height: 22.0,
+                    row_height: hs_ui::table::ROW_HEIGHT,
                     show_filter: true,
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,

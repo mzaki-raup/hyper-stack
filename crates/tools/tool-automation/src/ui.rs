@@ -1012,7 +1012,7 @@ impl AutomationTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 22.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1131,7 +1131,7 @@ impl AutomationTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 22.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: false,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1224,17 +1224,21 @@ impl AutomationTool {
         if b.cut {
             form::hint(ui, theme, &s.t("automation-log-cut"));
         }
-        egui::ScrollArea::both()
-            .id_salt("automation-log")
-            .auto_shrink([false, false])
-            .stick_to_bottom(true)
-            .show(ui, |ui| {
-                ui.add(
-                    egui::Label::new(egui::RichText::new(&b.text).monospace())
-                        .selectable(true)
-                        .extend(),
-                );
-            });
+        // In a well, so the output reads as something you scroll rather
+        // than as text that happens to stop (CR-0028).
+        form::well(ui, theme, None, |ui| {
+            egui::ScrollArea::both()
+                .id_salt("automation-log")
+                .auto_shrink([false, false])
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&b.text).monospace())
+                            .selectable(true)
+                            .extend(),
+                    );
+                });
+        });
     }
 
     fn run_pane(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext, job: &Job) {

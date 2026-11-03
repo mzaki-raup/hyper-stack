@@ -193,6 +193,80 @@ pub fn field_hint_row(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.end_row();
 }
 
+/// A well for a scrollable area: the field background, a border and a
+/// fixed height, so a list or a block of output looks like something you
+/// can scroll rather than like text that happens to stop (CR-0028).
+///
+/// `height` is the well's inner height; pass `None` to let it take what
+/// is left of the pane.
+pub fn scroll_well<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    height: Option<f32>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    well(ui, theme, height, |ui| {
+        let h = height.unwrap_or_else(|| ui.available_height());
+        let mut area = egui::ScrollArea::vertical()
+            .id_salt(id)
+            .auto_shrink([false; 2]);
+        if height.is_some() {
+            area = area.max_height(h).min_scrolled_height(h);
+        }
+        area.show(ui, add).inner
+    })
+}
+
+/// A read-only item-and-value list drawn as a table with no header:
+/// striped rows the height of a table's, the name muted in a column of
+/// its own, the value wrapping beside it. For the facts a detail pane
+/// lists - Type / Bug, Author / Redmine Admin (owner's report, CR-0028).
+pub fn detail_table<'a>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    rows: impl IntoIterator<Item = (&'a str, &'a str)>,
+) {
+    egui::Grid::new(id)
+        .num_columns(2)
+        .striped(true)
+        .spacing([16.0, 4.0])
+        .min_col_width(150.0)
+        .min_row_height(crate::table::ROW_HEIGHT)
+        .show(ui, |ui| {
+            for (name, value) in rows {
+                ui.label(RichText::new(name).color(theme.text_muted));
+                ui.add(egui::Label::new(value).wrap());
+                ui.end_row();
+            }
+        });
+}
+
+/// The well itself, for content that scrolls on its own (a `DataTable`
+/// keeps its own scroll areas) or does not scroll at all.
+pub fn well<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    height: Option<f32>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    egui::Frame::new()
+        .fill(theme.field_bg())
+        .stroke(Stroke::new(1.0, theme.border))
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(Margin::symmetric(8, 6))
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            if let Some(h) = height {
+                ui.set_min_height(h);
+                ui.set_max_height(h);
+            }
+            add(ui)
+        })
+        .inner
+}
+
 /// A framed note panel with an info icon: instructions, tips, warnings.
 pub fn note(ui: &mut egui::Ui, theme: &Theme, icon: &str, text: &str) {
     egui::Frame::new()

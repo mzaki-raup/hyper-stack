@@ -373,6 +373,8 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             egui::Grid::new("jwt-claims")
                 .num_columns(2)
                 .spacing([12.0, 4.0])
+                .striped(true)
+                .min_row_height(hs_ui::table::ROW_HEIGHT)
                 .show(ui, |ui| {
                     for (k, text) in claims {
                         ui.label(egui::RichText::new(k).monospace().strong());

@@ -20,6 +20,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Icon-only buttons carry their words: Scratchpad's Add Folder, the Browser sidebar's New Folder and New Login, the editor's Match Case, Whole Word, Regular Expression, Previous and Next, and the terminal's Older Match, Newer Match and Close
 - Connection and follow state — SSH, Logs, the Database transaction and read-only marks, the Git branch — is drawn as a chip the height of the buttons beside it
 - NoSQL's Count, New Document, Delete Matching, page and result-format controls are framed buttons with icons, and the Redis panes' buttons match the toolbar's size
+- Tables everywhere have taller rows and a header that reads as one: filled, ruled off and bold, the Database result grid's row-number gutter included
+- A scrollable list or block of output sits in a well — darker on a dark theme, lighter on a light one — so it is visibly something you can scroll: the Devtools listening ports and the Automation run log
+- The facts a detail pane lists (Tracker's fields, a container's and a cluster's details) are drawn as a two-column table with no header instead of loose pairs
+- Settings → Browser's Extra Blocked Hosts box keeps a fixed six rows and scrolls, instead of growing with the list
 
 ### Fixed
 

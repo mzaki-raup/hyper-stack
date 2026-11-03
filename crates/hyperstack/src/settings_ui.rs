@@ -7964,16 +7964,25 @@ fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
         &s.t("settings-browser-section-blocklist"),
         |ui| {
             let mut text = settings.browser.blocklist.join("\n");
-            if ui
-                .add(
-                    egui::TextEdit::multiline(&mut text)
-                        .hint_text("ads.example.com")
-                        .font(egui::TextStyle::Monospace)
-                        .desired_width(f32::INFINITY)
-                        .desired_rows(6),
-                )
-                .changed()
-            {
+            // A fixed six rows that scroll, not a box that grows with the
+            // list: a long blocklist pushed everything under it off the
+            // page (owner's report, CR-0028).
+            const ROWS: f32 = 132.0;
+            let edited = egui::ScrollArea::vertical()
+                .id_salt("settings-browser-blocklist")
+                .max_height(ROWS)
+                .min_scrolled_height(ROWS)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(&mut text)
+                            .hint_text("ads.example.com")
+                            .font(egui::TextStyle::Monospace)
+                            .desired_width(f32::INFINITY)
+                            .desired_rows(6),
+                    )
+                })
+                .inner;
+            if edited.changed() {
                 settings.browser.blocklist = text
                     .lines()
                     .map(|l| l.trim().to_string())

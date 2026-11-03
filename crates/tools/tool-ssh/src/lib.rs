@@ -1149,7 +1149,7 @@ impl SshTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 24.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: false,
             copy_row_label: &copy_label,
             // The pane has a menu of its own, below.

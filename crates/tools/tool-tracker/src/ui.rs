@@ -1420,7 +1420,7 @@ impl TrackerTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 22.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1618,21 +1618,23 @@ impl TrackerTool {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if !d.fields.is_empty() {
-                    egui::Grid::new("tracker-fields")
-                        .num_columns(2)
-                        .spacing([12.0, 2.0])
-                        .show(ui, |ui| {
-                            for (name, value) in &d.fields {
-                                if value.is_empty() {
-                                    continue;
-                                }
-                                let k = field_key(name);
-                                let label = s.t(&k);
-                                ui.weak(if label == k { name.clone() } else { label });
-                                ui.label(value);
-                                ui.end_row();
-                            }
-                        });
+                    let named: Vec<(String, String)> = d
+                        .fields
+                        .iter()
+                        .filter(|(_, value)| !value.is_empty())
+                        .map(|(name, value)| {
+                            let k = field_key(name);
+                            let label = s.t(&k);
+                            let label = if label == k { name.clone() } else { label };
+                            (label, value.clone())
+                        })
+                        .collect();
+                    form::detail_table(
+                        ui,
+                        theme,
+                        "tracker-fields",
+                        named.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+                    );
                     ui.add_space(6.0);
                 }
                 if let Some(l) = &d.lossy {

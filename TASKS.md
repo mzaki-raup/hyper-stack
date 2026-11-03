@@ -314,7 +314,7 @@ Change Request : CR-0040
 - **Depends on:** FEAT-0084
 - [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
 - [x] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
-- [ ] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
+- [x] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
 - [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
 - [ ] CR-0030 · Sidebar column header standard across every activity
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
@@ -408,20 +408,27 @@ Change Request : CR-0040
 - [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
-- **State:** Pending ·
+- **State:** Completed · Tracker, Containers and the NoSQL result header are code-reviewed only (no server on this machine)
 - **Scope:** `hs_ui::table::DataTable`, the shared key/value renderer and every scrollable text area.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026
-- [ ] In All Activities -> All Work Pane -> Table Component (Where applicable); Make the table size and value inside it slightly bigger (cell, row, etc). Make all table header text and row, emphasized (bold, upsize, fill header cell color, etc) to show it is a header (where applicable).
-- [ ] In All Activities -> All Work Pane -> All Vertical Scrollable Text Area (Status, Logs, etc) put a darker background (for dark mode) in the text area, or light background (for light mode) in the text area (Where applicable). So that user will notice it can be scrollable.
-- [ ] In All Activities -> All Work Pane -> All Item And Value Data (e.g Type   Bug, Author     Redmine Admin, etc); Make a proper table without header for it to look professional, tidy and structured.
-- [ ] In NoSQL Activity -> Work Pane -> Result Header; Make the header icon and label slightly bigger to show it is a header.
-- [ ] In Devtools Activity -> Listening Port -> Make the Listening Port list background darker.
-- [ ] In Settings -> Browser -> Extra Block Hosts Card; Do not make the text area auto expanded. Use fix height and vertical scrollable for the text area.
-- [ ] Test: DataTable renders an emphasised header row, and the key/value helper produces a two-column headerless table
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a wide table in Database and Tracker reads as a table; the Devtools listening-port list and the Settings -> Browser block-hosts box show their scroll background
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> All Work Pane -> Table Component (Where applicable); Make the table size and value inside it slightly bigger (cell, row, etc). Make all table header text and row, emphasized (bold, upsize, fill header cell color, etc) to show it is a header (where applicable).
+  - `hs_ui::table::ROW_HEIGHT` (26) and `HEADER_HEIGHT` (30) are the one pair of numbers; every `DataTable` call site and the Database result grid use them, so rows are taller everywhere and a header stands above them. `table::header_band` fills the header cells with `theme.surface` and rules them off, and the header's text is bold at 13.5. The Database grid's row-number gutter paints the same band, so the strip does not break where it meets the columns.
+- [x] In All Activities -> All Work Pane -> All Vertical Scrollable Text Area (Status, Logs, etc) put a darker background (for dark mode) in the text area, or light background (for light mode) in the text area (Where applicable). So that user will notice it can be scrollable.
+  - `hs_ui::form::well` and `scroll_well` draw a field-coloured, bordered panel - darker on a dark theme, lighter on a light one, since both come from `theme.field_bg()`. Used by the Devtools listening-port list and the Automation run log. A pane that already paints its own background (the Logs view, the editors) is left alone.
+- [x] In All Activities -> All Work Pane -> All Item And Value Data (e.g Type   Bug, Author     Redmine Admin, etc); Make a proper table without header for it to look professional, tidy and structured.
+  - `hs_ui::form::detail_table`: a striped two-column grid with no header, rows a table's height, the name muted. Used by the Tracker item's fields and the Containers container and cluster details. Three lists that need their own formatting - the JWT claims (expiry in the error colour), the URL parts and the API response headers (monospace) - keep it, and take the striping and row height only.
+- [x] In NoSQL Activity -> Work Pane -> Result Header; Make the header icon and label slightly bigger to show it is a header.
+  - The summary and count lose `.small()`, so the strip reads at body size beside the framed format buttons CR-0027 gave it.
+- [x] In Devtools Activity -> Listening Port -> Make the Listening Port list background darker.
+- [x] In Settings -> Browser -> Extra Block Hosts Card; Do not make the text area auto expanded. Use fix height and vertical scrollable for the text area.
+  - Six rows in a `ScrollArea` with `max_height` and `min_scrolled_height`, so the box holds its height and scrolls instead of pushing the page down.
+- [x] Test: DataTable renders an emphasised header row, and the key/value helper produces a two-column headerless table
+  - `crates/hs-ui/tests/table_header.rs`: the first row starts a header's height below the column name, and an item-and-value list puts its values in a second column with the names lined up a row's height apart.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a wide table in Database and Tracker reads as a table; the Devtools listening-port list and the Settings -> Browser block-hosts box show their scroll background
+  - Checked: the Database result grid (header band across the gutter and the columns, taller rows), the Devtools listening-port list in its well, the Settings -> Browser box holding six rows and scrolling, and the Devtools URL Parts item-and-value table. **Not checked: Tracker and Containers** - no Redmine/Jira server and no container host on this machine - and the NoSQL result header, which needs MongoDB. Those three are code-reviewed only.
+- [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
 
 ### CR-0029 · Tab strip heights, icon sizing and position-aware context menus
 - **State:** Pending ·

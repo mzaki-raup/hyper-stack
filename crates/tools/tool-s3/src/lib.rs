@@ -2105,7 +2105,7 @@ impl S3Tool {
                     theme,
                     columns: &columns,
                     rows: &cells,
-                    row_height: 24.0,
+                    row_height: hs_ui::table::ROW_HEIGHT,
                     show_filter: true,
                     copy_row_label: &copy_label,
                     built_in_menu: true,

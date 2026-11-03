@@ -2019,6 +2019,7 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
                             egui::Grid::new("api-resp-headers")
                                 .striped(true)
                                 .num_columns(2)
+                                .min_row_height(hs_ui::table::ROW_HEIGHT)
                                 .show(ui, |ui| {
                                     for (k, v) in &ex.headers {
                                         ui.label(egui::RichText::new(k).monospace().strong());

@@ -954,6 +954,21 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-04): Remove From List on a connection row (FEAT-0094)
+
+Every connection row's context menu (`hs_ui::form::row_menu`, so all
+nine sidebars — SSH, Containers, Database, NoSQL, Redis, S3, Queue,
+Automation and Tracker — get it together) has **Remove From List**
+directly under Edit This Connection / Edit This Host. The row only
+reports the choice; the shell (`connection:remove:<id>`) asks first, in
+a danger dialog whose body says the profile **and its stored
+credentials** are deleted and its tabs close — unlike Remove From List on
+a project or repository, which only forgets a folder. Yes deletes through
+`Connections::remove_with_secrets` (docs/06-security.md §2), closes the
+profile's tabs and clears it from Settings if it was open there; Cancel
+changes nothing. A locked vault refuses with a toast that asks for it to
+be unlocked. Owner's requirement, 2026-11-04.
+
 ## Addendum (2026-11-04): Add lands on a focused form, Save opens it (FEAT-0093)
 
 Every Add in an activity's sidebar (and its palette `*.add` command) goes

@@ -420,6 +420,81 @@ impl Connections {
         self.profiles.retain(|p| p.id != id);
         Ok(())
     }
+
+    /// Remove From List (FEAT-0094): delete the profile and the vault
+    /// secrets it referenced. A secret another profile still references
+    /// stays. A profile holding secrets is not removed while the vault is
+    /// locked, so a credential is never left behind with nothing pointing
+    /// at it.
+    pub fn remove_with_secrets(
+        &mut self,
+        id: &str,
+        secrets: &dyn crate::secrets::SecretStore,
+    ) -> Result<(), RemoveError> {
+        let Some(profile) = self.by_id(id) else {
+            return Ok(());
+        };
+        let still_used: std::collections::HashSet<String> = self
+            .profiles
+            .iter()
+            .filter(|p| p.id != id)
+            .flat_map(|p| p.secret_refs())
+            .map(|r| r.0)
+            .collect();
+        let doomed: Vec<crate::secrets::SecretRef> = profile
+            .secret_refs()
+            .into_iter()
+            .filter(|r| !still_used.contains(&r.0))
+            .collect();
+        if !doomed.is_empty() && secrets.is_locked() {
+            return Err(RemoveError::VaultLocked);
+        }
+        self.remove(id).map_err(RemoveError::Storage)?;
+        for r in &doomed {
+            match secrets.delete(r) {
+                Ok(()) | Err(crate::secrets::SecretError::NotFound(_)) => {}
+                Err(e) => return Err(RemoveError::Vault(e)),
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Why [`Connections::remove_with_secrets`] did not finish.
+#[derive(Debug, thiserror::Error)]
+pub enum RemoveError {
+    #[error("the vault is locked")]
+    VaultLocked,
+    #[error(transparent)]
+    Storage(storage::StorageError),
+    #[error(transparent)]
+    Vault(crate::secrets::SecretError),
+}
+
+/// Every `secret:<ulid>` string anywhere under `v`, nested tables and
+/// arrays included.
+fn collect_secret_refs(v: &toml::Value, out: &mut Vec<crate::secrets::SecretRef>) {
+    match v {
+        toml::Value::String(s) => {
+            if let Some(r) = crate::secrets::SecretRef::parse(s) {
+                out.push(r);
+            }
+        }
+        toml::Value::Table(t) => t.values().for_each(|v| collect_secret_refs(v, out)),
+        toml::Value::Array(a) => a.iter().for_each(|v| collect_secret_refs(v, out)),
+        _ => {}
+    }
+}
+
+impl ConnectionProfile {
+    /// The vault secrets this profile's fields point at.
+    pub fn secret_refs(&self) -> Vec<crate::secrets::SecretRef> {
+        let mut out = Vec::new();
+        self.fields
+            .values()
+            .for_each(|v| collect_secret_refs(v, &mut out));
+        out
+    }
 }
 
 #[cfg(test)]
@@ -451,6 +526,104 @@ mod tests {
         assert!(is_queue_kind("redis-streams"));
         assert!(!is_queue_kind("redis"));
         assert!(!is_redis_kind("redis-streams"));
+    }
+
+    fn vault(dir: &std::path::Path) -> crate::secrets::VaultStore {
+        use crate::secrets::{KdfParams, VaultStore};
+        let v = VaultStore::new(&dir.join("vault.bin"), KdfParams::FAST);
+        v.initialize(&secrecy::SecretString::from("pw".to_string()))
+            .unwrap();
+        v
+    }
+
+    fn with_secret(name: &str, r: &crate::secrets::SecretRef) -> ConnectionProfile {
+        let mut ssh = toml::Table::new();
+        ssh.insert("password".into(), toml::Value::String(r.to_string_ref()));
+        let mut fields = toml::Table::new();
+        fields.insert("ssh".into(), toml::Value::Table(ssh));
+        ConnectionProfile {
+            name: name.into(),
+            kind: "ssh".into(),
+            fields,
+            ..Default::default()
+        }
+    }
+
+    /// Remove From List takes the profile's credential out of the vault,
+    /// and nothing of the value is left anywhere in the data folder.
+    #[test]
+    fn removing_a_profile_deletes_its_secret_and_leaves_no_trace() {
+        use crate::secrets::SecretStore;
+        let tmp = tempfile::tempdir().unwrap();
+        let v = vault(tmp.path());
+        let r = v
+            .create(
+                "web",
+                &secrecy::SecretString::from("hunter2-xyz".to_string()),
+            )
+            .unwrap();
+        let mut conns = Connections::load(&tmp.path().join("connections"));
+        let c = with_secret("web", &r);
+        conns.upsert(c.clone()).unwrap();
+        assert_eq!(c.secret_refs(), vec![r.clone()]);
+
+        conns.remove_with_secrets(&c.id, &v).unwrap();
+        assert!(conns.by_id(&c.id).is_none());
+        assert!(matches!(
+            v.get(&r),
+            Err(crate::secrets::SecretError::NotFound(_))
+        ));
+        v.lock();
+        for entry in walk(tmp.path()) {
+            let bytes = std::fs::read(&entry).unwrap();
+            let text = String::from_utf8_lossy(&bytes);
+            assert!(!text.contains("hunter2-xyz"), "{}", entry.display());
+            assert!(
+                !text.contains(&r.0),
+                "{} still names the secret",
+                entry.display()
+            );
+        }
+    }
+
+    /// A secret two profiles share stays until the last one goes, and a
+    /// locked vault refuses rather than orphaning the credential.
+    #[test]
+    fn a_shared_secret_stays_and_a_locked_vault_refuses() {
+        use crate::secrets::SecretStore;
+        let tmp = tempfile::tempdir().unwrap();
+        let v = vault(tmp.path());
+        let r = v
+            .create("shared", &secrecy::SecretString::from("pw".to_string()))
+            .unwrap();
+        let mut conns = Connections::load(&tmp.path().join("connections"));
+        let a = with_secret("a", &r);
+        let b = with_secret("b", &r);
+        conns.upsert(a.clone()).unwrap();
+        conns.upsert(b.clone()).unwrap();
+
+        conns.remove_with_secrets(&a.id, &v).unwrap();
+        assert!(v.get(&r).is_ok(), "b still uses it");
+
+        v.lock();
+        assert!(matches!(
+            conns.remove_with_secrets(&b.id, &v),
+            Err(RemoveError::VaultLocked)
+        ));
+        assert!(conns.by_id(&b.id).is_some(), "nothing changed");
+    }
+
+    fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut out = Vec::new();
+        for e in std::fs::read_dir(dir).unwrap().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(walk(&p));
+            } else {
+                out.push(p);
+            }
+        }
+        out
     }
 
     #[test]

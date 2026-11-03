@@ -268,6 +268,10 @@ pub struct HyperStackApp {
     confirm_remove_project: Option<(String, String)>,
     /// Remove From List on a Git repository, awaiting the owner's yes.
     confirm_remove_repo: Option<(String, String)>,
+    /// Remove From List on a saved connection, from an activity's
+    /// sidebar (FEAT-0094): (id, name). Unlike a project or repository,
+    /// this deletes the profile and its vault credentials.
+    confirm_remove_connection: Option<(String, String)>,
     last_input: Instant,
     /// When a secret copied from Settings → Security leaves the clipboard.
     clear_clipboard_at: Option<Instant>,
@@ -398,6 +402,7 @@ impl HyperStackApp {
             confirm_close: None,
             confirm_remove_project: None,
             confirm_remove_repo: None,
+            confirm_remove_connection: None,
             last_input: Instant::now(),
             clear_clipboard_at: None,
             last_layout_save: Instant::now(),
@@ -1477,6 +1482,12 @@ impl HyperStackApp {
                     let mut ui = self.settings_ui.lock();
                     ui.state.repo_selected = Some(r.id.clone());
                     ui.state.repo_draft = Some(settings_ui::RepoDraft::open(r));
+                }
+            }
+            _ if action.starts_with("connection:remove:") => {
+                let id = action.trim_start_matches("connection:remove:").to_string();
+                if let Some(c) = self.services.connections.read().by_id(&id) {
+                    self.confirm_remove_connection = Some((id.clone(), c.name.clone()));
                 }
             }
             _ if action.starts_with("git:remove:") => {
@@ -4344,7 +4355,8 @@ impl eframe::App for HyperStackApp {
             || self.fallback_notice_open
             || self.settings_ui.lock().state.confirm_delete.is_some()
             || self.confirm_remove_project.is_some()
-            || self.confirm_remove_repo.is_some();
+            || self.confirm_remove_repo.is_some()
+            || self.confirm_remove_connection.is_some();
         let (blocklist, devtools_panel) = {
             let st = self.services.settings.read();
             (st.browser.blocklist.clone(), st.browser.devtools_panel)
@@ -4473,6 +4485,51 @@ impl eframe::App for HyperStackApp {
                     self.confirm_remove_project = None;
                 }
                 DialogResult::Cancel => self.confirm_remove_project = None,
+                DialogResult::Open => {}
+            }
+        }
+        let confirm_connection = self.confirm_remove_connection.clone();
+        if let Some((id, name)) = confirm_connection {
+            let s = self.services.clone();
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "remove-connection",
+                &s.t("conn-remove-title"),
+                // Unlike Remove From List on a project, this one deletes:
+                // the body says so, and says the credentials go too.
+                &s.i18n.t_args("conn-remove-confirm", &[("name", &name)]),
+                &s.t("conn-remove"),
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    let res = s
+                        .connections
+                        .write()
+                        .remove_with_secrets(&id, s.secrets.as_ref());
+                    match res {
+                        Ok(()) => {
+                            {
+                                let mut hub = self.settings_ui.lock();
+                                if hub.state.conn_selected.as_deref() == Some(id.as_str()) {
+                                    hub.state.conn_draft = None;
+                                    hub.state.conn_selected = None;
+                                }
+                            }
+                            self.close_tabs_for_connection(&id);
+                            s.events.publish(Event::ConnectionsChanged);
+                        }
+                        Err(hs_core::connections::RemoveError::VaultLocked) => self.toasts.push(
+                            ToastLevel::Warning,
+                            s.i18n
+                                .t_args("conn-remove-vault-locked", &[("name", &name)]),
+                        ),
+                        Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
+                    }
+                    self.confirm_remove_connection = None;
+                }
+                DialogResult::Cancel => self.confirm_remove_connection = None,
                 DialogResult::Open => {}
             }
         }

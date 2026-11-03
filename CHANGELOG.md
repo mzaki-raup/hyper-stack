@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Remove From List on every connection row in the SSH, Containers, Database, NoSQL, Redis, S3, Queue, Automation and Tracker sidebars deletes the saved profile and its vault credentials after a confirmation, and closes its tabs
 - Every activity's Add goes straight to an empty Settings form with the keyboard in its Name field, and saving a new connection, container host, broker, server or tracker closes the form and opens it in its activity; the connection form gains Close, the Git tab strip's + opens Add Repository, and a repository saved in Settings is also listed as an Editor project
 
 ### Fixed

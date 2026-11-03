@@ -490,6 +490,8 @@ pub struct ConnectionRow {
     /// Edit This Connection was chosen: take the user to the profile's
     /// own form in Settings.
     pub edit: bool,
+    /// Remove From List was chosen (FEAT-0094).
+    pub remove: bool,
 }
 
 /// A row in a tool's connection sidebar: the row itself, plus the
@@ -517,6 +519,7 @@ pub fn connection_row(
         response,
         pin: menu.pin,
         edit: menu.edit,
+        remove: menu.remove,
     }
 }
 
@@ -526,6 +529,7 @@ pub struct RowMenuLabels<'a> {
     pub pin: &'a str,
     pub unpin: &'a str,
     pub edit: &'a str,
+    pub remove: &'a str,
 }
 
 /// What was chosen in a connection row's context menu.
@@ -533,6 +537,8 @@ pub struct RowMenuLabels<'a> {
 pub struct RowMenu {
     pub pin: Option<bool>,
     pub edit: bool,
+    /// Remove From List was chosen; the caller asks before anything goes.
+    pub remove: bool,
 }
 
 /// The context menu every connection row carries: pin to Home, and edit
@@ -543,6 +549,10 @@ pub fn row_menu(row: &egui::Response, pinned: bool, labels: RowMenuLabels<'_>) -
     row.context_menu(|ui| {
         if ui.button(labels.edit).clicked() {
             out.edit = true;
+            ui.close();
+        }
+        if ui.button(labels.remove).clicked() {
+            out.remove = true;
             ui.close();
         }
         ui.separator();

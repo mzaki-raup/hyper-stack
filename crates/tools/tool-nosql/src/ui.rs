@@ -592,6 +592,7 @@ impl Tool for NoSqlTool {
                 // form in Settings, selected and ready: one place manages a
                 // connection, and the sidebar is where they are looking.
                 let mut edit: Option<String> = None;
+                let mut remove: Option<String> = None;
                 for (i, (id, name, label, is_pinned, icon)) in profiles.iter().enumerate() {
                     let selected = self.state.conn_id.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
@@ -607,6 +608,7 @@ impl Tool for NoSqlTool {
                                 pin: &s.t("conn-pin-home"),
                                 unpin: &s.t("conn-unpin-home"),
                                 edit: &s.t("conn-edit"),
+                                remove: &s.t("conn-remove"),
                             },
                         );
                         if row.response.tip(s.t("nosql-open-profile")).clicked() {
@@ -617,6 +619,9 @@ impl Tool for NoSqlTool {
                         }
                         if row.edit {
                             edit = Some(id.clone());
+                        }
+                        if row.remove {
+                            remove = Some(id.clone());
                         }
                     });
                     ui.add_space(2.0);
@@ -629,6 +634,12 @@ impl Tool for NoSqlTool {
                 if let Some(id) = edit {
                     cx.actions.push(hs_core::tool::Action::RunCommand {
                         id: format!("settings:connection:{id}"),
+                    });
+                }
+                // Remove From List: the shell asks first (FEAT-0094).
+                if let Some(id) = remove {
+                    cx.actions.push(hs_core::tool::Action::RunCommand {
+                        id: format!("connection:remove:{id}"),
                     });
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent) {

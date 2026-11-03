@@ -571,15 +571,15 @@ Change Request : CR-0040
 - **Notes:** Filed 2026-11-03 from the owner's report. Checked in the running app: a note whose tab was closed came back as a pinned tab the moment Pin to Top was chosen on its row. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
 
 ### BUG-0042 · The release check's terminal probe can sink the whole self-test
-- **State:** In-Progress ·
+- **State:** Completed ·
 - **Scope:** `hyperstack::self_test`.
 - [x] Reproduce: release run 494 (v0.115.2) went red in "Verify the published release" - the downloaded exe's `--self-test` printed `ok background job` and nothing more, no `FAILED` line and no summary, so the process ended inside the `pty spawn` check. The same exe passes every check on the desktop, and `scripts/verify-release.ps1 -Tag v0.115.2` verified the release locally.
 - [x] Fix: every check's line is flushed as it is printed, so a log always shows the last check reached; the terminal probe runs inside `catch_unwind`, so a panic in it is a `FAILED` line rather than the end of the run; and it gets a second attempt with a longer wait (10 s, then 30 s), since the runner opens the console straight after a release build, as LocalSystem in session 0.
 - [x] Test: the retry helper passes when a later attempt succeeds, reports every attempt's reason when none does, and turns a panic into a reason
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
+- [x] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
 - [x] Docs: GOTCHAS · CHANGELOG
-- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; the **App** box stays open until a release run's verify step has run it on the runner.
+- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; release run 496 (app v0.116.0) ran it in its verify step on the runner and passed, which closed the **App** box.
 
 ### BUG-0043 · Deleting a connection in Settings leaves its credentials in the vault
 - **State:** Completed ·

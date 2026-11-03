@@ -273,7 +273,7 @@ impl SshTool {
             &[format!(
                 "{} {}",
                 hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
+                s.t("ssh-add-host")
             )],
             &hosts,
         );

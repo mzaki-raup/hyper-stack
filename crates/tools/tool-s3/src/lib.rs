@@ -242,7 +242,7 @@ impl S3Tool {
             &[format!(
                 "{} {}",
                 hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
+                s.t("s3-add-profile")
             )],
             &saved,
         );

@@ -1361,24 +1361,41 @@ impl HyperStackApp {
             "settings:automation" => self.open_settings(Some(settings_ui::Page::Automation)),
             "settings:tracker" => self.open_settings(Some(settings_ui::Page::Tracker)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
-            // Add, from the sidebar of an activity whose kinds each have
-            // their own form: the page with no form open and its list
-            // section, kind buttons first, scrolled into view (FEAT-0093).
+            // Add, from an activity whose kinds each have their own form:
+            // an empty form of the page's first kind, Name focused; the
+            // Kind field switches it (CR-0044, over FEAT-0093's landing
+            // on the kind buttons).
             "settings:containers:new"
             | "settings:queue:new"
             | "settings:automation:new"
             | "settings:tracker:new" => {
-                let page = match action {
-                    "settings:containers:new" => settings_ui::Page::Containers,
-                    "settings:queue:new" => settings_ui::Page::Queue,
-                    "settings:automation:new" => settings_ui::Page::Automation,
-                    _ => settings_ui::Page::Tracker,
+                use hs_core::connections as c;
+                let (page, kind) = match action {
+                    "settings:containers:new" => {
+                        (settings_ui::Page::Containers, c::CONTAINER_KINDS[0])
+                    }
+                    "settings:queue:new" => (settings_ui::Page::Queue, c::QUEUE_KINDS[0]),
+                    "settings:automation:new" => {
+                        (settings_ui::Page::Automation, c::AUTOMATION_KINDS[0])
+                    }
+                    _ => (settings_ui::Page::Tracker, c::TRACKER_KINDS[0]),
                 };
                 self.open_settings(Some(page));
                 let mut ui = self.settings_ui.lock();
-                ui.state.conn_selected = None;
-                ui.state.conn_draft = None;
+                ui.state.open_kind_draft(kind);
                 ui.state.focus_form = true;
+            }
+            // Manage, from a dashboard: the page with the list section
+            // scrolled to the top (CR-0044).
+            "settings:editor:projects" => {
+                self.open_settings(Some(settings_ui::Page::Editor));
+                self.settings_ui.lock().state.focus_section =
+                    Some(settings_ui::FocusSection::ProjectList);
+            }
+            "settings:git:repos" => {
+                self.open_settings(Some(settings_ui::Page::Git));
+                self.settings_ui.lock().state.focus_section =
+                    Some(settings_ui::FocusSection::GitRepos);
             }
             // Add a project: Settings -> Editor with an empty form in
             // the detail column. `:pick` also opens the folder chooser,
@@ -1427,6 +1444,7 @@ impl HyperStackApp {
                 self.open_settings(Some(settings_ui::Page::Terminal));
                 let mut ui = self.settings_ui.lock();
                 ui.state.cli_draft = Some(hs_core::settings::CliProfile::default());
+                ui.state.focus_form = true;
             }
             "settings:terminal" => self.open_settings(Some(settings_ui::Page::Terminal)),
             // Edit This Connection, from any activity's sidebar: the page
@@ -1460,8 +1478,11 @@ impl HyperStackApp {
             // source for Clone From Host), one repository's form, and
             // Remove From List, which asks first and never touches the
             // folder.
-            "settings:git" | "settings:git:credentials" => {
+            "settings:git" => self.open_settings(Some(settings_ui::Page::Git)),
+            "settings:git:credentials" => {
                 self.open_settings(Some(settings_ui::Page::Git));
+                self.settings_ui.lock().state.focus_section =
+                    Some(settings_ui::FocusSection::GitCredentials);
             }
             "settings:git:repo:new" | "settings:git:repo:new:remote" => {
                 self.open_settings(Some(settings_ui::Page::Git));

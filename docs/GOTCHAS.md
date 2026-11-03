@@ -60,6 +60,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **`the_bundled_locale_parses_without_junk`** fails the gate on bad Fluent entries. A locale error otherwise shows only as "locale en has 1 syntax errors" in the log.
 - **Quoting accidents.** Two lost patches came from quoting, not logic. Write scripts to files.
 - **Python on Windows writes CRLF.** `open(p, 'w')` translates `\n` to `\r\n`, so a patched LF file comes back with every line changed (git warns "CRLF will be replaced by LF"). Open with `newline=''` for reading and writing. Fix a damaged file with `sed -i 's/\r$//'`.
+- **After a release, CHANGELOG's Unreleased has no subheadings.** The release commit resets it to `- (nothing yet)`, so a script that finds `### Fixed` (or any heading) by searching forward from `## Unreleased` lands in the version just released and files the line under it. Bound the search at the next `## ` heading, and replace the placeholder when it is there.
 - **The Bash tool can refuse a long heredoc** ("unexpected EOF while looking for matching `'`") even when quoted, depending on the text. Nothing in it ran. Write the script to a file with the Write tool and run the file.
 
 ## Windows Environment and Build

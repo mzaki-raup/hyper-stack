@@ -277,7 +277,7 @@ impl GitTool {
                 id: "settings:git:credentials".into(),
             }),
             Some(hs_ui::dashboard::Pick::Action(_)) => cx.actions.push(Action::RunCommand {
-                id: "settings:git".into(),
+                id: "settings:git:repos".into(),
             }),
             Some(hs_ui::dashboard::Pick::Open(id)) => open_saved(cx, &id),
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {

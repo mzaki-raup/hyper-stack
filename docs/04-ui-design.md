@@ -980,10 +980,26 @@ keyboard. Owner's requirement, 2026-11-04.
   empty form already set to that kind. The command picks the page from the
   kind (`settings_ui::page_for_kind`), so a container, queue, automation or
   tracker kind lands on its own page.
-- **Containers, Queue, Automation and Tracker** have one form per kind, and
-  the kind is chosen on the page: their Add sends
-  `settings:<page>:new`, which opens the page with no form and scrolls the
-  list section, kind buttons first, into view.
+- **Containers, Queue, Automation and Tracker** have one form per kind:
+  their Add (sidebar and dashboard) sends `settings:<page>:new`, which
+  opens an empty form of the page's **first kind** (Docker, RabbitMQ,
+  Jenkins, Jira) with the kind's defaults and Name focused. This replaced
+  landing on the kind buttons with no form open (CR-0044).
+- Those four pages have **one Add button** above their list — Add
+  Container, Add Broker, Add Automation Server, Add Tracker — in place of
+  a button per kind, as Settings -> Connections has New Connection. The
+  form's **Kind** field lists only that page's kinds (`kind_family`), and
+  switching it on a new profile takes the new kind's defaults, and its
+  "New …" name if the old one was still there (`new_kind_draft`). An
+  existing profile keeps its fields when its kind changes (CR-0044).
+- **Manage** jumps land on a list, not a form: Manage Projects
+  (`settings:editor:projects`), Manage Repositories (`settings:git:repos`)
+  and Git Credentials (`settings:git:credentials`) scroll their section to
+  the top of the view (`SettingsState::focus_section`). Add CLI on the
+  Terminal dashboard opens the CLI form with Name focused (CR-0044).
+- Each Add button names what it adds: Add SSH Host, Add NoSQL, Add Redis,
+  Add S3 Profile, Add Automation Server, Add Note — the dashboards no
+  longer share a generic "Add Connection" (CR-0044).
 - **Editor** (Add Project Folder, and the strip's `+`) opens Settings →
   Editor with an empty project form; **Git** (Add Repository, and the
   strip's `+`) opens Settings → Git with an empty Add Repository form.

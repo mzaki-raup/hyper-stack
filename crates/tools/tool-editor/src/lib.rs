@@ -2873,7 +2873,7 @@ impl EditorTool {
             });
         if manage {
             cx.actions.push(hs_core::tool::Action::RunCommand {
-                id: "settings:editor".into(),
+                id: "settings:editor:projects".into(),
             });
         }
         if let Some(id) = open {

@@ -770,11 +770,7 @@ impl NoSqlTool {
                     label: &s.t("dash-open-tabs"),
                 },
             ],
-            &[format!(
-                "{} {}",
-                hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
-            )],
+            &[format!("{} {}", hs_ui::icons::ph::PLUS, s.t("nosql-add"))],
             &saved,
         );
         match pick {

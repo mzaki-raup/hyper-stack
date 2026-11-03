@@ -11,7 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Add on Containers, Queue, Automation and Tracker opens a focused empty form of the page's first kind; Manage Projects, Manage Repositories and Git Credentials land on their list in Settings; Add CLI focuses its form; Add buttons name what they add (Add SSH Host, Add NoSQL, Add Redis, Add S3 Profile, Add Automation Server, Add Note)
+- Settings -> Containers, Queue, Automation and Tracker have one Add button each in place of a button per kind, and the form's Kind field lists only that page's kinds
 
 ## 0.116.0 — 2026-11-03
 

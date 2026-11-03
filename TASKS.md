@@ -645,6 +645,40 @@ Change Request : CR-0040
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** One menu item in `hs_ui::form::row_menu`, so all nine sidebars got it together; the shell asks (`connection:remove:<id>`) and deletes through `Connections::remove_with_secrets`, which keeps a secret another profile still references and refuses on a locked vault when the profile holds secrets. Tests: `hs_core::connections` (secret deleted, data folder grepped for the value and the id, shared secret kept, locked vault changes nothing) and `hs-ui/tests/row_menu.rs`. Cancel is a dialog answer, checked in the app rather than a test: Cancel on an SSH profile left its file in place. In the app (release build, scratch data folder, vault created): an SSH profile and a Database profile, each with a password, were removed after the dialog; their tabs closed and Settings -> Security -> Credentials listed neither; seeded Containers, NoSQL, Redis, S3, Queue, Automation and Tracker profiles were removed from their own sidebars. Settings' own Delete button still removes only the profile, not its secrets; that is outside this item. CHECKLIST has no row for this batch, and README nothing on sidebar menus.
 
+### CR-0044 · Add and Manage buttons land on the right Settings form or list, and say what they add
+- **State:** Completed ·
+- **Scope:** dashboard and sidebar buttons of Scratchpad, Editor, Terminal, Git, SSH, Containers, NoSQL, Redis, S3, Queue, Automation and Tracker; the Settings jumps.
+- **Depends on:** FEAT-0093
+- [x] Scratchpad dashboard: "New Note" reads "Add Note".
+- [x] Editor dashboard: Manage Projects goes to Settings -> Editor -> Project List and focuses the section.
+- [x] Terminal dashboard: Add CLI goes to Settings -> Terminal -> the new CLI form and focuses it.
+- [x] Git dashboard: Add Repository goes to Settings -> Git -> the new repository form and focuses it.
+- [x] Git dashboard: Manage Repositories goes to Settings -> Git -> Repositories and focuses the section.
+- [x] Git dashboard: Clone From Host goes to Settings -> Git -> the new repository form and focuses it.
+- [x] Git dashboard: Git Credentials goes to Settings -> Git -> Git Credentials and focuses the section.
+- [x] SSH dashboard: "Add Connection" reads "Add SSH Host".
+- [x] SSH sidebar: "Add Host" reads "Add SSH Host".
+- [x] Containers dashboard: Add Container goes to Settings -> Containers -> the new container form and focuses it.
+- [x] NoSQL dashboard: "Add Connection" reads "Add NoSQL".
+- [x] Redis dashboard: "Add Connection" reads "Add Redis".
+- [x] S3 dashboard: "Add Connection" reads "Add S3 Profile".
+- [x] Queue dashboard: Add Broker goes to Settings -> Queue -> the new broker form and focuses it.
+- [x] Queue sidebar: Add Broker goes to Settings -> Queue -> the new broker form and focuses it.
+- [x] Automation sidebar: "Add Server" reads "Add Automation Server".
+- [x] Automation dashboard: "Add Server" reads "Add Automation Server".
+- [x] Automation dashboard: Add Automation Server goes to Settings -> Automation -> the new server form and focuses it.
+- [x] Tracker dashboard: Add Tracker goes to Settings -> Tracker -> the new tracker form and focuses it.
+- [x] Tracker sidebar: Add Tracker goes to Settings -> Tracker -> the new tracker form and focuses it.
+- [x] Settings -> Containers -> Container List: the Docker, Podman, Kubernetes and Windows Container buttons become one Add Container; its form's Kind lists container kinds only.
+- [x] Settings -> Queue -> Brokers: the RabbitMQ, Kafka, Redis Streams, NATS and MQTT buttons become one Add Broker; its form's Kind lists queue kinds only.
+- [x] Settings -> Automation -> Servers: the Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX buttons become one Add Automation Server; its form's Kind lists automation kinds only.
+- [x] Settings -> Tracker -> Trackers: the Jira, Redmine, GitHub Issues, GitLab Issues, Forgejo Issues and Confluence buttons become one Add Tracker; its form's Kind lists tracker kinds only.
+- [x] Test: each kind page's Add opens a focused form of its first kind (and no longer only the kind buttons); each Manage jump lands on its section; a kind page's Kind field offers only its own kinds
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — press each button above and land on the named form or section; read each new label
+- [x] Docs: spec · CHANGELOG · GOTCHAS
+- **Notes:** Filed 2026-11-04 from the owner's list. A kind page holds one form per kind, so "the new broker form" opens the page's first kind (Docker, RabbitMQ, Jenkins, Jira) with Name focused, and the Kind field switches it; this replaces FEAT-0093's landing on the kind buttons, and the Automation sidebar's Add follows the same route. The last four boxes came in a second list the same day; they are also CR-0040's fourth box (v0.7.7), done here because they build on this item's first-kind draft. Switching Kind on a new profile takes the new kind's defaults. In the app (release build, scratch data folder): every relabelled button read as listed; each routed button landed on its form (Name focused) or section; Settings -> Queue showed one Add Broker, its Kind listed only the five queue kinds, and switching to Kafka gave Kafka's defaults and the name New Kafka. The other three pages' Kind lists are covered by the test. CHECKLIST has no row for this batch.
+
 ### BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
 - **State:** Pending ·
 - **Scope:** The Editor work pane's Source Control tab.

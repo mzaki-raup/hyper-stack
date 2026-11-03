@@ -10,6 +10,17 @@ use crate::theme::Theme;
 /// the declared widths up.
 const MIN_COLUMN: f32 = 40.0;
 
+/// One data row's height. Every table in the app uses this, so a row is
+/// the same to read and the same to hit wherever it is drawn (CR-0028).
+pub const ROW_HEIGHT: f32 = 26.0;
+
+/// The header row's height: taller than a data row, which is part of
+/// what says it is a header.
+pub const HEADER_HEIGHT: f32 = 30.0;
+
+/// Header text, a shade larger than a cell's.
+pub const HEADER_TEXT: f32 = 13.5;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnSpec {
     pub name: String,
@@ -167,7 +178,7 @@ impl DataTable<'_> {
                 // would wedge at whatever width it first had.
                 builder = builder.column(Column::remainder());
                 builder
-                    .header(22.0, |mut header| {
+                    .header(HEADER_HEIGHT, |mut header| {
                         for (i, c) in self.columns.iter().enumerate() {
                             header.col(|ui| {
                                 let arrow = match state.sort {
@@ -175,12 +186,15 @@ impl DataTable<'_> {
                                     Some((col, false)) if col == i => " ▼",
                                     _ => "",
                                 };
+                                header_band(ui, self.theme);
                                 if ui
                                     .add(
                                         egui::Label::new(
                                             egui::RichText::new(format!("{}{arrow}", c.name))
-                                                .strong(),
+                                                .strong()
+                                                .size(HEADER_TEXT),
                                         )
+                                        .selectable(false)
                                         .sense(egui::Sense::click()),
                                     )
                                     .clicked()
@@ -193,10 +207,10 @@ impl DataTable<'_> {
                                 }
                             });
                         }
-                        header.col(|_| {});
+                        header.col(|ui| header_band(ui, self.theme));
                     })
                     .body(|body| {
-                        body.rows(self.row_height, order.len(), |mut row| {
+                        body.rows(self.row_height.max(ROW_HEIGHT), order.len(), |mut row| {
                             let data_idx = order[row.index()];
                             row.set_selected(state.selected == Some(data_idx));
                             for (ci, c) in self.columns.iter().enumerate() {
@@ -275,6 +289,24 @@ impl DataTable<'_> {
         }
         resp
     }
+}
+
+/// Fill a header cell, so the header row reads as a band rather than as
+/// a first row in bold. Drawn before the label, and widened by the
+/// column spacing so the cells meet instead of leaving gaps (CR-0028).
+pub fn header_band(ui: &mut egui::Ui, theme: &Theme) {
+    let r = ui.max_rect();
+    let pad = ui.spacing().item_spacing.x;
+    let band = egui::Rect::from_min_max(
+        egui::pos2(r.left() - pad, r.top()),
+        egui::pos2(r.right() + pad, r.bottom()),
+    );
+    ui.painter().rect_filled(band, 0.0, theme.surface);
+    ui.painter().hline(
+        band.x_range(),
+        band.bottom() - 0.5,
+        egui::Stroke::new(1.0, theme.border),
+    );
 }
 
 #[cfg(test)]

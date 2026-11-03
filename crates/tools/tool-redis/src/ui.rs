@@ -659,11 +659,15 @@ impl Tool for RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         // The same header, list rows and add button as the SSH, S3 and
         // database sidebars; the Sidebar toggle hides all of it.
-        if form::sidebar_header(
+        if form::sidebar_head(
             ui,
             &theme,
             &s.t("redis-connections"),
-            &[(ph::PLUS, &s.t("redis-new-profile"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("redis-add"),
+                tip: &s.t("redis-new-profile"),
+            }],
         )
         .is_some()
         {
@@ -772,6 +776,7 @@ impl Tool for RedisTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         // Icon plus label, the way the other tools' toolbars read.
         for (tab, icon, key) in [
             (Tab::Keys, ph::KEY, "redis-tab-keys"),
@@ -781,11 +786,7 @@ impl Tool for RedisTool {
             (Tab::Streams, ph::WAVES, "redis-tab-streams"),
             (Tab::Tools, ph::WRENCH, "redis-tab-tools"),
         ] {
-            let label = format!("{icon} {}", s.t(key));
-            if ui
-                .add(egui::Button::selectable(self.state.tab == tab, label))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, self.state.tab == tab, icon, &s.t(key)).clicked() {
                 self.state.tab = tab;
                 match tab {
                     Tab::Info => {
@@ -806,8 +807,7 @@ impl Tool for RedisTool {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
@@ -821,6 +821,10 @@ impl Tool for RedisTool {
         // what is left rather than into whatever happens to be spare.
         let (mut content, assistant_rect) =
             hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        // Every button in this activity's panes gets the toolbar's own
+        // padding, so none of them reads as a link (owner's report,
+        // CR-0027).
+        content.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
         self.body(&mut content, cx);
         self.assistant_column(ui, assistant_rect, cx);
     }
@@ -1507,7 +1511,7 @@ impl RedisTool {
                     theme: &theme,
                     columns: &columns,
                     rows: &self.rows,
-                    row_height: 22.0,
+                    row_height: hs_ui::table::ROW_HEIGHT,
                     show_filter: true,
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,

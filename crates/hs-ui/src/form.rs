@@ -106,18 +106,25 @@ pub fn field_grid<R>(
     id: impl std::hash::Hash + std::fmt::Debug,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
+    let h = field_height(ui);
     egui::Grid::new(id)
         .num_columns(2)
         .spacing([18.0, 10.0])
         .min_col_width(170.0)
-        .show(ui, add_contents)
+        .show(ui, |ui| {
+            // Every cell in a form row is a field's height tall, so a
+            // checkbox or a ComboBox beside a label centres on the same
+            // line as the label's text instead of hugging the row's top.
+            ui.spacing_mut().interact_size.y = h;
+            add_contents(ui)
+        })
         .inner
 }
 
 /// A row label inside [`field_grid`]: muted, vertically centred with the field.
 pub fn label(ui: &mut egui::Ui, text: &str) {
     ui.add_sized(
-        [170.0, 32.0],
+        [170.0, field_height(ui)],
         egui::Label::new(RichText::new(text)).halign(egui::Align::LEFT),
     );
 }
@@ -174,6 +181,90 @@ pub fn code_field(ui: &mut egui::Ui, value: &mut String, rows: usize) -> egui::R
 /// Muted explanatory text under a control.
 pub fn hint(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add(egui::Label::new(RichText::new(text).color(theme.text_muted).size(12.5)).wrap());
+}
+
+/// A [`hint`] under a form row, on a row of its own inside [`field_grid`].
+/// A grid cell is centred in its row, so a description stacked under the
+/// control makes that row tall and drags the label below the control's
+/// middle; on its own row the control's label stays level with it.
+pub fn field_hint_row(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.label("");
+    hint(ui, theme, text);
+    ui.end_row();
+}
+
+/// A well for a scrollable area: the field background, a border and a
+/// fixed height, so a list or a block of output looks like something you
+/// can scroll rather than like text that happens to stop (CR-0028).
+///
+/// `height` is the well's inner height; pass `None` to let it take what
+/// is left of the pane.
+pub fn scroll_well<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    height: Option<f32>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    well(ui, theme, height, |ui| {
+        let h = height.unwrap_or_else(|| ui.available_height());
+        let mut area = egui::ScrollArea::vertical()
+            .id_salt(id)
+            .auto_shrink([false; 2]);
+        if height.is_some() {
+            area = area.max_height(h).min_scrolled_height(h);
+        }
+        area.show(ui, add).inner
+    })
+}
+
+/// A read-only item-and-value list drawn as a table with no header:
+/// striped rows the height of a table's, the name muted in a column of
+/// its own, the value wrapping beside it. For the facts a detail pane
+/// lists - Type / Bug, Author / Redmine Admin (owner's report, CR-0028).
+pub fn detail_table<'a>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    rows: impl IntoIterator<Item = (&'a str, &'a str)>,
+) {
+    egui::Grid::new(id)
+        .num_columns(2)
+        .striped(true)
+        .spacing([16.0, 4.0])
+        .min_col_width(150.0)
+        .min_row_height(crate::table::ROW_HEIGHT)
+        .show(ui, |ui| {
+            for (name, value) in rows {
+                ui.label(RichText::new(name).color(theme.text_muted));
+                ui.add(egui::Label::new(value).wrap());
+                ui.end_row();
+            }
+        });
+}
+
+/// The well itself, for content that scrolls on its own (a `DataTable`
+/// keeps its own scroll areas) or does not scroll at all.
+pub fn well<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    height: Option<f32>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    egui::Frame::new()
+        .fill(theme.field_bg())
+        .stroke(Stroke::new(1.0, theme.border))
+        .corner_radius(CornerRadius::same(6))
+        .inner_margin(Margin::symmetric(8, 6))
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            if let Some(h) = height {
+                ui.set_min_height(h);
+                ui.set_max_height(h);
+            }
+            add(ui)
+        })
+        .inner
 }
 
 /// A framed note panel with an info icon: instructions, tips, warnings.
@@ -244,15 +335,6 @@ pub fn sidebar_header_icon(
     sidebar_header_inner(ui, theme, Some((icon, fallback)), title, actions)
 }
 
-pub fn sidebar_header(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    title: &str,
-    actions: &[(&str, &str)],
-) -> Option<usize> {
-    sidebar_header_inner(ui, theme, None, title, actions)
-}
-
 fn sidebar_header_inner(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -306,6 +388,91 @@ fn sidebar_header_inner(
         );
     });
     clicked
+}
+
+/// One action in a sidebar header's button row: drawn as `icon label`,
+/// with `tip` on hover when it has more to say than the label.
+pub struct SideAction<'a> {
+    pub icon: &'a str,
+    pub label: &'a str,
+    pub tip: &'a str,
+}
+
+/// A sidebar's header, in the shape the Containers sidebar set: the
+/// title in its bar, then a row of labelled actions with air above and
+/// below, then a rule before the list. The first action is the primary
+/// one; any others sit beside it as framed buttons. Returns the index
+/// of the action clicked (owner's standard, CR-0030).
+///
+/// Icon-only header buttons left the reader to hover each one to learn
+/// what it did; every action here carries its words.
+pub fn sidebar_head(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    actions: &[SideAction<'_>],
+) -> Option<usize> {
+    header_bar(ui, theme, |ui| {
+        ui.set_min_height(SIDEBAR_HEADER_HEIGHT);
+        ui.horizontal(|ui| {
+            ui.set_min_height(SIDEBAR_HEADER_HEIGHT);
+            ui.label(RichText::new(title).strong().size(15.0));
+        });
+    });
+    if actions.is_empty() {
+        return None;
+    }
+    let mut clicked = None;
+    sidebar_action_row(ui, theme, |ui| {
+        for (i, a) in actions.iter().enumerate() {
+            let r = if i == 0 {
+                primary_button(ui, theme, &format!("{} {}", a.icon, a.label))
+            } else {
+                crate::toolbar::btn(ui, theme, a.icon, a.label)
+            };
+            let r = if a.tip.is_empty() { r } else { r.tip(a.tip) };
+            if r.clicked() {
+                clicked = Some(i);
+            }
+        }
+    });
+    clicked
+}
+
+/// The band under a sidebar's title where its actions sit: air above, a
+/// wrapping row, air below and a rule across the column. Separate from
+/// [`sidebar_head`] so a sidebar can put something else in the same
+/// place - the Scratchpad's folder-name form takes the buttons' row
+/// while it is open (CR-0030).
+pub fn sidebar_action_row<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let r = egui::Frame::new()
+        .inner_margin(Margin {
+            left: 8,
+            right: 8,
+            top: 8,
+            bottom: 8,
+        })
+        .show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                add(ui)
+            })
+            .inner
+        })
+        .inner;
+    let w = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 1.0), egui::Sense::hover());
+    ui.painter().hline(
+        rect.x_range(),
+        rect.center().y,
+        Stroke::new(1.0, theme.border),
+    );
+    ui.add_space(6.0);
+    r
 }
 
 /// A selectable list row with an icon, hover highlight and selection colour
@@ -604,6 +771,41 @@ pub fn icon_menu(
     let r = icon_button(ui, theme, icon, size, active);
     egui::Popup::menu(&r).show(add_contents);
     r
+}
+
+/// A toggle that is always visibly a button.
+///
+/// `egui::Button::selectable` draws **no frame while unselected**
+/// (`frame_when_inactive(selected)`), so the control is invisible until the
+/// pointer touches it and then sprouts a box around its text - which reads
+/// as the button growing on hover, and leaves someone with no way to tell
+/// it was a button at all. This keeps the frame in every state, so hovering
+/// only changes the highlight (CR-0026).
+///
+/// Use it for a toggle that sits in a toolbar or a button row. A row in a
+/// list is not one: a frame per row turns a list into a wall of buttons.
+pub fn toggle_button(ui: &mut egui::Ui, on: &mut bool, text: &str) -> egui::Response {
+    let r = selectable_button(ui, *on, text);
+    if r.clicked() {
+        *on = !*on;
+    }
+    r
+}
+
+/// [`toggle_button`] for a choice among several - a result tab, a view
+/// picker - where the caller sets the value itself rather than flipping a
+/// `bool`. Framed in every state for the same reason (CR-0026).
+pub fn selectable_button(
+    ui: &mut egui::Ui,
+    selected: bool,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    ui.add(
+        egui::Button::new(text)
+            .selected(selected)
+            .frame_when_inactive(true)
+            .frame(true),
+    )
 }
 
 pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {

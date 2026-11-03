@@ -248,6 +248,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .num_columns(2)
                 .spacing([12.0, 4.0])
                 .striped(true)
+                .min_row_height(hs_ui::table::ROW_HEIGHT)
                 .show(ui, |ui| {
                     for (k, v) in &rows {
                         ui.label(egui::RichText::new(k).strong().color(theme.text_muted));

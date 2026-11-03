@@ -275,21 +275,21 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ColumnSpec::new(s.t("dt-ports-process"), 220.0),
         ];
         let copy_label = s.t("table-copy-row");
-        let r = ui
-            .allocate_ui(egui::vec2(ui.available_width(), 320.0), |ui| {
-                DataTable {
-                    theme,
-                    columns: &columns,
-                    rows: &cells,
-                    row_height: 22.0,
-                    show_filter: false,
-                    copy_row_label: &copy_label,
-                    built_in_menu: true,
-                    row_icons: None,
-                }
-                .show(ui, &mut state.table)
-            })
-            .inner;
+        // The list sits in a well, so it reads as a panel you can scroll
+        // rather than as rows loose on the page (CR-0028).
+        let r = hs_ui::form::well(ui, theme, Some(320.0), |ui| {
+            DataTable {
+                theme,
+                columns: &columns,
+                rows: &cells,
+                row_height: hs_ui::table::ROW_HEIGHT,
+                show_filter: false,
+                copy_row_label: &copy_label,
+                built_in_menu: true,
+                row_icons: None,
+            }
+            .show(ui, &mut state.table)
+        });
         let _ = r;
         let selected = state
             .table

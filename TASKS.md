@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0098
-Bugs : BUG-0039
+Bugs : BUG-0040
 Change Request : CR-0040
 ```
 
@@ -178,7 +178,8 @@ Change Request : CR-0040
 ## v0.7.6 — Planned
 
 > **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
-> v0.115.0 (2026-11-02), merge `9dc90f2`. The heading stays Planned
+> v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
+> that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`. The heading stays Planned
 > because CR-0025's children have not been started: a release carried
 > the finished items, not the batch.
 
@@ -311,11 +312,15 @@ Change Request : CR-0040
 - **State:** In-Progress ·
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.
 - **Depends on:** FEAT-0084
-- [ ] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
-- [ ] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
-- [ ] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
-- [ ] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
-- [ ] CR-0030 · Sidebar column header standard across every activity
+- [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
+- [x] CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
+- [x] CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
+- [x] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
+- [x] CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab (added 2026-11-03)
+- [x] CR-0030 · Sidebar column header standard across every activity
+- [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
+- [x] CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo (added 2026-11-03)
+- [x] BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip (added 2026-11-03)
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
 - [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
@@ -339,121 +344,228 @@ Change Request : CR-0040
   sixth box is the same defect, and FEAT-0093 builds on that fix.
 
 ### CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
-- **State:** Pending ·
+- **State:** Completed · one box skipped on the owner's decision (no "Unfocus result" control exists)
 - **Scope:** `hs-ui` button, form and dropdown primitives; every activity inherits them.
 - **Parent:** CR-0025
-- [ ] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
-- [ ] In All Activities -> Resize all text field height, slightly higher; For example in Home -> Dashboard Page, "What do you want to do?" field height is too small. Please follow text field height size in Settings -> Accessibility - Speech To Text -> Language. Make also the height size of all dropdown field, same height with the new text field height.
-- [ ] In All Activities -> All Inline Buttons, Label, Text Fields, Dropdown menu, Slider, Checkbox, radio button, etc; Vetical middle align all of it.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, do not magnify/resize Match Case,Whole Word and Regular Expression button. Make it as a proper button so that user know it is a button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Message button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Database Activity -> Work Pane -> Result Section Header; When hover Unfocus result button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Please vertical middle align label with input text, vertical middle align label with checkbox and checkbox label. Apply this to all activities that have form to look professional and standard.
-- [ ] Test: a widget snapshot proves a hovered button keeps its rect, and that a text field, a dropdown and a checkbox row share one baseline
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — hover every toolbar and inline button in three activities — nothing grows; the Home "What do you want to do?" field matches Settings -> Accessibility -> Language
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] All buttons when hover, only highlight the button. Do not magnify or scale the button's size.
+  - Measured in the running app first (2026-11-03). A plain toolbar button does **not** scale: hovering paints a 54x18 background and the label's bounding box is identical to the pixel. What does change size is a **frameless** control - `toggle_value` / a bare `selectable_label` - which is invisible until the pointer touches it and then sprouts a box around the text. The Find bar's `Aa` / `ab` / `.*` went from nothing to a 49x26 box around an 11 px label. So "do not magnify" and box 28's "make it a proper button" are the same defect, and the fix is a persistent frame rather than anything about hover itself.
+  - Not a blanket sweep: there are 13 `toggle_value` and 119 `selectable_label` call sites, and most of the latter are list rows, where a frame would be wrong. Only the ones that sit in a toolbar or a button row are converted.
+- [x] In All Activities -> Resize all text field height, slightly higher; For example in Home -> Dashboard Page, "What do you want to do?" field height is too small. Please follow text field height size in Settings -> Accessibility - Speech To Text -> Language. Make also the height size of all dropdown field, same height with the new text field height.
+  - The standard already exists and the Language field you named uses it: `form::text_field` applies `FIELD_MARGIN` (7 px top and bottom), `form::field_height` computes the result and `form::field_row` sizes a ComboBox or button beside one to match. The short fields are the ones that bypass all three.
+  - The launcher's "What do you want to do?" box is fixed - it was a bare `TextEdit::singleline` with egui's default `Margin::symmetric(4, 2)`.
+  - **Reach decided by the owner (2026-11-03): form-like fields only.** Raised the nine full-width sidebar search and filter boxes plus the NoSQL query field - Scratchpad, API Client, Browser, Database (objects and history), Devtools snippets, Git (history and filter), NoSQL - and the launcher box. Deliberately left alone: the filter inside a ComboBox popup in Settings -> Git, and the inline editors inside tables, where a 30 px control in a 20 px row would be worse than what is there.
+  - **Dropdowns, done for forms.** `form::field_grid` now sets `interact_size.y` to `field_height` for its cells, so every ComboBox, checkbox and button *inside a form* comes out at the field height without each call site saying so. Dropdowns that sit in a toolbar rather than a form - Database's "500 rows", "30 s timeout", "Auto-Commit" - are left at egui's height; raising those is CR-0027's toolbar sizing, which does it for buttons and dropdowns together.
+  - There is no global knob for the fields themselves: egui hard-codes a `TextEdit`'s margin and does not read it from the style, so each field must be told. There are 145 `TextEdit::singleline` call sites against 11 uses of `FIELD_MARGIN`. Many of those are not form fields - inline table-cell editors, the palette's search, filter boxes inside lists - where a 30 px control would be wrong. Awaiting the owner's call on whether this means every field or only the form-like ones.
+- [x] In All Activities -> All Inline Buttons, Label, Text Fields, Dropdown menu, Slider, Checkbox, radio button, etc; Vetical middle align all of it.
+  - A `ui.horizontal` already centres what it holds (`Align::Center`), so inline rows were not the defect. Form rows were: an egui `Grid` centres each cell in its row (`Align2::LEFT_CENTER`), so a cell holding a control *and* a description under it makes the row tall and the label beside it drops to the middle of the pair. Both halves of the fix live in `hs_ui::form` - the grid sizes its cells to a field's height, and `form::field_hint_row` puts a description on its own row.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, do not magnify/resize Match Case,Whole Word and Regular Expression button. Make it as a proper button so that user know it is a button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [x] In Database Activity -> Work Pane -> Result Section Header; When hover Message button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+- [~] In Database Activity -> Work Pane -> Result Section Header; When hover Unfocus result button, don't magnify, resize the button. Please check other activities that have same characteristic of these button and apply to it also.
+  - **Skipped on the owner's decision (2026-11-03).** No control named "Unfocus" exists in the code or `locales/en.ftl` - the only match in the workspace is an unrelated comment about browser focus - so it could not be identified without guessing. The Message button beside it and the result tabs are now framed, so if it shares that strip it is already covered.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Please vertical middle align label with input text, vertical middle align label with checkbox and checkbox label. Apply this to all activities that have form to look professional and standard.
+  - Checked against the Forgejo bench's `build.yml`, whose form has all three kinds: `Ref *` now sits level with the text field, `target` with the dropdown and `verbose` with the checkbox. The Settings forms inherit the same grid. The stacked cells in Settings -> Workspace (a field with a button and a hint under it) keep centring on the stack, which is what a multi-control cell should do.
+- [x] Test: a widget snapshot proves a hovered button keeps its rect, and that a text field, a dropdown and a checkbox row share one baseline
+  - `crates/hs-ui/tests/form_rows.rs`: a checkbox in a form row comes out at `field_height` and a looser one does not, and a `form::toggle_button` has the same rect hovered as cold. Whether the frame is *painted* when the pointer is away is not observable headlessly - that one is the app check below.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — hover every toolbar and inline button in three activities — nothing grows; the Home "What do you want to do?" field matches Settings -> Accessibility -> Language
+- [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0027 · Toolbar strip standard: sizing, label and icon colour, labelled icon buttons, sub-rows
-- **State:** Pending ·
+- **State:** Completed · the NoSQL pane was not exercised (no MongoDB or CouchDB server on this machine)
 - **Scope:** `hs_ui::toolbar` and every activity's toolbar and sub-toolbar.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026
-- [ ] Label all icon buttons. For example, in Scratchpad Activity -> Scratchpad Sidebar Column -> Header; Add label "Add Folder" for Make a folder button.
-- [ ] In All Activities -> Toolbar Strip -> Label and Icon; Please color the label and icon with suitable and appropriate color (depends on mode dark/light; maybe follow accent, harmony, contrast, etc where do you think is professional and acceptable), that Showing it is a toolbar and important.
-- [ ] In All Activities -> Toolbar Strip -> Toolbar Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
-- [ ] In All Activities -> Toolbar Strip -> Status Label with Icon (Connected, Disconneted, etc); make all icon and text slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
-- [ ] In All Activities -> Sidebar Column -> Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Match Case,Whole Word, Regular Expression, Previous and Next button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, why the other button (Older Match, Newer Match, Find text field, Match Case, Regular Expression, etc) overlapped with the main toolbar button. It should be in a row below the main toolbar row.
-- [ ] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Older Match, Newer Match, Match Case, Regular Expression). Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Action (Run, Count, New Document, Delete Matching, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper label for page button (The page before this one, The next page).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Result Format (Table, Tree, Json, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In Redis Activity -> Work Pane; Please add all the button in this Activity with top/right/bottom/left padding/margin and add proper icon for each button if none. (Clear, Bulk Ops - Delete, Expire, Persist, Rename Prefix, Apply. etc)
-- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Put AI Assistant button on the first row of the toolbar strip.
-- [ ] In Logs Activity -> Work Pane -> Toolbar Strip; Draw the horizontal line separator in first row and second row full width. Apply this to all AI Assistant button and horizontal line that have a same characteristic in other activities.
-- [ ] In Browser Activity -> Sidebar Column -> Favorites Tab; Add label for "New Folder" on the button with the icon.
-- [ ] In Browser Activity -> Sidebar Column -> Passwords Tab; Add label for "New Login" on the button with the icon.
-- [ ] Test: the toolbar builder emits a label for every button, and a sub-toolbar row lays out below the main row rather than inside it
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the Terminal and Editor Find rows sit below the main toolbar with labels; Logs draws the AI assistant on the first row
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Label all icon buttons. For example, in Scratchpad Activity -> Scratchpad Sidebar Column -> Header; Add label "Add Folder" for Make a folder button.
+  - Scratchpad's folder button is labelled Add Folder, and the Browser sidebar's New Folder and New Login buttons carry theirs. Labelled, two buttons no longer fit beside a sidebar title, so the Scratchpad header puts its title on one line and the buttons under it.
+- [x] In All Activities -> Toolbar Strip -> Label and Icon; Please color the label and icon with suitable and appropriate color (depends on mode dark/light; maybe follow accent, harmony, contrast, etc where do you think is professional and acceptable), that Showing it is a toolbar and important.
+  - `hs_ui::toolbar::item_text` builds a toolbar item's text in two colours - the icon in the accent, the label in the ordinary text colour - and `btn` / `btn_enabled` / `tab` / `toggle` draw with it. Every activity's `fn toolbar` now goes through them (about 60 call sites). A disabled button mutes both, since a `LayoutJob`'s own colours survive egui's dimming.
+- [x] In All Activities -> Toolbar Strip -> Toolbar Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+  - `hs_ui::toolbar::strip_style`, applied once where the shell draws a tool's toolbar: `button_padding` 10x6 and `interact_size.y` at `form::field_height`. Every button, dropdown and chip in every toolbar inherits it, which also finishes CR-0026's dropdown clause for toolbars.
+- [x] In All Activities -> Toolbar Strip -> Status Label with Icon (Connected, Disconneted, etc); make all icon and text slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button. 
+  - `hs_ui::toolbar::status` draws a chip the height of the buttons beside it: the mark in the state's colour, the text in the ordinary one. Used by SSH's connection light, Logs' follow state, the Database transaction and read-only marks and the Git branch.
+- [x] In All Activities -> Sidebar Column -> Button With Label; make all button slightly bigger (medium) with top/bottom/left/right padding/margin, to look proper button.
+  - The shell sets the toolbar's `button_padding` on the sidebar column too, so a sidebar button is the same size as a toolbar one.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Match Case,Whole Word, Regular Expression, Previous and Next button. Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+  - The editor is a library with no locale of its own, so the find bar's words come from the app through a new `hs_editor::view::FindLabels` (the shape `TabStripLabels` already uses), filled from Fluent in `tool-editor`. Aa / ab / .* are now Match Case, Whole Word and Regular Expression, and the arrows are Previous and Next.
+- [x] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, why the other button (Older Match, Newer Match, Find text field, Match Case, Regular Expression, etc) overlapped with the main toolbar button. It should be in a row below the main toolbar row.
+  - The find controls are drawn after a `toolbar::row_break` in a strip of their own. Drawn straight into the toolbar's wrapping row they were squeezed against its right edge and the rest wrapped on top of them, which is what the overlap was.
+- [x] In Terminal Activity -> Work Pane -> Toolbar Strip; When User Click "Find" button, add Label for all buttons (Older Match, Newer Match, Match Case, Regular Expression). Apply it to all other Activities toolbar, sub toolbar that have same characteristic of these button.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Action (Run, Count, New Document, Delete Matching, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+  - Run keeps the primary button; Count, New Document and Delete Matching are framed toolbar buttons with Hash, File Plus and Trash.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper label for page button (The page before this one, The next page).
+  - The bare < and > are Previous Page and Next Page with caret icons; the sentence tooltips stay as tooltips.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Toolbar button; Please make a proper button for Result Format (Table, Tree, Json, etc) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+  - Table, Tree and JSON are framed selectable buttons with Table, Tree Structure and Brackets Curly.
+- [x] In Redis Activity -> Work Pane; Please add all the button in this Activity with top/right/bottom/left padding/margin and add proper icon for each button if none. (Clear, Bulk Ops - Delete, Expire, Persist, Rename Prefix, Apply. etc)
+  - The activity's panes get the toolbar's padding, the four bulk actions get icons and frames, the Tools sub-tabs are framed with icons, and Pub/Sub's Clear has an eraser.
+- [x] In Logs Activity -> Work Pane -> Toolbar Strip; Put AI Assistant button on the first row of the toolbar strip.
+  - `toolbar::hard_right` measured the corner against `min_rect`, which by then was every row the buttons had taken, so the assistant centred between the rows. It is one row tall now, in every activity.
+- [x] In Logs Activity -> Work Pane -> Toolbar Strip; Draw the horizontal line separator in first row and second row full width. Apply this to all AI Assistant button and horizontal line that have a same characteristic in other activities.
+  - `toolbar::row_break` draws its rule across the toolbar's whole rectangle rather than the row the shell narrowed to keep the corner clear.
+- [x] In Browser Activity -> Sidebar Column -> Favorites Tab; Add label for "New Folder" on the button with the icon.
+- [x] In Browser Activity -> Sidebar Column -> Passwords Tab; Add label for "New Login" on the button with the icon.
+- [x] Test: the toolbar builder emits a label for every button, and a sub-toolbar row lays out below the main row rather than inside it
+  - `crates/hs-ui/tests/toolbar_rows.rs`: a toolbar item's text ends with its label and colours the icon with the accent, and what follows a row break starts below the row before it, back at the left edge. That every *call site* passes a label was checked by eye in the app.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the Terminal and Editor Find rows sit below the main toolbar with labels; Logs draws the AI assistant on the first row
+  - All three checked, plus the Database, Editor, Terminal and Redis toolbars, the Scratchpad and Browser sidebars, and Redis' Tools sub-tabs and Bulk Ops against a live server on 6379. **Not checked: the NoSQL pane** - there is no MongoDB or CouchDB on this machine, so boxes 9-11 are code-reviewed only.
+- [x] Docs: spec · CHANGELOG · GOTCHAS (no README or CHECKLIST line: no feature or phase moved)
 
 ### CR-0028 · Table and scroll-area standard: cell sizing, emphasised headers, key/value tables
-- **State:** Pending ·
+- **State:** Completed · Tracker, Containers and the NoSQL result header are code-reviewed only (no server on this machine)
 - **Scope:** `hs_ui::table::DataTable`, the shared key/value renderer and every scrollable text area.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026
-- [ ] In All Activities -> All Work Pane -> Table Component (Where applicable); Make the table size and value inside it slightly bigger (cell, row, etc). Make all table header text and row, emphasized (bold, upsize, fill header cell color, etc) to show it is a header (where applicable).
-- [ ] In All Activities -> All Work Pane -> All Vertical Scrollable Text Area (Status, Logs, etc) put a darker background (for dark mode) in the text area, or light background (for light mode) in the text area (Where applicable). So that user will notice it can be scrollable.
-- [ ] In All Activities -> All Work Pane -> All Item And Value Data (e.g Type   Bug, Author     Redmine Admin, etc); Make a proper table without header for it to look professional, tidy and structured.
-- [ ] In NoSQL Activity -> Work Pane -> Result Header; Make the header icon and label slightly bigger to show it is a header.
-- [ ] In Devtools Activity -> Listening Port -> Make the Listening Port list background darker.
-- [ ] In Settings -> Browser -> Extra Block Hosts Card; Do not make the text area auto expanded. Use fix height and vertical scrollable for the text area.
-- [ ] Test: DataTable renders an emphasised header row, and the key/value helper produces a two-column headerless table
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a wide table in Database and Tracker reads as a table; the Devtools listening-port list and the Settings -> Browser block-hosts box show their scroll background
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> All Work Pane -> Table Component (Where applicable); Make the table size and value inside it slightly bigger (cell, row, etc). Make all table header text and row, emphasized (bold, upsize, fill header cell color, etc) to show it is a header (where applicable).
+  - `hs_ui::table::ROW_HEIGHT` (26) and `HEADER_HEIGHT` (30) are the one pair of numbers; every `DataTable` call site and the Database result grid use them, so rows are taller everywhere and a header stands above them. `table::header_band` fills the header cells with `theme.surface` and rules them off, and the header's text is bold at 13.5. The Database grid's row-number gutter paints the same band, so the strip does not break where it meets the columns.
+- [x] In All Activities -> All Work Pane -> All Vertical Scrollable Text Area (Status, Logs, etc) put a darker background (for dark mode) in the text area, or light background (for light mode) in the text area (Where applicable). So that user will notice it can be scrollable.
+  - `hs_ui::form::well` and `scroll_well` draw a field-coloured, bordered panel - darker on a dark theme, lighter on a light one, since both come from `theme.field_bg()`. Used by the Devtools listening-port list and the Automation run log. A pane that already paints its own background (the Logs view, the editors) is left alone.
+- [x] In All Activities -> All Work Pane -> All Item And Value Data (e.g Type   Bug, Author     Redmine Admin, etc); Make a proper table without header for it to look professional, tidy and structured.
+  - `hs_ui::form::detail_table`: a striped two-column grid with no header, rows a table's height, the name muted. Used by the Tracker item's fields and the Containers container and cluster details. Three lists that need their own formatting - the JWT claims (expiry in the error colour), the URL parts and the API response headers (monospace) - keep it, and take the striping and row height only.
+- [x] In NoSQL Activity -> Work Pane -> Result Header; Make the header icon and label slightly bigger to show it is a header.
+  - The summary and count lose `.small()`, so the strip reads at body size beside the framed format buttons CR-0027 gave it.
+- [x] In Devtools Activity -> Listening Port -> Make the Listening Port list background darker.
+- [x] In Settings -> Browser -> Extra Block Hosts Card; Do not make the text area auto expanded. Use fix height and vertical scrollable for the text area.
+  - Six rows in a `ScrollArea` with `max_height` and `min_scrolled_height`, so the box holds its height and scrolls instead of pushing the page down.
+- [x] Test: DataTable renders an emphasised header row, and the key/value helper produces a two-column headerless table
+  - `crates/hs-ui/tests/table_header.rs`: the first row starts a header's height below the column name, and an item-and-value list puts its values in a second column with the names lined up a row's height apart.
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a wide table in Database and Tracker reads as a table; the Devtools listening-port list and the Settings -> Browser block-hosts box show their scroll background
+  - Checked: the Database result grid (header band across the gutter and the columns, taller rows), the Devtools listening-port list in its well, the Settings -> Browser box holding six rows and scrolling, and the Devtools URL Parts item-and-value table. **Not checked: Tracker and Containers** - no Redmine/Jira server and no container host on this machine - and the NoSQL result header, which needs MongoDB. Those three are code-reviewed only.
+- [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
 
 ### CR-0029 · Tab strip heights, icon sizing and position-aware context menus
-- **State:** Pending ·
+- **State:** Completed · checked in the running app on the Scratchpad, Editor and Settings strips
 - **Scope:** `hs_ui::tabs`, the Settings -> Appearance -> Tab Card, every main and inner tab strip.
 - **Parent:** CR-0025
-- [ ] In All Activities -> Main Tab Strip -> Make the tab size slightly higher, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Main Tab Height.
-- [ ] In All Activities -> Main Tab Strip -> Make the icon,title and close button in the tab slightly bigger. The size will be suitable with the main tab height settings.
-- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the tab size slightly higher but not high than main tab height, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Sub/Child/Inner Tab Height.
-- [ ] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the icon,title and close button in the tab slightly bigger but not biggeer than main tab icon and text size. The size will be suitable with the Sub/Child/Inner tab height settings.
-- [ ] In All Activities -> Main Tab Strip; If the Tab is the first after the fixed/permanent tab, remove right click menu "Close To The Left". If no other tab at right of the tab, remove right click menu "Close Others", "Close To The Left", "Close To The Right". If there is a tab or more at right of the tab, remove right click menu "Close To The Left". If a tab is the last tab on the right of the strip with some other non fixed/permanent/pinned tab on its left, remove right click menu "Close To The Right". Apply to all Activities where applicable.
-- [ ] In Scratchpad Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Editor Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Git Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Terminal Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In SSH Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Container Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Database Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In NoSQL Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Redis Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In S3 Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Queue Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In API Client Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Automation Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Tracker Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Logs Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Graphics Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Devtools Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
-- [ ] In Browser Activity -> Inner Tab Strip; If the tab is the first left, remove the right click menu "Close To The Left" menu and "Close To The Right" menu. If the tab is the last most right, remove the right click menu "Close To The Right" menu. Please use suitable logic on this for every tab position right click menu.
-- [ ] In Settings Page -> Main Windows Tab Strip; Remove "New Tab" button and remove right click menu for the fixed tab of Settings.
-- [ ] Test: the context-menu builder omits Close To The Left for the first closable tab and Close To The Right for the last, and the height settings round-trip through the workspace file
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — change both heights in Settings -> Appearance -> Tab Card and watch every strip follow; right-click tabs at each position in three activities
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> Main Tab Strip -> Make the tab size slightly higher, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Main Tab Height.
+- [x] In All Activities -> Main Tab Strip -> Make the icon,title and close button in the tab slightly bigger. The size will be suitable with the main tab height settings.
+- [x] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the tab size slightly higher but not high than main tab height, and have a setting for it in Settings -> Appearance -> Tab Card -> Minimum Sub/Child/Inner Tab Height.
+- [x] In All Activities -> Sub/Child/Inner Tab Strip (Where applicable) -> Make the icon,title and close button in the tab slightly bigger but not biggeer than main tab icon and text size. The size will be suitable with the Sub/Child/Inner tab height settings.
+- [x] In All Activities -> Main Tab Strip; If the Tab is the first after the fixed/permanent tab, remove right click menu "Close To The Left". If no other tab at right of the tab, remove right click menu "Close Others", "Close To The Left", "Close To The Right". If there is a tab or more at right of the tab, remove right click menu "Close To The Left". If a tab is the last tab on the right of the strip with some other non fixed/permanent/pinned tab on its left, remove right click menu "Close To The Right". Apply to all Activities where applicable.
+  - **One rule, confirmed by the owner (2026-11-03):** an entry is offered only when it closes something, and never when it closes exactly what Close Others closes - "Close To The Right will have the same effect of it". So the permanent tab and the tabs at either end get Close Others alone, and a tab with closable tabs on both sides gets all three.
+  - **A pinned tab is the exception.** Close Others spares the other pinned tabs, so from a pinned tab it does not mean what it says and is not offered; its menu is Close plus whichever direction has something to close. Neither duplicates anything, because Close Others is not there.
+- [x] In Scratchpad Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Editor Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Git Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Terminal Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In SSH Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Container Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Database Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In NoSQL Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Redis Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In S3 Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Queue Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In API Client Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Automation Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Tracker Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Logs Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Graphics Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Devtools Activity -> Main Windows Tab Strip -> Fixed/Permanent Far Left Tab; Remove "Close to the Right" in right click menu but remain "Close Others" menu.
+- [x] In Browser Activity -> Inner Tab Strip; If the tab is the first left, remove the right click menu "Close To The Left" menu and "Close To The Right" menu. If the tab is the last most right, remove the right click menu "Close To The Right" menu. Please use suitable logic on this for every tab position right click menu.
+- [x] In Scratchpad Activity -> Main Windows Tab Strip; Remove the Duplicate right-click menu on every tab.
+  - Added 2026-11-03 at the owner's request. `TabItem::shows_duplicate` drops the entry rather than greying it out, which is what `can_duplicate` does.
+- [x] In Settings Page -> Main Windows Tab Strip; Remove "New Tab" button and remove right click menu for the fixed tab of Settings.
+- [x] Test: the context-menu builder omits Close To The Left for the first closable tab and Close To The Right for the last, and the height settings round-trip through the workspace file
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — change both heights in Settings -> Appearance -> Tab Card and watch every strip follow; right-click tabs at each position in three activities
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab
+- **State:** Completed · checked in the running app
+- **Scope:** `hs_core::tool::Tool`, `hs_ui::tabs`, the shell's tab strip, `tool-scratchpad`. **The Scratchpad only** - every other activity keeps the shell's own tab pinning (owner, 2026-11-03).
+- **Parent:** CR-0025
+- **Depends on:** CR-0029
+- [x] Pinning a note in the sidebar column pins its tab; unpinning there unpins the tab.
+- [x] Pin in the tab's right-click menu pins the note in the sidebar as well; Unpin there unpins it in both.
+- [x] The pinned tabs' order follows the sidebar's pinned order.
+- [x] A pinned note's tab cannot be closed; its menu offers Close to the Right whenever there is a closable tab, whatever the tab's position, and that never closes another pinned note.
+  - Added 2026-11-03 at the owner's request. A pinned tab is drawn in the lead zone, so every closable tab is to its right wherever it sits in the list; `close_scopes` reads the scope from where a tab is *drawn*, and the shell's Close to the Right from a pinned tab closes every closable tab (the pinned ones are spared by `close_others`/`close_side` already).
+- [x] The pin mark is red, in the sidebar and on the tab; a pinned note's tab shows the pin in place of its icon, while an unpinned note keeps its Material icon and colour.
+  - Added 2026-11-03 at the owner's request. `Tool::tab_icon_is_pin()` carries it; the strip draws `ph::PUSH_PIN` in `theme.error`.
+- [x] Settings -> Appearance -> Scratchpad -> Pin Colour, from a predefined set.
+  - Added 2026-11-03 at the owner's request. Eight colours that read on dark and light schemes (`hs_core::settings::PIN_COLOURS`); `Theme::pin` carries the choice, so the sidebar and the strip draw the same one. Picking a colour is a *theme* change: the strip reads the shell's cached theme, which a plain settings change did not rebuild, so the tab's pin stayed the old colour while the sidebar's followed - the owner's report, fixed.
+- [x] An unpinned note's tab wears the Material note icon its sidebar row does, when Material icons are on for the Scratchpad, and the plain glyph when they are off.
+  - Added 2026-11-03 at the owner's request. `Tool::tab_item_kind()` names the kind ("note"); the shell maps it through `fileicons::for_kind` and hands the strip the image directly, since an `include_image!` source has no loadable `bytes://` uri on its own.
+- [x] Test: a note's pin state drives its tab's, whichever side set it, and the lead slots sort by the sidebar's order
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — pin two notes in the sidebar, watch the tabs pin in that order; unpin one from the tab menu and watch the sidebar follow
+- [x] Docs: spec · CHANGELOG
+- **Notes:** The owner's words, 2026-11-03: "Pinned note on the sidebar column, will pinned the note on the tab too. If unpinned note on the sidebar column the note, it will unpinned on the tab too. Same goes to pinned in tab right click menu will pin the note in the tab and the sidebar column, while unpinned the tab in the right click menu will unpinned the note in tab and sidebar column too. Pinned order in the tab will follow pinned order in sidebar column." Filed as its own item because CR-0029 is about tab heights and menus; this is one activity's pin model.
 
 ### CR-0030 · Sidebar column header standard across every activity
-- **State:** Pending ·
+- **State:** Completed · Home keeps its own header (not in this item)
 - **Scope:** Every activity's sidebar header; the Container header is the reference.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027
-- [ ] In Scratchpad Activity -> Sidebar Column -> Header; Add label for "Add Folder" and "Add Note" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and Search Note Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Scratchpad Activity -> Sidebar Column -> Header; When user click "Add Folder" button, make the Add Note form in the same section with the Add Folder and Add Note button, but hide those 2 button. When after user rename or cancel, hide the form and show back the 2 buttons. Make a horizontal separator between with Add Folder/Add Note button and the Search Note with top/bottom margin/padding.
-- [ ] In Scratchpad Activity -> Sidebar Column; Color the pin icon for Pinned Noted (prefer red).
-- [ ] In Editor Activity -> Sidebar Column -> Header; Add label for "Add Project Folder" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Project Folder" and Project Folder Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Editor Activity -> Sidebar Column -> Header; Add label "Add Project Folder" for add project folder button.
-- [ ] In Git Activity -> Sidebar Column -> Header; Add label for "Add Repository" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Repository" and Repository Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Git Activity -> Sidebar Column -> Header; Add label "Add Repository" for add repository button.
-- [ ] In SSH Activity -> Sidebar Column -> Header; Add label for "Add Host" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Host" and SSH Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Container Activity -> Sidebar Column -> Header; Add top/bottom margin/padding between Header separator and "Add Container" button. Add horizontal separator between the "Add Container" and Container Saved Connection List Section (with top/bottom margin/padding) and remove the Second "Containers" subtitle.
-- [ ] In Database Activity -> Sidebar Column -> Header; Change the header title from "Database Connections" to "Database". Add label for "Add Database" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Database" and Database Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In NoSQL Activity -> Sidebar Column -> Header; Add label for "Add NoSQL" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add NoSQL" and NoSQL Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Redis Activity -> Sidebar Column -> Header; Add label for "Add Redis" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Redis" and Redis Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In S3 Activity -> Sidebar Column -> Header; Add label for "Import" and "Add S3 Profile" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and S3 Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Queue Activity -> Sidebar Column -> Header; Add label for "Add Broker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Broker Button and Broker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Automation Activity -> Sidebar Column -> Header; Add label for "Add Server" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Server Button and Server Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] In Tracker Activity -> Sidebar Column -> Header; Add label for "Add Tracker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Tracker Button and Tracker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
-- [ ] Test: the shared sidebar-header helper draws a labelled Add button and one separator, and no activity emits a second title
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk all twelve sidebars — one titled header, labelled Add buttons, no duplicated title; Scratchpad's inline Add Folder form replaces the buttons while open
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Scratchpad Activity -> Sidebar Column -> Header; Add label for "Add Folder" and "Add Note" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and Search Note Section (with top/bottom margin/padding) and without the Second "Containers" title.
+  - `hs_ui::form::sidebar_head` is the shared header: the title bar, then one row of labelled actions with air above and below, then a rule before the list; the first action is the primary one. Add Note is first, as the commoner action, with Add Folder beside it.
+- [x] In Scratchpad Activity -> Sidebar Column -> Header; When user click "Add Folder" button, make the Add Note form in the same section with the Add Folder and Add Note button, but hide those 2 button. When after user rename or cancel, hide the form and show back the 2 buttons. Make a horizontal separator between with Add Folder/Add Note button and the Search Note with top/bottom margin/padding.
+  - The form takes the buttons' band (`form::sidebar_action_row`): a name field, Create and Cancel; Enter creates and Escape cancels. The folder is named **before** it exists, so a Cancel leaves nothing behind - the old flow made a "New Folder" first and renamed it. Create was exercised in the running app; Cancel was not, because the machine was in use and the keystrokes went to another window. It is the same `done` branch with nothing to create.
+- [x] In Scratchpad Activity -> Sidebar Column; Color the pin icon for Pinned Noted (prefer red).
+  - Already done by CR-0041: the pin is red by default and its colour is a setting (Appearance -> Scratchpad -> Pin Colour).
+- [x] In Editor Activity -> Sidebar Column -> Header; Add label for "Add Project Folder" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Project Folder" and Project Folder Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Editor Activity -> Sidebar Column -> Header; Add label "Add Project Folder" for add project folder button.
+- [x] In Git Activity -> Sidebar Column -> Header; Add label for "Add Repository" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Repository" and Repository Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Git Activity -> Sidebar Column -> Header; Add label "Add Repository" for add repository button.
+- [x] In SSH Activity -> Sidebar Column -> Header; Add label for "Add Host" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Host" and SSH Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Container Activity -> Sidebar Column -> Header; Add top/bottom margin/padding between Header separator and "Add Container" button. Add horizontal separator between the "Add Container" and Container Saved Connection List Section (with top/bottom margin/padding) and remove the Second "Containers" subtitle.
+  - The "Containers" subtitle was the only second title in any sidebar; every other box's "without the Second 'Containers' title" had nothing to remove. Its string is deleted. The later "Saved Commands and Configs" label is a real section and stays.
+- [x] In Database Activity -> Sidebar Column -> Header; Change the header title from "Database Connections" to "Database". Add label for "Add Database" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Database" and Database Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In NoSQL Activity -> Sidebar Column -> Header; Add label for "Add NoSQL" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add NoSQL" and NoSQL Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Redis Activity -> Sidebar Column -> Header; Add label for "Add Redis" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between the "Add Redis" and Redis Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In S3 Activity -> Sidebar Column -> Header; Add label for "Import" and "Add S3 Profile" on the buttons with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style in same row but add horizontal separator between the buttons and S3 Saved Connection List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Queue Activity -> Sidebar Column -> Header; Add label for "Add Broker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Broker Button and Broker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Automation Activity -> Sidebar Column -> Header; Add label for "Add Server" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Server Button and Server Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] In Tracker Activity -> Sidebar Column -> Header; Add label for "Add Tracker" on the button with the icon. Follow like in Container Sidebar Column the position of the button (with top/bottom margin/padding with the header separator) and the button style but add horizontal separator between Add Tracker Button and Tracker Saved List Section (with top/bottom margin/padding) and without the Second "Containers" title.
+- [x] Test: the shared sidebar-header helper draws a labelled Add button and one separator, and no activity emits a second title
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk all twelve sidebars — one titled header, labelled Add buttons, no duplicated title; Scratchpad's inline Add Folder form replaces the buttons while open
+- [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
+
+### CR-0042 · Queue and Automation sidebars titled after their activity
+- **State:** In-Progress ·
+- **Scope:** The Queue and Automation sidebar headers.
+- **Parent:** CR-0025
+- **Depends on:** CR-0030
+- [x] In Queue Activity -> Queue Sidebar Column -> Header; Change title "Brokers" to "Queue".
+- [x] In Automation Activity -> Automation Sidebar Column -> Header; Change title "Servers" to "Automation".
+  - Both now use the activity's own name (`tool-queue`, `tool-automation`), as Containers does. The `queue-brokers` and `automation-servers` strings had no other use and are removed; `settings-queue-brokers` and `settings-automation-servers` are different keys and stay.
+- [x] Test: covered by the bundled-locale parse test and CR-0030's header test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the two sidebars read Queue and Automation
+- [x] Docs: CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's message after CR-0030 shipped. **App box open:** the owner was using this machine, so the app was not driven; the change is two string keys with no logic.
+
+### CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo
+- **State:** Completed
+- **Scope:** `hs_ui::tabs`, the shell's tab views, `tool-editor`, `hs_ui::icons`.
+- **Parent:** CR-0025
+- [x] Every activity's fixed/permanent tab, except the Editor's, the API Client's and the Browser's, draws its icon in the activity's colour while Settings -> Appearance -> Sidebar -> Coloured Activity Icons is on - and never outlined, even with Outline Activity Icons on.
+- [x] The Editor's fixed tab shows the workspace's own logo (Settings -> Workspace -> Logo) rather than a plain folder glyph.
+  - The shell loads the logo through `hs_ui::icons::workspace_logo_uri` and hands it to any tab that answers `Tool::tab_wears_workspace_logo()`. The Editor's tab could not have done it alone: a tab that has not been drawn never runs `ui()`, and only the shell has the frame's context to load an image with.
+- [x] The logo is read when the workspace changes and when Settings -> Workspace sets or removes it - never per frame. Applies to the API Client, the Editor and the Browser.
+  - Added 2026-11-03 at the owner's request. The API Client read the file on every frame its home tab was drawn, and the Browser looked at it on disk every frame; both now take the shell's copy and their own loaders are gone. The cache is keyed by the workspace's folder, so a switch reloads with no call; `hs_ui::icons::reload_workspace_logo` is called on `SettingsEffect::WorkspaceLogoChanged`. A frame in between costs a lock and a path compare.
+  - Still reading the logo every frame, outside this item: the title bar's workspace button (`app::ws_logo_image`), Home's sidebar header and the Settings -> Workspace preview.
+- [x] Every activity's fixed tab - and a pinned tab that shows its name - sizes itself to its icon and label instead of truncating them.
+  - Added 2026-11-03 at the owner's request, after the app check showed "Scra…hpad" and "Cont…ners" at a 46 px tab height: those slots had a fixed 132 px width that did not grow with the text, which CR-0029's height setting makes larger.
+- [x] Test: a fixed tab's colour is the rail's, the three exceptions keep the glyph's muted colour, the Editor's home tab gets the logo uri, and the logo is read once until it changes
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — toggle Coloured Activity Icons and watch the fixed tabs follow; set a workspace logo and see it on the Editor's tab
+- [x] Docs: spec · CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's message. Checked in the running app: the Scratchpad, Terminal, Containers, Logs, SSH, Automation and Settings fixed tabs in their rail colours with no ring while Outline was on; the Editor, API Client and Browser tabs wearing the logo, and all three dropping it at once when Settings -> Workspace removed it; at a 46 px tab height, every fixed and pinned tab's name shown whole.
+
+### BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip
+- **State:** Completed
+- **Scope:** `tool-scratchpad`.
+- **Depends on:** CR-0041
+- [x] Reproduce: with no note open, Pin to Top on a sidebar row marked the note pinned but no tab appeared until the row was clicked.
+- [x] Fix: pinning a note opens it (focusing the tab when one already shows it); unpinning opens nothing.
+- [x] Test: `pinning_a_note_from_the_sidebar_opens_it`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — pin a note that is not open; its pinned tab appears
+- [x] Docs: CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's report. Checked in the running app: a note whose tab was closed came back as a pinned tab the moment Pin to Top was chosen on its row. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
 
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - **State:** Pending ·

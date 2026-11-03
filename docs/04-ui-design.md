@@ -173,6 +173,109 @@ Tab anatomy: `[tool icon] [title, middle-elided] [dirty dot | env dot] [✕]`.
 Hover shows a tooltip with the full title, the connection, the environment and
 the file path or URL.
 
+**Row height is a setting** (Settings → Appearance → Tabs, 2026-11-03):
+*Minimum Main Tab Height* for the window strip (28–48, default 36) and
+*Minimum Sub Tab Height* for an inner strip — the editor's files, the
+browser's pages, a database tab's queries (22–44, default 30). The inner
+one is held to the main one's height however the file is edited, so the
+main tabs stay the ones that read as main. Everything inside a tab
+scales with its row: the icon and the title at 0.44 of the height, the
+close cross a little smaller, so a taller strip means bigger tabs rather
+than a taller box around the same small ones (CR-0029).
+
+**The close-the-others entries follow the tab's position.** An entry is
+offered only when it would close something, and never when it would
+close exactly what Close Others closes — two ways to do one thing read
+as two different things. So: Close Others whenever another closable tab
+exists; Close to the Left and Close to the Right only on a tab with
+closable tabs on *both* sides. The activity's permanent tab therefore
+offers Close Others alone, the first and last tabs offer Close Others
+alone, and a lone tab beside the permanent one has no menu at all.
+Pinned and permanent tabs survive all three actions, so they never count
+as a neighbour worth closing.
+
+**A pinned tab is the exception**, and for the same reason: Close Others
+spares the other pinned tabs, so from a pinned tab it does not mean what
+it says and is not offered. A pinned tab is drawn in the lead zone at
+the strip's head, so every closable tab is to its *right* whatever its
+place in the tab list and nothing is ever to its left: its menu is Close
+and Close to the Right, and that entry closes every closable tab while
+sparing the other pinned ones. The same holds for the permanent tab,
+whose scope is read from where it is drawn rather than where it sits in
+the list. **Duplicate** can
+also be dropped rather than greyed out (`TabItem::shows_duplicate`): the
+Scratchpad does, because a note tab *is* the note and a second view of
+it would share one cursor (owner's rules, CR-0029).
+
+### Fixed tabs: colour and logo (2026-11-03, CR-0043)
+
+An activity's fixed tab — its permanent home, and Settings — draws its
+glyph in the activity's rail colour (`app::activity_colour`) while
+Appearance → Sidebar → *Coloured Activity Icons* is on, and in the
+muted text colour otherwise. It is **never outlined**, whatever *Outline
+Activity Icons* says: at a tab's size a ring reads as a smudge. The
+Editor, the API Client and the Browser are left out, because their fixed
+tab wears a picture rather than a glyph.
+
+A fixed tab, and a pinned tab that shows its name, is **as wide as its
+icon and label need** — measured in the font the strip draws, so a taller
+tab height with its bigger text still fits — rather than sitting in a
+fixed 132 px slot that truncated "Scratchpad" and "Containers" once the
+text grew. A pinned note's slot stops at the regular maximum tab width,
+since a note's title can be long; a fixed tab's name is shown whole.
+
+The Editor's and the API Client's home tabs are the workspace's front
+page, so they wear the workspace's logo (Settings → Workspace → Logo)
+when it has one. A tool asks for it with `Tool::tab_wears_workspace_logo`
+and the **shell** supplies it, through `hs_ui::icons::workspace_logo_uri`:
+only the shell has the frame's context to load an image with, and a tab
+nobody has drawn never runs its own `ui`. The Browser's window tab wears
+it too. The file is read when the workspace changes (the cache is keyed
+by its folder) and when Settings → Workspace sets or removes the logo
+(`reload_workspace_logo`), never per frame.
+
+### One pin for a Scratchpad note (2026-11-03, CR-0041)
+
+A note is pinned in one place — the sidebar's list, `notes/pins.json` —
+and everything else reads it. **The Scratchpad only**; every other
+activity keeps the shell's own per-tab pin.
+
+- `Tool::tab_pinned()` answers `Some` for a tab holding a saved note, so
+  the strip draws it pinned when the sidebar says so. Pin or unpin in
+  the sidebar and the tab follows.
+- Pin or unpin in the tab's menu goes to `Tool::set_tab_pinned`, which
+  writes that same list and broadcasts `Event::Custom` on
+  `scratchpad.pins`; the other note tabs reload it and the sidebar
+  follows. The shell does not touch its own flag for such a tab, so the
+  two cannot disagree.
+- `Tool::pin_rank()` is the note's place in that list, and the strip
+  sorts its pinned slots by it — so the pinned tabs read in the
+  sidebar's order.
+- Pinning a note from the sidebar **opens** it (or focuses the tab
+  already showing it), so the pin is on the strip at once; unpinning
+  leaves the tab alone (BUG-0041).
+- `Tool::tab_closable()` is false while a note is pinned: pinning a note
+  is how you say it stays. The cross goes, Close leaves the menu, and
+  the shell refuses a close however it was asked for (Ctrl+W, a middle
+  click, a sweep). Unpinning brings it all back.
+- `Tool::tab_icon_is_pin()` puts the pin on the tab in place of the
+  note's own icon, drawn in `theme.pin` — the same colour the sidebar's
+  pin wears, so the two lists agree at a glance. The colour is a setting
+  (Appearance → Scratchpad → Pin Colour, one of eight in
+  `hs_core::settings::PIN_COLOURS`, red by default) and choosing one is a
+  theme change, so the shell's cached theme — which the strip reads — is
+  rebuilt with it.
+- An unpinned note's tab wears the Material note icon its sidebar row
+  does. `Tool::tab_item_kind()` names the kind; the shell maps it through
+  `fileicons::for_kind` when the activity has Material icons on and hands
+  the strip the image itself (`TabItem::icon_image`), since an
+  `include_image!` source has no loadable `bytes://` uri on its own.
+  With Material icons off the tab keeps the tool's glyph.
+
+The **Settings tab has no context menu and its strip no `+`**: it is one
+tab, always open, and every entry would act on tabs it has no business
+closing (CR-0029).
+
 ### 2.3 Tab interactions
 
 | Action | Mouse | Keyboard |
@@ -396,6 +499,39 @@ needed in `OpenRequest::Terminal`).
 | `Tree` | project tree, schema, collections, hosts, buckets, k8s | lazy children, inline rename, drag source/target, badges, context menu |
 | `Palette` | shell | commands + quick-open |
 | `EnvBanner`, `Badge`, `Toast`, `Dialog`, `ProgressBar`, `KeyValueEditor` (headers, params, variables with enable checkboxes), `CodeView` (read-only highlighted text with copy), `Breadcrumb` (paths, prefixes, URLs) | everywhere | |
+
+### A table's own measurements (2026-11-03, CR-0028)
+
+`hs_ui::table::ROW_HEIGHT` (26) and `HEADER_HEIGHT` (30) are the one pair
+of numbers a table is built from — the `DataTable` call sites and the
+Database result grid both take them, so a row is the same to read and
+the same to hit wherever it is drawn. A header is a **band**, not a
+first row in bold: `table::header_band` fills its cells with
+`theme.surface` and rules them off, and the names are bold at 13.5. A
+grid with a fixed gutter beside it (the result grid's row numbers)
+paints the same band over the gutter's header, or the strip breaks where
+the two meet.
+
+Three more things follow from "a table says what it is":
+
+- **A well for anything scrollable.** `form::well` and
+  `form::scroll_well` draw a field-coloured, bordered panel — darker on
+  a dark theme, lighter on a light one, both from `theme.field_bg()` —
+  so a list or a block of output reads as something you scroll rather
+  than as text that happens to stop. A pane that paints its own
+  background (the Logs view, the editors) keeps it.
+- **Item-and-value data is a table with no header.**
+  `form::detail_table`: striped, two columns, rows a table's height, the
+  name muted. The facts a detail pane lists are data, not a form. A list
+  whose values carry their own formatting (monospace, a colour that
+  means something) keeps the formatting and takes only the striping and
+  the row height.
+- **A text box in a settings card does not grow with its content.** A
+  fixed height in a `ScrollArea` (`max_height` with
+  `min_scrolled_height`), or a long list pushes the rest of the page out
+  of reach.
+
+Owner's report, 2026-11-03.
 
 ## 7. Keyboard
 
@@ -818,6 +954,54 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-03): one sidebar header (CR-0030)
+
+Every activity's sidebar opens with `hs_ui::form::sidebar_head`, in the
+shape the Containers sidebar set: the title in its bar, then one row of
+**labelled** actions with air above and below, then a rule before the
+list. The first action is the primary one (accent-filled); a second —
+S3's Import, Database's Refresh Schema, the Scratchpad's Add Folder —
+sits beside it as a framed toolbar button. A sidebar never repeats its
+title as a subtitle under the buttons.
+
+`form::sidebar_action_row` is that band on its own, so a sidebar can put
+something else in the same place: the Scratchpad's folder-name form
+replaces the buttons while it is open and gives them back on Create or
+Cancel. The folder is named before it exists, so Cancel leaves nothing
+behind. Home keeps its own header, with the workspace's logo.
+
+## Addendum (2026-11-03): one toolbar standard (CR-0027)
+
+Everything a toolbar draws comes from `hs_ui::toolbar`, so the strip reads
+the same in every activity:
+
+- **Metrics.** `strip_style`, applied once where the shell hands a tool
+  its row, sets `button_padding` to 10 × 6 and `interact_size.y` to
+  `form::field_height`. A button, a dropdown and a status chip in a
+  toolbar are therefore the same height as a form field, and the sidebar
+  column gets the same padding so its buttons match.
+- **Colour.** `item_text` builds an item's text in two colours — the icon
+  in the accent, the label in the ordinary text colour — and `btn`,
+  `btn_enabled`, `tab` and `toggle` draw with it. A disabled button mutes
+  both: a `LayoutJob`'s own colours survive egui's dimming of the widget
+  around them, so muting has to be explicit.
+- **Every button says what it does.** An icon with no label is a
+  guess-and-hover; the label is the control and the tooltip is the
+  detail. The editor's find bar takes its words from the app through
+  `hs_editor::view::FindLabels`, the way the tab strip takes
+  `TabStripLabels`, because the editor is a library with no locale.
+- **Status** is a chip (`toolbar::status`), not loose text: the mark in
+  the state's colour, the text beside it, the strip's padding around
+  both.
+- **Rows.** `hard_right` pins the assistant to the **first** row — one
+  row tall, whatever the strip grew to — and `row_break` ends a row with
+  a rule across the toolbar's whole width. A sub-toolbar with a text
+  field in it (the terminal's find bar) draws inside its own strip after
+  the break: a `TextEdit` in a wrapping row takes the width that is left
+  rather than asking for its own, and after a row break there is none.
+
+Owner's report, 2026-11-03.
+
 ## Addendum (2026-10-17): Home's sidebar, and where the buttons go
 
 **Home's sidebar is "where you were".** The page answers *what can I do* —
@@ -853,6 +1037,22 @@ what it was in the API client's method picker beside the URL.
 `form::field_height`, so a control drawn inside it is exactly as tall as
 the field beside it. Use it for any control sharing a row with a text
 field. Owner's report, 2026-10-17.
+
+### A form row: one control, label level with it (2026-11-03)
+
+`form::field_grid` does for a whole form what `field_row` does for one
+row: it runs its cells with `interact_size.y` at `form::field_height`, so
+every dropdown, checkbox and button in a form matches the fields around
+it without each call site asking.
+
+A form row holds **one** control. egui centres a grid cell in its row
+(`Align2::LEFT_CENTER`), so a cell that stacks a description under its
+control makes the row tall and drags the label opposite it down to the
+middle of the pair — which is how the Automation Run tab read. A
+description goes on a row of its own, through `form::field_hint_row`. A
+cell that genuinely holds several controls (Settings → Workspace's name
+field with its Rename button) keeps centring on the stack, which is
+right. Owner's report, 2026-11-03.
 
 
 ### The tab menu: no splitting, and Duplicate knows when to refuse (2026-10-17)

@@ -484,44 +484,32 @@ impl RepoPane {
         // The branch, first: it is the one fact a person checks before
         // any of the verbs beside it.
         if let Some(st) = &self.status {
-            ui.label(
-                egui::RichText::new(format!("{} {}", ph::GIT_BRANCH, st.branch_label()))
-                    .strong()
-                    .color(theme.accent),
-            );
+            hs_ui::toolbar::status(ui, theme, theme.accent, ph::GIT_BRANCH, &st.branch_label());
             ui.separator();
         }
-        if ui
-            .add_enabled(
-                !busy,
-                egui::Button::new(format!(
-                    "{} {}",
-                    ph::ARROWS_CLOCKWISE,
-                    s.t("git-refresh-button")
-                )),
-            )
-            .clicked()
+        if hs_ui::toolbar::btn_enabled(
+            ui,
+            theme,
+            !busy,
+            ph::ARROWS_CLOCKWISE,
+            &s.t("git-refresh-button"),
+        )
+        .clicked()
         {
             self.refresh_all(s);
         }
-        if ui
-            .add_enabled(
-                !busy,
-                egui::Button::new(format!(
-                    "{} {}",
-                    ph::CLOUD_ARROW_DOWN,
-                    s.t("git-fetch-button")
-                )),
-            )
-            .clicked()
+        if hs_ui::toolbar::btn_enabled(
+            ui,
+            theme,
+            !busy,
+            ph::CLOUD_ARROW_DOWN,
+            &s.t("git-fetch-button"),
+        )
+        .clicked()
         {
             self.fetch(cx);
         }
-        if ui
-            .add_enabled(
-                !busy,
-                egui::Button::new(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("git-pull"))),
-            )
+        if hs_ui::toolbar::btn_enabled(ui, theme, !busy, ph::DOWNLOAD_SIMPLE, &s.t("git-pull"))
             .clicked()
         {
             self.pull(cx);
@@ -533,22 +521,13 @@ impl RepoPane {
         } else {
             s.t("git-push")
         };
-        if ui
-            .add_enabled(
-                !busy,
-                egui::Button::new(format!("{} {}", ph::UPLOAD_SIMPLE, push_label)),
-            )
-            .clicked()
-        {
+        if hs_ui::toolbar::btn_enabled(ui, theme, !busy, ph::UPLOAD_SIMPLE, &push_label).clicked() {
             self.push(cx);
         }
         ui.separator();
         self.verbs.toolbar(ui, s, busy);
         ui.separator();
-        if ui
-            .button(format!("{} {}", ph::TERMINAL_WINDOW, s.t("git-terminal")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, theme, ph::TERMINAL_WINDOW, &s.t("git-terminal")).clicked() {
             self.open_terminal(cx, None);
         }
         if let Some(label) = &self.busy {
@@ -1227,6 +1206,7 @@ impl RepoPane {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter)
                             .hint_text(s.t("git-filter-hint"))
+                            .margin(hs_ui::form::FIELD_MARGIN)
                             .desired_width(f32::INFINITY),
                     );
                 });

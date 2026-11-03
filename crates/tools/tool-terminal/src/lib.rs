@@ -321,13 +321,17 @@ impl TerminalTool {
         self.pending_focus = Some(id);
     }
 
-    fn find_bar(&mut self, ui: &mut egui::Ui, s: &Services) {
+    fn find_bar(&mut self, ui: &mut egui::Ui, s: &Services, theme: &hs_ui::theme::Theme) {
         use hs_ui::icons::ph;
-        ui.separator();
         let edit = egui::TextEdit::singleline(&mut self.find.query.text)
             .hint_text(s.t("terminal-find-placeholder"))
+            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(220.0);
-        let r = ui.add(edit);
+        // `add_sized`, not `add`: a `TextEdit` in a wrapping row takes
+        // whatever width is left rather than asking for its own, and the
+        // row break before it leaves none - so it collapsed to a sliver
+        // and the buttons after it wrapped on top of it (CR-0027).
+        let r = ui.add_sized([220.0, hs_ui::form::field_height(ui)], edit);
         if self.find.focus {
             r.request_focus();
             self.find.focus = false;
@@ -342,18 +346,18 @@ impl TerminalTool {
             self.close_find();
             return;
         }
-        changed |= ui
-            .selectable_label(self.find.query.case_sensitive, "Aa")
-            .tip(s.t("terminal-find-case"))
-            .clicked()
-            .then(|| self.find.query.case_sensitive = !self.find.query.case_sensitive)
-            .is_some();
-        changed |= ui
-            .selectable_label(self.find.query.regex, ".*")
+        // Labelled framed toggles: "Aa" and ".*" said nothing to anyone
+        // who had not met them (owner's report, CR-0027).
+        changed |= hs_ui::form::toggle_button(
+            ui,
+            &mut self.find.query.case_sensitive,
+            &s.t("find-match-case"),
+        )
+        .tip(s.t("terminal-find-case"))
+        .clicked();
+        changed |= hs_ui::form::toggle_button(ui, &mut self.find.query.regex, &s.t("find-regex"))
             .tip(s.t("terminal-find-regex"))
-            .clicked()
-            .then(|| self.find.query.regex = !self.find.query.regex)
-            .is_some();
+            .clicked();
         if changed {
             self.find.current = None;
             self.run_search();
@@ -380,21 +384,22 @@ impl TerminalTool {
         if let Some(e) = &self.find.error {
             label.tip(e.clone());
         }
-        if ui
-            .button(ph::ARROW_UP)
+        if hs_ui::toolbar::btn(ui, theme, ph::ARROW_UP, &s.t("terminal-find-older"))
             .tip(s.t("terminal-find-prev"))
             .clicked()
         {
             self.step(true);
         }
-        if ui
-            .button(ph::ARROW_DOWN)
+        if hs_ui::toolbar::btn(ui, theme, ph::ARROW_DOWN, &s.t("terminal-find-newer"))
             .tip(s.t("terminal-find-next"))
             .clicked()
         {
             self.step(false);
         }
-        if ui.button(ph::X).tip(s.t("terminal-find-close")).clicked() {
+        if hs_ui::toolbar::btn(ui, theme, "", &s.t("find-close"))
+            .tip(s.t("terminal-find-close"))
+            .clicked()
+        {
             self.close_find();
         }
     }
@@ -838,28 +843,24 @@ impl Tool for TerminalTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         // No profile picker and no size readout. The tab *is* its shell -
         // its name and icon say which - and another one is opened from
         // the sidebar, which is the only place that lists them; the
         // columns and rows are a detail of the moment, not an action
         // (owner's requirement, 2026-10-26).
-        if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::ARROW_CLOCKWISE,
-                s.t("terminal-restart")
-            ))
-            .clicked()
+        if hs_ui::toolbar::btn(
+            ui,
+            &theme,
+            hs_ui::icons::ph::ARROW_CLOCKWISE,
+            &s.t("terminal-restart"),
+        )
+        .clicked()
         {
             self.session = None;
             self.start(s);
         }
-        if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::ERASER,
-                s.t("terminal-clear")
-            ))
+        if hs_ui::toolbar::btn(ui, &theme, hs_ui::icons::ph::ERASER, &s.t("terminal-clear"))
             .clicked()
             && let Some(sess) = &self.session
         {
@@ -873,27 +874,35 @@ impl Tool for TerminalTool {
             );
         }
         if self.find.open {
-            self.find_bar(ui, s);
-        } else if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::MAGNIFYING_GLASS,
-                s.t("terminal-find")
-            ))
-            .tip("Ctrl+Shift+F")
-            .clicked()
+            // The find controls get a row of their own under the main
+            // one. Drawn straight into the toolbar's wrapping row they
+            // squeezed up against its right edge and the rest wrapped on
+            // top of them, so the row break is followed by a plain
+            // horizontal strip (CR-0027).
+            hs_ui::toolbar::row_break(ui, &theme);
+            let width = hs_ui::toolbar::outer_rect(ui)
+                .map(|o| o.width())
+                .unwrap_or_else(|| ui.max_rect().width());
+            ui.allocate_ui_with_layout(
+                egui::vec2(width, hs_ui::form::field_height(ui)),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| self.find_bar(ui, s, &theme),
+            );
+        } else if hs_ui::toolbar::btn(
+            ui,
+            &theme,
+            hs_ui::icons::ph::MAGNIFYING_GLASS,
+            &s.t("terminal-find"),
+        )
+        .tip("Ctrl+Shift+F")
+        .clicked()
         {
             self.open_find();
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::SPARKLE,
-                    s.t("ai-assistant")
-                ))
+            if hs_ui::toolbar::btn(ui, &theme, hs_ui::icons::ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

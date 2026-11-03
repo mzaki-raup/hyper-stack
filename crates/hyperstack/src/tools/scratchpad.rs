@@ -56,7 +56,14 @@ impl ToolFactory for ScratchpadFactory {
                 None => state.id = None,
             }
         }
-        Box::new(Scratchpad {
+        Box::new(Scratchpad::new(services, state, path))
+    }
+}
+
+impl Scratchpad {
+    /// A tab on `state`, read from `path` when the note was found.
+    fn new(services: &Services, state: State, path: Option<PathBuf>) -> Self {
+        Self {
             saved: state.text.clone(),
             state,
             created: None,
@@ -64,7 +71,12 @@ impl ToolFactory for ScratchpadFactory {
             stamped: None,
             home_title: None,
             notes: Vec::new(),
-            pins: Vec::new(),
+            // From the file, not empty: a background tab never draws the
+            // sidebar, which is where the rescan lives, and the strip
+            // asks every tab whether its note is pinned (CR-0041).
+            pins: load_pins(&notes_dir(services)),
+            folder_form: None,
+            folder_focus: false,
             order: Vec::new(),
             folders: Vec::new(),
             orders: Default::default(),
@@ -81,7 +93,7 @@ impl ToolFactory for ScratchpadFactory {
             filter: String::new(),
             last_edit: None,
             confirm_delete: None,
-        })
+        }
     }
 }
 
@@ -129,6 +141,11 @@ pub struct Scratchpad {
     saved: String,
     notes: Vec<NoteMeta>,
     pins: Vec<String>,
+    /// The header's Add Folder form, with what has been typed so far;
+    /// `None` while the buttons show (CR-0030).
+    folder_form: Option<String>,
+    /// Focus the form's field on the frame it opens.
+    folder_focus: bool,
     /// Saved order of unpinned notes; ids missing here sort newest first.
     order: Vec<String>,
     /// Every folder under `notes/`, as paths relative to it, sorted.
@@ -330,6 +347,10 @@ fn save_order(dir: &Path, order: &[String]) -> std::io::Result<()> {
         serde_json::to_string_pretty(order).unwrap_or_default(),
     )
 }
+
+/// Broadcast when the pin list changes, so the other note tabs reload
+/// it rather than waiting for their next rescan (CR-0041).
+const PINS_TOPIC: &str = "scratchpad.pins";
 
 /// Ids of the notes pinned to the top, in `notes/pins.json`.
 fn load_pins(dir: &Path) -> Vec<String> {
@@ -666,7 +687,9 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
                     egui::Align2::CENTER_CENTER,
                     ph::PUSH_PIN,
                     egui::FontId::proportional(11.0),
-                    t.theme.text_muted,
+                    // The same mark the tab wears, in the colour chosen
+                    // in Settings -> Appearance -> Scratchpad (CR-0041).
+                    t.theme.pin,
                 );
             }
             r
@@ -1122,6 +1145,17 @@ impl Scratchpad {
     }
 
     /// Make a folder inside `parent` and put its name up for editing.
+    /// Make a top-level folder with the name typed into the header's
+    /// form. Named before it exists, so a Cancel leaves nothing behind
+    /// (CR-0030).
+    fn create_named_folder(&mut self, name: &str, cx: &mut ToolContext) {
+        let root = notes_dir(cx.services);
+        match create_folder(&root, "", name) {
+            Ok(_) => self.rescan(cx.services),
+            Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
+        }
+    }
+
     fn new_folder(&mut self, parent: &str, cx: &mut ToolContext) {
         let root = notes_dir(cx.services);
         match create_folder(&root, parent, &cx.services.t("scratchpad-new-folder")) {
@@ -1233,16 +1267,51 @@ impl Scratchpad {
     /// Pin a note to the top of the list, or unpin it.
     fn toggle_pin(&mut self, id: &str, cx: &mut ToolContext) {
         tracing::debug!(id, pins = ?self.pins, "scratchpad: toggle pin");
-        match self.pins.iter().position(|p| p == id) {
-            Some(i) => {
+        if let Err(e) = self.write_pins(id, None, cx.services) {
+            cx.toast(ToastLevel::Error, e.to_string());
+            return;
+        }
+        // A pinned note is one the strip shows. Pinning one that no tab
+        // has open opens it, so the pin lands on the strip at once
+        // rather than at the next click on the row; one already open is
+        // focused instead (owner's report, BUG-0041).
+        if self.pins.iter().any(|p| p == id) {
+            cx.open(
+                "scratchpad",
+                Some(OpenRequest::File {
+                    uri: format!("note://{id}"),
+                    line: None,
+                }),
+            );
+        }
+    }
+
+    /// Add or remove `id` in the pin list, save it, and tell the other
+    /// note tabs. One list is the whole truth: the sidebar reads it for
+    /// its order and the tab strip reads it through
+    /// [`Tool::tab_pinned`], so a pin set in either place is the same
+    /// pin (owner's rule, CR-0041).
+    fn write_pins(&mut self, id: &str, pinned: Option<bool>, s: &Services) -> std::io::Result<()> {
+        // From disk, not from this tab's copy: another note tab may have
+        // pinned something since this one last looked, and a toggle has
+        // to flip what is actually stored.
+        let dir = notes_dir(s);
+        self.pins = load_pins(&dir);
+        let pinned = pinned.unwrap_or_else(|| !self.pins.iter().any(|p| p == id));
+        match (pinned, self.pins.iter().position(|p| p == id)) {
+            (true, None) => self.pins.push(id.to_string()),
+            (false, Some(i)) => {
                 self.pins.remove(i);
             }
-            None => self.pins.push(id.to_string()),
+            _ => {}
         }
-        if let Err(e) = save_pins(&notes_dir(cx.services), &self.pins) {
-            cx.toast(ToastLevel::Error, e.to_string());
-        }
-        self.rescan(cx.services);
+        let out = save_pins(&dir, &self.pins);
+        s.events.publish(hs_core::events::Event::Custom {
+            topic: PINS_TOPIC.into(),
+            payload: String::new(),
+        });
+        self.rescan(s);
+        out
     }
 
     /// Write the note (giving it an id on the first save).
@@ -1426,6 +1495,51 @@ impl Tool for Scratchpad {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
+
+    /// A note is pinned in one place - the sidebar's list - and the tab
+    /// showing it says the same thing. The home tab and a note that has
+    /// never been saved have nothing to pin, so they leave the shell's
+    /// own flag alone (owner's rule, CR-0041).
+    fn tab_pinned(&self) -> Option<bool> {
+        let id = self.state.id.as_ref()?;
+        Some(self.pins.iter().any(|p| p == id))
+    }
+
+    fn pin_rank(&self) -> Option<usize> {
+        let id = self.state.id.as_ref()?;
+        self.pins.iter().position(|p| p == id)
+    }
+
+    /// A pinned note's tab stays: pinning it is how you say so. Unpin it
+    /// and the cross comes back (owner's rule, CR-0041).
+    fn tab_closable(&self) -> bool {
+        !self.tab_pinned().unwrap_or(false)
+    }
+
+    /// A pinned note wears the pin on its tab; an unpinned one keeps its
+    /// Material icon (owner's rule, CR-0041).
+    fn tab_icon_is_pin(&self) -> bool {
+        self.tab_pinned().unwrap_or(false)
+    }
+
+    /// A note tab wears the same Material note icon its sidebar row
+    /// does. The home tab is the activity's, not a note (CR-0041).
+    fn tab_item_kind(&self) -> Option<&'static str> {
+        self.home_title.is_none().then_some("note")
+    }
+
+    /// Pin or unpin from the tab's menu: the same list the sidebar
+    /// writes, and the same broadcast, so the other note tabs and the
+    /// sidebar follow within the frame (CR-0041).
+    fn set_tab_pinned(&mut self, pinned: bool, services: &Services) {
+        let Some(id) = self.state.id.clone() else {
+            return;
+        };
+        if let Err(e) = self.write_pins(&id, Some(pinned), services) {
+            tracing::warn!(error = %e, "scratchpad: could not save the pins");
+        }
+    }
+
     fn set_home_tab(&mut self, home: bool, services: &Services) {
         self.home_title = home.then(|| services.t("tool-scratchpad"));
     }
@@ -1471,39 +1585,88 @@ impl Tool for Scratchpad {
         if self.scanned.is_none_or(|t| t.elapsed() > RESCAN_EVERY) {
             self.rescan(s);
         }
-        let mut new_folder = false;
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("scratchpad-notes"))
-                    .strong()
-                    .size(15.0),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(format!("{} {}", ph::PLUS, s.t("scratchpad-new")))
-                    .tip(s.t("scratchpad-new-tip"))
-                    .clicked()
-                {
-                    cx.open_new_tab("scratchpad", None);
+        // The shared sidebar header (CR-0030): the title, then Add Note
+        // and Add Folder in one row. While a folder is being named, the
+        // form takes the buttons' place in that same band, and Create or
+        // Cancel brings the buttons back.
+        if let Some(mut name) = self.folder_form.take() {
+            form::sidebar_head(ui, &theme, &s.t("scratchpad-notes"), &[]);
+            let mut done: Option<bool> = None;
+            form::sidebar_action_row(ui, &theme, |ui| {
+                let r = form::text_field_width(
+                    ui,
+                    &mut name,
+                    &s.t("scratchpad-folder-name"),
+                    ui.available_width().min(form::FIELD_MAX_WIDTH),
+                );
+                if self.folder_focus {
+                    r.request_focus();
+                    self.folder_focus = false;
                 }
-                // The icon alone, like the other sidebar headers' add
-                // buttons: two labelled buttons do not fit beside the
-                // title in a sidebar column.
+                let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let esc = ui.input(|i| i.key_pressed(egui::Key::Escape));
+                let named = !name.trim().is_empty();
                 if ui
-                    .small_button(ph::FOLDER_PLUS)
-                    .tip(s.t("scratchpad-new-folder-tip"))
+                    .add_enabled(
+                        named,
+                        egui::Button::new(
+                            egui::RichText::new(format!(
+                                "{} {}",
+                                ph::CHECK,
+                                s.t("scratchpad-folder-create")
+                            ))
+                            .color(egui::Color32::WHITE),
+                        )
+                        .fill(theme.accent),
+                    )
                     .clicked()
+                    || (enter && named)
                 {
-                    new_folder = true;
+                    done = Some(true);
+                }
+                // Words only: `ph::X` draws as a boxed cross, not a plain
+                // one, and the label says it better.
+                if hs_ui::toolbar::btn(ui, &theme, "", &s.t("scratchpad-folder-cancel")).clicked()
+                    || esc
+                {
+                    done = Some(false);
                 }
             });
-        });
-        if new_folder {
-            self.new_folder("", cx);
+            match done {
+                Some(true) => self.create_named_folder(name.trim(), cx),
+                Some(false) => {}
+                None => self.folder_form = Some(name),
+            }
+        } else {
+            match form::sidebar_head(
+                ui,
+                &theme,
+                &s.t("scratchpad-notes"),
+                &[
+                    form::SideAction {
+                        icon: ph::PLUS,
+                        label: &s.t("scratchpad-add-note"),
+                        tip: &s.t("scratchpad-new-tip"),
+                    },
+                    form::SideAction {
+                        icon: ph::FOLDER_PLUS,
+                        label: &s.t("scratchpad-add-folder"),
+                        tip: &s.t("scratchpad-new-folder-tip"),
+                    },
+                ],
+            ) {
+                Some(0) => cx.open_new_tab("scratchpad", None),
+                Some(1) => {
+                    self.folder_form = Some(String::new());
+                    self.folder_focus = true;
+                }
+                _ => {}
+            }
         }
         ui.add(
             egui::TextEdit::singleline(&mut self.filter)
                 .hint_text(s.t("scratchpad-search"))
+                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(4.0);
@@ -1639,22 +1802,18 @@ impl Tool for Scratchpad {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         for (view, icon, key) in [
             (View::Edit, ph::PENCIL_SIMPLE, "scratchpad-view-edit"),
             (View::Split, ph::COLUMNS, "scratchpad-view-split"),
             (View::Preview, ph::EYE, "scratchpad-view-preview"),
         ] {
-            if ui
-                .selectable_label(self.state.view == view, format!("{} {}", icon, s.t(key)))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, self.state.view == view, icon, &s.t(key)).clicked() {
                 self.state.view = view;
             }
         }
         ui.separator();
-        if ui
-            .button(format!("{} {}", hs_ui::icons::CHECK, s.t("save")))
-            .clicked()
+        if hs_ui::toolbar::btn(ui, &theme, hs_ui::icons::CHECK, &s.t("save")).clicked()
             && self.save(cx)
         {
             cx.toast(ToastLevel::Success, s.t("toast-saved"));
@@ -1666,15 +1825,11 @@ impl Tool for Scratchpad {
             } else {
                 (ph::PUSH_PIN, "scratchpad-pin")
             };
-            if ui
-                .selectable_label(pinned, format!("{} {}", icon, s.t(key)))
-                .clicked()
-            {
+            if hs_ui::toolbar::tab(ui, &theme, pinned, icon, &s.t(key)).clicked() {
                 self.toggle_pin(&id, cx);
             }
         }
-        if ui
-            .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("download")))
+        if hs_ui::toolbar::btn(ui, &theme, ph::DOWNLOAD_SIMPLE, &s.t("download"))
             .tip(s.t("scratchpad-download-tip"))
             .clicked()
         {
@@ -1697,13 +1852,15 @@ impl Tool for Scratchpad {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .selectable_label(
-                    self.assistant.open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
-                .tip(s.t("scratchpad-ai-tip"))
-                .clicked()
+            if hs_ui::toolbar::tab(
+                ui,
+                &theme,
+                self.assistant.open,
+                ph::SPARKLE,
+                &s.t("ai-assistant"),
+            )
+            .tip(s.t("scratchpad-ai-tip"))
+            .clicked()
             {
                 self.assistant.toggle("Scratchpad");
             }
@@ -1712,6 +1869,16 @@ impl Tool for Scratchpad {
             && let Some(env) = cx.env_id
         {
             self.state.environment = Some(env.to_string());
+        }
+    }
+
+    /// Another note tab changed the pin list: reload it, so this tab's
+    /// sidebar order and its own pin both follow (CR-0041).
+    fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
+        if let hs_core::events::Event::Custom { topic, .. } = ev
+            && topic == PINS_TOPIC
+        {
+            self.rescan(cx.services);
         }
     }
 
@@ -1987,6 +2154,65 @@ impl Tool for Scratchpad {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pinning a note from the sidebar while no tab shows it has to put
+    /// it on the strip. It used to only mark it, so the pinned tab
+    /// appeared at the next click on the row (BUG-0041).
+    #[test]
+    fn pinning_a_note_from_the_sidebar_opens_it() {
+        use std::sync::Arc;
+
+        use hs_core::paths::DataDir;
+        use hs_core::runtime::NoopWaker;
+        use hs_core::secrets::KdfParams;
+        use hs_core::tool::Action;
+
+        let tmp = std::env::temp_dir().join(format!("hs-scratch-{}", hs_core::new_id()));
+        let paths = DataDir::resolve(Some(&tmp)).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let s = &boot.services;
+        let mut pad = Scratchpad::new(s, State::default(), None);
+        let opened = |actions: &[Action]| {
+            actions.iter().any(|a| {
+                matches!(
+                    a,
+                    Action::OpenTool {
+                        factory_id,
+                        request: Some(OpenRequest::File { uri, .. }),
+                    } if factory_id == "scratchpad" && uri == "note://n1"
+                )
+            })
+        };
+
+        let mut actions = Vec::new();
+        let mut cx = ToolContext {
+            services: s,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: true,
+        };
+        pad.toggle_pin("n1", &mut cx);
+        assert!(pad.pins.iter().any(|p| p == "n1"), "the note is pinned");
+        assert!(
+            opened(&actions),
+            "and opened, so the pin shows on the strip"
+        );
+
+        // Unpinning leaves the tab where it is.
+        let mut actions = Vec::new();
+        let mut cx = ToolContext {
+            services: s,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: true,
+        };
+        pad.toggle_pin("n1", &mut cx);
+        assert!(!pad.pins.iter().any(|p| p == "n1"));
+        assert!(!opened(&actions), "unpinning opens nothing");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     /// A folder row draws its header and body inside the horizontal layout
     /// `Reorder::row` provides. `CollapsingState::body` indents and

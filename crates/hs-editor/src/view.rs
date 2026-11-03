@@ -3,6 +3,7 @@
 //! find/replace and go-to-line bars.
 
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Vec2};
+use hs_ui::icons::ph;
 use hs_ui::tip::TipExt;
 
 use crate::buffer::{Buffer, Edit, EditKind};
@@ -138,6 +139,54 @@ pub enum SquiggleLevel {
     Hint,
 }
 
+/// The find bar's words. The editor is a library with no locale of its
+/// own, so the app fills these from Fluent the way it fills the tab
+/// strip's labels; the defaults keep a standalone view (and the tests)
+/// readable.
+#[derive(Debug, Clone)]
+pub struct FindLabels {
+    pub find: String,
+    pub replace: String,
+    pub replace_all: String,
+    pub match_case: String,
+    pub whole_word: String,
+    pub regex: String,
+    pub previous: String,
+    pub next: String,
+    pub close: String,
+    pub no_results: String,
+    /// "{current} of {total}", with `{n}` and `{of}` placeholders filled
+    /// by the caller's locale.
+    pub position: String,
+}
+
+impl Default for FindLabels {
+    fn default() -> Self {
+        Self {
+            find: "Find".into(),
+            replace: "Replace".into(),
+            replace_all: "Replace All".into(),
+            match_case: "Match Case".into(),
+            whole_word: "Whole Word".into(),
+            regex: "Regular Expression".into(),
+            previous: "Previous".into(),
+            next: "Next".into(),
+            close: "Close".into(),
+            no_results: "No results".into(),
+            position: "{current} of {total}".into(),
+        }
+    }
+}
+
+impl FindLabels {
+    /// `position` with its two placeholders filled.
+    pub fn position_text(&self, current: usize, total: usize) -> String {
+        self.position
+            .replace("{current}", &current.to_string())
+            .replace("{total}", &total.to_string())
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct FindState {
     pub open: bool,
@@ -180,6 +229,8 @@ pub struct EditorView {
     pub tab_inserts_spaces: bool,
     pub language: Language,
     pub find: FindState,
+    /// What the find bar calls its controls (see [`FindLabels`]).
+    pub labels: FindLabels,
     pub goto_open: bool,
     pub goto_text: String,
     pub right_click_copy_paste: bool,
@@ -222,6 +273,7 @@ impl EditorView {
             tab_inserts_spaces: !language.use_tabs,
             language,
             find: FindState::default(),
+            labels: FindLabels::default(),
             goto_open: false,
             goto_text: String::new(),
             right_click_copy_paste: true,
@@ -1560,7 +1612,8 @@ impl EditorView {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.find.query)
                             .desired_width(220.0)
-                            .hint_text("Find"),
+                            .margin(hs_ui::form::FIELD_MARGIN)
+                            .hint_text(self.labels.find.clone()),
                     );
                     if self.find.focus_query {
                         r.request_focus();
@@ -1570,26 +1623,43 @@ impl EditorView {
                         step = Some(!ui.input(|i| i.modifiers.shift));
                         r.request_focus();
                     }
-                    ui.toggle_value(&mut self.find.case_sensitive, "Aa")
-                        .tip("Match Case");
-                    ui.toggle_value(&mut self.find.whole_word, "ab")
-                        .tip("Whole Word");
-                    ui.toggle_value(&mut self.find.regex, ".*")
-                        .tip("Regular Expression");
+                    // Framed buttons, not `toggle_value`: a frameless
+                    // toggle is invisible until the pointer touches it and
+                    // then sprouts a box around the text, which reads as
+                    // the control growing. A button that is always a
+                    // button only changes its highlight (CR-0026).
+                    // Labelled, not glyphs alone: "Aa" and ".*" say
+                    // nothing to someone who has not met them before
+                    // (owner's report, CR-0027).
+                    for (on, label) in [
+                        (&mut self.find.case_sensitive, &self.labels.match_case),
+                        (&mut self.find.whole_word, &self.labels.whole_word),
+                        (&mut self.find.regex, &self.labels.regex),
+                    ] {
+                        hs_ui::form::toggle_button(ui, on, label);
+                    }
                     let n = self.find.matches.len();
                     let label = if n == 0 {
-                        "No results".to_string()
+                        self.labels.no_results.clone()
                     } else {
-                        format!("{} of {n}", (self.find.current + 1).min(n))
+                        self.labels.position_text((self.find.current + 1).min(n), n)
                     };
                     ui.label(egui::RichText::new(label).weak());
-                    if ui.small_button("▲").tip("Previous (Shift+F3)").clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::CARET_UP, self.labels.previous))
+                        .tip("Shift+F3")
+                        .clicked()
+                    {
                         step = Some(false);
                     }
-                    if ui.small_button("▼").tip("Next (F3)").clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::CARET_DOWN, self.labels.next))
+                        .tip("F3")
+                        .clicked()
+                    {
                         step = Some(true);
                     }
-                    if ui.small_button("✕").clicked() {
+                    if ui.button(self.labels.close.clone()).clicked() {
                         self.find.open = false;
                     }
                 });
@@ -1598,12 +1668,13 @@ impl EditorView {
                         ui.add(
                             egui::TextEdit::singleline(&mut self.find.replacement)
                                 .desired_width(220.0)
-                                .hint_text("Replace"),
+                                .margin(hs_ui::form::FIELD_MARGIN)
+                                .hint_text(self.labels.replace.clone()),
                         );
-                        if ui.button("Replace").clicked() {
+                        if ui.button(self.labels.replace.clone()).clicked() {
                             replace_one = true;
                         }
-                        if ui.button("Replace All").clicked() {
+                        if ui.button(self.labels.replace_all.clone()).clicked() {
                             replace_all = true;
                         }
                     });

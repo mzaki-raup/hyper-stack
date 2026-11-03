@@ -1406,7 +1406,7 @@ impl ContainersTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 20.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1482,16 +1482,13 @@ impl ContainersTool {
             });
         });
         ui.add_space(2.0);
-        egui::Grid::new(("cluster-detail-grid", res as u8, i))
-            .num_columns(2)
-            .spacing([12.0, 4.0])
-            .show(ui, |ui| {
-                for (label, value) in cluster::summary(res, s, inv, i) {
-                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
-                    ui.add(egui::Label::new(value).selectable(true).truncate());
-                    ui.end_row();
-                }
-            });
+        let summary = cluster::summary(res, s, inv, i);
+        hs_ui::form::detail_table(
+            ui,
+            theme,
+            ("cluster-detail-grid", res as u8, i),
+            summary.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        );
 
         let Some(target) = cluster::row_target(res, inv, i) else {
             // An event has nothing to fetch; its row above is all of it.
@@ -2451,7 +2448,7 @@ impl ContainersTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 20.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -2789,16 +2786,12 @@ impl ContainersTool {
         ui.add_space(4.0);
         // Keyed by the row it shows, so a grid never keeps the tallest
         // height a previous selection gave it (the Logs lesson).
-        egui::Grid::new(("container-facts", res as u8, id))
-            .num_columns(2)
-            .spacing([12.0, 4.0])
-            .show(ui, |ui| {
-                for (label, value) in &facts {
-                    ui.label(egui::RichText::new(label).small().color(theme.text_muted));
-                    ui.add(egui::Label::new(value.as_str()).selectable(true).truncate());
-                    ui.end_row();
-                }
-            });
+        hs_ui::form::detail_table(
+            ui,
+            theme,
+            ("container-facts", res as u8, id),
+            facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+        );
         ui.add_space(4.0);
         if ui.small_button(s.t("container-detail-copy")).clicked() {
             let text = facts
@@ -3379,12 +3372,8 @@ impl Tool for ContainersTool {
         if self.is_home || self.state.host_id.is_empty() {
             return;
         }
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::ARROW_CLOCKWISE,
-                s.t("container-refresh")
-            ))
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        if hs_ui::toolbar::btn(ui, &theme, ph::ARROW_CLOCKWISE, &s.t("container-refresh"))
             .tip(s.t("container-refresh-tip"))
             .clicked()
         {
@@ -3395,10 +3384,7 @@ impl Tool for ContainersTool {
         // scope: that scope only gets the width left on the current row,
         // so in a narrow window the control is the first thing to vanish.
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
-                .clicked()
-            {
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant")).clicked() {
                 self.assistant.toggle("Containers");
             }
         });
@@ -3411,36 +3397,29 @@ impl Tool for ContainersTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.sync_configs(&s);
-        form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("tool-containers"))
-                    .strong()
-                    .size(15.0),
-            );
-        });
         // Add goes to Settings, as Add Connection does from every other
-        // activity: one place manages a host, not two.
-        if form::primary_button(
+        // activity: one place manages a host, not two. The header is the
+        // shared one this sidebar was the model for; the "Containers"
+        // subtitle under it only repeated the title (CR-0030).
+        if form::sidebar_head(
             ui,
             &theme,
-            &format!("{} {}", ph::PLUS, s.t("container-add")),
+            &s.t("tool-containers"),
+            &[form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("container-add"),
+                tip: "",
+            }],
         )
-        .clicked()
+        .is_some()
         {
             cx.actions.push(Action::RunCommand {
                 id: "settings:containers".into(),
             });
         }
-        ui.add_space(6.0);
 
         let full = ui.available_height();
         let hosts_height = (full * 0.40).max(90.0);
-        ui.label(
-            egui::RichText::new(s.t("container-section-hosts"))
-                .small()
-                .strong()
-                .color(theme.text_muted),
-        );
         let all = hosts(&s);
         let current = self.current_uri();
         let mut open: Option<String> = None;

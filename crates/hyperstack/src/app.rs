@@ -1256,6 +1256,24 @@ impl HyperStackApp {
         }
     }
 
+    /// Pin or unpin a tab. A tool that keeps its own pin - the
+    /// Scratchpad, whose notes are pinned in the sidebar - is told
+    /// instead of the shell's own flag being set, so the two cannot
+    /// disagree (CR-0041).
+    fn pin_tab(&mut self, id: u64, pinned: bool, services: &Services) {
+        let tool_owns = self
+            .tabs
+            .get_mut(id)
+            .is_some_and(|t| t.tool.tab_pinned().is_some());
+        if tool_owns {
+            if let Some(t) = self.tabs.get_mut(id) {
+                t.tool.set_tab_pinned(pinned, services);
+            }
+            return;
+        }
+        self.tabs.set_pinned(id, pinned);
+    }
+
     fn close_tab(&mut self, id: u64, force: bool) {
         // Mandatory shell tabs and an activity's permanent home tab both
         // stay. Checking here covers Close Others and Close to the Right
@@ -1265,6 +1283,16 @@ impl HyperStackApp {
             .tabs
             .iter()
             .any(|t| t.id == id && (is_mandatory(&t.factory_id) || t.home))
+        {
+            return;
+        }
+        // A pinned Scratchpad note stays until it is unpinned, however
+        // the close was asked for - the cross, Ctrl+W, a middle click or
+        // a sweep (owner's rule, CR-0041).
+        if self
+            .tabs
+            .get_mut(id)
+            .is_some_and(|t| !t.tool.tab_closable())
         {
             return;
         }
@@ -1994,7 +2022,12 @@ impl HyperStackApp {
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
                     }
                 }
-                SettingsEffect::WorkspaceLogoChanged => ctx.request_repaint(),
+                // The tabs' logo is loaded once per workspace; a new or
+                // removed logo is the other time it is read (CR-0043).
+                SettingsEffect::WorkspaceLogoChanged => {
+                    hs_ui::icons::reload_workspace_logo(ctx);
+                    ctx.request_repaint();
+                }
                 SettingsEffect::Toast(level, text) => self.toasts.push(level, text),
                 SettingsEffect::ImportEnvironment => {
                     if let Some(path) = rfd::FileDialog::new()
@@ -2881,9 +2914,13 @@ impl HyperStackApp {
 
     fn tab_strip(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
-        let (min_w, gap) = {
+        let (min_w, gap, height) = {
             let st = s.settings.read();
-            (st.appearance.min_tab_width, st.appearance.tab_gap)
+            (
+                st.appearance.min_tab_width,
+                st.appearance.tab_gap,
+                st.appearance.tab_height(),
+            )
         };
         let labels = TabStripLabels {
             new_tab: s.t("tab-new"),
@@ -2904,7 +2941,12 @@ impl HyperStackApp {
                 .map(|f| self.services.t(f.descriptor().title_key))
                 .unwrap_or_else(|| id.to_string())
         };
-        let all = self.tabs.views(&activity_title);
+        let material = |id: &str| s.settings.read().appearance.material_icons(id);
+        let look = crate::tabspace::ViewLook {
+            coloured: s.settings.read().appearance.rail_coloured,
+            logo: hs_ui::icons::workspace_logo_uri(ui.ctx(), &s),
+        };
+        let all = self.tabs.views(&activity_title, &material, &look);
         // Index map from the strip's slice back into the full tab list, so
         // reorder and close-left/right keep working on the filtered strip.
         let group = self.group.clone();
@@ -2928,6 +2970,7 @@ impl HyperStackApp {
             labels: &labels,
             compact: false,
             show_new_tab: shows_new_tab(self.group.as_deref()),
+            height: Some(height),
         };
         let r = strip.show(ui, &views);
         if let Some(id) = r.activated {
@@ -2976,14 +3019,29 @@ impl HyperStackApp {
                     }
                 }
                 TabMenuAction::CloseRight => {
-                    for other in self.tabs.close_side(id, false) {
+                    // A pinned tab is drawn at the strip's head, so
+                    // "to the right" is every closable tab, whatever
+                    // its place in the list. The pinned ones are spared
+                    // either way (owner's rule, CR-0029/CR-0041).
+                    let pinned = self.tabs.tabs.iter().any(|t| t.id == id && t.pinned)
+                        || self
+                            .tabs
+                            .tabs
+                            .iter()
+                            .any(|t| t.id == id && t.tool.tab_pinned() == Some(true));
+                    let doomed = if pinned {
+                        self.tabs.close_others(id)
+                    } else {
+                        self.tabs.close_side(id, false)
+                    };
+                    for other in doomed {
                         if group_ids.contains(&other) {
                             self.close_tab(other, false);
                         }
                     }
                 }
                 TabMenuAction::CopyPath => {}
-                TabMenuAction::Pin => self.tabs.set_pinned(id, true),
+                TabMenuAction::Pin => self.pin_tab(id, true, &s),
                 TabMenuAction::Unpin => {
                     let is_settings = self
                         .tabs
@@ -2991,7 +3049,7 @@ impl HyperStackApp {
                         .iter()
                         .any(|t| t.id == id && is_mandatory(&t.factory_id));
                     if !is_settings {
-                        self.tabs.set_pinned(id, false);
+                        self.pin_tab(id, false, &s);
                     }
                 }
                 TabMenuAction::Duplicate => {
@@ -3113,7 +3171,7 @@ impl HyperStackApp {
                     );
                     ui.scope_builder(egui::UiBuilder::new().max_rect(row), |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.spacing_mut().item_spacing.x = 8.0;
+                            hs_ui::toolbar::strip_style(ui);
                             let mut cx = ToolContext {
                                 services: &services,
                                 tab_id: a,
@@ -3264,6 +3322,9 @@ impl HyperStackApp {
         let mut actions = Vec::new();
         let services = self.services.clone();
         let mut drew = false;
+        // A sidebar's buttons are the toolbar's size, so the column reads
+        // as part of the same app rather than as a smaller one (CR-0027).
+        ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
         if let Some(t) = self.tabs.get_mut(a) {
             let is_home = t.home;
             let mut cx = ToolContext {
@@ -4637,6 +4698,9 @@ fn shows_new_tab(group: Option<&str>) -> bool {
                 // document, it is the dashboard in a closable tab
                 // (owner's decision, 2026-10-25).
                 | "containers"
+                // Settings is one tab, always open: a + beside it could
+                // only open a second of the same thing (CR-0029).
+                | "settings"
         )
     )
 }
@@ -4965,6 +5029,10 @@ mod tests {
             "queue",
             "automation",
             "tracker",
+            // Settings is one tab, always open, so a + beside it could
+            // only open a second of the same thing (owner's report,
+            // CR-0029). It used to keep the button.
+            "settings",
         ] {
             assert!(
                 !shows_new_tab(Some(g)),
@@ -4972,7 +5040,7 @@ mod tests {
             );
         }
         // A tab here is a document somebody makes.
-        for g in ["editor", "api", "graphics", "scratchpad", "settings"] {
+        for g in ["editor", "api", "graphics", "scratchpad"] {
             assert!(shows_new_tab(Some(g)), "{g} should keep the add-tab button");
         }
     }

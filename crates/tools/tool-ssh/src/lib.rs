@@ -1149,7 +1149,7 @@ impl SshTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 24.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: false,
             copy_row_label: &copy_label,
             // The pane has a menu of its own, below.
@@ -2268,30 +2268,23 @@ impl Tool for SshTool {
         // The host's name is in the header band above, so the toolbar
         // starts with the light that says what the connection is doing
         // (owner's requirement, 2026-10-26).
-        ui.colored_label(dot, "●");
-        ui.label(label);
+        hs_ui::toolbar::status(ui, &theme, dot, "●", &label);
         match self.status {
             Status::Connected | Status::Connecting => {
-                if ui
-                    .button(format!("{} {}", ph::PLUGS, s.t("ssh-disconnect")))
-                    .clicked()
-                {
+                if hs_ui::toolbar::btn(ui, &theme, ph::PLUGS, &s.t("ssh-disconnect")).clicked() {
                     self.disconnect();
                 }
             }
             _ => {
                 if self.state.conn_id.is_some()
-                    && ui
-                        .button(format!("{} {}", ph::PLUGS_CONNECTED, s.t("ssh-connect")))
+                    && hs_ui::toolbar::btn(ui, &theme, ph::PLUGS_CONNECTED, &s.t("ssh-connect"))
                         .clicked()
                 {
                     self.connect(s);
                 }
             }
         }
-        if ui
-            .button(format!("{} {}", ph::ERASER, s.t("terminal-clear")))
-            .clicked()
+        if hs_ui::toolbar::btn(ui, &theme, ph::ERASER, &s.t("terminal-clear")).clicked()
             && let Some(sess) = &self.session
         {
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
@@ -2335,8 +2328,7 @@ impl Tool for SshTool {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away
             // from the buttons that act on what is selected.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
@@ -2348,11 +2340,15 @@ impl Tool for SshTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        if form::sidebar_header(
+        if form::sidebar_head(
             ui,
             &theme,
             &s.t("ssh-hosts"),
-            &[(ph::PLUS, &s.t("ssh-new-host"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("ssh-add-host"),
+                tip: &s.t("ssh-new-host"),
+            }],
         )
         .is_some()
         {

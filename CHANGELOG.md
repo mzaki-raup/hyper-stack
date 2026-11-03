@@ -11,7 +11,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Toolbar toggles that were invisible until the pointer touched them — the editor's Find bar `Aa` / `ab` / `.*`, the Database result strip's Messages button and the result tabs — are drawn as proper framed buttons, so hovering only highlights one instead of making a box appear
+- Form-like text fields are taller, matching the Settings → Accessibility → Language field: the Home launcher box, the sidebar search and filter boxes in Scratchpad, API Client, Browser, Database, Devtools, Git and NoSQL, and the NoSQL query field
+- A dropdown, checkbox or button inside a form row now comes out at the field height, and a form row's label sits level with its control — a description under a control goes on its own row instead of pushing the label down
+- Every activity's toolbar is drawn to one standard: medium buttons with real padding, dropdowns and status chips at the same height, and each item's icon in the accent with its label in the ordinary text colour. Sidebar buttons match
+- Icon-only buttons carry their words: Scratchpad's Add Folder, the Browser sidebar's New Folder and New Login, the editor's Match Case, Whole Word, Regular Expression, Previous and Next, and the terminal's Older Match, Newer Match and Close
+- Connection and follow state — SSH, Logs, the Database transaction and read-only marks, the Git branch — is drawn as a chip the height of the buttons beside it
+- NoSQL's Count, New Document, Delete Matching, page and result-format controls are framed buttons with icons, and the Redis panes' buttons match the toolbar's size
+- Tables everywhere have taller rows and a header that reads as one: filled, ruled off and bold, the Database result grid's row-number gutter included
+- A scrollable list or block of output sits in a well — darker on a dark theme, lighter on a light one — so it is visibly something you can scroll: the Devtools listening ports and the Automation run log
+- The facts a detail pane lists (Tracker's fields, a container's and a cluster's details) are drawn as a two-column table with no header instead of loose pairs
+- Settings → Browser's Extra Blocked Hosts box keeps a fixed six rows and scrolls, instead of growing with the list
+- Tabs are taller, and how tall is a setting: Settings → Appearance → Tabs has Minimum Main Tab Height and Minimum Sub Tab Height, with the icon, title and close button scaling to match. An inner strip is never taller than the window's
+- A tab's context menu offers Close Others, Close to the Left and Close to the Right only where each would close something different: the activity's permanent tab and the tabs at either end get Close Others alone, and a tab between two closable ones gets all three. A pinned tab gets Close, and either direction that has something to close, but no Close Others — that action spares the other pinned tabs
+- The Scratchpad's tabs no longer offer Duplicate: a note tab is the note
+- A Scratchpad note has one pin: pinning it in the sidebar pins its tab and the other way round, the pinned tabs sit in the sidebar's order, and a pinned note's tab cannot be closed until it is unpinned. A pinned note wears the pin in the sidebar and on its tab, in a colour chosen under Settings → Appearance → Scratchpad → Pin Colour (red by default); an unpinned note's tab wears the same Material icon as its sidebar row
+- The Settings tab has no context menu, and its strip no New Tab button
+- Every activity's sidebar header follows one standard: the title, a row of labelled Add buttons under it, and a rule before the list. Database's header reads Database, Queue's reads Queue and Automation's reads Automation; Containers loses the subtitle that repeated its title
+- Every activity's fixed tab draws its icon in the activity's own colour while Coloured Activity Icons is on, never outlined; the Editor's, the API Client's and the Browser's keep their pictures
+- Fixed tabs, and pinned tabs that show their name, size themselves to their icon and label instead of truncating them in a fixed-width slot
+- The Editor's fixed tab shows the workspace's logo, as the API Client's and the Browser's do, instead of a plain folder glyph. All three take one copy the shell loads when the workspace changes or its logo is set; the API Client used to read the file on every frame, and the Browser to check it on disk every frame
+- The Scratchpad's Add Folder asks for the folder's name in the header itself, in place of the buttons, and only then makes the folder — Cancel leaves nothing behind
+
+### Fixed
+
+- The AI Assistant sat between the toolbar's rows when the buttons wrapped, instead of on the first row
+- The toolbar's row rule stopped short of the AI Assistant instead of running the full width
+- The terminal's find controls overlapped the main toolbar; they now have a row of their own under it
+- Pinning a Scratchpad note from the sidebar puts it on the tab strip straight away; it used to appear only after the note was clicked
 
 ## 0.115.1 — 2026-11-03
 

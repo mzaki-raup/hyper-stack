@@ -3073,65 +3073,48 @@ impl Tool for GraphicsTool {
             return;
         }
         let s = cx.services;
-        if ui
-            .add_enabled(
-                !self.undo_stack.is_empty(),
-                egui::Button::new(format!(
-                    "{} {}",
-                    ph::ARROW_COUNTER_CLOCKWISE,
-                    s.t("gfx-undo")
-                )),
-            )
-            .clicked()
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        if hs_ui::toolbar::btn_enabled(
+            ui,
+            &theme,
+            !self.undo_stack.is_empty(),
+            ph::ARROW_COUNTER_CLOCKWISE,
+            &s.t("gfx-undo"),
+        )
+        .clicked()
         {
             self.undo_edit();
         }
-        if ui
-            .add_enabled(
-                !self.redo_stack.is_empty(),
-                egui::Button::new(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("gfx-redo"))),
-            )
-            .clicked()
+        if hs_ui::toolbar::btn_enabled(
+            ui,
+            &theme,
+            !self.redo_stack.is_empty(),
+            ph::ARROW_CLOCKWISE,
+            &s.t("gfx-redo"),
+        )
+        .clicked()
         {
             self.redo_edit();
         }
         ui.separator();
         if self.kind == Kind::Image
             && self.original.is_some()
-            && ui
-                .button(format!("{} {}", ph::APP_WINDOW, s.t("gfx-convert-to-icon")))
+            && hs_ui::toolbar::btn(ui, &theme, ph::APP_WINDOW, &s.t("gfx-convert-to-icon"))
                 .clicked()
         {
             self.convert_to_icon(cx);
         }
-        if ui
-            .button(format!("{} {}", ph::FRAME_CORNERS, s.t("gfx-zoom-fit")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::FRAME_CORNERS, &s.t("gfx-zoom-fit")).clicked() {
             self.zoom = 0.0;
         }
-        if ui
-            .button(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("gfx-zoom-100")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::MAGNIFYING_GLASS, &s.t("gfx-zoom-100")).clicked() {
             self.zoom = 1.0;
         }
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::MAGNIFYING_GLASS_PLUS,
-                s.t("gfx-zoom-in")
-            ))
-            .clicked()
+        if hs_ui::toolbar::btn(ui, &theme, ph::MAGNIFYING_GLASS_PLUS, &s.t("gfx-zoom-in")).clicked()
         {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } * 1.25).min(32.0);
         }
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::MAGNIFYING_GLASS_MINUS,
-                s.t("gfx-zoom-out")
-            ))
+        if hs_ui::toolbar::btn(ui, &theme, ph::MAGNIFYING_GLASS_MINUS, &s.t("gfx-zoom-out"))
             .clicked()
         {
             self.zoom = (if self.zoom == 0.0 { 1.0 } else { self.zoom } / 1.25).max(0.05);
@@ -3139,8 +3122,7 @@ impl Tool for GraphicsTool {
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {

@@ -533,11 +533,15 @@ impl Tool for AutomationTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        if form::sidebar_header(
+        if form::sidebar_head(
             ui,
             &theme,
-            &s.t("automation-servers"),
-            &[(ph::PLUS, &s.t("automation-add-server"))],
+            &s.t("tool-automation"),
+            &[hs_ui::form::SideAction {
+                icon: ph::PLUS,
+                label: &s.t("automation-add-server"),
+                tip: "",
+            }],
         )
         .is_some()
         {
@@ -639,6 +643,7 @@ impl Tool for AutomationTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
         if self.state.conn_id.is_some() && !cx.is_home {
             let (caps, busy, ready) = {
                 let sh = self.shared.lock();
@@ -650,17 +655,15 @@ impl Tool for AutomationTool {
             };
             let has_job = self.job().is_some();
             let run = self.run();
-            if ui
-                .add_enabled(
-                    ready && !busy,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROWS_CLOCKWISE,
-                        s.t("automation-refresh")
-                    )),
-                )
-                .tip(s.t("automation-refresh-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                ready && !busy,
+                ph::ARROWS_CLOCKWISE,
+                &s.t("automation-refresh"),
+            )
+            .tip(s.t("automation-refresh-tip"))
+            .clicked()
             {
                 self.refresh();
             }
@@ -678,60 +681,60 @@ impl Tool for AutomationTool {
                 }
             };
             if caps.run
-                && ui
-                    .add_enabled(
-                        ready && has_job && !self.read_only(),
-                        egui::Button::new(format!("{} {}", ph::PLAY, s.t("automation-run"))),
-                    )
-                    .tip(s.t("automation-run-tip"))
-                    .tip_disabled(blocked(false))
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    ready && has_job && !self.read_only(),
+                    ph::PLAY,
+                    &s.t("automation-run"),
+                )
+                .tip(s.t("automation-run-tip"))
+                .tip_disabled(blocked(false))
+                .clicked()
             {
                 self.open_run_form(cx);
             }
             let can_cancel = run.as_ref().is_some_and(|r| r.state.is_active());
             if caps.cancel
-                && ui
-                    .add_enabled(
-                        ready && can_cancel && !self.read_only(),
-                        egui::Button::new(format!("{} {}", ph::STOP, s.t("automation-cancel"))),
-                    )
-                    .tip_disabled(if self.read_only() {
-                        reason.clone()
-                    } else {
-                        s.t("automation-cancel-needs-active")
-                    })
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    ready && can_cancel && !self.read_only(),
+                    ph::STOP,
+                    &s.t("automation-cancel"),
+                )
+                .tip_disabled(if self.read_only() {
+                    reason.clone()
+                } else {
+                    s.t("automation-cancel-needs-active")
+                })
+                .clicked()
             {
                 self.ask_cancel(cx);
             }
             ui.separator();
             if caps.log
-                && ui
-                    .add_enabled(
-                        run.is_some(),
-                        egui::Button::new(format!(
-                            "{} {}",
-                            ph::FILE_TEXT,
-                            s.t("automation-open-log")
-                        )),
-                    )
-                    .tip(s.t("automation-open-log-tip"))
-                    .clicked()
+                && hs_ui::toolbar::btn_enabled(
+                    ui,
+                    &theme,
+                    run.is_some(),
+                    ph::FILE_TEXT,
+                    &s.t("automation-open-log"),
+                )
+                .tip(s.t("automation-open-log-tip"))
+                .clicked()
             {
                 self.open_log(cx);
             }
-            if ui
-                .add_enabled(
-                    has_job,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROW_SQUARE_OUT,
-                        s.t("automation-browser")
-                    )),
-                )
-                .tip(s.t("automation-browser-tip"))
-                .clicked()
+            if hs_ui::toolbar::btn_enabled(
+                ui,
+                &theme,
+                has_job,
+                ph::ARROW_SQUARE_OUT,
+                &s.t("automation-browser"),
+            )
+            .tip(s.t("automation-browser-tip"))
+            .clicked()
             {
                 self.open_browser(cx);
             }
@@ -751,8 +754,7 @@ impl Tool for AutomationTool {
             }
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
-            if ui
-                .button(format!("{} {}", ph::SPARKLE, s.t("ai-assistant")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-shared-button-tip"))
                 .clicked()
             {
@@ -1014,7 +1016,7 @@ impl AutomationTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 22.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1133,7 +1135,7 @@ impl AutomationTool {
             theme,
             columns: &columns,
             rows: &rows,
-            row_height: 22.0,
+            row_height: hs_ui::table::ROW_HEIGHT,
             show_filter: false,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
@@ -1226,17 +1228,21 @@ impl AutomationTool {
         if b.cut {
             form::hint(ui, theme, &s.t("automation-log-cut"));
         }
-        egui::ScrollArea::both()
-            .id_salt("automation-log")
-            .auto_shrink([false, false])
-            .stick_to_bottom(true)
-            .show(ui, |ui| {
-                ui.add(
-                    egui::Label::new(egui::RichText::new(&b.text).monospace())
-                        .selectable(true)
-                        .extend(),
-                );
-            });
+        // In a well, so the output reads as something you scroll rather
+        // than as text that happens to stop (CR-0028).
+        form::well(ui, theme, None, |ui| {
+            egui::ScrollArea::both()
+                .id_salt("automation-log")
+                .auto_shrink([false, false])
+                .stick_to_bottom(true)
+                .show(ui, |ui| {
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(&b.text).monospace())
+                            .selectable(true)
+                            .extend(),
+                    );
+                });
+        });
     }
 
     fn run_pane(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext, job: &Job) {
@@ -1296,44 +1302,42 @@ impl AutomationTool {
                     name
                 };
                 form::label(ui, &label);
-                ui.vertical(|ui| {
-                    match &p.kind {
-                        ParamKind::Bool => {
-                            let mut on = value == "true";
-                            if ui.checkbox(&mut on, "").changed() {
-                                *value = on.to_string();
-                            }
-                        }
-                        ParamKind::Choice(options) => {
-                            egui::ComboBox::from_id_salt(("automation-choice", i))
-                                .width(form::FIELD_MIN_WIDTH)
-                                .selected_text(value.clone())
-                                .show_ui(ui, |ui| {
-                                    for o in options {
-                                        ui.selectable_value(value, o.clone(), o);
-                                    }
-                                });
-                        }
-                        ParamKind::LongText => {
-                            ui.add(
-                                egui::TextEdit::multiline(value)
-                                    .code_editor()
-                                    .desired_rows(4)
-                                    .desired_width(form::FIELD_MIN_WIDTH * 1.5),
-                            );
-                        }
-                        ParamKind::Secret => {
-                            form::secret_field(ui, value, "", form::FIELD_MIN_WIDTH);
-                        }
-                        ParamKind::Text => {
-                            form::text_field(ui, value, "");
+                match &p.kind {
+                    ParamKind::Bool => {
+                        let mut on = value == "true";
+                        if ui.checkbox(&mut on, "").changed() {
+                            *value = on.to_string();
                         }
                     }
-                    if !p.description.is_empty() {
-                        ui.weak(&p.description);
+                    ParamKind::Choice(options) => {
+                        egui::ComboBox::from_id_salt(("automation-choice", i))
+                            .width(form::FIELD_MIN_WIDTH)
+                            .selected_text(value.clone())
+                            .show_ui(ui, |ui| {
+                                for o in options {
+                                    ui.selectable_value(value, o.clone(), o);
+                                }
+                            });
                     }
-                });
+                    ParamKind::LongText => {
+                        ui.add(
+                            egui::TextEdit::multiline(value)
+                                .code_editor()
+                                .desired_rows(4)
+                                .desired_width(form::FIELD_MIN_WIDTH * 1.5),
+                        );
+                    }
+                    ParamKind::Secret => {
+                        form::secret_field(ui, value, "", form::FIELD_MIN_WIDTH);
+                    }
+                    ParamKind::Text => {
+                        form::text_field(ui, value, "");
+                    }
+                }
                 ui.end_row();
+                if !p.description.is_empty() {
+                    form::field_hint_row(ui, theme, &p.description);
+                }
             }
         });
         let missing: Vec<String> = form_spec

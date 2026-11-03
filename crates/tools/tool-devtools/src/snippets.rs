@@ -136,6 +136,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.add(
                 egui::TextEdit::singleline(&mut state.search)
                     .hint_text(s.t("dt-snippets-search"))
+                    .margin(hs_ui::form::FIELD_MARGIN)
                     .desired_width(260.0),
             );
             if ui

@@ -1627,19 +1627,21 @@ impl DbTool {
                 } else {
                     color
                 });
-                let r = ui
-                    .selectable_label(i == self.active_result, label)
+                // Framed in every state: a frameless tab is invisible
+                // until hovered and then sprouts a box, which reads as the
+                // button growing (CR-0026).
+                let r = form::selectable_button(ui, i == self.active_result, label)
                     .tip(short_sql(&r.sql));
                 if r.clicked() {
                     self.active_result = i;
                 }
             }
-            if ui
-                .selectable_label(
-                    self.active_result == messages_tab,
-                    format!("{} {}", ph::CHAT_TEXT, s.t("db-messages")),
-                )
-                .clicked()
+            if form::selectable_button(
+                ui,
+                self.active_result == messages_tab,
+                format!("{} {}", ph::CHAT_TEXT, s.t("db-messages")),
+            )
+            .clicked()
             {
                 self.active_result = messages_tab;
             }
@@ -3980,7 +3982,7 @@ impl Tool for DbTool {
         let km = s.shortcuts.read();
         let sc = |a: &str| km.get(a).map(|c| c.display()).unwrap_or_default();
         let btn = |ui: &mut egui::Ui, enabled: bool, icon: &str, key: &str, tip: String| {
-            ui.add_enabled(enabled, egui::Button::new(format!("{icon} {}", s.t(key))))
+            hs_ui::toolbar::btn_enabled(ui, &theme, enabled, icon, &s.t(key))
                 .tip(tip)
                 .clicked()
         };
@@ -4060,9 +4062,12 @@ impl Tool for DbTool {
                 self.control("ROLLBACK", s);
             }
             if in_tx {
-                ui.colored_label(
+                hs_ui::toolbar::status(
+                    ui,
+                    &theme,
                     theme.warning,
-                    format!("{} {}", ph::HOURGLASS, s.t("db-tx-pending")),
+                    ph::HOURGLASS,
+                    &s.t("db-tx-pending"),
                 );
             }
         }
@@ -4104,16 +4109,16 @@ impl Tool for DbTool {
             });
         ui.separator();
         if self.read_only_profile {
-            ui.colored_label(
-                theme.text_muted,
-                format!("{} {}", ph::LOCK, s.t("db-read-only")),
-            )
-            .tip(s.t("db-read-only-tip"));
+            hs_ui::toolbar::status(ui, &theme, theme.text_muted, ph::LOCK, &s.t("db-read-only"))
+                .tip(s.t("db-read-only-tip"));
         } else if self.protected {
             if self.writes_unlocked {
-                ui.colored_label(
+                hs_ui::toolbar::status(
+                    ui,
+                    &theme,
                     theme.env_prod,
-                    format!("{} {}", ph::LOCK_OPEN, s.t("db-writes-allowed")),
+                    ph::LOCK_OPEN,
+                    &s.t("db-writes-allowed"),
                 );
             } else if ui
                 .button(format!("{} {}", ph::LOCK, s.t("db-allow-writes")))
@@ -4151,12 +4156,27 @@ impl Tool for DbTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let mut actions: Vec<(&str, String)> = vec![(ph::PLUS, s.t("db-new-profile"))];
+        // Add Database, and Refresh Schema once a session is open. Both
+        // labelled, under a title that names the activity rather than
+        // repeating "connections" (owner's standard, CR-0030).
+        let (add, add_tip, refresh) = (
+            s.t("db-add-database"),
+            s.t("db-new-profile"),
+            s.t("db-refresh-schema"),
+        );
+        let mut actions = vec![form::SideAction {
+            icon: ph::PLUS,
+            label: &add,
+            tip: &add_tip,
+        }];
         if self.cmd.is_some() {
-            actions.push((ph::ARROW_CLOCKWISE, s.t("db-refresh-schema")));
+            actions.push(form::SideAction {
+                icon: ph::ARROW_CLOCKWISE,
+                label: &refresh,
+                tip: "",
+            });
         }
-        let actions: Vec<(&str, &str)> = actions.iter().map(|(i, t)| (*i, t.as_str())).collect();
-        match form::sidebar_header(ui, &theme, &s.t("db-connections"), &actions) {
+        match form::sidebar_head(ui, &theme, &s.t("db-sidebar-title"), &actions) {
             Some(0) => cx.actions.push(Action::RunCommand {
                 id: "settings:connections".into(),
             }),
@@ -4460,6 +4480,7 @@ impl DbTool {
         ui.add(
             egui::TextEdit::singleline(&mut self.tree_filter)
                 .hint_text(s.t("db-filter-objects"))
+                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(2.0);
@@ -4561,6 +4582,7 @@ impl DbTool {
                         .add(
                             egui::TextEdit::singleline(&mut self.history_search)
                                 .hint_text(s.t("db-history-search"))
+                                .margin(hs_ui::form::FIELD_MARGIN)
                                 .desired_width(f32::INFINITY),
                         )
                         .changed()
@@ -4670,7 +4692,13 @@ impl DbTool {
             duplicate_blocked: String::new(),
             copy_path: String::new(),
         };
-        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let (min_width, sub_h) = {
+            let st = s.settings.read();
+            (
+                st.appearance.min_file_tab_width,
+                st.appearance.sub_tab_height(),
+            )
+        };
         let r = ui
             .push_id(self.id.with("query-tabs"), |ui| {
                 hs_ui::tabs::TabStrip {
@@ -4681,6 +4709,7 @@ impl DbTool {
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,
+                    height: Some(sub_h),
                 }
                 .show(ui, &tabs)
             })

@@ -206,6 +206,8 @@ impl Doc {
             st.editor.font_size,
         );
         view.right_click_copy_paste = st.editor.right_click_copy_paste;
+        drop(st);
+        view.labels = find_labels(s);
         Self {
             path: None,
             buf: Buffer::default(),
@@ -432,6 +434,8 @@ impl Doc {
         let st = s.settings.read();
         self.view.font_size = st.editor.font_size;
         self.view.right_click_copy_paste = st.editor.right_click_copy_paste;
+        drop(st);
+        self.view.labels = find_labels(s);
     }
 
     fn status_row(
@@ -858,6 +862,27 @@ struct StatusRow {
     problems_clicked: bool,
     /// The language server is missing and the user asked to install it.
     install_clicked: bool,
+}
+
+/// The find bar's words, from the active locale. `find-position` keeps
+/// its two placeholders so the view can fill in the numbers it has.
+fn find_labels(s: &Services) -> hs_editor::view::FindLabels {
+    hs_editor::view::FindLabels {
+        find: s.t("editor-find"),
+        replace: s.t("editor-replace"),
+        replace_all: s.t("editor-replace-all"),
+        match_case: s.t("find-match-case"),
+        whole_word: s.t("find-whole-word"),
+        regex: s.t("find-regex"),
+        previous: s.t("find-previous"),
+        next: s.t("find-next"),
+        close: s.t("find-close"),
+        no_results: s.t("find-no-results"),
+        position: s.i18n.t_args(
+            "find-position",
+            &[("current", "{current}"), ("total", "{total}")],
+        ),
+    }
 }
 
 /// The accent of the current scheme (the status bar builds its own
@@ -1836,7 +1861,13 @@ impl EditorTool {
             duplicate_blocked: String::new(),
             copy_path: s.t("editor-copy-path"),
         };
-        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let (min_width, sub_h) = {
+            let st = s.settings.read();
+            (
+                st.appearance.min_file_tab_width,
+                st.appearance.sub_tab_height(),
+            )
+        };
         let r = ui
             .push_id(self.id.with("file-tabs"), |ui| {
                 hs_ui::tabs::TabStrip {
@@ -1847,6 +1878,7 @@ impl EditorTool {
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,
+                    height: Some(sub_h),
                 }
                 .show(ui, &tabs)
             })
@@ -3169,6 +3201,13 @@ impl Tool for EditorTool {
         Some(hs_ui::icons::language_icon(&self.proj_lang))
     }
 
+    /// The dashboard is the workspace's front page, so it wears the
+    /// workspace's logo when one is set, as the API Client's does
+    /// (owner's report, CR-0043).
+    fn tab_wears_workspace_logo(&self) -> bool {
+        self.is_home
+    }
+
     /// The dashboard has no file to save, no folder to close and no
     /// terminal to open, so the strip of editor verbs above it acted on
     /// nothing. The shell leaves the bar out entirely rather than
@@ -3221,82 +3260,61 @@ impl Tool for EditorTool {
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        let theme = Theme::from_settings(&s.settings.read().appearance);
         self.tab_id = cx.tab_id;
         // The column holding the file tree and Source Control: a toggle
         // rather than a fixture, because an editor on a narrow screen
         // wants all the width it can get.
-        if ui
-            .toggle_value(
-                &mut self.show_column,
-                format!("{} {}", ph::SIDEBAR_SIMPLE, s.t("editor-column")),
-            )
-            .tip(s.t("editor-column-tip"))
-            .clicked()
+        if hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_column,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("editor-column"),
+        )
+        .tip(s.t("editor-column-tip"))
+        .clicked()
         {
             // nothing more: the flag is the state.
         }
         ui.separator();
-        if ui
-            .button(format!("{} {}", ph::FOLDER_OPEN, s.t("editor-open-folder")))
+        if hs_ui::toolbar::btn(ui, &theme, ph::FOLDER_OPEN, &s.t("editor-open-folder"))
             .tip(s.t("editor-open-folder-tip"))
             .clicked()
         {
             self.open_folder_dialog(cx);
         }
-        if ui
-            .button(format!("{} {}", ph::FILE, s.t("editor-open-file")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::FILE, &s.t("editor-open-file")).clicked() {
             self.open_file_dialog(cx);
         }
         let read_only = self.doc().view.read_only;
         ui.add_enabled_ui(!read_only, |ui| {
-            if ui
-                .button(format!("{} {}", ph::FLOPPY_DISK, s.t("editor-save")))
-                .clicked()
-            {
+            if hs_ui::toolbar::btn(ui, &theme, ph::FLOPPY_DISK, &s.t("editor-save")).clicked() {
                 self.save(cx);
             }
         });
-        if ui
-            .button(format!(
-                "{} {}",
-                ph::FLOPPY_DISK_BACK,
-                s.t("editor-save-as")
-            ))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::FLOPPY_DISK_BACK, &s.t("editor-save-as")).clicked() {
             self.save_as(cx);
         }
         ui.separator();
-        if ui
-            .button(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("editor-find")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::MAGNIFYING_GLASS, &s.t("editor-find")).clicked() {
             let d = self.doc_mut();
             let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
             d.view.open_find(false, Some(sel));
         }
-        if ui
-            .button(format!("{} {}", ph::SWAP, s.t("editor-replace")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::SWAP, &s.t("editor-replace")).clicked() {
             let d = self.doc_mut();
             let sel = hs_editor::view::selected_text(&d.buf, &d.cursors);
             d.view.open_find(true, Some(sel));
         }
-        if ui
-            .button(format!("{} {}", ph::LIST_NUMBERS, s.t("editor-goto")))
-            .clicked()
-        {
+        if hs_ui::toolbar::btn(ui, &theme, ph::LIST_NUMBERS, &s.t("editor-goto")).clicked() {
             let d = self.doc_mut();
             d.view.goto_open = true;
             d.view.goto_text.clear();
         }
         if let Some((_, cmd)) = self.run_plan(s) {
             ui.separator();
-            if ui
-                .button(format!("{} {}", ph::PLAY, s.t("editor-run")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::PLAY, &s.t("editor-run"))
                 .tip(s.i18n.t_args("editor-run-tip", &[("command", &cmd)]))
                 .clicked()
             {
@@ -3310,8 +3328,7 @@ impl Tool for EditorTool {
                 let st = s.settings.read();
                 project::build_command(&p, &st.editor)
             };
-            if ui
-                .button(format!("{} {}", ph::HAMMER, s.t("editor-build")))
+            if hs_ui::toolbar::btn(ui, &theme, ph::HAMMER, &s.t("editor-build"))
                 .tip(s.i18n.t_args(
                     "editor-build-tip",
                     &[("tool", p.kind.label()), ("command", &cmd)],
@@ -3330,13 +3347,15 @@ impl Tool for EditorTool {
                 .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
             ui.separator();
             let mut open = self.terminal.open;
-            if ui
-                .toggle_value(
-                    &mut open,
-                    format!("{} {}", ph::TERMINAL_WINDOW, s.t("editor-terminal")),
-                )
-                .tip(s.t("editor-terminal-tip"))
-                .clicked()
+            if hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut open,
+                ph::TERMINAL_WINDOW,
+                &s.t("editor-terminal"),
+            )
+            .tip(s.t("editor-terminal-tip"))
+            .clicked()
             {
                 let cwd = self.terminal_cwd();
                 self.terminal.toggle(s, cwd.as_deref());
@@ -3345,20 +3364,13 @@ impl Tool for EditorTool {
         if self.doc().view.language.is_markdown {
             ui.separator();
             let d = self.doc_mut();
-            ui.toggle_value(
-                &mut d.preview,
-                format!("{} {}", ph::EYE, s.t("editor-preview")),
-            );
+            hs_ui::toolbar::toggle(ui, &theme, &mut d.preview, ph::EYE, &s.t("editor-preview"));
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
             let mut ai_open = self.ai.open;
-            if ui
-                .toggle_value(
-                    &mut ai_open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
+            if hs_ui::toolbar::toggle(ui, &theme, &mut ai_open, ph::SPARKLE, &s.t("ai-assistant"))
                 .tip(s.t("ai-toggle-tip"))
                 .clicked()
             {
@@ -3377,11 +3389,15 @@ impl Tool for EditorTool {
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
-        if hs_ui::form::sidebar_header(
+        if hs_ui::form::sidebar_head(
             ui,
             &theme,
             &s.t("editor-projects"),
-            &[(ph::FOLDER_PLUS, &s.t("editor-add-project"))],
+            &[hs_ui::form::SideAction {
+                icon: ph::FOLDER_PLUS,
+                label: &s.t("editor-add-project"),
+                tip: "",
+            }],
         )
         .is_some()
         {

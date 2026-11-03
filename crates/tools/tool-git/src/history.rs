@@ -207,6 +207,7 @@ impl HistoryView {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.search)
                             .hint_text(s.t("git-history-search-hint"))
+                            .margin(hs_ui::form::FIELD_MARGIN)
                             .desired_width(260.0),
                     );
                     if let Some(p) = &self.path {

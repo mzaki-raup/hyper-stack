@@ -351,7 +351,6 @@ impl ToolFactory for BrowserFactory {
             active_favicon: None,
             favicons: Arc::new(Mutex::new(HashMap::new())),
             workspace: String::new(),
-            workspace_icon: None,
             synced_frame: None,
             root: std::path::PathBuf::new(),
             favorites: store::Favorites::default(),
@@ -391,8 +390,6 @@ pub struct BrowserTool {
     /// is one browser per workspace and its pages are its own inner tabs.
     /// Owner's requirement, 2026-10-17.
     workspace: String,
-    /// The workspace logo, registered with egui as an image URI.
-    workspace_icon: Option<String>,
     /// The frame `sync_workspace` last ran in.
     synced_frame: Option<u64>,
     /// Where this workspace keeps its favourites and logins.
@@ -422,13 +419,10 @@ enum Favicon {
 }
 
 impl BrowserTool {
-    /// The workspace's name and logo, for the window tab. The logo is read
-    /// from disk and handed to egui under a URI that carries the file's
-    /// size and modification time, so replacing it shows the new image
-    /// rather than the cached old one.
+    /// The workspace's name, and its favourites and passwords when the
+    /// workspace changes. The logo is the shell's to load (CR-0043).
     fn sync_workspace(&mut self, ctx: &egui::Context, services: &Services) {
-        // Both the sidebar and the page call this; once a frame is enough
-        // (it stats the logo file every time).
+        // Both the sidebar and the page call this; once a frame is enough.
         let frame = ctx.cumulative_frame_nr();
         if self.synced_frame == Some(frame) {
             return;
@@ -446,29 +440,6 @@ impl BrowserTool {
             self.favorites = store::Favorites::load(&root);
             self.passwords = store::Passwords::load(&root);
         }
-        let Some(file) = hs_core::workspace::workspace_icon_file(&root) else {
-            self.workspace_icon = None;
-            return;
-        };
-        let stamp = std::fs::metadata(&file)
-            .ok()
-            .and_then(|m| m.modified().ok())
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_millis())
-            .unwrap_or(0);
-        let uri = format!(
-            "{}?v={stamp}",
-            file.display().to_string().replace('\\', "/")
-        );
-        if self.workspace_icon.as_deref() == Some(uri.as_str()) {
-            return;
-        }
-        let Ok(bytes) = std::fs::read(&file) else {
-            self.workspace_icon = None;
-            return;
-        };
-        ctx.include_bytes(uri.clone(), bytes);
-        self.workspace_icon = Some(uri);
     }
 
     /// Keep the favicon cache up to date and hand back what each page's URL
@@ -706,8 +677,11 @@ impl Tool for BrowserTool {
         &DESCRIPTOR
     }
 
-    fn tab_icon_uri(&self) -> Option<String> {
-        self.workspace_icon.clone()
+    /// The window tab is the workspace's browser, so it wears the
+    /// workspace's logo. The shell loads it when the workspace changes;
+    /// this tab used to look at the file on disk every frame (CR-0043).
+    fn tab_wears_workspace_logo(&self) -> bool {
+        true
     }
 
     fn tab_icon(&self) -> Option<&'static str> {
@@ -793,7 +767,13 @@ impl Tool for BrowserTool {
             duplicate_blocked: String::new(),
             copy_path: s.t("browser-copy-url"),
         };
-        let min_width = s.settings.read().appearance.min_file_tab_width;
+        let (min_width, sub_h) = {
+            let st = s.settings.read();
+            (
+                st.appearance.min_file_tab_width,
+                st.appearance.sub_tab_height(),
+            )
+        };
         let active = Some(self.page().id);
         let r = ui
             .push_id(("browser-tabs", cx.tab_id), |ui| {
@@ -805,6 +785,7 @@ impl Tool for BrowserTool {
                     labels: &labels,
                     compact: true,
                     show_new_tab: true,
+                    height: Some(sub_h),
                 }
                 .show(ui, &tabs)
             })
@@ -828,6 +809,22 @@ impl Tool for BrowserTool {
                 TabMenuAction::Close => close.push(id),
                 TabMenuAction::CloseOthers => {
                     close.extend(self.state.pages.iter().map(|p| p.id).filter(|x| *x != id))
+                }
+                // The strip offers these only where they close something
+                // (CR-0029); before that they were in the menu and did
+                // nothing here.
+                TabMenuAction::CloseLeft | TabMenuAction::CloseRight => {
+                    let left = matches!(action, TabMenuAction::CloseLeft);
+                    if let Some(at) = self.state.pages.iter().position(|p| p.id == id) {
+                        close.extend(
+                            self.state
+                                .pages
+                                .iter()
+                                .enumerate()
+                                .filter(|(i, _)| if left { *i < at } else { *i > at })
+                                .map(|(_, p)| p.id),
+                        );
+                    }
                 }
                 TabMenuAction::Duplicate => {
                     if let Some(p) = self.state.pages.iter().find(|p| p.id == id).cloned() {

@@ -189,6 +189,31 @@ Known mistakes and their fixes. Read the section for your area before starting w
   row's height and centre it:
   `allocate_ui_with_layout(vec2(w, ROW_H), Layout::left_to_right(Align::Center), ..)`
   plus `ui.set_min_height(ROW_H)`.
+- **A `TextEdit` in a wrapping row does not ask for its own width.** It
+  takes what is left, so after a full-width allocation (a toolbar row
+  break) it collapses to a sliver and the widgets after it wrap on top of
+  it - which looks like controls drawn over each other, not like a
+  layout that ran out of room. `add_sized` does not help: the field is
+  still measured against the space left. Draw the strip in its own
+  `allocate_ui_with_layout` after the break. Terminal find bar,
+  2026-11-03 (CR-0027).
+- **`hard_right` measured the corner against `min_rect`,** which by the
+  time a tool's toolbar ends is every row its buttons took - so the AI
+  Assistant centred *between* the rows on any toolbar that wrapped. The
+  corner is one row tall (`interact_size.y`); the strip's height is not
+  the row's. Found in Logs, 2026-11-03 (CR-0027).
+- **A `LayoutJob`'s colours survive `add_enabled(false, ..)`.** egui dims
+  a widget by multiplying the *style's* colours, and a job carries its
+  own, so a disabled button drawn from one keeps a bright icon. Build the
+  muted job yourself (`toolbar::btn_enabled`). 2026-11-03.
+- **A `Grid` centres each cell in its row** (`Align2::LEFT_CENTER`), so
+  nothing you do to the *label* cell can line it up with a control that
+  shares its row with a description: the row is as tall as the stack and
+  the label lands in the middle of it. `add_sized`, `allocate_space` and a
+  `new_child` on the returned rect all come out at the same place, because
+  the grid has already aligned the cell before you see it. Put the
+  description on its own row (`form::field_hint_row`) and the row is a
+  field tall again. Found on the Automation Run tab, 2026-11-03 (CR-0026).
 - **An `egui::Panel` remembers the size its *content* produced, not the
   size it was given, so content that under-fills ratchets the panel
   smaller every frame.** In `egui` 0.35's `panel.rs`, `show_inside_dyn`
@@ -377,6 +402,21 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Tool-Specific: Scratchpad
 
+- **A setting the theme carries has to say it is a theme change.** The
+  shell caches its `Theme` and rebuilds it only on
+  `SettingsEffect::ThemeChanged`, while a tool's sidebar builds one from
+  the settings every frame. So a colour stored in `Theme` (the pin) and
+  saved as a plain settings change moved in the sidebar and not on the
+  tab strip. Set `theme_changed`, not `changed`. Owner's report,
+  2026-11-03 (CR-0041).
+- **Only the active tab draws the sidebar, and the rescan lives there.**
+  A background note tab's `pins`/`notes` cache therefore never refreshes
+  on its own, so anything the *strip* asks every tab - `tab_pinned()`,
+  `pin_rank()` - read an empty list and drew a pinned note as unpinned.
+  Load the list in `ToolFactory::create` and refresh it from the
+  `scratchpad.pins` event, not from the rescan timer. Found in the
+  running app, 2026-11-03 (CR-0041).
+
 - **Ctrl+P hands a choice to the tab that listed it, not to the tab that should show it.** `quick_open_items` results come back as `OpenRequest::File` to the contributing tab directly (`qo:<tab>:<id>` in `app.rs`), bypassing `uri_affinity` routing. A tool whose tabs each hold one document must not just load whatever it is handed: the Scratchpad's `open` passes a note it does not hold back to the shell with `cx.open`, or a pick would overwrite another note's tab, unsaved edits included. This cannot loop, because the shell never routes a document to a tab whose affinity is `None` for it, nor to a dashboard home tab.
 - **Don't remember where a note's file is; look it up.** With folders a note can move while a tab has it open - another tab's sidebar drag does it. Saving to a cached path would write a second copy where the note used to be. `save` calls `find_note` every time; a cached path is only a hint for the header's timestamps.
 - **`download::safe_name("")` returns `"download"`.** Reused for a folder name, an empty name would silently create a folder called *download*. Check for an empty name before cleaning it.
@@ -437,6 +477,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Linux/Xvfb.** The app panics at start without `libxkbcommon-x11-0`. Install it, plus `libgl1-mesa-dri`, and it renders with llvmpipe. With no window manager, `xdotool` input is ignored until `xdotool windowfocus <id>`. `xdotool type` needs `--` before text starting with `-`.
 - **Xvfb modal dialogs** can leave the window without keyboard focus. Run `xdotool windowfocus <id>` again before typing.
 - **Overlay-only checks.** Test a toolbar hard-right layout in a narrow window (`hard_right` in toolbars).
+- **A context menu drawn over the tab strip cannot be clicked by the
+  harness.** Right-clicking a tab opens the menu at the pointer, which
+  on a 36 px strip puts its first item back inside the strip - and the
+  synthetic click then activates the tab under it instead of the entry.
+  Right-click near the *bottom* of the tab so the menu opens below the
+  strip, and click there. A menu that opens over empty space (a sidebar
+  row's) has never needed this. Found 2026-11-03 (CR-0029).
 - **`gui-smoke.ps1` takes window-rect coordinates, not client ones.** Its `click` adds the `GetWindowRect` origin to the numbers you pass, and `shot` captures that same rect - so a control at `(sx, sy)` in the screenshot is clicked at exactly `sx, sy`. The `screenshot - (8, 31)` rule recorded for the screenshot sets belongs to the later `hs.ps1` harness, which works in client coordinates. Mixing them puts every click 31 px high, which lands on nothing and looks exactly like the window not being focused. Found 2026-10-31.
 - **`$env:TEMP` is not `%LOCALAPPDATA%\Temp` on this machine.** It is `D:\Temp`, so `gui-smoke.ps1`'s scratch data folder is `D:\Temp\hs-gui-data`. Seeding fixtures into the AppData path instead silently does nothing - the app starts fine and simply shows no connections. Read it with `pwsh -NoProfile -c '$env:TEMP'` rather than assuming.
 - **A seeded connection profile also needs to be in a per-kind subdirectory.** `Connections::load` walks the *directories* under `<workspace>/connections/` and reads the `.toml` files inside each, so a profile dropped straight into `connections/` is never seen - the activity just says "no servers yet" with nothing in the log. It belongs at `connections/<kind>/<name>.toml`, e.g. `connections/forgejo-actions/forgejo-bench.toml`.

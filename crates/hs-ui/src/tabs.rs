@@ -69,6 +69,12 @@ pub trait TabItem {
     fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
         None
     }
+    /// The colour of this tab's glyph, when it has one of its own: an
+    /// activity's fixed tab wears the activity's rail colour while
+    /// Coloured Activity Icons is on. `None` draws it muted (CR-0043).
+    fn icon_colour(&self) -> Option<Color32> {
+        None
+    }
     /// Draw this tab's icon as the pin, in the pinned colour, instead of
     /// its glyph or picture: a pinned Scratchpad note wears the mark so
     /// the strip says which notes are kept (owner's rule, CR-0041).
@@ -587,7 +593,10 @@ impl TabStrip<'_> {
                 let (glyph, colour) = if tab.pin_icon() {
                     (crate::icons::ph::PUSH_PIN, self.theme.pin)
                 } else {
-                    (tab.icon(), self.theme.text_muted)
+                    (
+                        tab.icon(),
+                        tab.icon_colour().unwrap_or(self.theme.text_muted),
+                    )
                 };
                 painter.text(
                     icon_pos,

@@ -2022,7 +2022,12 @@ impl HyperStackApp {
                         Err(e) => self.toasts.push(ToastLevel::Error, e.to_string()),
                     }
                 }
-                SettingsEffect::WorkspaceLogoChanged => ctx.request_repaint(),
+                // The tabs' logo is loaded once per workspace; a new or
+                // removed logo is the other time it is read (CR-0043).
+                SettingsEffect::WorkspaceLogoChanged => {
+                    hs_ui::icons::reload_workspace_logo(ctx);
+                    ctx.request_repaint();
+                }
                 SettingsEffect::Toast(level, text) => self.toasts.push(level, text),
                 SettingsEffect::ImportEnvironment => {
                     if let Some(path) = rfd::FileDialog::new()
@@ -2937,7 +2942,11 @@ impl HyperStackApp {
                 .unwrap_or_else(|| id.to_string())
         };
         let material = |id: &str| s.settings.read().appearance.material_icons(id);
-        let all = self.tabs.views(&activity_title, &material);
+        let look = crate::tabspace::ViewLook {
+            coloured: s.settings.read().appearance.rail_coloured,
+            logo: hs_ui::icons::workspace_logo_uri(ui.ctx(), &s),
+        };
+        let all = self.tabs.views(&activity_title, &material, &look);
         // Index map from the strip's slice back into the full tab list, so
         // reorder and close-left/right keep working on the filtered strip.
         let group = self.group.clone();

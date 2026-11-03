@@ -207,6 +207,26 @@ also be dropped rather than greyed out (`TabItem::shows_duplicate`): the
 Scratchpad does, because a note tab *is* the note and a second view of
 it would share one cursor (owner's rules, CR-0029).
 
+### Fixed tabs: colour and logo (2026-11-03, CR-0043)
+
+An activity's fixed tab — its permanent home, and Settings — draws its
+glyph in the activity's rail colour (`app::activity_colour`) while
+Appearance → Sidebar → *Coloured Activity Icons* is on, and in the
+muted text colour otherwise. It is **never outlined**, whatever *Outline
+Activity Icons* says: at a tab's size a ring reads as a smudge. The
+Editor, the API Client and the Browser are left out, because their fixed
+tab wears a picture rather than a glyph.
+
+The Editor's and the API Client's home tabs are the workspace's front
+page, so they wear the workspace's logo (Settings → Workspace → Logo)
+when it has one. A tool asks for it with `Tool::tab_wears_workspace_logo`
+and the **shell** supplies it, through `hs_ui::icons::workspace_logo_uri`:
+only the shell has the frame's context to load an image with, and a tab
+nobody has drawn never runs its own `ui`. The Browser's window tab wears
+it too. The file is read when the workspace changes (the cache is keyed
+by its folder) and when Settings → Workspace sets or removes the logo
+(`reload_workspace_logo`), never per frame.
+
 ### One pin for a Scratchpad note (2026-11-03, CR-0041)
 
 A note is pinned in one place — the sidebar's list, `notes/pins.json` —
@@ -224,6 +244,9 @@ activity keeps the shell's own per-tab pin.
 - `Tool::pin_rank()` is the note's place in that list, and the strip
   sorts its pinned slots by it — so the pinned tabs read in the
   sidebar's order.
+- Pinning a note from the sidebar **opens** it (or focuses the tab
+  already showing it), so the pin is on the strip at once; unpinning
+  leaves the tab alone (BUG-0041).
 - `Tool::tab_closable()` is false while a note is pinned: pinning a note
   is how you say it stays. The cross goes, Close leaves the menu, and
   the shell refuses a close however it was asked for (Ctrl+W, a middle

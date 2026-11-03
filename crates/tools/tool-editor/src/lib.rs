@@ -3201,6 +3201,13 @@ impl Tool for EditorTool {
         Some(hs_ui::icons::language_icon(&self.proj_lang))
     }
 
+    /// The dashboard is the workspace's front page, so it wears the
+    /// workspace's logo when one is set, as the API Client's does
+    /// (owner's report, CR-0043).
+    fn tab_wears_workspace_logo(&self) -> bool {
+        self.is_home
+    }
+
     /// The dashboard has no file to save, no folder to close and no
     /// terminal to open, so the strip of editor verbs above it acted on
     /// nothing. The shell leaves the bar out entirely rather than

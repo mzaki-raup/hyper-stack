@@ -89,6 +89,8 @@ pub struct TabView {
     /// The activity's Material icon for the kind of item this tab holds,
     /// when that activity has Material icons on (CR-0041).
     pub icon_image: Option<egui::ImageSource<'static>>,
+    /// The glyph's own colour: a fixed tab's activity colour (CR-0043).
+    pub icon_colour: Option<Color32>,
 }
 
 impl TabItem for TabView {
@@ -131,6 +133,9 @@ impl TabItem for TabView {
     fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
         self.icon_image.clone()
     }
+    fn icon_colour(&self) -> Option<Color32> {
+        self.icon_colour
+    }
     fn permanent(&self) -> bool {
         self.permanent
     }
@@ -146,6 +151,25 @@ impl TabItem for TabView {
     fn tooltip(&self) -> String {
         self.tooltip.clone()
     }
+}
+
+/// What the strip needs from the shell beyond the tabs themselves.
+pub struct ViewLook {
+    /// Settings -> Appearance -> Sidebar -> Coloured Activity Icons.
+    pub coloured: bool,
+    /// The open workspace's logo, as an image uri (CR-0043).
+    pub logo: Option<String>,
+}
+
+/// The colour a fixed tab's glyph wears: its activity's rail colour while
+/// Coloured Activity Icons is on, and never the rail's outline - a tab's
+/// icon is too small for a ring to read as anything but a smudge. The
+/// Editor, the API Client and the Browser are left out: their fixed tabs
+/// wear a picture (the workspace's logo, a page's favicon), not a glyph
+/// (owner's rule, CR-0043).
+fn fixed_tab_colour(factory_id: &str, fixed: bool, look: &ViewLook) -> Option<Color32> {
+    let own_picture = matches!(factory_id, "editor" | "api" | "browser");
+    (look.coloured && fixed && !own_picture).then(|| crate::app::activity_colour(factory_id))
 }
 
 impl Default for TabSpace {
@@ -166,10 +190,13 @@ impl TabSpace {
 
     /// `material` says whether an activity draws Material item icons, so
     /// a tab can wear the same picture its sidebar row does (CR-0041).
+    /// `look` carries the rest of what the strip needs from the shell:
+    /// whether fixed tabs are coloured, and the workspace's logo.
     pub fn views(
         &self,
         activity_title: &dyn Fn(&str) -> String,
         material: &dyn Fn(&str) -> bool,
+        look: &ViewLook,
     ) -> Vec<TabView> {
         // How many tabs each connection already has. Duplicating one would
         // start a second session against the same server, so it is refused
@@ -191,7 +218,13 @@ impl TabSpace {
                 factory_id: t.factory_id.clone(),
                 title: t.tool.title().to_string(),
                 icon: t.tool.tab_icon().unwrap_or(t.tool.descriptor().icon),
-                icon_uri: t.tool.tab_icon_uri(),
+                // A home tab that is the workspace's front page wears the
+                // workspace's logo; the shell loads it, once (CR-0043).
+                icon_uri: if t.tool.tab_wears_workspace_logo() {
+                    look.logo.clone()
+                } else {
+                    t.tool.tab_icon_uri()
+                },
                 prefix: t.tool.tab_title_prefix(),
                 // A tool that keeps its own pin answers for the tab: the
                 // Scratchpad's note is pinned in the sidebar, and a tab
@@ -200,6 +233,11 @@ impl TabSpace {
                 pin_rank: t.tool.pin_rank(),
                 can_close: t.tool.tab_closable(),
                 pin_icon: t.tool.tab_icon_is_pin(),
+                icon_colour: fixed_tab_colour(
+                    &t.factory_id,
+                    t.home || crate::app::is_mandatory(&t.factory_id),
+                    look,
+                ),
                 icon_image: t
                     .tool
                     .tab_item_kind()
@@ -539,5 +577,110 @@ impl TabSpace {
             .filter(|a| self.tabs.iter().any(|t| t.id == *a))
             .or_else(|| self.tabs.first().map(|t| t.id));
         self.dirty = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::Arc;
+
+    use hs_core::paths::DataDir;
+    use hs_core::runtime::NoopWaker;
+    use hs_core::secrets::KdfParams;
+
+    /// A fixed tab wears its activity's rail colour while Coloured
+    /// Activity Icons is on, except the three whose fixed tab wears a
+    /// picture; and the Editor's home tab is handed the workspace's logo
+    /// (CR-0043).
+    #[test]
+    fn fixed_tabs_wear_the_activity_colour_and_the_editor_the_logo() {
+        let tmp = std::env::temp_dir().join(format!("hs-tabs-{}", hs_core::new_id()));
+        let paths = DataDir::resolve(Some(&tmp)).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let s = &boot.services;
+
+        let mut space = TabSpace::new();
+        let dev = space.open(&tool_devtools::DevtoolsFactory, s, None);
+        let editor = space.open(&tool_editor::EditorFactory, s, None);
+        let api = space.open(&tool_api::ApiFactory, s, None);
+        let title = |id: &str| id.to_string();
+        let material = |_: &str| false;
+        let view = |look: &ViewLook, id: u64| {
+            space
+                .views(&title, &material, look)
+                .into_iter()
+                .find(|v| v.id == id)
+                .unwrap()
+        };
+
+        let on = ViewLook {
+            coloured: true,
+            logo: Some("bytes://workspace-logo/1.png".into()),
+        };
+        assert_eq!(
+            view(&on, dev).icon_colour,
+            Some(crate::app::activity_colour("devtools")),
+            "Devtools' home tab takes its rail colour"
+        );
+        assert_eq!(
+            view(&on, api).icon_colour,
+            None,
+            "the API Client is left out"
+        );
+        let ed = view(&on, editor);
+        assert_eq!(ed.icon_colour, None, "and so is the Editor");
+        assert_eq!(
+            ed.icon_uri.as_deref(),
+            Some("bytes://workspace-logo/1.png"),
+            "the Editor's home tab wears the workspace's logo"
+        );
+
+        let off = ViewLook {
+            coloured: false,
+            logo: None,
+        };
+        assert_eq!(
+            view(&off, dev).icon_colour,
+            None,
+            "plain again with Coloured Activity Icons off"
+        );
+        assert_eq!(view(&off, editor).icon_uri, None, "no logo, no picture");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// The logo is read when the workspace is first seen and when the
+    /// logo changes - not on the frames in between (owner's rule,
+    /// CR-0043). Deleting the file without saying so proves the second
+    /// call never looked at the disk.
+    #[test]
+    fn the_workspace_logo_is_read_once_until_it_changes() {
+        let tmp = std::env::temp_dir().join(format!("hs-logo-{}", hs_core::new_id()));
+        let paths = DataDir::resolve(Some(&tmp)).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let s = &boot.services;
+        let ctx = egui::Context::default();
+        let root = s.workspace.read().root().to_path_buf();
+        let logo = root.join("icon.png");
+        std::fs::write(&logo, b"not really a png").unwrap();
+
+        let first = hs_ui::icons::workspace_logo_uri(&ctx, s);
+        assert!(first.is_some(), "a workspace with a logo has one");
+
+        std::fs::remove_file(&logo).unwrap();
+        assert_eq!(
+            hs_ui::icons::workspace_logo_uri(&ctx, s),
+            first,
+            "the next frame takes the loaded one and does not look again"
+        );
+
+        hs_ui::icons::reload_workspace_logo(&ctx);
+        assert_eq!(
+            hs_ui::icons::workspace_logo_uri(&ctx, s),
+            None,
+            "after Settings says the logo changed, it is read again"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

@@ -490,6 +490,15 @@ pub trait Tool: Send {
         None
     }
 
+    /// Whether this tab wears the open workspace's logo, when it has one.
+    /// The Editor's and the API Client's home tabs are the workspace's
+    /// front page, so they wear its mark rather than a generic glyph.
+    /// The shell supplies the picture: only it has the frame's context
+    /// to load one with (CR-0043).
+    fn tab_wears_workspace_logo(&self) -> bool {
+        false
+    }
+
     /// What kind of item this tab holds, for the Material icon the rest
     /// of the activity already uses for it ("note", "query", …). The
     /// shell draws that picture on the tab when Material icons are on

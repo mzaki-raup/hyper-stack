@@ -30,6 +30,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - A Scratchpad note has one pin: pinning it in the sidebar pins its tab and the other way round, the pinned tabs sit in the sidebar's order, and a pinned note's tab cannot be closed until it is unpinned. A pinned note wears the pin in the sidebar and on its tab, in a colour chosen under Settings → Appearance → Scratchpad → Pin Colour (red by default); an unpinned note's tab wears the same Material icon as its sidebar row
 - The Settings tab has no context menu, and its strip no New Tab button
 - Every activity's sidebar header follows one standard: the title, a row of labelled Add buttons under it, and a rule before the list. Database's header reads Database, Queue's reads Queue and Automation's reads Automation; Containers loses the subtitle that repeated its title
+- Every activity's fixed tab draws its icon in the activity's own colour while Coloured Activity Icons is on, never outlined; the Editor's, the API Client's and the Browser's keep their pictures
+- The Editor's fixed tab shows the workspace's logo, as the API Client's and the Browser's do, instead of a plain folder glyph. All three take one copy the shell loads when the workspace changes or its logo is set; the API Client used to read the file on every frame, and the Browser to check it on disk every frame
 - The Scratchpad's Add Folder asks for the folder's name in the header itself, in place of the buttons, and only then makes the folder — Cancel leaves nothing behind
 
 ### Fixed
@@ -37,6 +39,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - The AI Assistant sat between the toolbar's rows when the buttons wrapped, instead of on the first row
 - The toolbar's row rule stopped short of the AI Assistant instead of running the full width
 - The terminal's find controls overlapped the main toolbar; they now have a row of their own under it
+- Pinning a Scratchpad note from the sidebar puts it on the tab strip straight away; it used to appear only after the note was clicked
 - Opening the Scratchpad activity no longer hangs the app. v0.115.0's folder header called a collapsing body inside the horizontal layout its row provides, which panicked the UI thread and left the window frozen at near-zero CPU
 
 ## 0.115.0 — 2026-11-02

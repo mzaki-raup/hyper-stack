@@ -422,3 +422,69 @@ mod tests {
         }
     }
 }
+
+/// The open workspace's logo as an image uri a tab can draw, or `None`
+/// when the workspace has none.
+///
+/// Asked for on every frame the tab strip is drawn, so the file is read
+/// only when the workspace changes - a root that differs from the cached
+/// one - or after [`reload_workspace_logo`] says the logo itself changed.
+/// Every other frame costs a lock and a path compare, no disk (owner's
+/// rule, CR-0043: load on switch, not per frame).
+pub fn workspace_logo_uri(ctx: &egui::Context, s: &hs_core::Services) -> Option<String> {
+    let root = s.workspace.read().root().to_path_buf();
+    let cached: Option<LogoCache> = ctx.data(|d| d.get_temp(logo_cache_id()));
+    if let Some(c) = cached
+        && c.root == root
+    {
+        return c.uri;
+    }
+    let uri = hs_core::workspace::workspace_icon_file(&root).and_then(|f| {
+        let bytes = std::fs::read(&f).ok()?;
+        // A new name for a new picture: egui keeps an image by its uri,
+        // so a replaced logo needs one the old picture was never under.
+        let uri = format!("bytes://workspace-logo/{}.png", crate_stamp(&f, &bytes));
+        ctx.include_bytes(uri.clone(), bytes);
+        Some(uri)
+    });
+    ctx.data_mut(|d| {
+        d.insert_temp(
+            logo_cache_id(),
+            LogoCache {
+                root,
+                uri: uri.clone(),
+            },
+        )
+    });
+    uri
+}
+
+/// Forget the loaded logo, so the next [`workspace_logo_uri`] reads the
+/// file again. The shell calls it when Settings -> Workspace sets or
+/// removes the logo; a workspace switch needs no call, since the root no
+/// longer matches.
+pub fn reload_workspace_logo(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<LogoCache>(logo_cache_id()));
+}
+
+#[derive(Clone)]
+struct LogoCache {
+    root: std::path::PathBuf,
+    uri: Option<String>,
+}
+
+fn logo_cache_id() -> egui::Id {
+    egui::Id::new("hs-workspace-logo")
+}
+
+/// What makes one logo's uri differ from the last: its time on disk and
+/// its length, read once, when the file is.
+fn crate_stamp(file: &std::path::Path, bytes: &[u8]) -> String {
+    let at = std::fs::metadata(file)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("{at}-{}", bytes.len())
+}

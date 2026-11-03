@@ -62,22 +62,6 @@ impl ToolFactory for ApiFactory {
     }
 }
 
-/// The workspace logo as an egui image URI, or `None` when none is set.
-fn workspace_icon(ctx: &egui::Context, s: &Services) -> Option<String> {
-    let root = s.workspace.read().root().to_path_buf();
-    let file = hs_core::workspace::workspace_icon_file(&root)?;
-    let bytes = std::fs::read(&file).ok()?;
-    let stamp = std::fs::metadata(&file)
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let uri = format!("bytes://api-home-icon/{stamp}.png");
-    ctx.include_bytes(uri.clone(), bytes);
-    Some(uri)
-}
-
 /// The topic every API tab listens on for "the collections changed".
 pub(crate) const COLLECTIONS_CHANGED: &str = "api.collections";
 
@@ -143,7 +127,6 @@ pub struct ApiTool {
     is_home: bool,
     /// The workspace's name and logo, for the home tab.
     home_name: String,
-    home_icon: Option<String>,
     pub(crate) state: State,
     /// The request being edited (a copy of the saved one, or a draft).
     pub(crate) request: Request,
@@ -260,7 +243,6 @@ impl ApiTool {
         let mut t = Self {
             is_home: false,
             home_name: String::new(),
-            home_icon: None,
             request: Request::default(),
             saved: None,
             collections,
@@ -1488,9 +1470,11 @@ impl Tool for ApiTool {
     }
 
     /// The workspace's logo on the home tab, so it reads as the project's
-    /// API client rather than as another request.
-    fn tab_icon_uri(&self) -> Option<String> {
-        self.is_home.then(|| self.home_icon.clone()).flatten()
+    /// API client rather than as another request. The shell loads it when
+    /// the workspace changes; this tab used to read the file on every
+    /// frame it was drawn (CR-0043).
+    fn tab_wears_workspace_logo(&self) -> bool {
+        self.is_home
     }
 
     fn tab_icon(&self) -> Option<&'static str> {
@@ -1517,7 +1501,6 @@ impl Tool for ApiTool {
         self.is_home = cx.is_home;
         if cx.is_home {
             self.home_name = cx.services.workspace.read().meta.name.clone();
-            self.home_icon = workspace_icon(ui.ctx(), cx.services);
             ui::home(self, ui, cx, &theme);
             return;
         }

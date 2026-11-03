@@ -319,6 +319,8 @@ Change Request : CR-0040
 - [x] CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab (added 2026-11-03)
 - [x] CR-0030 · Sidebar column header standard across every activity
 - [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
+- [ ] CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo (added 2026-11-03)
+- [ ] BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip (added 2026-11-03)
 - [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
 - [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
@@ -534,6 +536,34 @@ Change Request : CR-0040
 - [ ] App: `--data-dir ./tmp-data` — the two sidebars read Queue and Automation
 - [x] Docs: CHANGELOG
 - **Notes:** Filed 2026-11-03 from the owner's message after CR-0030 shipped. **App box open:** the owner was using this machine, so the app was not driven; the change is two string keys with no logic.
+
+### CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo
+- **State:** In-Progress · all boxes but App ticked; the owner was using this machine, so the app was not driven
+- **Scope:** `hs_ui::tabs`, the shell's tab views, `tool-editor`, `hs_ui::icons`.
+- **Parent:** CR-0025
+- [x] Every activity's fixed/permanent tab, except the Editor's, the API Client's and the Browser's, draws its icon in the activity's colour while Settings -> Appearance -> Sidebar -> Coloured Activity Icons is on - and never outlined, even with Outline Activity Icons on.
+- [x] The Editor's fixed tab shows the workspace's own logo (Settings -> Workspace -> Logo) rather than a plain folder glyph.
+  - The shell loads the logo through `hs_ui::icons::workspace_logo_uri` and hands it to any tab that answers `Tool::tab_wears_workspace_logo()`. The Editor's tab could not have done it alone: a tab that has not been drawn never runs `ui()`, and only the shell has the frame's context to load an image with.
+- [x] The logo is read when the workspace changes and when Settings -> Workspace sets or removes it - never per frame. Applies to the API Client, the Editor and the Browser.
+  - Added 2026-11-03 at the owner's request. The API Client read the file on every frame its home tab was drawn, and the Browser looked at it on disk every frame; both now take the shell's copy and their own loaders are gone. The cache is keyed by the workspace's folder, so a switch reloads with no call; `hs_ui::icons::reload_workspace_logo` is called on `SettingsEffect::WorkspaceLogoChanged`. A frame in between costs a lock and a path compare.
+  - Still reading the logo every frame, outside this item: the title bar's workspace button (`app::ws_logo_image`), Home's sidebar header and the Settings -> Workspace preview.
+- [x] Test: a fixed tab's colour is the rail's, the three exceptions keep the glyph's muted colour, the Editor's home tab gets the logo uri, and the logo is read once until it changes
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — toggle Coloured Activity Icons and watch the fixed tabs follow; set a workspace logo and see it on the Editor's tab
+- [x] Docs: spec · CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's message.
+
+### BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip
+- **State:** In-Progress · all boxes but App ticked; the owner was using this machine, so the app was not driven
+- **Scope:** `tool-scratchpad`.
+- **Depends on:** CR-0041
+- [x] Reproduce: with no note open, Pin to Top on a sidebar row marked the note pinned but no tab appeared until the row was clicked.
+- [x] Fix: pinning a note opens it (focusing the tab when one already shows it); unpinning opens nothing.
+- [x] Test: `pinning_a_note_from_the_sidebar_opens_it`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — pin a note that is not open; its pinned tab appears
+- [x] Docs: CHANGELOG
+- **Notes:** Filed 2026-11-03 from the owner's report. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
 
 ### FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
 - **State:** Pending ·

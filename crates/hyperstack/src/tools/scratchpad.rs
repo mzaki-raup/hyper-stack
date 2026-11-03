@@ -56,7 +56,14 @@ impl ToolFactory for ScratchpadFactory {
                 None => state.id = None,
             }
         }
-        Box::new(Scratchpad {
+        Box::new(Scratchpad::new(services, state, path))
+    }
+}
+
+impl Scratchpad {
+    /// A tab on `state`, read from `path` when the note was found.
+    fn new(services: &Services, state: State, path: Option<PathBuf>) -> Self {
+        Self {
             saved: state.text.clone(),
             state,
             created: None,
@@ -86,7 +93,7 @@ impl ToolFactory for ScratchpadFactory {
             filter: String::new(),
             last_edit: None,
             confirm_delete: None,
-        })
+        }
     }
 }
 
@@ -1262,6 +1269,20 @@ impl Scratchpad {
         tracing::debug!(id, pins = ?self.pins, "scratchpad: toggle pin");
         if let Err(e) = self.write_pins(id, None, cx.services) {
             cx.toast(ToastLevel::Error, e.to_string());
+            return;
+        }
+        // A pinned note is one the strip shows. Pinning one that no tab
+        // has open opens it, so the pin lands on the strip at once
+        // rather than at the next click on the row; one already open is
+        // focused instead (owner's report, BUG-0041).
+        if self.pins.iter().any(|p| p == id) {
+            cx.open(
+                "scratchpad",
+                Some(OpenRequest::File {
+                    uri: format!("note://{id}"),
+                    line: None,
+                }),
+            );
         }
     }
 
@@ -2133,6 +2154,65 @@ impl Tool for Scratchpad {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Pinning a note from the sidebar while no tab shows it has to put
+    /// it on the strip. It used to only mark it, so the pinned tab
+    /// appeared at the next click on the row (BUG-0041).
+    #[test]
+    fn pinning_a_note_from_the_sidebar_opens_it() {
+        use std::sync::Arc;
+
+        use hs_core::paths::DataDir;
+        use hs_core::runtime::NoopWaker;
+        use hs_core::secrets::KdfParams;
+        use hs_core::tool::Action;
+
+        let tmp = std::env::temp_dir().join(format!("hs-scratch-{}", hs_core::new_id()));
+        let paths = DataDir::resolve(Some(&tmp)).unwrap();
+        let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+        let s = &boot.services;
+        let mut pad = Scratchpad::new(s, State::default(), None);
+        let opened = |actions: &[Action]| {
+            actions.iter().any(|a| {
+                matches!(
+                    a,
+                    Action::OpenTool {
+                        factory_id,
+                        request: Some(OpenRequest::File { uri, .. }),
+                    } if factory_id == "scratchpad" && uri == "note://n1"
+                )
+            })
+        };
+
+        let mut actions = Vec::new();
+        let mut cx = ToolContext {
+            services: s,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: true,
+        };
+        pad.toggle_pin("n1", &mut cx);
+        assert!(pad.pins.iter().any(|p| p == "n1"), "the note is pinned");
+        assert!(
+            opened(&actions),
+            "and opened, so the pin shows on the strip"
+        );
+
+        // Unpinning leaves the tab where it is.
+        let mut actions = Vec::new();
+        let mut cx = ToolContext {
+            services: s,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: true,
+        };
+        pad.toggle_pin("n1", &mut cx);
+        assert!(!pad.pins.iter().any(|p| p == "n1"));
+        assert!(!opened(&actions), "unpinning opens nothing");
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     /// A folder row draws its header and body inside the horizontal layout
     /// `Reorder::row` provides. `CollapsingState::body` indents and

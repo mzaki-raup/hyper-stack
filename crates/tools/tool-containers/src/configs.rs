@@ -111,6 +111,40 @@ impl Default for SavedConfig {
     }
 }
 
+/// Two samples the first time a workspace opens the activity - one
+/// command, one Compose stack - so the section shows what it is for;
+/// each says it is a sample and can be deleted from its row (CR-0034).
+/// Only when the folder does not exist yet: an emptied list stays empty.
+pub fn seed_samples(workspace_root: &Path, s: &hs_core::Services) {
+    let folder = dir(workspace_root);
+    if folder.exists() {
+        return;
+    }
+    let samples = [
+        SavedConfig {
+            name: s.t("container-sample-command-name"),
+            kind: Kind::Command,
+            command: "docker ps --format '{{.Names}}\t{{.Status}}'".into(),
+            note: s.t("container-sample-command-note"),
+            order: 1,
+            ..Default::default()
+        },
+        SavedConfig {
+            name: s.t("container-sample-compose-name"),
+            kind: Kind::Compose,
+            path: "deploy/docker-compose.yml".into(),
+            note: s.t("container-sample-compose-note"),
+            order: 2,
+            ..Default::default()
+        },
+    ];
+    for c in samples {
+        if let Err(e) = c.save(workspace_root) {
+            tracing::warn!("could not write the sample container config: {e}");
+        }
+    }
+}
+
 impl SavedConfig {
     pub fn file_for(&self, workspace_root: &Path) -> PathBuf {
         dir(workspace_root).join(format!("{}.toml", storage::slug(&self.name)))

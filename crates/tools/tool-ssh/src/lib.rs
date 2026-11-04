@@ -2010,10 +2010,13 @@ impl SshTool {
         let s = cx.services;
         let fields = self.fields(s);
         let conn_id = self.state.conn_id.clone();
+        // The surface colour with a rounded border, so the card reads as
+        // a card against the terminal behind it (CR-0034).
         egui::Frame::new()
-            .fill(theme.panel_bg)
+            .fill(theme.surface)
             .stroke(egui::Stroke::new(1.0, theme.border))
-            .inner_margin(egui::Margin::same(8))
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::same(10))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 egui::ScrollArea::vertical()
@@ -2140,9 +2143,10 @@ impl SshTool {
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_secs(1));
         egui::Frame::new()
-            .fill(theme.panel_bg)
+            .fill(theme.surface)
             .stroke(egui::Stroke::new(1.0, theme.border))
-            .inner_margin(egui::Margin::same(8))
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::same(10))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 let Some(m) = &self.monitor_cur else {
@@ -2161,20 +2165,28 @@ impl SshTool {
                 };
                 let muted = |t: String| egui::RichText::new(t).small().color(theme.text_muted);
                 let strong = |t: String| egui::RichText::new(t).strong().monospace();
+                // Each reading wears an icon and its label in one colour
+                // of its own, so the strip scans by shape and hue rather
+                // than by reading every word (CR-0034).
+                let named =
+                    |ui: &mut egui::Ui, icon: &str, label: String, colour: egui::Color32| {
+                        ui.label(egui::RichText::new(icon).color(colour));
+                        ui.label(egui::RichText::new(label).small().color(colour));
+                    };
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(muted(s.t("ssh-monitor-cpu")));
+                    named(ui, ph::CPU, s.t("ssh-monitor-cpu"), theme.accent);
                     ui.label(strong(match self.monitor_cpu {
                         Some(c) => format!("{c:.0}%"),
                         None => "…".into(),
                     }));
                     ui.separator();
-                    ui.label(muted(s.t("ssh-monitor-load")));
+                    named(ui, ph::GAUGE, s.t("ssh-monitor-load"), theme.warning);
                     ui.label(strong(format!(
                         "{:.2} {:.2} {:.2}",
                         m.load[0], m.load[1], m.load[2]
                     )));
                     ui.separator();
-                    ui.label(muted(s.t("ssh-monitor-mem")));
+                    named(ui, ph::MEMORY, s.t("ssh-monitor-mem"), theme.secondary);
                     let used = m.mem_total_kb.saturating_sub(m.mem_avail_kb);
                     ui.label(strong(format!(
                         "{} / {}",
@@ -2182,7 +2194,7 @@ impl SshTool {
                         monitor::human_kb(m.mem_total_kb)
                     )));
                     ui.separator();
-                    ui.label(muted(s.t("ssh-monitor-disk")));
+                    named(ui, ph::HARD_DRIVES, s.t("ssh-monitor-disk"), theme.success);
                     let pct = if m.disk_total_kb > 0 {
                         100.0 * m.disk_used_kb as f64 / m.disk_total_kb as f64
                     } else {
@@ -2193,7 +2205,7 @@ impl SshTool {
                         monitor::human_kb(m.disk_total_kb)
                     )));
                     ui.separator();
-                    ui.label(muted(s.t("ssh-monitor-up")));
+                    named(ui, ph::CLOCK, s.t("ssh-monitor-up"), theme.text);
                     ui.label(strong(monitor::human_uptime(m.uptime_secs)));
                 });
                 if !m.procs.is_empty() {
@@ -2202,7 +2214,12 @@ impl SshTool {
                     // than cutting the list off (owner's report,
                     // 2026-10-30).
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(muted(s.t("ssh-monitor-top")));
+                        named(
+                            ui,
+                            ph::LIST_NUMBERS,
+                            s.t("ssh-monitor-top"),
+                            theme.text_muted,
+                        );
                         for (i, (c, mem, name)) in m.procs.iter().enumerate() {
                             if i > 0 {
                                 ui.label(muted("·".into()));

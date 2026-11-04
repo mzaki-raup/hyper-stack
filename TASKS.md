@@ -842,20 +842,21 @@ Change Request : CR-0040
 - **Notes:** `tool_logs::ui::line_column_width` sizes the record column (tested); the Highlight Rules popup is a grid with a header row and the pattern field forced to 300 px with `add_sized` (a grid cell shrank a `desired_width` field to its text). The Automation run status line was confirmed in code and sits under a runs table that filled the pane on screen.
 
 ### CR-0034 · Container and SSH work pane layout
-- **State:** Pending ·
+- **State:** Completed · Docker in WSL through Scan Local, the bench SSH container for the cards
 - **Scope:** The Container work panes (Docker, Kubernetes, Podman, Windows) and the SSH shell pane.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027
-- [ ] In SSH Activity -> Shell Pane; Make Tunnel Card and Monitor Card have some color to differentiate with the shell terminal.
-- [ ] In SSH Activity -> Shell Pane -> Monitor Card; Add proper icon to the Items (Cpu, Load, Memory, Disk, Up and Top) and color both the icon and lavel with proper color
-- [ ] In Container Activity -> Docker Work Pane -> Docker Summaries (Running, Stopped, Images, Volumes, Network), Follow the Dashboard summary format (rounded box, icon with lable below, horizontal align center, vertical align middle, same max box size, etc). Apply these in kubernetes, podman, windows container too (Where applicable).
-- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Ports (Open In Browser activity, etc) with top/right/bottom/left padding/margin. 
-- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Action (Logs, Shell, Restart, Stop, Kill, Remove) with top/right/bottom/left padding/margin and add proper icon for each button if none. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Container Activity -> Sidebar Panel -> Saved Command And Config Section; Add a sample for saved command and config, so that user can reference it later and can delete it later.
-- [ ] Test: the Docker summary row uses the shared `hs_ui::dashboard` summary box
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Docker summaries match the dashboard language; port and action buttons are real buttons; SSH tunnel and monitor cards stand out from the terminal
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In SSH Activity -> Shell Pane; Make Tunnel Card and Monitor Card have some color to differentiate with the shell terminal.
+- [x] In SSH Activity -> Shell Pane -> Monitor Card; Add proper icon to the Items (Cpu, Load, Memory, Disk, Up and Top) and color both the icon and lavel with proper color
+- [x] In Container Activity -> Docker Work Pane -> Docker Summaries (Running, Stopped, Images, Volumes, Network), Follow the Dashboard summary format (rounded box, icon with lable below, horizontal align center, vertical align middle, same max box size, etc). Apply these in kubernetes, podman, windows container too (Where applicable).
+- [x] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Ports (Open In Browser activity, etc) with top/right/bottom/left padding/margin. 
+- [x] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Action (Logs, Shell, Restart, Stop, Kill, Remove) with top/right/bottom/left padding/margin and add proper icon for each button if none. Please check other activities that have same characteristic of these button and apply to it also.
+- [x] In Container Activity -> Sidebar Panel -> Saved Command And Config Section; Add a sample for saved command and config, so that user can reference it later and can delete it later.
+- [x] Test: the Docker summary row uses the shared `hs_ui::dashboard` summary box
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — Docker summaries match the dashboard language; port and action buttons are real buttons; SSH tunnel and monitor cards stand out from the terminal
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `docker_summary_stats` + a unit test hold the summary row to `hs_ui::dashboard::stats`; `verb_icon` gives every verb its glyph; `configs::seed_samples` writes the two samples only while the folder does not exist; Kubernetes, Podman and Windows containers have no summary row of their own (the cluster pane has its own facts table), so nothing there changed.
 
 ### CR-0039 · Spacing pass: NoSQL work pane
 - **State:** Pending ·

@@ -430,6 +430,7 @@ fn hosts(s: &Services) -> Vec<ConnectionProfile> {
 impl ContainersTool {
     fn new(services: &Services, state: State) -> Self {
         let root = services.workspace.read().root().to_path_buf();
+        configs::seed_samples(&root, services);
         Self {
             state,
             is_home: false,
@@ -1196,47 +1197,18 @@ impl ContainersTool {
             }
             Some(Ok(inv)) => {
                 let summary = hs_container::Summary::of(&inv.containers);
-                ui.horizontal(|ui| {
-                    hs_ui::dashboard::stat(
-                        ui,
-                        &theme,
-                        &summary.running.to_string(),
-                        &s.t("container-dash-running"),
-                    );
-                    hs_ui::dashboard::stat(
-                        ui,
-                        &theme,
-                        &summary.stopped.to_string(),
-                        &s.t("container-dash-stopped"),
-                    );
-                    hs_ui::dashboard::stat(
-                        ui,
-                        &theme,
-                        &inv.image_list.len().to_string(),
-                        &s.t("container-dash-images"),
-                    );
-                    hs_ui::dashboard::stat(
-                        ui,
-                        &theme,
-                        &inv.volume_list.len().to_string(),
-                        &s.t("container-dash-volumes"),
-                    );
-                    hs_ui::dashboard::stat(
-                        ui,
-                        &theme,
-                        &inv.network_list.len().to_string(),
-                        &s.t("container-dash-networks"),
-                    );
-                    if !inv.projects.is_empty() {
-                        hs_ui::dashboard::stat(
-                            ui,
-                            &theme,
-                            &inv.projects.len().to_string(),
-                            &s.t("container-dash-projects"),
-                        );
-                    }
-                });
-                ui.add_space(8.0);
+                // The same boxes as every dashboard's figures: rounded,
+                // equal, the icon and the label under the number
+                // (CR-0034).
+                let figures = docker_summary_stats(&summary, inv);
+                let labels: Vec<String> = figures.iter().map(|f| s.t(f.2)).collect();
+                let stats: Vec<hs_ui::dashboard::Stat<'_>> = figures
+                    .iter()
+                    .zip(labels.iter())
+                    .map(|((icon, value, _), label)| hs_ui::dashboard::Stat { icon, value, label })
+                    .collect();
+                hs_ui::dashboard::stats(ui, &theme, &stats);
+                ui.add_space(form::PANE_GAP);
                 let inv = inv.clone();
                 self.inventory(ui, &theme, &s, cx.actions, &profile, &inv);
             }
@@ -2557,6 +2529,10 @@ impl ContainersTool {
         self.port_links(ui, theme, s, cx_actions, profile, &c);
 
         ui.horizontal_wrapped(|ui| {
+            // Proper buttons: the toolbar's padding, air between them,
+            // and an icon on every verb (CR-0034).
+            ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+            ui.spacing_mut().item_spacing.x = form::PANE_GAP;
             // Logs and a shell are handed to the tools that already do
             // them (§10.1); neither is rebuilt here, so the Logs tool's
             // filters, levels and assistant all come free.
@@ -2576,7 +2552,7 @@ impl ContainersTool {
             }
             ui.separator();
             for verb in docker::verbs_for(c.state) {
-                let label = s.t(verb.key());
+                let label = format!("{} {}", verb_icon(verb), s.t(verb.key()));
                 // A refused verb is disabled and says why, not hidden:
                 // hiding it reads as the tool lacking the feature rather
                 // than the host being protected.
@@ -2617,6 +2593,8 @@ impl ContainersTool {
         let fields = ContainerFields::from_table(&profile.fields);
         let reach = hs_container::Reachable::of(&fields, self.ssh_host(s, profile).as_deref());
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+            ui.spacing_mut().item_spacing.x = form::PANE_GAP;
             ui.label(
                 egui::RichText::new(s.t("container-ports"))
                     .small()
@@ -2633,7 +2611,7 @@ impl ContainersTool {
                     continue;
                 };
                 let r = ui
-                    .small_button(egui::RichText::new(p.describe()).color(theme.accent))
+                    .button(format!("{} {}", ph::ARROW_SQUARE_OUT, p.describe()))
                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                     .tip(s.i18n.t_args("container-open-url", &[("url", &url)]));
                 if r.clicked() {
@@ -2656,7 +2634,7 @@ impl ContainersTool {
                 });
             }
         });
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
     }
 
     /// The hostname of the SSH profile this host is reached through, so
@@ -3179,6 +3157,64 @@ fn open_host(cx: &mut ToolContext, host_id: &str) {
     });
 }
 
+/// The figures of a Docker host's summary row: an icon, the count and
+/// the Fluent key of its label, in the order the row shows them. Kept
+/// apart from the drawing so a test can hold it to the dashboard's
+/// shape (CR-0034).
+fn docker_summary_stats(
+    summary: &hs_container::Summary,
+    inv: &Inventory,
+) -> Vec<(&'static str, String, &'static str)> {
+    let mut out = vec![
+        (
+            ph::PLAY,
+            summary.running.to_string(),
+            "container-dash-running",
+        ),
+        (
+            ph::STOP,
+            summary.stopped.to_string(),
+            "container-dash-stopped",
+        ),
+        (
+            ph::IMAGE,
+            inv.image_list.len().to_string(),
+            "container-dash-images",
+        ),
+        (
+            ph::DATABASE,
+            inv.volume_list.len().to_string(),
+            "container-dash-volumes",
+        ),
+        (
+            ph::GRAPH,
+            inv.network_list.len().to_string(),
+            "container-dash-networks",
+        ),
+    ];
+    if !inv.projects.is_empty() {
+        out.push((
+            ph::STACK,
+            inv.projects.len().to_string(),
+            "container-dash-projects",
+        ));
+    }
+    out
+}
+
+/// The glyph a container verb's button wears (CR-0034).
+fn verb_icon(verb: hs_container::Verb) -> &'static str {
+    use hs_container::Verb;
+    match verb {
+        Verb::Start | Verb::Unpause => ph::PLAY,
+        Verb::Stop => ph::STOP,
+        Verb::Restart => ph::ARROWS_CLOCKWISE,
+        Verb::Pause => ph::PAUSE,
+        Verb::Kill => ph::X_CIRCLE,
+        Verb::Remove => ph::TRASH,
+    }
+}
+
 impl Tool for ContainersTool {
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
@@ -3538,6 +3574,7 @@ impl Tool for ContainersTool {
                 if self.configs.is_empty() {
                     form::hint(ui, &theme, &s.t("container-no-configs"));
                 }
+                let mut delete: Option<configs::SavedConfig> = None;
                 for c in &self.configs {
                     let r = form::list_row(
                         ui,
@@ -3555,7 +3592,27 @@ impl Tool for ContainersTool {
                             s.t("container-config-not-yet"),
                         );
                     }
+                    // A saved entry can be dropped from its row (CR-0034).
+                    r.context_menu(|ui| {
+                        if ui
+                            .button(format!("{} {}", ph::TRASH, s.t("container-config-delete")))
+                            .clicked()
+                        {
+                            delete = Some(c.clone());
+                            ui.close();
+                        }
+                    });
                     ui.add_space(2.0);
+                }
+                if let Some(c) = delete {
+                    let root = s.workspace.read().root().to_path_buf();
+                    match c.delete(&root) {
+                        Ok(()) => {
+                            configs_changed();
+                            self.configs_at = 0;
+                        }
+                        Err(e) => cx.toast(hs_core::tool::ToastLevel::Error, e.to_string()),
+                    }
                 }
             });
         true
@@ -3575,5 +3632,30 @@ impl Tool for ContainersTool {
             hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
         self.host_pane(&mut content, cx);
         self.assistant_column(ui, panel, cx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Docker summary row is the dashboard's box per figure: five
+    /// figures with an icon each (a sixth joins for Compose projects)
+    /// (CR-0034).
+    #[test]
+    fn the_docker_summary_row_is_a_row_of_dashboard_figures() {
+        let summary = hs_container::Summary {
+            running: 3,
+            stopped: 2,
+            ..Default::default()
+        };
+        let inv = Inventory::default();
+        let figures = docker_summary_stats(&summary, &inv);
+        assert_eq!(figures.len(), 5, "no Compose projects, no sixth box");
+        assert!(figures.iter().all(|(icon, _, _)| !icon.is_empty()));
+        assert_eq!(figures[0].1, "3");
+        assert_eq!(figures[1].1, "2");
+        assert_eq!(figures[0].2, "container-dash-running");
+        assert_eq!(figures[4].2, "container-dash-networks");
     }
 }

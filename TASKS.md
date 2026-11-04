@@ -859,24 +859,25 @@ Change Request : CR-0040
 - **Notes:** `docker_summary_stats` + a unit test hold the summary row to `hs_ui::dashboard::stats`; `verb_icon` gives every verb its glyph; `configs::seed_samples` writes the two samples only while the folder does not exist; Kubernetes, Podman and Windows containers have no summary row of their own (the cluster pane has its own facts table), so nothing there changed.
 
 ### CR-0039 · Spacing pass: NoSQL work pane
-- **State:** Pending ·
+- **State:** Completed · verified against the bench MongoDB 7 (shop.orders): Find, the editor, Indexes
 - **Scope:** The NoSQL work pane: Find, Aggregate, Index and their detail panels.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between below Header separator and Search Criteria (Filter, Project, Sort).
-- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between Search Criteria (Filter, Project, Sort) and buttons (Run, Count, New Document, Delete Matching, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between below Header separator and Json Array Label and Text Area.
-- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between Json Array Text Area and buttons (Run, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between buttons (Run, Count, New Document, Delete Matching, etc) and Result format (Table, Tree, Json, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between Result format (Table, Tree, Json, etc) and Result table.
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between id row and data view text area. 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between data view text area and action button below (Save, Delete, Cancel) 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please make a proper button for Action Button (Save, Delete, Cancel) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In NoSQL Activity -> Work Pane -> Index Pane -> Detail Panel Below; Please add top/bottom padding/margin between below Header separator and Table (Name, Definition, Unique). Please make it as a proper table with header, column and row line.
-- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk the Find, Aggregate and Index panes and their detail panels
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between below Header separator and Search Criteria (Filter, Project, Sort).
+- [x] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between Search Criteria (Filter, Project, Sort) and buttons (Run, Count, New Document, Delete Matching, etc).
+- [x] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between below Header separator and Json Array Label and Text Area.
+- [x] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between Json Array Text Area and buttons (Run, etc).
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between buttons (Run, Count, New Document, Delete Matching, etc) and Result format (Table, Tree, Json, etc).
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between Result format (Table, Tree, Json, etc) and Result table.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between id row and data view text area. 
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between data view text area and action button below (Save, Delete, Cancel) 
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please make a proper button for Action Button (Save, Delete, Cancel) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+- [x] In NoSQL Activity -> Work Pane -> Index Pane -> Detail Panel Below; Please add top/bottom padding/margin between below Header separator and Table (Name, Definition, Unique). Please make it as a proper table with header, column and row line.
+- [x] Test: no assertion beyond the gate: this is layout, verified on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk the Find, Aggregate and Index panes and their detail panels
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** the Index pane is a `DataTable`; Aggregate is Mongo-only and was checked in code (its gaps are the same calls as Find's).
 
 ### FEAT-0095 · Server-populated fields: Tracker and Automation
 - **State:** Pending ·

@@ -343,3 +343,13 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Connections** - every store over its `host:port`;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): the spacing pass (CR-0039)
+
+Find, Aggregate and Index breathe by `hs_ui::form::PANE_GAP`: under the
+header rule before the criteria (or the pipeline), between the criteria
+and the buttons, between the buttons and the result-format row, and
+under that row before the results. The document editor keeps the gap
+between the id row and the text, and between the text and Save / Delete /
+Cancel, which are padded buttons with an icon each. The Index pane is a
+`DataTable` (Name, Definition, Unique) rather than a bare grid.

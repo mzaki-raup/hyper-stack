@@ -954,6 +954,15 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-04): Start Here's primary button on the light theme (CR-0045)
+
+A dashboard's **Start Here** row fills its first button with the accent;
+its icon and label are **white** on it in both themes, as
+`form::primary_button`'s are. They used to take the theme's text colour,
+which is dark on the light theme and sank into the purple. The Scratchpad's
+Add Note and the Editor's Add Project Folder draw their own Start Here
+button and follow the same rule.
+
 ## Addendum (2026-11-04): product logos for connection kinds (CR-0036)
 
 A connection kind wears its **product's multi-coloured logo** everywhere it

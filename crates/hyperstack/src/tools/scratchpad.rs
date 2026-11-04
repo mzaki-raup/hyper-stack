@@ -963,7 +963,8 @@ impl Scratchpad {
                                     ph::PLUS,
                                     s.t("scratchpad-new")
                                 ))
-                                .size(14.0),
+                                .size(14.0)
+                                .color(egui::Color32::WHITE),
                             )
                             .min_size(egui::vec2(170.0, 32.0))
                             .fill(theme.accent),

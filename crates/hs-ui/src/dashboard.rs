@@ -438,11 +438,16 @@ pub fn actions(ui: &mut egui::Ui, theme: &Theme, labels: &[String]) -> Option<us
     ui.horizontal_wrapped(|ui| {
         ui.add_space(HEAD_MARGIN);
         for (i, label) in labels.iter().enumerate() {
-            let mut b = egui::Button::new(egui::RichText::new(label).size(14.0))
-                .min_size(egui::vec2(MIN, 32.0));
-            if i == 0 {
-                b = b.fill(theme.accent);
+            let text = egui::RichText::new(label).size(14.0);
+            // The primary button's icon and label are white on the accent,
+            // as `form::primary_button`'s are: the theme's text colour is
+            // dark on the light theme and sank into the fill (CR-0045).
+            let b = if i == 0 {
+                egui::Button::new(text.color(egui::Color32::WHITE)).fill(theme.accent)
+            } else {
+                egui::Button::new(text)
             }
+            .min_size(egui::vec2(MIN, 32.0));
             if ui.add(b).clicked() {
                 hit = Some(i);
             }

@@ -722,6 +722,17 @@ Change Request : CR-0040
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** Logos are Devicon v2.18.0 (MIT), chosen by the owner, vendored in `assets/icons/devicon/` (README there lists every mapping); `apple-rainbow.svg` is ours, derived from Devicon's Apple; Rust, Lua and Markdown use the Material files already in the repo. Kinds without a logo keep their glyph in the brand colour (owner's choice); black logos (GitHub, Kafka, MySQL, MariaDB) a glyph in the text colour, found by measuring fills and confirmed on screen. Valkey, WebDAV, Nexus and cmd have neither and are unchanged. An SSH tab shows the generic glyph until the host has been connected once, as before: the OS is learnt on connect. In the app (release build, seeded scratch folder, dark and light themes): every sidebar, the Settings lists, dashboard tiles, tabs and header bands; the Editor's file tab followed the file list with Material icons on and off. CHECKLIST has no row for this batch.
 
+### CR-0045 · Start Here's primary button reads on the light theme
+- **State:** Completed ·
+- **Scope:** `hs_ui::dashboard::actions` and the two dashboards that draw their own Start Here button.
+- **Parent:** CR-0025
+- [x] In Light Mode, In All Activities -> Dashboard -> Start Here -> Icon and Label inside button should light color.
+- [x] Test: on the light theme the primary Start Here label is painted white and an ordinary one keeps the text colour (fails on the old code)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — light theme: each dashboard's Start Here button reads white on purple
+- [x] Docs: spec · CHANGELOG
+- **Notes:** Filed 2026-11-04 from the owner's request. White, as `form::primary_button` already used; the Scratchpad's Add Note and the Editor's Add Project Folder draw their own Start Here button and got the same colour. Dialog and Settings buttons filled with the accent were not part of this request. Checked in the app on the light theme: Add Project Folder, Add CLI, Add Repository and Add Note all read white on purple.
+
 ### CR-0031 · Spacing pass: Redis, S3 and Queue work panes
 - **State:** Pending ·
 - **Scope:** The Redis, S3 and Queue work panes.

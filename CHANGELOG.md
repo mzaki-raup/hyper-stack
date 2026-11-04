@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Settings -> Containers, Queue, Automation and Tracker have one Add button each in place of a button per kind, and the form's Kind field lists only that page's kinds
 - Editor: the folder column's header has New Folder, New File and Refresh, labelled when there is room; the toolbar drops Open Folder and Open File (both stay in the palette); file tabs wear the file list's icon; Source Control shows a folder icon by the name and the branch icon by the branch, says "Not a Git repository" (or that Git does not trust the folder) instead of git's raw error, disables History there, and spaces its sections evenly
 
+### Fixed
+
+- On the light theme, every dashboard's Start Here primary button draws its icon and label in white on the accent instead of the dark text colour
+
 ## 0.116.0 — 2026-11-03
 
 ### Added

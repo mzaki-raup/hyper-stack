@@ -2814,7 +2814,8 @@ impl EditorTool {
                                     ph::FOLDER_PLUS,
                                     s.t("editor-add-project")
                                 ))
-                                .size(14.0),
+                                .size(14.0)
+                                .color(egui::Color32::WHITE),
                             )
                             .min_size(egui::vec2(200.0, 32.0))
                             .fill(theme.accent),

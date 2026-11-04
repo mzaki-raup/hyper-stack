@@ -994,3 +994,54 @@ BSD… only).
   `tests/engines.rs`. Db2 does not yet: IBM's driver (v12.1.4 and v11.5.9)
   failed on the test machine for every ODBC client, so the Db2 dialect is
   written but unverified (`docs/GOTCHAS.md`, Databases).
+
+## ADR-031 · fal.ai as an image provider: the REST queue, a model per purpose, inline data URIs
+
+**Date** 2026-11-05 · **Status** accepted (see `docs/tools/graphics.md`,
+addendum 2026-11-05) · **Owner's request** (FEAT-0099): fal.ai as an AI
+image provider that can generate, edit, enhance, upscale and describe a
+picture, with the models fetched from fal.ai and chosen per purpose.
+
+**Context.** ADR-019 gave the app one `Provider` enum behind a
+`Capability` (chat or image); the image kinds so far were 1min.AI and the
+self-hosted servers. fal.ai is different in shape: an account with a
+key, no chat, and a catalogue of thousands of endpoints rather than one
+model with modes, each endpoint with its own input schema. The app's
+HTTP goes through `reqwest` (no `query` or `multipart` feature), its
+long work through `hs_core::jobs`, and no new dependency is wanted for
+one provider.
+
+**Decision.**
+
+- **No SDK, no new crate.** The REST surface is enough and is the
+  documented one: the queue API on `queue.fal.run` (submit, status,
+  result, cancel), the catalogue on `api.fal.ai/v1/models`, and
+  `Authorization: Key`. The queue rather than the synchronous `fal.run`
+  host, because it is cancellable and a hosted job may queue for
+  minutes; `fal.run` is kept out so there is one path to test.
+- **One model per purpose**, saved on the provider (`FalModels`), with
+  the catalogue filtered per purpose by fal.ai's own `category` and `q`
+  parameters. The app does not ship a model list of its own: the
+  catalogue changes weekly and every call is billed, so the user picks,
+  after the key has passed its test. An empty choice is reported, not
+  guessed.
+- **Common request spellings sent together.** Endpoints differ in their
+  input fields and fal ignores the ones a model lacks, so a body carries
+  `image_size` and `aspect_ratio`, `image_url` and `image_urls`,
+  `upscale_factor` and `scale`. This is the same bet 1min.AI already
+  relies on. Enhance runs the upscaling family at a ratio of 1, so it
+  never resizes.
+- **Pictures go inline as data URIs.** fal documents base64 data URIs as
+  an accepted `image_url` and documents its CDN upload only for the
+  SDKs; the Graphics attachment is at most 1024 px, far under the 64 MiB
+  body limit. If a model refuses the inline form, an upload through the
+  CDN is the next step, not a change of design.
+- **The status, result and cancel URLs come from the submit answer**,
+  and are built from the endpoint's owner and app only when it has none -
+  the full endpoint id answers 405 there.
+
+**Consequences.** `Provider::self_hosted()` is no longer `!chats()`: Fal
+is hosted and does not chat, so the three predicates are explicit.
+Graphics generations are Jobs with a Stop button for every provider,
+which fal.ai honours on the server. The mocks prove the protocol; the
+first live run with a real key is the owner's.

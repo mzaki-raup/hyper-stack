@@ -4,123 +4,16 @@
 //! answers; they are not the real servers, none of which is installed on
 //! the build machine (docs/tools/graphics.md).
 
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex};
-use std::thread;
+mod common;
 
+use std::sync::Arc;
+
+use common::{PNG, Seen, b64, ok_json, run, serve};
 use hs_core::ai::{
     AiConfig, Credentials, ImageJob, ImagePart, Provider, UpscaleMode, generate_image, http_client,
     list_models,
 };
 use serde_json::{Value, json};
-
-/// One request as the mock saw it.
-#[derive(Debug, Clone)]
-struct Seen {
-    method: String,
-    path: String,
-    headers: HashMap<String, String>,
-    body: Vec<u8>,
-}
-
-impl Seen {
-    fn json(&self) -> Value {
-        serde_json::from_slice(&self.body).unwrap_or(Value::Null)
-    }
-}
-
-type Handler = Arc<dyn Fn(&Seen) -> (u16, &'static str, Vec<u8>) + Send + Sync>;
-
-/// A blocking HTTP/1.1 server on a std thread: enough for JSON, multipart
-/// and binary answers, which is all the backends need.
-struct Mock {
-    base: String,
-    seen: Arc<Mutex<Vec<Seen>>>,
-}
-
-fn serve(handler: Handler) -> Mock {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let seen: Arc<Mutex<Vec<Seen>>> = Arc::new(Mutex::new(Vec::new()));
-    let log = seen.clone();
-    thread::spawn(move || {
-        for stream in listener.incoming() {
-            let Ok(stream) = stream else { break };
-            let handler = handler.clone();
-            let log = log.clone();
-            thread::spawn(move || handle(stream, handler, log));
-        }
-    });
-    Mock { base, seen }
-}
-
-fn handle(mut stream: TcpStream, handler: Handler, log: Arc<Mutex<Vec<Seen>>>) {
-    let mut reader = BufReader::new(stream.try_clone().unwrap());
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 {
-            return;
-        }
-        let mut parts = line.split_whitespace();
-        let method = parts.next().unwrap_or("").to_string();
-        let path = parts.next().unwrap_or("").to_string();
-        let mut headers = HashMap::new();
-        loop {
-            let mut h = String::new();
-            reader.read_line(&mut h).unwrap();
-            let h = h.trim_end();
-            if h.is_empty() {
-                break;
-            }
-            if let Some((k, v)) = h.split_once(':') {
-                headers.insert(k.trim().to_ascii_lowercase(), v.trim().to_string());
-            }
-        }
-        let len: usize = headers
-            .get("content-length")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
-        let mut body = vec![0u8; len];
-        if len > 0 {
-            reader.read_exact(&mut body).unwrap();
-        }
-        let seen = Seen {
-            method,
-            path,
-            headers,
-            body,
-        };
-        let (status, ctype, out) = handler(&seen);
-        log.lock().unwrap().push(seen);
-        let head = format!(
-            "HTTP/1.1 {status} OK\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n",
-            out.len()
-        );
-        stream.write_all(head.as_bytes()).unwrap();
-        stream.write_all(&out).unwrap();
-        stream.flush().unwrap();
-    }
-}
-
-fn ok_json(v: Value) -> (u16, &'static str, Vec<u8>) {
-    (200, "application/json", v.to_string().into_bytes())
-}
-
-/// A tiny valid PNG (1x1), what every backend hands back.
-const PNG: &[u8] = &[
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-    0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-    0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-    0x42, 0x60, 0x82,
-];
-
-fn b64(bytes: &[u8]) -> String {
-    use base64::Engine as _;
-    base64::engine::general_purpose::STANDARD.encode(bytes)
-}
 
 fn cfg(provider: Provider, base: &str) -> AiConfig {
     let mut c = AiConfig {
@@ -137,14 +30,6 @@ fn cfg(provider: Provider, base: &str) -> AiConfig {
     c.image.enhance_denoise = 0.3;
     c.image.enhance_face_restore = true;
     c
-}
-
-fn run<F: std::future::Future>(f: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(f)
 }
 
 fn source() -> ImagePart {

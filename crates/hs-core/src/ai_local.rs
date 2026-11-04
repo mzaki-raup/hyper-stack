@@ -96,7 +96,7 @@ async fn fetch_bytes(r: reqwest::RequestBuilder) -> Result<Vec<u8>, AiError> {
 
 /// Percent-encode a query value (the workspace's reqwest has no `query`
 /// feature).
-fn urlencode(s: &str) -> String {
+pub(crate) fn urlencode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {

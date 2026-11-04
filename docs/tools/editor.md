@@ -299,7 +299,9 @@ format on save, file exclusions for search, large-file threshold.
   Ollama, vLLM, any other OpenAI-compatible server); under Image, Hosted
   (1min.AI) and Self-Hosted Servers (AUTOMATIC1111, SD.Next, Forge,
   ComfyUI, SwarmUI and its ComfyUI backend, InvokeAI, Fooocus-API, the
-  Stability Matrix packages, any other WebUI API). Picking a card fills
+  Stability Matrix packages, any other WebUI API), with **fal.ai** beside
+  1min.AI under Hosted since 2026-11-05 (`docs/tools/graphics.md`,
+  FEAT-0099). Picking a card fills
   the kind, base URL and default model, and the form shows only the fields
   that kind needs: a Resource URL, API Version and Deployment for Azure; a
   Region, Access Key ID and Secret Access Key for Bedrock; an API Key for
@@ -309,7 +311,10 @@ format on save, file exclusions for search, large-file threshold.
   Workflow** section (checkpoint with Fetch Checkpoints, negative prompt,
   steps, CFG, sampler, scheduler, seed, upscaler and factor, the three
   ComfyUI workflows with Customise / Reset to Built-in, and an extra JSON
-  object merged into every request). **Fetch Models** asks the service
+  object merged into every request); an API Key for fal.ai, followed by
+  its **Models by Purpose** section (one endpoint id each for generate,
+  edit, enhance, upscale and describe, with a picker filled by Fetch
+  Models once Test Connection has passed). **Fetch Models** asks the service
   for its list (Bedrock cannot, so it offers **Known Models** instead) and
   **Test Connection** sends a one-line question to a chat provider or
   pings an image server for its version. Bedrock answers in one piece

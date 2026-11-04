@@ -757,6 +757,8 @@ pub struct AiProvider {
     /// Whether this provider's model can be sent a picture (chat kinds
     /// only). Auto reads the model's name; see [`crate::ai::VisionSupport`].
     pub vision: crate::ai::VisionSupport,
+    /// The fal.ai endpoint chosen for each purpose (fal.ai only).
+    pub fal: crate::ai_fal::FalModels,
 }
 
 impl AiProvider {

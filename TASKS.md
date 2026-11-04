@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0098
+Features : FEAT-0099
 Bugs : BUG-0040
 Change Request : CR-0040
 ```
@@ -172,6 +172,19 @@ Change Request : CR-0040
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — <what to click>
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0099 · fal.ai as an AI image provider
+- **State:** Completed · **Spec:** docs/tools/graphics.md (addendum 2026-11-05) · **Branch:** feat/fal-ai
+- **Source:** owner's request, 2026-11-05, handed to a side session from the v0.7.6 batch session
+- **Scope:** `hs_core::ai_fal` (new), `hs_core::ai::Provider::Fal`, `AiProvider::fal`, Settings → AI Assistant, the Graphics Generate Picture form.
+- [x] fal.ai selectable in Settings → AI Assistant (Image → Hosted Services): key in the vault, Test Connection (a key probe, nothing generated), Fetch Models per purpose once the test passed, a model picker per purpose saved on the provider
+- [x] Graphics: generate, edit, enhance, upscale and describe through the chosen fal.ai models, each a cancellable Job with loading, error and empty states; pictures land as drafts, a description under the form with Copy
+- [x] Every visible string through Fluent (`locales/en.ftl`)
+- [x] Test: the mock queue and catalogue (`crates/hs-core/tests/ai_fal_mock.rs`, 6 tests), the request/response mapping units in `ai_fal.rs` (8), the vault grep (`tests/ai_fal_vault.rs`)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test (debug exe)
+- [x] App: `--data-dir` on a scratch folder — fal.ai card in the gallery, the form with its key field and hint, Test Connection against the real queue with a throwaway key (401 shown in red, Fetch Models stays disabled), Save (key in the vault, `kind = "fal"` and `[ai.providers.fal]` in settings.toml, the key nowhere in clear), a new picture's form with the five jobs, Describe with no model → the error toast, Generate → the Job ran and fal.ai's 401 came back as a toast
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · ADR-031 · 02-features
+- **Notes:** no fal.ai key on the build machine, so the live calls that need one (Test Connection passing, Fetch Models, a finished generation, Stop while queued) are the owner's check; the request shapes are proven against the mock and against fal.ai's own 401. Filed under v0.7.7 as the next planned batch; move the whole block if it belongs elsewhere.
 
 ---
 

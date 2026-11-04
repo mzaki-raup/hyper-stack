@@ -238,6 +238,7 @@ suggestion.
 | Convert between PNG, JPEG, WebP, BMP, GIF, ICO; multi-size ICO export; icon frame extraction | P1 | S |
 | Review-only AI assistant on the picture's metadata and operations | P1 | S |
 | AI enhancement/outpainting through a provider | P2 | M |
+| fal.ai as a hosted image provider: a key in the vault, Test Connection, Fetch Models per purpose (generate, edit, enhance, upscale, describe) from fal.ai's catalogue, one chosen model per purpose on the provider; the Graphics form runs each as a cancellable Job through fal.ai's queue, and Describe turns the picture into text (FEAT-0099, ADR-031, 2026-11-05) | P1 | M |
 | Graphics activity: permanent dashboard home tab, sidebar with Image / Icon / Diagram Editor / Diagram Generator and a scrollable Recent section, right-click menus, drafts kept in Recent (R1) | P1 | M |
 | Separate Image and Icon tabs: in-pane settings left, preview right; icon colour-key transparency with an eyedropper and tolerance; image → icon (R1) | P1 | M |
 | Diagram Editor: flowchart and architecture, shapes, connectors, labels, align, grid/snap, undo/redo, zoom/pan, save/open `.hdiag`, drafts, PNG/SVG/PDF export, templates, Mermaid flowchart import (R1) | P1 | L |

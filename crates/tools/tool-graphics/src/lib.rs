@@ -226,8 +226,62 @@ pub struct GraphicsTool {
     new_image: Option<NewImage>,
 }
 
-/// Where a picture generation lands: the bytes, or why it failed.
-type GenSlot = std::sync::Arc<parking_lot::Mutex<Option<Result<Vec<u8>, String>>>>;
+/// What a finished generation produced: a picture, a description, or
+/// nothing because it was stopped.
+enum GenOutcome {
+    Picture(Vec<u8>),
+    Text(String),
+    Stopped,
+}
+
+/// Where a picture generation lands: the outcome, or why it failed.
+type GenSlot = std::sync::Arc<parking_lot::Mutex<Option<Result<GenOutcome, String>>>>;
+
+/// What the form asks for: one of the four picture jobs, or a description
+/// of the picture (fal.ai only, through its Describe model).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GenJob {
+    Picture(hs_core::ai::ImageJob),
+    Describe,
+}
+
+impl GenJob {
+    const ALL: [GenJob; 5] = [
+        GenJob::Picture(hs_core::ai::ImageJob::Generate),
+        GenJob::Picture(hs_core::ai::ImageJob::Edit),
+        GenJob::Picture(hs_core::ai::ImageJob::Enhance),
+        GenJob::Picture(hs_core::ai::ImageJob::Upscale),
+        GenJob::Describe,
+    ];
+    fn index(self) -> usize {
+        match self {
+            GenJob::Picture(hs_core::ai::ImageJob::Generate) => 0,
+            GenJob::Picture(hs_core::ai::ImageJob::Edit) => 1,
+            GenJob::Picture(hs_core::ai::ImageJob::Enhance) => 2,
+            GenJob::Picture(hs_core::ai::ImageJob::Upscale) => 3,
+            GenJob::Describe => 4,
+        }
+    }
+    fn needs_source(self) -> bool {
+        match self {
+            GenJob::Picture(j) => j.needs_source(),
+            GenJob::Describe => true,
+        }
+    }
+    /// The purpose a fal.ai provider's model is chosen for.
+    fn purpose(self) -> hs_core::ai_fal::FalPurpose {
+        match self {
+            GenJob::Picture(j) => hs_core::ai_fal::FalPurpose::of(j),
+            GenJob::Describe => hs_core::ai_fal::FalPurpose::Describe,
+        }
+    }
+    fn needs_prompt(self) -> bool {
+        matches!(
+            self,
+            GenJob::Picture(hs_core::ai::ImageJob::Generate | hs_core::ai::ImageJob::Edit)
+        )
+    }
+}
 
 /// The Generate Picture form: what to ask for and the request in flight.
 struct GenState {
@@ -235,15 +289,20 @@ struct GenState {
     /// The image model name the provider takes, one per job (1min.AI: SDXL,
     /// Flux or GPT Image for generation; Dzine, Clipdrop, Ideogram… for an
     /// edit; Dzine for an enhancement; Stable Image, Recraft… for an
-    /// upscale). Empty means the job's default.
-    models: [String; 4],
+    /// upscale; a fal.ai endpoint id for any of the five). Empty means the
+    /// job's default, or the fal.ai provider's choice for that purpose.
+    models: [String; 5],
     /// The provider `models` were typed for.
     models_for: String,
     provider: String,
-    job: hs_core::ai::ImageJob,
+    job: GenJob,
     /// How far an edit may depart from the picture (0-1).
     strength: f32,
-    running: Option<GenSlot>,
+    /// The request in flight: where its outcome lands, and the Job that
+    /// runs it (so Stop can cancel it).
+    running: Option<(GenSlot, hs_core::jobs::JobHandle)>,
+    /// What the Describe job last answered.
+    description: Option<String>,
 }
 
 impl Default for GenState {
@@ -253,31 +312,30 @@ impl Default for GenState {
             models: Default::default(),
             models_for: String::new(),
             provider: String::new(),
-            job: hs_core::ai::ImageJob::Generate,
+            job: GenJob::Picture(hs_core::ai::ImageJob::Generate),
             strength: 0.5,
             running: None,
+            description: None,
         }
     }
 }
 
 impl GenState {
-    fn job_index(job: hs_core::ai::ImageJob) -> usize {
-        match job {
-            hs_core::ai::ImageJob::Generate => 0,
-            hs_core::ai::ImageJob::Edit => 1,
-            hs_core::ai::ImageJob::Enhance => 2,
-            hs_core::ai::ImageJob::Upscale => 3,
-        }
-    }
     /// The model for the selected job: what was typed, else (for 1min.AI)
-    /// the job's default; a self-hosted server's empty model means the
-    /// provider's own checkpoint.
-    fn model(&self, hosted: bool) -> String {
-        let typed = self.models[Self::job_index(self.job)].trim();
-        if typed.is_empty() && hosted {
-            self.job.default_model().to_string()
-        } else {
-            typed.to_string()
+    /// the job's default, or (for fal.ai) the provider's choice for the
+    /// purpose; a self-hosted server's empty model means the provider's
+    /// own checkpoint.
+    fn model(&self, provider: &ImageProvider) -> String {
+        let typed = self.models[self.job.index()].trim();
+        if !typed.is_empty() {
+            return typed.to_string();
+        }
+        match (provider.kind, self.job) {
+            (hs_core::ai::Provider::Fal, job) => provider.fal.get(job.purpose()).to_string(),
+            (hs_core::ai::Provider::OneMin, GenJob::Picture(job)) => {
+                job.default_model().to_string()
+            }
+            _ => String::new(),
         }
     }
 }
@@ -289,6 +347,8 @@ struct ImageProvider {
     name: String,
     kind: hs_core::ai::Provider,
     checkpoint: String,
+    /// fal.ai's model per purpose (empty elsewhere).
+    fal: hs_core::ai_fal::FalModels,
 }
 
 /// The New Image dialog's fields.
@@ -619,8 +679,8 @@ impl GraphicsTool {
         Some(dir.join(format!("{safe}-{}.png", &hs_core::new_id()[..8])))
     }
 
-    /// The providers that can make a picture: 1min.AI and the self-hosted
-    /// image servers (`Provider::generates_images`).
+    /// The providers that can make a picture: 1min.AI, fal.ai and the
+    /// self-hosted image servers (`Provider::generates_images`).
     fn image_providers(s: &Services) -> Vec<ImageProvider> {
         s.settings
             .read()
@@ -632,6 +692,7 @@ impl GraphicsTool {
                 name: p.name,
                 kind: p.kind,
                 checkpoint: p.image.checkpoint,
+                fal: p.fal,
             })
             .collect()
     }
@@ -698,18 +759,23 @@ impl GraphicsTool {
                 self.generate.models = Default::default();
             }
             use hs_core::ai::ImageJob;
-            // Without a picture only a new one can be asked for.
-            if self.current.is_none() {
-                self.generate.job = ImageJob::Generate;
+            let fal = provider.kind == hs_core::ai::Provider::Fal;
+            // Without a picture only a new one can be asked for, and only
+            // fal.ai describes one.
+            if self.current.is_none() || (self.generate.job == GenJob::Describe && !fal) {
+                self.generate.job = GenJob::Picture(ImageJob::Generate);
             }
             ui.add_enabled_ui(self.current.is_some(), |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    for (job, key) in [
-                        (ImageJob::Generate, "gfx-ai-job-generate"),
-                        (ImageJob::Edit, "gfx-ai-job-edit"),
-                        (ImageJob::Enhance, "gfx-ai-job-enhance"),
-                        (ImageJob::Upscale, "gfx-ai-job-upscale"),
-                    ] {
+                    for job in GenJob::ALL {
+                        let key = match job {
+                            GenJob::Picture(ImageJob::Generate) => "gfx-ai-job-generate",
+                            GenJob::Picture(ImageJob::Edit) => "gfx-ai-job-edit",
+                            GenJob::Picture(ImageJob::Enhance) => "gfx-ai-job-enhance",
+                            GenJob::Picture(ImageJob::Upscale) => "gfx-ai-job-upscale",
+                            GenJob::Describe if fal => "gfx-ai-job-describe",
+                            GenJob::Describe => continue,
+                        };
                         ui.selectable_value(&mut self.generate.job, job, s.t(key));
                     }
                 });
@@ -719,19 +785,24 @@ impl GraphicsTool {
                 ui,
                 theme,
                 &s.t(match job {
-                    ImageJob::Generate => "gfx-ai-job-generate-hint",
-                    ImageJob::Edit => "gfx-ai-job-edit-hint",
-                    ImageJob::Enhance => "gfx-ai-job-enhance-hint",
-                    ImageJob::Upscale => "gfx-ai-job-upscale-hint",
+                    GenJob::Picture(ImageJob::Generate) => "gfx-ai-job-generate-hint",
+                    GenJob::Picture(ImageJob::Edit) => "gfx-ai-job-edit-hint",
+                    GenJob::Picture(ImageJob::Enhance) => "gfx-ai-job-enhance-hint",
+                    GenJob::Picture(ImageJob::Upscale) => "gfx-ai-job-upscale-hint",
+                    GenJob::Describe => "gfx-ai-job-describe-hint",
                 }),
             );
-            let model_slot = GenState::job_index(job);
+            let model_slot = job.index();
             let hosted = provider.kind == hs_core::ai::Provider::OneMin;
             if hosted && self.generate.models[model_slot].is_empty() {
                 // SDXL 1.0 / Dzine / Stable Image (owner's choice, and the
                 // documented 1min.AI models for each job). A self-hosted
-                // server's empty field means its provider's checkpoint.
-                self.generate.models[model_slot] = job.default_model().into();
+                // server's empty field means its provider's checkpoint; a
+                // fal.ai provider's means its choice for the purpose.
+                self.generate.models[model_slot] = match job {
+                    GenJob::Picture(j) => j.default_model().into(),
+                    GenJob::Describe => String::new(),
+                };
             }
             egui::Grid::new("gfx-generate-grid")
                 .num_columns(2)
@@ -754,14 +825,21 @@ impl GraphicsTool {
                     // A self-hosted Upscale runs the provider's upscale
                     // model, not a checkpoint, so the row would mislead.
                     // An Enhance does re-sample through the checkpoint.
-                    if hosted || job != ImageJob::Upscale {
-                        ui.label(s.t(if hosted {
+                    if hosted || fal || job != GenJob::Picture(ImageJob::Upscale) {
+                        ui.label(s.t(if hosted || fal {
                             "gfx-ai-generate-model"
                         } else {
                             "gfx-ai-checkpoint"
                         }));
                         let hint = if hosted {
                             String::new()
+                        } else if fal {
+                            let chosen = provider.fal.get(job.purpose());
+                            if chosen.is_empty() {
+                                s.t("gfx-ai-fal-model-unset")
+                            } else {
+                                chosen.to_string()
+                            }
                         } else if provider.checkpoint.is_empty() {
                             s.t("gfx-ai-checkpoint-server")
                         } else {
@@ -774,7 +852,7 @@ impl GraphicsTool {
                         );
                         ui.end_row();
                     }
-                    if job == ImageJob::Edit {
+                    if job == GenJob::Picture(ImageJob::Edit) {
                         ui.label(s.t("gfx-ai-edit-strength"));
                         ui.add(
                             egui::Slider::new(&mut self.generate.strength, 0.0..=1.0)
@@ -788,10 +866,11 @@ impl GraphicsTool {
             ui.add(
                 egui::TextEdit::multiline(&mut self.generate.prompt)
                     .hint_text(s.t(match job {
-                        ImageJob::Generate => "gfx-ai-generate-prompt-hint",
-                        ImageJob::Edit => "gfx-ai-edit-prompt-hint",
-                        ImageJob::Enhance => "gfx-ai-enhance-prompt-hint",
-                        ImageJob::Upscale => "gfx-ai-upscale-prompt-hint",
+                        GenJob::Picture(ImageJob::Generate) => "gfx-ai-generate-prompt-hint",
+                        GenJob::Picture(ImageJob::Edit) => "gfx-ai-edit-prompt-hint",
+                        GenJob::Picture(ImageJob::Enhance) => "gfx-ai-enhance-prompt-hint",
+                        GenJob::Picture(ImageJob::Upscale) => "gfx-ai-upscale-prompt-hint",
+                        GenJob::Describe => "gfx-ai-describe-prompt-hint",
                     }))
                     .desired_rows(3)
                     .desired_width(f32::INFINITY),
@@ -800,21 +879,36 @@ impl GraphicsTool {
                 let busy = self.generate.running.is_some();
                 if busy {
                     ui.spinner();
+                    if let Some((_, handle)) = &self.generate.running
+                        && ui.button(s.t("gfx-ai-stop")).clicked()
+                    {
+                        s.jobs.cancel(handle.id());
+                    }
                 }
-                // Enhancing and upscaling need no prompt; the others do.
-                let can = !busy
-                    && (matches!(job, ImageJob::Enhance | ImageJob::Upscale)
-                        || !self.generate.prompt.trim().is_empty());
+                // Enhancing, upscaling and describing need no prompt; the
+                // others do.
+                let can = !busy && (!job.needs_prompt() || !self.generate.prompt.trim().is_empty());
                 let label = s.t(match job {
-                    ImageJob::Generate => "gfx-ai-generate",
-                    ImageJob::Edit => "gfx-ai-edit",
-                    ImageJob::Enhance => "gfx-ai-enhance",
-                    ImageJob::Upscale => "gfx-ai-upscale",
+                    GenJob::Picture(ImageJob::Generate) => "gfx-ai-generate",
+                    GenJob::Picture(ImageJob::Edit) => "gfx-ai-edit",
+                    GenJob::Picture(ImageJob::Enhance) => "gfx-ai-enhance",
+                    GenJob::Picture(ImageJob::Upscale) => "gfx-ai-upscale",
+                    GenJob::Describe => "gfx-ai-describe",
                 });
                 if ui.add_enabled(can, egui::Button::new(label)).clicked() {
                     self.start_generation(s);
                 }
             });
+            if let Some(text) = &self.generate.description {
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(s.t("gfx-ai-description")).strong());
+                    if ui.small_button(s.t("gfx-ai-copy")).clicked() {
+                        ui.ctx().copy_text(text.clone());
+                    }
+                });
+                ui.add(egui::Label::new(text.as_str()).wrap());
+            }
         }
     }
 
@@ -840,9 +934,13 @@ impl GraphicsTool {
         };
         let cfg = provider.config("");
         let job = self.generate.job;
-        let model = self
-            .generate
-            .model(provider.kind == hs_core::ai::Provider::OneMin);
+        let model = self.generate.model(&ImageProvider {
+            id: provider.id.clone(),
+            name: provider.name.clone(),
+            kind: provider.kind,
+            checkpoint: provider.image.checkpoint.clone(),
+            fal: provider.fal.clone(),
+        });
         let prompt = self.generate.prompt.trim().to_string();
         let strength = self.generate.strength;
         let source = if job.needs_source() {
@@ -858,36 +956,98 @@ impl GraphicsTool {
         let slot: GenSlot = std::sync::Arc::new(parking_lot::Mutex::new(None));
         let out = slot.clone();
         let waker = s.runtime.waker();
-        s.runtime.spawn(async move {
+        let fal = provider.kind == hs_core::ai::Provider::Fal;
+        let title = s.t(match job {
+            GenJob::Picture(hs_core::ai::ImageJob::Generate) => "gfx-ai-generate",
+            GenJob::Picture(hs_core::ai::ImageJob::Edit) => "gfx-ai-edit",
+            GenJob::Picture(hs_core::ai::ImageJob::Enhance) => "gfx-ai-enhance",
+            GenJob::Picture(hs_core::ai::ImageJob::Upscale) => "gfx-ai-upscale",
+            GenJob::Describe => "gfx-ai-describe",
+        });
+        // A Job, so it shows in the Jobs panel and Stop can cancel it. A
+        // fal.ai request watches the token itself and cancels on the
+        // server; any other service's request is simply dropped, which
+        // closes its connection.
+        let handle = s.jobs.spawn(title, "graphics", move |h| async move {
             let http = hs_core::ai::http_client();
-            let result = hs_core::ai::generate_image(
-                &http,
-                &cfg,
-                &key,
-                job,
-                &model,
-                &prompt,
-                size,
-                source.as_ref(),
-                strength,
-            )
-            .await
-            .map_err(|e| e.to_string());
+            let token = h.cancel_token();
+            let reporter = h.clone();
+            let watch = hs_core::ai_fal::Watch {
+                cancel: Some(token.clone()),
+                on_status: Some(Box::new(move |m: &str| reporter.set_message(m))),
+            };
+            let work = async {
+                match job {
+                    GenJob::Describe => {
+                        let src = source
+                            .as_ref()
+                            .ok_or_else(|| "no picture to describe".to_string())?;
+                        hs_core::ai::describe_image(&http, &cfg, &key, &model, &prompt, src, watch)
+                            .await
+                            .map(GenOutcome::Text)
+                            .map_err(|e| e.to_string())
+                    }
+                    GenJob::Picture(job) => hs_core::ai::generate_image_watched(
+                        &http,
+                        &cfg,
+                        &key,
+                        job,
+                        &model,
+                        &prompt,
+                        size,
+                        source.as_ref(),
+                        strength,
+                        watch,
+                    )
+                    .await
+                    .map(GenOutcome::Picture)
+                    .map_err(|e| e.to_string()),
+                }
+            };
+            let result = if fal {
+                work.await
+            } else {
+                tokio::select! {
+                    r = work => r,
+                    _ = token.cancelled() => Ok(GenOutcome::Stopped),
+                }
+            };
+            let result = match result {
+                Err(_) if h.is_cancelled() => Ok(GenOutcome::Stopped),
+                other => other,
+            };
+            let status = match &result {
+                Ok(_) => Ok(()),
+                Err(e) => Err(e.clone()),
+            };
             *out.lock() = Some(result);
             waker.request_repaint();
+            status
         });
-        self.generate.running = Some(slot);
+        self.generate.running = Some((slot, handle));
     }
 
-    /// A finished generation becomes a draft file and the tab's picture.
+    /// A finished generation becomes a draft file and the tab's picture;
+    /// a description is shown in the form.
     fn poll_generation(&mut self, cx: &mut ToolContext) {
-        let done = self.generate.running.as_ref().and_then(|r| r.lock().take());
+        let done = self
+            .generate
+            .running
+            .as_ref()
+            .and_then(|(r, _)| r.lock().take());
         let Some(result) = done else {
             return;
         };
         self.generate.running = None;
         match result {
-            Ok(bytes) => {
+            Ok(GenOutcome::Stopped) => {
+                cx.toast(ToastLevel::Info, cx.services.t("gfx-ai-stopped"));
+            }
+            Ok(GenOutcome::Text(text)) => {
+                self.generate.description = Some(text);
+                cx.toast(ToastLevel::Success, cx.services.t("gfx-ai-described"));
+            }
+            Ok(GenOutcome::Picture(bytes)) => {
                 let stem = self
                     .generate
                     .prompt

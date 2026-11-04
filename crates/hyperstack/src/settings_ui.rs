@@ -67,11 +67,10 @@ fn take_focus(focus: &mut bool, field: &egui::Response) {
     }
 }
 
-/// An Add jump on a page whose form waits for a kind: bring the list
-/// section, title and kind buttons, to the top of the view. Called just
-/// before the section, so its title is not scrolled out above.
-fn take_section_focus(ui: &egui::Ui, state: &mut SettingsState) {
-    if state.conn_draft.is_none() && std::mem::take(&mut state.focus_form) {
+/// A Manage jump: bring this section to the top of the view (CR-0044).
+fn take_named_focus(ui: &egui::Ui, state: &mut SettingsState, which: FocusSection) {
+    if state.focus_section == Some(which) {
+        state.focus_section = None;
         ui.scroll_to_cursor(Some(egui::Align::TOP));
     }
 }
@@ -288,6 +287,72 @@ pub struct SettingsState {
     /// the page scrolls into view and takes the keyboard, or, on a page
     /// whose form waits for a kind, its list section scrolls into view.
     pub focus_form: bool,
+    /// Set by a Manage jump (CR-0044): the section to scroll to the top
+    /// of the view the next time it is drawn.
+    pub focus_section: Option<FocusSection>,
+}
+
+/// A Settings section a dashboard's Manage button lands on (CR-0044).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusSection {
+    ProjectList,
+    GitRepos,
+    GitCredentials,
+}
+
+impl SettingsState {
+    /// Open an empty form for a new profile of `kind`, with the kind's
+    /// defaults filled in, as the kind buttons on Containers, Queue,
+    /// Automation and Tracker do.
+    pub fn open_kind_draft(&mut self, kind: &str) {
+        let draft = new_kind_draft(kind);
+        self.conn_selected = Some(draft.id.clone());
+        let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
+        self.conn_draft = Some((draft, text));
+    }
+}
+
+/// The kinds a profile of `kind` may switch to in its form, and whether
+/// that is a page of its own (Containers, Queue, Automation, Tracker)
+/// rather than Settings -> Connections, which offers every kind.
+pub(crate) fn kind_family(kind: &str) -> (&'static [&'static str], bool) {
+    use hs_core::connections as c;
+    if c::is_container_kind(kind) {
+        (c::CONTAINER_KINDS, true)
+    } else if c::is_queue_kind(kind) {
+        (c::QUEUE_KINDS, true)
+    } else if c::is_automation_kind(kind) {
+        (c::AUTOMATION_KINDS, true)
+    } else if c::is_tracker_kind(kind) {
+        (c::TRACKER_KINDS, true)
+    } else {
+        (c::KINDS, false)
+    }
+}
+
+/// A new profile of `kind` named after it, with the kind's defaults, so
+/// the form opens on something that would work rather than on empty
+/// fields.
+pub fn new_kind_draft(kind: &str) -> ConnectionProfile {
+    use hs_core::connections as c;
+    let mut draft = ConnectionProfile {
+        name: format!("New {}", c::kind_label(kind)),
+        kind: kind.to_string(),
+        ..Default::default()
+    };
+    if c::is_container_kind(kind) {
+        hs_container::profile::ContainerFields::default().write_into(&mut draft.fields);
+    } else if c::is_queue_kind(kind) {
+        tool_queue::profile::QueueFields::from_table(kind, &draft.fields)
+            .write_into(&mut draft.fields);
+    } else if c::is_automation_kind(kind) {
+        tool_automation::profile::AutomationFields::from_table(kind, &draft.fields)
+            .write_into(&mut draft.fields);
+    } else if c::is_tracker_kind(kind) {
+        tool_tracker::profile::TrackerFields::from_table(kind, &draft.fields)
+            .write_into(&mut draft.fields);
+    }
+    draft
 }
 
 /// What the master-password prompt is for.
@@ -3099,8 +3164,7 @@ fn container_list(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    use hs_core::connections::{CONTAINER_KINDS, kind_label};
-    take_section_focus(ui, state);
+    use hs_core::connections::CONTAINER_KINDS;
     form::section(ui, theme, &s.t("settings-container-list"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-list-hint"));
         ui.add_space(8.0);
@@ -3109,38 +3173,22 @@ fn container_list(
         // never wrap.
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
-        // The four kinds are one row across the **section**, not a
-        // wrapped block inside the 260 px list column, where they broke
-        // over three lines and read as a list of their own. Owner's
-        // requirement, 2026-10-25.
-        ui.horizontal(|ui| {
-            for kind in CONTAINER_KINDS {
-                let label = egui::RichText::new(format!(
-                    "{} {}",
-                    container_kind_icon(kind),
-                    kind_label(kind)
-                ))
-                .size(14.0);
-                if ui
-                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
-                    .tip(s.t("settings-container-add-hint"))
-                    .clicked()
-                {
-                    let mut draft = hs_core::connections::ConnectionProfile {
-                        name: format!("New {}", kind_label(kind)),
-                        kind: (*kind).to_string(),
-                        ..Default::default()
-                    };
-                    // The defaults for the kind, so the form opens on
-                    // something that would work rather than on empty
-                    // fields.
-                    hs_container::profile::ContainerFields::default().write_into(&mut draft.fields);
-                    state.conn_selected = Some(draft.id.clone());
-                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
-                    state.conn_draft = Some((draft, text));
-                }
-            }
-        });
+        // One Add button, as Settings -> Connections has; the form's
+        // Kind field picks among this page's kinds (CR-0044).
+        if form::primary_button(
+            ui,
+            theme,
+            &format!(
+                "{} {}",
+                hs_ui::icons::TAB_NEW,
+                s.t("settings-container-add-host")
+            ),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(CONTAINER_KINDS[0]);
+            state.focus_form = true;
+        }
         ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -3165,11 +3213,11 @@ fn container_list(
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     let subtitle = container_subtitle(s, id, kind);
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            container_kind_icon(kind),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(&subtitle),
                         )
@@ -3226,14 +3274,6 @@ fn container_subtitle(s: &Services, id: &str, kind: &str) -> String {
     };
     let f = hs_container::profile::ContainerFields::from_table(&p.fields);
     format!("{label} · {}", f.describe(kind))
-}
-
-/// The glyph for a container kind: what the thing **is**, as every other
-/// list in the app now does.
-/// The one table, shared with the Container activity so the two lists
-/// of hosts can never show different icons for the same kind.
-fn container_kind_icon(kind: &str) -> &'static str {
-    hs_ui::icons::container_kind_icon(kind)
 }
 
 /// Defaults and Safety: the guards that apply to every container host.
@@ -3526,46 +3566,28 @@ fn queue(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    use hs_core::connections::{QUEUE_KINDS, kind_label};
+    use hs_core::connections::QUEUE_KINDS;
     form::page_title(
         ui,
         theme,
         &s.t("settings-queue"),
         Some(&s.t("settings-queue-sub")),
     );
-    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-queue-brokers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
-        // One button per kind across the section, as Containers has.
-        ui.horizontal(|ui| {
-            for kind in QUEUE_KINDS {
-                let label = egui::RichText::new(format!(
-                    "{} {}",
-                    hs_ui::icons::connection_icon(kind, ""),
-                    kind_label(kind)
-                ))
-                .size(14.0);
-                if ui
-                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
-                    .tip(s.t("settings-queue-add-hint"))
-                    .clicked()
-                {
-                    let mut draft = hs_core::connections::ConnectionProfile {
-                        name: format!("New {}", kind_label(kind)),
-                        kind: (*kind).to_string(),
-                        ..Default::default()
-                    };
-                    // The kind's usual local address, so the form opens on
-                    // something that would work.
-                    tool_queue::profile::QueueFields::from_table(kind, &draft.fields)
-                        .write_into(&mut draft.fields);
-                    state.conn_selected = Some(draft.id.clone());
-                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
-                    state.conn_draft = Some((draft, text));
-                }
-            }
-        });
+        // One Add button, as Settings -> Connections has; the form's
+        // Kind field picks among this page's kinds (CR-0044).
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("queue-add-broker")),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(QUEUE_KINDS[0]);
+            state.focus_form = true;
+        }
         ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -3593,11 +3615,11 @@ fn queue(
                 for (i, (id, kind, name, subtitle)) in brokers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -3691,43 +3713,28 @@ fn automation(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    use hs_core::connections::{AUTOMATION_KINDS, kind_label};
+    use hs_core::connections::AUTOMATION_KINDS;
     form::page_title(
         ui,
         theme,
         &s.t("settings-automation"),
         Some(&s.t("settings-automation-sub")),
     );
-    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-automation-servers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
-        ui.horizontal_wrapped(|ui| {
-            for kind in AUTOMATION_KINDS {
-                let label = egui::RichText::new(format!(
-                    "{} {}",
-                    hs_ui::icons::connection_icon(kind, ""),
-                    kind_label(kind)
-                ))
-                .size(14.0);
-                if ui
-                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
-                    .tip(s.t("settings-automation-add-hint"))
-                    .clicked()
-                {
-                    let mut draft = hs_core::connections::ConnectionProfile {
-                        name: format!("New {}", kind_label(kind)),
-                        kind: (*kind).to_string(),
-                        ..Default::default()
-                    };
-                    tool_automation::profile::AutomationFields::from_table(kind, &draft.fields)
-                        .write_into(&mut draft.fields);
-                    state.conn_selected = Some(draft.id.clone());
-                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
-                    state.conn_draft = Some((draft, text));
-                }
-            }
-        });
+        // One Add button, as Settings -> Connections has; the form's
+        // Kind field picks among this page's kinds (CR-0044).
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("automation-add-server")),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(AUTOMATION_KINDS[0]);
+            state.focus_form = true;
+        }
         ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -3756,11 +3763,11 @@ fn automation(
                 for (i, (id, kind, name, subtitle)) in servers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -3849,43 +3856,28 @@ fn tracker(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
-    use hs_core::connections::{TRACKER_KINDS, kind_label};
+    use hs_core::connections::TRACKER_KINDS;
     form::page_title(
         ui,
         theme,
         &s.t("settings-tracker"),
         Some(&s.t("settings-tracker-sub")),
     );
-    take_section_focus(ui, state);
     form::section(ui, theme, &s.t("settings-tracker-servers"), |ui| {
         let list_width = 260.0;
         let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
-        ui.horizontal_wrapped(|ui| {
-            for kind in TRACKER_KINDS {
-                let label = egui::RichText::new(format!(
-                    "{} {}",
-                    hs_ui::icons::connection_icon(kind, ""),
-                    kind_label(kind)
-                ))
-                .size(14.0);
-                if ui
-                    .add(egui::Button::new(label).min_size(egui::vec2(0.0, 32.0)))
-                    .tip(s.t("settings-tracker-add-hint"))
-                    .clicked()
-                {
-                    let mut draft = hs_core::connections::ConnectionProfile {
-                        name: format!("New {}", kind_label(kind)),
-                        kind: (*kind).to_string(),
-                        ..Default::default()
-                    };
-                    tool_tracker::profile::TrackerFields::from_table(kind, &draft.fields)
-                        .write_into(&mut draft.fields);
-                    state.conn_selected = Some(draft.id.clone());
-                    let text = toml::to_string_pretty(&draft.fields).unwrap_or_default();
-                    state.conn_draft = Some((draft, text));
-                }
-            }
-        });
+        // One Add button, as Settings -> Connections has; the form's
+        // Kind field picks among this page's kinds (CR-0044).
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("tracker-add")),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(TRACKER_KINDS[0]);
+            state.focus_form = true;
+        }
         ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -3913,11 +3905,11 @@ fn tracker(
                 for (i, (id, kind, name, subtitle)) in trackers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -4027,7 +4019,7 @@ fn connections(
                 ui.add_space(8.0);
                 // The engine travels with the kind: a `db` profile's
                 // icon is PostgreSQL's or MySQL's, not a generic plug.
-                let conns: Vec<(String, String, String, &'static str)> = s
+                let conns: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
                     .connections
                     .read()
                     .all()
@@ -4036,7 +4028,7 @@ fn connections(
                         // Reads the engine for a database and the
                         // detected OS for an SSH host, so this list
                         // agrees with the activity sidebars.
-                        let icon = hs_ui::icons::profile_icon(c);
+                        let icon = hs_ui::icons::profile_conn_icon(c);
                         (c.id.clone(), c.kind.clone(), c.name.clone(), icon)
                     })
                     .collect();
@@ -4050,11 +4042,11 @@ fn connections(
                 for (i, (id, kind, name, icon)) in conns.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(hs_core::connections::kind_label(kind)),
                         )
@@ -4289,11 +4281,15 @@ fn conn_detail(
             take_focus(&mut state.focus_form, &name);
             ui.end_row();
             form::label(ui, &s.t("conn-kind"));
+            // A container, queue, automation or tracker profile chooses
+            // among its own page's kinds only (CR-0044).
+            let (family, own_page) = kind_family(&draft.kind);
+            let before = draft.kind.clone();
             egui::ComboBox::from_id_salt("conn-kind")
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(hs_core::connections::kind_label(&draft.kind))
                 .show_ui(ui, |ui| {
-                    for k in hs_core::connections::KINDS {
+                    for k in family {
                         ui.selectable_value(
                             &mut draft.kind,
                             (*k).to_string(),
@@ -4301,6 +4297,17 @@ fn conn_detail(
                         );
                     }
                 });
+            // The Kind field is how a new one is chosen there, so a new
+            // profile takes the chosen kind's defaults, and its name when
+            // it still has the old kind's.
+            if own_page && draft.kind != before && s.connections.read().by_id(&draft.id).is_none() {
+                let fresh = new_kind_draft(&draft.kind);
+                if draft.name == new_kind_draft(&before).name {
+                    draft.name = fresh.name;
+                }
+                *fields_text = toml::to_string_pretty(&fresh.fields).unwrap_or_default();
+                draft.fields = fresh.fields;
+            }
             ui.end_row();
             form::label(ui, &s.t("conn-folder"));
             form::text_field(ui, &mut draft.folder, &s.t("conn-folder-hint"));
@@ -5757,7 +5764,12 @@ fn terminal(
                     ui.label(egui::RichText::new(s.t("settings-terminal-cli-edit")).strong());
                     form::field_grid(ui, "cli-editor", |ui| {
                         form::label(ui, &s.t("settings-terminal-cli-name"));
-                        form::text_field(ui, &mut draft.name, &s.t("settings-terminal-cli-name"));
+                        let name = form::text_field(
+                            ui,
+                            &mut draft.name,
+                            &s.t("settings-terminal-cli-name"),
+                        );
+                        take_focus(&mut state.focus_form, &name);
                         ui.end_row();
                         form::label(ui, &s.t("settings-terminal-cli-command"));
                         form::text_field(ui, &mut draft.command, "mysql");
@@ -5952,6 +5964,7 @@ fn project_list(
         ui.vertical(|ui| {
             ui.set_min_width(320.0);
             ui.set_width(list_w);
+            take_named_focus(ui, state, FocusSection::ProjectList);
             form::section(ui, theme, &s.t("settings-section-project-list"), |ui| {
                 // Add leads the card, as New Connection leads the connections
                 // list, and opens an empty form in the detail column rather than
@@ -5970,7 +5983,7 @@ fn project_list(
                 }
                 ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-project-list-hint"));
-                let rows: Vec<(String, String, String, &'static str)> = s
+                let rows: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
                     .projects
                     .read()
                     .all()
@@ -5980,7 +5993,7 @@ fn project_list(
                             p.id.clone(),
                             p.label(),
                             p.root.display().to_string(),
-                            hs_ui::icons::language_icon(&p.language),
+                            hs_ui::icons::language_conn_icon(&p.language),
                         )
                     })
                     .collect();
@@ -5992,7 +6005,9 @@ fn project_list(
                 for (i, (id, name, root, icon)) in rows.iter().enumerate() {
                     let selected = state.project_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(ui, theme, selected, icon, name, Some(root)).clicked() {
+                        if form::conn_list_row(ui, theme, selected, *icon, name, Some(root))
+                            .clicked()
+                        {
                             pick = Some(id.clone());
                         }
                     });
@@ -6540,6 +6555,7 @@ fn credential_list(
         ui.vertical(|ui| {
             ui.set_min_width(320.0);
             ui.set_width(list_w);
+            take_named_focus(ui, state, FocusSection::GitCredentials);
             form::section(ui, theme, &s.t("settings-section-git-credentials"), |ui| {
                 if form::primary_button(
                     ui,
@@ -6826,6 +6842,7 @@ fn repo_list(
         ui.vertical(|ui| {
             ui.set_min_width(320.0);
             ui.set_width(list_w);
+            take_named_focus(ui, state, FocusSection::GitRepos);
             form::section(ui, theme, &s.t("settings-section-git-repos"), |ui| {
                 if form::primary_button(
                     ui,

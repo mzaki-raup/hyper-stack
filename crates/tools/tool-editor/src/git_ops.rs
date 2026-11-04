@@ -824,6 +824,10 @@ fn push_options(upstream: Option<(String, String)>) -> write::PushOptions {
 
 /// The commit box and the operation buttons, under a repository's header.
 /// Returns what was asked for; the caller runs it (or asks first).
+/// The air between Source Control's parts: the toolbar row, the message,
+/// the Prefix button and the Commit row (CR-0035).
+const SECTION_GAP: f32 = 6.0;
+
 pub(crate) fn box_ui(
     ops: &mut Ops,
     ui: &mut egui::Ui,
@@ -938,6 +942,7 @@ pub(crate) fn box_ui(
     tag_panel(ops, ui, s, theme, &mut out);
     // The commit box.
     let staged = status.files.iter().filter(|f| f.staged()).count();
+    ui.add_space(SECTION_GAP);
     ui.add_enabled_ui(enabled, |ui| {
         let r = ui.add(
             egui::TextEdit::multiline(&mut ops.message)
@@ -956,6 +961,7 @@ pub(crate) fn box_ui(
         // A prefix picker for Conventional Commits, next to the message.
         // Selecting an entry prepends `type:` when the message does not
         // already begin with one (docs/tools/git.md §8).
+        ui.add_space(SECTION_GAP);
         ui.horizontal(|ui| {
             let mr = ui.menu_button(
                 egui::RichText::new(format!("{} {}", ph::TAG, s.t("git-prefix"))).small(),
@@ -983,6 +989,7 @@ pub(crate) fn box_ui(
             );
             mr.response.tip(s.t("git-prefix-tip"));
         });
+        ui.add_space(SECTION_GAP);
         ui.horizontal(|ui| {
             let can = staged > 0 && !ops.message.trim().is_empty();
             if ui
@@ -1000,6 +1007,7 @@ pub(crate) fn box_ui(
             }
             ui.checkbox(&mut ops.amend, s.t("git-amend"));
         });
+        ui.add_space(SECTION_GAP);
         if staged == 0 && !status.files.is_empty() {
             ui.label(
                 egui::RichText::new(s.t("git-nothing-staged"))

@@ -260,6 +260,43 @@ pub fn item_button_image(
     subtitle: &str,
     width: f32,
 ) -> egui::Response {
+    item_button_art(ui, theme, image, icon, None, title, subtitle, width)
+}
+
+/// A tile led by a product's icon: its logo, or its glyph in the
+/// product's colour (CR-0036).
+pub fn item_button_icon(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: crate::icons::ConnIcon,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
+    item_button_art(
+        ui,
+        theme,
+        icon.image,
+        icon.glyph,
+        icon.fixed_colour(theme),
+        title,
+        subtitle,
+        width,
+    )
+}
+
+/// [`item_button_image`] with the glyph in a colour of its own.
+#[allow(clippy::too_many_arguments)] // one tile's parts, all of them needed
+fn item_button_art(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    image: Option<&str>,
+    icon: &str,
+    tint: Option<egui::Color32>,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
     const HEIGHT: f32 = 50.0;
     const PAD: f32 = 12.0;
     const ICON: f32 = 18.0;
@@ -296,10 +333,10 @@ pub fn item_button_image(
             egui::Align2::LEFT_CENTER,
             icon,
             egui::FontId::proportional(ICON),
-            if hovered {
-                theme.accent
-            } else {
-                theme.text_muted
+            match tint {
+                Some(c) => c,
+                None if hovered => theme.accent,
+                None => theme.text_muted,
             },
         );
         x += ICON + 8.0;
@@ -401,11 +438,16 @@ pub fn actions(ui: &mut egui::Ui, theme: &Theme, labels: &[String]) -> Option<us
     ui.horizontal_wrapped(|ui| {
         ui.add_space(HEAD_MARGIN);
         for (i, label) in labels.iter().enumerate() {
-            let mut b = egui::Button::new(egui::RichText::new(label).size(14.0))
-                .min_size(egui::vec2(MIN, 32.0));
-            if i == 0 {
-                b = b.fill(theme.accent);
+            let text = egui::RichText::new(label).size(14.0);
+            // The primary button's icon and label are white on the accent,
+            // as `form::primary_button`'s are: the theme's text colour is
+            // dark on the light theme and sank into the fill (CR-0045).
+            let b = if i == 0 {
+                egui::Button::new(text.color(egui::Color32::WHITE)).fill(theme.accent)
+            } else {
+                egui::Button::new(text)
             }
+            .min_size(egui::vec2(MIN, 32.0));
             if ui.add(b).clicked() {
                 hit = Some(i);
             }
@@ -424,6 +466,8 @@ pub struct Entry {
     pub icon: String,
     /// An image URI drawn in place of the glyph, when the thing has one.
     pub image: Option<String>,
+    /// The glyph's colour, when it is a product's (CR-0036).
+    pub tint: Option<egui::Color32>,
 }
 
 /// The words a [`saved_dashboard`] needs. Nothing here reaches for
@@ -500,11 +544,12 @@ pub fn saved_dashboard(
                 page.empty,
                 |ui, i, w| {
                     let e = &entries[i];
-                    if item_button_image(
+                    if item_button_art(
                         ui,
                         theme,
                         e.image.as_deref(),
                         &e.icon,
+                        e.tint,
                         &e.name,
                         &e.detail,
                         w,

@@ -108,27 +108,76 @@ fn an_add_jump_focuses_the_empty_form() {
     );
 }
 
+/// Add on Containers, Queue, Automation or Tracker lands on an empty
+/// form of the page's first kind with the Name field focused, not on the
+/// kind buttons with no form open (CR-0044, replacing FEAT-0093's landing).
 #[test]
-fn a_page_whose_form_waits_for_a_kind_takes_the_focus_on_its_list() {
+fn an_add_on_a_kind_page_opens_a_focused_form_of_its_first_kind() {
+    use hs_core::connections as c;
     let dir = tempfile::tempdir().unwrap();
     let boot = boot(dir.path());
-    for page in [
-        Page::Containers,
-        Page::Queue,
-        Page::Automation,
-        Page::Tracker,
+    for (page, kind) in [
+        (Page::Containers, c::CONTAINER_KINDS[0]),
+        (Page::Queue, c::QUEUE_KINDS[0]),
+        (Page::Automation, c::AUTOMATION_KINDS[0]),
+        (Page::Tracker, c::TRACKER_KINDS[0]),
     ] {
-        let state = SettingsState {
+        let mut state = SettingsState {
             page,
             focus_form: true,
             ..Default::default()
         };
+        state.open_kind_draft(kind);
         let mut h = harness(&boot.services, state);
         h.run();
-        assert!(!h.state().state.focus_form, "{page:?} list took the focus");
+        let st = &h.state().state;
+        let (draft, _) = st.conn_draft.as_ref().expect("a form is open");
+        assert_eq!(draft.kind, kind, "{page:?}");
+        assert!(!draft.fields.is_empty(), "{page:?} has the kind's defaults");
+        assert!(!st.focus_form, "{page:?} form took the focus");
         assert!(
-            h.state().state.conn_draft.is_none(),
-            "{page:?} opened no form"
+            h.ctx.memory(|m| m.focused().is_some()),
+            "{page:?} Name has it"
+        );
+    }
+}
+
+/// On Containers, Queue, Automation and Tracker the Kind field lists that
+/// page's kinds only; Connections still offers every kind (CR-0044).
+#[test]
+fn a_kind_page_form_offers_only_its_own_kinds() {
+    use crate::settings_ui::kind_family;
+    use hs_core::connections as c;
+    assert_eq!(kind_family("podman"), (c::CONTAINER_KINDS, true));
+    assert_eq!(kind_family("kafka"), (c::QUEUE_KINDS, true));
+    assert_eq!(kind_family("awx"), (c::AUTOMATION_KINDS, true));
+    assert_eq!(kind_family("confluence"), (c::TRACKER_KINDS, true));
+    assert_eq!(kind_family("db"), (c::KINDS, false));
+    assert_eq!(kind_family("ssh"), (c::KINDS, false));
+}
+
+/// Manage Projects, Manage Repositories and Git Credentials scroll their
+/// section into view and leave no form open (CR-0044).
+#[test]
+fn a_manage_jump_lands_on_its_section() {
+    use crate::settings_ui::FocusSection;
+    let dir = tempfile::tempdir().unwrap();
+    let boot = boot(dir.path());
+    for (page, which) in [
+        (Page::Editor, FocusSection::ProjectList),
+        (Page::Git, FocusSection::GitRepos),
+        (Page::Git, FocusSection::GitCredentials),
+    ] {
+        let state = SettingsState {
+            page,
+            focus_section: Some(which),
+            ..Default::default()
+        };
+        let mut h = harness(&boot.services, state);
+        h.run();
+        assert!(
+            h.state().state.focus_section.is_none(),
+            "{which:?} was taken"
         );
     }
 }

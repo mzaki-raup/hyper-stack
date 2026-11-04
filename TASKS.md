@@ -571,15 +571,15 @@ Change Request : CR-0040
 - **Notes:** Filed 2026-11-03 from the owner's report. Checked in the running app: a note whose tab was closed came back as a pinned tab the moment Pin to Top was chosen on its row. The test needed a `Scratchpad` value, and the tool is only built inside `ToolFactory::create` behind a `Box<dyn Tool>`; the struct literal moved into `Scratchpad::new`, which `create` now calls - no change in what it builds.
 
 ### BUG-0042 · The release check's terminal probe can sink the whole self-test
-- **State:** In-Progress ·
+- **State:** Completed ·
 - **Scope:** `hyperstack::self_test`.
 - [x] Reproduce: release run 494 (v0.115.2) went red in "Verify the published release" - the downloaded exe's `--self-test` printed `ok background job` and nothing more, no `FAILED` line and no summary, so the process ended inside the `pty spawn` check. The same exe passes every check on the desktop, and `scripts/verify-release.ps1 -Tag v0.115.2` verified the release locally.
 - [x] Fix: every check's line is flushed as it is printed, so a log always shows the last check reached; the terminal probe runs inside `catch_unwind`, so a panic in it is a `FAILED` line rather than the end of the run; and it gets a second attempt with a longer wait (10 s, then 30 s), since the runner opens the console straight after a release build, as LocalSystem in session 0.
 - [x] Test: the retry helper passes when a later attempt succeeds, reports every attempt's reason when none does, and turns a panic into a reason
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
+- [x] App: n/a - verified by `--self-test` on the built exe and by the next release's verify step
 - [x] Docs: GOTCHAS · CHANGELOG
-- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; the **App** box stays open until a release run's verify step has run it on the runner.
+- **Notes:** Filed 2026-11-04 at the owner's request after run 494. The built exe's `--self-test` passes through the new path; release run 496 (app v0.116.0) ran it in its verify step on the runner and passed, which closed the **App** box.
 
 ### BUG-0043 · Deleting a connection in Settings leaves its credentials in the vault
 - **State:** Completed ·
@@ -645,43 +645,93 @@ Change Request : CR-0040
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** One menu item in `hs_ui::form::row_menu`, so all nine sidebars got it together; the shell asks (`connection:remove:<id>`) and deletes through `Connections::remove_with_secrets`, which keeps a secret another profile still references and refuses on a locked vault when the profile holds secrets. Tests: `hs_core::connections` (secret deleted, data folder grepped for the value and the id, shared secret kept, locked vault changes nothing) and `hs-ui/tests/row_menu.rs`. Cancel is a dialog answer, checked in the app rather than a test: Cancel on an SSH profile left its file in place. In the app (release build, scratch data folder, vault created): an SSH profile and a Database profile, each with a password, were removed after the dialog; their tabs closed and Settings -> Security -> Credentials listed neither; seeded Containers, NoSQL, Redis, S3, Queue, Automation and Tracker profiles were removed from their own sidebars. Settings' own Delete button still removes only the profile, not its secrets; that is outside this item. CHECKLIST has no row for this batch, and README nothing on sidebar menus.
 
+### CR-0044 · Add and Manage buttons land on the right Settings form or list, and say what they add
+- **State:** Completed ·
+- **Scope:** dashboard and sidebar buttons of Scratchpad, Editor, Terminal, Git, SSH, Containers, NoSQL, Redis, S3, Queue, Automation and Tracker; the Settings jumps.
+- **Depends on:** FEAT-0093
+- [x] Scratchpad dashboard: "New Note" reads "Add Note".
+- [x] Editor dashboard: Manage Projects goes to Settings -> Editor -> Project List and focuses the section.
+- [x] Terminal dashboard: Add CLI goes to Settings -> Terminal -> the new CLI form and focuses it.
+- [x] Git dashboard: Add Repository goes to Settings -> Git -> the new repository form and focuses it.
+- [x] Git dashboard: Manage Repositories goes to Settings -> Git -> Repositories and focuses the section.
+- [x] Git dashboard: Clone From Host goes to Settings -> Git -> the new repository form and focuses it.
+- [x] Git dashboard: Git Credentials goes to Settings -> Git -> Git Credentials and focuses the section.
+- [x] SSH dashboard: "Add Connection" reads "Add SSH Host".
+- [x] SSH sidebar: "Add Host" reads "Add SSH Host".
+- [x] Containers dashboard: Add Container goes to Settings -> Containers -> the new container form and focuses it.
+- [x] NoSQL dashboard: "Add Connection" reads "Add NoSQL".
+- [x] Redis dashboard: "Add Connection" reads "Add Redis".
+- [x] S3 dashboard: "Add Connection" reads "Add S3 Profile".
+- [x] Queue dashboard: Add Broker goes to Settings -> Queue -> the new broker form and focuses it.
+- [x] Queue sidebar: Add Broker goes to Settings -> Queue -> the new broker form and focuses it.
+- [x] Automation sidebar: "Add Server" reads "Add Automation Server".
+- [x] Automation dashboard: "Add Server" reads "Add Automation Server".
+- [x] Automation dashboard: Add Automation Server goes to Settings -> Automation -> the new server form and focuses it.
+- [x] Tracker dashboard: Add Tracker goes to Settings -> Tracker -> the new tracker form and focuses it.
+- [x] Tracker sidebar: Add Tracker goes to Settings -> Tracker -> the new tracker form and focuses it.
+- [x] Settings -> Containers -> Container List: the Docker, Podman, Kubernetes and Windows Container buttons become one Add Container; its form's Kind lists container kinds only.
+- [x] Settings -> Queue -> Brokers: the RabbitMQ, Kafka, Redis Streams, NATS and MQTT buttons become one Add Broker; its form's Kind lists queue kinds only.
+- [x] Settings -> Automation -> Servers: the Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX buttons become one Add Automation Server; its form's Kind lists automation kinds only.
+- [x] Settings -> Tracker -> Trackers: the Jira, Redmine, GitHub Issues, GitLab Issues, Forgejo Issues and Confluence buttons become one Add Tracker; its form's Kind lists tracker kinds only.
+- [x] Test: each kind page's Add opens a focused form of its first kind (and no longer only the kind buttons); each Manage jump lands on its section; a kind page's Kind field offers only its own kinds
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — press each button above and land on the named form or section; read each new label
+- [x] Docs: spec · CHANGELOG · GOTCHAS
+- **Notes:** Filed 2026-11-04 from the owner's list. A kind page holds one form per kind, so "the new broker form" opens the page's first kind (Docker, RabbitMQ, Jenkins, Jira) with Name focused, and the Kind field switches it; this replaces FEAT-0093's landing on the kind buttons, and the Automation sidebar's Add follows the same route. The last four boxes came in a second list the same day; they are also CR-0040's fourth box (v0.7.7), done here because they build on this item's first-kind draft. Switching Kind on a new profile takes the new kind's defaults. In the app (release build, scratch data folder): every relabelled button read as listed; each routed button landed on its form (Name focused) or section; Settings -> Queue showed one Add Broker, its Kind listed only the five queue kinds, and switching to Kafka gave Kafka's defaults and the name New Kafka. The other three pages' Kind lists are covered by the test. CHECKLIST has no row for this batch.
+
 ### BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** The Editor work pane's Source Control tab.
 - **Parent:** CR-0025
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Refresh Status button not working.
-- [ ] Test: a reproducing test: Refresh Status re-runs `git status` and replaces the cached entries
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — edit a file in a git project, press Refresh Status, and watch the list change
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Refresh Status button not working. Not reproduced on app v0.116.0: the button works.
+- [x] Test: n/a - nothing to reproduce; the button already re-runs `git status` and replaces the entries
+- [x] Gate: n/a - no code change
+- [x] App: `--data-dir ./tmp-data` — edit a file in a git project, press Refresh Status, and watch the list change
+- [x] Docs: n/a - no behaviour changed
+- **Notes:** Closed as works on the owner's decision (2026-11-04). The button is the ↻ at the right of the repository header (tooltip "Refresh status"). On v0.116.0, with a subfolder of a repository open as the project, a file created outside that subfolder (which the file watcher does not see) did not appear until one click on it, after which Source Control listed it and the count went from 2 to 3. It gives no sign of working when the watcher has already kept the list current, and it sits against the column's resize edge; a spinner, a toast or a labelled button were offered and declined.
 
 ### CR-0035 · Editor work pane and Source Control tab layout
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** The Editor work pane: folder sidebar, toolbar and Source Control tab.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, FEAT-0084
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Header; Remove Open folder as another project and close this project buttons. Add button with action before "Add File", named "Add Folder", where user can add folder inside the project directory
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar; When resize the sidebar column, make the header title (Project) and buttons (New Folder, New File, Refresh), responsive.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; Remove Open Folder button and Open File button.
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; When the project folder is not a git, do not show the Error "git status: fatal: detected dubious ownership...To add an exception for this directory, call:git config --global --add safe.directory D:/WORKSPACES/DOTNET/flex-taskbar" Show proper error like (Not a Git repository). And disable the "Show this repository History" unless it is a git project folder.
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Fix the header icon (folder icon for folder name, move the branch icon left beside the branch name). 
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Please have a proper top/bottom margin/padding between sections: Toolbars (Fetch, Pull, Push, Stashes, Branches, Tag), Commit Message Text Area, Prefix Button, Commit Group (Commit button, Commit and Push button , Ammend the Last Commit checkbox).
-- [ ] In Editor Activity -> Work Pane; When user open file to edit, make the tab for the file (inner tab), follow the colored material icon (If material Icon enabled in settings) or generic icon on the file list column.  
-- [ ] Test: a non-git folder yields the "Not a Git repository" state with history disabled instead of a raw git error
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — open a non-git folder and a git one; add a folder from the sidebar header; narrow the sidebar and watch the header stay readable
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Header; Remove Open folder as another project and close this project buttons. Add button with action before "Add File", named "Add Folder", where user can add folder inside the project directory
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar; When resize the sidebar column, make the header title (Project) and buttons (New Folder, New File, Refresh), responsive.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; Remove Open Folder button and Open File button.
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; When the project folder is not a git, do not show the Error "git status: fatal: detected dubious ownership...To add an exception for this directory, call:git config --global --add safe.directory D:/WORKSPACES/DOTNET/flex-taskbar" Show proper error like (Not a Git repository). And disable the "Show this repository History" unless it is a git project folder.
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Fix the header icon (folder icon for folder name, move the branch icon left beside the branch name). 
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Please have a proper top/bottom margin/padding between sections: Toolbars (Fetch, Pull, Push, Stashes, Branches, Tag), Commit Message Text Area, Prefix Button, Commit Group (Commit button, Commit and Push button , Ammend the Last Commit checkbox).
+- [x] In Editor Activity -> Work Pane; When user open file to edit, make the tab for the file (inner tab), follow the colored material icon (If material Icon enabled in settings) or generic icon on the file list column.  
+- [x] Test: a non-git folder yields the "Not a Git repository" state with history disabled instead of a raw git error
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — open a non-git folder and a git one; add a folder from the sidebar header; narrow the sidebar and watch the header stay readable
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** The new header button reuses the tree menu's names (New Folder, New File, Refresh), the names box 2 uses, rather than box 1's "Add Folder". Responsive means labelled while the column has room, icons with tooltips when not, and the title truncating last (`column_header_buttons_fit` measures the translated labels). Open Folder and Open File stay palette commands. A folder in no repository already had a row; it now wears the shared header with History disabled. The "dubious ownership" case is mapped by `status_problem` and covered by a unit test; it could not be staged in the app here. In the app (release build, scratch data folder): a non-git project showed one row, "Not a Git repository.", with History disabled; a git one showed the folder icon by its name and the branch icon by "master", with the four sections evenly spaced; New Folder from the header created the folder on disk; at the column's widest the buttons carried labels, at its narrowest icons only and "Pr…"; main.rs's tab wore the Rust icon the file list shows. CHECKLIST has no row for this batch.
 
 ### CR-0036 · Multi-coloured product icons for every connection kind
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** `hs_ui::icons` and every list, tab and header that draws a connection icon.
 - **Parent:** CR-0025
-- [ ] In All Activities -> Every connection icon, use multi-colored icon, same with the actual product icon color. It will reflect to all component that use the icon (Connection lists, tabs, etc)
-- [ ] In Git Activity -> Work Pane Header -> Repostory Title Icon; Use the icon that been save in the Git Repository Settings, same like the repository list icon and the tab icon for the repository. Don't use generic icon.
-- [ ] Test: each connection kind resolves to its product icon, and the same icon is returned for the sidebar, the tab and the work-pane header
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every connection list, tab and header shows the product's own colours in both themes
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> Every connection icon, use multi-colored icon, same with the actual product icon color. It will reflect to all component that use the icon (Connection lists, tabs, etc)
+- [x] In Git Activity -> Work Pane Header -> Repostory Title Icon; Use the icon that been save in the Git Repository Settings, same like the repository list icon and the tab icon for the repository. Don't use generic icon.
+- [x] In Terminal -> Shells and CLI, and SSH -> Hosts: use each item's own logo and colours (shells, CLI tools by command, the host's operating system); macOS takes a rainbow-striped Apple instead of the black one. (Owner, 2026-11-04.)
+- [x] In Editor: projects wear their language's logo in its colours (Java, PHP, Rust, .NET/C#, Python, ...). (Owner, 2026-11-04.)
+- [x] Test: each connection kind resolves to its product icon, and the same icon is returned for the sidebar, the tab and the work-pane header
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — every connection list, tab and header shows the product's own colours in both themes
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Logos are Devicon v2.18.0 (MIT), chosen by the owner, vendored in `assets/icons/devicon/` (README there lists every mapping); `apple-rainbow.svg` is ours, derived from Devicon's Apple; Rust, Lua and Markdown use the Material files already in the repo. Kinds without a logo keep their glyph in the brand colour (owner's choice); black logos (GitHub, Kafka, MySQL, MariaDB) a glyph in the text colour, found by measuring fills and confirmed on screen. Valkey, WebDAV, Nexus and cmd have neither and are unchanged. An SSH tab shows the generic glyph until the host has been connected once, as before: the OS is learnt on connect. In the app (release build, seeded scratch folder, dark and light themes): every sidebar, the Settings lists, dashboard tiles, tabs and header bands; the Editor's file tab followed the file list with Material icons on and off. CHECKLIST has no row for this batch.
+
+### CR-0045 · Start Here's primary button reads on the light theme
+- **State:** Completed ·
+- **Scope:** `hs_ui::dashboard::actions` and the two dashboards that draw their own Start Here button.
+- **Parent:** CR-0025
+- [x] In Light Mode, In All Activities -> Dashboard -> Start Here -> Icon and Label inside button should light color.
+- [x] Test: on the light theme the primary Start Here label is painted white and an ordinary one keeps the text colour (fails on the old code)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — light theme: each dashboard's Start Here button reads white on purple
+- [x] Docs: spec · CHANGELOG
+- **Notes:** Filed 2026-11-04 from the owner's request. White, as `form::primary_button` already used; the Scratchpad's Add Note and the Editor's Add Project Folder draw their own Start Here button and got the same colour. Dialog and Settings buttons filled with the accent were not part of this request. Checked in the app on the light theme: Add Project Folder, Add CLI, Add Repository and Add Note all read white on purple.
 
 ### CR-0031 · Spacing pass: Redis, S3 and Queue work panes
 - **State:** Pending ·

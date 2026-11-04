@@ -120,7 +120,8 @@ the repository the active tab shows is highlighted. Drag to reorder
 (`hs_ui::reorder`, the grip owns the drag). Right-click: **Edit
 Repository Settings** (Settings → Git with the entry in the form) and
 **Remove From List** (asks first; closes the repository's tabs; **never
-deletes the folder**). The `+` in the sidebar header opens Settings →
+deletes the folder**). The work pane's header band wears the same icon as
+the row and the tab: the uploaded picture when there is one (CR-0036). The `+` in the sidebar header opens Settings →
 Git with an empty Add Repository form. A click opens the repository's
 tab, or focuses it if it is open.
 

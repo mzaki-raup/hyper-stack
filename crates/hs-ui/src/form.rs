@@ -507,13 +507,13 @@ pub fn connection_row(
     ui: &mut egui::Ui,
     theme: &Theme,
     selected: bool,
-    icon: &str,
+    icon: crate::icons::ConnIcon,
     name: &str,
     subtitle: Option<&str>,
     pinned: bool,
     labels: RowMenuLabels<'_>,
 ) -> ConnectionRow {
-    let response = list_row(ui, theme, selected, icon, name, subtitle);
+    let response = conn_list_row(ui, theme, selected, icon, name, subtitle);
     let menu = row_menu(&response, pinned, labels);
     ConnectionRow {
         response,
@@ -567,6 +567,26 @@ pub fn row_menu(row: &egui::Response, pinned: bool, labels: RowMenuLabels<'_>) -
         }
     });
     out
+}
+
+/// [`list_row`] led by a connection kind's icon: its product logo, or its
+/// glyph in the product's colour (CR-0036).
+pub fn conn_list_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    icon: crate::icons::ConnIcon,
+    title: &str,
+    subtitle: Option<&str>,
+) -> egui::Response {
+    use crate::icons::ConnTint;
+    let art = match (icon.image, icon.tint) {
+        (Some(uri), _) => RowArt::Uri(uri),
+        (None, ConnTint::Brand(c)) => RowArt::Tinted(icon.glyph, c),
+        (None, ConnTint::Text) => RowArt::Tinted(icon.glyph, theme.text),
+        (None, ConnTint::Default) => RowArt::Glyph(icon.glyph),
+    };
+    list_row_art(ui, theme, selected, art, title, subtitle)
 }
 
 pub fn list_row(
@@ -629,6 +649,8 @@ enum RowArt<'a> {
     Uri(&'a str),
     /// An embedded source, which registers its own bytes when drawn.
     Source(&'a egui::ImageSource<'static>),
+    /// A glyph in a colour of its own, hovered or not: a product's.
+    Tinted(&'a str, egui::Color32),
 }
 
 fn list_row_art(
@@ -697,6 +719,15 @@ fn list_row_art(
                 glyph,
                 egui::FontId::proportional(20.0),
                 icon_col,
+            );
+        }
+        RowArt::Tinted(glyph, colour) => {
+            ui.painter().text(
+                egui::pos2(rect.left() + 12.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                glyph,
+                egui::FontId::proportional(20.0),
+                colour,
             );
         }
     }

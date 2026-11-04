@@ -233,8 +233,9 @@ impl SshTool {
                     id: c.id.clone(),
                     name: c.name.clone(),
                     detail: format!("{}@{}:{}", f.user, f.host, f.port),
-                    icon: hs_ui::icons::profile_icon(c).to_string(),
-                    image: None,
+                    icon: hs_ui::icons::profile_conn_icon(c).glyph.to_string(),
+                    image: hs_ui::icons::profile_conn_icon(c).uri(),
+                    tint: hs_ui::icons::profile_conn_icon(c).fixed_colour(&theme),
                 }
             })
             .collect();
@@ -273,7 +274,7 @@ impl SshTool {
             &[format!(
                 "{} {}",
                 hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
+                s.t("ssh-add-host")
             )],
             &hosts,
         );
@@ -2255,6 +2256,18 @@ impl Tool for SshTool {
         Some(hs_ui::icons::os_icon(&self.os_id))
     }
 
+    /// The OS's logo on the tab, once it is known (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::os_conn_icon(&self.os_id).uri()
+    }
+
+    /// The OS's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::os_conn_icon(&self.os_id).brand()
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
@@ -2358,7 +2371,7 @@ impl Tool for SshTool {
         }
         // The fourth piece is the host's own OS logo, once a connect has
         // found out what it is; until then the generic host glyph.
-        let hosts: Vec<(String, String, String, bool, &'static str)> = s
+        let hosts: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = s
             .connections
             .read()
             .of_kind("ssh")
@@ -2367,7 +2380,7 @@ impl Tool for SshTool {
                 // One table for every list that shows a profile, so this
                 // sidebar and Settings -> Connections cannot disagree
                 // about what a host looks like.
-                let icon = hs_ui::icons::profile_icon(c);
+                let icon = hs_ui::icons::profile_conn_icon(c);
                 (c.id.clone(), c.name.clone(), f.label(), c.pinned, icon)
             })
             .collect();
@@ -2407,7 +2420,7 @@ impl Tool for SshTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -2868,13 +2881,11 @@ impl Tool for SshTool {
         // having to store them twice.
         let (os_name, os_version) = split_os_label(&self.os_label);
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::os_icon(&self.os_id),
-                self.conn_name.clone(),
-            )
-            .fact("OS Name", os_name)
-            .fact("OS Version", os_version)
-            .fact("Session", self.session_label.clone()),
+            hs_ui::icons::os_conn_icon(&self.os_id)
+                .header(self.conn_name.clone())
+                .fact("OS Name", os_name)
+                .fact("OS Version", os_version)
+                .fact("Session", self.session_label.clone()),
         )
     }
 

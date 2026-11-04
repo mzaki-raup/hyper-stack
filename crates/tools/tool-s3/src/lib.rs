@@ -201,8 +201,9 @@ impl S3Tool {
                         } else {
                             format!("{user}@{where_}")
                         },
-                        icon: hs_ui::icons::profile_icon(c).to_string(),
-                        image: None,
+                        icon: hs_ui::icons::profile_conn_icon(c).glyph.to_string(),
+                        image: hs_ui::icons::profile_conn_icon(c).uri(),
+                        tint: hs_ui::icons::profile_conn_icon(c).fixed_colour(&theme),
                     }
                 })
                 .collect()
@@ -242,7 +243,7 @@ impl S3Tool {
             &[format!(
                 "{} {}",
                 hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
+                s.t("s3-add-profile")
             )],
             &saved,
         );
@@ -2298,7 +2299,7 @@ impl Tool for S3Tool {
         }
         // Each kind's own glyph: the cloud for S3, a folder for a WebDAV
         // share, a package for a Nexus repository.
-        let profiles: Vec<(String, String, String, bool, &'static str)> = s
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = s
             .connections
             .read()
             .of_object_kinds()
@@ -2311,7 +2312,7 @@ impl Tool for S3Tool {
                     // defaults showing through, not its own settings.
                     subtitle_for(c),
                     c.pinned,
-                    hs_ui::icons::connection_icon(&c.kind, ""),
+                    hs_ui::icons::conn_icon(&c.kind, ""),
                 )
             })
             .collect();
@@ -2338,7 +2339,7 @@ impl Tool for S3Tool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,

@@ -61,6 +61,11 @@ struct State {
     /// no `Services` (owner's requirement, 2026-10-26).
     #[serde(default)]
     icon: Option<String>,
+    /// The CLI's command, so its tab can wear the product it runs
+    /// (`psql`, `kubectl`), not only the category picked for it
+    /// (CR-0036).
+    #[serde(default)]
+    cli_command: Option<String>,
 }
 
 /// Which container a cluster tab runs its shell in.
@@ -496,7 +501,7 @@ impl TerminalTool {
         // The shells in the order the user put them in, so the grid and
         // the sidebar never disagree about which comes first.
         let saved = s.settings.read().terminal.shell_order.clone();
-        let shells: Vec<(String, String, String, &'static str)> =
+        let shells: Vec<(String, String, String, hs_ui::icons::ConnIcon)> =
             ordered_shells(&self.profiles, &saved)
                 .iter()
                 .map(|p| {
@@ -504,7 +509,7 @@ impl TerminalTool {
                         p.id.clone(),
                         p.name.clone(),
                         p.exe.clone(),
-                        shell_icon(&p.id),
+                        shell_conn_icon(&p.id),
                     )
                 })
                 .collect();
@@ -567,7 +572,9 @@ impl TerminalTool {
                     &s.t("dash-no-shells"),
                     |ui, i, w| {
                         let (id, name, exe, icon) = &shells[i];
-                        if hs_ui::dashboard::item_button(ui, &theme, icon, name, exe, w).clicked() {
+                        if hs_ui::dashboard::item_button_icon(ui, &theme, *icon, name, exe, w)
+                            .clicked()
+                        {
                             open = Some(id.clone());
                         }
                     },
@@ -723,6 +730,29 @@ impl TerminalTool {
     }
 }
 
+impl TerminalTool {
+    /// What this tab is, as a product: `None` on the dashboard, as
+    /// [`Tool::tab_icon`] (CR-0036).
+    fn tab_conn_icon(&self) -> Option<hs_ui::icons::ConnIcon> {
+        if self.home_title.is_some() {
+            return None;
+        }
+        if self.state.cluster.is_some() {
+            return Some(hs_ui::icons::product_icon(
+                "kubernetes",
+                hs_ui::icons::ph::POLYGON,
+            ));
+        }
+        if let Some(key) = &self.state.icon {
+            return Some(hs_ui::icons::cli_conn_icon(
+                self.state.cli_command.as_deref().unwrap_or_default(),
+                cli_icon(key),
+            ));
+        }
+        self.state.profile.as_deref().map(shell_conn_icon)
+    }
+}
+
 impl Tool for TerminalTool {
     fn wants_home_tab(&self) -> bool {
         true
@@ -763,6 +793,17 @@ impl Tool for TerminalTool {
         self.state.profile.as_deref().map(shell_icon)
     }
 
+    /// The product's logo on the tab: the CLI's, the pod's cluster's or
+    /// the shell's (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_conn_icon()?.uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_conn_icon()?.brand()
+    }
+
     /// The shell this tab is running, what version of it is installed,
     /// the profile it was opened from and where the executable lives.
     fn header(&self) -> Option<hs_core::tool::ToolHeader> {
@@ -773,10 +814,10 @@ impl Tool for TerminalTool {
         // the name says where it is and the rest would be about the
         // wrong machine.
         if let Some(c) = &self.state.cluster {
-            return Some(hs_core::tool::ToolHeader::new(
-                hs_ui::icons::ph::POLYGON,
-                c.label(),
-            ));
+            return Some(
+                hs_ui::icons::product_icon("kubernetes", hs_ui::icons::ph::POLYGON)
+                    .header(c.label()),
+            );
         }
         let id = self.state.profile.clone().unwrap_or_default();
         let profile = self.profiles.iter().find(|p| p.id == id);
@@ -784,24 +825,23 @@ impl Tool for TerminalTool {
             .map(|p| p.name.clone())
             .unwrap_or_else(|| self.title().to_string());
         Some(
-            hs_core::tool::ToolHeader::new(
-                self.tab_icon().unwrap_or(hs_ui::icons::ph::TERMINAL),
-                name.clone(),
-            )
-            .fact(
-                "Version",
-                hs_core::versions::cached(&format!("shell:{id}")).unwrap_or_default(),
-            )
-            // The profile is only worth saying when it is not simply
-            // the shell's own name repeated.
-            .fact(
-                "Profile",
-                profile
-                    .map(|p| p.name.clone())
-                    .filter(|p| *p != name)
-                    .unwrap_or_default(),
-            )
-            .plain(profile.map(|p| p.exe.clone()).unwrap_or_default()),
+            self.tab_conn_icon()
+                .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL))
+                .header(name.clone())
+                .fact(
+                    "Version",
+                    hs_core::versions::cached(&format!("shell:{id}")).unwrap_or_default(),
+                )
+                // The profile is only worth saying when it is not simply
+                // the shell's own name repeated.
+                .fact(
+                    "Profile",
+                    profile
+                        .map(|p| p.name.clone())
+                        .filter(|p| *p != name)
+                        .unwrap_or_default(),
+                )
+                .plain(profile.map(|p| p.exe.clone()).unwrap_or_default()),
         )
     }
 
@@ -932,9 +972,9 @@ impl Tool for TerminalTool {
                 let mut reorder = hs_ui::reorder::Reorder::new("terminal-shells");
                 let mut open_id: Option<String> = None;
                 for (i, p) in profiles.iter().enumerate() {
-                    let icon = shell_icon(&p.id);
+                    let icon = shell_conn_icon(&p.id);
                     reorder.row(ui, i, |ui| {
-                        if hs_ui::form::list_row(
+                        if hs_ui::form::conn_list_row(
                             ui,
                             &theme,
                             p.id == current,
@@ -1003,11 +1043,11 @@ impl Tool for TerminalTool {
                     } else {
                         format!("{} - {}", c.command_line(), s.t("terminal-cli-not-found"))
                     };
-                    let row = hs_ui::form::list_row(
+                    let row = hs_ui::form::conn_list_row(
                         ui,
                         &theme,
                         false,
-                        cli_icon(&c.icon),
+                        hs_ui::icons::cli_conn_icon(&c.command, cli_icon(&c.icon)),
                         &c.name,
                         Some(&line),
                     );
@@ -1346,12 +1386,9 @@ impl Tool for TerminalTool {
                 // leaves every other tool's match arms alone.
                 if let Some(cmd) = command.as_deref() {
                     let st = cx.services.settings.read();
-                    self.state.icon = st
-                        .terminal
-                        .cli
-                        .iter()
-                        .find(|c| c.command_line() == cmd)
-                        .map(|c| c.icon.clone());
+                    let cli = st.terminal.cli.iter().find(|c| c.command_line() == cmd);
+                    self.state.icon = cli.map(|c| c.icon.clone());
+                    self.state.cli_command = cli.map(|c| c.command.clone());
                 }
                 self.session = None;
                 self.start(cx.services);
@@ -1427,6 +1464,26 @@ fn cli_icon(key: &str) -> &'static str {
 /// for the cross-platform `pwsh`, the solid logo for the one Windows
 /// ships. Nushell has no logo in Nerd Fonts at all, so it takes the
 /// windowed terminal rather than a borrowed brand.
+/// A shell profile's product (CR-0036): PowerShell's, Git's, bash's,
+/// zsh's or fish's logo; a WSL profile its distribution's; Nushell its
+/// glyph in its green. cmd has no product mark and keeps its glyph.
+fn shell_conn_icon(id: &str) -> hs_ui::icons::ConnIcon {
+    use hs_ui::icons::{ConnIcon, branded, os_conn_icon, product_icon};
+    if let Some(distro) = id.strip_prefix("wsl:") {
+        return os_conn_icon(hs_ssh::os::HostOs::from_name(distro).id());
+    }
+    let glyph = shell_icon(id);
+    match id {
+        "pwsh" | "powershell" => product_icon("powershell", glyph),
+        "git-bash" => product_icon("git", glyph),
+        "bash" => product_icon("bash", glyph),
+        "zsh" => product_icon("zsh", glyph),
+        "fish" => product_icon("fish", glyph),
+        "nu" | "nushell" => branded(glyph, [0x4e, 0x9a, 0x06]),
+        _ => ConnIcon::glyph(glyph),
+    }
+}
+
 fn shell_icon(id: &str) -> &'static str {
     use hs_ui::icons::ph;
     if let Some(distro) = id.strip_prefix("wsl:") {

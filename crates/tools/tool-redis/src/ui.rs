@@ -498,20 +498,18 @@ impl Tool for RedisTool {
             _ => (String::new(), String::new()),
         };
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::connection_icon("redis", ""),
-                self.conn_name.clone(),
-            )
-            .plain(flavour)
-            .fact("Version", version)
-            .fact(
-                if self.session_user.is_empty() {
-                    "Host"
-                } else {
-                    "Session"
-                },
-                self.session_label.clone(),
-            ),
+            hs_ui::icons::conn_icon("redis", "")
+                .header(self.conn_name.clone())
+                .plain(flavour)
+                .fact("Version", version)
+                .fact(
+                    if self.session_user.is_empty() {
+                        "Host"
+                    } else {
+                        "Session"
+                    },
+                    self.session_label.clone(),
+                ),
         )
     }
 
@@ -522,6 +520,18 @@ impl Tool for RedisTool {
             return None;
         }
         Some(hs_ui::icons::connection_icon("redis", ""))
+    }
+
+    /// The product's logo on the tab, where it has one (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon("redis", "").uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon("redis", "").brand()
     }
 
     /// A renamed profile renames its tab. The name is the only thing
@@ -676,7 +686,7 @@ impl Tool for RedisTool {
             });
         }
         // The kind's own mark, from the table every list shares.
-        let profiles: Vec<(String, String, String, bool, &'static str)> = {
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = {
             let conns = s.connections.read();
             conns
                 .of_redis_kinds()
@@ -686,7 +696,7 @@ impl Tool for RedisTool {
                         c.name.clone(),
                         RedisFields::from_table(&c.fields).label_for(&c.kind),
                         c.pinned,
-                        hs_ui::icons::connection_icon(&c.kind, ""),
+                        hs_ui::icons::conn_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -714,7 +724,7 @@ impl Tool for RedisTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -860,8 +870,9 @@ impl RedisTool {
                         id: c.id.clone(),
                         name: c.name.clone(),
                         detail: format!("{}:{} / {}", f.host, f.port, f.db),
-                        icon: hs_ui::icons::profile_icon(c).to_string(),
-                        image: None,
+                        icon: hs_ui::icons::profile_conn_icon(c).glyph.to_string(),
+                        image: hs_ui::icons::profile_conn_icon(c).uri(),
+                        tint: hs_ui::icons::profile_conn_icon(c).fixed_colour(&theme),
                     }
                 })
                 .collect()
@@ -898,11 +909,7 @@ impl RedisTool {
                     label: &s.t("dash-open-tabs"),
                 },
             ],
-            &[format!(
-                "{} {}",
-                hs_ui::icons::ph::PLUS,
-                s.t("dash-add-connection")
-            )],
+            &[format!("{} {}", hs_ui::icons::ph::PLUS, s.t("redis-add"))],
             &saved,
         );
         match pick {

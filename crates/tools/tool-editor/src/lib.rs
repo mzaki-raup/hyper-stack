@@ -1795,6 +1795,11 @@ impl EditorTool {
             title: String,
             dirty: bool,
             tooltip: String,
+            /// The file list's icon for this file: the Material picture
+            /// when those icons are on, the generic glyph when not
+            /// (CR-0035).
+            glyph: String,
+            image: Option<egui::ImageSource<'static>>,
         }
         impl hs_ui::tabs::TabItem for FileTab {
             fn id(&self) -> u64 {
@@ -1804,7 +1809,10 @@ impl EditorTool {
                 self.title.clone()
             }
             fn icon(&self) -> &str {
-                ph::FILE_TEXT
+                &self.glyph
+            }
+            fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+                self.image.clone()
             }
             fn pinned(&self) -> bool {
                 false
@@ -1832,8 +1840,14 @@ impl EditorTool {
                 } else {
                     s.t("editor-untitled")
                 };
+                let (glyph, image) = match fileicons::file_icon(self.material, &title, ph::FILE) {
+                    hs_ui::tree::TreeIcon::Image(src) => (ph::FILE.to_string(), Some(src)),
+                    hs_ui::tree::TreeIcon::Glyph(g) => (g, None),
+                };
                 FileTab {
                     id: d.uid,
+                    glyph,
+                    image,
                     tooltip: d
                         .path
                         .as_ref()
@@ -2732,7 +2746,7 @@ impl EditorTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
-        let projects: Vec<(String, String, String, &'static str)> = s
+        let projects: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
             .projects
             .read()
             .all()
@@ -2742,7 +2756,7 @@ impl EditorTool {
                     p.id.clone(),
                     p.label(),
                     p.root.display().to_string(),
-                    hs_ui::icons::language_icon(&p.language),
+                    hs_ui::icons::language_conn_icon(&p.language),
                 )
             })
             .collect();
@@ -2800,7 +2814,8 @@ impl EditorTool {
                                     ph::FOLDER_PLUS,
                                     s.t("editor-add-project")
                                 ))
-                                .size(14.0),
+                                .size(14.0)
+                                .color(egui::Color32::WHITE),
                             )
                             .min_size(egui::vec2(200.0, 32.0))
                             .fill(theme.accent),
@@ -2850,8 +2865,8 @@ impl EditorTool {
                             .spacing([spacing, spacing])
                             .show(ui, |ui| {
                                 for (i, (id, name, path, icon)) in projects.iter().enumerate() {
-                                    if hs_ui::dashboard::item_button(
-                                        ui, &theme, icon, name, path, CELL,
+                                    if hs_ui::dashboard::item_button_icon(
+                                        ui, &theme, *icon, name, path, CELL,
                                     )
                                     .clicked()
                                     {
@@ -2873,7 +2888,7 @@ impl EditorTool {
             });
         if manage {
             cx.actions.push(hs_core::tool::Action::RunCommand {
-                id: "settings:editor".into(),
+                id: "settings:editor:projects".into(),
             });
         }
         if let Some(id) = open {
@@ -3021,76 +3036,81 @@ impl EditorTool {
             return true;
         }
         let has_folder = !self.nodes.is_empty();
+        // New Folder, New File and Refresh, labelled while the column is
+        // wide enough and icons only when it is not; the title takes what
+        // is left and truncates rather than running under the buttons
+        // (CR-0035). Closing a project and opening another folder are the
+        // project list's and the palette's, not this header's.
+        let actions = [
+            (ph::FOLDER_PLUS, s.t("editor-new-folder")),
+            (ph::FILE_PLUS, s.t("editor-new-file")),
+            (ph::ARROW_CLOCKWISE, s.t("editor-refresh")),
+        ];
+        let mut clicked: Option<usize> = None;
         hs_ui::form::header_bar(ui, &theme, |ui| {
-            ui.label(
-                egui::RichText::new(s.t("editor-project"))
-                    .strong()
-                    .size(15.0),
-            );
+            let title = s.t("editor-project");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if has_folder {
-                    if self.projects[self.active].root.is_some()
-                        && ui
-                            .add(|ui: &mut egui::Ui| {
-                                hs_ui::form::icon_button(ui, &theme, ph::X, 16.0, false)
+                    let labelled = column_header_buttons_fit(ui, &title, &actions);
+                    // Right to left: Refresh is drawn first and ends up last.
+                    for (i, (icon, label)) in actions.iter().enumerate().rev() {
+                        let r = if labelled {
+                            hs_ui::toolbar::btn(ui, &theme, icon, label)
+                        } else {
+                            ui.add(|ui: &mut egui::Ui| {
+                                hs_ui::form::icon_button(ui, &theme, icon, 16.0, false)
                             })
-                            .tip(s.t("editor-close-project-tip"))
-                            .clicked()
-                    {
-                        self.request_close(CloseTarget::Project(self.active), s);
-                    }
-                    if ui
-                        .add(|ui: &mut egui::Ui| {
-                            hs_ui::form::icon_button(ui, &theme, ph::ARROW_CLOCKWISE, 16.0, false)
-                        })
-                        .tip(s.t("editor-refresh"))
-                        .clicked()
-                    {
-                        self.refresh_tree();
-                    }
-                    let root = self.projects[self.active]
-                        .root
-                        .clone()
-                        .or_else(|| self.projects.iter().find_map(|p| p.root.clone()));
-                    if ui
-                        .add(|ui: &mut egui::Ui| {
-                            hs_ui::form::icon_button(ui, &theme, ph::FILE_PLUS, 16.0, false)
-                        })
-                        .tip(s.t("editor-new-file"))
-                        .clicked()
-                        && let Some(root) = root
-                    {
-                        let dir = self
-                            .tree
-                            .selected
-                            .as_ref()
-                            .map(PathBuf::from)
-                            .map(|p| {
-                                if p.is_dir() {
-                                    p
-                                } else {
-                                    p.parent().map(Path::to_path_buf).unwrap_or(root.clone())
-                                }
-                            })
-                            .unwrap_or(root);
-                        self.prompt = Some(Prompt {
-                            kind: PromptKind::NewFile(dir),
-                            text: String::new(),
-                            focus: true,
-                        });
+                            .tip(label)
+                        };
+                        if r.clicked() {
+                            clicked = Some(i);
+                        }
                     }
                 }
-                if ui
-                    .add(|ui: &mut egui::Ui| {
-                        hs_ui::form::icon_button(ui, &theme, ph::FOLDER_PLUS, 16.0, false)
-                    })
-                    .tip(s.t("editor-open-folder-tip"))
-                    .clicked()
-                {
-                    self.open_folder_dialog(cx);
-                }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(title).strong().size(15.0)).truncate(),
+                    );
+                });
             });
         });
+        match clicked {
+            Some(2) => self.refresh_tree(),
+            Some(i) => {
+                let root = self.projects[self.active]
+                    .root
+                    .clone()
+                    .or_else(|| self.projects.iter().find_map(|p| p.root.clone()));
+                if let Some(root) = root {
+                    // Inside the selected folder, or beside the selected
+                    // file, or at the project's root.
+                    let dir = self
+                        .tree
+                        .selected
+                        .as_ref()
+                        .map(PathBuf::from)
+                        .map(|p| {
+                            if p.is_dir() {
+                                p
+                            } else {
+                                p.parent().map(Path::to_path_buf).unwrap_or(root.clone())
+                            }
+                        })
+                        .unwrap_or(root);
+                    let kind = if i == 0 {
+                        PromptKind::NewFolder(dir)
+                    } else {
+                        PromptKind::NewFile(dir)
+                    };
+                    self.prompt = Some(Prompt {
+                        kind,
+                        text: String::new(),
+                        focus: true,
+                    });
+                }
+            }
+            None => {}
+        }
         ui.add_space(4.0);
         if !has_folder {
             ui.label(egui::RichText::new(s.t("editor-no-folder")).weak());
@@ -3173,7 +3193,8 @@ impl Tool for EditorTool {
             _ => String::new(),
         };
         Some(
-            hs_core::tool::ToolHeader::new(hs_ui::icons::language_icon(&self.proj_lang), name)
+            hs_ui::icons::language_conn_icon(&self.proj_lang)
+                .header(name)
                 .fact("Language", language)
                 .fact("Version", version)
                 // Where the project actually lives, last in the band
@@ -3199,6 +3220,14 @@ impl Tool for EditorTool {
             return None;
         }
         Some(hs_ui::icons::language_icon(&self.proj_lang))
+    }
+
+    /// The language's logo on a project tab (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        if self.is_home || self.proj_lang.is_empty() {
+            return None;
+        }
+        hs_ui::icons::language_conn_icon(&self.proj_lang).uri()
     }
 
     /// The dashboard is the workspace's front page, so it wears the
@@ -3278,15 +3307,6 @@ impl Tool for EditorTool {
             // nothing more: the flag is the state.
         }
         ui.separator();
-        if hs_ui::toolbar::btn(ui, &theme, ph::FOLDER_OPEN, &s.t("editor-open-folder"))
-            .tip(s.t("editor-open-folder-tip"))
-            .clicked()
-        {
-            self.open_folder_dialog(cx);
-        }
-        if hs_ui::toolbar::btn(ui, &theme, ph::FILE, &s.t("editor-open-file")).clicked() {
-            self.open_file_dialog(cx);
-        }
         let read_only = self.doc().view.read_only;
         ui.add_enabled_ui(!read_only, |ui| {
             if hs_ui::toolbar::btn(ui, &theme, ph::FLOPPY_DISK, &s.t("editor-save")).clicked() {
@@ -3412,7 +3432,7 @@ impl Tool for EditorTool {
         // (id, name, path, icon, is open here) - read once, because the
         // store is behind a lock and this runs every frame.
         let open_root = self.root().map(hs_core::projects::normalise);
-        let rows: Vec<(String, String, String, &'static str, bool)> = s
+        let rows: Vec<(String, String, String, hs_ui::icons::ConnIcon, bool)> = s
             .projects
             .read()
             .all()
@@ -3424,7 +3444,7 @@ impl Tool for EditorTool {
                     p.id.clone(),
                     p.label(),
                     p.root.display().to_string(),
-                    hs_ui::icons::language_icon(&p.language),
+                    hs_ui::icons::language_conn_icon(&p.language),
                     mine,
                 )
             })
@@ -3443,7 +3463,8 @@ impl Tool for EditorTool {
             .show(ui, |ui| {
                 for (i, (id, name, path, icon, mine)) in rows.iter().enumerate() {
                     reorder.row(ui, i, |ui| {
-                        let row = hs_ui::form::list_row(ui, &theme, *mine, icon, name, Some(path));
+                        let row =
+                            hs_ui::form::conn_list_row(ui, &theme, *mine, *icon, name, Some(path));
                         if row.clicked() {
                             open = Some(id.clone());
                         }
@@ -4411,6 +4432,31 @@ fn retheme_nodes(nodes: &mut [TreeNode], material: bool) {
             retheme_nodes(kids, material);
         }
     }
+}
+
+/// Whether the folder column's header has room for its buttons with their
+/// labels as well as the title (CR-0035). Measured, not guessed: the
+/// labels are translated text.
+fn column_header_buttons_fit(ui: &egui::Ui, title: &str, actions: &[(&str, String)]) -> bool {
+    let width = |text: &str, size: f32| {
+        ui.fonts_mut(|f| {
+            f.layout_no_wrap(
+                text.to_string(),
+                egui::FontId::proportional(size),
+                egui::Color32::WHITE,
+            )
+            .size()
+            .x
+        })
+    };
+    let pad = ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x;
+    let buttons: f32 = actions
+        .iter()
+        .map(|(icon, label)| width(&format!("{icon} {label}"), 14.0) + pad + 6.0)
+        .sum();
+    // The title keeps at least a few characters beside them.
+    let title_room = width(title, 15.0).min(80.0);
+    buttons + title_room <= ui.available_width()
 }
 
 fn load_children(dir: &Path, material: bool) -> Vec<TreeNode> {

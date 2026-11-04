@@ -166,10 +166,6 @@ impl Repo {
         let t = Instant::now() + delay;
         self.due = Some(self.due.map_or(t, |d| d.min(t)));
     }
-
-    fn name(&self) -> String {
-        name_of(&self.root)
-    }
 }
 
 /// Where a change shown in the diff view lives, so the arrow keys can step
@@ -965,10 +961,9 @@ impl Git {
                             }
                         }
                         if let Some(e) = &r.error {
-                            let text = if e.contains("not installed") {
-                                s.t("git-not-installed")
-                            } else {
-                                e.clone()
+                            let text = match status_problem(e) {
+                                Some(key) => s.t(key),
+                                None => e.clone(),
                             };
                             ui.label(egui::RichText::new(text).color(theme.error).small());
                         }
@@ -1151,19 +1146,28 @@ impl Git {
                     });
                     ui.add_space(8.0);
                 }
-                let outside: Vec<&String> = projects
+                let outside: Vec<&PathBuf> = projects
                     .iter()
                     .filter(|(root, _)| {
                         self.project_repos
                             .iter()
                             .any(|(p, r)| p == root && r.is_none())
                     })
-                    .map(|(_, name)| name)
+                    .map(|(root, _)| root)
                     .collect();
-                for name in outside {
-                    ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new(ph::FOLDER_SIMPLE).color(theme.text_muted));
-                        ui.label(egui::RichText::new(name).strong());
+                // The same header as a repository's, with History there
+                // but disabled, so the folder reads as one without a
+                // repository rather than as something missing (CR-0035).
+                for root in outside {
+                    ui.push_id(root, |ui| {
+                        folder_header(
+                            ui,
+                            theme,
+                            root,
+                            Some(&mut |ui: &mut egui::Ui| {
+                                history_button(ui, s, theme, false);
+                            }),
+                        );
                     });
                     ui.label(egui::RichText::new(s.t("git-not-repo")).weak());
                     ui.add_space(8.0);
@@ -1614,11 +1618,11 @@ fn repo_header(
     history: &mut Option<PathBuf>,
     refresh: &mut bool,
 ) {
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(ph::GIT_BRANCH).color(theme.accent));
-        ui.label(egui::RichText::new(r.name()).strong())
-            .tip(r.root.display().to_string());
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    folder_header(
+        ui,
+        theme,
+        &r.root,
+        Some(&mut |ui: &mut egui::Ui| {
             if ui
                 .add(|ui: &mut egui::Ui| {
                     hs_ui::form::icon_button(ui, theme, ph::ARROW_CLOCKWISE, 15.0, false)
@@ -1628,13 +1632,9 @@ fn repo_header(
             {
                 *refresh = true;
             }
-            if ui
-                .add(|ui: &mut egui::Ui| {
-                    hs_ui::form::icon_button(ui, theme, ph::CLOCK_COUNTER_CLOCKWISE, 15.0, false)
-                })
-                .tip(s.t("git-history-tip"))
-                .clicked()
-            {
+            // A history needs a repository git will read (CR-0035).
+            let readable = r.status.is_some() && r.error.is_none();
+            if history_button(ui, s, theme, readable) {
                 *history = Some(r.root.clone());
             }
             if let Some(st) = &r.status {
@@ -1658,9 +1658,58 @@ fn repo_header(
                 if let Some(t) = tip {
                     l.tip(t);
                 }
+                ui.label(egui::RichText::new(ph::GIT_BRANCH).color(theme.text_muted));
             }
-        });
+        }),
+    );
+}
+
+/// Show This Repository's History, disabled with the reason when there
+/// is no repository git will read (CR-0035). `true` when clicked.
+fn history_button(ui: &mut egui::Ui, s: &Services, theme: &Theme, enabled: bool) -> bool {
+    ui.add_enabled(enabled, |ui: &mut egui::Ui| {
+        hs_ui::form::icon_button(ui, theme, ph::CLOCK_COUNTER_CLOCKWISE, 15.0, false)
+    })
+    .tip(s.t("git-history-tip"))
+    .tip_disabled(s.t("git-history-unavailable"))
+    .clicked()
+}
+
+/// A project folder's row in Source Control: a folder icon and the
+/// folder's name, and `right` - Refresh, History and the branch - laid
+/// out from the right edge (CR-0035).
+fn folder_header(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    root: &Path,
+    right: Option<&mut dyn FnMut(&mut egui::Ui)>,
+) {
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(ph::FOLDER).color(theme.accent));
+        ui.label(egui::RichText::new(name_of(root)).strong())
+            .tip(root.display().to_string());
+        if let Some(right) = right {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+        }
     });
+}
+
+/// The sentence to show instead of git's own words for a status that
+/// failed in a way the reader can act on, as a Fluent key (CR-0035).
+/// A repository git refuses to read because another user owns it
+/// ("detected dubious ownership") is not a repository this app can use,
+/// and git's advice to edit the global config is not ours to give.
+pub(crate) fn status_problem(error: &str) -> Option<&'static str> {
+    let e = error.to_ascii_lowercase();
+    if e.contains("not installed") {
+        Some("git-not-installed")
+    } else if e.contains("dubious ownership") {
+        Some("git-untrusted-repo")
+    } else if e.contains("not a git repository") {
+        Some("git-not-repo")
+    } else {
+        None
+    }
 }
 
 /// Shared lines around a conflict, capped so a huge file stays responsive.
@@ -2461,5 +2510,42 @@ fn commit_list(ui: &mut egui::Ui, s: &Services, theme: &Theme, h: &mut HistoryPa
     }
     if need_more {
         h.load_more(s);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::status_problem;
+
+    /// A folder git will not read shows a sentence, never git's own
+    /// message with its advice to change the global config (CR-0035).
+    #[test]
+    fn a_repository_git_refuses_reads_as_a_plain_sentence() {
+        let dubious = "git status: fatal: detected dubious ownership in repository at \
+                       'D:/WORKSPACES/DOTNET/flex-taskbar'\nTo add an exception for this \
+                       directory, call:\n\n\tgit config --global --add safe.directory \
+                       D:/WORKSPACES/DOTNET/flex-taskbar";
+        assert_eq!(status_problem(dubious), Some("git-untrusted-repo"));
+        assert_eq!(
+            status_problem("fatal: not a git repository (or any of the parent directories): .git"),
+            Some("git-not-repo")
+        );
+        assert_eq!(
+            status_problem("git is not installed"),
+            Some("git-not-installed")
+        );
+        // Anything else is shown as git said it.
+        assert_eq!(status_problem("fatal: index file corrupt"), None);
+    }
+
+    /// A project folder in no repository is listed as one, with no
+    /// repository row (and so no history) behind it (CR-0035).
+    #[test]
+    fn a_folder_outside_any_repository_is_not_a_repo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut g = super::Git::new(false, false);
+        g.sync(&[tmp.path().to_path_buf()]);
+        assert_eq!(g.project_repos, vec![(tmp.path().to_path_buf(), None)]);
+        assert!(g.repos.is_empty());
     }
 }

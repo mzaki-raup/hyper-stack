@@ -54,12 +54,23 @@ pub fn work_header(ui: &mut egui::Ui, theme: &Theme, header: &hs_core::tool::Too
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 ui.add_space(PAD);
-                if !header.icon.is_empty() {
-                    ui.label(
-                        RichText::new(&header.icon)
-                            .size(ICON_SIZE)
-                            .color(theme.accent),
+                if let Some(uri) = &header.icon_uri {
+                    ui.add(
+                        egui::Image::from_uri(uri.clone())
+                            .fit_to_exact_size(egui::Vec2::splat(ICON_SIZE + 2.0)),
                     );
+                    ui.add_space(8.0);
+                } else if !header.icon.is_empty() {
+                    let colour = if header.icon_plain {
+                        theme.text
+                    } else {
+                        header
+                            .icon_hex
+                            .as_deref()
+                            .and_then(crate::theme::parse_hex)
+                            .unwrap_or(theme.accent)
+                    };
+                    ui.label(RichText::new(&header.icon).size(ICON_SIZE).color(colour));
                     ui.add_space(8.0);
                 }
                 ui.label(

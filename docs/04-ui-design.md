@@ -954,6 +954,50 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-04): Start Here's primary button on the light theme (CR-0045)
+
+A dashboard's **Start Here** row fills its first button with the accent;
+its icon and label are **white** on it in both themes, as
+`form::primary_button`'s are. They used to take the theme's text colour,
+which is dark on the light theme and sank into the purple. The Scratchpad's
+Add Note and the Editor's Add Project Folder draw their own Start Here
+button and follow the same rule.
+
+## Addendum (2026-11-04): product logos for connection kinds (CR-0036)
+
+A connection kind wears its **product's multi-coloured logo** everywhere it
+is drawn: the activity sidebars, Settings' lists, the dashboards' saved
+tiles, the tabs and the work-pane header band. One function decides it,
+`hs_ui::icons::conn_icon(kind, engine)` (`profile_conn_icon` for a saved
+profile), returning a `ConnIcon`: the logo's `bytes://product/…` URI, or
+the glyph and how to colour it. The logos are Devicon v2.18.0 (MIT),
+vendored in `assets/icons/devicon/` and registered once by
+`install_image_loaders`; the folder's README lists which kind takes which.
+
+- The same goes for an **SSH host's operating system** (`os_conn_icon`:
+  Ubuntu, Debian, Fedora, Red Hat, CentOS, Arch, openSUSE, Linux, Windows,
+  and macOS as the **rainbow-striped Apple**, not the black one), a
+  **terminal shell** (PowerShell, Git Bash, bash, zsh, fish; a WSL shell its
+  distribution), a **CLI** by the command it runs (`cli_conn_icon`: `psql`,
+  `kubectl`, `az`, `gcloud`, `gh`…, falling back to the category the user
+  picked), and an **Editor project's language** (`language_conn_icon`) in
+  the project list, the tab, the header and the dashboard.
+- A **black logo** (GitHub, Kafka, MySQL, MariaDB) would vanish on the dark
+  theme, so those keep their glyph in the theme's **text** colour; Rust,
+  Lua and Markdown use the file tree's coloured Material icons instead of
+  Devicon's black or navy ones.
+- A product with **no logo** in the set keeps its glyph in the product's
+  colour: S3, Qdrant, MQTT (a lighter step of its purple), Redmine, Alpine,
+  FreeBSD, Nushell.
+- Valkey, WebDAV, Nexus, cmd and the API client keep their glyph as before:
+  no product logo or colour to give them.
+- The shared drawers take it: `form::connection_row` / `conn_list_row`,
+  `dashboard::Entry` (`image`, `tint`), `ToolHeader` (`icon_image`,
+  `icon_hex`, `icon_plain`) and the `Tool::tab_icon_uri` /
+  `tab_icon_colour` hooks.
+- The **Git** activity's work-pane header shows a repository's uploaded
+  icon, as its list row and tab already did.
+
 ## Addendum (2026-11-04): Remove From List on a connection row (FEAT-0094)
 
 Every connection row's context menu (`hs_ui::form::row_menu`, so all
@@ -980,10 +1024,26 @@ keyboard. Owner's requirement, 2026-11-04.
   empty form already set to that kind. The command picks the page from the
   kind (`settings_ui::page_for_kind`), so a container, queue, automation or
   tracker kind lands on its own page.
-- **Containers, Queue, Automation and Tracker** have one form per kind, and
-  the kind is chosen on the page: their Add sends
-  `settings:<page>:new`, which opens the page with no form and scrolls the
-  list section, kind buttons first, into view.
+- **Containers, Queue, Automation and Tracker** have one form per kind:
+  their Add (sidebar and dashboard) sends `settings:<page>:new`, which
+  opens an empty form of the page's **first kind** (Docker, RabbitMQ,
+  Jenkins, Jira) with the kind's defaults and Name focused. This replaced
+  landing on the kind buttons with no form open (CR-0044).
+- Those four pages have **one Add button** above their list — Add
+  Container, Add Broker, Add Automation Server, Add Tracker — in place of
+  a button per kind, as Settings -> Connections has New Connection. The
+  form's **Kind** field lists only that page's kinds (`kind_family`), and
+  switching it on a new profile takes the new kind's defaults, and its
+  "New …" name if the old one was still there (`new_kind_draft`). An
+  existing profile keeps its fields when its kind changes (CR-0044).
+- **Manage** jumps land on a list, not a form: Manage Projects
+  (`settings:editor:projects`), Manage Repositories (`settings:git:repos`)
+  and Git Credentials (`settings:git:credentials`) scroll their section to
+  the top of the view (`SettingsState::focus_section`). Add CLI on the
+  Terminal dashboard opens the CLI form with Name focused (CR-0044).
+- Each Add button names what it adds: Add SSH Host, Add NoSQL, Add Redis,
+  Add S3 Profile, Add Automation Server, Add Note — the dashboards no
+  longer share a generic "Add Connection" (CR-0044).
 - **Editor** (Add Project Folder, and the strip's `+`) opens Settings →
   Editor with an empty project form; **Git** (Add Repository, and the
   strip's `+`) opens Settings → Git with an empty Add Repository form.

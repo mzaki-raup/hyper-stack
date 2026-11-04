@@ -3934,13 +3934,11 @@ impl Tool for DbTool {
             _ => String::new(),
         };
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::connection_icon("db", self.engine.id()),
-                self.conn_name.clone(),
-            )
-            .fact("Database", self.engine.label())
-            .fact("Version", version)
-            .fact("Session", self.session_label.clone()),
+            hs_ui::icons::conn_icon("db", self.engine.id())
+                .header(self.conn_name.clone())
+                .fact("Database", self.engine.label())
+                .fact("Version", version)
+                .fact("Session", self.session_label.clone()),
         )
     }
 
@@ -3965,6 +3963,18 @@ impl Tool for DbTool {
             return None;
         }
         Some(hs_ui::icons::connection_icon("db", self.engine.id()))
+    }
+
+    /// The product's logo on the tab, where it has one (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon("db", self.engine.id()).uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon("db", self.engine.id()).brand()
     }
 
     fn dirty(&self) -> bool {
@@ -4185,13 +4195,13 @@ impl Tool for DbTool {
         }
         // The engine's own mark, so PostgreSQL and MySQL are told apart
         // in the list as well as in the subtitle.
-        let profiles: Vec<(String, String, String, bool, &'static str)> = s
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = s
             .connections
             .read()
             .of_kind("db")
             .map(|c| {
                 let f = DbFields::from_table(&c.fields);
-                let icon = hs_ui::icons::connection_icon("db", &f.engine);
+                let icon = hs_ui::icons::conn_icon("db", &f.engine);
                 (c.id.clone(), c.name.clone(), f.label(), c.pinned, icon)
             })
             .collect();
@@ -4217,7 +4227,7 @@ impl Tool for DbTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -4853,8 +4863,9 @@ impl DbTool {
                         id: c.id.clone(),
                         name: c.name.clone(),
                         detail,
-                        icon: hs_ui::icons::profile_icon(c).to_string(),
-                        image: None,
+                        icon: hs_ui::icons::profile_conn_icon(c).glyph.to_string(),
+                        image: hs_ui::icons::profile_conn_icon(c).uri(),
+                        tint: hs_ui::icons::profile_conn_icon(c).fixed_colour(&theme),
                     }
                 })
                 .collect()

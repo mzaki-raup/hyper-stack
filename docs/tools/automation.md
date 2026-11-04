@@ -224,3 +224,12 @@ from a server. Where the build differs from the text above:
 - Kind icons are the products' own marks from the bundled Nerd Font where
   Phosphor does not shadow them (CR-0024); TeamCity's does not show, so it
   has a gear.
+
+## Addendum (2026-11-05): the spacing pass (CR-0033)
+
+The job list and the job pane breathe by `hs_ui::form::PANE_GAP`: under
+the Jobs title before the filter row (and under the filter row, as every
+`DataTable` now does), between the Runs / Log / Run / Queue row and the
+job's name, under the name, between the runs table and the selected
+run's state line, and in the Log tab between the run's state line and
+the log well.

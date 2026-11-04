@@ -1089,7 +1089,19 @@ fn save_presets(dir: &std::path::Path, presets: &[Preset]) -> Result<(), String>
 /// Where a row's message starts: 8 px of margin, then the line number,
 /// the time and the level columns (62 + 96 + 52). Pinned columns push it
 /// further right and are added on top. Keep in step with `list`.
-const TEXT_COLUMN_X: f32 = 8.0 + 62.0 + 96.0 + 52.0;
+/// The fixed part of the row before the text: the margin, the time and
+/// the level columns; the line-number column comes from
+/// [`line_column_width`] and is added at draw time.
+const TEXT_COLUMN_X: f32 = 8.0 + 96.0 + 52.0;
+
+/// How wide the line-number column needs to be for a file whose last
+/// line is `max_line`: the digits at one monospace glyph each plus a
+/// little air, never narrower than two digits. A fixed 62 px left a
+/// gulf after a three-digit number and cut a seven-digit one (CR-0033).
+pub(crate) fn line_column_width(max_line: u64, glyph: f32) -> f32 {
+    let digits = max_line.max(1).ilog10() + 1;
+    digits.max(2) as f32 * glyph + 14.0
+}
 
 /// A running service's glyph: what kind of host it was found on, since
 /// that is what decides how its log is read.
@@ -3154,82 +3166,119 @@ impl LogsTool {
         let mut changed = false;
         let mut remove: Option<usize> = None;
         egui::Modal::new(egui::Id::new("logs-highlights")).show(ui.ctx(), |ui| {
-            ui.set_width(560.0);
-            ui.label(egui::RichText::new(s.t("logs-highlights")).strong());
+            ui.set_width(760.0);
+            ui.heading(s.t("logs-highlights"));
             form::hint(ui, theme, &s.t("logs-highlights-hint"));
-            ui.add_space(8.0);
+            ui.add_space(form::PANE_GAP);
             if self.state.highlights.is_empty() {
                 form::hint(ui, theme, &s.t("logs-no-highlights"));
             }
+            // One rule per row of a table: a header names each column,
+            // the pattern field takes the width the fixed controls leave,
+            // and every control sits at a field's height so the row reads
+            // as a row (CR-0033).
+            let field_h = form::field_height(ui);
+            let head = |ui: &mut egui::Ui, key: &str| {
+                ui.label(
+                    egui::RichText::new(s.t(key))
+                        .small()
+                        .strong()
+                        .color(theme.text_muted),
+                );
+            };
             egui::ScrollArea::vertical()
                 .id_salt("logs-hl-rows")
-                .max_height(300.0)
+                .max_height(320.0)
                 .auto_shrink([false, true])
                 .show(ui, |ui| {
-                    for (i, h) in self.state.highlights.iter_mut().enumerate() {
-                        ui.horizontal(|ui| {
-                            changed |= ui
-                                .checkbox(&mut h.enabled, "")
-                                .tip(s.t("logs-highlight-enabled"))
-                                .changed();
-                            changed |= ui.color_edit_button_srgb(&mut h.colour).changed();
-                            changed |= ui
-                                .checkbox(&mut h.bold, s.t("logs-highlight-bold"))
-                                .changed();
-                            // A regex, so the field has to be wide; the
-                            // rest of the row is fixed.
-                            changed |= ui
-                                .add(
-                                    egui::TextEdit::singleline(&mut h.pattern)
-                                        .desired_width(200.0)
-                                        .font(egui::TextStyle::Monospace)
-                                        .hint_text(s.t("logs-highlight-pattern")),
-                                )
-                                .changed();
-                            changed |= ui
-                                .checkbox(&mut h.report, s.t("logs-highlight-report"))
-                                .tip(s.t("logs-highlight-report-tip"))
-                                .changed();
-                            changed |= ui
-                                .checkbox(&mut h.alert, s.t("logs-highlight-alert"))
-                                .tip(s.t("logs-highlight-alert-tip"))
-                                .changed();
-                            // Only meaningful for a reporting rule, so
-                            // it is disabled rather than hidden: a
-                            // control that moves is harder to find.
-                            ui.add_enabled_ui(h.report, |ui| {
+                    egui::Grid::new("logs-hl-grid")
+                        .num_columns(8)
+                        .striped(true)
+                        .spacing([form::PANE_GAP, 6.0])
+                        .min_row_height(field_h)
+                        .show(ui, |ui| {
+                            ui.spacing_mut().interact_size.y = field_h;
+                            head(ui, "logs-hl-col-on");
+                            head(ui, "logs-hl-col-colour");
+                            head(ui, "logs-highlight-bold");
+                            head(ui, "logs-hl-col-pattern");
+                            head(ui, "logs-highlight-report");
+                            head(ui, "logs-highlight-alert");
+                            head(ui, "logs-hl-col-cooldown");
+                            ui.label("");
+                            ui.end_row();
+                            for (i, h) in self.state.highlights.iter_mut().enumerate() {
                                 changed |= ui
-                                    .add(
-                                        egui::DragValue::new(&mut h.cooldown_secs)
-                                            .range(0..=3600)
-                                            .suffix("s"),
-                                    )
-                                    .tip(s.t("logs-highlight-cooldown-tip"))
+                                    .checkbox(&mut h.enabled, "")
+                                    .tip(s.t("logs-highlight-enabled"))
                                     .changed();
-                            });
-                            if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
-                                .tip(s.t("logs-highlight-delete"))
-                                .clicked()
-                            {
-                                remove = Some(i);
+                                changed |= ui.color_edit_button_srgb(&mut h.colour).changed();
+                                changed |= ui.checkbox(&mut h.bold, "").changed();
+                                let bad =
+                                    !h.pattern.is_empty() && regex::Regex::new(&h.pattern).is_err();
+                                ui.vertical(|ui| {
+                                    // `add_sized`, not `desired_width`: a
+                                    // grid cell offers only the width its
+                                    // column had last frame, and the field
+                                    // shrank to its text.
+                                    changed |= ui
+                                        .add_sized(
+                                            [300.0, field_h],
+                                            egui::TextEdit::singleline(&mut h.pattern)
+                                                .margin(form::FIELD_MARGIN)
+                                                .font(egui::TextStyle::Monospace)
+                                                .hint_text(s.t("logs-highlight-pattern")),
+                                        )
+                                        .changed();
+                                    // An unparseable regex is dropped by
+                                    // `compile`, which would otherwise look
+                                    // like a rule that simply never matches.
+                                    if bad {
+                                        ui.label(
+                                            egui::RichText::new(s.t("logs-highlight-bad-regex"))
+                                                .small()
+                                                .color(theme.error),
+                                        );
+                                    }
+                                });
+                                changed |= ui
+                                    .checkbox(&mut h.report, "")
+                                    .tip(s.t("logs-highlight-report-tip"))
+                                    .changed();
+                                changed |= ui
+                                    .checkbox(&mut h.alert, "")
+                                    .tip(s.t("logs-highlight-alert-tip"))
+                                    .changed();
+                                // Only meaningful for a reporting rule, so
+                                // it is disabled rather than hidden: a
+                                // control that moves is harder to find.
+                                ui.add_enabled_ui(h.report, |ui| {
+                                    changed |= ui
+                                        .add(
+                                            egui::DragValue::new(&mut h.cooldown_secs)
+                                                .range(0..=3600)
+                                                .suffix("s"),
+                                        )
+                                        .tip(s.t("logs-highlight-cooldown-tip"))
+                                        .changed();
+                                });
+                                if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                                    .tip(s.t("logs-highlight-delete"))
+                                    .clicked()
+                                {
+                                    remove = Some(i);
+                                }
+                                ui.end_row();
                             }
                         });
-                        // An unparseable regex is dropped by `compile`,
-                        // which would otherwise look like a rule that
-                        // simply never matches.
-                        if !h.pattern.is_empty() && regex::Regex::new(&h.pattern).is_err() {
-                            ui.label(
-                                egui::RichText::new(s.t("logs-highlight-bad-regex"))
-                                    .small()
-                                    .color(theme.error),
-                            );
-                        }
-                        ui.add_space(2.0);
-                    }
                 });
-            ui.add_space(8.0);
+            ui.add_space(form::PANE_GAP);
             ui.horizontal(|ui| {
-                if ui.button(s.t("logs-highlight-add")).clicked() {
+                ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+                if ui
+                    .button(format!("{} {}", ph::PLUS, s.t("logs-highlight-add")))
+                    .clicked()
+                {
                     self.state.highlights.push(Highlight::default());
                     changed = true;
                 }
@@ -3951,8 +4000,13 @@ impl LogsTool {
             self.glyph_at = ppp;
         }
         let glyph = self.glyph_w;
-        let longest = self.shared.lock().max_chars;
-        let text_w = TEXT_COLUMN_X + pinned.len() as f32 * 150.0 + longest as f32 * glyph + 24.0;
+        let (longest, last_line) = {
+            let sh = self.shared.lock();
+            (sh.max_chars, sh.records.last().map(|r| r.line).unwrap_or(0))
+        };
+        let line_w = line_column_width(last_line, glyph);
+        let text_w =
+            TEXT_COLUMN_X + line_w + pinned.len() as f32 * 150.0 + longest as f32 * glyph + 24.0;
         let mut area = egui::ScrollArea::both()
             .id_salt("logs-list")
             .auto_shrink([false, false])
@@ -4041,7 +4095,7 @@ impl LogsTool {
                     mono.clone(),
                     theme.text_muted,
                 );
-                x += 62.0;
+                x += line_w;
                 let t = time_text(r, local);
                 p.text(
                     egui::pos2(x, y),
@@ -4199,6 +4253,7 @@ impl LogsTool {
             self.selected = None;
             return;
         };
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(format!(
@@ -4273,6 +4328,7 @@ impl LogsTool {
             });
         });
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         egui::ScrollArea::vertical()
             .id_salt("logs-detail-scroll")
             .auto_shrink([false, false])
@@ -5005,6 +5061,18 @@ impl LogsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The record column follows the widest line number rather than a
+    /// fixed width (CR-0033): two digits at least, one glyph per digit.
+    #[test]
+    fn the_record_column_sizes_to_its_content() {
+        let glyph = 7.0;
+        assert_eq!(line_column_width(0, glyph), 2.0 * glyph + 14.0);
+        assert_eq!(line_column_width(99, glyph), 2.0 * glyph + 14.0);
+        assert_eq!(line_column_width(100, glyph), 3.0 * glyph + 14.0);
+        assert_eq!(line_column_width(1_234_567, glyph), 7.0 * glyph + 14.0);
+        assert!(line_column_width(1_234_567, glyph) > line_column_width(999, glyph));
+    }
 
     /// The tally the thread-dump summary bar shows. BLOCKED leads
     /// however few there are: three blocked threads out of four hundred

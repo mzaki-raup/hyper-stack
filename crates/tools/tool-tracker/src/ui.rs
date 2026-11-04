@@ -1349,7 +1349,9 @@ impl TrackerTool {
         if self.is_pages() {
             self.pages_mode(ui, s);
         }
+        ui.add_space(form::PANE_GAP);
         self.query_bar(ui, s, cx);
+        ui.add_space(form::PANE_GAP);
         let (found, error, busy) = {
             let sh = self.shared.lock();
             (sh.found.clone(), sh.found_error.clone(), sh.busy)
@@ -1378,6 +1380,7 @@ impl TrackerTool {
                 ui.weak(s.t(b));
             }
         });
+        ui.add_space(form::PANE_GAP);
         if let Some(e) = &error {
             form::note(ui, theme, ph::WARNING, &hs_core::fmt::sentence(e));
         }
@@ -1636,7 +1639,12 @@ impl TrackerTool {
                 ui.label(egui::RichText::new(format!("{} {l}", ph::TAG)).color(theme.accent));
             }
         });
-        ui.add_space(4.0);
+        // The pane is ruled into its sections - header, fields,
+        // description, comments, the comment form - with air on both
+        // sides of every rule (CR-0033).
+        ui.add_space(form::PANE_GAP);
+        ui.separator();
+        ui.add_space(form::PANE_GAP);
         let read_only = self.read_only();
         let can_comment = self.shared.lock().caps.comment;
         egui::ScrollArea::vertical()
@@ -1661,7 +1669,9 @@ impl TrackerTool {
                         "tracker-fields",
                         named.iter().map(|(k, v)| (k.as_str(), v.as_str())),
                     );
-                    ui.add_space(6.0);
+                    ui.add_space(form::PANE_GAP);
+                    ui.separator();
+                    ui.add_space(form::PANE_GAP);
                 }
                 if let Some(l) = &d.lossy {
                     form::hint(ui, theme, &s.i18n.t_args("tracker-lossy", &[("what", l)]));
@@ -1698,7 +1708,9 @@ impl TrackerTool {
                         self.select(k);
                     }
                 }
-                ui.add_space(10.0);
+                ui.add_space(form::PANE_GAP);
+                ui.separator();
+                ui.add_space(form::PANE_GAP);
                 ui.strong(
                     s.i18n
                         .t_args("tracker-comments", &[("n", &d.comments.len().to_string())]),
@@ -1722,7 +1734,9 @@ impl TrackerTool {
                         });
                 }
                 if can_comment {
-                    ui.add_space(8.0);
+                    ui.add_space(form::PANE_GAP);
+                    ui.separator();
+                    ui.add_space(form::PANE_GAP);
                     self.comment_box(ui, theme, cx, &key, read_only);
                 }
             });
@@ -1904,6 +1918,7 @@ impl TrackerTool {
                     ui.end_row();
                 }
             });
+            ui.add_space(form::PANE_GAP);
             ui.label(s.t("tracker-f-description"));
             ui.add(
                 egui::TextEdit::multiline(&mut draft.now.description)
@@ -2013,6 +2028,7 @@ impl TrackerTool {
                 ui.end_row();
             }
         });
+        ui.add_space(form::PANE_GAP);
         ui.label(s.t("tracker-f-description"));
         ui.add(
             egui::TextEdit::multiline(&mut item.description)

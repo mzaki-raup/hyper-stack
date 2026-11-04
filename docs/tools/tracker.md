@@ -201,3 +201,13 @@ build differs from the text above:
 - Kind icons are the products' own marks from the bundled Nerd Font where
   Phosphor does not shadow them (CR-0024); Redmine has no mark and takes a
   bug.
+
+## Addendum (2026-11-05): the spacing pass (CR-0033)
+
+The item list breathes by `hs_ui::form::PANE_GAP`: under the header rule
+before the query row, between the query row and the item count, between
+the count and the filter row, and under the filter row. The item pane is
+ruled into its sections - the key and summary header with its chips, the
+field table, the description, the comments, the comment form - with a
+rule and the gap between each. The Edit and New Item forms keep the gap
+between their field grid and the description editor.

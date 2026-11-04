@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Add on Containers, Queue, Automation and Tracker opens a focused empty form of the page's first kind; Manage Projects, Manage Repositories and Git Credentials land on their list in Settings; Add CLI focuses its form; Add buttons name what they add (Add SSH Host, Add NoSQL, Add Redis, Add S3 Profile, Add Automation Server, Add Note)
 - Settings -> Containers, Queue, Automation and Tracker have one Add button each in place of a button per kind, and the form's Kind field lists only that page's kinds
+- Editor: the folder column's header has New Folder, New File and Refresh, labelled when there is room; the toolbar drops Open Folder and Open File (both stay in the palette); file tabs wear the file list's icon; Source Control shows a folder icon by the name and the branch icon by the branch, says "Not a Git repository" (or that Git does not trust the folder) instead of git's raw error, disables History there, and spaces its sections evenly
 
 ## 0.116.0 — 2026-11-03
 

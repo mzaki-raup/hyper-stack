@@ -629,3 +629,19 @@ root, language, order and the repository identity).
   had no dashboard at all - one file in, and it was gone for the life of
   the workspace (owner's report, 2026-10-27; the same trap the Devtools
   home tab fell into, recorded in CLAUDE.md).
+
+## 16. The folder column and the toolbar (CR-0035, 2026-11-04)
+
+- The folder column's header holds **New Folder**, **New File** and
+  **Refresh**, in that order: inside the selected folder, beside the
+  selected file, or at the project's root. Closing a project and opening a
+  folder as another project left the header: the project list and the
+  palette (`file.open_folder`) do those.
+- The header is **responsive**: the buttons carry their labels while the
+  column has room for them and a few characters of the title, and become
+  icon buttons with tooltips when it does not; the title truncates rather
+  than running under them.
+- The toolbar no longer has **Open Folder** and **Open File**; both stay
+  palette commands with their shortcuts (`file.open_folder`, `file.open`).
+- A file's tab wears the **same icon as the file list**: its Material
+  picture when Material icons are on, the generic file glyph when not.

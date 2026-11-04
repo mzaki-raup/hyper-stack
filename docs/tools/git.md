@@ -68,6 +68,15 @@ are (owner's request): every project tab knows its repository.
   opens the file; right-click: Open Changes, Open File, Copy Path. The
   header has the branch with ahead/behind (upstream in the tooltip), History
   and Refresh.
+- **The header** (CR-0035): a folder icon and the folder's name on the
+  left; on the right the branch icon beside the branch name, then History
+  and Refresh. A project folder in **no repository** gets the same header
+  and the note "Not a Git repository." with History disabled; a repository
+  git refuses to read because another user owns it ("detected dubious
+  ownership") says so in a sentence (`status_problem`) instead of git's
+  message and its advice to change the global config, and its History is
+  disabled too. The toolbar row, the commit message, the Prefix button and
+  the Commit row are spaced evenly apart.
 - **Diff view** (main area): inline or side by side (remembered per tab),
   line numbers, added/removed backgrounds, hunk headers, notes (new file,
   rename, mode change), binary notice. Up/Down steps through the changes,

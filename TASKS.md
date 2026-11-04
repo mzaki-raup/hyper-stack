@@ -691,21 +691,22 @@ Change Request : CR-0040
 - **Notes:** Closed as works on the owner's decision (2026-11-04). The button is the ↻ at the right of the repository header (tooltip "Refresh status"). On v0.116.0, with a subfolder of a repository open as the project, a file created outside that subfolder (which the file watcher does not see) did not appear until one click on it, after which Source Control listed it and the count went from 2 to 3. It gives no sign of working when the watcher has already kept the list current, and it sits against the column's resize edge; a spinner, a toast or a labelled button were offered and declined.
 
 ### CR-0035 · Editor work pane and Source Control tab layout
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** The Editor work pane: folder sidebar, toolbar and Source Control tab.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, FEAT-0084
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Header; Remove Open folder as another project and close this project buttons. Add button with action before "Add File", named "Add Folder", where user can add folder inside the project directory
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar; When resize the sidebar column, make the header title (Project) and buttons (New Folder, New File, Refresh), responsive.
-- [ ] In Editor Activity -> Work Pane -> Toolbar Strip; Remove Open Folder button and Open File button.
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; When the project folder is not a git, do not show the Error "git status: fatal: detected dubious ownership...To add an exception for this directory, call:git config --global --add safe.directory D:/WORKSPACES/DOTNET/flex-taskbar" Show proper error like (Not a Git repository). And disable the "Show this repository History" unless it is a git project folder.
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Fix the header icon (folder icon for folder name, move the branch icon left beside the branch name). 
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Please have a proper top/bottom margin/padding between sections: Toolbars (Fetch, Pull, Push, Stashes, Branches, Tag), Commit Message Text Area, Prefix Button, Commit Group (Commit button, Commit and Push button , Ammend the Last Commit checkbox).
-- [ ] In Editor Activity -> Work Pane; When user open file to edit, make the tab for the file (inner tab), follow the colored material icon (If material Icon enabled in settings) or generic icon on the file list column.  
-- [ ] Test: a non-git folder yields the "Not a Git repository" state with history disabled instead of a raw git error
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — open a non-git folder and a git one; add a folder from the sidebar header; narrow the sidebar and watch the header stay readable
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Header; Remove Open folder as another project and close this project buttons. Add button with action before "Add File", named "Add Folder", where user can add folder inside the project directory
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar; When resize the sidebar column, make the header title (Project) and buttons (New Folder, New File, Refresh), responsive.
+- [x] In Editor Activity -> Work Pane -> Toolbar Strip; Remove Open Folder button and Open File button.
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; When the project folder is not a git, do not show the Error "git status: fatal: detected dubious ownership...To add an exception for this directory, call:git config --global --add safe.directory D:/WORKSPACES/DOTNET/flex-taskbar" Show proper error like (Not a Git repository). And disable the "Show this repository History" unless it is a git project folder.
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Fix the header icon (folder icon for folder name, move the branch icon left beside the branch name). 
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Please have a proper top/bottom margin/padding between sections: Toolbars (Fetch, Pull, Push, Stashes, Branches, Tag), Commit Message Text Area, Prefix Button, Commit Group (Commit button, Commit and Push button , Ammend the Last Commit checkbox).
+- [x] In Editor Activity -> Work Pane; When user open file to edit, make the tab for the file (inner tab), follow the colored material icon (If material Icon enabled in settings) or generic icon on the file list column.  
+- [x] Test: a non-git folder yields the "Not a Git repository" state with history disabled instead of a raw git error
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — open a non-git folder and a git one; add a folder from the sidebar header; narrow the sidebar and watch the header stay readable
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** The new header button reuses the tree menu's names (New Folder, New File, Refresh), the names box 2 uses, rather than box 1's "Add Folder". Responsive means labelled while the column has room, icons with tooltips when not, and the title truncating last (`column_header_buttons_fit` measures the translated labels). Open Folder and Open File stay palette commands. A folder in no repository already had a row; it now wears the shared header with History disabled. The "dubious ownership" case is mapped by `status_problem` and covered by a unit test; it could not be staged in the app here. In the app (release build, scratch data folder): a non-git project showed one row, "Not a Git repository.", with History disabled; a git one showed the folder icon by its name and the branch icon by "master", with the four sections evenly spaced; New Folder from the header created the folder on disk; at the column's widest the buttons carried labels, at its narrowest icons only and "Pr…"; main.rs's tab wore the Rust icon the file list shows. CHECKLIST has no row for this batch.
 
 ### CR-0036 · Multi-coloured product icons for every connection kind
 - **State:** Pending ·

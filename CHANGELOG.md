@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.118.1 — 2026-11-04
+
 ### Changed
 
-- Redis, S3 and Queue work panes breathe by one shared gap (`hs_ui::form::PANE_GAP`): under toolbars and header rules, between action, filter and data rows, around tables and under them; every `DataTable` leaves air under its filter row; the Redis key filter row has labelled Scan and New Key buttons at the field's height with a right margin; Redis Client List and Big Keys are proper tables with Kill Client acting on the selected row; the Bulk Ops preview sits in a well; a Queue message's headers are a two-column table under Message Headers with sentence-case names, and its payload sits in a card (CR-0031)
+- Release 0.118.1
 
 ## 0.118.0 — 2026-11-04
 

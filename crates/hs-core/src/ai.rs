@@ -292,6 +292,10 @@ pub enum Provider {
     /// A self-hosted Fooocus behind Fooocus-API
     /// (`/v1/generation/text-to-image`, `/v2/generation/image-upscale-vary`).
     Fooocus,
+    /// fal.ai's hosted model catalogue (`queue.fal.run`, `Authorization:
+    /// Key`), one endpoint chosen per purpose - generate, edit, enhance,
+    /// upscale, describe (`crate::ai_fal`). Pictures only.
+    Fal,
 }
 
 /// What a provider kind can do. Chat kinds answer the assistants; image
@@ -303,7 +307,7 @@ pub enum Capability {
 }
 
 impl Provider {
-    pub fn all() -> [Provider; 11] {
+    pub fn all() -> [Provider; 12] {
         [
             Provider::OpenAi,
             Provider::Anthropic,
@@ -311,6 +315,7 @@ impl Provider {
             Provider::Azure,
             Provider::Bedrock,
             Provider::OneMin,
+            Provider::Fal,
             Provider::SdWebUi,
             Provider::ComfyUi,
             Provider::SwarmUi,
@@ -331,6 +336,7 @@ impl Provider {
             Provider::SwarmUi => "http://127.0.0.1:7801",
             Provider::InvokeAi => "http://127.0.0.1:9090",
             Provider::Fooocus => "http://127.0.0.1:8888",
+            Provider::Fal => crate::ai_fal::FAL_QUEUE_BASE,
         }
     }
     /// The chat model a chat kind starts with; for an image kind, the
@@ -346,6 +352,7 @@ impl Provider {
             | Provider::SwarmUi
             | Provider::InvokeAi
             | Provider::Fooocus => "(server default)",
+            Provider::Fal => "(chosen per purpose)",
         }
     }
     /// The name shown in the settings page.
@@ -362,10 +369,12 @@ impl Provider {
             Provider::SwarmUi => "SwarmUI",
             Provider::InvokeAi => "InvokeAI",
             Provider::Fooocus => "Fooocus API",
+            Provider::Fal => "fal.ai",
         }
     }
-    /// The main thing a kind is for: the self-hosted image servers are
-    /// image providers, everything else chats (1min.AI does both).
+    /// The main thing a kind is for: the self-hosted image servers and
+    /// fal.ai are image providers, everything else chats (1min.AI does
+    /// both).
     pub fn capability(self) -> Capability {
         if self.chats() {
             Capability::Chat
@@ -382,11 +391,12 @@ impl Provider {
                 | Provider::SwarmUi
                 | Provider::InvokeAi
                 | Provider::Fooocus
+                | Provider::Fal
         )
     }
     /// The kind runs on the user's own machine or network, with no account.
     pub fn self_hosted(self) -> bool {
-        !self.chats()
+        !self.chats() && self != Provider::Fal
     }
     /// Bedrock signs with an access key *and* a secret.
     pub fn needs_secret(self) -> bool {
@@ -425,7 +435,12 @@ impl Provider {
     }
     /// The service can make a picture from a prompt (`generate_image`).
     pub fn generates_images(self) -> bool {
-        self == Provider::OneMin || self.self_hosted()
+        self == Provider::OneMin || self == Provider::Fal || self.self_hosted()
+    }
+    /// The service can turn a picture into text (`describe_image`): a
+    /// fal.ai model chosen for that purpose.
+    pub fn describes_images(self) -> bool {
+        self == Provider::Fal
     }
 }
 
@@ -997,7 +1012,8 @@ pub async fn chat(
         | Provider::ComfyUi
         | Provider::SwarmUi
         | Provider::InvokeAi
-        | Provider::Fooocus => unreachable!("image kinds are refused before the match"),
+        | Provider::Fooocus
+        | Provider::Fal => unreachable!("image kinds are refused before the match"),
     };
     let resp = req
         .send()
@@ -1234,8 +1250,8 @@ impl ImageJob {
 }
 
 /// Ask a service for a picture: a new one from `prompt`, or `source`
-/// edited or enhanced. Only 1min.AI does this today
-/// (`Provider::generates_images`); the result is the picture's bytes.
+/// edited or enhanced. 1min.AI, fal.ai and the self-hosted servers do
+/// this (`Provider::generates_images`); the result is the picture's bytes.
 ///
 /// `model` is the image model; `size` is advisory (an SDXL model gets one
 /// of its fixed sizes, others an aspect ratio); `strength` (0-1) is how far
@@ -1252,6 +1268,43 @@ pub async fn generate_image(
     source: Option<&ImagePart>,
     strength: f32,
 ) -> Result<Vec<u8>, AiError> {
+    generate_image_watched(
+        http,
+        cfg,
+        creds,
+        job,
+        model,
+        prompt,
+        size,
+        source,
+        strength,
+        crate::ai_fal::Watch::default(),
+    )
+    .await
+}
+
+/// [`generate_image`] with a [`crate::ai_fal::Watch`]: a fal.ai job
+/// reports its queue position through it and is cancelled on the server
+/// when the token fires. The other services take no notice of it.
+#[allow(clippy::too_many_arguments)]
+pub async fn generate_image_watched(
+    http: &reqwest::Client,
+    cfg: &AiConfig,
+    creds: &Credentials,
+    job: ImageJob,
+    model: &str,
+    prompt: &str,
+    size: (u32, u32),
+    source: Option<&ImagePart>,
+    strength: f32,
+    watch: crate::ai_fal::Watch,
+) -> Result<Vec<u8>, AiError> {
+    if cfg.provider == Provider::Fal {
+        return crate::ai_fal::generate_image(
+            http, cfg, creds, job, model, prompt, size, source, strength, watch,
+        )
+        .await;
+    }
     if cfg.provider.self_hosted() {
         return crate::ai_local::generate_image(
             http, cfg, creds, job, model, prompt, size, source, strength,
@@ -1401,6 +1454,28 @@ pub async fn generate_image(
     Ok(bytes.to_vec())
 }
 
+/// Turn a picture into text: a caption, or the answer to `prompt`. Only
+/// fal.ai does this (`Provider::describes_images`), through the model
+/// chosen for the Describe purpose; a chat provider reads pictures
+/// through `chat` instead.
+pub async fn describe_image(
+    http: &reqwest::Client,
+    cfg: &AiConfig,
+    creds: &Credentials,
+    model: &str,
+    prompt: &str,
+    source: &ImagePart,
+    watch: crate::ai_fal::Watch,
+) -> Result<String, AiError> {
+    if cfg.provider != Provider::Fal {
+        return Err(AiError::Format(format!(
+            "{} does not describe pictures; ask a chat provider instead",
+            cfg.provider.label()
+        )));
+    }
+    crate::ai_fal::describe_image(http, cfg, creds, model, prompt, source, watch).await
+}
+
 /// The image model a Generate Picture form starts with: Stability AI's
 /// Stable Diffusion XL 1.0 on 1min.AI.
 pub const DEFAULT_IMAGE_MODEL: &str = "stable-diffusion-xl-1024-v1-0";
@@ -1438,7 +1513,7 @@ pub fn sdxl_size((w, h): (u32, u32)) -> &'static str {
 }
 
 /// The closest of the aspect ratios image models take.
-fn aspect_ratio((w, h): (u32, u32)) -> &'static str {
+pub(crate) fn aspect_ratio((w, h): (u32, u32)) -> &'static str {
     let r = w.max(1) as f32 / h.max(1) as f32;
     let choices: [(&str, f32); 7] = [
         ("1:1", 1.0),
@@ -1531,6 +1606,12 @@ pub async fn list_models(
     let api_key = creds.key.as_str();
     if cfg.provider == Provider::OneMin {
         return Ok(onemin_models());
+    }
+    if cfg.provider == Provider::Fal {
+        // fal.ai lists per purpose (`ai_fal::list_models`); the plain
+        // list is the generation catalogue.
+        return crate::ai_fal::list_models(http, cfg, creds, crate::ai_fal::FalPurpose::Generate)
+            .await;
     }
     if cfg.provider.self_hosted() {
         return crate::ai_local::list_checkpoints(http, cfg, creds).await;
@@ -1714,7 +1795,8 @@ fn whole_answer(provider: Provider, v: &Value) -> Option<String> {
         | Provider::ComfyUi
         | Provider::SwarmUi
         | Provider::InvokeAi
-        | Provider::Fooocus => None,
+        | Provider::Fooocus
+        | Provider::Fal => None,
     }
 }
 
@@ -1859,7 +1941,8 @@ fn interpret(provider: Provider, ev: &SseEvent, nothing_yet: bool) -> Result<Ste
         | Provider::ComfyUi
         | Provider::SwarmUi
         | Provider::InvokeAi
-        | Provider::Fooocus => Ok(Step::Skip),
+        | Provider::Fooocus
+        | Provider::Fal => Ok(Step::Skip),
     }
 }
 
@@ -2372,6 +2455,12 @@ mod tests {
                     "{p:?} default base is not a local port"
                 );
                 assert!(!p.chats() && p.generates_images() && !p.accepts_images());
+                assert_eq!(p.capability(), Capability::Image);
+            } else if p == Provider::Fal {
+                // The one hosted image-only kind: an account, no chat.
+                assert!(p.default_base().starts_with("https://"));
+                assert!(!p.chats() && p.generates_images() && p.describes_images());
+                assert!(p.lists_models() && !p.accepts_images());
                 assert_eq!(p.capability(), Capability::Image);
             } else {
                 assert!(

@@ -235,6 +235,95 @@ dashboard's New Image tile, the Functions row's second button or the
 palette: width, height and a background colour (or transparent) make a
 blank PNG draft in the same folder, opened in a new tab.
 
+## Addendum (2026-11-05): fal.ai, a hosted image provider with a model per purpose (FEAT-0099, ADR-031)
+
+**The kind.** `hs_core::ai::Provider::Fal` is the second hosted image
+kind beside 1min.AI and the first that only makes pictures: it has an
+account and a key but no chat (`chats()` false, `self_hosted()` false,
+`generates_images()` and `describes_images()` true). It is added from the
+gallery's Image → Hosted Services card, and the Credentials table on
+Settings → Security lists it like any provider.
+
+**Models by purpose.** fal.ai is a catalogue of endpoints
+(`fal-ai/flux/dev`, `fal-ai/nano-banana-pro/edit`,
+`fal-ai/clarity-upscaler`, `fal-ai/florence-2-large/caption`…), not one
+model with modes, so the provider carries one endpoint id per purpose
+(`hs_core::ai_fal::FalModels`: generate, edit, enhance, upscale,
+describe), edited in the provider form's **Models by Purpose** section.
+**Test Connection** asks fal.ai whether it accepts the key without
+running a model (the status of a request id that cannot exist: 401 for a
+bad key, 404 for a good one). **Fetch Models** unlocks once that test
+passed and reads the catalogue (`GET https://api.fal.ai/v1/models`,
+`status=active`, `limit=100`, following `cursor` for up to three pages)
+once per purpose - `category=text-to-image` for Generate,
+`category=image-to-image` for Edit, the same category narrowed by the
+search stems `restor`, `enhanc`, `denois`, `sharpen`, `deblur` and
+`retouch` for Enhance (fal.ai has no enhancement category of its own),
+by `upscal` and `resolution` for Upscale, and `category=vision` plus
+`category=image-to-text` for Describe - and fills a picker beside each
+field; an id can also be typed. Nothing is chosen by default: a fal.ai
+call is billed, so the choice is the user's, and the Graphics form says
+"No model chosen for this purpose" until it is made. The section also
+shows the two numbers fal.ai's jobs read from the shared `ImageWorkflow`:
+the Upscale **Ratio** and the Enhance **Refiner Strength**.
+
+**The jobs.** Every call follows fal.ai's documentation as read on
+2026-11-05: `Authorization: Key <FAL_KEY>`; the queue API on
+`https://queue.fal.run` - `POST /{endpoint_id}` submits, then
+`GET …/requests/{id}/status` is polled every second (`IN_QUEUE` with its
+`queue_position`, `IN_PROGRESS`, `COMPLETED`), `GET …/requests/{id}` is
+the output, `PUT …/requests/{id}/cancel` drops a queued request. The
+status, result and cancel URLs come from the submit answer; when it has
+none they are built from the endpoint's **owner and app only**
+(`fal-ai/flux`, never `fal-ai/flux/dev`, which answers 405). A picture
+goes in as `image_url` holding a base64 **data URI** (the documented
+inline form; fal's CDN upload is only documented for its SDKs), which the
+Graphics tab keeps small by sending its 1024 px attachment. The output's
+`images[0].url` or `image.url` is downloaded at once, because fal's media
+expires, and lands as a draft like every generated picture. Request
+bodies send the common spellings together, since fal ignores the fields
+a model lacks: **Generate** `prompt`, `image_size {width, height}`,
+`aspect_ratio`, `num_images: 1`, `output_format: png`; **Edit**
+`image_url` and a one-item `image_urls`, `prompt`, `strength`;
+**Upscale** the ratio (`ImageWorkflow::upscale_ratio`, so a target size
+becomes a multiple) as `upscale_factor` and `scale`; **Enhance** the same
+family at a ratio of **1**, with the refiner strength as `creativity` and
+its inverse as `resemblance`, so it never resizes (the owner's rule of
+2026-10-23 holds here too); **Describe** - a fifth job the Graphics form
+offers only for a fal.ai provider - `image_url` and, when typed, a
+`prompt` for a model that answers a question, reading the text back from
+`results`, `output`, `caption`, `text`, `description` or `answer` and
+showing it under the form with a Copy button. Errors are read in fal's
+shapes: `detail` as a string, a 422's `detail` array as `loc: msg`, or
+`error`.
+
+**Jobs, cancel and states.** A Graphics generation now runs as a
+`hs_core::jobs` Job titled after its button (so it shows in the Jobs
+panel) with a **Stop** button beside the spinner. A fal.ai job watches
+the Job's cancel token (`ai_fal::Watch`): Stop ends the polling and
+`PUT`s the cancel route, so a queued request is dropped on the server
+and not only forgotten; the queue position and the running state are
+reported as the Job's message. Any other provider's request is dropped
+on Stop, which closes its connection. The form keeps its loading state
+(spinner, Stop), error state (the toast where the button is, and the
+Job's failure) and empty state (no provider, no model chosen for the
+purpose).
+
+**Tests.** `crates/hs-core/tests/ai_fal_mock.rs` drives the client
+against a mock queue and catalogue (the shared server now lives in
+`tests/common/mod.rs`): submit → two status polls → result → download,
+the key on every queue call and on none of the media downloads, the
+owner-and-app status route, the answer's own URLs when given, the data
+URI, the Upscale ratio and the Enhance ratio of 1, a describing model's
+text, Stop while queued (the cancel route is called and polling ends),
+the per-purpose catalogue queries with the cursor followed and the ids
+sorted, the key probe's 401 and 404, and the 422 error shape. Unit tests
+in `ai_fal.rs` cover the request bodies, the output readers and the URL
+rule; `tests/ai_fal_vault.rs` stores a key, saves the provider and reads
+every file under the data folder to prove the key is nowhere in clear. A
+live run against fal.ai with a real key remains the owner's check: no
+key was available on the build machine (FEAT-0099).
+
 ## Dashboard (2026-10-29)
 
 The activity's home tab wears the shape every activity now shares

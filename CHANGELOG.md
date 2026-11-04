@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- fal.ai as an image provider (Settings → AI Assistant → Add Provider → Image → fal.ai): the key goes into the vault, Test Connection checks it without running a model, Fetch Models reads fal.ai's catalogue once per purpose (generate, edit, enhance, upscale, describe) and a model is chosen per purpose on the provider; the Graphics Generate Picture form runs each job through fal.ai's queue as a cancellable Job with a Stop button, Describe turns the picture into copyable text, and generations from every provider now show in the Jobs panel (FEAT-0099, ADR-031)
 
 ## 0.117.0 — 2026-11-04
 

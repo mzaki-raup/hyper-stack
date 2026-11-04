@@ -680,14 +680,15 @@ Change Request : CR-0040
 - **Notes:** Filed 2026-11-04 from the owner's list. A kind page holds one form per kind, so "the new broker form" opens the page's first kind (Docker, RabbitMQ, Jenkins, Jira) with Name focused, and the Kind field switches it; this replaces FEAT-0093's landing on the kind buttons, and the Automation sidebar's Add follows the same route. The last four boxes came in a second list the same day; they are also CR-0040's fourth box (v0.7.7), done here because they build on this item's first-kind draft. Switching Kind on a new profile takes the new kind's defaults. In the app (release build, scratch data folder): every relabelled button read as listed; each routed button landed on its form (Name focused) or section; Settings -> Queue showed one Add Broker, its Kind listed only the five queue kinds, and switching to Kafka gave Kafka's defaults and the name New Kafka. The other three pages' Kind lists are covered by the test. CHECKLIST has no row for this batch.
 
 ### BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** The Editor work pane's Source Control tab.
 - **Parent:** CR-0025
-- [ ] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Refresh Status button not working.
-- [ ] Test: a reproducing test: Refresh Status re-runs `git status` and replaces the cached entries
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — edit a file in a git project, press Refresh Status, and watch the list change
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Editor Activity -> Work Pane -> Folder Sidebar -> Source Control Tab; Refresh Status button not working. Not reproduced on app v0.116.0: the button works.
+- [x] Test: n/a - nothing to reproduce; the button already re-runs `git status` and replaces the entries
+- [x] Gate: n/a - no code change
+- [x] App: `--data-dir ./tmp-data` — edit a file in a git project, press Refresh Status, and watch the list change
+- [x] Docs: n/a - no behaviour changed
+- **Notes:** Closed as works on the owner's decision (2026-11-04). The button is the ↻ at the right of the repository header (tooltip "Refresh status"). On v0.116.0, with a subfolder of a repository open as the project, a file created outside that subfolder (which the file watcher does not see) did not appear until one click on it, after which Source Control listed it and the count went from 2 to 3. It gives no sign of working when the watcher has already kept the list current, and it sits against the column's resize edge; a spinner, a toast or a labelled button were offered and declined.
 
 ### CR-0035 · Editor work pane and Source Control tab layout
 - **State:** Pending ·

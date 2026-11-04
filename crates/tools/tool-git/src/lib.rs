@@ -208,6 +208,7 @@ impl GitTool {
                 detail: r.path.display().to_string(),
                 icon: entry_icon(r).to_string(),
                 image: entry_image(ui.ctx(), s, &r.id),
+                tint: None,
             })
             .collect();
         let credentials = s.git_credentials.read().all().len();
@@ -394,8 +395,15 @@ impl Tool for GitTool {
         }
         let root = self.root()?;
         let language = hs_core::langver::display_name(&self.state.language);
+        let header = hs_core::tool::ToolHeader::new(self.icon(), self.title().to_string());
+        // The repository's uploaded icon, as its list row and tab show it,
+        // rather than the glyph alone (CR-0036).
+        let header = match &self.state.image {
+            Some(uri) => header.icon_image(uri.clone()),
+            None => header,
+        };
         Some(
-            hs_core::tool::ToolHeader::new(self.icon(), self.title().to_string())
+            header
                 .fact("Language", language)
                 .fact("Version", hs_core::langver::labelled(&self.state.language))
                 .fact("URL", self.pane.remote_url())

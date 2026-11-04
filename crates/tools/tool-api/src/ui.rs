@@ -1221,6 +1221,7 @@ pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
             ),
             icon: ph::FOLDER.to_string(),
             image: None,
+            tint: None,
         })
         .collect();
     let labels = hs_ui::dashboard::DashboardLabels {

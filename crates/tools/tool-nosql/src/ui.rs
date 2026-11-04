@@ -398,22 +398,20 @@ impl Tool for NoSqlTool {
             _ => (String::new(), String::new()),
         };
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::connection_icon(self.kind?.connection_kind(), ""),
-                self.conn_name.clone(),
-            )
-            .fact("Database", store)
-            .fact("Version", version)
-            .fact(
-                // CouchDB is usually reached with a user, MongoDB often
-                // without one; naming the host plainly beats "@host".
-                if self.session_user.is_empty() {
-                    "Host"
-                } else {
-                    "Session"
-                },
-                self.session_label.clone(),
-            ),
+            hs_ui::icons::conn_icon(self.kind?.connection_kind(), "")
+                .header(self.conn_name.clone())
+                .fact("Database", store)
+                .fact("Version", version)
+                .fact(
+                    // CouchDB is usually reached with a user, MongoDB often
+                    // without one; naming the host plainly beats "@host".
+                    if self.session_user.is_empty() {
+                        "Host"
+                    } else {
+                        "Session"
+                    },
+                    self.session_label.clone(),
+                ),
         )
     }
 
@@ -424,6 +422,18 @@ impl Tool for NoSqlTool {
         }
         let kind = self.kind?.connection_kind();
         Some(hs_ui::icons::connection_icon(kind, ""))
+    }
+
+    /// The product's logo on the tab, where it has one (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.kind?.connection_kind(), "").uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.kind?.connection_kind(), "").brand()
     }
 
     /// A renamed profile renames its tab. The name is the only thing
@@ -560,7 +570,7 @@ impl Tool for NoSqlTool {
         // store's own order - which is what a dragged row renumbers.
         // MongoDB's leaf and CouchDB's couch are their own; Qdrant has
         // no logo anywhere, so it keeps the database glyph.
-        let profiles: Vec<(String, String, String, bool, &'static str)> = {
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = {
             let conns = s.connections.read();
             conns
                 .all()
@@ -572,7 +582,7 @@ impl Tool for NoSqlTool {
                         c.name.clone(),
                         NoSqlFields::from_table(&c.kind, &c.fields).label(),
                         c.pinned,
-                        hs_ui::icons::connection_icon(&c.kind, ""),
+                        hs_ui::icons::conn_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -600,7 +610,7 @@ impl Tool for NoSqlTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *is_pinned,
@@ -732,8 +742,9 @@ impl NoSqlTool {
                         id: c.id.clone(),
                         name: c.name.clone(),
                         detail: format!("{}:{}", f.host, f.port),
-                        icon: hs_ui::icons::profile_icon(c).to_string(),
-                        image: None,
+                        icon: hs_ui::icons::profile_conn_icon(c).glyph.to_string(),
+                        image: hs_ui::icons::profile_conn_icon(c).uri(),
+                        tint: hs_ui::icons::profile_conn_icon(c).fixed_colour(&theme),
                     }
                 })
                 .collect()

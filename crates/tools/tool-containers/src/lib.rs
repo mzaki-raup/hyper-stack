@@ -398,6 +398,20 @@ fn configs_version() -> u64 {
 
 /// The glyph for a container kind: what the thing **is** before where it
 /// runs (§10.5).
+/// A host kind's logo at label size, for the scan results and a host's
+/// title row (CR-0036).
+fn kind_badge(ui: &mut egui::Ui, kind: &str) {
+    let icon = hs_ui::icons::conn_icon(kind, "");
+    match icon.image {
+        Some(uri) => {
+            ui.add(egui::Image::from_uri(uri).fit_to_exact_size(egui::Vec2::splat(16.0)));
+        }
+        None => {
+            ui.label(egui::RichText::new(icon.glyph).size(16.0));
+        }
+    }
+}
+
 pub fn kind_icon(kind: &str) -> &'static str {
     hs_ui::icons::container_kind_icon(kind)
 }
@@ -909,7 +923,7 @@ impl ContainersTool {
         for p in &all {
             ensure_host_version(&s, p);
         }
-        let saved: Vec<(String, String, String, &'static str)> = all
+        let saved: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = all
             .iter()
             .map(|p| {
                 let f = ContainerFields::from_table(&p.fields);
@@ -926,7 +940,7 @@ impl ContainersTool {
                     p.id.clone(),
                     p.name.clone(),
                     format!("{head} · {}", f.describe(&p.kind)),
-                    kind_icon(&p.kind),
+                    hs_ui::icons::conn_icon(&p.kind, ""),
                 )
             })
             .collect();
@@ -1010,8 +1024,10 @@ impl ContainersTool {
                     &s.t("container-none"),
                     |ui, i, w| {
                         let (id, name, detail, icon) = &saved[i];
-                        if hs_ui::dashboard::item_button(ui, &theme, icon, name, detail, w)
-                            .clicked()
+                        if hs_ui::dashboard::item_button_image(
+                            ui, &theme, icon.image, icon.glyph, name, detail, w,
+                        )
+                        .clicked()
                         {
                             open = Some(id.clone());
                         }
@@ -1066,7 +1082,7 @@ impl ContainersTool {
             ui.set_max_width(SCAN_ROW_WIDTH);
             for f in &found {
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(kind_icon(f.kind)).size(16.0));
+                    kind_badge(ui, f.kind);
                     ui.label(&f.name);
                     ui.label(
                         egui::RichText::new(&f.detail)
@@ -1152,7 +1168,7 @@ impl ContainersTool {
         }
         let f = ContainerFields::from_table(&profile.fields);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(kind_icon(&profile.kind)).size(16.0));
+            kind_badge(ui, &profile.kind);
             ui.label(egui::RichText::new(&profile.name).strong().size(15.0));
             ui.label(
                 egui::RichText::new(f.describe(&profile.kind))
@@ -3188,17 +3204,15 @@ impl Tool for ContainersTool {
             engine_label(&self.state.host_kind, &reported)
         };
         Some(
-            hs_core::tool::ToolHeader::new(
-                kind_icon(&self.state.host_kind),
-                self.state.host_name.clone(),
-            )
-            .fact("Container Type", kind.clone())
-            // "Docker Engine 27.1.1", "Kubernetes v1.31.2": the engine's
-            // own name in front of the number it reported, so the fact
-            // reads as a product rather than a bare version string
-            // (owner's requirement, 2026-10-27).
-            .fact("Version", version)
-            .fact("OS Name And Version", self.state.host_os.clone()),
+            hs_ui::icons::conn_icon(&self.state.host_kind, "")
+                .header(self.state.host_name.clone())
+                .fact("Container Type", kind.clone())
+                // "Docker Engine 27.1.1", "Kubernetes v1.31.2": the engine's
+                // own name in front of the number it reported, so the fact
+                // reads as a product rather than a bare version string
+                // (owner's requirement, 2026-10-27).
+                .fact("Version", version)
+                .fact("OS Name And Version", self.state.host_os.clone()),
         )
     }
 
@@ -3222,6 +3236,12 @@ impl Tool for ContainersTool {
             return None;
         }
         Some(kind_icon(&self.state.host_kind))
+    }
+
+    /// The engine's logo on the tab (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.state.host_kind, "").uri()
     }
 
     /// A dashboard reports **no** uri, or it takes every request for the
@@ -3448,7 +3468,7 @@ impl Tool for ContainersTool {
                             ui,
                             &theme,
                             live,
-                            kind_icon(&p.kind),
+                            hs_ui::icons::conn_icon(&p.kind, ""),
                             &p.name,
                             Some(&f.describe(&p.kind)),
                             p.pinned,

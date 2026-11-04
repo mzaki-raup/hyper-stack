@@ -16,7 +16,7 @@ fn remove_from_list_sits_under_edit_and_reports_the_choice() {
             ui,
             &theme,
             false,
-            "",
+            hs_ui::icons::ConnIcon::glyph(""),
             "web-01",
             None,
             false,

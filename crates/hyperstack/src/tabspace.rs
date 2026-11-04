@@ -233,11 +233,14 @@ impl TabSpace {
                 pin_rank: t.tool.pin_rank(),
                 can_close: t.tool.tab_closable(),
                 pin_icon: t.tool.tab_icon_is_pin(),
+                // A connection tab's product colour, when its kind has no
+                // logo to draw (CR-0036).
                 icon_colour: fixed_tab_colour(
                     &t.factory_id,
                     t.home || crate::app::is_mandatory(&t.factory_id),
                     look,
-                ),
+                )
+                .or_else(|| t.tool.tab_icon_colour()),
                 icon_image: t
                     .tool
                     .tab_item_kind()

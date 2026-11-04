@@ -13,6 +13,11 @@ pub fn install_fonts(ctx: &egui::Context) {
 /// Material icons render. Call once at startup, next to `install_fonts`.
 pub fn install_image_loaders(ctx: &egui::Context) {
     egui_extras::install_image_loaders(ctx);
+    // The product logos are drawn by URI from every list, tab and header,
+    // so their bytes are registered once here rather than carried around.
+    for (uri, bytes) in PRODUCT_LOGOS {
+        ctx.include_bytes(*uri, *bytes);
+    }
 }
 
 pub const TAB_CLOSE: &str = ph::X;
@@ -237,6 +242,607 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
     }
 }
 
+/// Multi-coloured product logos (Devicon v2.18.0, MIT; see
+/// `assets/icons/devicon/README.md`), by the URI they are drawn from.
+/// [`install_image_loaders`] registers them (CR-0036).
+pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
+    (
+        "bytes://product/docker.svg",
+        include_bytes!("../../../assets/icons/devicon/docker.svg"),
+    ),
+    (
+        "bytes://product/podman.svg",
+        include_bytes!("../../../assets/icons/devicon/podman.svg"),
+    ),
+    (
+        "bytes://product/kubernetes.svg",
+        include_bytes!("../../../assets/icons/devicon/kubernetes.svg"),
+    ),
+    (
+        "bytes://product/windows11.svg",
+        include_bytes!("../../../assets/icons/devicon/windows11.svg"),
+    ),
+    (
+        "bytes://product/redis.svg",
+        include_bytes!("../../../assets/icons/devicon/redis.svg"),
+    ),
+    (
+        "bytes://product/mongodb.svg",
+        include_bytes!("../../../assets/icons/devicon/mongodb.svg"),
+    ),
+    (
+        "bytes://product/couchdb.svg",
+        include_bytes!("../../../assets/icons/devicon/couchdb.svg"),
+    ),
+    (
+        "bytes://product/postgresql.svg",
+        include_bytes!("../../../assets/icons/devicon/postgresql.svg"),
+    ),
+    (
+        "bytes://product/sqlite.svg",
+        include_bytes!("../../../assets/icons/devicon/sqlite.svg"),
+    ),
+    (
+        "bytes://product/clickhouse.svg",
+        include_bytes!("../../../assets/icons/devicon/clickhouse.svg"),
+    ),
+    (
+        "bytes://product/duckdb.svg",
+        include_bytes!("../../../assets/icons/devicon/duckdb.svg"),
+    ),
+    (
+        "bytes://product/microsoftsqlserver.svg",
+        include_bytes!("../../../assets/icons/devicon/microsoftsqlserver.svg"),
+    ),
+    (
+        "bytes://product/oracle.svg",
+        include_bytes!("../../../assets/icons/devicon/oracle.svg"),
+    ),
+    (
+        "bytes://product/elasticsearch.svg",
+        include_bytes!("../../../assets/icons/devicon/elasticsearch.svg"),
+    ),
+    (
+        "bytes://product/cassandra.svg",
+        include_bytes!("../../../assets/icons/devicon/cassandra.svg"),
+    ),
+    (
+        "bytes://product/dynamodb.svg",
+        include_bytes!("../../../assets/icons/devicon/dynamodb.svg"),
+    ),
+    (
+        "bytes://product/rabbitmq.svg",
+        include_bytes!("../../../assets/icons/devicon/rabbitmq.svg"),
+    ),
+    (
+        "bytes://product/nats.svg",
+        include_bytes!("../../../assets/icons/devicon/nats.svg"),
+    ),
+    (
+        "bytes://product/jenkins.svg",
+        include_bytes!("../../../assets/icons/devicon/jenkins.svg"),
+    ),
+    (
+        "bytes://product/teamcity.svg",
+        include_bytes!("../../../assets/icons/devicon/teamcity.svg"),
+    ),
+    (
+        "bytes://product/githubactions.svg",
+        include_bytes!("../../../assets/icons/devicon/githubactions.svg"),
+    ),
+    (
+        "bytes://product/gitlab.svg",
+        include_bytes!("../../../assets/icons/devicon/gitlab.svg"),
+    ),
+    (
+        "bytes://product/forgejo.svg",
+        include_bytes!("../../../assets/icons/devicon/forgejo.svg"),
+    ),
+    (
+        "bytes://product/ansible.svg",
+        include_bytes!("../../../assets/icons/devicon/ansible.svg"),
+    ),
+    (
+        "bytes://product/jira.svg",
+        include_bytes!("../../../assets/icons/devicon/jira.svg"),
+    ),
+    (
+        "bytes://product/confluence.svg",
+        include_bytes!("../../../assets/icons/devicon/confluence.svg"),
+    ),
+    (
+        "bytes://product/powershell.svg",
+        include_bytes!("../../../assets/icons/devicon/powershell.svg"),
+    ),
+    (
+        "bytes://product/bash.svg",
+        include_bytes!("../../../assets/icons/devicon/bash.svg"),
+    ),
+    (
+        "bytes://product/zsh.svg",
+        include_bytes!("../../../assets/icons/devicon/zsh.svg"),
+    ),
+    (
+        "bytes://product/fish.svg",
+        include_bytes!("../../../assets/icons/devicon/fish.svg"),
+    ),
+    (
+        "bytes://product/git.svg",
+        include_bytes!("../../../assets/icons/devicon/git.svg"),
+    ),
+    (
+        "bytes://product/ubuntu.svg",
+        include_bytes!("../../../assets/icons/devicon/ubuntu.svg"),
+    ),
+    (
+        "bytes://product/debian.svg",
+        include_bytes!("../../../assets/icons/devicon/debian.svg"),
+    ),
+    (
+        "bytes://product/fedora.svg",
+        include_bytes!("../../../assets/icons/devicon/fedora.svg"),
+    ),
+    (
+        "bytes://product/redhat.svg",
+        include_bytes!("../../../assets/icons/devicon/redhat.svg"),
+    ),
+    (
+        "bytes://product/centos.svg",
+        include_bytes!("../../../assets/icons/devicon/centos.svg"),
+    ),
+    (
+        "bytes://product/archlinux.svg",
+        include_bytes!("../../../assets/icons/devicon/archlinux.svg"),
+    ),
+    (
+        "bytes://product/opensuse.svg",
+        include_bytes!("../../../assets/icons/devicon/opensuse.svg"),
+    ),
+    (
+        "bytes://product/linux.svg",
+        include_bytes!("../../../assets/icons/devicon/linux.svg"),
+    ),
+    (
+        "bytes://product/apple-rainbow.svg",
+        include_bytes!("../../../assets/icons/devicon/apple-rainbow.svg"),
+    ),
+    (
+        "bytes://product/azure.svg",
+        include_bytes!("../../../assets/icons/devicon/azure.svg"),
+    ),
+    (
+        "bytes://product/googlecloud.svg",
+        include_bytes!("../../../assets/icons/devicon/googlecloud.svg"),
+    ),
+    (
+        "bytes://product/nodejs.svg",
+        include_bytes!("../../../assets/icons/devicon/nodejs.svg"),
+    ),
+    (
+        "bytes://product/python.svg",
+        include_bytes!("../../../assets/icons/devicon/python.svg"),
+    ),
+    (
+        "bytes://product/terraform.svg",
+        include_bytes!("../../../assets/icons/devicon/terraform.svg"),
+    ),
+    (
+        "bytes://product/claude.svg",
+        include_bytes!("../../../assets/icons/devicon/claude.svg"),
+    ),
+    (
+        "bytes://product/dotnetcore.svg",
+        include_bytes!("../../../assets/icons/devicon/dotnetcore.svg"),
+    ),
+    (
+        "bytes://product/go.svg",
+        include_bytes!("../../../assets/icons/devicon/go.svg"),
+    ),
+    (
+        "bytes://product/c.svg",
+        include_bytes!("../../../assets/icons/devicon/c.svg"),
+    ),
+    (
+        "bytes://product/cplusplus.svg",
+        include_bytes!("../../../assets/icons/devicon/cplusplus.svg"),
+    ),
+    (
+        "bytes://product/csharp.svg",
+        include_bytes!("../../../assets/icons/devicon/csharp.svg"),
+    ),
+    (
+        "bytes://product/java.svg",
+        include_bytes!("../../../assets/icons/devicon/java.svg"),
+    ),
+    (
+        "bytes://product/kotlin.svg",
+        include_bytes!("../../../assets/icons/devicon/kotlin.svg"),
+    ),
+    (
+        "bytes://product/scala.svg",
+        include_bytes!("../../../assets/icons/devicon/scala.svg"),
+    ),
+    (
+        "bytes://product/swift.svg",
+        include_bytes!("../../../assets/icons/devicon/swift.svg"),
+    ),
+    (
+        "bytes://product/zig.svg",
+        include_bytes!("../../../assets/icons/devicon/zig.svg"),
+    ),
+    (
+        "bytes://product/haskell.svg",
+        include_bytes!("../../../assets/icons/devicon/haskell.svg"),
+    ),
+    (
+        "bytes://product/elixir.svg",
+        include_bytes!("../../../assets/icons/devicon/elixir.svg"),
+    ),
+    (
+        "bytes://product/dart.svg",
+        include_bytes!("../../../assets/icons/devicon/dart.svg"),
+    ),
+    (
+        "bytes://product/ruby.svg",
+        include_bytes!("../../../assets/icons/devicon/ruby.svg"),
+    ),
+    (
+        "bytes://product/php.svg",
+        include_bytes!("../../../assets/icons/devicon/php.svg"),
+    ),
+    (
+        "bytes://product/perl.svg",
+        include_bytes!("../../../assets/icons/devicon/perl.svg"),
+    ),
+    (
+        "bytes://product/javascript.svg",
+        include_bytes!("../../../assets/icons/devicon/javascript.svg"),
+    ),
+    (
+        "bytes://product/typescript.svg",
+        include_bytes!("../../../assets/icons/devicon/typescript.svg"),
+    ),
+    (
+        "bytes://product/html5.svg",
+        include_bytes!("../../../assets/icons/devicon/html5.svg"),
+    ),
+    (
+        "bytes://product/css3.svg",
+        include_bytes!("../../../assets/icons/devicon/css3.svg"),
+    ),
+    // Devicon's Rust mark is black; the file tree's orange one reads on both
+    // themes (Material Icon Theme, MIT).
+    (
+        "bytes://product/rust.svg",
+        include_bytes!("../../../assets/icons/material/rust.svg"),
+    ),
+    // Devicon's Lua is navy and its Markdown black, and the Nerd Font
+    // glyph for Lua draws "TeX": the file tree's coloured ones instead.
+    (
+        "bytes://product/lua.svg",
+        include_bytes!("../../../assets/icons/material/lua.svg"),
+    ),
+    (
+        "bytes://product/markdown.svg",
+        include_bytes!("../../../assets/icons/material/markdown.svg"),
+    ),
+];
+
+/// How a connection kind's glyph is coloured when it has no logo to draw.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnTint {
+    /// The colour the surrounding control gives icons (muted, accent).
+    Default,
+    /// The product's own colour, for a product with no logo here.
+    Brand(egui::Color32),
+    /// The theme's text colour: a product whose logo is black, which would
+    /// vanish on the dark theme (GitHub, Kafka, MariaDB).
+    Text,
+}
+
+/// The icon of a connection kind, in one place for every list, tab,
+/// dashboard and work-pane header (CR-0036): the product's multi-coloured
+/// logo where there is one, otherwise the glyph and how to colour it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConnIcon {
+    pub glyph: &'static str,
+    /// A `bytes://product/…` URI from [`PRODUCT_LOGOS`].
+    pub image: Option<&'static str>,
+    pub tint: ConnTint,
+}
+
+impl ConnIcon {
+    /// A plain glyph, coloured as the control colours its icons.
+    pub fn glyph(glyph: &'static str) -> Self {
+        Self {
+            glyph,
+            image: None,
+            tint: ConnTint::Default,
+        }
+    }
+
+    /// The logo's URI, for an API that takes an owned one.
+    pub fn uri(&self) -> Option<String> {
+        self.image.map(str::to_string)
+    }
+
+    /// The brand colour, when the glyph carries one.
+    pub fn brand(&self) -> Option<egui::Color32> {
+        match self.tint {
+            ConnTint::Brand(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    /// The glyph's colour on `theme`, with `fallback` for [`ConnTint::Default`].
+    pub fn glyph_colour(
+        &self,
+        theme: &crate::theme::Theme,
+        fallback: egui::Color32,
+    ) -> egui::Color32 {
+        match self.tint {
+            ConnTint::Brand(c) => c,
+            ConnTint::Text => theme.text,
+            ConnTint::Default => fallback,
+        }
+    }
+
+    /// The glyph's colour when it has one of its own, on `theme`: the
+    /// product's, or the text colour for a black logo; `None` when the
+    /// control's usual icon colour applies.
+    pub fn fixed_colour(&self, theme: &crate::theme::Theme) -> Option<egui::Color32> {
+        match self.tint {
+            ConnTint::Brand(c) => Some(c),
+            ConnTint::Text => Some(theme.text),
+            ConnTint::Default => None,
+        }
+    }
+
+    /// A work-pane header band led by this icon.
+    pub fn header(self, name: impl Into<String>) -> hs_core::tool::ToolHeader {
+        let h = hs_core::tool::ToolHeader::new(self.glyph, name);
+        let h = match self.image {
+            Some(uri) => h.icon_image(uri),
+            None => h,
+        };
+        match self.tint {
+            ConnTint::Brand(c) => h.icon_hex(format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())),
+            ConnTint::Text => h.icon_plain(),
+            ConnTint::Default => h,
+        }
+    }
+}
+
+/// The logo file for a connection kind (and a database's engine), when
+/// Devicon has one that reads on both themes.
+fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
+    let name = match kind {
+        "db" => match engine {
+            "postgres" | "postgresql" => "postgresql",
+            "sqlite" => "sqlite",
+            "clickhouse" => "clickhouse",
+            "duckdb" => "duckdb",
+            "mssql" | "sqlserver" => "microsoftsqlserver",
+            "oracle" => "oracle",
+            _ => return None,
+        },
+        "docker" => "docker",
+        "podman" => "podman",
+        "k8s" => "kubernetes",
+        "wincontainer" => "windows11",
+        "redis" | "redis-streams" => "redis",
+        "mongodb" => "mongodb",
+        "couchdb" => "couchdb",
+        "elasticsearch" => "elasticsearch",
+        "cassandra" => "cassandra",
+        "dynamodb" => "dynamodb",
+        "rabbitmq" => "rabbitmq",
+        "nats" => "nats",
+        "jenkins" => "jenkins",
+        "teamcity" => "teamcity",
+        "github-actions" => "githubactions",
+        "gitlab-ci" | "gitlab-issues" => "gitlab",
+        "forgejo-actions" | "forgejo-issues" => "forgejo",
+        "awx" => "ansible",
+        "jira" => "jira",
+        "confluence" => "confluence",
+        _ => return None,
+    };
+    logo(name)
+}
+
+/// The URI of a vendored logo by its file name, without `.svg`.
+fn logo(name: &str) -> Option<&'static str> {
+    PRODUCT_LOGOS.iter().map(|(uri, _)| *uri).find(|uri| {
+        uri.strip_prefix("bytes://product/")
+            .and_then(|f| f.strip_suffix(".svg"))
+            == Some(name)
+    })
+}
+
+/// A product by its logo's name, or `glyph` when there is no such logo.
+pub fn product_icon(name: &str, glyph: &'static str) -> ConnIcon {
+    match logo(name) {
+        Some(uri) => ConnIcon {
+            glyph,
+            image: Some(uri),
+            tint: ConnTint::Default,
+        },
+        None => ConnIcon::glyph(glyph),
+    }
+}
+
+/// `glyph` in a product's own colour, for a product with no logo here.
+pub fn branded(glyph: &'static str, rgb: [u8; 3]) -> ConnIcon {
+    ConnIcon {
+        glyph,
+        image: None,
+        tint: ConnTint::Brand(egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2])),
+    }
+}
+
+/// `glyph` in the theme's text colour: a product whose logo is black.
+pub fn plain_mark(glyph: &'static str) -> ConnIcon {
+    ConnIcon {
+        glyph,
+        image: None,
+        tint: ConnTint::Text,
+    }
+}
+
+/// An operating system's logo, for an SSH host and a WSL shell
+/// (CR-0036). macOS takes the striped Apple: the black one is a hole on
+/// the dark theme.
+pub fn os_conn_icon(id: &str) -> ConnIcon {
+    let glyph = os_icon(id);
+    match id {
+        "ubuntu" => product_icon("ubuntu", glyph),
+        "debian" => product_icon("debian", glyph),
+        "fedora" => product_icon("fedora", glyph),
+        "rhel" => product_icon("redhat", glyph),
+        "centos" => product_icon("centos", glyph),
+        "arch" => product_icon("archlinux", glyph),
+        "suse" => product_icon("opensuse", glyph),
+        "linux" => product_icon("linux", glyph),
+        "macos" => product_icon("apple-rainbow", glyph),
+        "windows" => product_icon("windows11", glyph),
+        "alpine" => branded(glyph, [0x0d, 0x59, 0x7f]),
+        "freebsd" => branded(glyph, [0xab, 0x2b, 0x28]),
+        _ => ConnIcon::glyph(glyph),
+    }
+}
+
+/// A language's logo, for the Editor's projects (CR-0036).
+pub fn language_conn_icon(id: &str) -> ConnIcon {
+    let glyph = language_icon(id);
+    let name = match id {
+        "rust" => "rust",
+        "go" => "go",
+        "c" => "c",
+        "cpp" => "cplusplus",
+        "csharp" => "csharp",
+        "java" => "java",
+        "kotlin" => "kotlin",
+        "scala" => "scala",
+        "swift" => "swift",
+        "zig" => "zig",
+        "haskell" => "haskell",
+        "elixir" => "elixir",
+        "dart" => "dart",
+        "python" => "python",
+        "ruby" => "ruby",
+        "php" => "php",
+        "perl" => "perl",
+        "javascript" => "javascript",
+        "typescript" => "typescript",
+        "node" => "nodejs",
+        "shell" => "bash",
+        "terraform" => "terraform",
+        "html" => "html5",
+        "css" => "css3",
+        "lua" => "lua",
+        "markdown" => "markdown",
+        _ => return ConnIcon::glyph(glyph),
+    };
+    product_icon(name, glyph)
+}
+
+/// A CLI tool's product, from the command it runs, or `glyph` - the
+/// category the user picked - when the command is not one we know
+/// (CR-0036).
+pub fn cli_conn_icon(command: &str, glyph: &'static str) -> ConnIcon {
+    let exe = std::path::Path::new(command.trim())
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let name = match exe.as_str() {
+        "psql" | "pg_dump" => "postgresql",
+        "mysql" | "mysqlsh" | "mariadb" => return plain_mark(connection_icon("db", "mysql")),
+        "sqlite3" | "sqlite" => "sqlite",
+        "redis-cli" | "valkey-cli" => "redis",
+        "mongosh" | "mongo" => "mongodb",
+        "clickhouse" | "clickhouse-client" => "clickhouse",
+        "duckdb" => "duckdb",
+        "sqlcmd" => "microsoftsqlserver",
+        "sqlplus" => "oracle",
+        "kubectl" | "k9s" => "kubernetes",
+        "docker" => "docker",
+        "podman" => "podman",
+        "git" => "git",
+        "az" => "azure",
+        "gcloud" => "googlecloud",
+        "terraform" | "tofu" => "terraform",
+        "ansible" | "ansible-playbook" => "ansible",
+        "node" | "npm" | "npx" => "nodejs",
+        "python" | "python3" | "py" | "ipython" => "python",
+        "dotnet" => "dotnetcore",
+        "claude" => "claude",
+        "gh" => return plain_mark(ph::GITHUB_LOGO),
+        "aws" => return branded(ph::CLOUD, [0xff, 0x99, 0x00]),
+        _ => return ConnIcon::glyph(glyph),
+    };
+    product_icon(name, glyph)
+}
+
+/// A connection kind's icon (CR-0036). See [`ConnIcon`].
+pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
+    let glyph = connection_icon(kind, engine);
+    if let Some(uri) = product_logo(kind, engine) {
+        return ConnIcon {
+            glyph,
+            image: Some(uri),
+            tint: ConnTint::Default,
+        };
+    }
+    let tint = match (kind, engine) {
+        // Black logos: the mark in the theme's text colour.
+        // MySQL's blue dolphin is a thin outline that all but vanishes
+        // on the dark theme; MariaDB shares it here (the database tool
+        // runs MariaDB through its MySQL engine).
+        ("github-issues" | "kafka", _) | ("db", "mysql" | "mariadb") => ConnTint::Text,
+        // No logo here: the glyph in the product's colour.
+        ("s3", _) => ConnTint::Brand(egui::Color32::from_rgb(0xff, 0x99, 0x00)),
+        ("qdrant", _) => ConnTint::Brand(egui::Color32::from_rgb(0xdc, 0x24, 0x4c)),
+        // MQTT's own #660066 is lost on the dark theme: a lighter step of
+        // the same purple.
+        ("mqtt", _) => ConnTint::Brand(egui::Color32::from_rgb(0x9c, 0x4f, 0x9c)),
+        ("redmine", _) => ConnTint::Brand(egui::Color32::from_rgb(0xb3, 0x20, 0x24)),
+        _ => ConnTint::Default,
+    };
+    ConnIcon {
+        glyph,
+        image: None,
+        tint,
+    }
+}
+
+/// [`conn_icon`] for a saved profile: a database by its engine, an SSH
+/// host by its operating system ([`os_conn_icon`]).
+pub fn profile_conn_icon(profile: &hs_core::connections::ConnectionProfile) -> ConnIcon {
+    if profile.kind == "ssh" {
+        let os = profile
+            .fields
+            .get("ssh")
+            .and_then(|v| v.as_table())
+            .and_then(|t| t.get("os_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        return if os.is_empty() {
+            ConnIcon::glyph(profile_icon(profile))
+        } else {
+            os_conn_icon(os)
+        };
+    }
+    let engine = profile
+        .fields
+        .get("db")
+        .and_then(|v| v.as_table())
+        .and_then(|t| t.get("engine"))
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+    conn_icon(&profile.kind, engine)
+}
+
 /// The glyph for a programming language, for the Editor's project list.
 ///
 /// The brands come from the bundled Nerd Font's devicon and Material
@@ -406,6 +1012,154 @@ pub fn named(key: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0036: every kind a user can add has its product's logo, or a
+    /// glyph coloured on purpose, and the only plain glyphs left are the
+    /// ones with no product to show.
+    #[test]
+    fn every_connection_kind_resolves_to_its_product_icon() {
+        let plain = ["ssh", "api", "valkey", "webdav", "nexus"];
+        for k in hs_core::connections::KINDS {
+            let icon = conn_icon(k, "");
+            if *k == "db" {
+                continue; // by engine, below
+            }
+            match (icon.image, icon.tint) {
+                (Some(uri), _) => assert!(
+                    PRODUCT_LOGOS.iter().any(|(u, _)| *u == uri),
+                    "{k}'s logo {uri} is not registered"
+                ),
+                (None, ConnTint::Default) => {
+                    assert!(plain.contains(k), "{k} has neither a logo nor a colour")
+                }
+                (None, _) => {}
+            }
+        }
+        for (engine, logo) in [
+            ("postgres", Some("postgresql")),
+            ("mysql", None),
+            ("sqlite", Some("sqlite")),
+            ("clickhouse", Some("clickhouse")),
+            ("duckdb", Some("duckdb")),
+            ("mssql", Some("microsoftsqlserver")),
+            ("oracle", Some("oracle")),
+            ("mariadb", None),
+        ] {
+            let icon = conn_icon("db", engine);
+            assert_eq!(
+                icon.image,
+                logo.map(|l| format!("bytes://product/{l}.svg"))
+                    .and_then(|u| PRODUCT_LOGOS.iter().map(|(p, _)| *p).find(|p| *p == u)),
+                "{engine}"
+            );
+        }
+        // Black logos keep a glyph in the text colour, both themes.
+        assert_eq!(conn_icon("kafka", "").tint, ConnTint::Text);
+        assert_eq!(conn_icon("github-issues", "").tint, ConnTint::Text);
+        assert_eq!(conn_icon("db", "mariadb").tint, ConnTint::Text);
+        assert_eq!(conn_icon("db", "mysql").tint, ConnTint::Text);
+    }
+
+    /// An SSH host, a language and a CLI resolve to their products' logos;
+    /// macOS takes the striped Apple, and the black marks a glyph.
+    #[test]
+    fn hosts_languages_and_clis_wear_their_products() {
+        assert_eq!(
+            os_conn_icon("macos").image,
+            Some("bytes://product/apple-rainbow.svg")
+        );
+        assert_eq!(
+            os_conn_icon("ubuntu").image,
+            Some("bytes://product/ubuntu.svg")
+        );
+        assert!(os_conn_icon("alpine").brand().is_some());
+        for (id, _) in hs_core::projects::LANGUAGES {
+            let icon = language_conn_icon(id);
+            assert!(
+                icon.image.is_some() || icon.tint == ConnTint::Text,
+                "{id} has neither a logo nor a deliberate glyph"
+            );
+        }
+        assert_eq!(
+            language_conn_icon("rust").image,
+            Some("bytes://product/rust.svg")
+        );
+        assert_eq!(
+            cli_conn_icon("C:/Program Files/PostgreSQL/17/bin/psql.exe", ph::DATABASE).image,
+            Some("bytes://product/postgresql.svg")
+        );
+        assert_eq!(cli_conn_icon("gh", ph::TERMINAL).tint, ConnTint::Text);
+        // An unknown command keeps the category the user picked.
+        assert_eq!(
+            cli_conn_icon("mytool", ph::DATABASE),
+            ConnIcon::glyph(ph::DATABASE)
+        );
+    }
+
+    /// The sidebar row, the tab and the work-pane header all draw the same
+    /// picture for a kind: the header carries `conn_icon`'s URI and colour,
+    /// which is what the tab hooks and the list rows take too.
+    #[test]
+    fn the_header_carries_the_same_icon_as_the_list_and_the_tab() {
+        for k in ["docker", "redis", "rabbitmq", "jira", "mqtt", "kafka"] {
+            let icon = conn_icon(k, "");
+            let header = icon.header("x");
+            assert_eq!(header.icon_uri, icon.uri(), "{k}");
+            assert_eq!(header.icon, icon.glyph, "{k}");
+            assert_eq!(
+                header.icon_hex.is_some(),
+                icon.brand().is_some(),
+                "{k}'s colour"
+            );
+            assert_eq!(header.icon_plain, icon.tint == ConnTint::Text, "{k}");
+        }
+    }
+
+    /// Every vendored logo is an SVG and is drawn for at least one kind.
+    #[test]
+    fn every_vendored_logo_is_an_svg_some_kind_uses() {
+        let mut used = std::collections::HashSet::new();
+        for k in hs_core::connections::KINDS {
+            used.extend(conn_icon(k, "").image);
+        }
+        for e in [
+            "postgres",
+            "mysql",
+            "sqlite",
+            "clickhouse",
+            "duckdb",
+            "mssql",
+            "oracle",
+        ] {
+            used.extend(conn_icon("db", e).image);
+        }
+        for os in [
+            "ubuntu", "debian", "fedora", "rhel", "centos", "arch", "suse", "linux", "macos",
+            "windows",
+        ] {
+            used.extend(os_conn_icon(os).image);
+        }
+        for (id, _) in hs_core::projects::LANGUAGES {
+            used.extend(language_conn_icon(id).image);
+        }
+        for cmd in [
+            "az", "gcloud", "git", "dotnet", "claude", "pwsh", "bash", "zsh", "fish",
+        ] {
+            used.extend(cli_conn_icon(cmd, ph::TERMINAL).image);
+        }
+        // The shells' own marks (tool-terminal maps them by shell id).
+        for name in ["powershell", "bash", "zsh", "fish", "git"] {
+            used.extend(logo(name));
+        }
+        for (uri, bytes) in PRODUCT_LOGOS {
+            let text = std::str::from_utf8(bytes).expect("utf-8");
+            assert!(text.trim_start().starts_with("<svg"), "{uri}");
+            assert!(
+                used.contains(uri),
+                "{uri} is vendored but drawn for no kind"
+            );
+        }
+    }
 
     /// CR-0024: the activities' connections wear their products' marks,
     /// so no kind may fall through to the container fallback.

@@ -709,15 +709,18 @@ Change Request : CR-0040
 - **Notes:** The new header button reuses the tree menu's names (New Folder, New File, Refresh), the names box 2 uses, rather than box 1's "Add Folder". Responsive means labelled while the column has room, icons with tooltips when not, and the title truncating last (`column_header_buttons_fit` measures the translated labels). Open Folder and Open File stay palette commands. A folder in no repository already had a row; it now wears the shared header with History disabled. The "dubious ownership" case is mapped by `status_problem` and covered by a unit test; it could not be staged in the app here. In the app (release build, scratch data folder): a non-git project showed one row, "Not a Git repository.", with History disabled; a git one showed the folder icon by its name and the branch icon by "master", with the four sections evenly spaced; New Folder from the header created the folder on disk; at the column's widest the buttons carried labels, at its narrowest icons only and "Pr…"; main.rs's tab wore the Rust icon the file list shows. CHECKLIST has no row for this batch.
 
 ### CR-0036 · Multi-coloured product icons for every connection kind
-- **State:** Pending ·
+- **State:** Completed ·
 - **Scope:** `hs_ui::icons` and every list, tab and header that draws a connection icon.
 - **Parent:** CR-0025
-- [ ] In All Activities -> Every connection icon, use multi-colored icon, same with the actual product icon color. It will reflect to all component that use the icon (Connection lists, tabs, etc)
-- [ ] In Git Activity -> Work Pane Header -> Repostory Title Icon; Use the icon that been save in the Git Repository Settings, same like the repository list icon and the tab icon for the repository. Don't use generic icon.
-- [ ] Test: each connection kind resolves to its product icon, and the same icon is returned for the sidebar, the tab and the work-pane header
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every connection list, tab and header shows the product's own colours in both themes
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In All Activities -> Every connection icon, use multi-colored icon, same with the actual product icon color. It will reflect to all component that use the icon (Connection lists, tabs, etc)
+- [x] In Git Activity -> Work Pane Header -> Repostory Title Icon; Use the icon that been save in the Git Repository Settings, same like the repository list icon and the tab icon for the repository. Don't use generic icon.
+- [x] In Terminal -> Shells and CLI, and SSH -> Hosts: use each item's own logo and colours (shells, CLI tools by command, the host's operating system); macOS takes a rainbow-striped Apple instead of the black one. (Owner, 2026-11-04.)
+- [x] In Editor: projects wear their language's logo in its colours (Java, PHP, Rust, .NET/C#, Python, ...). (Owner, 2026-11-04.)
+- [x] Test: each connection kind resolves to its product icon, and the same icon is returned for the sidebar, the tab and the work-pane header
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — every connection list, tab and header shows the product's own colours in both themes
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Logos are Devicon v2.18.0 (MIT), chosen by the owner, vendored in `assets/icons/devicon/` (README there lists every mapping); `apple-rainbow.svg` is ours, derived from Devicon's Apple; Rust, Lua and Markdown use the Material files already in the repo. Kinds without a logo keep their glyph in the brand colour (owner's choice); black logos (GitHub, Kafka, MySQL, MariaDB) a glyph in the text colour, found by measuring fills and confirmed on screen. Valkey, WebDAV, Nexus and cmd have neither and are unchanged. An SSH tab shows the generic glyph until the host has been connected once, as before: the OS is learnt on connect. In the app (release build, seeded scratch folder, dark and light themes): every sidebar, the Settings lists, dashboard tiles, tabs and header bands; the Editor's file tab followed the file list with Material icons on and off. CHECKLIST has no row for this batch.
 
 ### CR-0031 · Spacing pass: Redis, S3 and Queue work panes
 - **State:** Pending ·

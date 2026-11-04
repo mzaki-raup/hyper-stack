@@ -486,17 +486,15 @@ impl Tool for QueueTool {
         }
         let info = self.shared.lock().info.clone();
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::connection_icon(&self.kind, ""),
-                self.conn_name.clone(),
-            )
-            .plain(if info.product.is_empty() {
-                hs_core::connections::kind_label(&self.kind).to_string()
-            } else {
-                info.product
-            })
-            .fact("Version", info.version)
-            .fact("Broker", self.address.clone()),
+            hs_ui::icons::conn_icon(&self.kind, "")
+                .header(self.conn_name.clone())
+                .plain(if info.product.is_empty() {
+                    hs_core::connections::kind_label(&self.kind).to_string()
+                } else {
+                    info.product
+                })
+                .fact("Version", info.version)
+                .fact("Broker", self.address.clone()),
         )
     }
 
@@ -505,6 +503,18 @@ impl Tool for QueueTool {
             return None;
         }
         Some(hs_ui::icons::connection_icon(&self.kind, ""))
+    }
+
+    /// The product's logo on the tab, where it has one (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.kind, "").uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.kind, "").brand()
     }
 
     fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
@@ -633,7 +643,7 @@ impl Tool for QueueTool {
                 id: "settings:queue:new".into(),
             });
         }
-        let profiles: Vec<(String, String, String, bool, &'static str)> = {
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = {
             let conns = s.connections.read();
             conns
                 .of_queue_kinds()
@@ -643,7 +653,7 @@ impl Tool for QueueTool {
                         c.name.clone(),
                         QueueFields::from_table(&c.kind, &c.fields).label_for(&c.kind),
                         c.pinned,
-                        hs_ui::icons::connection_icon(&c.kind, ""),
+                        hs_ui::icons::conn_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -668,7 +678,7 @@ impl Tool for QueueTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *pinned,
@@ -851,8 +861,9 @@ impl QueueTool {
                         id: c.id.clone(),
                         name: c.name.clone(),
                         detail: f.label_for(&c.kind),
-                        icon: hs_ui::icons::connection_icon(&c.kind, "").to_string(),
-                        image: None,
+                        icon: hs_ui::icons::conn_icon(&c.kind, "").glyph.to_string(),
+                        image: hs_ui::icons::conn_icon(&c.kind, "").uri(),
+                        tint: hs_ui::icons::conn_icon(&c.kind, "").fixed_colour(&theme),
                     }
                 })
                 .collect()

@@ -260,6 +260,43 @@ pub fn item_button_image(
     subtitle: &str,
     width: f32,
 ) -> egui::Response {
+    item_button_art(ui, theme, image, icon, None, title, subtitle, width)
+}
+
+/// A tile led by a product's icon: its logo, or its glyph in the
+/// product's colour (CR-0036).
+pub fn item_button_icon(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: crate::icons::ConnIcon,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
+    item_button_art(
+        ui,
+        theme,
+        icon.image,
+        icon.glyph,
+        icon.fixed_colour(theme),
+        title,
+        subtitle,
+        width,
+    )
+}
+
+/// [`item_button_image`] with the glyph in a colour of its own.
+#[allow(clippy::too_many_arguments)] // one tile's parts, all of them needed
+fn item_button_art(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    image: Option<&str>,
+    icon: &str,
+    tint: Option<egui::Color32>,
+    title: &str,
+    subtitle: &str,
+    width: f32,
+) -> egui::Response {
     const HEIGHT: f32 = 50.0;
     const PAD: f32 = 12.0;
     const ICON: f32 = 18.0;
@@ -296,10 +333,10 @@ pub fn item_button_image(
             egui::Align2::LEFT_CENTER,
             icon,
             egui::FontId::proportional(ICON),
-            if hovered {
-                theme.accent
-            } else {
-                theme.text_muted
+            match tint {
+                Some(c) => c,
+                None if hovered => theme.accent,
+                None => theme.text_muted,
             },
         );
         x += ICON + 8.0;
@@ -424,6 +461,8 @@ pub struct Entry {
     pub icon: String,
     /// An image URI drawn in place of the glyph, when the thing has one.
     pub image: Option<String>,
+    /// The glyph's colour, when it is a product's (CR-0036).
+    pub tint: Option<egui::Color32>,
 }
 
 /// The words a [`saved_dashboard`] needs. Nothing here reaches for
@@ -500,11 +539,12 @@ pub fn saved_dashboard(
                 page.empty,
                 |ui, i, w| {
                     let e = &entries[i];
-                    if item_button_image(
+                    if item_button_art(
                         ui,
                         theme,
                         e.image.as_deref(),
                         &e.icon,
+                        e.tint,
                         &e.name,
                         &e.detail,
                         w,

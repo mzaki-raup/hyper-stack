@@ -273,6 +273,7 @@ impl DevtoolsTool {
                 detail: s.t(cat),
                 icon: (*icon).to_string(),
                 image: None,
+                tint: None,
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {

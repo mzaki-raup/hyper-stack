@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- Connection kinds wear their product's multi-coloured logo (Devicon, MIT) in every sidebar, Settings list, dashboard tile, tab and work-pane header; black logos keep a glyph in the text colour and kinds with no logo a glyph in the product's colour; the Git work-pane header shows the repository's saved icon; SSH hosts wear their operating system's logo (macOS the rainbow-striped Apple), terminal shells and CLI tools their product's, and Editor projects their language's
 - Add on Containers, Queue, Automation and Tracker opens a focused empty form of the page's first kind; Manage Projects, Manage Repositories and Git Credentials land on their list in Settings; Add CLI focuses its form; Add buttons name what they add (Add SSH Host, Add NoSQL, Add Redis, Add S3 Profile, Add Automation Server, Add Note)
 - Settings -> Containers, Queue, Automation and Tracker have one Add button each in place of a button per kind, and the form's Kind field lists only that page's kinds
 - Editor: the folder column's header has New Folder, New File and Refresh, labelled when there is room; the toolbar drops Open Folder and Open File (both stay in the palette); file tabs wear the file list's icon; Source Control shows a folder icon by the name and the branch icon by the branch, says "Not a Git repository" (or that Git does not trust the folder) instead of git's raw error, disables History there, and spaces its sections evenly

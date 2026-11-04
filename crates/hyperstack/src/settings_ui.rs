@@ -3213,11 +3213,11 @@ fn container_list(
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     let subtitle = container_subtitle(s, id, kind);
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            container_kind_icon(kind),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(&subtitle),
                         )
@@ -3274,14 +3274,6 @@ fn container_subtitle(s: &Services, id: &str, kind: &str) -> String {
     };
     let f = hs_container::profile::ContainerFields::from_table(&p.fields);
     format!("{label} · {}", f.describe(kind))
-}
-
-/// The glyph for a container kind: what the thing **is**, as every other
-/// list in the app now does.
-/// The one table, shared with the Container activity so the two lists
-/// of hosts can never show different icons for the same kind.
-fn container_kind_icon(kind: &str) -> &'static str {
-    hs_ui::icons::container_kind_icon(kind)
 }
 
 /// Defaults and Safety: the guards that apply to every container host.
@@ -3623,11 +3615,11 @@ fn queue(
                 for (i, (id, kind, name, subtitle)) in brokers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -3771,11 +3763,11 @@ fn automation(
                 for (i, (id, kind, name, subtitle)) in servers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -3913,11 +3905,11 @@ fn tracker(
                 for (i, (id, kind, name, subtitle)) in trackers.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            hs_ui::icons::connection_icon(kind, ""),
+                            hs_ui::icons::conn_icon(kind, ""),
                             name,
                             Some(subtitle),
                         )
@@ -4027,7 +4019,7 @@ fn connections(
                 ui.add_space(8.0);
                 // The engine travels with the kind: a `db` profile's
                 // icon is PostgreSQL's or MySQL's, not a generic plug.
-                let conns: Vec<(String, String, String, &'static str)> = s
+                let conns: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
                     .connections
                     .read()
                     .all()
@@ -4036,7 +4028,7 @@ fn connections(
                         // Reads the engine for a database and the
                         // detected OS for an SSH host, so this list
                         // agrees with the activity sidebars.
-                        let icon = hs_ui::icons::profile_icon(c);
+                        let icon = hs_ui::icons::profile_conn_icon(c);
                         (c.id.clone(), c.kind.clone(), c.name.clone(), icon)
                     })
                     .collect();
@@ -4050,11 +4042,11 @@ fn connections(
                 for (i, (id, kind, name, icon)) in conns.iter().enumerate() {
                     let selected = state.conn_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(hs_core::connections::kind_label(kind)),
                         )
@@ -5991,7 +5983,7 @@ fn project_list(
                 }
                 ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-project-list-hint"));
-                let rows: Vec<(String, String, String, &'static str)> = s
+                let rows: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
                     .projects
                     .read()
                     .all()
@@ -6001,7 +5993,7 @@ fn project_list(
                             p.id.clone(),
                             p.label(),
                             p.root.display().to_string(),
-                            hs_ui::icons::language_icon(&p.language),
+                            hs_ui::icons::language_conn_icon(&p.language),
                         )
                     })
                     .collect();
@@ -6013,7 +6005,9 @@ fn project_list(
                 for (i, (id, name, root, icon)) in rows.iter().enumerate() {
                     let selected = state.project_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row(ui, theme, selected, icon, name, Some(root)).clicked() {
+                        if form::conn_list_row(ui, theme, selected, *icon, name, Some(root))
+                            .clicked()
+                        {
                             pick = Some(id.clone());
                         }
                     });

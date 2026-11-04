@@ -2746,7 +2746,7 @@ impl EditorTool {
     fn dashboard(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let (theme, _) = Self::theme(s);
-        let projects: Vec<(String, String, String, &'static str)> = s
+        let projects: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
             .projects
             .read()
             .all()
@@ -2756,7 +2756,7 @@ impl EditorTool {
                     p.id.clone(),
                     p.label(),
                     p.root.display().to_string(),
-                    hs_ui::icons::language_icon(&p.language),
+                    hs_ui::icons::language_conn_icon(&p.language),
                 )
             })
             .collect();
@@ -2864,8 +2864,8 @@ impl EditorTool {
                             .spacing([spacing, spacing])
                             .show(ui, |ui| {
                                 for (i, (id, name, path, icon)) in projects.iter().enumerate() {
-                                    if hs_ui::dashboard::item_button(
-                                        ui, &theme, icon, name, path, CELL,
+                                    if hs_ui::dashboard::item_button_icon(
+                                        ui, &theme, *icon, name, path, CELL,
                                     )
                                     .clicked()
                                     {
@@ -3192,7 +3192,8 @@ impl Tool for EditorTool {
             _ => String::new(),
         };
         Some(
-            hs_core::tool::ToolHeader::new(hs_ui::icons::language_icon(&self.proj_lang), name)
+            hs_ui::icons::language_conn_icon(&self.proj_lang)
+                .header(name)
                 .fact("Language", language)
                 .fact("Version", version)
                 // Where the project actually lives, last in the band
@@ -3218,6 +3219,14 @@ impl Tool for EditorTool {
             return None;
         }
         Some(hs_ui::icons::language_icon(&self.proj_lang))
+    }
+
+    /// The language's logo on a project tab (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        if self.is_home || self.proj_lang.is_empty() {
+            return None;
+        }
+        hs_ui::icons::language_conn_icon(&self.proj_lang).uri()
     }
 
     /// The dashboard is the workspace's front page, so it wears the
@@ -3422,7 +3431,7 @@ impl Tool for EditorTool {
         // (id, name, path, icon, is open here) - read once, because the
         // store is behind a lock and this runs every frame.
         let open_root = self.root().map(hs_core::projects::normalise);
-        let rows: Vec<(String, String, String, &'static str, bool)> = s
+        let rows: Vec<(String, String, String, hs_ui::icons::ConnIcon, bool)> = s
             .projects
             .read()
             .all()
@@ -3434,7 +3443,7 @@ impl Tool for EditorTool {
                     p.id.clone(),
                     p.label(),
                     p.root.display().to_string(),
-                    hs_ui::icons::language_icon(&p.language),
+                    hs_ui::icons::language_conn_icon(&p.language),
                     mine,
                 )
             })
@@ -3453,7 +3462,8 @@ impl Tool for EditorTool {
             .show(ui, |ui| {
                 for (i, (id, name, path, icon, mine)) in rows.iter().enumerate() {
                     reorder.row(ui, i, |ui| {
-                        let row = hs_ui::form::list_row(ui, &theme, *mine, icon, name, Some(path));
+                        let row =
+                            hs_ui::form::conn_list_row(ui, &theme, *mine, *icon, name, Some(path));
                         if row.clicked() {
                             open = Some(id.clone());
                         }

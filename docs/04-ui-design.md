@@ -954,6 +954,41 @@ maximums, so a size saved on a wide monitor cannot keep most of a small one;
 the split-view divider refuses to move once both halves are at the 120 px
 minimum.
 
+## Addendum (2026-11-04): product logos for connection kinds (CR-0036)
+
+A connection kind wears its **product's multi-coloured logo** everywhere it
+is drawn: the activity sidebars, Settings' lists, the dashboards' saved
+tiles, the tabs and the work-pane header band. One function decides it,
+`hs_ui::icons::conn_icon(kind, engine)` (`profile_conn_icon` for a saved
+profile), returning a `ConnIcon`: the logo's `bytes://product/…` URI, or
+the glyph and how to colour it. The logos are Devicon v2.18.0 (MIT),
+vendored in `assets/icons/devicon/` and registered once by
+`install_image_loaders`; the folder's README lists which kind takes which.
+
+- The same goes for an **SSH host's operating system** (`os_conn_icon`:
+  Ubuntu, Debian, Fedora, Red Hat, CentOS, Arch, openSUSE, Linux, Windows,
+  and macOS as the **rainbow-striped Apple**, not the black one), a
+  **terminal shell** (PowerShell, Git Bash, bash, zsh, fish; a WSL shell its
+  distribution), a **CLI** by the command it runs (`cli_conn_icon`: `psql`,
+  `kubectl`, `az`, `gcloud`, `gh`…, falling back to the category the user
+  picked), and an **Editor project's language** (`language_conn_icon`) in
+  the project list, the tab, the header and the dashboard.
+- A **black logo** (GitHub, Kafka, MySQL, MariaDB) would vanish on the dark
+  theme, so those keep their glyph in the theme's **text** colour; Rust,
+  Lua and Markdown use the file tree's coloured Material icons instead of
+  Devicon's black or navy ones.
+- A product with **no logo** in the set keeps its glyph in the product's
+  colour: S3, Qdrant, MQTT (a lighter step of its purple), Redmine, Alpine,
+  FreeBSD, Nushell.
+- Valkey, WebDAV, Nexus, cmd and the API client keep their glyph as before:
+  no product logo or colour to give them.
+- The shared drawers take it: `form::connection_row` / `conn_list_row`,
+  `dashboard::Entry` (`image`, `tint`), `ToolHeader` (`icon_image`,
+  `icon_hex`, `icon_plain`) and the `Tool::tab_icon_uri` /
+  `tab_icon_colour` hooks.
+- The **Git** activity's work-pane header shows a repository's uploaded
+  icon, as its list row and tab already did.
+
 ## Addendum (2026-11-04): Remove From List on a connection row (FEAT-0094)
 
 Every connection row's context menu (`hs_ui::form::row_menu`, so all

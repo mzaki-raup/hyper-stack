@@ -193,6 +193,13 @@ pub enum ToastLevel {
 pub struct ToolHeader {
     /// The glyph that leads the band: the language, engine, OS or kind.
     pub icon: String,
+    /// A picture drawn in place of `icon`: a connection kind's product
+    /// logo, as an egui image URI (CR-0036).
+    pub icon_uri: Option<String>,
+    /// `#RRGGBB` for `icon` instead of the accent: a product's colour.
+    pub icon_hex: Option<String>,
+    /// Draw `icon` in the text colour: a product whose logo is black.
+    pub icon_plain: bool,
     /// The name of the thing - the project, note, connection or file.
     pub name: String,
     pub facts: Vec<(String, String)>,
@@ -240,9 +247,26 @@ impl ToolHeader {
         Self {
             icon: icon.into(),
             name: name.into(),
-            facts: Vec::new(),
-            colours: Vec::new(),
+            ..Self::default()
         }
+    }
+
+    /// Lead with a picture instead of the glyph (CR-0036).
+    pub fn icon_image(mut self, uri: impl Into<String>) -> Self {
+        self.icon_uri = Some(uri.into());
+        self
+    }
+
+    /// Colour the glyph `#RRGGBB` rather than with the accent.
+    pub fn icon_hex(mut self, hex: impl Into<String>) -> Self {
+        self.icon_hex = Some(hex.into());
+        self
+    }
+
+    /// Draw the glyph in the band's text colour.
+    pub fn icon_plain(mut self) -> Self {
+        self.icon_plain = true;
+        self
     }
 
     /// Add a fact. An empty value is kept here and skipped when drawn,
@@ -438,6 +462,12 @@ pub trait Tool: Send {
     /// so it shows the workspace glyph rather than a globe when no logo is
     /// set. `None` keeps the descriptor's icon.
     fn tab_icon(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// A colour for the tab's glyph: the product's own, for a connection
+    /// kind with no logo to draw (CR-0036). `None` keeps the strip's.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
         None
     }
 

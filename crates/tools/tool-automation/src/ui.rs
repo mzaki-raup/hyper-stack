@@ -400,30 +400,40 @@ impl Tool for AutomationTool {
         }
         let info = self.shared.lock().info.clone();
         Some(
-            hs_core::tool::ToolHeader::new(
-                hs_ui::icons::connection_icon(&self.kind, ""),
-                self.conn_name.clone(),
-            )
-            .plain(if info.product.is_empty() {
-                hs_core::connections::kind_label(&self.kind).to_string()
-            } else {
-                info.product
-            })
-            .fact("Version", info.version)
-            // The kind is already in the band; the place is what is left.
-            .fact(
-                "Server",
-                self.address
-                    .split_once(" · ")
-                    .map(|(_, place)| place)
-                    .unwrap_or(&self.address)
-                    .to_string(),
-            ),
+            hs_ui::icons::conn_icon(&self.kind, "")
+                .header(self.conn_name.clone())
+                .plain(if info.product.is_empty() {
+                    hs_core::connections::kind_label(&self.kind).to_string()
+                } else {
+                    info.product
+                })
+                .fact("Version", info.version)
+                // The kind is already in the band; the place is what is left.
+                .fact(
+                    "Server",
+                    self.address
+                        .split_once(" · ")
+                        .map(|(_, place)| place)
+                        .unwrap_or(&self.address)
+                        .to_string(),
+                ),
         )
     }
 
     fn tab_icon(&self) -> Option<&'static str> {
         (!self.kind.is_empty()).then(|| hs_ui::icons::connection_icon(&self.kind, ""))
+    }
+
+    /// The product's logo on the tab, where it has one (CR-0036).
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.kind, "").uri()
+    }
+
+    /// The product's colour for the tab's glyph, where it has no logo.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.kind, "").brand()
     }
 
     fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
@@ -549,7 +559,7 @@ impl Tool for AutomationTool {
                 id: "settings:automation:new".into(),
             });
         }
-        let profiles: Vec<(String, String, String, bool, &'static str)> = {
+        let profiles: Vec<(String, String, String, bool, hs_ui::icons::ConnIcon)> = {
             let conns = s.connections.read();
             conns
                 .of_automation_kinds()
@@ -559,7 +569,7 @@ impl Tool for AutomationTool {
                         c.name.clone(),
                         AutomationFields::from_table(&c.kind, &c.fields).label_for(&c.kind),
                         c.pinned,
-                        hs_ui::icons::connection_icon(&c.kind, ""),
+                        hs_ui::icons::conn_icon(&c.kind, ""),
                     )
                 })
                 .collect()
@@ -584,7 +594,7 @@ impl Tool for AutomationTool {
                             ui,
                             &theme,
                             selected,
-                            icon,
+                            *icon,
                             name,
                             Some(label),
                             *pinned,
@@ -795,8 +805,9 @@ impl AutomationTool {
                     id: c.id.clone(),
                     name: c.name.clone(),
                     detail: AutomationFields::from_table(&c.kind, &c.fields).label_for(&c.kind),
-                    icon: hs_ui::icons::connection_icon(&c.kind, "").to_string(),
-                    image: None,
+                    icon: hs_ui::icons::conn_icon(&c.kind, "").glyph.to_string(),
+                    image: hs_ui::icons::conn_icon(&c.kind, "").uri(),
+                    tint: hs_ui::icons::conn_icon(&c.kind, "").fixed_colour(&theme),
                 })
                 .collect()
         };

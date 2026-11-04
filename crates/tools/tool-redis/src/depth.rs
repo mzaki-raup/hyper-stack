@@ -8,6 +8,7 @@
 use hs_core::tool::ToolContext;
 use hs_ui::form;
 use hs_ui::icons::ph;
+use hs_ui::table::{ColumnSpec, DataTable, TableState};
 use hs_ui::theme::Theme;
 
 use crate::client::KeyType;
@@ -31,6 +32,9 @@ pub struct DepthState {
     pub info_raw_open: bool,
     /// Which tools section is open.
     pub tool: ToolView,
+    /// The Client List and Big Keys tables' sort, filter and selection.
+    pub clients_table: TableState,
+    pub bigkeys_table: TableState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,6 +62,8 @@ impl Default for DepthState {
             stream_count: 50,
             info_raw_open: false,
             tool: ToolView::Slowlog,
+            clients_table: TableState::default(),
+            bigkeys_table: TableState::default(),
         }
     }
 }
@@ -268,6 +274,7 @@ impl RedisTool {
     pub(crate) fn tools_tab(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             for (v, icon, key) in [
                 (
@@ -295,6 +302,7 @@ impl RedisTool {
             }
         });
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         match self.depth.tool {
             ToolView::Slowlog => self.slowlog_view(ui, &theme, cx),
             ToolView::Clients => self.clients_view(ui, &theme, cx),
@@ -314,6 +322,7 @@ impl RedisTool {
             }
             form::hint(ui, theme, &s.t("redis-slowlog-hint"));
         });
+        ui.add_space(form::PANE_GAP);
         let rows = self.shared.lock().slowlog.clone();
         if rows.is_empty() {
             form::hint(ui, theme, &s.t("redis-slowlog-none"));
@@ -353,8 +362,19 @@ impl RedisTool {
             });
     }
 
+    /// The clients as the table every activity's lists use: sortable,
+    /// filterable, one row selected; Kill Client acts on that row
+    /// (CR-0031, in place of a bare grid with a button per row).
     fn clients_view(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
+        let rows = self.shared.lock().clients.clone();
+        let blocked = self.read_only();
+        let selected = self
+            .depth
+            .clients_table
+            .selected
+            .and_then(|i| rows.get(i))
+            .map(|c| c.id.clone());
         ui.horizontal(|ui| {
             if ui
                 .button(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("redis-reload")))
@@ -362,47 +382,66 @@ impl RedisTool {
             {
                 self.send(Cmd::Clients);
             }
+            if ui
+                .add_enabled(
+                    !blocked && selected.is_some(),
+                    egui::Button::new(format!("{} {}", ph::X_CIRCLE, s.t("redis-kill-client"))),
+                )
+                .clicked()
+                && let Some(id) = selected.clone()
+            {
+                self.popup = Some(Popup::Kill { id });
+            }
             form::hint(ui, theme, &s.t("redis-clients-hint"));
         });
-        let rows = self.shared.lock().clients.clone();
+        ui.add_space(form::PANE_GAP);
         if rows.is_empty() {
             form::hint(ui, theme, &s.t("redis-clients-none"));
             return;
         }
-        let mut kill: Option<String> = None;
-        let blocked = self.read_only();
-        egui::ScrollArea::both()
-            .id_salt("redis-clients")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                egui::Grid::new("redis-clients-grid")
-                    .striped(true)
-                    .num_columns(8)
-                    .spacing([16.0, 4.0])
-                    .show(ui, |ui| {
-                        for h in ["id", "addr", "name", "age", "idle", "db", "cmd", ""] {
-                            ui.label(egui::RichText::new(h).strong().small());
-                        }
-                        ui.end_row();
-                        for c in &rows {
-                            for v in [&c.id, &c.addr, &c.name, &c.age, &c.idle, &c.db, &c.cmd] {
-                                ui.label(egui::RichText::new(v).small().monospace());
-                            }
-                            if ui
-                                .add_enabled(
-                                    !blocked,
-                                    egui::Button::new(s.t("redis-client-kill")).small(),
-                                )
-                                .clicked()
-                            {
-                                kill = Some(c.id.clone());
-                            }
-                            ui.end_row();
-                        }
-                    });
-            });
-        if let Some(id) = kill {
-            self.popup = Some(Popup::Kill { id });
+        let columns = [
+            ColumnSpec::new(s.t("redis-col-id"), 70.0),
+            ColumnSpec::new(s.t("redis-col-addr"), 160.0),
+            ColumnSpec::new(s.t("redis-col-name"), 120.0),
+            ColumnSpec::new(s.t("redis-col-age"), 70.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-idle"), 70.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-db"), 50.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-cmd"), 140.0),
+        ];
+        let cells: Vec<Vec<String>> = rows
+            .iter()
+            .map(|c| {
+                vec![
+                    c.id.clone(),
+                    c.addr.clone(),
+                    c.name.clone(),
+                    c.age.clone(),
+                    c.idle.clone(),
+                    c.db.clone(),
+                    c.cmd.clone(),
+                ]
+            })
+            .collect();
+        let r = ui
+            .push_id("redis-clients", |ui| {
+                DataTable {
+                    theme,
+                    columns: &columns,
+                    rows: &cells,
+                    row_height: hs_ui::table::ROW_HEIGHT,
+                    show_filter: true,
+                    copy_row_label: &s.t("redis-copy-row"),
+                    built_in_menu: true,
+                    row_icons: None,
+                }
+                .show(ui, &mut self.depth.clients_table)
+            })
+            .inner;
+        if let Some(i) = r.clicked {
+            self.depth.clients_table.selected = Some(i);
+        }
+        if let Some(text) = r.copied {
+            ui.ctx().copy_text(text);
         }
     }
 
@@ -443,6 +482,7 @@ impl RedisTool {
             }
         });
         form::hint(ui, theme, &s.t("redis-bigkeys-hint"));
+        ui.add_space(form::PANE_GAP);
         if running {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(300));
@@ -450,52 +490,54 @@ impl RedisTool {
         if found.is_empty() {
             return;
         }
-        let mut open: Option<String> = None;
-        egui::ScrollArea::both()
-            .id_salt("redis-bigkeys")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                egui::Grid::new("redis-bigkeys-grid")
-                    .striped(true)
-                    .num_columns(5)
-                    .spacing([16.0, 4.0])
-                    .show(ui, |ui| {
-                        for h in ["Size", "Type", "Length", "TTL", "Key"] {
-                            ui.label(egui::RichText::new(h).strong().small());
-                        }
-                        ui.end_row();
-                        for k in &found {
-                            ui.label(
-                                egui::RichText::new(human_bytes(k.bytes))
-                                    .small()
-                                    .monospace(),
-                            );
-                            ui.label(egui::RichText::new(&k.kind).small());
-                            ui.label(egui::RichText::new(k.len.to_string()).small().monospace());
-                            ui.label(
-                                egui::RichText::new(if k.ttl < 0 {
-                                    "∞".to_string()
-                                } else {
-                                    human_secs(k.ttl as u64)
-                                })
-                                .small(),
-                            );
-                            if ui
-                                .add(
-                                    egui::Button::new(
-                                        egui::RichText::new(&k.key).small().monospace(),
-                                    )
-                                    .frame(false),
-                                )
-                                .clicked()
-                            {
-                                open = Some(k.key.clone());
-                            }
-                            ui.end_row();
-                        }
-                    });
-            });
-        if let Some(key) = open {
+        // The same table as every other list; a click on a row opens
+        // the key, as the hint above says (CR-0031).
+        let columns = [
+            ColumnSpec::new(s.t("redis-col-key"), 320.0),
+            ColumnSpec::new(s.t("redis-col-size"), 90.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-type"), 80.0),
+            ColumnSpec::new(s.t("redis-col-length"), 90.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-ttl"), 90.0),
+        ];
+        let cells: Vec<Vec<String>> = found
+            .iter()
+            .map(|k| {
+                vec![
+                    k.key.clone(),
+                    human_bytes(k.bytes),
+                    k.kind.clone(),
+                    k.len.to_string(),
+                    if k.ttl < 0 {
+                        "∞".to_string()
+                    } else {
+                        human_secs(k.ttl as u64)
+                    },
+                ]
+            })
+            .collect();
+        let r = ui
+            .push_id("redis-bigkeys", |ui| {
+                DataTable {
+                    theme,
+                    columns: &columns,
+                    rows: &cells,
+                    row_height: hs_ui::table::ROW_HEIGHT,
+                    show_filter: true,
+                    copy_row_label: &s.t("redis-copy-row"),
+                    built_in_menu: true,
+                    row_icons: None,
+                }
+                .show(ui, &mut self.depth.bigkeys_table)
+            })
+            .inner;
+        if let Some(text) = r.copied {
+            ui.ctx().copy_text(text);
+        }
+        if let Some(i) = r.clicked
+            && let Some(k) = found.get(i)
+        {
+            self.depth.bigkeys_table.selected = Some(i);
+            let key = k.key.clone();
             self.open_key(&key);
         }
     }
@@ -503,7 +545,7 @@ impl RedisTool {
     fn bulk_view(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
         form::hint(ui, theme, &s.t("redis-bulk-hint"));
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-bulk-action"));
             for (a, icon, key) in [
@@ -523,6 +565,7 @@ impl RedisTool {
                 }
             }
         });
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-bulk-pattern"));
             ui.add(
@@ -560,6 +603,7 @@ impl RedisTool {
                 });
             }
         });
+        ui.add_space(form::PANE_GAP);
         if self.read_only() {
             form::hint(ui, theme, &s.t("redis-refused-protected"));
         }
@@ -570,7 +614,7 @@ impl RedisTool {
         if pv.pattern != self.depth.bulk_pattern.trim() {
             return;
         }
-        ui.add_space(8.0);
+        ui.add_space(form::PANE_GAP);
         ui.label(
             egui::RichText::new(
                 s.i18n
@@ -578,14 +622,14 @@ impl RedisTool {
             )
             .strong(),
         );
-        egui::ScrollArea::vertical()
-            .id_salt("redis-bulk-preview")
-            .max_height(220.0)
-            .show(ui, |ui| {
-                for k in pv.keys.iter().take(200) {
-                    ui.label(egui::RichText::new(k).small().monospace());
-                }
-            });
+        ui.add_space(4.0);
+        // The preview in a well, like every other scrolling list.
+        form::scroll_well(ui, theme, "redis-bulk-preview", Some(220.0), |ui| {
+            for k in pv.keys.iter().take(200) {
+                ui.label(egui::RichText::new(k).small().monospace());
+            }
+        });
+        ui.add_space(form::PANE_GAP);
         if !pv.keys.is_empty()
             && !pv.capped
             && ui
@@ -618,6 +662,7 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let on = self.shared.lock().pubsub_on;
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-pubsub-channels"));
             ui.add_enabled(
@@ -670,6 +715,7 @@ impl RedisTool {
                 self.shared.lock().pubsub_msgs.clear();
             }
         });
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-pubsub-publish"));
             ui.add(
@@ -702,6 +748,7 @@ impl RedisTool {
         });
         form::hint(ui, &theme, &s.t("redis-pubsub-hint"));
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         if on {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(250));
@@ -743,6 +790,7 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let streams: Vec<String> = self.shared.lock().tree.keys_with_kind(&KeyType::Stream);
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("redis-streams-key"));
             let shown = if self.depth.stream_key.is_empty() {

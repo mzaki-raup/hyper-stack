@@ -282,3 +282,19 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Connections** - every server over its `host:port / db`;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): the spacing pass (CR-0031)
+
+Every gap in the work pane is `hs_ui::form::PANE_GAP` (8 px), the one
+number the Redis, S3 and Queue panes now share: under the toolbar before
+the Database row, between the Database row and the filter row, between
+the filter row and the key list, under the value pane's header rule
+before its action buttons (which take the toolbar's padding), between
+those buttons and the collection table, and in Pub/Sub, Streams and
+Tools between every row and the content under it. The key filter row
+puts **Scan** and **New Key** with their words beside the field, at the
+field's height, with air before the window's edge. In Tools, **Client
+List** and **Big Keys** are `DataTable`s like every other list (sortable,
+filterable, Copy Row); a client is killed by selecting its row and
+pressing **Kill Client**, and a big key still opens on a click. The Bulk
+Ops preview sits in a `form::scroll_well`.

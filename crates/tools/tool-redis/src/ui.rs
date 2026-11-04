@@ -350,18 +350,10 @@ impl RedisTool {
     }
 }
 
-/// A small icon button with the label as its tooltip: the shared helper takes
-/// a size and an active flag, which no toolbar here needs.
-fn tool_button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egui::Response {
-    let r = form::icon_button(ui, theme, icon, 16.0, false);
-    r.tip(label)
-}
-
-/// The same button with its label beside the icon, for the value pane
-/// and the Info tab: those rows have the width for words, and a row of
-/// bare glyphs made the reader guess which one deletes a key (owner's
-/// requirement, 2026-10-27). The key list's own filter row keeps the
-/// icons, because 300 px is not enough for them.
+/// A button with its label beside the icon, for the value pane, the Info
+/// tab and the key filter row: a row of bare glyphs made the reader guess
+/// which one deletes a key (owner's requirement, 2026-10-27; the filter
+/// row joined them with CR-0031).
 fn named_button(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
     ui.button(format!("{icon} {label}"))
 }
@@ -1110,32 +1102,39 @@ impl RedisTool {
                     }
                 });
         });
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            let r = ui.add(
-                egui::TextEdit::singleline(&mut self.state.pattern)
-                    .hint_text(s.t("redis-pattern-hint"))
-                    .desired_width(ui.available_width() - 60.0),
-            );
-            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                self.rescan();
-            }
-            if scanning {
-                if tool_button(ui, &theme, ph::STOP, &s.t("redis-stop")).clicked()
-                    && let Some(f) = &self.scan_flag
-                {
-                    f.store(false, Ordering::Relaxed);
+        ui.add_space(form::PANE_GAP);
+        // The filter row: the field, then Scan and New Key with their
+        // words, the three at one height, and air before the window's
+        // edge rather than a button pressed against it (CR-0031).
+        form::field_row(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+                let buttons = 2.0 * 110.0 + form::PANE_GAP;
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut self.state.pattern)
+                        .hint_text(s.t("redis-pattern-hint"))
+                        .desired_width((ui.available_width() - buttons).max(120.0)),
+                );
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    self.rescan();
                 }
-            } else if tool_button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("redis-scan")).clicked() {
-                self.rescan();
-            }
-            if tool_button(ui, &theme, ph::PLUS, &s.t("redis-new-key")).clicked() {
-                self.popup = Some(Popup::NewKey {
-                    key: String::new(),
-                    kind: KeyType::String,
-                    value: String::new(),
-                });
-            }
+                if scanning {
+                    if named_button(ui, ph::STOP, &s.t("redis-stop")).clicked()
+                        && let Some(f) = &self.scan_flag
+                    {
+                        f.store(false, Ordering::Relaxed);
+                    }
+                } else if named_button(ui, ph::ARROWS_CLOCKWISE, &s.t("redis-scan")).clicked() {
+                    self.rescan();
+                }
+                if named_button(ui, ph::PLUS, &s.t("redis-new-key")).clicked() {
+                    self.popup = Some(Popup::NewKey {
+                        key: String::new(),
+                        kind: KeyType::String,
+                        value: String::new(),
+                    });
+                }
+            });
         });
         let count_text = if scanning {
             s.i18n
@@ -1308,8 +1307,10 @@ impl RedisTool {
     fn keys_tab(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        ui.add_space(form::PANE_GAP);
         self.keys_controls(ui, &theme, s);
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         let total = ui.available_width();
         let list_width = KEY_LIST_WIDTH.min(total * 0.45);
         let value_width = (total - list_width - 26.0).max(160.0);
@@ -1397,7 +1398,12 @@ impl RedisTool {
                 ui.label(egui::RichText::new(text).small().color(theme.text_muted));
             }
         });
+        // Air under the header rule, and buttons with the toolbar's
+        // padding rather than egui's tight default (CR-0031).
+        ui.add_space(form::PANE_GAP);
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+            ui.spacing_mut().item_spacing.x = form::PANE_GAP;
             if named_button(ui, ph::ARROWS_CLOCKWISE, &s.t("redis-reload")).clicked() {
                 let k = info.key.clone();
                 self.open_key(&k);
@@ -1442,7 +1448,7 @@ impl RedisTool {
                 });
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         match &page {
             Some(ValuePage::Text { bytes, total }) => {
                 let decoded = value::decode(bytes);

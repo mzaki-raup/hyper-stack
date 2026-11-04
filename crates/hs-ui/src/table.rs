@@ -143,6 +143,9 @@ impl DataTable<'_> {
                     format!("{} / {}", self.order(state).len(), self.rows.len()),
                 );
             });
+            // Air between the filter and the header band, in every
+            // activity's table at once (CR-0031).
+            ui.add_space(crate::form::PANE_GAP);
         }
         let order = self.order(state);
         let mut new_sort = None;

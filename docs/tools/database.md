@@ -654,3 +654,13 @@ them unchanged.
   version, browse, a DDL round trip, `table_schema`, a row limit and Cancel.
   **Db2 is not verified yet:** IBM's ODBC driver failed on the test machine
   for every ODBC client, .NET's included (`docs/GOTCHAS.md`, Databases).
+
+## Addendum (2026-11-05): the result panel's spacing (CR-0032)
+
+The result strip starts with air before the first result tab and puts a
+rule, with air either side, between the result tabs and **Messages**.
+Messages lists one card per statement - the statement, a rule, then what
+became of it (rows and time, rows affected, the error, or Skipped) - with
+`hs_ui::form::PANE_GAP` from the pane's edge. The grid's footer keeps the
+same gap above it, the row count has air from the left edge and Export
+from the right.

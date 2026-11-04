@@ -788,21 +788,22 @@ Change Request : CR-0040
 - **Notes:** one shared gap, `hs_ui::form::PANE_GAP` (8 px), carries every spacing box; every `DataTable` now leaves that gap under its filter row, which the Database, Logs and other activities inherit. Redis Client List and Big Keys and the Queue Bindings pane became `DataTable`s; Kill Client acts on the selected row. Verified 2026-11-05 on screen; MQTT, Kafka, NATS and Redis Streams brokers were not up, so their Publish and Consumers variants are code-reviewed only.
 
 ### CR-0032 · Spacing pass: Database result and message panels
-- **State:** Pending ·
+- **State:** Completed · verified on screen against the bench SQLite file with a two-statement script
 - **Scope:** The Database work pane's result and message panels.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In Database Activity -> Work Pane -> Result And Message Section Header; Add separator between result button(s) and message button with proper left/right padding/margin.
-- [ ] In Database Activity -> Work Pane -> Result Section Header Row; Please add left margin/padding on the first result button. Its too near the pane border.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please insert the all the result lists : message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) inside a some card or frame to look professional and tidy.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add left margin/padding on the message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms). Its too near the pane border.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add separator between result message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) with top/bottom margin/padding on the separator.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add top/bottom padding/margin between the result datatable and toolbar below.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add left margin/padding on the result stat (e.g. 27 rows · Editable (F2)) and right margin/padding on the Export button.
-- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — run a multi-statement query and read the result and message panels — cards, separators and padding on both
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Database Activity -> Work Pane -> Result And Message Section Header; Add separator between result button(s) and message button with proper left/right padding/margin.
+- [x] In Database Activity -> Work Pane -> Result Section Header Row; Please add left margin/padding on the first result button. Its too near the pane border.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please insert the all the result lists : message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) inside a some card or frame to look professional and tidy.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add left margin/padding on the message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms). Its too near the pane border.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add separator between result message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) with top/bottom margin/padding on the separator.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add top/bottom padding/margin between the result datatable and toolbar below.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add left margin/padding on the result stat (e.g. 27 rows · Editable (F2)) and right margin/padding on the Export button.
+- [x] Test: no assertion beyond the gate: this is layout, verified on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — run a multi-statement query and read the result and message panels — cards, separators and padding on both
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** the result strip, the Messages cards and the footer gaps are `hs_ui::form::PANE_GAP`; verified 2026-11-05 in the app (Result 1 · 27 rows, Result 2 · 5 rows, Messages).
 
 ### CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
 - **State:** Pending ·

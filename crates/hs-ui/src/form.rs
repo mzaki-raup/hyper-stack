@@ -20,6 +20,13 @@ pub const FIELD_MARGIN: Margin = Margin {
     bottom: 7,
 };
 
+/// The air between the parts of a work pane: under a toolbar or a
+/// header rule, between an action row and a filter row, between a filter
+/// row and its table, around a table and the status under it. One number
+/// for every activity (owner's spacing pass, CR-0031), so the panes
+/// breathe alike and a change is made once.
+pub const PANE_GAP: f32 = 8.0;
+
 /// How tall a text field drawn with [`FIELD_MARGIN`] comes out. A control
 /// put beside one — a ComboBox, a button — has to be told this, or the two
 /// frames sit at different heights and the row looks crooked even though

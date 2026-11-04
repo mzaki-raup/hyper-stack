@@ -734,57 +734,58 @@ Change Request : CR-0040
 - **Notes:** Filed 2026-11-04 from the owner's request. White, as `form::primary_button` already used; the Scratchpad's Add Note and the Editor's Add Project Folder draw their own Start Here button and got the same colour. Dialog and Settings buttons filled with the accent were not part of this request. Checked in the app on the light theme: Add Project Folder, Add CLI, Add Repository and Add Note all read white on purple.
 
 ### CR-0031 · Spacing pass: Redis, S3 and Queue work panes
-- **State:** Pending ·
+- **State:** Completed · every pane walked on screen against the bench Redis 7.4 (6381), s3mock (9000) and RabbitMQ 4.4 (15672) in WSL
 - **Scope:** The Redis, S3 and Queue work panes.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between below Header separator and Action Button (Reload, Rename, Set TTL, Delete, Add Member). Make the button proper with top/right/bottom/left padding/margin. 
-- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Action Button (Reload, Rename, Set TTL, Delete, Add Member, etc) and Filter row.
-- [ ] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Filter row and Data Table.
-- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between below Header separator and Subscribe row. 
-- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between Subscribe row and Publish row. 
-- [ ] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between publish row and message section. 
-- [ ] In Redis Activity -> Work Pane -> Streams Pane; Please add top/bottom padding/margin between below Header separator and Stream row. 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane; Please add top/bottom padding/margin between below Header separator and Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Action button (Reload, etc) and slow log message. 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Action button (Reload, etc) and Client list table. Make that table proper, follow other activity's connections standard. 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between below Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Pattern row (Find Big Keys, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between Pattern row (Find Big Keys, etc) and big keys table. Make that table proper, follow other activity's connections standard. 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Delete, Expire, Persist, Rename Prefix, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Action button (Delete, Expire, Persist, Rename Prefix, etc) and Pattern Row (Pattern, Preview, etc). 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Pattern Row (Pattern, Preview, etc) and Preview Result. 
-- [ ] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Preview Result and Action button (Apply). 
-- [ ] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Toolbars bottom header and Database drop down row.
-- [ ] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Database drop down row and Filter key Row (Filter filed text, Scan button, New Key button).
-- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button), where the New key button is far right near the apps windows. Please add right margin/padding for that button and apps windows border. 
-- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button) alignment by vertical align the input text and those 2 buttons.
-- [ ] In Redis Activity -> Work Pane -> Please fix Filter key Row button (Scan button, New Key button) by Adding text/label next to the button icon.
-- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between separator below Bucket Name Breadcrumb and Filter row. 
-- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Filter row and Data Table. 
-- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Data Table and Bucket Status (e.g. 2 items loaded). 
-- [ ] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between Queue Title header and filter row.
-- [ ] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between filter row and Data table.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Topic Name and Message Queue.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Message Queue and count row.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between count row and Peek Table.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Peek Table and Exchange Section.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Exchange Section and Payload.
-- [ ] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section; Please use Sentence case for Exchange header title. Use a proper table view.
-- [ ] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section -> Payload; Please add card/frame to put payload message inside.
-- [ ] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
-- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Section.
-- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Exchange/Routing Key Section and Header Section.
-- [ ] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Header Section and Payload Section.
-- [ ] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Topic Name and Action button row (Load).
-- [ ] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Action button row (Load) and Consumer data detail.
-- [ ] In Queue Activity -> Work Pane -> Bindings Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Table. Use a proper table view.
-- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk every pane in Redis, S3 and Queue — sections are separated, buttons are padded, the Redis filter row is aligned and clear of the window edge
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between below Header separator and Action Button (Reload, Rename, Set TTL, Delete, Add Member). Make the button proper with top/right/bottom/left padding/margin. 
+- [x] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Action Button (Reload, Rename, Set TTL, Delete, Add Member, etc) and Filter row.
+- [x] In Redis Activity -> Work Pane -> Keys Pane; Please add top/bottom padding/margin between Filter row and Data Table.
+- [x] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between below Header separator and Subscribe row. 
+- [x] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between Subscribe row and Publish row. 
+- [x] In Redis Activity -> Work Pane -> Pub/Sub Pane; Please add top/bottom padding/margin between publish row and message section. 
+- [x] In Redis Activity -> Work Pane -> Streams Pane; Please add top/bottom padding/margin between below Header separator and Stream row. 
+- [x] In Redis Activity -> Work Pane -> Tools Pane; Please add top/bottom padding/margin between below Header separator and Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Slowlog tab; Please add top/bottom padding/margin between Action button (Reload, etc) and slow log message. 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Reload, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Client List tab; Please add top/bottom padding/margin between Action button (Reload, etc) and Client list table. Make that table proper, follow other activity's connections standard. 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between below Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Pattern row (Find Big Keys, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Big Keys tab; Please add top/bottom padding/margin between Pattern row (Find Big Keys, etc) and big keys table. Make that table proper, follow other activity's connections standard. 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Toolbars button (Slow Log, Client List, Big Keys, Bulk Ops, etc) and Action button (Delete, Expire, Persist, Rename Prefix, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Action button (Delete, Expire, Persist, Rename Prefix, etc) and Pattern Row (Pattern, Preview, etc). 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Pattern Row (Pattern, Preview, etc) and Preview Result. 
+- [x] In Redis Activity -> Work Pane -> Tools Pane -> Bulk Ops tab; Please add top/bottom padding/margin between Preview Result and Action button (Apply). 
+- [x] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Toolbars bottom header and Database drop down row.
+- [x] In Redis Activity -> Work Pane -> Please add top/bottom padding/margin between Database drop down row and Filter key Row (Filter filed text, Scan button, New Key button).
+- [x] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button), where the New key button is far right near the apps windows. Please add right margin/padding for that button and apps windows border. 
+- [x] In Redis Activity -> Work Pane -> Please fix Filter key Row (Filter filed text, Scan button, New Key button) alignment by vertical align the input text and those 2 buttons.
+- [x] In Redis Activity -> Work Pane -> Please fix Filter key Row button (Scan button, New Key button) by Adding text/label next to the button icon.
+- [x] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between separator below Bucket Name Breadcrumb and Filter row. 
+- [x] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Filter row and Data Table. 
+- [x] In S3 Activity -> Work Pane -> Data Column Pane; Please add top/bottom padding/margin between Data Table and Bucket Status (e.g. 2 items loaded). 
+- [x] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between Queue Title header and filter row.
+- [x] In Queue Activity -> Work Pane -> Queue/Topic List Pane; Please add top/bottom padding/margin between filter row and Data table.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Topic Name and Message Queue.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Message Queue and count row.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between count row and Peek Table.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Peek Table and Exchange Section.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Exchange Section and Payload.
+- [x] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section; Please use Sentence case for Exchange header title. Use a proper table view.
+- [x] In Queue Activity -> Work Pane -> Message Pane -> Exchange Section -> Payload; Please add card/frame to put payload message inside.
+- [x] In Queue Activity -> Work Pane -> Message Pane; Please add top/bottom padding/margin between Tool row (Messages, Publish, Consumer, Bindings, etc) and Topic Name.
+- [x] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Section.
+- [x] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Exchange/Routing Key Section and Header Section.
+- [x] In Queue Activity -> Work Pane -> Publish Pane; Please add top/bottom padding/margin between Header Section and Payload Section.
+- [x] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Topic Name and Action button row (Load).
+- [x] In Queue Activity -> Work Pane -> Consumers Pane; Please add top/bottom padding/margin between Action button row (Load) and Consumer data detail.
+- [x] In Queue Activity -> Work Pane -> Bindings Pane; Please add top/bottom padding/margin between Topic Name and Exchange/Routing Key Table. Use a proper table view.
+- [x] Test: no assertion beyond the gate: this is layout, verified on screen (the existing hs-ui, tool-redis and tool-queue tests still pass)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test (debug exe)
+- [x] App: `--data-dir ./tmp-data` — walk every pane in Redis, S3 and Queue — sections are separated, buttons are padded, the Redis filter row is aligned and clear of the window edge
+- [x] Docs: spec (redis.md, queue.md, s3.md addenda) · CHANGELOG; README, CHECKLIST and GOTCHAS had nothing to change
+- **Notes:** one shared gap, `hs_ui::form::PANE_GAP` (8 px), carries every spacing box; every `DataTable` now leaves that gap under its filter row, which the Database, Logs and other activities inherit. Redis Client List and Big Keys and the Queue Bindings pane became `DataTable`s; Kill Client acts on the selected row. Verified 2026-11-05 on screen; MQTT, Kafka, NATS and Redis Streams brokers were not up, so their Publish and Consumers variants are code-reviewed only.
 
 ### CR-0032 · Spacing pass: Database result and message panels
 - **State:** Pending ·

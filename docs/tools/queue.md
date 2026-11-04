@@ -246,3 +246,15 @@ text above:
   Logs, SQS / Service Bus and the Schema Registry remain open.
 - **Delete** is offered for RabbitMQ queues and Redis streams only, as §4's
   table says.
+
+## Addendum (2026-11-05): the spacing pass (CR-0031)
+
+The destination list and the detail pane breathe by
+`hs_ui::form::PANE_GAP` (8 px): under the list's title before the filter
+row, between the detail pane's tool row and the destination's name, under
+the name, between the peek note and the Count row, between that row and
+the peek table, and under the rule before the selected message. The
+message's properties and headers are drawn as the striped two-column
+`form::detail_table` under a **Message Headers** heading, with their
+names read as words (`routing_key` → Routing key), and the payload sits
+in a `form::well` under a **Payload** heading.

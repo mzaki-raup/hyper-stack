@@ -122,6 +122,7 @@ pub struct QueueTool {
     table: TableState,
     messages_table: TableState,
     consumers_table: TableState,
+    bindings_table: TableState,
     last_poll: Option<Instant>,
     peek_count: usize,
     peek_from: String,
@@ -160,6 +161,7 @@ impl QueueTool {
             table: TableState::default(),
             messages_table: TableState::default(),
             consumers_table: TableState::default(),
+            bindings_table: TableState::default(),
             last_poll: None,
             peek_count: 10,
             peek_from: String::new(),
@@ -299,6 +301,7 @@ impl QueueTool {
                 self.send(Cmd::Consumers(dest));
             }
             Detail::Bindings if caps.bindings => {
+                self.bindings_table = TableState::default();
                 self.send(Cmd::Bindings(dest));
             }
             _ => {}
@@ -1024,6 +1027,7 @@ impl QueueTool {
                 ui.weak(s.t(b));
             }
         });
+        ui.add_space(form::PANE_GAP);
         if let Some(e) = &error {
             form::note(ui, theme, ph::WARNING, e);
         }
@@ -1182,9 +1186,9 @@ impl QueueTool {
                 }
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         ui.strong(&dest.name);
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         match self.state.detail {
             Detail::Messages => self.messages_pane(ui, theme, s, &dest),
             Detail::Publish => self.publish_pane(ui, theme, cx, &dest),
@@ -1208,6 +1212,7 @@ impl QueueTool {
             "mqtt" => form::hint(ui, theme, &s.t("queue-peek-mqtt")),
             _ => form::hint(ui, theme, &s.t("queue-peek-safe")),
         }
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(s.t("queue-peek-count"));
             ui.add(egui::DragValue::new(&mut self.peek_count).range(1..=driver::PEEK_MAX));
@@ -1238,7 +1243,7 @@ impl QueueTool {
                 self.peek();
             }
         });
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         let got = self.shared.lock().messages.clone();
         let Some(got) = got.filter(|g| g.dest == dest.name) else {
             form::hint(ui, theme, &s.t("queue-peek-empty-hint"));
@@ -1307,25 +1312,37 @@ impl QueueTool {
             return;
         };
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         egui::ScrollArea::vertical()
             .id_salt("queue-message")
             .auto_shrink([false, false])
             .show(ui, |ui| {
+                // The message's properties and headers as the striped
+                // two-column table every detail pane uses, under a
+                // heading, with the raw names (`routing_key`) read as
+                // words (CR-0031).
                 if !m.headers.is_empty() {
-                    egui::Grid::new("queue-message-headers")
-                        .num_columns(2)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            for (k, v) in &m.headers {
-                                ui.weak(k);
-                                ui.label(v);
-                                ui.end_row();
-                            }
-                        });
-                    ui.add_space(6.0);
+                    ui.strong(s.t("queue-message-headers"));
+                    ui.add_space(4.0);
+                    let rows: Vec<(String, String)> = m
+                        .headers
+                        .iter()
+                        .map(|(k, v)| (hs_core::fmt::sentence(&k.replace('_', " ")), v.clone()))
+                        .collect();
+                    form::detail_table(
+                        ui,
+                        theme,
+                        "queue-message-headers",
+                        rows.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+                    );
+                    ui.add_space(form::PANE_GAP);
                 }
+                ui.strong(s.t("queue-payload"));
+                ui.add_space(4.0);
                 let mono = |t: &str| egui::RichText::new(t).monospace();
-                match payload::render(&m.payload) {
+                // The payload in a card of its own, so it reads as the
+                // message rather than as loose text under the table.
+                form::well(ui, theme, None, |ui| match payload::render(&m.payload) {
                     Body::Json(t) | Body::Text(t) => {
                         ui.add(egui::Label::new(mono(&t)).selectable(true));
                     }
@@ -1339,7 +1356,7 @@ impl QueueTool {
                     Body::Empty => {
                         ui.weak(s.t("queue-empty-payload"));
                     }
-                }
+                });
             });
     }
 
@@ -1414,7 +1431,7 @@ impl QueueTool {
         };
         let mqtt311 = kind == "mqtt" && self.shared.lock().info.version != "5";
         if !mqtt311 {
-            ui.add_space(6.0);
+            ui.add_space(form::PANE_GAP);
             ui.strong(s.t(headers_label));
             let mut remove = None;
             for (i, (k, v)) in self.publish.headers.iter_mut().enumerate() {
@@ -1446,7 +1463,7 @@ impl QueueTool {
                 self.publish.headers.push((String::new(), String::new()));
             }
         }
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         ui.strong(s.t("queue-payload"));
         if kind == "redis-streams" {
             form::hint(ui, theme, &s.t("queue-stream-payload-hint"));
@@ -1457,7 +1474,7 @@ impl QueueTool {
                 .desired_rows(8)
                 .desired_width(f32::INFINITY),
         );
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         let reason = if self.read_only_profile {
             s.t("queue-refused-read-only")
         } else {
@@ -1528,6 +1545,7 @@ impl QueueTool {
                 }
             }
         });
+        ui.add_space(form::PANE_GAP);
         let Some(got) = got.filter(|g| g.dest == dest.name) else {
             return;
         };
@@ -1628,29 +1646,47 @@ impl QueueTool {
                 return;
             }
         };
-        egui::Grid::new("queue-bindings")
-            .num_columns(3)
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "queue-col-exchange",
-                    "queue-routing-key",
-                    "queue-col-arguments",
-                ] {
-                    ui.strong(s.t(key));
-                }
-                ui.end_row();
-                for b in &bindings {
+        // The bindings as the table every other list uses (CR-0031).
+        let columns = [
+            ColumnSpec::new(s.t("queue-col-exchange"), 220.0),
+            ColumnSpec::new(s.t("queue-routing-key"), 200.0),
+            ColumnSpec::new(s.t("queue-col-arguments"), 260.0),
+        ];
+        let rows: Vec<Vec<String>> = bindings
+            .iter()
+            .map(|b| {
+                vec![
                     if b.source.is_empty() {
-                        ui.label(s.t("queue-default-exchange"));
+                        s.t("queue-default-exchange")
                     } else {
-                        ui.label(&b.source);
-                    }
-                    ui.label(&b.routing_key);
-                    ui.label(&b.arguments);
-                    ui.end_row();
-                }
-            });
+                        b.source.clone()
+                    },
+                    b.routing_key.clone(),
+                    b.arguments.clone(),
+                ]
+            })
+            .collect();
+        let table = DataTable {
+            theme,
+            columns: &columns,
+            rows: &rows,
+            row_height: hs_ui::table::ROW_HEIGHT,
+            show_filter: bindings.len() > 10,
+            copy_row_label: &s.t("table-copy-row"),
+            built_in_menu: true,
+            row_icons: None,
+        };
+        let r = ui
+            .push_id("queue-bindings", |ui| {
+                table.show(ui, &mut self.bindings_table)
+            })
+            .inner;
+        if let Some(i) = r.clicked {
+            self.bindings_table.selected = Some(i);
+        }
+        if let Some(text) = r.copied {
+            ui.ctx().copy_text(text);
+        }
     }
 
     fn dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

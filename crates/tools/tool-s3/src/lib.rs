@@ -2017,7 +2017,7 @@ impl S3Tool {
         if let Some(p) = go {
             self.navigate(s, p);
         }
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         let (status, next, loaded) = {
             let sh = self.shared.lock();
             match &sh.objects {
@@ -2098,7 +2098,7 @@ impl S3Tool {
             ColumnSpec::new(s.t("s3-col-etag"), 110.0),
         ];
         let copy_label = s.t("table-copy-row");
-        let footer_h = 30.0;
+        let footer_h = 30.0 + form::PANE_GAP;
         let table_h = (ui.available_height() - footer_h).max(80.0);
         let r = ui
             .allocate_ui(egui::vec2(ui.available_width(), table_h), |ui| {
@@ -2122,6 +2122,7 @@ impl S3Tool {
                 None => {}
             }
         }
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(

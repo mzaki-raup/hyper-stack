@@ -796,32 +796,27 @@ fn list_row_art(
         }
     }
     let text_x = rect.left() + 42.0;
+    // Title and subtitle are cut to the row with an ellipsis rather than
+    // painted past its right edge into the next column (BUG-0045).
+    let max_w = (rect.right() - 8.0 - text_x).max(8.0);
+    let line = |ui: &mut egui::Ui, text: &str, size: f32, colour: egui::Color32, y: f32| {
+        let mut job = egui::text::LayoutJob::simple(
+            text.to_string(),
+            egui::FontId::proportional(size),
+            colour,
+            f32::INFINITY,
+        );
+        job.wrap = egui::text::TextWrapping::truncate_at_width(max_w);
+        let galley = ui.fonts_mut(|f| f.layout_job(job));
+        let pos = egui::pos2(text_x, y - galley.size().y / 2.0);
+        ui.painter().galley(pos, galley, colour);
+    };
     match subtitle {
         Some(sub) => {
-            ui.painter().text(
-                egui::pos2(text_x, rect.center().y - 8.0),
-                egui::Align2::LEFT_CENTER,
-                title,
-                egui::FontId::proportional(14.0),
-                theme.text,
-            );
-            ui.painter().text(
-                egui::pos2(text_x, rect.center().y + 9.0),
-                egui::Align2::LEFT_CENTER,
-                sub,
-                egui::FontId::proportional(11.5),
-                theme.text_muted,
-            );
+            line(ui, title, 14.0, theme.text, rect.center().y - 8.0);
+            line(ui, sub, 11.5, theme.text_muted, rect.center().y + 9.0);
         }
-        None => {
-            ui.painter().text(
-                egui::pos2(text_x, rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                title,
-                egui::FontId::proportional(14.0),
-                theme.text,
-            );
-        }
+        None => line(ui, title, 14.0, theme.text, rect.center().y),
     }
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, title));
     resp

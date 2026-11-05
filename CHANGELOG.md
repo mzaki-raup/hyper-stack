@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Git: a Hosts section in the sidebar lists the Git credentials; a host opens in a tab of its own (one per host) with the host's repositories in a column - Mine and Shared, filter, Refresh - and an inner strip of repository tabs, one per repository, each the full repository pane; a repository is cloned on first open into the clone folder under host/owner/name and recorded in the repository list; saving a new credential in Settings → Git opens its host tab (FEAT-0100, phase 1)
 - Tracker: the Edit pane's Assignee and Priority are fed by the server (Redmine's project members, Jira's assignable users, each server's priorities) behind a caret and still take typed text when the server gives no list; Due Date has a calendar that writes the server's `YYYY-MM-DD`; Change Status shows the item, then the statuses as a list of rows with the current one marked (FEAT-0095)
 - Automation: the GitHub and Forgejo Run form lists the repository's branches for the ref, typed or chosen, the default branch first; the Log tab lays a run out in its steps - job banners, groups, commands, indented output - with air before each step (FEAT-0095)
 - Database: every query tab keeps its own results and messages and shows them again when it comes to the front; a double-click on a cell of an editable result opens Edit Cell (FEAT-0096)
@@ -23,6 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- Git: a repository with no picture and no chosen glyph wears its detected language's logo in the language's colour, in the sidebar, on its tab, in the header band and on the dashboard (CR-0047)
 - S3: Nexus and WebDAV profiles wear a coloured glyph (Sonatype green package, folder blue) and every S3-activity connection tab wears its profile's icon and colour; the Due Date calendar is as wide as its month grid; every table's cells centre their text on the row, and headers are taller with larger bold text; Home's toolbar closes the gap between its labelled buttons (CR-0046)
 - Redis key list: folders first, then keys without a parent, each by name (CR-0037)
 - Settings -> Security -> Credentials takes the page's width and drops the Key column when no row has an SSH key; the database form says, whenever Oracle or Db2 is the engine, which vendor client it needs on this machine (CR-0038)

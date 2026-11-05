@@ -95,7 +95,7 @@ the fixtures behind them.
 | [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
-| [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts, assistant |
+| [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts with a tab per host and its repositories, assistant |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels kept per host, broadcast input, server monitor, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, object details with tags and versions, folder sync, presigned URLs, guards; **WebDAV** and **Nexus** too |

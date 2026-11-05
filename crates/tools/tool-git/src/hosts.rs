@@ -24,36 +24,41 @@ pub struct Project {
     pub avatar_url: String,
 }
 
-/// What to send: the first page's URL, how to go on, the headers.
-struct Shape {
-    page_url: fn(&str, u32) -> String,
-}
-
-fn shape(kind: HostKind) -> Option<Shape> {
-    Some(match kind {
-        HostKind::GitHub => Shape {
-            page_url: |base, page| {
-                format!(
-                    "{base}/user/repos?per_page=100&page={page}&sort=updated&affiliation=owner,collaborator,organization_member"
-                )
-            },
-        },
-        HostKind::GitLab => Shape {
-            page_url: |base, page| {
-                format!(
-                    "{base}/api/v4/projects?membership=true&simple=true&per_page=100&page={page}&order_by=last_activity_at"
-                )
-            },
-        },
-        HostKind::Forgejo | HostKind::Gitea => Shape {
-            page_url: |base, page| format!("{base}/api/v1/user/repos?limit=50&page={page}"),
-        },
-        HostKind::Bitbucket => Shape {
-            page_url: |base, page| {
-                format!("{base}/2.0/repositories?role=member&pagelen=100&page={page}")
-            },
-        },
-        HostKind::Azure | HostKind::Generic => return None,
+/// The URL of one page of the listing. With a token: everything the
+/// account can see (owned, collaborated, organisations). Without one
+/// (an anonymous credential, FEAT-0100): the public repositories - the
+/// login's own on GitHub, GitLab and Bitbucket, the instance's on
+/// Forgejo and Gitea. `None` when the host kind has no listing, or the
+/// anonymous form needs a login the credential does not carry.
+pub fn page_url(cred: &GitCredential, token: &str, base: &str, page: u32) -> Option<String> {
+    let user = cred.username.trim();
+    let anonymous = token.is_empty();
+    Some(match (cred.kind, anonymous) {
+        (HostKind::GitHub, false) => format!(
+            "{base}/user/repos?per_page=100&page={page}&sort=updated&affiliation=owner,collaborator,organization_member"
+        ),
+        (HostKind::GitHub, true) if !user.is_empty() => {
+            format!("{base}/users/{user}/repos?per_page=100&page={page}&sort=updated")
+        }
+        (HostKind::GitLab, false) => format!(
+            "{base}/api/v4/projects?membership=true&simple=true&per_page=100&page={page}&order_by=last_activity_at"
+        ),
+        (HostKind::GitLab, true) if !user.is_empty() => format!(
+            "{base}/api/v4/users/{user}/projects?simple=true&per_page=100&page={page}&order_by=last_activity_at"
+        ),
+        (HostKind::Forgejo | HostKind::Gitea, false) => {
+            format!("{base}/api/v1/user/repos?limit=50&page={page}")
+        }
+        (HostKind::Forgejo | HostKind::Gitea, true) => {
+            format!("{base}/api/v1/repos/search?limit=50&page={page}")
+        }
+        (HostKind::Bitbucket, false) => {
+            format!("{base}/2.0/repositories?role=member&pagelen=100&page={page}")
+        }
+        (HostKind::Bitbucket, true) if !user.is_empty() => {
+            format!("{base}/2.0/repositories/{user}?pagelen=100&page={page}")
+        }
+        _ => return None,
     })
 }
 
@@ -127,11 +132,16 @@ pub async fn list_projects(
     cred: &GitCredential,
     token: &str,
 ) -> Result<Vec<Project>, String> {
-    let shape = shape(cred.kind).ok_or_else(|| "this host kind lists no projects".to_string())?;
     let base = api_base(cred);
     let mut out = Vec::new();
     for page in 1..=20u32 {
-        let url = (shape.page_url)(&base, page);
+        let url = page_url(cred, token, &base, page).ok_or_else(|| {
+            if cred.kind.lists_projects() {
+                "an anonymous credential lists a login's public repositories: give the credential a username".to_string()
+            } else {
+                "this host kind lists no projects".to_string()
+            }
+        })?;
         let resp = request(http, &url, cred, token)
             .send()
             .await
@@ -206,7 +216,10 @@ fn s(v: &Value, key: &str) -> String {
 pub fn parse_projects(kind: HostKind, body: &Value) -> (Vec<Project>, bool) {
     match kind {
         HostKind::GitHub | HostKind::Forgejo | HostKind::Gitea => {
-            let items: Vec<Project> = body
+            // Forgejo's search answers `{ ok, data: [...] }`; the other
+            // listings are a bare array.
+            let list = body.get("data").filter(|d| d.is_array()).unwrap_or(body);
+            let items: Vec<Project> = list
                 .as_array()
                 .map(|a| {
                     a.iter()
@@ -317,6 +330,44 @@ pub fn parse_projects(kind: HostKind, body: &Value) -> (Vec<Project>, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// FEAT-0100: a credential without a token still lists what is
+    /// public, and Forgejo's search envelope reads like its bare list.
+    #[test]
+    fn an_anonymous_credential_lists_public_repositories() {
+        let mut cred = GitCredential {
+            kind: HostKind::Forgejo,
+            base_url: "https://git.example".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            page_url(&cred, "", "https://git.example", 2).as_deref(),
+            Some("https://git.example/api/v1/repos/search?limit=50&page=2")
+        );
+        assert_eq!(
+            page_url(&cred, "tok", "https://git.example", 1).as_deref(),
+            Some("https://git.example/api/v1/user/repos?limit=50&page=1")
+        );
+        cred.kind = HostKind::GitHub;
+        assert!(
+            page_url(&cred, "", "https://api.github.com", 1).is_none(),
+            "needs a login"
+        );
+        cred.username = "ada".into();
+        assert_eq!(
+            page_url(&cred, "", "https://api.github.com", 1).as_deref(),
+            Some("https://api.github.com/users/ada/repos?per_page=100&page=1&sort=updated")
+        );
+        cred.kind = HostKind::Generic;
+        assert!(page_url(&cred, "tok", "https://x", 1).is_none());
+        let body = serde_json::json!({"ok": true, "data": [
+            {"full_name": "owner/hyper-stack", "clone_url": "https://git.example/owner/hyper-stack.git", "default_branch": "main", "private": false}
+        ]});
+        let (items, more) = parse_projects(HostKind::Forgejo, &body);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].full_name, "owner/hyper-stack");
+        assert!(!more);
+    }
     use serde_json::json;
 
     #[test]

@@ -11,22 +11,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.119.0 — 2026-11-05
+
 ### Added
 
-- Tracker: the Edit pane's Assignee and Priority are fed by the server (Redmine's project members, Jira's assignable users, each server's priorities) behind a caret and still take typed text when the server gives no list; Due Date has a calendar that writes the server's `YYYY-MM-DD`; Change Status shows the item, then the statuses as a list of rows with the current one marked (FEAT-0095)
-- Automation: the GitHub and Forgejo Run form lists the repository's branches for the ref, typed or chosen, the default branch first; the Log tab lays a run out in its steps - job banners, groups, commands, indented output - with air before each step (FEAT-0095)
-- Database: every query tab keeps its own results and messages and shows them again when it comes to the front; a double-click on a cell of an editable result opens Edit Cell (FEAT-0096)
-- S3: the folder column is a tree that expands in place, listed lazily from the delimiter listings and kept open across Refresh, with no Up button of its own; the breadcrumb's folders wear their coloured Material icon (FEAT-0097)
-- SSH: a forward can be named when it is created; the name is kept with the host's profile and leads the tunnel list's title (FEAT-0098)
-- Settings -> Appearance -> Activity Rail: Show Tool Names Under Home's Toolbar Icons, every icon then one fixed width (CR-0038)
-- `hs_ui::form::pick_field` (a text field with a server's list behind a caret), `hs_ui::datefield::date_field` (an ISO date field with a calendar) and `form::section_max` for the shared UI (FEAT-0095, CR-0038)
-
-### Changed
-
-- S3: Nexus and WebDAV profiles wear a coloured glyph (Sonatype green package, folder blue) and every S3-activity connection tab wears its profile's icon and colour; the Due Date calendar is as wide as its month grid; every table's cells centre their text on the row, and headers are taller with larger bold text; Home's toolbar closes the gap between its labelled buttons (CR-0046)
-- Redis key list: folders first, then keys without a parent, each by name (CR-0037)
-- Settings -> Security -> Credentials takes the page's width and drops the Key column when no row has an SSH key; the database form says, whenever Oracle or Db2 is the engine, which vendor client it needs on this machine (CR-0038)
-- The UI standard for server-fed fields, lists, names, sub-tab state, logs, Settings cards and Home's toolbar is written down in `.claude/rules/ui.md` and `docs/04-ui-design.md` (CR-0038)
+- S3 kind colours on rows and tabs, a narrower calendar, centred table cells with a bolder header, tighter Home toolbar (b38d779a)
+- The folder column is a tree that expands in place (50edfffe)
+- Each query tab keeps its own results; double-click a cell to edit it (e400a4c8)
+- Server-fed Assignee, Priority and ref, a date picker, a laid-out run log (e6fb53ed)
+- Credentials at page width, ODBC client hints, Home toolbar names, the UI standard written down (178b8e44)
+- Name a forward when creating it (42e97307)
+- List key folders before bare keys, each by name (54cecf73)
 
 ## 0.118.2 — 2026-11-05
 

@@ -143,6 +143,7 @@ fn local_forward_carries_bytes_and_is_shared() {
             remote_host: "127.0.0.1".into(),
             remote_port: echo,
             local_port: 0,
+            name: String::new(),
         });
         let mut second = None;
         for _ in 0..100 {

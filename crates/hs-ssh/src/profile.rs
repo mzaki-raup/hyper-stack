@@ -39,6 +39,9 @@ pub struct SavedForward {
     pub local_port: u16,
     /// Start it when a tab connects to the host.
     pub auto: bool,
+    /// The name given when it was created (FEAT-0098); empty for one
+    /// kept before names existed.
+    pub name: String,
 }
 
 impl Default for SshFields {
@@ -112,6 +115,11 @@ impl SshFields {
                                 .unwrap_or(0)
                                 .clamp(0, 65535) as u16,
                             auto: f.get("auto").and_then(|v| v.as_bool()).unwrap_or(true),
+                            name: f
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default()
+                                .to_string(),
                         })
                         .collect()
                 })
@@ -177,6 +185,9 @@ impl SshFields {
                         toml::Value::Integer(f.local_port as i64),
                     );
                     ft.insert("auto".into(), toml::Value::Boolean(f.auto));
+                    if !f.name.is_empty() {
+                        ft.insert("name".into(), toml::Value::String(f.name.clone()));
+                    }
                     toml::Value::Table(ft)
                 })
                 .collect();
@@ -232,19 +243,23 @@ mod forward_tests {
             remote_port: 5432,
             local_port: 0,
             auto: true,
+            name: "Postgres".into(),
         });
         f.forwards.push(SavedForward {
             remote_host: "db".into(),
             remote_port: 6379,
             local_port: 16379,
             auto: false,
+            name: String::new(),
         });
         let mut table = toml::Table::new();
         f.write_into(&mut table);
         let back = SshFields::from_table(&table);
+        // The name round-trips (FEAT-0098), and an unnamed one writes none.
         assert_eq!(back.forwards, f.forwards);
         let text = toml::to_string(&table).unwrap();
         assert!(text.contains("[[ssh.forwards]]"), "{text}");
+        assert_eq!(text.matches("name = ").count(), 1, "{text}");
         assert!(
             SshFields::from_table(&toml::Table::new())
                 .forwards

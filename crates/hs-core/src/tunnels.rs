@@ -14,6 +14,10 @@ pub struct ForwardSpec {
     pub remote_host: String,
     pub remote_port: u16,
     pub local_port: u16,
+    /// What the user called it, so two forwards through one host can be
+    /// told apart in the list (FEAT-0098). Empty for one made without a
+    /// name; the list then shows the ports.
+    pub name: String,
 }
 
 /// Why a forward could not start. The UI translates the named cases.

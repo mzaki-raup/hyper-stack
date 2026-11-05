@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- SSH: a forward can be named when it is created; the name is kept with the host's profile and leads the tunnel list's title (FEAT-0098)
 
 ### Changed
 

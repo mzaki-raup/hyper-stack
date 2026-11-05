@@ -205,6 +205,8 @@ pub struct SshTool {
 #[derive(Default)]
 struct TunnelForm {
     ssh_id: String,
+    /// Optional; what the list calls the forward (FEAT-0098).
+    name: String,
     remote_host: String,
     remote_port: String,
     local_port: String,
@@ -1677,6 +1679,15 @@ impl SshTool {
                             .size(13.0),
                     );
                     ui.add_space(6.0);
+                    // A name first, so two forwards through one host read
+                    // apart in the list (FEAT-0098). Optional: the ports
+                    // stand in for one left blank.
+                    ui.label(egui::RichText::new(s.t("ssh-tunnel-name")).weak());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut form_state.name)
+                            .hint_text(s.t("ssh-tunnel-name-hint"))
+                            .desired_width(f32::INFINITY),
+                    );
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-via")).weak());
                     let current = hosts
                         .iter()
@@ -1750,6 +1761,7 @@ impl SshTool {
                                 remote_port: spec.remote_port,
                                 local_port: spec.local_port,
                                 auto: true,
+                                name: spec.name.clone(),
                             };
                             Self::edit_saved_forwards(s, &spec.ssh_id, |v| {
                                 if !v.contains(&kept) {
@@ -1759,7 +1771,8 @@ impl SshTool {
                         }
                         s.tunnels.open(spec);
                         if keep_open {
-                            // The host stays; the ports are what differ.
+                            // The host stays; the name and ports are what differ.
+                            form_state.name.clear();
                             form_state.remote_port.clear();
                             form_state.local_port.clear();
                             form_state.error = None;
@@ -1782,11 +1795,11 @@ impl SshTool {
             _ if t.spec.local_port != 0 => t.spec.local_port.to_string(),
             _ => "…".into(),
         };
-        let title = format!(
-            ":{local} {} {}:{}",
-            ph::ARROW_RIGHT,
-            t.spec.remote_host,
-            t.spec.remote_port
+        let title = tunnel_title(
+            &t.spec.name,
+            &local,
+            &t.spec.remote_host,
+            t.spec.remote_port,
         );
         let detail = match &t.state {
             TunnelState::Starting => s.t("ssh-tunnel-starting"),
@@ -1852,7 +1865,17 @@ impl SshTool {
     }
 }
 
-/// Validate the form; errors are Fluent keys.
+/// What a forward is called in the list: its name, when it was given one,
+/// then the ports (FEAT-0098); the ports alone otherwise.
+fn tunnel_title(name: &str, local: &str, remote_host: &str, remote_port: u16) -> String {
+    let ports = format!(":{local} {} {remote_host}:{remote_port}", ph::ARROW_RIGHT);
+    if name.trim().is_empty() {
+        ports
+    } else {
+        format!("{} · {ports}", name.trim())
+    }
+}
+
 /// Ask the host what it is, and read the answer.
 ///
 /// Bounded: a host that never answers must not leave a task waiting for
@@ -1942,6 +1965,7 @@ fn parse_tunnel_form(f: &TunnelForm) -> Result<ForwardSpec, &'static str> {
         },
         remote_port,
         local_port,
+        name: f.name.trim().to_string(),
     })
 }
 
@@ -1982,6 +2006,7 @@ impl SshTool {
                     remote_host: fw.remote_host.clone(),
                     remote_port: fw.remote_port,
                     local_port: fw.local_port,
+                    name: fw.name.clone(),
                 });
             }
         }
@@ -2047,11 +2072,11 @@ impl SshTool {
                                     fw.local_port.to_string()
                                 };
                                 ui.label(
-                                    egui::RichText::new(format!(
-                                        ":{local} {} {}:{}",
-                                        ph::ARROW_RIGHT,
-                                        fw.remote_host,
-                                        fw.remote_port
+                                    egui::RichText::new(tunnel_title(
+                                        &fw.name,
+                                        &local,
+                                        &fw.remote_host,
+                                        fw.remote_port,
                                     ))
                                     .strong(),
                                 );
@@ -2069,6 +2094,7 @@ impl SshTool {
                                         remote_host: fw.remote_host.clone(),
                                         remote_port: fw.remote_port,
                                         local_port: fw.local_port,
+                                        name: fw.name.clone(),
                                     });
                                 }
                                 if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
@@ -3352,6 +3378,7 @@ mod tests {
     fn tunnel_form_validation() {
         let mut f = TunnelForm {
             ssh_id: "x".into(),
+            name: " Postgres ".into(),
             remote_host: " db ".into(),
             remote_port: "5432".into(),
             ..Default::default()
@@ -3360,6 +3387,17 @@ mod tests {
         assert_eq!(
             (spec.remote_host.as_str(), spec.remote_port, spec.local_port),
             ("db", 5432, 0)
+        );
+        // The name travels on the spec, trimmed, and leads the list's
+        // title; a forward without one is known by its ports (FEAT-0098).
+        assert_eq!(spec.name, "Postgres");
+        assert_eq!(
+            tunnel_title(&spec.name, "15432", &spec.remote_host, spec.remote_port),
+            format!("Postgres · :15432 {} db:5432", ph::ARROW_RIGHT)
+        );
+        assert_eq!(
+            tunnel_title("", "15432", "db", 5432),
+            format!(":15432 {} db:5432", ph::ARROW_RIGHT)
         );
         f.local_port = "15432".into();
         assert_eq!(parse_tunnel_form(&f).unwrap().local_port, 15432);

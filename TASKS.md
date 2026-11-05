@@ -1182,13 +1182,15 @@ Change Request : CR-0055
 ## v0.7.5 — In-Progress
 
 > **2026-11-06, on the owner's ask to complete the remainder:** FEAT-0092
-> (Puppet) is built and verified against recorded PuppetDB answers. The four
-> items still In-Progress each have one open box, the app check, and each is
-> blocked by a server that cannot run here: TeamCity's bench container is up
-> at http://127.0.0.1:8111 but waits at its licence agreement for the owner
-> (FEAT-0079); AWX needs a Kubernetes operator (FEAT-0083); Jira and
-> Confluence need licence keys (FEAT-0086, FEAT-0091). Every other box of
-> theirs is ticked and their mock-server tests pass.
+> (Puppet) is built and verified against recorded PuppetDB answers. Of the
+> four items that were In-Progress, each with one open box (the app check),
+> three stay blocked by a server that cannot run here: TeamCity's bench
+> container came up at http://127.0.0.1:8111 and waited at its licence agreement for the owner
+> (FEAT-0079; the owner accepted it later that day and FEAT-0079 is now
+> Completed against that server); AWX needs a Kubernetes operator
+> (FEAT-0083); Jira and Confluence need licence keys (FEAT-0086,
+> FEAT-0091). Every other box of theirs is ticked and their mock-server
+> tests pass.
 
 > Phase K (Automation), then phase N (Tracker), every kind the programme
 > names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
@@ -1225,7 +1227,7 @@ Change Request : CR-0055
 - **Notes:** Password auth with a crumb is written but only token auth was exercised here. Folders need the cloudbees-folder plugin, which the bench does not have; flattening is unit-tested.
 
 ### FEAT-0079 · TeamCity
-- **State:** In-Progress · **Spec:** docs/tools/automation.md · **Phase:** K
+- **State:** Completed · `hs-teamcity` 2025.07.3 with an agent container, 2026-11-06: Bench / Hello Build listed with its parameter, #1 and #2 run and followed in the Log tab while the agent printed its steps, #3 and #4 cancelled from the app behind the confirmation (TeamCity shows them Cancelled) · **Spec:** docs/tools/automation.md · **Phase:** K
 - **Branch:** feat/depth-k-automation
 - **Depends on:** FEAT-0077
 - [x] build configurations with last build; builds; parameters
@@ -1233,9 +1235,10 @@ Change Request : CR-0055
 - [x] bearer token or basic
 - [x] Test: `teamcity.rs` (build state, dates, trigger user, cancelled); `mock.rs::teamcity_lists_triggers_and_cancels_through_the_build_queue` (the documented endpoints and bodies, against a mock server)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a `hs-teamcity` container: trigger, follow the log, cancel
+- [x] App: `--data-dir ./tmp-data` — a `hs-teamcity` container: trigger, follow the log, cancel
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** TeamCity's first start stops at a setup wizard before its REST API answers, so no bench server: the App box stays open. The mock answers are written from the REST API reference, not captured from a server.
+- **Notes (2026-11-06):** the first-start wizard (data directory, internal database, the licence agreement accepted by the owner, the admin account) was driven in the built-in browser; the project, build configuration, command-line step and agent authorisation went in through the REST API. Credentials and the recipe are in the bench notes outside the repository.
 
 ### FEAT-0080 · GitHub Actions
 - **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K

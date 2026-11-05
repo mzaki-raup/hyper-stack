@@ -580,3 +580,21 @@ stored in the vault, Test connected). The bench adds `hs-redmine`
 repository. The GitHub and GitLab tabs read BurntSushi/ripgrep and
 gitlab-org/cli anonymously; Jira points at a port nothing listens on. The
 Redmine profile was made in the app; the others were written as files.
+
+## Containers (2026-11-05)
+
+Taken from the v0.119.0 release build against the scratch data folder, at
+the 1736 × 900 window the harness settles on, with Docker Engine 29.5.0 in
+WSL Ubuntu-24.04 found through the dashboard's **Scan Local** (the
+`hs-*` bench containers of the other activities are what it lists).
+
+- `containers-dashboard.png` — the activity's home tab: Engines, Clusters,
+  Saved Configs and Open Tabs figures, Start Here (Add Container…, Scan
+  Local), the hosts and the open tab's last picture.
+- `containers-docker.png` — the WSL engine's tab: the host band, the
+  running / stopped / images / volumes / networks figures, the object
+  tree with its counts and the Containers table.
+- `containers-images.png` — the same tab on Images: name, size, created, id.
+
+A Kubernetes capture waits for a cluster on this machine (`hs-k3s` was
+stopped when these were taken).

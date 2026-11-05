@@ -299,6 +299,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Oracle cannot cancel PL/SQL over ODBC.** `SQLCancel` stops a running `SELECT` but not `BEGIN DBMS_SESSION.SLEEP(20); END;`, which runs to the end. A cancel test needs a long query, such as a three-way cross join of `all_objects`. Found 2026-11-01.
 - **Foreign keys must be matched on columns, not names.** SQLite does not name them at all (the pragma gives an `id`), and two servers often name the same relationship differently, so a name-based compare reports differences that are not there.
 
+- **SQL Server, Oracle and Db2 answer logins before they are ready.** Right after `docker start`, `sqlcmd` reports "Login failed for user 'sa'" and "Cannot open database" while `shop` recovers, Oracle says `ORA-12514` until `FREEPDB1` registers with the listener, and Db2 connects only once `TESTDB` is activated - minutes, not seconds. A readiness loop must probe the database itself (`state_desc = 'ONLINE'`, a `select 1 from dual` through the service, `db2 connect to testdb`), not the port (the bench notes in `D:\Temp\hs-bench\bench-containers.md`, outside the repository because they hold credentials; 2026-11-06).
+
 ## Tool-Specific: Logs (tool-logs)
 
 - **Logs with a Searcher.** `has any tool seen this?` goes through `hs_core::search`. Tools implement a `Searcher` over their own store, registered by the binary. Neither side learns the other's schema.
@@ -447,10 +449,12 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **A Jenkins crumb is tied to the session that fetched it.** With a password, send the crumb's `Set-Cookie` back with the POST. An API token as basic auth needs no crumb at all.
 - **Forgejo's `actions/tasks` lists jobs a runner has taken, not runs.** Without a runner a dispatched workflow shows nothing there; the waiting jobs are under `actions/runners/jobs`. Forgejo 11 has no API to cancel a run or read its log.
 - **GitHub serves workflow logs only to a token**, even on a public repository (403 "Must have admin rights"). Anonymous calls are also limited to 60 an hour.
-- **TeamCity's first start stops at a setup wizard** (data directory, database, licence agreement) before its REST API answers, so it cannot be scripted into a bench container quickly.
+- **TeamCity's first start stops at a setup wizard** (data directory, database, licence agreement) before its REST API answers, so it cannot be scripted into a bench container quickly. It was done once on 2026-11-06 by driving the wizard in the built-in browser (the owner accepts the licence); after that the REST API creates the project, the build configuration and its step, and authorises an agent container, so `hs-teamcity` is a real bench server now (FEAT-0079).
 - **reqwest 0.13 puts `RequestBuilder::form` behind the `form` feature.** Enable it on the crate that posts forms, not workspace-wide.
 - **Windows port 8080 may already be taken** (another Java process here). The bench Jenkins runs on 8091.
 - **A capability the server lacks still owes the user an answer.** Double-clicking a run switched to the Log tab only `if caps.log`, so on Forgejo - which has no run-log API - the gesture did nothing at all and looked broken. A kind without the capability opens the run's own page in the browser instead, and the runs hint says why there is no Log tab. Every `caps` branch wants that second arm (BUG-0037).
+
+- **`reqwest::RequestBuilder::query` is not compiled in** (the workspace's reqwest has no `query` feature), so a driver that puts JSON in a URL (PuppetDB's `?query=["=","certname",…]`) percent-encodes it itself (`tool_automation::puppet::query`, tested). Adding the feature would pull `serde_urlencoded` for one caller (FEAT-0092, 2026-11-06).
 
 ## Tool-Specific: Queue (tool-queue)
 
@@ -461,6 +465,9 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **JetStream says "no stream found for given subject"** (not only "no responders") when no stream captures a subject. Either means "publish as plain NATS"; the error can come from the publish or from its acknowledgement.
 - **Kafka 4 dropped old protocol versions** (KIP-896). A client that sends fixed old versions gets nothing back; `kafka_groups.rs` asks `ApiVersions` first and picks the highest version both sides speak.
 - **`OffsetFetch` v10 names topics by id, not name.** Capped at v9 so the response still says which topic an offset is for.
+
+- **The `apache/kafka` image refuses a SASL listener without `KAFKA_OPTS`.** Its configure script does `ensure KAFKA_OPTS` once `KAFKA_ADVERTISED_LISTENERS` names `SASL_`; without it the container dies with `line 18: !1: unbound variable`. Give it `-Djava.security.auth.login.config=<a JAAS file>` and mount the file; the per-listener `KAFKA_LISTENER_NAME_*_SASL_JAAS_CONFIG` variables alone are not enough. SCRAM users are added after start with `kafka-configs.sh --alter --add-config`, **one mechanism per call**: two in one request fail with "A user credential cannot be altered twice in the same request" (the start script lives outside the repository with the other bench notes, `D:\Temp\hs-bench`, because it carries the bench passwords; FEAT-0071, 2026-11-06).
+- **A local TLS broker cannot be verified here.** `tool_queue::tls::client_config` trusts the platform store only, so a self-signed bench certificate is refused by design; the Kafka TLS and OAUTHBEARER boxes stay open until a broker with a public certificate is available (FEAT-0071).
 
 ## Tool-Specific: Tracker (tool-tracker)
 

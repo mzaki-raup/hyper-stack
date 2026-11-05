@@ -58,15 +58,15 @@ The connection-per-tab shape of the Queue and Redis activities.
 
 One `Driver` per kind behind one trait (§8). What each shows and does:
 
-| | Jenkins | TeamCity | GitHub Actions | GitLab CI | Forgejo Actions | AWX / Automation Platform |
-|---|---|---|---|---|---|---|
-| Server is | a Jenkins URL | a TeamCity URL | a repository (`owner/name`) on github.com or GHE | a project (`group/name` or id) on a GitLab URL | a repository on a Forgejo / Gitea URL | an AWX URL |
-| A job is | a job (folders flattened to `folder/job`) | a build configuration | a workflow | the project's pipelines, by ref | a workflow | a job template |
-| Runs | builds | builds | workflow runs | pipelines | runs | jobs |
-| Run (trigger) | `build` / `buildWithParameters` | `buildQueue` with properties | `workflow_dispatch` with inputs | create a pipeline on a ref with variables | `workflow_dispatch` with inputs | `launch` with extra vars |
-| Cancel | stop | cancel | cancel | cancel | cancel | cancel |
-| Log | progressive text | build log | a run's job logs | a job's trace | a run's job logs | stdout |
-| Queue | yes | yes | — | — | — | — |
+| | Jenkins | TeamCity | GitHub Actions | GitLab CI | Forgejo Actions | AWX / Automation Platform | Puppet |
+|---|---|---|---|---|---|---|---|
+| Server is | a Jenkins URL | a TeamCity URL | a repository (`owner/name`) on github.com or GHE | a project (`group/name` or id) on a GitLab URL | a repository on a Forgejo / Gitea URL | an AWX URL | a PuppetDB URL, and optionally a Puppet Enterprise orchestrator URL |
+| A job is | a job (folders flattened to `folder/job`) | a build configuration | a workflow | the project's pipelines, by ref | a workflow | a job template | a node |
+| Runs | builds | builds | workflow runs | pipelines | runs | jobs | the node's reports |
+| Run (trigger) | `build` / `buildWithParameters` | `buildQueue` with properties | `workflow_dispatch` with inputs | create a pipeline on a ref with variables | `workflow_dispatch` with inputs | `launch` with extra vars | orchestrator `deploy` of the node (environment, noop); only with an orchestrator URL |
+| Cancel | stop | cancel | cancel | cancel | cancel | cancel | — (a report is over) |
+| Log | progressive text | build log | a run's job logs | a job's trace | a run's job logs | stdout | the report's log lines |
+| Queue | yes | yes | — | — | — | — | — |
 
 Notes per kind:
 
@@ -89,11 +89,20 @@ Notes per kind:
   not have (404) is reported as such, not as an error in the tab.
 - **AWX / Ansible Automation Platform** through `/api/v2`. A template that
   asks for variables on launch shows them as parameters.
+- **Puppet** through PuppetDB's query API (`/pdb/query/v4`: `nodes`, a
+  node's `reports` newest first, a report's `logs`) and, when the profile
+  names one, a Puppet Enterprise orchestrator (`/orchestrator/v1/command/deploy`
+  for one node, with the environment and a noop flag). A node's row carries
+  its latest report; a failed report is Failure, a noop report Skipped, a
+  changed or unchanged one Success. Open-source Puppet has no way to start a
+  run from outside the agent, so without an orchestrator URL Run says why it
+  is not offered; a report cannot be cancelled. The RBAC token travels as an
+  api-key in `X-Authentication` (FEAT-0092, 2026-11-06).
 
 ## 5. Connections and credentials
 
 Connections live in `hs_core::connections` with the kinds `jenkins`,
-`teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions` and `awx`, so
+`teamcity`, `github-actions`, `gitlab-ci`, `forgejo-actions`, `awx` and `puppet`, so
 they travel with the workspace and take `{{variables}}` from
 its environments. Fields per kind:
 
@@ -105,6 +114,7 @@ its environments. Fields per kind:
 | gitlab-ci | URL, project (`group/name` or numeric id) |
 | forgejo-actions | URL, repository `owner/name` |
 | awx | URL |
+| puppet | URL (PuppetDB), orchestrator URL (Puppet Enterprise, optional; kept in the `project` field) |
 
 **Credentials** follow the rule for every newer activity
 ([.claude/rules/security.md](../../.claude/rules/security.md)): one of
@@ -120,6 +130,7 @@ shared `hs_core::service_auth` (ADR-028), which the Tracker activity uses too.
 | GitLab CI | — | `Authorization: Bearer` | `PRIVATE-TOKEN` (the named header) |
 | Forgejo Actions | basic | `Authorization: token …` | — |
 | AWX | basic | `Authorization: Bearer` | — |
+| Puppet | — | — | `X-Authentication` (a PE RBAC token) |
 
 ## 6. Guards
 
@@ -189,9 +200,11 @@ Shift+Insert.
 3. **Artifacts** (download a build's artifacts) and **test reports**.
 4. **Bamboo, CircleCI, Azure Pipelines, Buildkite, Argo Workflows** as later
    kinds.
-5. **Puppet** (PuppetDB nodes and reports; a run through a Puppet Enterprise
-   orchestrator) was in the programme's list and is **deferred** on the
-   owner's decision of 2026-10-31 (`FEAT-0092`, Backlog).
+5. **Puppet** was deferred on 2026-10-31 and built on 2026-11-06
+   (`FEAT-0092`, §4): PuppetDB nodes, reports and logs, a deploy through a
+   Puppet Enterprise orchestrator. Tested against a mock server and seen on
+   screen against recorded PuppetDB answers (`hs-puppetdb-fake`); no Puppet
+   Enterprise runs here.
 
 ## What is implemented (2026-10-31)
 

@@ -42,6 +42,7 @@ pub const KINDS: &[&str] = &[
     "gitlab-ci",
     "forgejo-actions",
     "awx",
+    "puppet",
     "jira",
     "redmine",
     "github-issues",
@@ -104,6 +105,7 @@ pub const AUTOMATION_KINDS: &[&str] = &[
     "gitlab-ci",
     "forgejo-actions",
     "awx",
+    "puppet",
 ];
 
 /// The kinds the **Tracker** activity opens (`docs/tools/tracker.md` §5).
@@ -179,6 +181,7 @@ pub fn kind_label(kind: &str) -> &str {
         "gitlab-ci" => "GitLab CI",
         "forgejo-actions" => "Forgejo Actions",
         "awx" => "AWX",
+        "puppet" => "Puppet",
         "jira" => "Jira",
         "redmine" => "Redmine",
         "github-issues" => "GitHub Issues",

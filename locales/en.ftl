@@ -4308,7 +4308,7 @@ conn-queue-hint-token-password = Sent as the password, for brokers that accept a
 
 ## Automation (docs/tools/automation.md)
 tool-automation = Automation
-automation-dashboard-sub = Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX servers in this workspace; each opens in its own tab.
+automation-dashboard-sub = Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet servers in this workspace; each opens in its own tab.
 automation-saved-servers = Saved Servers
 automation-no-servers = No servers yet. Add one in Settings → Automation.
 automation-add-server = Add Automation Server
@@ -4401,6 +4401,8 @@ conn-automation-section-server = Server
 conn-automation-url = URL
 conn-automation-api-url = API URL
 conn-automation-repo = Repository
+conn-automation-orchestrator = Orchestrator URL
+conn-automation-orchestrator-hint = The URL is PuppetDB (nodes, reports and their logs). A Puppet Enterprise orchestrator URL here makes Run deploy a node; leave it empty for open-source Puppet.
 conn-automation-project = Project
 conn-automation-hint-jenkins-token = The user and an API token (Jenkins → user → Security), sent as HTTP basic. Stored in the vault.
 conn-automation-hint-jenkins-password = A password is sent with a CSRF crumb; an API token is simpler. Stored in the vault.

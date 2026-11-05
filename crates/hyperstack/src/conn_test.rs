@@ -181,6 +181,7 @@ pub fn testable(kind: &str) -> bool {
             | "gitlab-ci"
             | "forgejo-actions"
             | "awx"
+            | "puppet"
             | "jira"
             | "redmine"
             | "github-issues"
@@ -490,6 +491,7 @@ mod tests {
             "gitlab-ci",
             "forgejo-actions",
             "awx",
+            "puppet",
             "jira",
             "redmine",
             "github-issues",

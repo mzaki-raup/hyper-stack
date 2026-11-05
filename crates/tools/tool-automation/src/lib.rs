@@ -11,6 +11,7 @@ pub mod gitlab;
 pub mod jenkins;
 pub mod logfmt;
 pub mod profile;
+pub mod puppet;
 pub mod runner;
 pub mod teamcity;
 pub mod ui;

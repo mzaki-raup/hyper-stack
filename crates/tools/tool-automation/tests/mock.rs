@@ -1,7 +1,7 @@
 //! Drivers against a mock HTTP server, for the servers that cannot run on
 //! the bench (TeamCity's first start needs its setup wizard, AWX needs a
-//! Kubernetes operator) and for the writes the owner keeps off GitHub and
-//! GitLab (2026-10-31).
+//! Kubernetes operator, Puppet Enterprise is licensed) and for the writes
+//! the owner keeps off GitHub and GitLab (2026-10-31).
 //!
 //! The responses are written from each API's reference documentation,
 //! trimmed to the fields the drivers read; they were not captured from a
@@ -265,6 +265,89 @@ fn awx_launches_a_template_with_its_survey_and_cancels_the_job() {
         assert_eq!(body["extra_vars"]["env"], "prod");
         assert_eq!(body["extra_vars"]["replicas"], 3);
         assert!(launch.auth.starts_with("Basic "));
+    });
+}
+
+#[test]
+fn puppet_lists_nodes_reads_reports_and_deploys_through_the_orchestrator() {
+    runtime().block_on(async {
+        let (url, seen) = serve(vec![
+            ("GET", "/pdb/meta/v1/version", 200, r#"{"version":"8.8.1"}"#.into()),
+            (
+                "GET",
+                "/pdb/query/v4/nodes",
+                200,
+                r#"[{"certname":"db1.example.com","latest_report_hash":"h2","latest_report_status":"unchanged","latest_report_noop":false,"report_timestamp":"2026-11-06T09:00:00.000Z","report_environment":"production"},
+                    {"certname":"web1.example.com","latest_report_hash":"h1","latest_report_status":"failed","latest_report_noop":false,"report_timestamp":"2026-11-06T09:30:00.000Z","report_environment":"production"}]"#.into(),
+            ),
+            (
+                "GET",
+                "/pdb/query/v4/reports?",
+                200,
+                r#"[{"hash":"h1","status":"failed","noop":false,"environment":"production","start_time":"2026-11-06T09:30:00.000Z","end_time":"2026-11-06T09:30:20.000Z","producer":"puppet.example.com"},
+                    {"hash":"h0","status":"changed","noop":true,"environment":"production","start_time":"2026-11-06T09:00:00.000Z","end_time":"2026-11-06T09:00:15.000Z","producer":"puppet.example.com"}]"#.into(),
+            ),
+            (
+                "GET",
+                "/pdb/query/v4/reports/h1/logs",
+                200,
+                r#"[{"time":"2026-11-06T09:30:19.000Z","level":"err","source":"/Stage[main]/Nginx/Service[nginx]","message":"Could not start Service[nginx]"}]"#.into(),
+            ),
+            ("POST", "/orchestrator/v1/command/deploy", 202, r#"{"job":{"id":"https://pe/orchestrator/v1/jobs/1234","name":"1234"}}"#.into()),
+        ])
+        .await;
+        // Without an orchestrator Run is not offered.
+        let mut d = driver::connect(&config("puppet", &url, Auth::None, TokenAs::Bearer))
+            .await
+            .expect("connect");
+        assert_eq!(d.info().version, "8.8.1");
+        assert!(!d.caps().run);
+        let jobs = d.jobs().await.expect("nodes").jobs;
+        assert_eq!(jobs.len(), 2);
+        let web = jobs[1].clone();
+        assert_eq!(web.name, "web1.example.com");
+        assert_eq!(web.last.as_ref().unwrap().state, RunState::Failure);
+        assert!(!d.form(&web).await.expect("form").allowed);
+        let runs = d.runs(&web).await.expect("reports");
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].id, "h1");
+        assert_eq!(runs[0].duration_ms, Some(20_000));
+        assert_eq!(runs[1].state, RunState::Skipped, "a noop report");
+        let log = d.log(&web, &runs[0], 0).await.expect("log").text;
+        assert!(log.contains("ERR") && log.contains("Could not start"), "{log}");
+        // With the orchestrator named in the project field, Run deploys
+        // the node and the RBAC token travels in X-Authentication.
+        let mut cfg = config(
+            "puppet",
+            &url,
+            Auth::ApiKey {
+                header: "X-Authentication".into(),
+                key: "rbac-token".into(),
+            },
+            TokenAs::Bearer,
+        );
+        cfg.project = url.clone();
+        let mut d = driver::connect(&cfg).await.expect("connect");
+        assert!(d.caps().run && !d.caps().cancel);
+        let form = d.form(&web).await.expect("form");
+        let names: Vec<&str> = form.params.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["environment", "noop"]);
+        let said = d
+            .trigger(&web, &[("environment".into(), "staging".into()), ("noop".into(), "true".into())])
+            .await
+            .expect("deploy");
+        assert!(said.contains("1234"), "{said}");
+        let seen = seen.lock().clone();
+        let deploy = seen
+            .iter()
+            .find(|s| s.path == "/orchestrator/v1/command/deploy")
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_str(&deploy.body).unwrap();
+        assert_eq!(body["environment"], "staging");
+        assert_eq!(body["noop"], true);
+        assert_eq!(body["scope"]["nodes"][0], "web1.example.com");
+        let reports = seen.iter().find(|s| s.path.starts_with("/pdb/query/v4/reports?")).unwrap();
+        assert!(reports.path.contains("certname"), "{}", reports.path);
     });
 }
 

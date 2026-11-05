@@ -193,6 +193,62 @@ fn kafka_lists_peeks_publishes_and_purges_a_topic() {
 }
 
 #[test]
+fn kafka_connects_with_sasl_plain_and_scram() {
+    // `HS_KAFKA_SASL=127.0.0.1:9094:dev:devpass`: a broker whose listener
+    // speaks SASL_PLAINTEXT with PLAIN and SCRAM enabled for that user
+    // (FEAT-0071 / FEAT-0072).
+    let Ok(spec) = std::env::var("HS_KAFKA_SASL") else {
+        eprintln!("HS_KAFKA_SASL not set; skipping");
+        return;
+    };
+    let parts: Vec<&str> = spec.splitn(4, ':').collect();
+    let [host, port, user, pass] = parts[..] else {
+        panic!("HS_KAFKA_SASL is host:port:user:password");
+    };
+    runtime().block_on(async {
+        for mech in ["plain", "scram-sha-256", "scram-sha-512"] {
+            let mut cfg = config(
+                "kafka",
+                format!("{host}:{port}"),
+                Auth::Password {
+                    user: user.to_string(),
+                    password: pass.to_string(),
+                },
+            );
+            cfg.sasl = mech.into();
+            let mut d = driver::connect(&cfg)
+                .await
+                .unwrap_or_else(|e| panic!("{mech}: connect: {e}"));
+            let listing = d.destinations().await.expect("destinations");
+            let orders = listing
+                .destinations
+                .iter()
+                .find(|t| t.name == "orders")
+                .unwrap_or_else(|| panic!("{mech}: the orders topic is listed"));
+            // The groups client authenticates on its own; the same
+            // mechanism must take it through to an answer.
+            let groups = d
+                .consumers(orders, &Progress::default())
+                .await
+                .unwrap_or_else(|e| panic!("{mech}: consumers: {e}"));
+            assert!(groups.is_empty(), "{mech}: nobody consumes orders");
+            // A wrong password is refused by every mechanism.
+            cfg.auth = Auth::Password {
+                user: user.to_string(),
+                password: "wrong".into(),
+            };
+            assert!(
+                driver::connect(&cfg).await.is_err() || {
+                    let mut d = driver::connect(&cfg).await.expect("connected");
+                    d.destinations().await.is_err()
+                },
+                "{mech}: a wrong password is refused"
+            );
+        }
+    });
+}
+
+#[test]
 fn redis_streams_lists_peeks_publishes_and_purges_a_stream() {
     let Ok(addr) = std::env::var("HS_REDIS_STREAMS") else {
         eprintln!("HS_REDIS_STREAMS not set; skipping");

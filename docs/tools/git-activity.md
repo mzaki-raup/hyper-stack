@@ -466,3 +466,14 @@ The Files view's toolbar row gains **Upload**, **Rename** and **Delete**
   colour (`tool_git::repo_conn_icon`), and the Git Credentials list shows
   the forge's mark (`tool_git::host_conn_icon`) - both helpers are the
   activity's own, now public (CR-0054).
+
+## Addendum (2026-11-06): the dashboard's Saved Hosts card and Add Host (CR-0056)
+
+The Git dashboard draws a second grid, **Saved Hosts**, under Saved
+Repositories: one card per Git credential with the forge's mark
+(`host_conn_icon`), its name and its host; a click opens the host tab, one
+per host as the sidebar's Hosts section does. Start Here gains **Add
+Host** right after Add Repository, running the sidebar's Add Host action
+(Settings → Git → Git Credentials with the form open). The shared
+`hs_ui::dashboard::Page` carries the second grid as `extra`
+(`Pick::OpenExtra`), so any activity can add one.

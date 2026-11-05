@@ -652,3 +652,13 @@ samples the first time a workspace opens the activity (a command and a
 Compose stack, each saying it is a sample; `configs::seed_samples`, only
 while the folder does not exist, so an emptied list stays empty), and a
 row's right-click offers Delete.
+
+## Addendum (2026-11-06): saved entries open, in colour (BUG-0046)
+
+A row in **Saved Commands and Configs** wears its kind's colour (Docker's
+blue for a Compose file, a teal for a Swarm stack, Kubernetes' blue for a
+manifest, a terminal green for a command; `configs::Kind::colour`), its
+details are cut to the row, and a click does something: a Compose, Stack
+or Manifest entry opens its file in the Editor (relative paths resolved
+against the workspace), a Command entry opens a new terminal with the
+command typed. The "not yet" toast is gone.

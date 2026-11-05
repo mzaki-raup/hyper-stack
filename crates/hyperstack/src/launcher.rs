@@ -33,9 +33,8 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         // go and its rail entry is un-hidden on save (ADR-026).
         "docker" | "podman" | "k8s" | "wincontainer" => Some("containers"),
         "rabbitmq" | "kafka" | "redis-streams" | "nats" | "mqtt" => Some("queue"),
-        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx" => {
-            Some("automation")
-        }
+        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx"
+        | "puppet" => Some("automation"),
         "jira" | "redmine" | "github-issues" | "gitlab-issues" | "forgejo-issues"
         | "confluence" => Some("tracker"),
         _ => None,
@@ -348,9 +347,8 @@ fn kind_colour(theme: &Theme, kind: &str) -> egui::Color32 {
             egui::Color32::from_rgb(0xFF, 0x66, 0x00)
         }
         // The build servers share the Automation activity's colour.
-        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx" => {
-            egui::Color32::from_rgb(0x22, 0xC5, 0x5E)
-        }
+        "jenkins" | "teamcity" | "github-actions" | "gitlab-ci" | "forgejo-actions" | "awx"
+        | "puppet" => egui::Color32::from_rgb(0x22, 0xC5, 0x5E),
         _ => theme.secondary,
     };
     // The pill is a tint of that colour, not the colour itself, so the

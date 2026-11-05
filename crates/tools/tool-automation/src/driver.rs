@@ -62,7 +62,7 @@ impl RunState {
     }
 }
 
-/// One run: a build, a workflow run, a pipeline, an AWX job, a report.
+/// One run: a build, a workflow run, a pipeline, an AWX job, a Puppet report.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Run {
     /// The server's id for it, what `cancel` and `log` take.
@@ -181,6 +181,7 @@ pub async fn connect(cfg: &ConnectConfig) -> Result<Box<dyn Driver>> {
             "gitlab-ci" => Box::new(crate::gitlab::GitLab::connect(cfg).await?),
             "forgejo-actions" => Box::new(crate::forgejo::Forgejo::connect(cfg).await?),
             "awx" => Box::new(crate::awx::Awx::connect(cfg).await?),
+            "puppet" => Box::new(crate::puppet::Puppet::connect(cfg).await?),
             other => return Err(format!("“{other}” is not an automation kind")),
         };
         Ok(d)

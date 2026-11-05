@@ -105,7 +105,7 @@ the fixtures behind them.
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
 | [Logs](#logs) | Local, SSH, command, journald, Windows Event Log and pasted sources; merge, statistics, alerts; parsers, filters, find, bookmarks |
 | [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
-| [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions and AWX: jobs and runs, run with parameters, follow the log, guarded cancel |
+| [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet: jobs and runs, run with parameters, follow the log, guarded cancel |
 | [Tracker](#tracker) | Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages: queries, read, change status, edit with a review, comment, file new items |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
@@ -309,7 +309,7 @@ finds. Db2 is not yet verified against a server.
 
 ### Automation
 
-One tab per build server or automation controller: **Jenkins**, **TeamCity**, **GitHub Actions**, **GitLab CI**, **Forgejo Actions** and **AWX** (Ansible Automation Platform). The home tab is a dashboard of the saved servers with what the open ones are running and what failed today; Settings → Automation holds the servers and the limits.
+One tab per build server or automation controller: **Jenkins**, **TeamCity**, **GitHub Actions**, **GitLab CI**, **Forgejo Actions**, **AWX** (Ansible Automation Platform) and **Puppet** (PuppetDB, with a Puppet Enterprise orchestrator for runs). The home tab is a dashboard of the saved servers with what the open ones are running and what failed today; Settings → Automation holds the servers and the limits.
 
 | | |
 |---|---|
@@ -318,7 +318,7 @@ One tab per build server or automation controller: **Jenkins**, **TeamCity**, **
 | ![Cancel a run](docs/screenshots/automation-cancel.png) | ![Settings → Automation](docs/screenshots/automation-settings.png) |
 | **Guards** - Cancel asks first; a protected environment's tab is read-only and the driver refuses Run and Cancel too | **Settings → Automation** - a button per kind, and the credential the server takes (a Jenkins user and API token here), kept in the vault |
 
-- **Jobs** - Jenkins jobs (folders flattened), TeamCity build configurations, workflows, a GitLab project's refs with pipelines, AWX job templates, each with its last run.
+- **Jobs** - Jenkins jobs (folders flattened), TeamCity build configurations, workflows, a GitLab project's refs with pipelines, AWX job templates, Puppet nodes with their latest report, each with its last run.
 - **Run** opens a form of the job's parameters - Jenkins parameters, `workflow_dispatch` inputs read from the workflow file, GitLab pipeline variables, AWX survey and extra vars - and sends nothing until it is filled in; a secret parameter is typed for one run and never kept.
 - **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
 - **Credentials** - username and password, token or API key, whichever the server takes, in the vault.

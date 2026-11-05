@@ -9599,7 +9599,18 @@ fn automation_form(
                 changed |= form::text_field(ui, &mut f.project, "group/name").changed();
                 ui.end_row();
             }
+            // Puppet: PuppetDB is the server; a Puppet Enterprise
+            // orchestrator is optional and is what makes Run possible.
+            if kind == "puppet" {
+                form::label(ui, &s.t("conn-automation-orchestrator"));
+                changed |=
+                    form::text_field(ui, &mut f.project, "https://pe.example.com:8143").changed();
+                ui.end_row();
+            }
         });
+        if kind == "puppet" {
+            form::hint(ui, theme, &s.t("conn-automation-orchestrator-hint"));
+        }
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "automation-auth", |ui| {

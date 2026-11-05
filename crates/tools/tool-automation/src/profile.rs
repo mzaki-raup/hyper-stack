@@ -14,6 +14,9 @@ pub fn auth_kinds_for(kind: &str) -> &'static [&'static str] {
     match kind {
         "github-actions" => &["none", "token"],
         "gitlab-ci" => &["none", "token", "api-key"],
+        // PuppetDB is usually open on its own network; Puppet Enterprise
+        // takes an RBAC token in `X-Authentication` (FEAT-0092).
+        "puppet" => &["none", "api-key"],
         _ => &["none", "password", "token"],
     }
 }
@@ -31,6 +34,7 @@ pub fn token_as(kind: &str) -> TokenAs {
 pub fn default_header(kind: &str) -> &'static str {
     match kind {
         "gitlab-ci" => "PRIVATE-TOKEN",
+        "puppet" => "X-Authentication",
         _ => "",
     }
 }
@@ -45,6 +49,7 @@ pub fn default_url(kind: &str) -> &'static str {
         "gitlab-ci" => "https://gitlab.com",
         "forgejo-actions" => "http://127.0.0.1:3000",
         "awx" => "http://127.0.0.1:8043",
+        "puppet" => "http://127.0.0.1:8080",
         _ => "",
     }
 }

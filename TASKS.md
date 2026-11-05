@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0100
+Features : FEAT-0101
 Bugs : BUG-0040
 Change Request : CR-0050
 ```
@@ -267,6 +267,22 @@ Change Request : CR-0050
 - [x] App: `--data-dir ./tmp-data` — hover a Redis key and a folder, a Database schema node and a toolbar button: a highlight, no growth
 - [x] Docs: spec · CHANGELOG
 
+### FEAT-0101 · Git hosts: the Files view - read, edit, add files in a repository, phase 2
+- **State:** Completed · the lock-screen clone from the Forgejo host tab: docs and screenshots expanded, a PNG's binary note, .gitignore read, edited and saved (File Status showed it modified, `git status` agreed), hello-from-hs.md created and opened empty and editable (untracked in File Status), a notes folder created
+- **Source:** owner's go-ahead, 2026-11-05 ("Start phase 2"), after FEAT-0100 phase 1
+- **Scope:** `tool-git` (`files.rs`, the left tree's Workspace rows, the pane's centre and right columns, palette commands), `docs/tools/git-activity.md`.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0100
+- [x] A Files row under Workspace in the repository pane's left tree, beside File Status and History; the centre column shows the working tree as a folder tree, listed lazily on the blocking pool, `.git` hidden, folders first; Material icons when the activity has them on
+- [x] The right column shows the picked file: text in the editor engine, read-only until Edit; a binary or very large file says so; Open in Editor hands it to the Editor activity
+- [x] Save writes the file and the status is read again, so the change lands in File Status for the commit box; Discard puts the text back
+- [x] New File and New Folder under the picked folder (a name prompt; a clash is refused); the new file opens empty and editable
+- [x] Palette: Git: Files, New File, New Folder
+- [x] Test: a listing puts folders first and hides `.git`; a file is text unless it holds a NUL or is over the size cap; the parent of a relative path
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — in a cloned repository: open Files, expand a folder, read a file, Edit, change, Save, see it in File Status; New File and New Folder; a binary file's note
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
 ---
 
 ## v0.7.6 — Planned
@@ -283,6 +299,7 @@ Change Request : CR-0050
 > (2026-11-02); every box kept its original wording. The shared primitives
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
 - **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
+- **Notes:** `tool_git::files::FilesView`; listings and reads on the blocking pool through slots; `EditorView.read_only` until Edit; a write returns `files::Event::Changed` and the pane re-reads its status. `tool-git` now depends on `hs-editor` (Cargo.lock updated). First cut of the branch came off a stale `origin/main` - the remote has no fetch refspec - and was rebuilt from the forge's head (GOTCHAS). Phase 3 pending.
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·

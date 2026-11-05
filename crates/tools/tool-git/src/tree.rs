@@ -21,6 +21,8 @@ pub enum View {
     #[default]
     Status,
     History,
+    /// The working tree's files, to read, edit and add (FEAT-0101).
+    Files,
 }
 
 /// Everything the tree lists, read in one go on the blocking pool.
@@ -133,6 +135,7 @@ impl Tree {
                         ph::CLOCK_COUNTER_CLOCKWISE,
                         "git-tree-history",
                     ),
+                    (View::Files, ph::FOLDERS, "git-tree-files"),
                 ] {
                     if row(ui, theme, self.view == view, icon, &s.t(key), None).clicked() {
                         self.view = view;

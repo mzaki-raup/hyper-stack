@@ -386,3 +386,34 @@ detected language's logo in the language's own colour -
 of that language - in the sidebar row, on the tab (`tab_icon_uri` /
 `tab_icon_colour`), in the header band and on the dashboard tile. A
 picture still wins; a chosen glyph stays a plain glyph.
+
+## Addendum (2026-11-05): the Files view (FEAT-0101, phase 2)
+
+**Files** is a third row under Workspace in the repository pane's left
+tree, beside File Status and History, for a repository opened any way - a
+host's inner tab or the list's own tab.
+
+- *Centre column:* the working tree as a folder tree (`hs_ui::tree`),
+  listed one folder at a time on the blocking pool as carets are opened,
+  `.git` never listed, folders first then files by name, Material icons
+  when Settings → Appearance → Material Icon has Git on. Above it: New
+  File, New Folder, Refresh (forgets the listings; open folders are
+  listed again as they are drawn).
+- *Right column:* the picked file. Text (no NUL in its first 8 KB, at
+  most 2 MB) opens in the editor engine (`hs_editor::EditorView`,
+  `read_only` until **Edit**); a binary or larger file says so and offers
+  **Open in Editor**, which every file has (an `OpenRequest::File` to the
+  Editor activity). **Save** (the button, or the editor's save key)
+  writes the file on the pool and the pane reads its status again, so the
+  change appears in File Status and is committed through the commit box
+  as any other change; **Discard** puts the text back.
+- *New File / New Folder:* a name prompt (no slashes), created under the
+  picked folder - the picked file's folder, or the root - and refused
+  when something of that name is there; the folder is listed again, and
+  a new file opens empty and editable at once.
+- Palette: Git: Files, Git: New File, Git: New Folder.
+- `tool-git` now depends on `hs-editor` for the engine, as the Database
+  tool does.
+
+Phase 3 (rename, delete, upload, a branch picker in Files, shallow
+clones) follows.

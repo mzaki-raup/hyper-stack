@@ -20,6 +20,7 @@ use parking_lot::Mutex;
 use crate::blame::BlameView;
 use crate::conflict::ConflictView;
 use crate::diffview::{self, HunkPick};
+use crate::files::{self, FilesView};
 use crate::history::{self, HistoryView};
 use crate::tree::{self, Tree, View};
 use crate::verbs::{Facts, Op, Verbs};
@@ -108,6 +109,8 @@ pub struct RepoPane {
     history: HistoryView,
     blame: BlameView,
     conflict: ConflictView,
+    /// The Files view (FEAT-0101).
+    files: FilesView,
 }
 
 impl RepoPane {
@@ -118,6 +121,7 @@ impl RepoPane {
         *self = Self::default();
         self.tree.set_root(root.clone());
         self.history.set_root(root.clone());
+        self.files.set_root(root.clone());
         self.verbs
             .set_root(root.clone(), s.settings.read().git.stash_untracked);
         self.root = Some(root);
@@ -159,6 +163,15 @@ impl RepoPane {
             "git.push" => self.push(cx),
             "git.status" => self.tree.view = View::Status,
             "git.history" => self.tree.view = View::History,
+            "git.files" => self.tree.view = View::Files,
+            "git.files.new-file" => {
+                self.tree.view = View::Files;
+                self.files.prompt_new_file();
+            }
+            "git.files.new-folder" => {
+                self.tree.view = View::Files;
+                self.files.prompt_new_folder();
+            }
             "git.branch" => self.verbs.panel = Panel::Branch,
             "git.merge" => self.verbs.panel = Panel::Merge,
             "git.rebase" => self.verbs.panel = Panel::Rebase,
@@ -398,6 +411,12 @@ impl RepoPane {
     }
 
     fn poll(&mut self, cx: &mut ToolContext, now: f64) {
+        // A file saved or created in the Files view is a change in the
+        // work tree: the status is read again so File Status shows it.
+        if self.files.poll(cx) == Some(files::Event::Changed) {
+            self.refresh(cx.services);
+            self.files.refresh();
+        }
         let st = self.status_slot.lock().take();
         if let Some(st) = st {
             match st {
@@ -628,6 +647,7 @@ impl RepoPane {
         let centre_w = match self.tree.view {
             View::Status => (rest * 0.40).clamp(360.0, 620.0),
             View::History => (rest * 0.55).clamp(420.0, 900.0),
+            View::Files => (rest * 0.32).clamp(280.0, 520.0),
         };
         egui::Panel::left(
             ui.id()
@@ -639,6 +659,7 @@ impl RepoPane {
         .show(ui, |ui| match self.tree.view {
             View::Status => self.status_column(ui, theme, cx),
             View::History => self.history_column(ui, theme, cx),
+            View::Files => self.files.tree_ui(ui, theme, cx),
         });
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.panel_bg))
@@ -992,6 +1013,12 @@ impl RepoPane {
 
     fn right_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
+        // The Files view owns the right column while it is the centre:
+        // the picked file, read or edited (FEAT-0101).
+        if self.tree.view == View::Files {
+            self.files.preview_ui(ui, theme, cx);
+            return;
+        }
         match &self.right {
             Right::Nothing => {
                 ui.add_space(24.0);

@@ -1488,6 +1488,21 @@ impl Tool for ApiTool {
         }
     }
 
+    /// A library tab wears its row's colour (CR-0048).
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        if self.is_home {
+            return None;
+        }
+        match &self.state.mode {
+            TabMode::Library(id) => self
+                .libraries
+                .iter()
+                .find(|l| &l.id == id)
+                .and_then(|l| library_icon(l.kind).brand()),
+            _ => None,
+        }
+    }
+
     fn dirty(&self) -> bool {
         self.is_dirty()
     }
@@ -1997,6 +2012,18 @@ fn _assert_types(_: Body) {}
 pub(crate) fn unique_name(base: &str, existing: impl Iterator<Item = String>) -> String {
     let taken: Vec<String> = existing.collect();
     model::free_name(base.trim(), &taken)
+}
+
+/// What a package library wears in the sidebar and on its tab (CR-0048):
+/// a library the user wrote here is marked in amber, so it reads apart
+/// from the ones imported from a file or fetched from a URL.
+pub(crate) fn library_icon(kind: crate::model::LibraryKind) -> hs_ui::icons::ConnIcon {
+    match kind {
+        crate::model::LibraryKind::Custom => {
+            hs_ui::icons::branded(hs_ui::icons::ph::PACKAGE, [0xf5, 0xa6, 0x23])
+        }
+        _ => hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::PACKAGE),
+    }
 }
 
 #[cfg(test)]

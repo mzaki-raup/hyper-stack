@@ -1352,3 +1352,17 @@ without being told (the agent's copy is `.claude/rules/ui.md`):
   through `Tool::tab_icon*`, as the other connection activities do.
 - **Home's toolbar** with names on: 2 px between buttons; each button's
   own margin is the air.
+
+## Addendum (2026-11-05): Home's Recent rows (CR-0048)
+
+Each row in Home → Sidebar → Recent draws its activity's glyph in the activity's colour (`app::activity_colour`), as the rail and Home's toolbar do, before the tab's title.
+
+## Addendum (2026-11-05): dashboard marks (CR-0049)
+
+- Home's tool list (What do you want to do) colours each activity's glyph with `app::activity_colour` while Settings → Appearance → Sidebar → Coloured Activity Icons is on; off, the accent as before.
+- A saved-card (`hs_ui::dashboard::item_button_art`) centres its icon or picture on the middle of its two text lines; with one line the icon stays level with it.
+- The API client's collection cards carry the sidebar's `folder-api` Material icon as their picture.
+
+## Addendum (2026-11-05): no growth on hover (CR-0050)
+
+`Theme::apply` sets `widgets.hovered.expansion`, `widgets.active.expansion` and `widgets.open.expansion` to 0: egui's default grows a hovered or pressed widget by a pixel on each side, which read as rows and buttons magnifying under the pointer (the Redis key column was where it was noticed). Hover is the highlight colour alone, in every activity at once (CR-0026's rule, now enforced in the one place every widget reads).

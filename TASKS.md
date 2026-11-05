@@ -231,39 +231,41 @@ Change Request : CR-0050
 - **Notes:** `repo_conn_icon` + `hs_ui::icons::language_conn_icon`; the uploaded picture stays a separate String because `ConnIcon.image` is a static logo uri (GOTCHAS).
 
 ### CR-0048 · Browser sidebar tab icons, the API client's custom library colour, Terminal and SSH focus on click
-- **State:** Pending ·
+- **State:** Completed · Browser tabs with star and key; the custom library amber on its row and tab; a PowerShell row click followed by typing at once; Home's Recent row with the terminal's coloured glyph; the SSH row of the open host focusing its shell
 - **Scope:** `tool-browser` sidebar, `tool-api` Package Libraries rows and tabs, `tool-terminal` and `tool-ssh` on a sidebar click.
 - **Parent:** CR-0025
-- [ ] In Browser Activity -> Sidebar Column; Please add icon for Favorites and Passwords tab each.
-- [ ] In API Client -> Sidebar Column -> Package Libraries Section; Please add color for Saved custom Library icon. And it will show the color also in the tab icon when open.
-- [ ] In Terminal and SSH Activity. When user click the shell/ host connection, please focus straightaway in that terminal/host shell.
-- [ ] In Home Activity -> Sidebar COlumn -> Recent List Section; Show also the color and icon on the each recent lists.
-- [ ] Test: the custom library's icon carries its colour, and the tab icon colour is the same
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the two Browser sidebar tabs with icons; a saved custom library's row and tab coloured; a click on a shell or host lands the caret in the terminal; Home's Recent rows with the activity's coloured glyph
-- [ ] Docs: spec · CHANGELOG
+- [x] In Browser Activity -> Sidebar Column; Please add icon for Favorites and Passwords tab each.
+- [x] In API Client -> Sidebar Column -> Package Libraries Section; Please add color for Saved custom Library icon. And it will show the color also in the tab icon when open.
+- [x] In Terminal and SSH Activity. When user click the shell/ host connection, please focus straightaway in that terminal/host shell.
+- [x] In Home Activity -> Sidebar COlumn -> Recent List Section; Show also the color and icon on the each recent lists.
+- [x] Test: the custom library's icon carries its colour, and the tab icon colour is the same
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the two Browser sidebar tabs with icons; a saved custom library's row and tab coloured; a click on a shell or host lands the caret in the terminal; Home's Recent rows with the activity's coloured glyph
+- [x] Docs: spec · CHANGELOG
+- **Notes:** `tool_api::library_icon`, `pending_focus` on the Terminal's open request, `focus_term` on SSH (set on the open request and on a click of the open host's own row - the sidebar never called `open` for that row); `activity_colour` on the Recent glyph.
 
 ### CR-0049 · Dashboard polish: coloured activity icons on Home, Material collection icons, centred card icons
-- **State:** Pending ·
+- **State:** Completed · Home's tool list coloured once Coloured Activity Icons is on; the API dashboard's collection card with the Material folder; the Terminal dashboard's shell cards with the icon level with the two lines
 - **Scope:** `hyperstack::launcher` tool cards, `tool-api` dashboard entries, `hs_ui::dashboard::saved_dashboard` cards.
 - **Parent:** CR-0025
-- [ ] In Home Activity -> Dashboard Page -> What do you want to do Section -> Activity List; Show the icon color of the activities if user enable it in Settings -> Appearance -> Sidebar -> Coloured Activity Icons.
-- [ ] In API Client Activity -> Dashboard Page -> Saved Collections Section -> Collection Icon; Please use the colored material icon inside the collection card same like in sidebar column.
-- [ ] In Terminal Activity -> Dashboard Page -> Saved Shells Section -> Shell Card; Please vertical middle align the shell icon with the Shell name and command. Apply it to all activities too Saved Hosts, Hosts, Saved Databases, Saved Connections, Saved Brokers, Saved Collections, Saved Servers, Saved Trackers, Tools, Saved Sources, (where applicable)
-- [ ] Test: the launcher card takes the activity colour only while Coloured Activity Icons is on; a collection entry carries the Material folder image
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Home's tool list with colours on and off; the API dashboard's collection cards; a saved-card's icon level with its two text lines on Terminal and SSH
-- [ ] Docs: spec · CHANGELOG
+- [x] In Home Activity -> Dashboard Page -> What do you want to do Section -> Activity List; Show the icon color of the activities if user enable it in Settings -> Appearance -> Sidebar -> Coloured Activity Icons.
+- [x] In API Client Activity -> Dashboard Page -> Saved Collections Section -> Collection Icon; Please use the colored material icon inside the collection card same like in sidebar column.
+- [x] In Terminal Activity -> Dashboard Page -> Saved Shells Section -> Shell Card; Please vertical middle align the shell icon with the Shell name and command. Apply it to all activities too Saved Hosts, Hosts, Saved Databases, Saved Connections, Saved Brokers, Saved Collections, Saved Servers, Saved Trackers, Tools, Saved Sources, (where applicable)
+- [x] Test: the launcher card takes the activity colour only while Coloured Activity Icons is on; a collection entry carries the Material folder image
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — Home's tool list with colours on and off; the API dashboard's collection cards; a saved-card's icon level with its two text lines on Terminal and SSH
+- [x] Docs: spec · CHANGELOG
+- **Notes:** `launcher::tool_card` takes a colour; `item_button_art` centres the mark on the text block; the API entry carries `folder-api`'s uri.
 
 ### CR-0050 · Rows and buttons do not grow on hover
-- **State:** Pending ·
+- **State:** Completed · a hovered Redis key row keeps its size (highlight only); the same style reaches every activity
 - **Scope:** `hs_ui::theme` (the egui style every activity draws with), the Redis key column first.
 - **Parent:** CR-0025
-- [ ] In Redis Activity - Redis Work Pane -> Key Column; Don't magnify and resize the key and folder when hover mouse on it. Check other activities of this issues too and fix all.
-- [ ] Test: the applied style has no hover or active expansion
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — hover a Redis key and a folder, a Database schema node and a toolbar button: a highlight, no growth
-- [ ] Docs: spec · CHANGELOG
+- [x] In Redis Activity - Redis Work Pane -> Key Column; Don't magnify and resize the key and folder when hover mouse on it. Check other activities of this issues too and fix all.
+- [x] Test: the applied style has no hover or active expansion
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — hover a Redis key and a folder, a Database schema node and a toolbar button: a highlight, no growth
+- [x] Docs: spec · CHANGELOG
 
 ---
 
@@ -280,6 +282,7 @@ Change Request : CR-0050
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
+- **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·

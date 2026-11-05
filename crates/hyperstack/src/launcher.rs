@@ -102,6 +102,7 @@ pub fn show(
             ui.colored_label(theme.text_muted, services.t("launcher-no-tools"));
         }
 
+        let coloured = services.settings.read().appearance.rail_coloured;
         ui.horizontal_top(|ui| {
             for cat in ToolCategory::all() {
                 let in_cat: Vec<&&ToolDescriptor> =
@@ -118,7 +119,15 @@ pub fn show(
                     );
                     ui.add_space(4.0);
                     for t in in_cat {
-                        if tool_card(ui, theme, t.icon, &services.t(t.title_key)).clicked() {
+                        // The activity's colour while Coloured Activity
+                        // Icons is on, the accent otherwise (CR-0049).
+                        let colour = if coloured {
+                            crate::app::activity_colour(t.id)
+                        } else {
+                            theme.accent
+                        };
+                        if tool_card(ui, theme, t.icon, &services.t(t.title_key), colour).clicked()
+                        {
                             resp.open_tool = Some(t.id.to_string());
                         }
                     }
@@ -230,9 +239,13 @@ pub fn side(
                     // sidebar. A growing spacer after the text holds the
                     // row at full width with the label against the left
                     // edge. Owner's report, 2026-10-17.
+                    // The activity's glyph in the activity's colour, as the
+                    // rail and Home's toolbar draw it (CR-0048).
+                    let colour = crate::app::activity_colour(factory);
                     let r = ui.add(
                         egui::Button::new((
-                            egui::Atom::from(format!("{icon}  {title}")),
+                            egui::Atom::from(egui::RichText::new(icon).color(colour)),
+                            egui::Atom::from(title.as_str()),
                             egui::Atom::grow(),
                         ))
                         .frame(false)
@@ -375,7 +388,13 @@ fn pill(
     r
 }
 
-fn tool_card(ui: &mut egui::Ui, theme: &Theme, icon: &str, title: &str) -> egui::Response {
+fn tool_card(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    icon: &str,
+    title: &str,
+    colour: egui::Color32,
+) -> egui::Response {
     let (rect, r) =
         ui.allocate_exact_size(Vec2::new(ui.available_width(), 40.0), egui::Sense::click());
     let fill = if r.hovered() {
@@ -389,7 +408,7 @@ fn tool_card(ui: &mut egui::Ui, theme: &Theme, icon: &str, title: &str) -> egui:
         egui::Align2::LEFT_CENTER,
         icon,
         egui::FontId::proportional(18.0),
-        theme.accent,
+        colour,
     );
     ui.painter().text(
         egui::pos2(rect.left() + 40.0, rect.center().y),

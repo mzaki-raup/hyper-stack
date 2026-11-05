@@ -24,6 +24,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- Nothing grows under the pointer any more: the theme turns egui's hover and press expansion off, so a Redis key, a schema node or a toolbar button highlights without changing size (CR-0050)
+- Home's tool list takes each activity's colour while Coloured Activity Icons is on; the API client's dashboard collection cards wear the sidebar's coloured Material folder; every saved-card on every dashboard centres its icon on its two text lines (CR-0049)
+- Browser's sidebar tabs wear a star and a key; the API client's custom package libraries are amber on their row and their tab; a click on a shell or an SSH host puts the caret in that terminal; Home's Recent rows show each activity's glyph in its colour (CR-0048)
 - Git: a repository with no picture and no chosen glyph wears its detected language's logo in the language's colour, in the sidebar, on its tab, in the header band and on the dashboard (CR-0047)
 - S3: Nexus and WebDAV profiles wear a coloured glyph (Sonatype green package, folder blue) and every S3-activity connection tab wears its profile's icon and colour; the Due Date calendar is as wide as its month grid; every table's cells centre their text on the row, and headers are taller with larger bold text; Home's toolbar closes the gap between its labelled buttons (CR-0046)
 - Redis key list: folders first, then keys without a parent, each by name (CR-0037)

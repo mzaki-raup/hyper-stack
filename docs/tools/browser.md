@@ -271,3 +271,7 @@ any egui text field holds focus every web view is disabled, so the child
 cannot take the keyboard back on its next message; and the state is
 re-applied on every sync, because a view's child window appears a beat
 after the view is created (New Tab).
+
+## Addendum (2026-11-05): sidebar tab icons (CR-0048)
+
+The sidebar's Favorites and Passwords tabs wear a star and a key beside their names.

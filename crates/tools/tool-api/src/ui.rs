@@ -651,11 +651,12 @@ fn libraries_section(
                 } else {
                     format!("{kind} · {}", s.t("disabled"))
                 };
-                let r = form::list_row(
+                // The custom library in its colour (CR-0048).
+                let r = form::conn_list_row(
                     ui,
                     theme,
                     open == Some(l.id.as_str()),
-                    ph::PACKAGE,
+                    crate::library_icon(l.kind),
                     &l.name,
                     Some(&sub),
                 );
@@ -1220,7 +1221,10 @@ pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                 ],
             ),
             icon: ph::FOLDER.to_string(),
-            image: None,
+            // The coloured Material folder the sidebar gives a collection
+            // (CR-0049); the glyph stays as the fallback.
+            image: hs_ui::fileicons::by_name("folder-api")
+                .and_then(|src| src.uri().map(|u| u.to_string())),
             tint: None,
         })
         .collect();

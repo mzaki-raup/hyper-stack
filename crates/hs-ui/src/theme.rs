@@ -490,6 +490,12 @@ impl Theme {
         v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, self.accent);
         v.widgets.active.bg_fill = self.accent.linear_multiply(0.5);
         v.widgets.active.weak_bg_fill = self.accent.linear_multiply(0.5);
+        // egui grows a hovered or pressed widget by a pixel on every side
+        // (`expansion`), which reads as rows and buttons magnifying under
+        // the pointer. A highlight says "hovered" on its own (CR-0050).
+        v.widgets.hovered.expansion = 0.0;
+        v.widgets.active.expansion = 0.0;
+        v.widgets.open.expansion = 0.0;
         v.widgets.open.bg_fill = self.surface_hover;
         v.window_stroke = egui::Stroke::new(1.0, self.border);
         v.window_corner_radius = egui::CornerRadius::same(6);
@@ -581,6 +587,17 @@ pub fn to_hex(c: Color32) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// CR-0050: nothing grows under the pointer; a highlight is enough.
+    #[test]
+    fn the_applied_style_has_no_hover_or_press_expansion() {
+        let ctx = egui::Context::default();
+        super::Theme::dark().apply(&ctx);
+        let v = ctx.global_style().visuals.clone();
+        assert_eq!(v.widgets.hovered.expansion, 0.0);
+        assert_eq!(v.widgets.active.expansion, 0.0);
+        assert_eq!(v.widgets.open.expansion, 0.0);
+    }
+
     /// A field has to be distinguishable from the card it sits in, in
     /// every bundled scheme - that is the whole point of `field_bg`, and
     /// a scheme added later must not quietly lose it.

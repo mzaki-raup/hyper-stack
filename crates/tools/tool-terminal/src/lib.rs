@@ -1393,6 +1393,9 @@ impl Tool for TerminalTool {
                 self.session = None;
                 self.start(cx.services);
                 self.pending_command = command;
+                // The shell is what was asked for: the caret goes there,
+                // not to whatever the sidebar row left focused (CR-0048).
+                self.pending_focus = Some(self.view.id);
                 true
             }
             OpenRequest::File { uri, .. } => {
@@ -1407,6 +1410,7 @@ impl Tool for TerminalTool {
                     self.state.cwd = dir;
                     self.session = None;
                     self.start(cx.services);
+                    self.pending_focus = Some(self.view.id);
                     true
                 } else {
                     cx.toast(ToastLevel::Warning, "No folder to open a terminal in.");

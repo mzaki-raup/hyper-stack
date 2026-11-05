@@ -284,20 +284,20 @@ Change Request : CR-0050
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### FEAT-0102 · Git hosts: rename, delete, upload, a branch picker in Files, shallow clones, phase 3
-- **State:** In-Progress · gate green; the in-app check is still to run (the screen was in use when the harness drove it)
+- **State:** Completed · the lock-screen clone from the Forgejo host tab: hello-from-hs.md renamed (row, preview header and toast followed; `git status` agreed), the file deleted behind the confirmation and the notes folder behind its typed name, two PNGs uploaded through the system picker, hs-test picked in the branch row (checkout ran, the tree reloaded with the branch's file, the header followed); Shallow Clones from Hosts ticked in Settings → Git and flex-taskbar opened from the host tab as a one-commit clone with `.git/shallow`
 - **Source:** owner's go-ahead, 2026-11-05 ("Yes, phase 3"), after FEAT-0101 phase 2
 - **Scope:** `tool-git` (`files.rs`, `pane.rs`, `host.rs`, palette commands), `hs-git` (`write::clone`), `hs-core` (`settings.git.shallow_clones`), Settings → Git, `docs/tools/git-activity.md`.
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0101
-- [ ] Rename on the picked file or folder (a name prompt starting with its name; a clash is refused); the open preview and the expanded folders follow the new path
-- [ ] Delete on the picked file or folder, guarded: a file behind a confirmation, a folder by typing its name; the removal runs on the pool, a preview under the path closes, and File Status shows the deletion for the commit box
-- [ ] Upload: the system file picker, the files copied into the picked folder; a name already there refuses the upload before anything is copied
-- [ ] A branch picker over the tree listing the local branches; picking one checks it out through the pane's verb path, after which the listings and the open file are read again
-- [ ] Settings → Git → Shallow Clones from Hosts: a repository opened from a host tab is cloned with `--depth 1`; the Settings → Git → Repositories clone is unchanged
+- [x] Rename on the picked file or folder (a name prompt starting with its name; a clash is refused); the open preview and the expanded folders follow the new path
+- [x] Delete on the picked file or folder, guarded: a file behind a confirmation, a folder by typing its name; the removal runs on the pool, a preview under the path closes, and File Status shows the deletion for the commit box
+- [x] Upload: the system file picker, the files copied into the picked folder; a name already there refuses the upload before anything is copied
+- [x] A branch picker over the tree listing the local branches; picking one checks it out through the pane's verb path, after which the listings and the open file are read again
+- [x] Settings → Git → Shallow Clones from Hosts: a repository opened from a host tab is cloned with `--depth 1`; the Settings → Git → Repositories clone is unchanged
 - [x] Palette: Git: Rename File, Delete File, Upload Files
 - [x] Test: a row is a folder when its parent's listing says so
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — in a cloned repository: rename a file and a folder, delete a file and a folder (typed), upload two files, switch branch from the picker; shallow clone a host repository and see one commit in History
+- [x] App: `--data-dir ./tmp-data` — in a cloned repository: rename a file and a folder, delete a file and a folder (typed), upload two files, switch branch from the picker; shallow clone a host repository and see one commit in History
 - [x] Docs: spec · CHANGELOG · CHECKLIST
 
 ---
@@ -317,6 +317,7 @@ Change Request : CR-0050
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
 - **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
 - **Notes:** `tool_git::files::FilesView`; listings and reads on the blocking pool through slots; `EditorView.read_only` until Edit; a write returns `files::Event::Changed` and the pane re-reads its status. `tool-git` now depends on `hs-editor` (Cargo.lock updated). First cut of the branch came off a stale `origin/main` - the remote has no fetch refspec - and was rebuilt from the forge's head (GOTCHAS). Phase 3 pending.
+- **Notes:** Enter in the name prompts did nothing at first - `request_focus()` ran before the `lost_focus()` read (GOTCHAS, Shell and UI Layout); fixed in the same item. The Settings → Git → Repositories clone stays full on purpose.
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·

@@ -664,10 +664,12 @@ impl FilesView {
             }
             ui.add_space(6.0);
             let r = form::text_field(ui, name, &hint);
-            r.request_focus();
+            // Enter is read before focus is asked back: once the field has
+            // focus again, `lost_focus` is false for the rest of the frame.
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 done = true;
             }
+            r.request_focus();
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if form::primary_button(ui, theme, &ok_label).clicked() {
@@ -833,13 +835,13 @@ impl FilesView {
                 ui.add_space(6.0);
                 form::hint(ui, theme, &s.t("git-files-delete-folder-hint"));
                 let r = form::text_field(ui, typed, &name);
-                r.request_focus();
                 if r.lost_focus()
                     && ui.input(|i| i.key_pressed(egui::Key::Enter))
                     && typed.trim() == name
                 {
                     done = true;
                 }
+                r.request_focus();
             }
             ui.add_space(12.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

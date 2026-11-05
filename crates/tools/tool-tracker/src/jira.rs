@@ -358,7 +358,30 @@ impl Driver for Jira {
             .iter()
             .map(|p| s(p, "name"))
             .collect();
-        Ok(CreateForm { kinds, priorities })
+        // Who the project's items can go to (FEAT-0095). A server that
+        // refuses the call leaves the list empty and the field free text.
+        let assignees = if project.is_empty() {
+            Vec::new()
+        } else {
+            self.http
+                .get_json(&format!(
+                    "/user/assignable/search?project={}&maxResults=50",
+                    q(&project)
+                ))
+                .await
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .map(|u| s(u, "displayName"))
+                .filter(|n| !n.is_empty())
+                .collect()
+        };
+        Ok(CreateForm {
+            kinds,
+            priorities,
+            assignees,
+        })
     }
 
     async fn create(&mut self, it: &NewItem) -> Result<String> {

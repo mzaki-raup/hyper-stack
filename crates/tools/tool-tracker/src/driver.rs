@@ -107,6 +107,11 @@ pub struct CreateForm {
     /// Jira issue types, Redmine trackers; empty where there is no choice.
     pub kinds: Vec<String>,
     pub priorities: Vec<String>,
+    /// Who an item can be assigned to, as the server names them: Redmine's
+    /// project members, Jira's assignable users (FEAT-0095). Empty where
+    /// the server has no such list or would not give it; the form then
+    /// takes a typed name.
+    pub assignees: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

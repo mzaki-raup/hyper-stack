@@ -103,6 +103,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
   installs ring once, and the handshake itself carries a 10 s timeout so a
   stuck peer can't hang the pane either (2026-10-31).
 - **reqwest.** The workspace reqwest has no `form` or `multipart` feature. `send::form_body` and `send::multipart` build the bodies by hand.
+- **`egui_extras`' `datepicker` feature pulls in `jiff`**, a second date library beside `chrono`, and its `DatePickerButton` takes a `jiff::civil::Date`. The app's date field is `hs_ui::datefield` instead: a dozen lines of civil-calendar arithmetic (Hinnant's days-from-civil), no dependency, labels from the caller's locale (FEAT-0095, 2026-11-05).
 - **russh-sftp `write()`** opens with `WRITE` only and fails on a file that doesn't exist. Use `create()` (`CREATE | TRUNCATE | WRITE`).
 - **Boa (JavaScript).** Native closures must be `Copy`. Host state goes through a `thread_local!` record (`script::HOST`), written before `run` and read after. `JsValue::to_json` needs `&mut Context`. Strings come out as `to_std_string_escaped()`.
 - **`Tool` is `Send`.** A per-frame cache on tool state must be `Arc`, not `Rc`.

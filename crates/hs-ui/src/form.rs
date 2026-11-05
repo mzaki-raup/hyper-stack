@@ -171,6 +171,50 @@ pub fn text_field_width(
     )
 }
 
+/// A text field with the server's values behind a caret: typed or chosen
+/// (FEAT-0095). A ref, an assignee or a priority is what the server knows,
+/// so the list comes from it; but the list can be stale or the server out
+/// of reach, so the field is never *only* the list. With no options it is
+/// a plain text field, and the form still works. Returns the text field's
+/// response; a choice from the list writes `value` and counts as a change.
+pub fn pick_field(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    value: &mut String,
+    options: &[String],
+    hint: &str,
+) -> egui::Response {
+    if options.is_empty() {
+        return text_field(ui, value, hint);
+    }
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let w = (ui.available_width().clamp(FIELD_MIN_WIDTH, FIELD_MAX_WIDTH) - 32.0).max(80.0);
+        let mut r = text_field_width(ui, value, hint, w);
+        let caret = icon_button(ui, theme, crate::icons::CARET_DOWN, 14.0, false);
+        let mut chosen = false;
+        egui::Popup::menu(&caret).show(|ui| {
+            ui.set_min_width(w);
+            egui::ScrollArea::vertical()
+                .max_height(240.0)
+                .show(ui, |ui| {
+                    for o in options {
+                        if ui.selectable_label(value == o, o).clicked() {
+                            *value = o.clone();
+                            chosen = true;
+                            ui.close();
+                        }
+                    }
+                });
+        });
+        if chosen {
+            r.mark_changed();
+        }
+        r
+    })
+    .inner
+}
+
 /// A password-style field (see [`text_field`]).
 pub fn secret_field(
     ui: &mut egui::Ui,

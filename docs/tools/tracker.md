@@ -211,3 +211,22 @@ ruled into its sections - the key and summary header with its chips, the
 field table, the description, the comments, the comment form - with a
 rule and the gap between each. The Edit and New Item forms keep the gap
 between their field grid and the description editor.
+
+## Addendum (2026-11-05): fields the server fills (FEAT-0095)
+
+- **Edit:** Assignee and Priority are `hs_ui::form::pick_field`s - a text
+  field with the server's list behind a caret. Opening Edit asks the driver
+  for the create form of the profile's project (`Cmd::Fields`), and
+  `CreateForm` now carries `assignees`: Redmine's project members
+  (`/projects/{id}/memberships.json`, users only, name → id kept so a picked
+  name resolves without a second call), Jira's assignable users
+  (`/user/assignable/search?project=`). A server that gives no list, or
+  cannot be reached, leaves the field free text, so nothing is lost offline.
+  Due Date is `hs_ui::datefield::date_field`: the ISO text with a calendar
+  beside it; a picked day is written as `YYYY-MM-DD`, which is what Redmine,
+  Jira and GitLab take and give.
+- **New Item:** Type and Priority were already the server's lists; unchanged.
+- **Change Status:** the item's summary, status and assignee in a key/value
+  table, a rule, then **Move To** as a list of rows in a well (the current
+  status shown selected and disabled), the read-only reason as a hint, and
+  Cancel hard right - the shape of the other form panes.

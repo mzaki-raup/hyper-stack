@@ -121,6 +121,37 @@ pub fn dispatch_inputs(yaml: &str) -> std::result::Result<Option<Vec<Param>>, St
 /// The name of the form field that carries the ref to run on.
 pub const REF: &str = "ref";
 
+/// The branch names in a `/repos/{repo}/branches` answer (GitHub and
+/// Forgejo agree on the shape), in the server's order.
+pub fn branch_names(v: &Value) -> Vec<String> {
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .map(|b| s(b, "name"))
+        .filter(|n| !n.is_empty())
+        .collect()
+}
+
+/// The Run form's ref field (FEAT-0095): the repository's branches to pick
+/// from, the default branch first and already filled in. `Err` - the
+/// branches could not be read - leaves it a typed field with the default.
+pub fn ref_param(
+    default_branch: &str,
+    branches: std::result::Result<Vec<String>, String>,
+) -> Param {
+    let mut list = branches.unwrap_or_default();
+    if let Some(i) = list.iter().position(|b| b == default_branch) {
+        list.swap(0, i);
+    }
+    Param {
+        name: REF.into(),
+        kind: ParamKind::Pick(list),
+        default: default_branch.to_string(),
+        description: "Branch or tag to run on".into(),
+        required: true,
+    }
+}
+
 impl GitHub {
     pub async fn connect(cfg: &ConnectConfig) -> Result<GitHub> {
         let http = cfg
@@ -239,16 +270,12 @@ impl Driver for GitHub {
                 ..Default::default()
             });
         };
-        params.insert(
-            0,
-            Param {
-                name: REF.into(),
-                kind: ParamKind::Text,
-                default: self.default_branch.clone(),
-                description: "Branch or tag to run on".into(),
-                required: true,
-            },
-        );
+        let branches = self
+            .http
+            .get_json(&format!("/repos/{}/branches?per_page=100", self.repo))
+            .await
+            .map(|v| branch_names(&v));
+        params.insert(0, ref_param(&self.default_branch, branches));
         Ok(RunForm {
             allowed: true,
             why: String::new(),
@@ -342,6 +369,24 @@ impl Driver for GitHub {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ref_is_picked_from_the_branches_and_typed_when_they_cannot_be_read() {
+        // FEAT-0095: the branches come from the server, the default first;
+        // a server that would not list them leaves a typed field.
+        let v = serde_json::json!([{"name": "feat/x"}, {"name": "main"}, {"name": "dev"}]);
+        assert_eq!(branch_names(&v), vec!["feat/x", "main", "dev"]);
+        let p = ref_param("main", Ok(branch_names(&v)));
+        assert_eq!(p.name, REF);
+        assert_eq!(p.default, "main");
+        assert_eq!(
+            p.kind,
+            ParamKind::Pick(vec!["main".into(), "feat/x".into(), "dev".into()])
+        );
+        let p = ref_param("main", Err("403".into()));
+        assert_eq!(p.kind, ParamKind::Pick(vec![]));
+        assert_eq!(p.default, "main");
+    }
 
     #[test]
     fn dispatch_inputs_are_read_from_every_form_of_on() {

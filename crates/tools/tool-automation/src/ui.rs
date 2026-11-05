@@ -112,6 +112,10 @@ pub struct AutomationTool {
     /// The run whose end the log has reported and whose state has been
     /// read again for it, so it happens once.
     settled: Option<String>,
+    /// The log laid out in steps (FEAT-0095), keyed by what it was laid
+    /// out from - (run, length, next offset, cut) - so a frame that shows
+    /// the same text does not lay it out again.
+    log_lines: Option<(LogKey, Vec<crate::logfmt::Line>)>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -124,6 +128,38 @@ impl Drop for AutomationTool {
 }
 
 /// The glyph and colour a run state wears.
+/// One laid-out log line (FEAT-0095): a banner strong in the accent, a
+/// group strong, a command in the accent with its prompt, the server's
+/// bookkeeping muted, and the body indented by its depth.
+fn log_line(ui: &mut egui::Ui, theme: &Theme, l: &crate::logfmt::Line) {
+    use crate::logfmt::Kind;
+    let indent = "  ".repeat(l.depth);
+    let text = match l.kind {
+        Kind::Blank => {
+            ui.label("");
+            return;
+        }
+        Kind::Header => egui::RichText::new(format!("{} {}", ph::BRIEFCASE, l.text))
+            .monospace()
+            .strong()
+            .color(theme.accent),
+        Kind::Group => egui::RichText::new(format!("{indent}{} {}", ph::CARET_RIGHT, l.text))
+            .monospace()
+            .strong(),
+        Kind::Command => egui::RichText::new(format!("{indent}$ {}", l.text))
+            .monospace()
+            .color(theme.accent),
+        Kind::Meta => egui::RichText::new(format!("{indent}{}", l.text))
+            .monospace()
+            .color(theme.text_muted),
+        Kind::Plain => egui::RichText::new(format!("{indent}{}", l.text)).monospace(),
+    };
+    ui.add(egui::Label::new(text).selectable(true).extend());
+}
+
+/// What a laid-out log was laid out from: (run, length, next offset, cut).
+type LogKey = (String, usize, u64, bool);
+
 fn state_glyph(s: &RunState, theme: &Theme) -> (&'static str, egui::Color32) {
     match s {
         RunState::Success => (ph::CHECK_CIRCLE, theme.success),
@@ -160,6 +196,7 @@ impl AutomationTool {
             confirm_cancel: None,
             requested: None,
             settled: None,
+            log_lines: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
         }
     }
@@ -1252,19 +1289,32 @@ impl AutomationTool {
             form::hint(ui, theme, &s.t("automation-log-cut"));
         }
         ui.add_space(form::PANE_GAP);
+        // Laid out in steps (FEAT-0095): job banners, groups, commands and
+        // indented output, with air before each step. Laid out once per
+        // change of the text, never per frame.
+        let key = (run.id.clone(), b.text.len(), b.next, b.cut);
+        if self.log_lines.as_ref().is_none_or(|(k, _)| *k != key) {
+            self.log_lines = Some((key, crate::logfmt::lines(&b.text)));
+        }
+        let lines = self
+            .log_lines
+            .as_ref()
+            .map(|(_, l)| l.as_slice())
+            .unwrap_or(&[]);
         // In a well, so the output reads as something you scroll rather
         // than as text that happens to stop (CR-0028).
         form::well(ui, theme, None, |ui| {
+            let mono = egui::TextStyle::Monospace.resolve(ui.style());
+            let row_h = ui.fonts_mut(|f| f.row_height(&mono)) + 2.0;
             egui::ScrollArea::both()
                 .id_salt("automation-log")
                 .auto_shrink([false, false])
                 .stick_to_bottom(true)
-                .show(ui, |ui| {
-                    ui.add(
-                        egui::Label::new(egui::RichText::new(&b.text).monospace())
-                            .selectable(true)
-                            .extend(),
-                    );
+                .show_rows(ui, row_h, lines.len(), |ui, range| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
+                    for l in &lines[range] {
+                        log_line(ui, theme, l);
+                    }
                 });
         });
     }
@@ -1356,6 +1406,9 @@ impl AutomationTool {
                     }
                     ParamKind::Text => {
                         form::text_field(ui, value, "");
+                    }
+                    ParamKind::Pick(options) => {
+                        form::pick_field(ui, theme, value, options, "");
                     }
                 }
                 ui.end_row();

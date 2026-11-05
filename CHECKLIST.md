@@ -617,3 +617,14 @@ and ADR-025.
 | Self-hosted image backends exercised against mock servers | Completed | `crates/hs-core/tests/ai_local_mock.rs` (6 tests: WebUI, ComfyUI, SwarmUI, InvokeAI, Fooocus, extra JSON + error); a live run on a real server stays the owner's check - none is installed here |
 | Bottom dock Logs tab with a level setting; tool errors mirrored into the log | Completed | `dock::DockTab::Logs`, `logging::Logging::set_filter` (reload layer), `general.log_level`, Behaviour card combo, `Action::Toast` → `tracing` |
 | ComfyUI readable workflow errors; assistant input block never overlaps the conversation | Completed | `ai_local::comfy_error` (+ test); bottom-up input layout in `hs_ui::ai_assistant` |
+
+## Owner's requests, 2026-11-05 (v0.7.6 batch, second half)
+
+| Item | State | Notes |
+|---|---|---|
+| Tracker and Automation: fields the server fills (FEAT-0095) | Completed | `CreateForm.assignees` (Redmine members, Jira assignable users); `hs_ui::form::pick_field` for Assignee, Priority and the Run form's ref (`ParamKind::Pick`, branches from the forge); `hs_ui::datefield::date_field` for Due Date; Change Status as a key/value table and a list of rows; `tool_automation::logfmt` lays a run's log out in steps. Checked against the bench Redmine and the Forgejo instance |
+| Database: results per query tab, double-click to edit (FEAT-0096) | Completed | `Stash` per query tab uid, swapped when the front tab changes; a running tab keeps the panel until it ends; double-click opens Edit Cell on an editable result |
+| S3: the folder column is a tree (FEAT-0097) | Completed | `tool_s3::tree::FolderTree` drawn with `hs_ui::tree`; learned from the delimiter listings, lazy loads on an opened caret and always for the root, expansion kept across Refresh; breadcrumb folders wear their Material icon |
+| SSH: a forward has a name (FEAT-0098) | Completed | `ForwardSpec.name`, `SavedForward.name` on the profile; the list and Kept Forwards lead with it |
+| Redis key list sorted folders first (CR-0037) | Completed | one partition in `KeyTree::walk` |
+| Settings polish and the UI standard (CR-0038) | Completed | Credentials card at page width without an empty Key column; the Oracle/Db2 client requirement as a field hint; Home toolbar names (fixed-width buttons) from Settings → Appearance → Activity Rail; rules in `.claude/rules/ui.md` and `docs/04-ui-design.md` |

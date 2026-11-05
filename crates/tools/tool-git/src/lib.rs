@@ -73,6 +73,34 @@ struct State {
     host_id: String,
     host_tabs: Vec<host::RepoTabState>,
     host_active: usize,
+    /// The parent folder the host's last clone went into (CR-0053).
+    host_folder: String,
+    /// What this tab is taken by - `repo:<id>` or `path:<folder>` - so the
+    /// shell never binds a host to a tab that already shows a repository
+    /// (BUG-0044). Derived from the fields above, never saved.
+    #[serde(skip)]
+    bound: String,
+}
+
+/// The key a repository tab is bound by: the saved entry's id, else the
+/// folder it was opened from.
+fn bound_key(repo_id: &str, path: Option<&std::path::Path>) -> String {
+    if !repo_id.is_empty() {
+        format!("repo:{repo_id}")
+    } else if let Some(p) = path {
+        format!("path:{}", p.display())
+    } else {
+        String::new()
+    }
+}
+
+/// What the shell's one-tab-per-connection rule sees: the host of a host
+/// tab, the repository of a repository tab, nothing for an empty tab.
+fn connection_of(state: &State) -> Option<&str> {
+    if !state.host_id.is_empty() {
+        return Some(state.host_id.as_str());
+    }
+    (!state.bound.is_empty()).then_some(state.bound.as_str())
 }
 
 /// What the dashboard knows about one saved repository: whether its
@@ -115,15 +143,18 @@ impl GitTool {
         if let Some(p) = t.state.path.clone() {
             t.pane.set_root(services, p);
         }
+        t.rebind();
         if !t.state.host_id.is_empty() {
             let id = t.state.host_id.clone();
             let tabs = t.state.host_tabs.clone();
+            let folder = t.state.host_folder.clone();
             if t.become_host(services, &id) {
                 if let Some(h) = t.host.as_mut() {
                     for saved in &tabs {
                         h.restore_tab(services, saved);
                     }
                     h.active = t.state.host_active.min(h.tabs.len().saturating_sub(1));
+                    h.clone_parent = (!folder.is_empty()).then(|| PathBuf::from(&folder));
                 }
             } else {
                 // The credential is gone: the tab stays, and says so.
@@ -159,16 +190,9 @@ impl GitTool {
         !self.state.host_id.is_empty()
     }
 
-    /// The forge's mark for a host tab: its logo where one is vendored,
-    /// the branch glyph otherwise.
-    fn host_conn_icon(kind: hs_core::git_hosts::HostKind) -> hs_ui::icons::ConnIcon {
-        use hs_core::git_hosts::HostKind;
-        match kind {
-            HostKind::GitHub => hs_ui::icons::conn_icon("github-issues", ""),
-            HostKind::GitLab => hs_ui::icons::conn_icon("gitlab-issues", ""),
-            HostKind::Forgejo | HostKind::Gitea => hs_ui::icons::conn_icon("forgejo-issues", ""),
-            _ => hs_ui::icons::ConnIcon::glyph(ph::GIT_BRANCH),
-        }
+    /// Recompute what this tab is bound by (BUG-0044).
+    fn rebind(&mut self) {
+        self.state.bound = bound_key(&self.state.repo_id, self.state.path.as_deref());
     }
 
     /// The host tab's own layout: the repository column, a rule, then the
@@ -213,6 +237,11 @@ impl GitTool {
         });
         self.state.host_tabs = h.saved_tabs();
         self.state.host_active = h.active;
+        self.state.host_folder = h
+            .clone_parent
+            .as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_default();
         self.state.name = h.cred.label();
     }
 
@@ -232,6 +261,7 @@ impl GitTool {
     fn show_entry(&mut self, s: &Services, entry: &hs_core::git_repos::RepoEntry) {
         self.state.repo_id = entry.id.clone();
         self.state.path = Some(entry.path.clone());
+        self.rebind();
         self.state.name = entry.label();
         self.state.language = entry.language.clone();
         self.state.icon = entry.icon.clone();
@@ -424,11 +454,25 @@ fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
     hs_ui::icons::image_uri(ctx, &file)
 }
 
+/// The forge's mark for a host: its logo where one is vendored, the
+/// branch glyph otherwise. The sidebar's Hosts section, the host tab and
+/// Settings → Git's credential list all draw it (CR-0054).
+pub fn host_conn_icon(kind: hs_core::git_hosts::HostKind) -> hs_ui::icons::ConnIcon {
+    use hs_core::git_hosts::HostKind;
+    match kind {
+        HostKind::GitHub => hs_ui::icons::conn_icon("github-issues", ""),
+        HostKind::GitLab => hs_ui::icons::conn_icon("gitlab-issues", ""),
+        HostKind::Forgejo | HostKind::Gitea => hs_ui::icons::conn_icon("forgejo-issues", ""),
+        _ => hs_ui::icons::ConnIcon::glyph(ph::GIT_BRANCH),
+    }
+}
+
 /// What a repository wears in the sidebar, on its tab and in its header
 /// band when it has no uploaded picture (CR-0047): the chosen glyph, else
 /// the detected language's logo in its own colour - the same mark the
-/// Editor gives a project of that language.
-fn repo_conn_icon(icon: &str, language: &str) -> hs_ui::icons::ConnIcon {
+/// Editor gives a project of that language. Settings → Git's repository
+/// list draws the same (CR-0054).
+pub fn repo_conn_icon(icon: &str, language: &str) -> hs_ui::icons::ConnIcon {
     if let Some(g) = hs_ui::icons::named(icon) {
         hs_ui::icons::ConnIcon::glyph(g)
     } else if !language.is_empty() {
@@ -502,7 +546,7 @@ impl Tool for GitTool {
             return Some(ph::GIT_BRANCH);
         }
         if let Some(h) = &self.host {
-            return Some(Self::host_conn_icon(h.cred.kind).glyph);
+            return Some(host_conn_icon(h.cred.kind).glyph);
         }
         Some(self.icon())
     }
@@ -515,7 +559,7 @@ impl Tool for GitTool {
             return None;
         }
         if let Some(h) = &self.host {
-            return Self::host_conn_icon(h.cred.kind).uri();
+            return host_conn_icon(h.cred.kind).uri();
         }
         self.state
             .image
@@ -530,7 +574,7 @@ impl Tool for GitTool {
             return None;
         }
         if let Some(h) = &self.host {
-            return Self::host_conn_icon(h.cred.kind).brand();
+            return host_conn_icon(h.cred.kind).brand();
         }
         if self.state.image.is_some() {
             return None;
@@ -539,9 +583,11 @@ impl Tool for GitTool {
     }
 
     /// The host credential a host tab is bound to, so opening the host
-    /// again focuses this tab (FEAT-0100).
+    /// again focuses this tab (FEAT-0100) - and the repository a
+    /// repository tab shows, so a host never takes that tab over
+    /// (BUG-0044).
     fn current_connection(&self) -> Option<&str> {
-        self.is_host().then_some(self.state.host_id.as_str())
+        connection_of(&self.state)
     }
 
     fn header(&self) -> Option<hs_core::tool::ToolHeader> {
@@ -550,7 +596,7 @@ impl Tool for GitTool {
         }
         if let Some(h) = &self.host {
             return Some(
-                Self::host_conn_icon(h.cred.kind)
+                host_conn_icon(h.cred.kind)
                     .header(h.cred.label())
                     .fact("Kind", h.cred.kind.name().to_string())
                     .fact("URL", h.cred.host())
@@ -634,6 +680,7 @@ impl Tool for GitTool {
                 let entry = hs_core::git_repos::RepoEntry::for_path(path);
                 self.show_entry(cx.services, &entry);
                 self.state.repo_id.clear();
+                self.rebind();
             }
         }
         true
@@ -833,7 +880,7 @@ impl Tool for GitTool {
                         ui,
                         &theme,
                         host_here == c.id,
-                        Self::host_conn_icon(c.kind),
+                        host_conn_icon(c.kind),
                         &c.label(),
                         Some(&c.host()),
                     );
@@ -927,15 +974,35 @@ mod tests {
         assert_eq!(bare.glyph, ph::GIT_BRANCH);
     }
 
+    /// BUG-0044: a repository tab is taken, so the shell's "bind a host to
+    /// an unbound tab" step passes it by; an empty tab is free; a host tab
+    /// answers with its host.
+    #[test]
+    fn a_repository_tab_counts_as_bound_and_an_empty_tab_does_not() {
+        let mut st = State::default();
+        assert_eq!(connection_of(&st), None);
+        st.repo_id = "01REPO".into();
+        st.path = Some(PathBuf::from("D:/work/app"));
+        st.bound = bound_key(&st.repo_id, st.path.as_deref());
+        assert_eq!(connection_of(&st), Some("repo:01REPO"));
+        // Opened from a folder that is not in the list: the folder is the key.
+        st.repo_id.clear();
+        st.bound = bound_key(&st.repo_id, st.path.as_deref());
+        assert_eq!(connection_of(&st), Some("path:D:/work/app"));
+        let host = State {
+            host_id: "01HOST".into(),
+            ..Default::default()
+        };
+        assert_eq!(connection_of(&host), Some("01HOST"));
+        assert!(bound_key("", None).is_empty());
+    }
+
     /// FEAT-0100: a host tab wears its forge's logo where one is vendored.
     #[test]
     fn a_host_tab_wears_the_forges_logo() {
         use hs_core::git_hosts::HostKind;
-        assert!(GitTool::host_conn_icon(HostKind::GitLab).uri().is_some());
-        assert!(GitTool::host_conn_icon(HostKind::Forgejo).uri().is_some());
-        assert_eq!(
-            GitTool::host_conn_icon(HostKind::Azure).glyph,
-            ph::GIT_BRANCH
-        );
+        assert!(host_conn_icon(HostKind::GitLab).uri().is_some());
+        assert!(host_conn_icon(HostKind::Forgejo).uri().is_some());
+        assert_eq!(host_conn_icon(HostKind::Azure).glyph, ph::GIT_BRANCH);
     }
 }

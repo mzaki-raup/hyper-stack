@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0102
-Bugs : BUG-0040
+Bugs : BUG-0043
 Change Request : CR-0050
 ```
 

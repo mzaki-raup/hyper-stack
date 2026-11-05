@@ -441,3 +441,28 @@ The Files view's toolbar row gains **Upload**, **Rename** and **Delete**
   (`settings.git.shallow_clones`, off by default;
   `hs_git::write::clone` takes `depth: Option<u32>`). The Settings → Git →
   Repositories clone stays full.
+
+## Addendum (2026-11-06): the host tab stays apart, the clone folder is the user's, Settings draws the marks (BUG-0044, CR-0053, CR-0054)
+
+- **A host never takes a repository tab over.** The shell binds a
+  connection to a tab of the same tool that holds no connection yet; a
+  repository tab reported none, so clicking a host while one was open
+  turned that tab into the host's. A repository tab now reports what it
+  is taken by (`repo:<id>`, or `path:<folder>` for a folder opened outside
+  the list), so the shell opens the host beside it. One tab per host and
+  one per repository still hold (BUG-0044).
+- **Clone into a folder of the user's choice.** Opening a host repository
+  that is not cloned asks for the parent folder with the system picker,
+  offering the host's last pick, else the default layout's parent
+  (Settings → Git → Default Clone Folder, or `repos/` in the data folder).
+  The clone lands at `<picked folder>/<repository name>`. The pick is
+  remembered per host across restarts. A clone found at the default
+  layout's path still opens without asking (CR-0053).
+- **A finished clone is an Editor project too**: it is added to the
+  Editor's project list (`Projects::add_root`), without opening the
+  Editor, beside its entry in the Git list (CR-0053).
+- **Settings → Git draws the sidebar's marks**: the Repositories list
+  shows the picture, else the chosen glyph, else the language's logo in
+  colour (`tool_git::repo_conn_icon`), and the Git Credentials list shows
+  the forge's mark (`tool_git::host_conn_icon`) - both helpers are the
+  activity's own, now public (CR-0054).

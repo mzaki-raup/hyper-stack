@@ -11,7 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Git hosts: opening a repository that is not cloned yet asks for the parent folder (the host's last pick offered first) and clones under it by the repository's name; the finished clone is added to the Editor's projects as well as the Git list (CR-0053)
+- Settings → Git: the Repositories list wears the picture, the chosen glyph or the language's coloured logo, and the Git Credentials list the forge's mark, as the Git sidebar does (CR-0054)
+
+### Fixed
+
+- Git: clicking a host while a repository tab was open replaced that tab with the host; a repository tab now counts as taken and the host opens beside it (BUG-0044)
 
 ## 0.123.0 — 2026-11-05
 

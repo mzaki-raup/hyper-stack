@@ -338,42 +338,42 @@ Change Request : CR-0055
 - [x] Docs: the devicon README names the Simple Icons source and licence · CHANGELOG
 
 ### BUG-0044 · Git: clicking a host while a repository tab is open replaces that tab
-- **State:** Pending ·
+- **State:** Completed · a repository tab now reports what it is taken by, so the host opens beside it; seen with lock-screen and Bench Forgejo on 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("When Open a repository in a tab, then click one of the host list, why the host replace the repository tab?")
 - **Scope:** `tool-git` (`open` with `OpenRequest::Connection`, `current_connection`, the shell's one-tab-per-connection rule).
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0100
-- [ ] Reproduce in a test: a repository tab open, then a host's `OpenRequest::Connection` - the shell must add a host tab, not reuse the repository's
-- [ ] Fix, keeping one tab per host and one per repository
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — open a repository from the list, click a host in Hosts: both tabs stay
-- [ ] Docs: CHANGELOG · GOTCHAS
+- [x] Reproduce in a test: a repository tab open, then a host's `OpenRequest::Connection` - the shell must add a host tab, not reuse the repository's (`lib.rs::a_repository_tab_counts_as_bound_and_an_empty_tab_does_not`: the shell reuses a tab whose `current_connection` is `None`, so the test pins what a repository tab answers)
+- [x] Fix, keeping one tab per host and one per repository
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — open a repository from the list, click a host in Hosts: both tabs stay (lock-screen tab, then Bench Forgejo opened beside it, 2026-11-06)
+- [x] Docs: CHANGELOG · GOTCHAS
 
 ### CR-0053 · Git hosts: clone into a parent folder the user picks, and register the clone as an Editor project
-- **State:** Pending ·
+- **State:** Completed · flex-taskbar cloned into a picked folder, listed in Git and in the Editor's projects, the folder remembered by the host; 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Allow user to clone the repository in parent folder selected by user", "When user clone to local folder, add also the project to Editor Activity")
 - **Scope:** `tool-git::host` (the first-open clone: a folder picker with the configured clone folder as the default), the Editor's project list through `Services`/`OpenRequest`, `docs/tools/git-activity.md`.
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0100
-- [ ] Opening a repository that is not cloned yet asks for the parent folder (default: Settings → Git → Default Clone Folder, else the data folder's `repos/<host>/<owner>`), remembers the pick per host, and clones under it
-- [ ] A finished clone is added to the Editor activity's projects (and the Git list, as today) without opening the Editor
-- [ ] Test: the destination is the picked parent plus the repository's path; the Editor registration happens once per clone
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — clone a host repository into a chosen folder; it appears in Editor → Projects and in the Git list
-- [ ] Docs: spec · CHANGELOG
+- [x] Opening a repository that is not cloned yet asks for the parent folder (default: Settings → Git → Default Clone Folder, else the data folder's `repos/<host>/<owner>`), remembers the pick per host, and clones under it
+- [x] A finished clone is added to the Editor activity's projects (and the Git list, as today) without opening the Editor
+- [x] Test: the destination is the picked parent plus the repository's path; the Editor registration happens once per clone (`host.rs::a_clone_lands_under_the_picked_folder_by_its_own_name`; `Projects::add_root` is a no-op for a root it already has)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — clone a host repository into a chosen folder; it appears in Editor → Projects and in the Git list (flex-taskbar into D:\Temp\hs-clones through the picker: a Git list row with the new path, `projects.toml` carries the root, the host remembered the folder in the layout, 2026-11-06)
+- [x] Docs: spec · CHANGELOG
 
 ### CR-0054 · Settings → Git lists draw the sidebar's coloured marks
-- **State:** Pending ·
+- **State:** Completed · the Rust logos on the repository rows and the Forgejo mark on the credential row in Settings → Git, 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Why the repository list not using colored icon for project language type (except if using project repository icon)?", "Why the credential list not using colored icon for the credential type (github, gitlab, forgejo, etc)")
 - **Scope:** `crates/hyperstack/src/settings_ui.rs` (the Git page's Repositories and Git Credentials lists), reusing `tool_git::repo_conn_icon` / `hs_ui::icons::language_conn_icon` and `conn_icon` for the forge kinds.
 - **Parent:** CR-0025
 - **Depends on:** CR-0047
-- [ ] Settings → Git → Repositories: each row wears the repository's picture, else its chosen glyph, else the detected language's logo in colour - the same resolution as the Git sidebar (CR-0047)
-- [ ] Settings → Git → Git Credentials: each row wears its forge's mark (GitHub, GitLab, Forgejo / Gitea, Bitbucket) in colour, as the Hosts section does
-- [ ] Test: the two lists resolve a row's icon through the shared helpers (no second table of glyphs)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the bench repositories show the Rust logo and the Forgejo credential its mark in Settings → Git
-- [ ] Docs: CHANGELOG
+- [x] Settings → Git → Repositories: each row wears the repository's picture, else its chosen glyph, else the detected language's logo in colour - the same resolution as the Git sidebar (CR-0047)
+- [x] Settings → Git → Git Credentials: each row wears its forge's mark (GitHub, GitLab, Forgejo / Gitea, Bitbucket) in colour, as the Hosts section does
+- [x] Test: the two lists resolve a row's icon through the shared helpers (no second table of glyphs) - `repo_conn_icon` and `host_conn_icon` are public and covered by the Git tests; Settings has no table of its own left for these rows
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench repositories show the Rust logo and the Forgejo credential its mark in Settings → Git (seen 2026-11-06)
+- [x] Docs: CHANGELOG
 
 ### CR-0055 · Settings → AI Assistant: provider rows wear the provider's mark in colour
 - **State:** Pending ·

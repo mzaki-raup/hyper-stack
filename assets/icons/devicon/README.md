@@ -12,7 +12,7 @@ system, a terminal shell or CLI, and an Editor project's language
 | Use | Files |
 |---|---|
 | Container hosts | `docker` `podman` `kubernetes` `windows11` |
-| Databases, by engine | `postgresql` `sqlite` `clickhouse` `duckdb` `microsoftsqlserver` `oracle` |
+| Databases, by engine | `postgresql` `sqlite` `clickhouse` `duckdb` `microsoftsqlserver` `oracle` `mysql` `mariadb` |
 | NoSQL, Redis, search | `redis` `mongodb` `couchdb` `elasticsearch` `cassandra` `dynamodb` |
 | Brokers | `rabbitmq` `nats` |
 | Build servers | `jenkins` `teamcity` `githubactions` `gitlab` `forgejo` `ansible` |
@@ -44,3 +44,15 @@ Not vendored, on purpose:
 To add one: copy `icons/<name>/<name>-original.svg` from the same tag into
 this folder, add it to `PRODUCT_LOGOS` in `crates/hs-ui/src/icons.rs`, and
 map it. Measure its fills and look at it in both themes before keeping it.
+
+## `../simple/`: Simple Icons marks
+
+Marks Devicon does not carry come from **Simple Icons**
+(<https://github.com/simple-icons/simple-icons>, CC0 1.0, v13 / latest,
+2026-11-06), each filled with the brand colour the same data file names,
+because the originals are single black paths: `puppet` (#FFAE1A), `mqtt`
+(#660066), `amazons3` (#569A31), `qdrant` (#DC244C) and `redmine` (#B32024;
+Redmine's mark is CC BY-SA 2.5, credited to the Redmine project). Valkey,
+WebDAV and Sonatype Nexus have no usable mark there (Valkey is absent, the
+Sonatype mark is near-black) and keep their glyphs. The marks remain the
+trademarks of their owners.

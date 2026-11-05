@@ -228,6 +228,8 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "gitlab-ci" => "\u{e7eb}",
         "forgejo-actions" => "\u{e910}",
         "awx" => "\u{f109a}",
+        // The Puppet mark comes from the logo; the glyph is the fallback.
+        "puppet" => ph::PUZZLE_PIECE,
         // The trackers (CR-0024): md-jira (the devicon Jira at U+E75C
         // is under Phosphor), dev-confluence, the GitHub mark,
         // dev-gitlab, dev-forgejo. Redmine has no mark anywhere and takes
@@ -341,6 +343,34 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
     (
         "bytes://product/ansible.svg",
         include_bytes!("../../../assets/icons/devicon/ansible.svg"),
+    ),
+    (
+        "bytes://product/mysql.svg",
+        include_bytes!("../../../assets/icons/devicon/mysql.svg"),
+    ),
+    (
+        "bytes://product/mariadb.svg",
+        include_bytes!("../../../assets/icons/devicon/mariadb.svg"),
+    ),
+    (
+        "bytes://product/puppet.svg",
+        include_bytes!("../../../assets/icons/simple/puppet.svg"),
+    ),
+    (
+        "bytes://product/mqtt.svg",
+        include_bytes!("../../../assets/icons/simple/mqtt.svg"),
+    ),
+    (
+        "bytes://product/redmine.svg",
+        include_bytes!("../../../assets/icons/simple/redmine.svg"),
+    ),
+    (
+        "bytes://product/amazons3.svg",
+        include_bytes!("../../../assets/icons/simple/amazons3.svg"),
+    ),
+    (
+        "bytes://product/qdrant.svg",
+        include_bytes!("../../../assets/icons/simple/qdrant.svg"),
     ),
     (
         "bytes://product/jira.svg",
@@ -624,6 +654,8 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
             "duckdb" => "duckdb",
             "mssql" | "sqlserver" => "microsoftsqlserver",
             "oracle" => "oracle",
+            "mysql" => "mysql",
+            "mariadb" => "mariadb",
             _ => return None,
         },
         "docker" => "docker",
@@ -644,6 +676,12 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "gitlab-ci" | "gitlab-issues" => "gitlab",
         "forgejo-actions" | "forgejo-issues" => "forgejo",
         "awx" => "ansible",
+        "puppet" => "puppet",
+        // Simple Icons marks filled with the brand colour (CR-0052).
+        "qdrant" => "qdrant",
+        "mqtt" => "mqtt",
+        "redmine" => "redmine",
+        "s3" => "amazons3",
         "jira" => "jira",
         "confluence" => "confluence",
         _ => return None,
@@ -799,19 +837,26 @@ pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
         // MySQL's blue dolphin is a thin outline that all but vanishes
         // on the dark theme; MariaDB shares it here (the database tool
         // runs MariaDB through its MySQL engine).
-        ("github-issues" | "kafka", _) | ("db", "mysql" | "mariadb") => ConnTint::Text,
+        ("github-issues", _) => ConnTint::Text,
+        // MySQL's teal blue; MariaDB's sea green (CR-0052).
+        ("db", "mysql") => ConnTint::Brand(egui::Color32::from_rgb(0x00, 0x75, 0x8f)),
+        ("db", "mariadb") => ConnTint::Brand(egui::Color32::from_rgb(0x1f, 0x8a, 0x70)),
         // No logo here: the glyph in the product's colour.
         ("s3", _) => ConnTint::Brand(egui::Color32::from_rgb(0xff, 0x99, 0x00)),
         ("qdrant", _) => ConnTint::Brand(egui::Color32::from_rgb(0xdc, 0x24, 0x4c)),
         // MQTT's own #660066 is lost on the dark theme: a lighter step of
         // the same purple.
         ("mqtt", _) => ConnTint::Brand(egui::Color32::from_rgb(0x9c, 0x4f, 0x9c)),
+        // Kafka's mark is black on white, which reads as unset beside the
+        // other brands: the teal its ecosystem uses (CR-0051).
+        ("kafka", _) => ConnTint::Brand(egui::Color32::from_rgb(0x23, 0x8a, 0xd1)),
         ("redmine", _) => ConnTint::Brand(egui::Color32::from_rgb(0xb3, 0x20, 0x24)),
         // Nexus has no vendored logo: its package glyph in Sonatype's
         // green. WebDAV is a folder on a server: the folder glyph in the
         // folder blue of the file icons (CR-0046).
         ("nexus", _) => ConnTint::Brand(egui::Color32::from_rgb(0x2e, 0xa4, 0x4f)),
         ("webdav", _) => ConnTint::Brand(egui::Color32::from_rgb(0x4a, 0x90, 0xe2)),
+        ("puppet", _) => ConnTint::Brand(egui::Color32::from_rgb(0xff, 0xae, 0x1a)),
         _ => ConnTint::Default,
     };
     ConnIcon {
@@ -1019,10 +1064,11 @@ mod tests {
     use super::*;
 
     /// CR-0046: the object-store kinds with no logo wear a colour of
-    /// their own, so the S3 sidebar and its tabs never show a plain glyph.
+    /// their own, so the S3 sidebar and its tabs never show a plain glyph
+    /// (S3 itself gained a mark in CR-0052 and is checked with the logos).
     #[test]
     fn nexus_and_webdav_resolve_to_a_tinted_glyph() {
-        for k in ["s3", "nexus", "webdav"] {
+        for k in ["nexus", "webdav"] {
             let icon = conn_icon(k, "");
             assert!(icon.image.is_none(), "{k} has no vendored logo");
             assert!(icon.brand().is_some(), "{k} is tinted");
@@ -1055,13 +1101,13 @@ mod tests {
         }
         for (engine, logo) in [
             ("postgres", Some("postgresql")),
-            ("mysql", None),
+            ("mysql", Some("mysql")),
             ("sqlite", Some("sqlite")),
             ("clickhouse", Some("clickhouse")),
             ("duckdb", Some("duckdb")),
             ("mssql", Some("microsoftsqlserver")),
             ("oracle", Some("oracle")),
-            ("mariadb", None),
+            ("mariadb", Some("mariadb")),
         ] {
             let icon = conn_icon("db", engine);
             assert_eq!(
@@ -1071,11 +1117,24 @@ mod tests {
                 "{engine}"
             );
         }
-        // Black logos keep a glyph in the text colour, both themes.
-        assert_eq!(conn_icon("kafka", "").tint, ConnTint::Text);
+        // GitHub's black mark keeps a glyph in the text colour, both
+        // themes; the kinds that gained a brand tint are checked here too.
         assert_eq!(conn_icon("github-issues", "").tint, ConnTint::Text);
-        assert_eq!(conn_icon("db", "mariadb").tint, ConnTint::Text);
-        assert_eq!(conn_icon("db", "mysql").tint, ConnTint::Text);
+        assert!(matches!(conn_icon("kafka", "").tint, ConnTint::Brand(_)));
+        // The Simple Icons marks are registered under their slugs.
+        for (k, slug) in [
+            ("puppet", "puppet"),
+            ("s3", "amazons3"),
+            ("qdrant", "qdrant"),
+            ("mqtt", "mqtt"),
+            ("redmine", "redmine"),
+        ] {
+            assert_eq!(
+                conn_icon(k, "").image.map(str::to_owned),
+                Some(format!("bytes://product/{slug}.svg")),
+                "{k}"
+            );
+        }
     }
 
     /// An SSH host, a language and a CLI resolve to their products' logos;
@@ -1148,6 +1207,7 @@ mod tests {
             "duckdb",
             "mssql",
             "oracle",
+            "mariadb",
         ] {
             used.extend(conn_icon("db", e).image);
         }

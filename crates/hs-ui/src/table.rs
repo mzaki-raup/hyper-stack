@@ -15,11 +15,17 @@ const MIN_COLUMN: f32 = 40.0;
 pub const ROW_HEIGHT: f32 = 26.0;
 
 /// The header row's height: taller than a data row, which is part of
-/// what says it is a header.
-pub const HEADER_HEIGHT: f32 = 30.0;
+/// what says it is a header, with air above and below the text (CR-0046).
+pub const HEADER_HEIGHT: f32 = 34.0;
 
-/// Header text, a shade larger than a cell's.
-pub const HEADER_TEXT: f32 = 13.5;
+/// Header text, larger than a cell's and always bold (CR-0046).
+pub const HEADER_TEXT: f32 = 14.5;
+
+/// Every cell lays its content out from the left, centred on the row's
+/// height, so text sits in the middle of its row in every table (CR-0046).
+pub fn cell_layout() -> egui::Layout {
+    egui::Layout::left_to_right(egui::Align::Center)
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnSpec {
@@ -171,6 +177,7 @@ impl DataTable<'_> {
                 let mut builder = TableBuilder::new(ui)
                     .striped(true)
                     .resizable(true)
+                    .cell_layout(cell_layout())
                     .sense(egui::Sense::click());
                 for c in self.columns {
                     builder =

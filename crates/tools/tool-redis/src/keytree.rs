@@ -128,7 +128,14 @@ impl KeyTree {
         open: &dyn Fn(&str) -> bool,
         out: &mut Vec<Row>,
     ) {
-        for (label, child) in &node.children {
+        // Groups first, then bare keys, each set in name order (CR-0037):
+        // the map is already in name order, so one stable partition does
+        // it without a sort per frame.
+        let (groups, leaves): (Vec<_>, Vec<_>) = node
+            .children
+            .iter()
+            .partition(|(_, c)| !c.children.is_empty());
+        for (label, child) in groups.into_iter().chain(leaves) {
             let path = if prefix.is_empty() {
                 label.clone()
             } else {
@@ -293,6 +300,37 @@ mod tests {
         assert_eq!(rows[3].path, "session:1042:profile");
         assert_eq!(rows[3].kind, Some(KeyType::String));
         assert!(!rows[3].is_group);
+    }
+
+    #[test]
+    fn groups_come_before_bare_keys_and_each_set_is_in_name_order() {
+        // CR-0037: a mixed database lists its folders first, then the keys
+        // with no parent, both alphabetically - and the same inside a group.
+        let t = tree(&[
+            "zeta",
+            "alpha",
+            "user:2",
+            "cart:1",
+            "cart:items:3",
+            "cart:a",
+        ]);
+        let labels: Vec<(String, bool)> = t
+            .rows(&|p| p == "cart")
+            .into_iter()
+            .map(|r| (r.label, r.is_group))
+            .collect();
+        assert_eq!(
+            labels,
+            vec![
+                ("cart".into(), true),
+                ("items".into(), true),
+                ("1".into(), false),
+                ("a".into(), false),
+                ("user".into(), true),
+                ("alpha".into(), false),
+                ("zeta".into(), false),
+            ]
+        );
     }
 
     #[test]

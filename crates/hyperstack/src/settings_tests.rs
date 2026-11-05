@@ -251,3 +251,15 @@ fn close_closes_the_connection_form() {
     assert!(h.state().state.conn_draft.is_none());
     assert!(h.state().state.conn_selected.is_none());
 }
+
+/// CR-0038: the database form states what Oracle and Db2 need on this
+/// machine, in the bundled locale, whether or not the driver is installed.
+#[test]
+fn the_odbc_engines_say_which_client_they_need() {
+    let i = hs_core::i18n::I18n::load("en");
+    let oracle = i.t("conn-db-odbc-need-oracle");
+    let db2 = i.t("conn-db-odbc-need-db2");
+    assert!(oracle.contains("Instant Client"), "{oracle}");
+    assert!(db2.contains("ODBC and CLI"), "{db2}");
+    assert_ne!(oracle, "conn-db-odbc-need-oracle");
+}

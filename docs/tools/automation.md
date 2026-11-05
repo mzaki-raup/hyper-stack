@@ -233,3 +233,19 @@ the Jobs title before the filter row (and under the filter row, as every
 job's name, under the name, between the runs table and the selected
 run's state line, and in the Log tab between the run's state line and
 the log well.
+
+## Addendum (2026-11-05): the ref list and the laid-out log (FEAT-0095)
+
+- **Ref.** The GitHub and Forgejo Run forms list the repository's branches
+  (`/repos/{repo}/branches`, up to 100, the default branch first) in a new
+  `ParamKind::Pick`: typed *or* chosen, since a tag or a commit is a valid
+  ref the list does not carry. A server that will not list them gives an
+  empty `Pick`, which `form::pick_field` draws as the plain text field it
+  was. GitLab's jobs *are* refs and Jenkins has none, so neither changes.
+- **Log.** `logfmt::lines` lays the stream out in steps: this crate's own
+  `===== job =====` banners, `##[group]` / `::group::` / `##[section]`
+  groups (GitHub, Forgejo), `[Pipeline] { (Stage) }` stages (Jenkins),
+  `[command]` / `+ ` / `$ ` command echoes, with a blank line before each
+  step, the body indented by its depth, GitHub's per-line timestamps
+  dropped and `[Pipeline]` bookkeeping muted. Laid out once per change of
+  the text, drawn with `show_rows`.

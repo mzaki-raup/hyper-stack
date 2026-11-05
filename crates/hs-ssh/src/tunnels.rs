@@ -316,6 +316,7 @@ impl Tunnels for TunnelManager {
                 remote_host: remote_host.to_string(),
                 remote_port,
                 local_port: 0,
+                name: String::new(),
             },
             Some(tx),
         );

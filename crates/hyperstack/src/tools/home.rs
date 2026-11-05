@@ -20,6 +20,11 @@ use hs_ui::theme::Theme;
 use crate::launcher::{self, LauncherState};
 use hs_ui::tip::TipExt;
 
+/// One toolbar button with its name under the icon (CR-0038): the same
+/// width for every activity, and the margin the name keeps from the edge.
+const LABELLED_WIDTH: f32 = 76.0;
+const LABELLED_PAD: f32 = 6.0;
+
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     id: "home",
     title_key: "tool-home",
@@ -107,19 +112,22 @@ impl Tool for HomeTool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
-        let (coloured, outlined, order, hidden) = {
+        let (coloured, outlined, labelled, order, hidden) = {
             let st = s.settings.read();
             let prefs = s.workspace.read().meta.rail_prefs(&st.appearance);
             (
                 st.appearance.rail_coloured,
                 st.appearance.rail_icon_outline,
+                st.appearance.home_toolbar_labels,
                 prefs.order,
                 prefs.hidden,
             )
         };
         // Room to breathe between the icons; the row is a set of targets,
-        // not a word.
-        ui.spacing_mut().item_spacing.x = 8.0;
+        // not a word. With names on, each button carries its own margin
+        // inside its fixed width, so the gap between them closes up
+        // (CR-0046).
+        ui.spacing_mut().item_spacing.x = if labelled { 2.0 } else { 8.0 };
         let mut hub = self.hub.lock();
         let hub = &mut *hub;
         let ids: Vec<&'static str> = hub.tools.iter().map(|t| t.id).collect();
@@ -141,7 +149,15 @@ impl Tool for HomeTool {
             // Painted rather than a `Button` with a `RichText` label:
             // the outline is eight offset copies of the glyph under the
             // real one, and egui lays a button's text out itself.
-            let (rect, r) = ui.allocate_exact_size(egui::vec2(34.0, 34.0), egui::Sense::click());
+            // With names on, every button is one fixed width with the
+            // name under the glyph, so the row stays a grid whatever the
+            // names' lengths (CR-0038).
+            let size = if labelled {
+                egui::vec2(LABELLED_WIDTH, 50.0)
+            } else {
+                egui::vec2(34.0, 34.0)
+            };
+            let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
             // Hovering says "this is the one you are about to open": a
             // filled plate and an accent edge, which a bare colour change
             // on a coloured glyph could not say (owner's requirement,
@@ -156,9 +172,37 @@ impl Tool for HomeTool {
                     egui::StrokeKind::Inside,
                 );
             }
+            let glyph_at = if labelled {
+                egui::pos2(rect.center().x, rect.top() + 17.0)
+            } else {
+                rect.center()
+            };
+            if labelled {
+                // One line, cut with an ellipsis rather than wrapped: a
+                // second line would make the buttons uneven again. Painted,
+                // not `ui.put`: a widget placed inside the button moves the
+                // row's cursor and the buttons stair-step across the page.
+                let mut job = egui::text::LayoutJob::simple_singleline(
+                    label.clone(),
+                    egui::FontId::proportional(11.0),
+                    theme.text,
+                );
+                job.wrap = egui::text::TextWrapping {
+                    max_width: LABELLED_WIDTH - 2.0 * LABELLED_PAD,
+                    max_rows: 1,
+                    break_anywhere: true,
+                    overflow_character: Some('…'),
+                };
+                let galley = ui.painter().layout_job(job);
+                let pos = egui::pos2(
+                    rect.center().x - galley.size().x / 2.0,
+                    rect.bottom() - 4.0 - galley.size().y,
+                );
+                ui.painter().galley(pos, galley, theme.text);
+            }
             hs_ui::icons::outlined_text(
                 ui.painter(),
-                rect.center(),
+                glyph_at,
                 egui::Align2::CENTER_CENTER,
                 d.icon,
                 egui::FontId::proportional(22.0),

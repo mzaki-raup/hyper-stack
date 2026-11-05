@@ -415,6 +415,11 @@ pub struct Appearance {
     /// off: a plain icon is the theme's text colour already, and a ring
     /// round that reads as a glow. Owner's requirement, 2026-10-26.
     pub rail_icon_outline: bool,
+    /// Each activity's name under its icon in Home's toolbar too, every
+    /// icon at one fixed width (CR-0038). Off by default: the toolbar is
+    /// icons only and the names are under the rail's icons already.
+    #[serde(default)]
+    pub home_toolbar_labels: bool,
     /// Tool ids in the order the rail shows them; ids missing here follow
     /// in their default order. Home is always first and Settings last.
     /// Since 2026-10-23 only the seed for a workspace that has no `[rail]`
@@ -898,6 +903,7 @@ impl Default for Appearance {
             // `#[serde(default)]` on the field itself would quietly make
             // it `false` for everyone who already has a settings file.
             rail_icon_outline: true,
+            home_toolbar_labels: false,
             rail_order: Vec::new(),
             rail_hidden: Vec::new(),
             // Empty: Material item icons are on for every activity that

@@ -129,6 +129,23 @@ fn diff_edit(was: &Fields, now: &Fields) -> Edit {
     }
 }
 
+/// The Edit pane's lists from the create form: (assignees, priorities).
+/// Nothing yet, or a server that would not say, gives two empty lists -
+/// and `form::pick_field` is then a plain text field (FEAT-0095).
+fn pick_options(form: &Option<Result<driver::CreateForm, String>>) -> (Vec<String>, Vec<String>) {
+    match form {
+        Some(Ok(f)) => (f.assignees.clone(), f.priorities.clone()),
+        _ => (Vec::new(), Vec::new()),
+    }
+}
+
+/// Month and weekday names for the date picker, from the locale.
+fn date_names(s: &Services) -> (Vec<String>, Vec<String>) {
+    let months = (1..=12).map(|m| s.t(&format!("date-month-{m}"))).collect();
+    let weekdays = (1..=7).map(|d| s.t(&format!("date-day-{d}"))).collect();
+    (months, weekdays)
+}
+
 /// A page being edited.
 #[derive(Debug, Clone, Default)]
 struct PageDraft {
@@ -498,7 +515,27 @@ impl TrackerTool {
             lossy: d.lossy.clone(),
             review: false,
         });
+        // The server's lists for Assignee and Priority (FEAT-0095); until
+        // they arrive, or if they never do, the fields take typed text.
+        let project = self.profile_project(cx.services);
+        self.shared.lock().form = None;
+        self.send(Cmd::Fields(project));
         self.pane = Pane::Edit;
+    }
+
+    /// The profile's default project (Jira key, Redmine identifier), which
+    /// is what the create form and the people list are asked for.
+    fn profile_project(&self, s: &Services) -> String {
+        self.state
+            .conn_id
+            .as_ref()
+            .and_then(|id| {
+                s.connections
+                    .read()
+                    .by_id(id)
+                    .map(|c| TrackerFields::from_table(&c.kind, &c.fields).project)
+            })
+            .unwrap_or_default()
     }
 
     fn open_new(&mut self, cx: &mut ToolContext) {
@@ -506,18 +543,7 @@ impl TrackerTool {
         if !caps.create || !self.guard(cx) {
             return;
         }
-        let project = self
-            .state
-            .conn_id
-            .as_ref()
-            .and_then(|id| {
-                cx.services
-                    .connections
-                    .read()
-                    .by_id(id)
-                    .map(|c| TrackerFields::from_table(&c.kind, &c.fields).project)
-            })
-            .unwrap_or_default();
+        let project = self.profile_project(cx.services);
         self.new = Some(NewItem {
             project: if wants_repo(&self.kind) || self.kind == "gitlab-issues" {
                 String::new()
@@ -1787,9 +1813,37 @@ impl TrackerTool {
             return;
         };
         ui.strong(s.i18n.t_args("tracker-status-for", &[("key", &key)]));
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
+        // The item as it is, then the statuses it can move to as a list
+        // of rows, then the way out - the shape every other form pane has
+        // (FEAT-0095).
+        let detail = self.detail();
+        if let Some(d) = &detail {
+            form::detail_table(
+                ui,
+                theme,
+                ("tracker-status-now", &key),
+                [
+                    (s.t("tracker-f-summary"), d.item.summary.clone()),
+                    (s.t("tracker-status-current"), d.item.status.clone()),
+                    (s.t("tracker-f-assignee"), d.item.assignee.clone()),
+                ]
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.as_str())),
+            );
+            ui.add_space(form::PANE_GAP);
+            ui.separator();
+            ui.add_space(form::PANE_GAP);
+        }
+        ui.label(
+            egui::RichText::new(s.t("tracker-status-move-to"))
+                .strong()
+                .color(theme.text_muted),
+        );
+        ui.add_space(4.0);
         let got = self.shared.lock().transitions.clone();
         let mut go = None;
+        let read_only = self.read_only();
         match got.filter(|g| g.key == key).map(|g| g.result) {
             None => {
                 ui.spinner();
@@ -1799,23 +1853,31 @@ impl TrackerTool {
                 form::note(ui, theme, ph::INFO, &s.t("tracker-no-transitions"))
             }
             Some(Ok(list)) => {
-                for t in list {
-                    if ui
-                        .add_enabled(
-                            !self.read_only(),
-                            egui::Button::new(format!("{} {}", ph::ARROW_RIGHT, t.name)),
-                        )
-                        .clicked()
-                    {
-                        go = Some(t);
+                let current = detail.as_ref().map(|d| d.item.status.clone());
+                form::well(ui, theme, None, |ui| {
+                    for t in list {
+                        let is_current = current.as_deref() == Some(t.name.as_str());
+                        let r = ui.add_enabled_ui(!read_only && !is_current, |ui| {
+                            form::list_row(ui, theme, is_current, ph::ARROW_RIGHT, &t.name, None)
+                        });
+                        if r.inner.clicked() {
+                            go = Some(t);
+                        }
                     }
-                }
+                });
             }
         }
-        ui.add_space(8.0);
-        if ui.button(s.t("cancel")).clicked() {
-            self.pane = Pane::View;
+        if read_only {
+            form::hint(ui, theme, &self.refusal(s));
         }
+        ui.add_space(form::PANE_GAP);
+        ui.horizontal(|ui| {
+            hs_ui::toolbar::hard_right(ui, |ui| {
+                if ui.button(s.t("cancel")).clicked() {
+                    self.pane = Pane::View;
+                }
+            });
+        });
         if let Some(t) = go
             && self.guard(cx)
         {
@@ -1829,6 +1891,16 @@ impl TrackerTool {
         let caps_labels = !matches!(self.kind.as_str(), "redmine");
         let has_priority = matches!(self.kind.as_str(), "jira" | "redmine");
         let has_due = !matches!(self.kind.as_str(), "github-issues");
+        // The server's people and priorities, when it gave them (FEAT-0095).
+        let (assignees, priorities) = pick_options(&self.shared.lock().form);
+        let (months, weekdays) = date_names(s);
+        let date_labels = hs_ui::datefield::DateLabels {
+            open: &s.t("date-open"),
+            today: &s.t("date-today"),
+            clear: &s.t("date-clear"),
+            months: &months,
+            weekdays: &weekdays,
+        };
         let Some(draft) = self.edit.as_mut() else {
             self.pane = Pane::View;
             return;
@@ -1900,11 +1972,17 @@ impl TrackerTool {
                 form::text_field(ui, &mut draft.now.summary, "");
                 ui.end_row();
                 form::label(ui, &s.t("tracker-f-assignee"));
-                form::text_field(ui, &mut draft.now.assignee, &s.t("tracker-assignee-hint"));
+                form::pick_field(
+                    ui,
+                    theme,
+                    &mut draft.now.assignee,
+                    &assignees,
+                    &s.t("tracker-assignee-hint"),
+                );
                 ui.end_row();
                 if has_priority {
                     form::label(ui, &s.t("tracker-f-priority"));
-                    form::text_field(ui, &mut draft.now.priority, "");
+                    form::pick_field(ui, theme, &mut draft.now.priority, &priorities, "");
                     ui.end_row();
                 }
                 if caps_labels {
@@ -1914,7 +1992,13 @@ impl TrackerTool {
                 }
                 if has_due {
                     form::label(ui, &s.t("tracker-f-due"));
-                    form::text_field(ui, &mut draft.now.due, "YYYY-MM-DD");
+                    hs_ui::datefield::date_field(
+                        ui,
+                        theme,
+                        &draft.key,
+                        &mut draft.now.due,
+                        &date_labels,
+                    );
                     ui.end_row();
                 }
             });
@@ -2288,6 +2372,29 @@ mod tests {
         assert!(!t.read_only());
         t.read_only_profile = true;
         assert!(t.read_only());
+    }
+
+    #[test]
+    fn the_edit_lists_come_from_the_server_and_fall_back_to_nothing() {
+        // FEAT-0095: with the server's form the fields are dropdowns; with
+        // no answer, or an error (server unreachable), they are free text.
+        let form = Some(Ok(driver::CreateForm {
+            kinds: vec!["Bug".into()],
+            priorities: vec!["Low".into(), "High".into()],
+            assignees: vec!["Ada".into()],
+        }));
+        assert_eq!(
+            pick_options(&form),
+            (
+                vec!["Ada".to_string()],
+                vec!["Low".to_string(), "High".to_string()]
+            )
+        );
+        assert_eq!(pick_options(&None), (Vec::new(), Vec::new()));
+        assert_eq!(
+            pick_options(&Some(Err("connection refused".into()))),
+            (Vec::new(), Vec::new())
+        );
     }
 
     #[test]

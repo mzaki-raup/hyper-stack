@@ -9,6 +9,7 @@ pub mod forgejo;
 pub mod github;
 pub mod gitlab;
 pub mod jenkins;
+pub mod logfmt;
 pub mod profile;
 pub mod runner;
 pub mod teamcity;

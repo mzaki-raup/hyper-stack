@@ -349,3 +349,13 @@ with a rounded border, so they read as cards against the terminal rather
 than as more of it. Each monitor reading has an icon and a colour of its
 own - CPU (accent), Load (warning), Memory (secondary), Disk (success),
 Up (text), Top (muted) - on the icon and its label alike.
+
+## Addendum (2026-11-05): a forward has a name (FEAT-0098)
+
+The New Forward card starts with an optional **Name**. It travels on
+`ForwardSpec.name` and, when the forward is kept, on the profile's
+`SavedForward.name` (`[[ssh.forwards]]`, written only when set). The
+tunnel list and the Kept Forwards list title a named forward
+`Name · :local → host:port` and an unnamed one by its ports alone, so two
+forwards through one host read apart. Add Another clears the name with the
+ports.

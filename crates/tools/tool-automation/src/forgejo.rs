@@ -15,10 +15,10 @@ use reqwest::Method;
 use serde_json::{Map, Value, json};
 
 use crate::driver::{
-    Caps, Driver, Job, Listing, LogChunk, MAX_RUNS, Param, ParamKind, QueueItem, Result, Run,
-    RunForm, ServerInfo, iso_ms,
+    Caps, Driver, Job, Listing, LogChunk, MAX_RUNS, QueueItem, Result, Run, RunForm, ServerInfo,
+    iso_ms,
 };
-use crate::github::{REF, dispatch_inputs, gh_state};
+use crate::github::{REF, branch_names, dispatch_inputs, gh_state, ref_param};
 use crate::profile::ConnectConfig;
 use hs_core::service_http::{Http, s, seg};
 
@@ -183,16 +183,12 @@ impl Driver for Forgejo {
                 ..Default::default()
             });
         };
-        params.insert(
-            0,
-            Param {
-                name: REF.into(),
-                kind: ParamKind::Text,
-                default: self.default_branch.clone(),
-                description: "Branch or tag to run on".into(),
-                required: true,
-            },
-        );
+        let branches = self
+            .http
+            .get_json(&format!("/repos/{}/branches?limit=100", self.repo))
+            .await
+            .map(|v| branch_names(&v));
+        params.insert(0, ref_param(&self.default_branch, branches));
         Ok(RunForm {
             allowed: true,
             why: String::new(),

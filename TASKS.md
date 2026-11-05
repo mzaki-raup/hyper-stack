@@ -185,6 +185,23 @@ Change Request : CR-0040
 - [x] App: `--data-dir` on a scratch folder — fal.ai card in the gallery, the form with its key field and hint, Test Connection against the real queue with a throwaway key (401 shown in red, Fetch Models stays disabled), Save (key in the vault, `kind = "fal"` and `[ai.providers.fal]` in settings.toml, the key nowhere in clear), a new picture's form with the five jobs, Describe with no model → the error toast, Generate → the Job ran and fal.ai's 401 came back as a toast
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · ADR-031 · 02-features
 - **Notes:** no fal.ai key on the build machine, so the live calls that need one (Test Connection passing, Fetch Models, a finished generation, Stop while queued) are the owner's check; the request shapes are proven against the mock and against fal.ai's own 401. Filed under v0.7.7 as the next planned batch; move the whole block if it belongs elsewhere.
+### CR-0046 · S3 kind colours, the date picker's width, and table cell alignment
+- **State:** Completed · the bench S3 profile beside seeded Nexus and WebDAV profiles, a Redmine calendar, a Redis table and Home's toolbar, in the running app
+- **Scope:** `hs_ui::icons` (S3, Nexus, WebDAV tints), `tool-s3` tab icon, `hs_ui::datefield`, `hs_ui::table::DataTable`, `tool-db::grid`.
+- **Parent:** CR-0025
+- [x] In S3 Activity -> Sidebar Column -> Why is the tab for S3 Icon not colored? Follow the color in the sidebar column connection list.
+- [x] In S3 Activity -> Sidebar Column -> Why is the Nexus Connection Icon don't have color? Use suitable color for Nexus.
+- [x] In S3 Activity -> Sidebar Column -> For Webdav, use appropriate directory icon with suitable color.
+- [x] In S3 Activity -> Tab Strip -> Connection Tab; All connection tab use colored icon same as in the sidebar column.
+- [x] In Tracker Activity -> Redmine Dropdown Date Picker; Why is the date picker dialog is too wide? Resize it to make it appropriate.
+- [x] In All Activity -> All Table cells; Make all text inside table cell vertical middle align.
+- [x] In All Activity -> All Table Header cells; Make all text inside table header cell some top margin/padding. and make the all header slightly high, Bold all the header text and upsize the font for the text.
+- [x] In Home Activity -> Dashboard Toolbar Strip; When Label for Activities is enable, please reduce the padding/margin between activities icon/label to make the strip look neat and tidy
+- [x] Test: Nexus and WebDAV resolve to a brand-tinted glyph, and the S3 tab icon follows the profile's kind
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — an S3, a Nexus and a WebDAV profile in the sidebar and as tabs; the Redmine Due Date calendar; a Redis or S3 table's header and cells
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Filed 2026-11-05 from the owner's two messages. `ConnTint::Brand` for `nexus` and `webdav`; `State.kind` + `tab_icon*` on the S3 tool; `CALENDAR_WIDTH` on the date popup; `hs_ui::table::cell_layout()` on `DataTable` and the database grid with `HEADER_HEIGHT` 34 / `HEADER_TEXT` 14.5; Home's toolbar spacing 2 px with names on. No Nexus or WebDAV server runs here, so their rows and tabs were checked for the icon and colour, not a listing.
 
 ---
 
@@ -893,78 +910,83 @@ Change Request : CR-0040
 - **Notes:** the Index pane is a `DataTable`; Aggregate is Mongo-only and was checked in code (its gaps are the same calls as Find's).
 
 ### FEAT-0095 · Server-populated fields: Tracker and Automation
-- **State:** Pending ·
+- **State:** Completed · Tracker against the bench Redmine 6.1 (anonymous: the member list is readable; a save needs a key and stays the owner's check); Automation against the Forgejo instance (the ref list; no run was dispatched)
 - **Scope:** The Tracker edit, new-item and change-status panes; the Automation Run tab.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Make the Ref Selection as a drop down menu where it will populate branch from the automation server. Apply this to all activities that a text field but the value can be auto populate making it a drop down menu.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab -> Job Log text area; Please pretify the log in proper format (indent, blank line, etc) for user to know and differentiate each step of the runs.
-- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Assignee text field and Priority text field to dropdown menu where the data auto populate from the server.
-- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Due Date text field to date calendar select menu where the date format will auto format follow server date format when selecting date.
-- [ ] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please make Type dropdown list and Priority drop down list auto populate from the server.
-- [ ] In Tracker Activity -> Work Pane -> Change Status Ticket Pane; Please make a proper UI UX on this to look professiona, tidy and structured.
-- [ ] Test: a populated dropdown falls back to a free-text field when the server cannot be reached, and the date field formats to the server's format
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — edit a Redmine ticket — Assignee, Priority and Type come from the server, Due Date opens a calendar; run a Forgejo job and pick a ref from the list
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Run Tab; Make the Ref Selection as a drop down menu where it will populate branch from the automation server. Apply this to all activities that a text field but the value can be auto populate making it a drop down menu.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab -> Job Log text area; Please pretify the log in proper format (indent, blank line, etc) for user to know and differentiate each step of the runs.
+- [x] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Assignee text field and Priority text field to dropdown menu where the data auto populate from the server.
+- [x] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please make Due Date text field to date calendar select menu where the date format will auto format follow server date format when selecting date.
+- [x] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please make Type dropdown list and Priority drop down list auto populate from the server.
+- [x] In Tracker Activity -> Work Pane -> Change Status Ticket Pane; Please make a proper UI UX on this to look professiona, tidy and structured.
+- [x] Test: a populated dropdown falls back to a free-text field when the server cannot be reached, and the date field formats to the server's format
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — edit a Redmine ticket — Assignee, Priority and Type come from the server, Due Date opens a calendar; run a Forgejo job and pick a ref from the list
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `CreateForm.assignees` (Redmine memberships, Jira assignable users), `hs_ui::form::pick_field` for Assignee, Priority and the ref, `hs_ui::datefield::date_field` (own calendar, no new dependency; every tracker takes `YYYY-MM-DD`), `ParamKind::Pick` + `github::ref_param` for the branches, `tool_automation::logfmt` for the log. New Item's Type and Priority were already the server's lists. Jira and GitHub are code-reviewed only (no server here); Forgejo's API has no run log, so the laid-out log is held by the formatter's tests (GitHub- and Jenkins-shaped samples).
 
 ### FEAT-0096 · Database: results retained per query tab, and double-click a cell to edit
-- **State:** Pending ·
+- **State:** Completed · two tabs on the bench SQLite file, switched between; a cell double-clicked and the Edit Cell dialog opened
 - **Scope:** The Database work pane's query tabs and result data table.
 - **Parent:** CR-0025
-- [ ] In Database Activity -> Work Pane -> Query Tab; Every query tab persist its own results data. Results/Multi-Result per Query Tab. If user click other tab, it can view the result/multi-result last run by the query tab.
-- [ ] In Database Activity -> Work Pane -> Result Data Table; When user double click on the cell, show edit popup for user edit the value in that cell, same like user right click menu > "Edit Cell".
-- [ ] Test: switching query tabs restores each tab's own result set and messages rather than the last run's
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — run different queries in three tabs, switch between them, then double-click a cell and edit it (synthetic clicks never form double-clicks, so this box needs the app)
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Database Activity -> Work Pane -> Query Tab; Every query tab persist its own results data. Results/Multi-Result per Query Tab. If user click other tab, it can view the result/multi-result last run by the query tab.
+- [x] In Database Activity -> Work Pane -> Result Data Table; When user double click on the cell, show edit popup for user edit the value in that cell, same like user right click menu > "Edit Cell".
+- [x] Test: switching query tabs restores each tab's own result set and messages rather than the last run's
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — run different queries in three tabs, switch between them, then double-click a cell and edit it (synthetic clicks never form double-clicks, so this box needs the app)
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `Stash` per query tab uid + `switch_stash` (tested); the live results follow a running tab until it ends; double-click opens Edit Cell on an editable result and the viewer otherwise.
 
 ### FEAT-0097 · S3: a collapse/expand folder hierarchy column
-- **State:** Pending ·
+- **State:** Completed · the bench s3mock bucket with `docs/{api,guides}` and `src/lib` prefixes; expand, navigate, Refresh
 - **Scope:** The S3 work pane's folder column and breadcrumb.
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0084
-- [ ] In S3 Activity -> All Connection -> Folder List Column; Show folder as hierarchy navigation style (collapse/expand), instead of current navigation style. Don't display Up button on the folder hierarchy. User can use Up button on the toolbar.
-- [ ] In S3 Activity -> Work Pane -> Data Column Pane; Please add icon for child breadcrumb (e.g. hs-raw > docs). Use colored material icon.
-- [ ] Test: the hierarchy builds lazily from the delimiter-listed prefixes and keeps expansion state across a refresh
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — browse a bucket with nested prefixes — expand and collapse in place, no Up button in the tree, coloured breadcrumb icons
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In S3 Activity -> All Connection -> Folder List Column; Show folder as hierarchy navigation style (collapse/expand), instead of current navigation style. Don't display Up button on the folder hierarchy. User can use Up button on the toolbar.
+- [x] In S3 Activity -> Work Pane -> Data Column Pane; Please add icon for child breadcrumb (e.g. hs-raw > docs). Use colored material icon.
+- [x] Test: the hierarchy builds lazily from the delimiter-listed prefixes and keeps expansion state across a refresh
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — browse a bucket with nested prefixes — expand and collapse in place, no Up button in the tree, coloured breadcrumb icons
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `tool_s3::tree::FolderTree` + `hs_ui::tree::show`; children learned from every delimiter listing, lazy loads for an opened caret and always for the root, `forget()` on Refresh keeps the widget's expansion; the breadcrumb's folders use `fileicons::for_folder` when Material icons are on. First build left the tree empty after Refresh (root never re-listed) - fixed, in GOTCHAS.
 
 ### FEAT-0098 · SSH: name a tunnel when creating it
-- **State:** Pending ·
+- **State:** Completed · two named forwards through the bench SSH container, told apart in the list and in Kept Forwards; the profile file carries both names
 - **Scope:** The SSH sidebar's Tunnels section and the stored host profile.
 - **Parent:** CR-0025
-- [ ] In SSH Activity -> Sidebar Column -> Tunnels; When Create Tunnel, allow naming it, so that user can easy to references it in tunnel list. In tunnel list, 
-- [ ] Test: a named tunnel round-trips through the workspace file and the name is what the list shows
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — create two tunnels on one host with names and tell them apart in the list
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In SSH Activity -> Sidebar Column -> Tunnels; When Create Tunnel, allow naming it, so that user can easy to references it in tunnel list. In tunnel list, 
+- [x] Test: a named tunnel round-trips through the workspace file and the name is what the list shows
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — create two tunnels on one host with names and tell them apart in the list
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `ForwardSpec.name`, `SavedForward.name` (written only when set; round-trip tested), `tunnel_title` leads with the name.
 
 ### CR-0037 · Redis key list sorted folders first
-- **State:** Pending ·
+- **State:** Completed · the bench Redis with `cart:*`, `user:*`, `alpha`, `zeta` read in order, inside a group too
 - **Scope:** The Redis work pane's key list column.
 - **Parent:** CR-0025
-- [ ] In Redis Activity -> Work Pane -> Key List Column; Sort the key list by parent folder first, key without parent, then by name for both.
-- [ ] Test: the sort puts parent folders first, then keys without a parent, each group by name
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — scan a database with mixed foldered and bare keys and read the order
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Redis Activity -> Work Pane -> Key List Column; Sort the key list by parent folder first, key without parent, then by name for both.
+- [x] Test: the sort puts parent folders first, then keys without a parent, each group by name
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — scan a database with mixed foldered and bare keys and read the order
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** one stable partition in `KeyTree::walk` (tested), no per-frame sort.
 
 ### CR-0038 · Settings polish, and the UI standard written down
-- **State:** Pending ·
+- **State:** Completed · Credentials card at page width with no Key column (no SSH key on file); Oracle's hint under the driver row; the Home toolbar names toggled on
 - **Scope:** Settings -> Security, Settings -> Appearance, the database connection form, `.claude/rules/ui.md` and `docs/04-ui-design.md`.
 - **Parent:** CR-0025
 - **Depends on:** CR-0026, CR-0027, CR-0028, CR-0029, CR-0030
-- [ ] In Settings -> Security -> Credentials; Make the Credentials Card wider, so that user need less horizontal scrolling.
-- [ ] In Settings -> Security -> Credentials; Remove Key column if not being used.
-- [ ] In Settings Page -> Database Connections; State the guide and requirement to use oracle client and db2 cli if user select either both in DB Engine.
-- [ ] Make a Settings -> Appearance -> Activity Rail for Home -> Dashboard Page -> Dashboard Toolbar -> Activity Icon, user can show/hide label of activity (below icon). Make standard width for all the icon with left/right margin/padding if enabled.
-- [ ] Create standard rules of all above items for agent reference for building next activity, features, function, etc where applicable.
-- [ ] Test: the bundled locale parses and the Oracle/Db2 requirement text is present for those engines
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the credentials card needs no horizontal scrolling; the activity rail label toggle takes effect on the Home dashboard
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Settings -> Security -> Credentials; Make the Credentials Card wider, so that user need less horizontal scrolling.
+- [x] In Settings -> Security -> Credentials; Remove Key column if not being used.
+- [x] In Settings Page -> Database Connections; State the guide and requirement to use oracle client and db2 cli if user select either both in DB Engine.
+- [x] Make a Settings -> Appearance -> Activity Rail for Home -> Dashboard Page -> Dashboard Toolbar -> Activity Icon, user can show/hide label of activity (below icon). Make standard width for all the icon with left/right margin/padding if enabled.
+- [x] Create standard rules of all above items for agent reference for building next activity, features, function, etc where applicable.
+- [x] Test: the bundled locale parses and the Oracle/Db2 requirement text is present for those engines
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the credentials card needs no horizontal scrolling; the activity rail label toggle takes effect on the Home dashboard
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ---
 
@@ -973,6 +995,7 @@ Change Request : CR-0040
 > Phase K (Automation), then phase N (Tracker), every kind the programme
 > names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
 > containers; git.zacx.net and GitHub are read only.
+- **Notes:** `form::section_max`, `conn-db-odbc-need-*` hints (locale test), `appearance.home_toolbar_labels` (76 px buttons, 6 px margin; the first build placed a widget inside the painted button and the row stair-stepped - fixed, in GOTCHAS); the standard is in `.claude/rules/ui.md` → Fields, lists and cards, and `docs/04-ui-design.md` → Addendum 2026-11-05 (CR-0038).
 
 ### FEAT-0077 · Automation activity shell: crate, rail, dashboard, connections, Settings → Automation
 - **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K

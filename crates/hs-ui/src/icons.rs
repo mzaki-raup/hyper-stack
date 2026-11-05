@@ -807,6 +807,11 @@ pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
         // the same purple.
         ("mqtt", _) => ConnTint::Brand(egui::Color32::from_rgb(0x9c, 0x4f, 0x9c)),
         ("redmine", _) => ConnTint::Brand(egui::Color32::from_rgb(0xb3, 0x20, 0x24)),
+        // Nexus has no vendored logo: its package glyph in Sonatype's
+        // green. WebDAV is a folder on a server: the folder glyph in the
+        // folder blue of the file icons (CR-0046).
+        ("nexus", _) => ConnTint::Brand(egui::Color32::from_rgb(0x2e, 0xa4, 0x4f)),
+        ("webdav", _) => ConnTint::Brand(egui::Color32::from_rgb(0x4a, 0x90, 0xe2)),
         _ => ConnTint::Default,
     };
     ConnIcon {
@@ -1013,12 +1018,25 @@ pub fn named(key: &str) -> Option<&'static str> {
 mod tests {
     use super::*;
 
+    /// CR-0046: the object-store kinds with no logo wear a colour of
+    /// their own, so the S3 sidebar and its tabs never show a plain glyph.
+    #[test]
+    fn nexus_and_webdav_resolve_to_a_tinted_glyph() {
+        for k in ["s3", "nexus", "webdav"] {
+            let icon = conn_icon(k, "");
+            assert!(icon.image.is_none(), "{k} has no vendored logo");
+            assert!(icon.brand().is_some(), "{k} is tinted");
+        }
+        assert_eq!(connection_icon("webdav", ""), ph::FOLDER_SIMPLE);
+        assert_eq!(connection_icon("nexus", ""), ph::PACKAGE);
+    }
+
     /// CR-0036: every kind a user can add has its product's logo, or a
     /// glyph coloured on purpose, and the only plain glyphs left are the
     /// ones with no product to show.
     #[test]
     fn every_connection_kind_resolves_to_its_product_icon() {
-        let plain = ["ssh", "api", "valkey", "webdav", "nexus"];
+        let plain = ["ssh", "api", "valkey"];
         for k in hs_core::connections::KINDS {
             let icon = conn_icon(k, "");
             if *k == "db" {

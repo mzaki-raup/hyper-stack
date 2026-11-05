@@ -26,6 +26,10 @@ pub struct Redmine {
     statuses: Vec<(String, u64)>,
     trackers: Vec<(String, u64)>,
     priorities: Vec<(String, u64)>,
+    /// The members of the project last asked about, name → user id, so a
+    /// name picked from the Assignee list resolves without a second call
+    /// (FEAT-0095).
+    members: Vec<(String, u64)>,
     info: ServerInfo,
 }
 
@@ -88,6 +92,7 @@ impl Redmine {
             statuses,
             trackers,
             priorities,
+            members: Vec::new(),
             info: ServerInfo {
                 product: "Redmine".into(),
                 version: String::new(),
@@ -183,6 +188,14 @@ impl Redmine {
         if let Ok(id) = who.parse::<u64>() {
             return Ok(json!(id));
         }
+        // A name from the Assignee list (FEAT-0095).
+        if let Some((_, id)) = self
+            .members
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(who))
+        {
+            return Ok(json!(id));
+        }
         if who == "me" {
             let v = self.http.get_json("/users/current.json").await?;
             return v
@@ -191,9 +204,24 @@ impl Redmine {
                 .ok_or_else(|| "Redmine did not say who you are".to_string());
         }
         Err(format!(
-            "Redmine takes the assignee as “me” or a user id, not “{who}”"
+            "Redmine takes the assignee as “me”, a user id or a project member's name, not “{who}”"
         ))
     }
+}
+
+/// The people in a `/projects/{id}/memberships.json` answer, name → user
+/// id. Group memberships carry no user and are left out.
+fn member_names(v: &Value) -> Vec<(String, u64)> {
+    v.get("memberships")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|m| {
+            let u = m.get("user")?;
+            Some((s(u, "name"), u.get("id")?.as_u64()?))
+        })
+        .filter(|(n, _)| !n.is_empty())
+        .collect()
 }
 
 #[async_trait]
@@ -400,9 +428,23 @@ impl Driver for Redmine {
                 .map(|(n, _)| n)
                 .collect()
         };
+        // The project's members are who an item can go to (FEAT-0095);
+        // a site that hides them leaves the field free text.
+        if !project.is_empty() {
+            self.members = self
+                .http
+                .get_json(&format!(
+                    "/projects/{}/memberships.json?limit=100",
+                    q(project)
+                ))
+                .await
+                .map(|v| member_names(&v))
+                .unwrap_or_default();
+        }
         Ok(CreateForm {
             kinds,
             priorities: self.priorities.iter().map(|(n, _)| n.clone()).collect(),
+            assignees: self.members.iter().map(|(n, _)| n.clone()).collect(),
         })
     }
 
@@ -451,6 +493,21 @@ impl Driver for Redmine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn project_members_become_the_assignee_list_without_the_groups() {
+        // FEAT-0095: the Assignee field is fed from the project's people.
+        let v = json!({"memberships": [
+            {"id": 1, "user": {"id": 5, "name": "Ada Lovelace"}},
+            {"id": 2, "group": {"id": 9, "name": "Ops"}},
+            {"id": 3, "user": {"id": 7, "name": "Bob"}}
+        ]});
+        assert_eq!(
+            member_names(&v),
+            vec![("Ada Lovelace".to_string(), 5), ("Bob".to_string(), 7)]
+        );
+        assert!(member_names(&json!({})).is_empty());
+    }
 
     #[test]
     fn a_filter_is_written_as_the_web_ui_writes_it() {

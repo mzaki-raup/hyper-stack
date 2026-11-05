@@ -103,6 +103,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
   installs ring once, and the handshake itself carries a 10 s timeout so a
   stuck peer can't hang the pane either (2026-10-31).
 - **reqwest.** The workspace reqwest has no `form` or `multipart` feature. `send::form_body` and `send::multipart` build the bodies by hand.
+- **`egui_extras`' `datepicker` feature pulls in `jiff`**, a second date library beside `chrono`, and its `DatePickerButton` takes a `jiff::civil::Date`. The app's date field is `hs_ui::datefield` instead: a dozen lines of civil-calendar arithmetic (Hinnant's days-from-civil), no dependency, labels from the caller's locale (FEAT-0095, 2026-11-05).
+- **A tuple comparison moves its parts.** `if sh.listing_for != (bucket, prefix)` moved both `String`s into the temporary, and a later use in the same task failed to compile; compare the fields (`sh.listing_for.0 != bucket || …`) or clone.
 - **russh-sftp `write()`** opens with `WRITE` only and fails on a file that doesn't exist. Use `create()` (`CREATE | TRUNCATE | WRITE`).
 - **Boa (JavaScript).** Native closures must be `Copy`. Host state goes through a `thread_local!` record (`script::HOST`), written before `run` and read after. `JsValue::to_json` needs `&mut Context`. Strings come out as `to_std_string_escaped()`.
 - **`Tool` is `Send`.** A per-frame cache on tool state must be `Arc`, not `Rc`.
@@ -115,6 +117,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **`ui.put` inside a painted button moves the row's cursor.** Home's toolbar buttons are painted on an `allocate_exact_size` rect; placing the name under the glyph with `ui.put(text_rect, Label)` allocated that rect in the parent too, so each next button started after it and the row stair-stepped down the page. Paint text inside a painted control (`painter().layout_job` with `TextWrapping { max_rows: 1, overflow_character: Some('…') }` for a truncated line), never place a widget there (CR-0038, 2026-11-05).
 - **`split_for_assistant` hands back a child `Ui` whose clip rectangle
   *excludes* the assistant's column.** Drawing the column through that
   child (`child.new_child(...)` with the panel rect) clips every pixel
@@ -406,6 +409,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Tool-Specific: S3 (tool-s3)
 
+- **A lazily listed tree must always ask for its root.** `FolderTree::wanted` listed only the *expanded* prefixes it did not know; after Refresh (which forgets every listing) the pane's own listing re-learned the prefix it was in, but nothing listed the bucket's root and the column stayed empty. The root is wanted whenever it is unknown, whatever is open (FEAT-0097, 2026-11-05).
 - **moto keeps buckets in memory.** A restarted `moto_server` has no buckets, so the S3 tool shows `NoSuchBucket`. Re-run `seed_s3.py`.
 - **moto checks request shape, not signatures.** The SigV4 unit tests against AWS's examples cover signing.
 - **S3 without MinIO:** create a venv, `pip install "moto[server]"`, run `moto_server -H 127.0.0.1 -p 5055` with keys `testing` / `testing`, then `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.

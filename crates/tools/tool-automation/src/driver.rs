@@ -101,6 +101,12 @@ pub enum ParamKind {
     Choice(Vec<String>),
     /// Typed, never shown back, never kept.
     Secret,
+    /// Typed *or* chosen: the server's own values behind a caret (a
+    /// repository's branches for the ref), with any text still allowed -
+    /// a tag or a commit the list does not carry. An empty list is a plain
+    /// text field, which is what a server that could not be asked gets
+    /// (FEAT-0095).
+    Pick(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

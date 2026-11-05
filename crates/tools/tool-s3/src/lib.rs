@@ -14,6 +14,8 @@ use hs_core::Services;
 use hs_core::events::Event;
 use hs_core::jobs::Progress;
 mod sync;
+mod tree;
+use tree::FolderTree;
 
 use hs_core::objstore::http_profile::{NexusFields, WebdavFields};
 use hs_core::objstore::nexus::NexusClient;
@@ -71,6 +73,10 @@ struct State {
     /// profile is read: `header()` runs every frame with no services.
     #[serde(default)]
     kind_label: String,
+    /// The kind id (`s3`, `webdav`, `nexus`), for the tab's icon and
+    /// colour, which are asked for with no services (CR-0046).
+    #[serde(default)]
+    kind: String,
     #[serde(default)]
     session_label: String,
     #[serde(default)]
@@ -96,6 +102,9 @@ struct Shared {
     objects: Load<(Vec<Object>, Vec<String>, Option<String>)>,
     /// Which (bucket, prefix) the listing belongs to, so stale pages are dropped.
     listing_for: (String, String),
+    /// Folders a listing reported, for the folder column's tree
+    /// (FEAT-0097): (bucket, prefix, its child prefixes, first page).
+    learned: Vec<(String, String, Vec<String>, bool)>,
     versioning: Option<Versioning>,
     toasts: Vec<(ToastLevel, String)>,
     open_in_editor: Vec<PathBuf>,
@@ -175,6 +184,9 @@ pub struct S3Tool {
     details_open: bool,
     details_key: Option<String>,
     details_reload: bool,
+    /// The folder column's hierarchy and what is open in it (FEAT-0097).
+    folders: FolderTree,
+    folder_state: hs_ui::tree::TreeState,
 }
 
 impl S3Tool {
@@ -278,11 +290,25 @@ impl S3Tool {
             details_open: false,
             details_key: None,
             details_reload: false,
+            folders: FolderTree::default(),
+            folder_state: hs_ui::tree::TreeState::default(),
         };
         if t.state.conn_id.is_some() {
+            let prefix = t.state.prefix.clone();
+            t.open_tree_to(&prefix);
             t.connect(services);
         }
         t
+    }
+
+    /// The kind the tab's icon follows: the one kept with the state, or
+    /// S3 for a tab saved before it was kept.
+    fn tab_kind(&self) -> &str {
+        if self.state.kind.is_empty() {
+            "s3"
+        } else {
+            &self.state.kind
+        }
     }
 
     fn fields(&self, services: &Services) -> Option<(String, S3Fields)> {
@@ -480,7 +506,7 @@ impl S3Tool {
                 client.versioning(&bucket).await.ok()
             };
             let mut sh = shared.lock();
-            if sh.listing_for != (bucket, prefix) {
+            if sh.listing_for.0 != bucket || sh.listing_for.1 != prefix {
                 return; // the user moved on
             }
             if versioning.is_some() {
@@ -489,6 +515,8 @@ impl S3Tool {
             match r {
                 Ok(page) => {
                     let page_objects: Vec<Object> = page.objects;
+                    sh.learned
+                        .push((bucket, prefix, page.prefixes.clone(), !more));
                     match (&mut sh.objects, more) {
                         (Load::Ready((objs, prefixes, next)), true) => {
                             objs.extend(page_objects);
@@ -506,12 +534,86 @@ impl S3Tool {
     fn open_bucket(&mut self, services: &Services, bucket: String) {
         self.state.bucket = Some(bucket);
         self.state.prefix.clear();
+        // Another bucket, another tree.
+        self.folders.forget();
+        self.folder_state = hs_ui::tree::TreeState::default();
         self.load_objects(services, None);
     }
 
     fn navigate(&mut self, services: &Services, prefix: String) {
+        self.open_tree_to(&prefix);
         self.state.prefix = prefix;
         self.load_objects(services, None);
+    }
+
+    /// The tree opens down to where the pane is, and marks it (FEAT-0097),
+    /// whichever way it got there - a click, the breadcrumb, Up, or a tab
+    /// restored at start-up.
+    fn open_tree_to(&mut self, prefix: &str) {
+        for a in tree::ancestors(prefix) {
+            self.folder_state.expanded.insert(a);
+        }
+        if !prefix.is_empty() {
+            self.folder_state.expanded.insert(prefix.to_string());
+        }
+        self.folder_state.selected = (!prefix.is_empty()).then(|| prefix.to_string());
+    }
+
+    /// List one prefix for the folder column alone (FEAT-0097): a caret was
+    /// opened on a folder the pane has not been into. Every page, since a
+    /// tree node is all of its children or nothing.
+    fn load_folder(&self, services: &Services, prefix: String) {
+        let (Some(client), Some(bucket)) = (self.client.clone(), self.state.bucket.clone()) else {
+            return;
+        };
+        let shared = self.shared.clone();
+        services.runtime.spawn(async move {
+            let mut token: Option<String> = None;
+            let mut first = true;
+            loop {
+                let Ok(page) = client
+                    .list(&bucket, &prefix, true, token.as_deref(), 1000)
+                    .await
+                else {
+                    // Say "nothing known" rather than "no folders": an
+                    // empty answer would draw the node as a leaf.
+                    shared
+                        .lock()
+                        .learned
+                        .push((bucket, prefix, Vec::new(), first));
+                    return;
+                };
+                shared
+                    .lock()
+                    .learned
+                    .push((bucket.clone(), prefix.clone(), page.prefixes, first));
+                first = false;
+                token = page.next;
+                if token.is_none() {
+                    return;
+                }
+            }
+        });
+    }
+
+    /// Take what the listings reported into the tree, and ask for what an
+    /// open node still lacks (FEAT-0097). Once per frame.
+    fn follow_folders(&mut self, services: &Services) {
+        let learned = std::mem::take(&mut self.shared.lock().learned);
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        for (b, prefix, kids, first) in learned {
+            if b == bucket {
+                self.folders.learn(&prefix, kids, first);
+            }
+        }
+        if self.client.is_none() {
+            return;
+        }
+        for p in self.folders.wanted(&self.folder_state.expanded) {
+            self.load_folder(services, p);
+        }
     }
 
     fn up(&mut self, services: &Services) {
@@ -586,6 +688,7 @@ impl S3Tool {
         // 2026-10-27).
         let kind = self.kind(services);
         self.state.kind_label = hs_core::connections::kind_label(&kind).to_string();
+        self.state.kind = kind.clone();
         let found = {
             let conns = services.connections.read();
             self.state
@@ -1918,13 +2021,20 @@ impl S3Tool {
             form::note(ui, theme, ph::INFO, &s.t("s3-no-buckets"));
             return;
         }
-        let folders: Vec<String> = match &self.shared.lock().objects {
-            Load::Ready((_, prefixes, _)) => prefixes.clone(),
-            _ => Vec::new(),
+        // The open bucket's folders as a tree that expands in place
+        // (FEAT-0097): no Up here - the toolbar has it - and the caret on
+        // a folder lists it without leaving where the pane is.
+        let material = s.settings.read().appearance.material_icons("s3");
+        let icon = |name: &str| -> hs_ui::tree::TreeIcon {
+            if material {
+                hs_ui::fileicons::for_folder(name).into()
+            } else {
+                ph::FOLDER_SIMPLE.into()
+            }
         };
+        let nodes = self.folders.nodes("", &icon);
         let mut open: Option<String> = None;
         let mut go: Option<String> = None;
-        let mut up = false;
         egui::ScrollArea::vertical()
             .id_salt("s3-container-column")
             .auto_shrink([false, false])
@@ -1945,57 +2055,31 @@ impl S3Tool {
                     if !on {
                         continue;
                     }
-                    // Inside the open bucket: a way back up, then what is
-                    // below where the pane currently is.
-                    if !self.state.prefix.is_empty() {
-                        ui.horizontal(|ui| {
-                            ui.add_space(12.0);
-                            if ui
-                                .add(
-                                    egui::Button::new(format!("{} {}", ph::ARROW_UP, s.t("s3-up")))
-                                        .frame(false),
-                                )
-                                .clicked()
-                            {
-                                up = true;
-                            }
-                        });
-                    }
-                    for p in &folders {
-                        let name = p
-                            .strip_prefix(&self.state.prefix)
-                            .unwrap_or(p)
-                            .trim_end_matches('/')
-                            .to_string();
-                        ui.horizontal(|ui| {
-                            ui.add_space(12.0);
-                            if ui
-                                .add(
-                                    egui::Button::new(format!("{} {name}", ph::FOLDER_SIMPLE))
-                                        .frame(false),
-                                )
-                                .clicked()
-                            {
-                                go = Some(p.clone());
-                            }
-                        });
+                    ui.add_space(2.0);
+                    let r = hs_ui::tree::show(ui, theme, &mut self.folder_state, &nodes);
+                    if let Some(p) = r.clicked {
+                        go = Some(p);
                     }
                     ui.add_space(4.0);
                 }
             });
         if let Some(b) = open {
             self.open_bucket(s, b);
-        } else if up {
-            self.up(s);
         } else if let Some(p) = go {
-            self.navigate(s, p);
+            // A folder that is already where the pane is: the click only
+            // toggled its caret.
+            if p != self.state.prefix {
+                self.navigate(s, p);
+            }
         }
     }
 
     fn browser(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services;
         let bucket = self.state.bucket.clone().unwrap_or_default();
-        // Breadcrumb: bucket ▸ segment ▸ segment.
+        // Breadcrumb: bucket ▸ segment ▸ segment, each folder with its
+        // coloured icon when Material icons are on (FEAT-0097).
+        let crumb_material = s.settings.read().appearance.material_icons("s3");
         let mut go: Option<String> = None;
         ui.horizontal_wrapped(|ui| {
             if ui
@@ -2009,7 +2093,19 @@ impl S3Tool {
                 acc.push_str(seg);
                 acc.push('/');
                 ui.label(egui::RichText::new(ph::CARET_RIGHT).color(theme.text_muted));
-                if ui.add(egui::Button::new(seg).frame(false)).clicked() {
+                let crumb = if crumb_material {
+                    ui.add(
+                        egui::Button::image_and_text(
+                            egui::Image::new(hs_ui::fileicons::for_folder(seg))
+                                .fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                            seg,
+                        )
+                        .frame(false),
+                    )
+                } else {
+                    ui.add(egui::Button::new(format!("{} {seg}", ph::FOLDER_SIMPLE)).frame(false))
+                };
+                if crumb.clicked() {
                     go = Some(acc.clone());
                 }
             }
@@ -2156,6 +2252,26 @@ impl Tool for S3Tool {
         &DESCRIPTOR
     }
 
+    /// The connection tab wears the kind's glyph in the kind's colour -
+    /// the same icon the sidebar row has (CR-0046). A profile saved
+    /// before the kind was kept reads as S3 until it is opened again.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.state.conn_name.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::connection_icon(self.tab_kind(), ""))
+    }
+
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.tab_kind(), "").uri()
+    }
+
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.tab_kind(), "").brand()
+    }
+
     /// The connection's own name, as every other connection activity
     /// titles its tabs.
     ///
@@ -2191,6 +2307,9 @@ impl Tool for S3Tool {
         }
         if btn(ui, self.client.is_some(), ph::ARROW_CLOCKWISE, "s3-refresh") {
             self.load_buckets(s);
+            // The tree is listed again as it is drawn; what is open stays
+            // open (FEAT-0097).
+            self.folders.forget();
             self.load_objects(s, None);
         }
         ui.separator();
@@ -2443,8 +2562,10 @@ impl Tool for S3Tool {
             );
         }
         if refresh {
+            self.folders.forget();
             self.load_objects(s, None);
         }
+        self.follow_folders(s);
         if let Some(e) = self.client_error.clone() {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);

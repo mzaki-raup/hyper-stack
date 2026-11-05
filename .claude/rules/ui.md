@@ -49,6 +49,32 @@ look for it in `crates/hs-ui/src/` first.
 - Every async action needs an **empty**, an **error** and a **loading** state,
   through the shared helpers.
 
+## Fields, lists and cards (CR-0038, 2026-11-05)
+
+- **A field the server can fill is `hs_ui::form::pick_field`** - typed or
+  chosen, the server's list behind a caret - never a bare text field: refs,
+  assignees, priorities, types. With an empty list (server unreachable) it
+  is a plain text field, so the form still works. Dates are
+  `hs_ui::datefield::date_field`, `YYYY-MM-DD` text with a calendar; it
+  writes the format the server takes.
+- **Folders first, then items, each by name**, in every list that mixes
+  them (the Redis key tree is the model).
+- **Anything a user makes several of takes an optional name**, shown first
+  in its list (SSH forwards).
+- **A sub-tab keeps its own state**: a Database query tab shows the results
+  it ran, not the last run anywhere.
+- **A server's log is laid out in steps** before it is drawn
+  (`tool_automation::logfmt`): banners, groups, commands, indented body;
+  lay it out once per change, draw with `show_rows`.
+- **Settings cards:** `form::section` for the usual width;
+  `form::section_max(…, f32::INFINITY, …)` only for a card that holds a wide
+  table. Never draw a column no row fills. A connection form states an
+  external requirement (a vendor client, a CLI) as a field hint every time
+  that engine is chosen, with the "not installed" warning beside it.
+- **Home's toolbar icons:** icons only by default; with Settings →
+  Appearance → Activity Rail → *Show Tool Names Under Home's Toolbar Icons*
+  on, one fixed width per icon (`LABELLED_WIDTH`) with the name under it.
+
 ## Icons
 
 Verify a Nerd Font / Phosphor glyph by looking at it on screen. A codepoint

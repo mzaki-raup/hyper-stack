@@ -6611,7 +6611,7 @@ fn credential_list(
                 }
                 ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-git-cred-hint"));
-                let rows: Vec<(String, String, String)> = s
+                let rows: Vec<(String, String, String, hs_core::git_hosts::HostKind)> = s
                     .git_credentials
                     .read()
                     .all()
@@ -6621,6 +6621,7 @@ fn credential_list(
                             c.id.clone(),
                             c.label(),
                             format!("{} · {}", c.kind.name(), c.host()),
+                            c.kind,
                         )
                     })
                     .collect();
@@ -6628,13 +6629,15 @@ fn credential_list(
                     form::hint(ui, theme, &s.t("settings-git-cred-none"));
                 }
                 let mut pick: Option<String> = None;
-                for (id, name, detail) in &rows {
+                for (id, name, detail, kind) in &rows {
                     let selected = state.cred_selected.as_deref() == Some(id.as_str());
-                    if form::list_row(
+                    // The forge's mark, as the Git sidebar's Hosts section
+                    // draws it (CR-0054).
+                    if form::conn_list_row(
                         ui,
                         theme,
                         selected,
-                        hs_ui::icons::ph::KEY,
+                        tool_git::host_conn_icon(*kind),
                         name,
                         Some(detail),
                     )
@@ -6908,7 +6911,15 @@ fn repo_list(
                 }
                 ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-git-repos-hint"));
-                let rows: Vec<(String, String, String, &'static str, Option<String>)> = s
+                // The same mark as the Git sidebar row: the picture, else
+                // the chosen glyph, else the language's logo (CR-0054).
+                let rows: Vec<(
+                    String,
+                    String,
+                    String,
+                    hs_ui::icons::ConnIcon,
+                    Option<String>,
+                )> = s
                     .git_repos
                     .read()
                     .all()
@@ -6918,7 +6929,7 @@ fn repo_list(
                             r.id.clone(),
                             r.label(),
                             r.path.display().to_string(),
-                            repo_icon(r),
+                            tool_git::repo_conn_icon(&r.icon, &r.language),
                             repo_image(ui.ctx(), s, &r.id),
                         )
                     })
@@ -6931,17 +6942,21 @@ fn repo_list(
                 for (i, (id, name, path, icon, image)) in rows.iter().enumerate() {
                     let selected = state.repo_selected.as_deref() == Some(id.as_str());
                     reorder.row(ui, i, |ui| {
-                        if form::list_row_image(
-                            ui,
-                            theme,
-                            selected,
-                            image.as_deref(),
-                            icon,
-                            name,
-                            Some(path),
-                        )
-                        .clicked()
-                        {
+                        let row = match image.as_deref() {
+                            Some(img) => form::list_row_image(
+                                ui,
+                                theme,
+                                selected,
+                                Some(img),
+                                icon.glyph,
+                                name,
+                                Some(path),
+                            ),
+                            None => {
+                                form::conn_list_row(ui, theme, selected, *icon, name, Some(path))
+                            }
+                        };
+                        if row.clicked() {
                             pick = Some(id.clone());
                         }
                     });

@@ -229,6 +229,8 @@ pub struct Git {
     /// Where the Git activity clones a fetched project unless the form
     /// says otherwise. Empty means "ask" (docs/tools/git-activity.md §3).
     pub clone_folder: String,
+    /// Clone a host's repository with `--depth 1` (FEAT-0102).
+    pub shallow_clones: bool,
     /// The branch names and prefixes the Git Flow panel works with.
     pub flow: GitFlow,
     /// The terminal profile Open Terminal starts in the repository root;
@@ -244,6 +246,7 @@ impl Default for Git {
             signoff: false,
             stash_untracked: true,
             clone_folder: String::new(),
+            shallow_clones: false,
             flow: GitFlow::default(),
             terminal_profile: String::new(),
         }

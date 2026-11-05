@@ -255,6 +255,7 @@ impl HostView {
         let slot: Slot<Result<(), String>> = Default::default();
         let done = slot.clone();
         let (url, target) = (p.clone_url.clone(), dest.clone());
+        let depth = s.settings.read().git.shallow_clones.then_some(1);
         let title = s.i18n.t_args("git-host-cloning", &[("name", &p.full_name)]);
         s.jobs.spawn(title, "git", move |h| async move {
             let cancel = h.clone();
@@ -264,6 +265,7 @@ impl HostView {
                     hs_git::write::clone(
                         &url,
                         &target,
+                        depth,
                         env,
                         &|| cancel.is_cancelled(),
                         &mut |line| progress.set_message(line.to_string()),

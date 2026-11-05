@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Git: Rename, Delete (confirmed; a folder by typing its name) and Upload in the Files view, a branch picker over the tree, and Settings → Git → Shallow Clones from Hosts (FEAT-0102, phase 3)
 
 ## 0.121.0 — 2026-11-05
 

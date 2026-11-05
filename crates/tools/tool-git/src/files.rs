@@ -4,8 +4,11 @@
 //! writes the file and the pane's status refreshes, so the change lands in
 //! File Status for the commit box; **New File** and **New Folder** create
 //! under the picked folder; **Open in Editor** hands the file to the Editor
-//! activity. Every read and write runs on the blocking pool and comes back
-//! through a slot; the UI thread only draws the last answer.
+//! activity. Phase 3 (FEAT-0102): **Rename**, **Delete** (confirmed; a
+//! folder by typing its name), **Upload** (files from this computer copied
+//! into the picked folder) and a branch picker over the tree. Every read
+//! and write runs on the blocking pool and comes back through a slot; the
+//! UI thread only draws the last answer.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -53,10 +56,27 @@ struct OpenFile {
     editing: bool,
 }
 
-/// A name being asked for.
+/// A name being asked for, or a deletion being confirmed.
 enum Prompt {
-    NewFile { dir: String, name: String },
-    NewFolder { dir: String, name: String },
+    NewFile {
+        dir: String,
+        name: String,
+    },
+    NewFolder {
+        dir: String,
+        name: String,
+    },
+    /// `path` is the row as it is; `name` the new last segment.
+    Rename {
+        path: String,
+        name: String,
+    },
+    /// A folder is confirmed by typing its name into `typed`.
+    Delete {
+        path: String,
+        is_dir: bool,
+        typed: String,
+    },
 }
 
 /// What the pane does after the view: a write happened, so the status is
@@ -105,6 +125,89 @@ impl FilesView {
             dir: self.target_dir(),
             name: String::new(),
         });
+    }
+
+    /// Rename the picked row: the prompt starts with its name.
+    pub fn prompt_rename(&mut self) {
+        if let Some(path) = self.tree.selected.clone() {
+            let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+            self.prompt = Some(Prompt::Rename { path, name });
+        }
+    }
+
+    /// Delete the picked row, after a confirmation.
+    pub fn prompt_delete(&mut self) {
+        if let Some(path) = self.tree.selected.clone() {
+            let is_dir = self.is_dir(&path);
+            self.prompt = Some(Prompt::Delete {
+                path,
+                is_dir,
+                typed: String::new(),
+            });
+        }
+    }
+
+    /// Upload: the system's file picker, then each file copied into the
+    /// picked folder on the pool. A name already there refuses the whole
+    /// upload before anything is copied.
+    pub fn upload(&mut self, cx: &mut ToolContext) {
+        let s = cx.services;
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        let Some(files) = rfd::FileDialog::new().pick_files() else {
+            return;
+        };
+        let dir = self.target_dir();
+        let dest = root.join(&dir);
+        let names: Vec<String> = files
+            .iter()
+            .filter_map(|f| f.file_name())
+            .map(|n| n.to_string_lossy().to_string())
+            .collect();
+        let slot = self.write_slot.clone();
+        let label = s
+            .i18n
+            .t_args("git-files-uploaded", &[("names", &names.join(", "))]);
+        let exists = s.t("git-files-exists");
+        s.runtime.spawn_blocking(move || {
+            let r = if names.iter().any(|n| dest.join(n).exists()) {
+                Err(exists)
+            } else {
+                files
+                    .iter()
+                    .zip(&names)
+                    .try_for_each(|(f, n)| std::fs::copy(f, dest.join(n)).map(|_| ()))
+                    .map_err(|e| e.to_string())
+            };
+            *slot.lock() = Some((label, r));
+        });
+        self.dirs.remove(&dir);
+        if !dir.is_empty() {
+            self.tree.expanded.insert(dir);
+        }
+    }
+
+    /// After a verb ran (a checkout, a pull): the listings are forgotten
+    /// and the open file is read again unless it holds unsaved edits.
+    pub fn reload(&mut self, s: &Services) {
+        self.refresh();
+        if let Some(f) = &self.file
+            && !f.buf.dirty()
+        {
+            let path = f.path.clone();
+            self.file = None;
+            self.open_file(s, path);
+        }
+    }
+
+    /// Whether a listed row is a folder, from its parent's listing.
+    fn is_dir(&self, path: &str) -> bool {
+        let (dir, name) = path.rsplit_once('/').unwrap_or(("", path));
+        self.dirs
+            .get(dir)
+            .and_then(|l| l.iter().find(|(n, _)| n == name))
+            .is_some_and(|(_, d)| *d)
     }
 
     /// Forget the listings; open folders are listed again as they are
@@ -247,13 +350,20 @@ impl FilesView {
             .collect()
     }
 
-    /// The centre column: a toolbar row and the folder tree.
-    pub fn tree_ui(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+    /// The centre column: a toolbar row, the branch picker and the folder
+    /// tree. Returns the local branch the user picked to check out.
+    pub fn tree_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        cx: &mut ToolContext,
+        branches: &[hs_git::Branch],
+        current: Option<&str>,
+    ) -> Option<String> {
         let s = cx.services;
         self.material = s.settings.read().appearance.material_icons("git");
-        if self.root.is_none() {
-            return;
-        }
+        self.root.as_ref()?;
+        let mut checkout = None;
         if !self.dirs.contains_key("") {
             self.list_dir(s, String::new());
         }
@@ -275,12 +385,48 @@ impl FilesView {
             {
                 self.prompt_new_folder();
             }
+            if form::icon_button(ui, theme, ph::UPLOAD_SIMPLE, 14.0, false)
+                .tip(s.t("git-files-upload-tip"))
+                .clicked()
+            {
+                self.upload(cx);
+            }
+            let picked = self.tree.selected.is_some();
+            if ui
+                .add_enabled(picked, egui::Button::new(ph::PENCIL_SIMPLE))
+                .tip(s.t("git-files-rename-tip"))
+                .clicked()
+            {
+                self.prompt_rename();
+            }
+            if ui
+                .add_enabled(picked, egui::Button::new(ph::TRASH))
+                .tip(s.t("git-files-delete-tip"))
+                .clicked()
+            {
+                self.prompt_delete();
+            }
             if form::icon_button(ui, theme, ph::ARROW_CLOCKWISE, 14.0, false)
                 .tip(s.t("git-files-refresh"))
                 .clicked()
             {
                 self.refresh();
             }
+        });
+        ui.horizontal(|ui| {
+            ui.label(ph::GIT_BRANCH);
+            egui::ComboBox::from_id_salt(ui.id().with("git-files-branch"))
+                .selected_text(current.unwrap_or("HEAD"))
+                .width(ui.available_width() - 8.0)
+                .show_ui(ui, |ui| {
+                    for b in branches.iter().filter(|b| !b.remote) {
+                        if ui.selectable_label(b.current, &b.name).clicked() && !b.current {
+                            checkout = Some(b.name.clone());
+                        }
+                    }
+                })
+                .response
+                .tip(s.t("git-files-branch-tip"));
         });
         ui.add_space(form::PANE_GAP);
         if let Some(e) = &self.error {
@@ -329,6 +475,7 @@ impl FilesView {
             self.open_file(s, path);
         }
         self.prompt_ui(ui, theme, cx);
+        checkout
     }
 
     /// The right column: the file's header and actions, then its text.
@@ -467,13 +614,18 @@ impl FilesView {
         let Some(prompt) = self.prompt.as_mut() else {
             return;
         };
-        let (title, hint, dir, name, is_dir) = match prompt {
+        if matches!(prompt, Prompt::Delete { .. }) {
+            self.delete_ui(ui, theme, cx);
+            return;
+        }
+        let (title, hint, dir, name, is_dir, rename_of) = match prompt {
             Prompt::NewFile { dir, name } => (
                 s.t("git-files-new-file"),
                 s.t("git-files-new-file-hint"),
                 dir.clone(),
                 name,
                 false,
+                None,
             ),
             Prompt::NewFolder { dir, name } => (
                 s.t("git-files-new-folder"),
@@ -481,10 +633,25 @@ impl FilesView {
                 dir.clone(),
                 name,
                 true,
+                None,
             ),
+            Prompt::Rename { path, name } => (
+                s.t("git-files-rename"),
+                String::new(),
+                parent_of(path).to_string(),
+                name,
+                false,
+                Some(path.clone()),
+            ),
+            Prompt::Delete { .. } => return,
         };
         let mut done = false;
         let mut cancel = false;
+        let ok_label = if rename_of.is_some() {
+            s.t("git-files-rename")
+        } else {
+            s.t("create")
+        };
         let m = egui::Modal::new(ui.id().with("git-files-prompt")).show(ui.ctx(), |ui| {
             ui.set_width(380.0);
             ui.heading(&title);
@@ -497,13 +664,15 @@ impl FilesView {
             }
             ui.add_space(6.0);
             let r = form::text_field(ui, name, &hint);
-            r.request_focus();
+            // Enter is read before focus is asked back: once the field has
+            // focus again, `lost_focus` is false for the rest of the frame.
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 done = true;
             }
+            r.request_focus();
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("create")).clicked() {
+                if form::primary_button(ui, theme, &ok_label).clicked() {
                     done = true;
                 }
                 if ui.button(s.t("cancel")).clicked() {
@@ -527,6 +696,10 @@ impl FilesView {
             return;
         }
         self.prompt = None;
+        if let Some(old) = rename_of {
+            self.rename(cx, &root, old, dir, name);
+            return;
+        }
         let rel = if dir.is_empty() {
             name.clone()
         } else {
@@ -575,6 +748,148 @@ impl FilesView {
                 view,
                 editing: true,
             });
+        }
+    }
+}
+
+impl FilesView {
+    /// `old` becomes `dir/name` on the pool; the open file and the tree
+    /// follow the new path straight away.
+    fn rename(
+        &mut self,
+        cx: &mut ToolContext,
+        root: &Path,
+        old: String,
+        dir: String,
+        name: String,
+    ) {
+        let s = cx.services;
+        let new = if dir.is_empty() {
+            name
+        } else {
+            format!("{dir}/{name}")
+        };
+        if new == old {
+            return;
+        }
+        let (from, to) = (root.join(&old), root.join(&new));
+        let slot = self.write_slot.clone();
+        let label = s.i18n.t_args("git-files-renamed", &[("name", &new)]);
+        let exists = s.t("git-files-exists");
+        s.runtime.spawn_blocking(move || {
+            let r = if to.exists() {
+                Err(exists)
+            } else {
+                std::fs::rename(&from, &to).map_err(|e| e.to_string())
+            };
+            *slot.lock() = Some((label, r));
+        });
+        self.dirs.remove(&dir);
+        self.tree.selected = Some(new.clone());
+        let under_old =
+            |p: &str| p == old || p.strip_prefix(&old).is_some_and(|r| r.starts_with('/'));
+        self.tree.expanded = std::mem::take(&mut self.tree.expanded)
+            .into_iter()
+            .map(|p| {
+                if under_old(&p) {
+                    format!("{new}{}", &p[old.len()..])
+                } else {
+                    p
+                }
+            })
+            .collect();
+        if let Some(f) = self.file.as_mut()
+            && under_old(&f.path)
+        {
+            f.path = format!("{new}{}", &f.path[old.len()..]);
+        }
+    }
+
+    /// The Delete confirmation: a file by a button, a folder by typing its
+    /// name. The removal runs on the pool; a preview under the path closes.
+    fn delete_ui(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
+        let Some(root) = self.root.clone() else {
+            return;
+        };
+        let Some(Prompt::Delete {
+            path,
+            is_dir,
+            typed,
+        }) = self.prompt.as_mut()
+        else {
+            return;
+        };
+        let name = path.rsplit('/').next().unwrap_or(path).to_string();
+        let mut done = false;
+        let mut cancel = false;
+        let m = egui::Modal::new(ui.id().with("git-files-delete")).show(ui.ctx(), |ui| {
+            ui.set_width(420.0);
+            ui.heading(s.t("git-files-delete"));
+            ui.add_space(6.0);
+            ui.label(
+                s.i18n
+                    .t_args("git-files-delete-body", &[("name", path.as_str())]),
+            );
+            if *is_dir {
+                ui.add_space(6.0);
+                form::hint(ui, theme, &s.t("git-files-delete-folder-hint"));
+                let r = form::text_field(ui, typed, &name);
+                if r.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && typed.trim() == name
+                {
+                    done = true;
+                }
+                r.request_focus();
+            }
+            ui.add_space(12.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let ok = egui::Button::new(
+                    egui::RichText::new(s.t("git-files-delete")).color(egui::Color32::WHITE),
+                )
+                .fill(theme.error);
+                if ui
+                    .add_enabled(!*is_dir || typed.trim() == name, ok)
+                    .clicked()
+                {
+                    done = true;
+                }
+                if ui.button(s.t("cancel")).clicked() {
+                    cancel = true;
+                }
+            });
+        });
+        if m.should_close() {
+            cancel = true;
+        }
+        if cancel {
+            self.prompt = None;
+            return;
+        }
+        if !done {
+            return;
+        }
+        let (path, is_dir) = (path.clone(), *is_dir);
+        self.prompt = None;
+        let abs = root.join(&path);
+        let slot = self.write_slot.clone();
+        let label = s.i18n.t_args("git-files-deleted", &[("name", &path)]);
+        s.runtime.spawn_blocking(move || {
+            let r = if is_dir {
+                std::fs::remove_dir_all(&abs)
+            } else {
+                std::fs::remove_file(&abs)
+            }
+            .map_err(|e| e.to_string());
+            *slot.lock() = Some((label, r));
+        });
+        self.dirs.remove(parent_of(&path));
+        self.tree.selected = None;
+        let gone = |p: &str| p == path || p.strip_prefix(&path).is_some_and(|r| r.starts_with('/'));
+        self.tree.expanded.retain(|p| !gone(p));
+        if self.file.as_ref().is_some_and(|f| gone(&f.path)) {
+            self.file = None;
         }
     }
 }
@@ -686,5 +1001,24 @@ mod tests {
     fn the_parent_of_a_relative_path() {
         assert_eq!(parent_of("a/b/c.txt"), "a/b");
         assert_eq!(parent_of("c.txt"), "");
+    }
+
+    #[test]
+    fn a_row_is_a_folder_when_its_parent_says_so() {
+        let mut v = FilesView::default();
+        v.dirs.insert(
+            String::new(),
+            vec![("docs".into(), true), ("README.md".into(), false)],
+        );
+        v.dirs.insert(
+            "docs".into(),
+            vec![("img".into(), true), ("a.md".into(), false)],
+        );
+        assert!(v.is_dir("docs"));
+        assert!(v.is_dir("docs/img"));
+        assert!(!v.is_dir("README.md"));
+        assert!(!v.is_dir("docs/a.md"));
+        // An unlisted parent cannot vouch for it.
+        assert!(!v.is_dir("docs/img/x"));
     }
 }

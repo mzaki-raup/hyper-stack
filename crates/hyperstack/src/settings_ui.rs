@@ -6541,6 +6541,13 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
             .changed();
         changed |= ui
             .checkbox(
+                &mut settings.git.shallow_clones,
+                s.t("settings-git-shallow-clones"),
+            )
+            .on_hover_text(s.t("settings-git-shallow-clones-hint"))
+            .changed();
+        changed |= ui
+            .checkbox(
                 &mut settings.git.stash_untracked,
                 s.t("settings-git-stash-untracked"),
             )
@@ -7506,6 +7513,7 @@ fn repo_detail(
                         hs_git::write::clone(
                             &url,
                             &dest,
+                            None,
                             env,
                             &|| cancel.is_cancelled(),
                             &mut |line| progress.set_message(line.to_string()),

@@ -415,5 +415,29 @@ host's inner tab or the list's own tab.
 - `tool-git` now depends on `hs-editor` for the engine, as the Database
   tool does.
 
-Phase 3 (rename, delete, upload, a branch picker in Files, shallow
-clones) follows.
+## Addendum (2026-11-05): Files, phase 3 (FEAT-0102)
+
+The Files view's toolbar row gains **Upload**, **Rename** and **Delete**
+(the last two enabled by a picked row), and a branch row under it.
+
+- *Rename:* a name prompt starting with the row's name; the new path must
+  be free. The open preview, the picked row and the expanded folders
+  follow the new path at once; the parent folder is listed again when the
+  rename lands.
+- *Delete:* guarded, not forbidden - a file behind a confirmation button,
+  a folder by typing its name (everything inside goes too). The removal
+  runs on the pool; a preview at or under the path closes; the status is
+  read again so File Status shows the deletion for the commit box.
+- *Upload:* the system file picker (`rfd`), then every file copied into
+  the picked folder on the pool. A name already there refuses the whole
+  upload before anything is copied.
+- *Branch picker:* a combo over the local branches from the pane's refs,
+  showing the current one; picking another runs the pane's checkout verb.
+  Whenever a verb finishes the Files view forgets its listings and, if
+  the open file has no unsaved edits, reads it again.
+- Palette: Git: Rename File, Git: Delete File, Git: Upload Files.
+- *Shallow clones:* Settings → Git → **Shallow Clones from Hosts** makes
+  a host tab's first-open clone `git clone --depth 1`
+  (`settings.git.shallow_clones`, off by default;
+  `hs_git::write::clone` takes `depth: Option<u32>`). The Settings → Git →
+  Repositories clone stays full.

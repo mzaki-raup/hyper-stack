@@ -400,7 +400,6 @@ globals. A non-GET request to a protected environment asks first.
 | **YAML** - check with line-numbered problems and convert to and from Java `.properties` | **Generators** - UUID v4/v7/Nil, numbers, passwords and passphrases with a seed and entropy |
 | ![Cron](docs/screenshots/devtools-cron.png) | ![Unit conversion](docs/screenshots/devtools-units.png) |
 | **Cron** - build a schedule and read it in Unix, Spring and Quartz dialects, with an expression checker | **Units** - time, epochs, number bases, data sizes, durations and bandwidth, with every unit listed |
-
 | ![Utility toolbar](docs/screenshots/devtools-toolbar.png) | |
 | **Utility tabs** (2026-10-29) - every utility opens in its own tab under a toolbar row that names it and keeps the hard-right corner for an AI Assistant control; the activity's dashboard lists all fifteen | |
 

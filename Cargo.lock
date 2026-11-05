@@ -9519,6 +9519,7 @@ dependencies = [
  "hs-ui",
  "parking_lot",
  "reqwest",
+ "rfd",
  "secrecy",
  "serde",
  "serde_json",

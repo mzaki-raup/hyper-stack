@@ -151,8 +151,8 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0101
-Bugs : BUG-0040
+Features : FEAT-0102
+Bugs : BUG-0043
 Change Request : CR-0050
 ```
 
@@ -167,7 +167,7 @@ Change Request : CR-0050
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only.
-- [ ] In Settings -> Workspace -> Workspace List; User can swith workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
+- [ ] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — <what to click>
@@ -283,6 +283,23 @@ Change Request : CR-0050
 - [x] App: `--data-dir ./tmp-data` — in a cloned repository: open Files, expand a folder, read a file, Edit, change, Save, see it in File Status; New File and New Folder; a binary file's note
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
+### FEAT-0102 · Git hosts: rename, delete, upload, a branch picker in Files, shallow clones, phase 3
+- **State:** Completed · the lock-screen clone from the Forgejo host tab: hello-from-hs.md renamed (row, preview header and toast followed; `git status` agreed), the file deleted behind the confirmation and the notes folder behind its typed name, two PNGs uploaded through the system picker, hs-test picked in the branch row (checkout ran, the tree reloaded with the branch's file, the header followed); Shallow Clones from Hosts ticked in Settings → Git and flex-taskbar opened from the host tab as a one-commit clone with `.git/shallow`
+- **Source:** owner's go-ahead, 2026-11-05 ("Yes, phase 3"), after FEAT-0101 phase 2
+- **Scope:** `tool-git` (`files.rs`, `pane.rs`, `host.rs`, palette commands), `hs-git` (`write::clone`), `hs-core` (`settings.git.shallow_clones`), Settings → Git, `docs/tools/git-activity.md`.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0101
+- [x] Rename on the picked file or folder (a name prompt starting with its name; a clash is refused); the open preview and the expanded folders follow the new path
+- [x] Delete on the picked file or folder, guarded: a file behind a confirmation, a folder by typing its name; the removal runs on the pool, a preview under the path closes, and File Status shows the deletion for the commit box
+- [x] Upload: the system file picker, the files copied into the picked folder; a name already there refuses the upload before anything is copied
+- [x] A branch picker over the tree listing the local branches; picking one checks it out through the pane's verb path, after which the listings and the open file are read again
+- [x] Settings → Git → Shallow Clones from Hosts: a repository opened from a host tab is cloned with `--depth 1`; the Settings → Git → Repositories clone is unchanged
+- [x] Palette: Git: Rename File, Delete File, Upload Files
+- [x] Test: a row is a folder when its parent's listing says so
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — in a cloned repository: rename a file and a folder, delete a file and a folder (typed), upload two files, switch branch from the picker; shallow clone a host repository and see one commit in History
+- [x] Docs: spec · CHANGELOG · CHECKLIST
+
 ---
 
 ## v0.7.6 — Planned
@@ -300,6 +317,7 @@ Change Request : CR-0050
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
 - **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
 - **Notes:** `tool_git::files::FilesView`; listings and reads on the blocking pool through slots; `EditorView.read_only` until Edit; a write returns `files::Event::Changed` and the pane re-reads its status. `tool-git` now depends on `hs-editor` (Cargo.lock updated). First cut of the branch came off a stale `origin/main` - the remote has no fetch refspec - and was rebuilt from the forge's head (GOTCHAS). Phase 3 pending.
+- **Notes:** Enter in the name prompts did nothing at first - `request_focus()` ran before the `lost_focus()` read (GOTCHAS, Shell and UI Layout); fixed in the same item. The Settings → Git → Repositories clone stays full on purpose.
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·
@@ -1069,6 +1087,7 @@ Change Request : CR-0050
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — the credentials card needs no horizontal scrolling; the activity rail label toggle takes effect on the Home dashboard
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `form::section_max`, `conn-db-odbc-need-*` hints (locale test), `appearance.home_toolbar_labels` (76 px buttons, 6 px margin; the first build placed a widget inside the painted button and the row stair-stepped - fixed, in GOTCHAS); the standard is in `.claude/rules/ui.md` → Fields, lists and cards, and `docs/04-ui-design.md` → Addendum 2026-11-05 (CR-0038).
 
 ---
 
@@ -1077,7 +1096,6 @@ Change Request : CR-0050
 > Phase K (Automation), then phase N (Tracker), every kind the programme
 > names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
 > containers; git.zacx.net and GitHub are read only.
-- **Notes:** `form::section_max`, `conn-db-odbc-need-*` hints (locale test), `appearance.home_toolbar_labels` (76 px buttons, 6 px margin; the first build placed a widget inside the painted button and the row stair-stepped - fixed, in GOTCHAS); the standard is in `.claude/rules/ui.md` → Fields, lists and cards, and `docs/04-ui-design.md` → Addendum 2026-11-05 (CR-0038).
 
 ### FEAT-0077 · Automation activity shell: crate, rail, dashboard, connections, Settings → Automation
 - **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K

@@ -167,7 +167,7 @@ Change Request : CR-0050
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
 - [ ] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only.
-- [ ] In Settings -> Workspace -> Workspace List; User can swith workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
+- [ ] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
 - [ ] Test: <what it asserts>
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — <what to click>
@@ -1087,6 +1087,7 @@ Change Request : CR-0050
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — the credentials card needs no horizontal scrolling; the activity rail label toggle takes effect on the Home dashboard
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `form::section_max`, `conn-db-odbc-need-*` hints (locale test), `appearance.home_toolbar_labels` (76 px buttons, 6 px margin; the first build placed a widget inside the painted button and the row stair-stepped - fixed, in GOTCHAS); the standard is in `.claude/rules/ui.md` → Fields, lists and cards, and `docs/04-ui-design.md` → Addendum 2026-11-05 (CR-0038).
 
 ---
 
@@ -1095,7 +1096,6 @@ Change Request : CR-0050
 > Phase K (Automation), then phase N (Tracker), every kind the programme
 > names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
 > containers; git.zacx.net and GitHub are read only.
-- **Notes:** `form::section_max`, `conn-db-odbc-need-*` hints (locale test), `appearance.home_toolbar_labels` (76 px buttons, 6 px margin; the first build placed a widget inside the painted button and the row stair-stepped - fixed, in GOTCHAS); the standard is in `.claude/rules/ui.md` → Fields, lists and cards, and `docs/04-ui-design.md` → Addendum 2026-11-05 (CR-0038).
 
 ### FEAT-0077 · Automation activity shell: crate, rail, dashboard, connections, Settings → Automation
 - **State:** Completed · **Spec:** docs/tools/automation.md · **Phase:** K

@@ -929,14 +929,15 @@ Change Request : CR-0040
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### CR-0037 · Redis key list sorted folders first
-- **State:** Pending ·
+- **State:** Completed · the bench Redis with `cart:*`, `user:*`, `alpha`, `zeta` read in order, inside a group too
 - **Scope:** The Redis work pane's key list column.
 - **Parent:** CR-0025
-- [ ] In Redis Activity -> Work Pane -> Key List Column; Sort the key list by parent folder first, key without parent, then by name for both.
-- [ ] Test: the sort puts parent folders first, then keys without a parent, each group by name
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — scan a database with mixed foldered and bare keys and read the order
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Redis Activity -> Work Pane -> Key List Column; Sort the key list by parent folder first, key without parent, then by name for both.
+- [x] Test: the sort puts parent folders first, then keys without a parent, each group by name
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — scan a database with mixed foldered and bare keys and read the order
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** one stable partition in `KeyTree::walk` (tested), no per-frame sort.
 
 ### CR-0038 · Settings polish, and the UI standard written down
 - **State:** Pending ·

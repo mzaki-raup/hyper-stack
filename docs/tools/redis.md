@@ -298,3 +298,10 @@ List** and **Big Keys** are `DataTable`s like every other list (sortable,
 filterable, Copy Row); a client is killed by selecting its row and
 pressing **Kill Client**, and a big key still opens on a click. The Bulk
 Ops preview sits in a `form::scroll_well`.
+
+## Addendum (2026-11-05): folders first in the key list (CR-0037)
+
+`KeyTree::rows` lists a node's groups before its bare keys, each set in
+name order - one stable partition of the already-ordered map, not a sort
+per frame - so a database of mixed `app:*` prefixes and bare keys reads as
+folders, then files, like every other list in the app.

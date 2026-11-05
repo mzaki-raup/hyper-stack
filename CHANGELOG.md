@@ -11,8 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+
 ### Changed
 
+- Redis key list: folders first, then keys without a parent, each by name (CR-0037)
 - Database result panel: air before the first result tab and a rule before Messages; each statement in Messages sits in its own card with a rule between the statement and its outcome; the footer keeps air from the grid, the row count from the left edge and Export from the right (CR-0032)
 - Automation, Tracker and Logs panes breathe by the shared gap: the job list, Runs and Log panes; the Tracker query bar, item count and detail pane, which is ruled into header, fields, description, comments and the comment form, and its Edit and New forms before the description; the Logs record column sizes to the widest line number, the record status row has air above and below, and Highlight Rules is a table with a header row, a wide pattern field and controls at one height (CR-0033)
 - Container hosts show their summary in the dashboard's figure boxes, the port and action buttons are proper padded buttons with an icon each, two sample saved entries appear on a workspace's first visit and a row's right-click deletes it; the SSH tunnel and monitor cards wear the surface colour and the monitor's readings an icon and colour each (CR-0034)

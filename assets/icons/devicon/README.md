@@ -56,3 +56,13 @@ Redmine's mark is CC BY-SA 2.5, credited to the Redmine project). Valkey,
 WebDAV and Sonatype Nexus have no usable mark there (Valkey is absent, the
 Sonatype mark is near-black) and keep their glyphs. The marks remain the
 trademarks of their owners.
+
+The AI Assistant's services (CR-0055) draw from the same folder: Simple
+Icons marks for `openai` (#10A37F), `anthropic` (#D97757), `googlegemini`,
+`amazonwebservices` (#FF9900), `mistralai`, `deepseek`, `ollama` (grey, the
+mark is black), `openrouter`, `moonshotai`, `tencentqq` (Hunyuan), `vllm`,
+`lmstudio` and `windsurf`, Devicon's `azure`, and drawn look-alikes for the
+services with no published mark: `comfyui` (a node graph), `sdwebui`
+(diffusion rings, for AUTOMATIC1111, SD.Next and Forge), `swarmui` (three
+hexagons), `onemin` (a teal one), `fal` (a violet tile with a bolt),
+`invokeai` and `fooocus`. The look-alikes are ours and carry no trademark.

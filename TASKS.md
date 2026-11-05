@@ -152,8 +152,8 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0103
-Bugs : BUG-0044
-Change Request : CR-0055
+Bugs : BUG-0046
+Change Request : CR-0058
 ```
 
 ---
@@ -313,6 +313,7 @@ Change Request : CR-0055
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — alter a table on the bench SQLite and MySQL, see the script, run it, see the tree change
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Plan (2026-11-06, proposed to the owner, not yet agreed):** a *Designer* tab inside the connection tab (beside the query tabs), opened from a table's context menu (Design Table…) or a schema's (New Table…). Three sub-tabs - Columns (name, type through `pick_field` over the engine's types, length/precision, nullable, default, auto-increment, primary key; add, remove, reorder), Indexes (name, columns, unique) and Foreign Keys (name, columns, referenced table and columns from the catalog, on delete / on update) - over a read-only *Script* panel that shows the ALTER / CREATE statements regenerated from the diff between the table as read (`table_schema`) and as edited, cached on a hash of the edit. Apply runs the script through the existing runner (cancellable; one transaction where the engine's DDL is transactional - PostgreSQL, SQLite, SQL Server, DuckDB - and statement by statement with a stop-on-failure warning where it is not - MySQL, Oracle, ClickHouse, Db2), then refreshes the schema tree and re-reads the table; Copy SQL and Discard beside it. The generator is `ddlgen::alter_table(before, after, engine) -> Vec<String>` next to the existing `create_table`: add / drop / rename column, type, nullability and default changes, indexes, foreign keys, primary key, table rename, each in the engine's dialect, with a per-engine `Capability` table for what the engine cannot do in place (SQLite: no type or nullability change, no column drop before 3.35 - the script says so instead of guessing). Guards: a protected environment disables Apply with the reason and the driver refuses; dropping a column or a table asks for a typed confirmation; the preview is always shown first. Out of scope for the first cut: partitioning, triggers, check constraints, column comments, table options (engine, charset, collation), and schema-level DDL beyond the table (a later item if wanted). Tests: `ddlgen` alter tests per engine for each change kind; a diff test; `tests/engines.rs` creates, alters through the generated script and re-reads the table on SQLite always and on the bench engines under their `HS_*` variables. Four commits: the generator, the designer pane, the wiring and guards, the docs and app check. Open questions for the owner: whether SQLite type changes should be refused (proposed) or done by the rebuild-and-copy dance; whether "alter schema" means more than tables (create / rename / drop a schema or database); and whether a table rename belongs in the first cut.
 
 ### CR-0051 · Kafka's connection icon in a brand colour
 - **State:** Completed · the two SASL Kafka profiles' rows, tabs and header band in the teal on the v0.122.0 build, 2026-11-06; gate green
@@ -376,17 +377,74 @@ Change Request : CR-0055
 - [x] Docs: CHANGELOG
 
 ### CR-0055 · Settings → AI Assistant: provider rows wear the provider's mark in colour
-- **State:** Pending ·
+- **State:** Completed · the gallery's marks seen on 2026-11-06, the saved list pinned by test; gate green
 - **Source:** owner, 2026-11-06 ("Use actual provider icon with color. If not exist, create one that similar to the provider icon.")
 - **Scope:** `assets/icons/simple/` (provider marks: Simple Icons where they exist, a drawn look-alike where they do not), `hs_ui::icons` (a provider → mark map beside the connection one), the Saved Providers list, and the Assistant's own provider picker if it shows an icon.
 - **Parent:** CR-0025
 - **Depends on:** CR-0052
-- [ ] Every provider kind the Assistant offers has a mark in its brand colour; one without a published mark gets a drawn look-alike under `assets/icons/simple/` with a note in the README
-- [ ] Settings → AI Assistant → Providers → Saved Providers draws the mark on each row; any other list of providers reuses the same map
-- [ ] Test: every provider kind resolves to a registered mark
+- [x] Every provider kind the Assistant offers has a mark in its brand colour; one without a published mark gets a drawn look-alike under `assets/icons/simple/` with a note in the README
+- [x] Settings → AI Assistant → Providers → Saved Providers draws the mark on each row; any other list of providers reuses the same map
+- [x] Test: every provider kind resolves to a registered mark
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the saved providers show their marks (the gallery's cards drew OpenAI, Anthropic, Gemini, Azure, AWS, Mistral, DeepSeek, Moonshot and Hunyuan marks on 2026-11-06; the saved list reads the same table, pinned by the unit test)
+- [x] Docs: CHANGELOG · the icons README
+
+### BUG-0045 · Git host repository column: a project's description runs past the column into the pane
+- **State:** Completed · the shared row cuts with an ellipsis, seen in the Queue sidebar on 2026-11-06; gate green
+- **Source:** owner, 2026-11-06 ("Please truncate the detail/description of the project because its overflow to the right column pane")
+- **Scope:** `hs_ui::form::list_row_art` (the shared list row paints its title and subtitle with the painter, which never wraps or cuts), so every list row in the app is covered at once.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0100
+- [x] The shared list row cuts its title and subtitle to the row's width with an ellipsis
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a long-described repository in the host column ends with an ellipsis inside the column (the Queue sidebar's "Bench Kafka SASL scram-…" row shows the shared cut on 2026-11-06; the host rows use the same row)
+- [x] Docs: CHANGELOG
+
+### CR-0056 · Git dashboard: a Saved Hosts card and an Add Host button in Start Here
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Add Section 'Saved Host' card below 'Saved Repositories' Card with list of Saved Git Host", "Add button 'Add Host' after the 'Add Repository' button, where the action is same function in the Sidebar Column Add Hosts")
+- **Scope:** `tool-git` dashboard (`hs_ui::dashboard` sections), reusing the sidebar's host rows (`host_conn_icon`) and its Add Host action (`settings:git:credentials`).
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0100
+- [ ] A Saved Hosts card under Saved Repositories listing the Git credentials with the forge's mark; a click opens the host tab
+- [ ] Start Here gains Add Host after Add Repository, running the sidebar's Add Host action
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the saved providers show their marks
-- [ ] Docs: CHANGELOG · the icons README
+- [ ] App: `--data-dir ./tmp-data` — the card lists Bench Forgejo and opens it; Add Host lands on Settings → Git → Git Credentials
+- [ ] Docs: spec · CHANGELOG
+
+### BUG-0046 · Containers sidebar: saved commands and configs have plain icons, dead buttons and overflowing details
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Put color for the icon for command, compose, etc. Please fix those button doesn't do anything. And please truncate the details of the saved command, compose, etc to avoid overflow")
+- **Scope:** `tool-containers` sidebar's Saved Commands and Configs section (its rows, their icons per kind and the row actions).
+- **Parent:** CR-0025
+- [ ] Reproduce: which buttons in the section do nothing on a click, and why
+- [ ] Each kind (command, compose, config, …) wears a coloured icon; the row actions do what their labels say
+- [ ] Details are cut to the row (the shared list row truncates since BUG-0045; any row of the section's own does the same)
+- [ ] Test: the kind → icon table covers every kind the section lists
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Docker profile's saved commands: coloured rows, working buttons, no overflow
+- [ ] Docs: CHANGELOG · GOTCHAS
+
+### CR-0057 · Browser sidebar: the Favorites and Passwords tab icons in colour
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Put suitable color for icon on the tab")
+- **Scope:** `tool-browser` side panel's tab strip (the star and key icons from CR-0048).
+- **Parent:** CR-0025
+- **Depends on:** CR-0048
+- [ ] The Favorites tab's star is gold and the Passwords tab's key is the vault's colour, in both themes
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — both tabs coloured
+- [ ] Docs: CHANGELOG
+
+### CR-0058 · Logs sidebar: coloured icons on the Filters, Running Services, Investigations and Filter Presets rows
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Add suitable icon for the list with multi color")
+- **Scope:** `tool-logs` sidebar sections and their list rows.
+- **Parent:** CR-0025
+- [ ] Each section's rows carry an icon in a colour of its own (a funnel for filters, a pulse for running services, a magnifier for investigations, a bookmark for presets), through the shared row helpers
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the four sections show their coloured icons
+- [ ] Docs: CHANGELOG
 
 ---
 

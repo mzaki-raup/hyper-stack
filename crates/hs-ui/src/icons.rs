@@ -353,6 +353,86 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
         include_bytes!("../../../assets/icons/devicon/mariadb.svg"),
     ),
     (
+        "bytes://product/openai.svg",
+        include_bytes!("../../../assets/icons/simple/openai.svg"),
+    ),
+    (
+        "bytes://product/anthropic.svg",
+        include_bytes!("../../../assets/icons/simple/anthropic.svg"),
+    ),
+    (
+        "bytes://product/googlegemini.svg",
+        include_bytes!("../../../assets/icons/simple/googlegemini.svg"),
+    ),
+    (
+        "bytes://product/amazonwebservices.svg",
+        include_bytes!("../../../assets/icons/simple/amazonwebservices.svg"),
+    ),
+    (
+        "bytes://product/mistralai.svg",
+        include_bytes!("../../../assets/icons/simple/mistralai.svg"),
+    ),
+    (
+        "bytes://product/deepseek.svg",
+        include_bytes!("../../../assets/icons/simple/deepseek.svg"),
+    ),
+    (
+        "bytes://product/ollama.svg",
+        include_bytes!("../../../assets/icons/simple/ollama.svg"),
+    ),
+    (
+        "bytes://product/openrouter.svg",
+        include_bytes!("../../../assets/icons/simple/openrouter.svg"),
+    ),
+    (
+        "bytes://product/moonshotai.svg",
+        include_bytes!("../../../assets/icons/simple/moonshotai.svg"),
+    ),
+    (
+        "bytes://product/tencentqq.svg",
+        include_bytes!("../../../assets/icons/simple/tencentqq.svg"),
+    ),
+    (
+        "bytes://product/vllm.svg",
+        include_bytes!("../../../assets/icons/simple/vllm.svg"),
+    ),
+    (
+        "bytes://product/lmstudio.svg",
+        include_bytes!("../../../assets/icons/simple/lmstudio.svg"),
+    ),
+    (
+        "bytes://product/windsurf.svg",
+        include_bytes!("../../../assets/icons/simple/windsurf.svg"),
+    ),
+    (
+        "bytes://product/comfyui.svg",
+        include_bytes!("../../../assets/icons/simple/comfyui.svg"),
+    ),
+    (
+        "bytes://product/sdwebui.svg",
+        include_bytes!("../../../assets/icons/simple/sdwebui.svg"),
+    ),
+    (
+        "bytes://product/swarmui.svg",
+        include_bytes!("../../../assets/icons/simple/swarmui.svg"),
+    ),
+    (
+        "bytes://product/onemin.svg",
+        include_bytes!("../../../assets/icons/simple/onemin.svg"),
+    ),
+    (
+        "bytes://product/fal.svg",
+        include_bytes!("../../../assets/icons/simple/fal.svg"),
+    ),
+    (
+        "bytes://product/invokeai.svg",
+        include_bytes!("../../../assets/icons/simple/invokeai.svg"),
+    ),
+    (
+        "bytes://product/fooocus.svg",
+        include_bytes!("../../../assets/icons/simple/fooocus.svg"),
+    ),
+    (
         "bytes://product/puppet.svg",
         include_bytes!("../../../assets/icons/simple/puppet.svg"),
     ),
@@ -690,6 +770,40 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
 }
 
 /// The URI of a vendored logo by its file name, without `.svg`.
+/// The AI Assistant's service marks (CR-0055): Simple Icons where a mark
+/// is published, a drawn look-alike where none is (`comfyui`, `sdwebui`,
+/// `swarmui`, `onemin`, `fal`, `invokeai`, `fooocus`). Settings → AI
+/// Assistant names them by slug through [`logo_for`].
+pub const PROVIDER_LOGOS: &[&str] = &[
+    "azure",
+    "openai",
+    "anthropic",
+    "googlegemini",
+    "amazonwebservices",
+    "mistralai",
+    "deepseek",
+    "ollama",
+    "openrouter",
+    "moonshotai",
+    "tencentqq",
+    "vllm",
+    "lmstudio",
+    "windsurf",
+    "comfyui",
+    "sdwebui",
+    "swarmui",
+    "onemin",
+    "fal",
+    "invokeai",
+    "fooocus",
+];
+
+/// A vendored logo's URI by its file name, for a caller that keeps its own
+/// name → mark table (the AI services).
+pub fn logo_for(name: &str) -> Option<&'static str> {
+    logo(name)
+}
+
 fn logo(name: &str) -> Option<&'static str> {
     PRODUCT_LOGOS.iter().map(|(uri, _)| *uri).find(|uri| {
         uri.strip_prefix("bytes://product/")
@@ -1227,6 +1341,10 @@ mod tests {
         }
         // The shells' own marks (tool-terminal maps them by shell id).
         for name in ["powershell", "bash", "zsh", "fish", "git"] {
+            used.extend(logo(name));
+        }
+        for name in PROVIDER_LOGOS {
+            assert!(logo(name).is_some(), "{name} is named but not vendored");
             used.extend(logo(name));
         }
         for (uri, bytes) in PRODUCT_LOGOS {

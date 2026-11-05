@@ -987,6 +987,7 @@ impl AutomationTool {
                 ui.weak(s.t(b));
             }
         });
+        ui.add_space(form::PANE_GAP);
         if let Some(e) = &error {
             form::note(ui, theme, ph::WARNING, &hs_core::fmt::sentence(e));
         }
@@ -1098,9 +1099,9 @@ impl AutomationTool {
                 }
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(form::PANE_GAP);
         ui.strong(&job.name);
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         match self.state.detail {
             Detail::Runs => self.runs_pane(ui, theme, cx, &job),
             Detail::Log => self.log_pane(ui, theme, s, &job),
@@ -1190,7 +1191,7 @@ impl AutomationTool {
             .and_then(|id| runs.iter().find(|r| &r.id == id))
         {
             let (glyph, colour) = state_glyph(&run.state, theme);
-            ui.add_space(4.0);
+            ui.add_space(form::PANE_GAP);
             ui.horizontal(|ui| {
                 ui.colored_label(colour, glyph);
                 ui.label(format!("{} · {}", run.number, s.t(run.state.key())));
@@ -1250,6 +1251,7 @@ impl AutomationTool {
         if b.cut {
             form::hint(ui, theme, &s.t("automation-log-cut"));
         }
+        ui.add_space(form::PANE_GAP);
         // In a well, so the output reads as something you scroll rather
         // than as text that happens to stop (CR-0028).
         form::well(ui, theme, None, |ui| {

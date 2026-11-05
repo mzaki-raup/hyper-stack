@@ -801,92 +801,96 @@ Change Request : CR-0040
 - **Notes:** one shared gap, `hs_ui::form::PANE_GAP` (8 px), carries every spacing box; every `DataTable` now leaves that gap under its filter row, which the Database, Logs and other activities inherit. Redis Client List and Big Keys and the Queue Bindings pane became `DataTable`s; Kill Client acts on the selected row. Verified 2026-11-05 on screen; MQTT, Kafka, NATS and Redis Streams brokers were not up, so their Publish and Consumers variants are code-reviewed only.
 
 ### CR-0032 · Spacing pass: Database result and message panels
-- **State:** Pending ·
+- **State:** Completed · verified on screen against the bench SQLite file with a two-statement script
 - **Scope:** The Database work pane's result and message panels.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In Database Activity -> Work Pane -> Result And Message Section Header; Add separator between result button(s) and message button with proper left/right padding/margin.
-- [ ] In Database Activity -> Work Pane -> Result Section Header Row; Please add left margin/padding on the first result button. Its too near the pane border.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please insert the all the result lists : message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) inside a some card or frame to look professional and tidy.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add left margin/padding on the message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms). Its too near the pane border.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add separator between result message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) with top/bottom margin/padding on the separator.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add top/bottom padding/margin between the result datatable and toolbar below.
-- [ ] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add left margin/padding on the result stat (e.g. 27 rows · Editable (F2)) and right margin/padding on the Export button.
-- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — run a multi-statement query and read the result and message panels — cards, separators and padding on both
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Database Activity -> Work Pane -> Result And Message Section Header; Add separator between result button(s) and message button with proper left/right padding/margin.
+- [x] In Database Activity -> Work Pane -> Result Section Header Row; Please add left margin/padding on the first result button. Its too near the pane border.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please insert the all the result lists : message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) inside a some card or frame to look professional and tidy.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add left margin/padding on the message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms). Its too near the pane border.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Message Panel; Please add separator between result message query(1. SELECT * FROM urpv4.bank) and message result (e.g. 27 rows · 5 ms) with top/bottom margin/padding on the separator.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add top/bottom padding/margin between the result datatable and toolbar below.
+- [x] In Database Activity -> Work Pane -> Result Section Header -> Result Panel -> Bottom Toolbar; Please add left margin/padding on the result stat (e.g. 27 rows · Editable (F2)) and right margin/padding on the Export button.
+- [x] Test: no assertion beyond the gate: this is layout, verified on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — run a multi-statement query and read the result and message panels — cards, separators and padding on both
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** the result strip, the Messages cards and the footer gaps are `hs_ui::form::PANE_GAP`; verified 2026-11-05 in the app (Result 1 · 27 rows, Result 2 · 5 rows, Messages).
 
 ### CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
-- **State:** Pending ·
+- **State:** Completed · Automation against the Forgejo instance (anonymous), Tracker against the bench Redmine 6.1, Logs against a 1 500-line file
 - **Scope:** The Automation, Tracker and Logs work panes, including the Highlight Rules popup.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between Job Title header and filter row.
-- [ ] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between filter row and job list data table.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Action button (Runs, Log, Run, Queue, etc) and job title.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between job title and Job Activity data table.
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Job Activity data table and Job Status (e.g. #4 · Running. Double-click a run to read its log.).
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job title and job status (e.g. #5 · Success).
-- [ ] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job status (e.g. #5 · Success) and job log text area.
-- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between below Header separator and query row (Query text input, Run This QUery, Saved Queries,etc). 
-- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between query row (Query text input, Run This Query, Saved Queries,etc) and Item count (e.g. Items 3 of 3).
-- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between Item count (e.g. Items 3 of 3) and filter row.
-- [ ] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between filter row and Ticket data table.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details header.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details separator and ticket detail table (e.g. Project    Demo, Type     Bug, etc). 
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details table.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details table separator and Ticket Descriptions (e.g. The disk is full.Rotate logs daily.. , etc).
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Descriptions.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Descriptions separator and Ticket Comment List.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Comment List.
-- [ ] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Comment List separator and Comment Form.
-- [ ] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please add top/bottom padding/margin between due date row and description form.
-- [ ] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please add top/bottom padding/margin between summary row and description form.
-- [ ] In Logs Activity -> Work Pane -> Logs Pane; Resize the Record column to most suitable size, because its too wide. auto resize it to match value in it.
-- [ ] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between log record list and Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc).
-- [ ] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc) and Log detail text area.
-- [ ] In Logs Activity -> Work Pane -> Highlight Rules Popup; Please make this professional, tidy and structured. It look messy (vertical middle align, short regex field, padding/margin between checkbox and input field, etc).
-- [ ] Test: the Logs record column sizes to its content rather than to the pane
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk the Automation job panes, the Tracker ticket detail and the Logs pane and popup
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between Job Title header and filter row.
+- [x] In Automation Activity -> Work Pane -> Job List Pane; Please add top/bottom padding/margin between filter row and job list data table.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Action button (Runs, Log, Run, Queue, etc) and job title.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between job title and Job Activity data table.
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Runs Tab; Please add top/bottom padding/margin between Job Activity data table and Job Status (e.g. #4 · Running. Double-click a run to read its log.).
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job title and job status (e.g. #5 · Success).
+- [x] In Automation Activity -> Work Pane -> Job Activity Pane -> Log Tab; Please add top/bottom padding/margin between job status (e.g. #5 · Success) and job log text area.
+- [x] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between below Header separator and query row (Query text input, Run This QUery, Saved Queries,etc). 
+- [x] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between query row (Query text input, Run This Query, Saved Queries,etc) and Item count (e.g. Items 3 of 3).
+- [x] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between Item count (e.g. Items 3 of 3) and filter row.
+- [x] In Tracker Activity -> Work Pane -> Ticket List Pane; Please add top/bottom padding/margin between filter row and Ticket data table.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details header.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details separator and ticket detail table (e.g. Project    Demo, Type     Bug, etc). 
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket details table.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket details table separator and Ticket Descriptions (e.g. The disk is full.Rotate logs daily.. , etc).
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Descriptions.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Descriptions separator and Ticket Comment List.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add horizontal separator line below Ticket Comment List.
+- [x] In Tracker Activity -> Work Pane -> Ticket Detail Pane; Please add top/bottom padding/margin between below Ticket Comment List separator and Comment Form.
+- [x] In Tracker Activity -> Work Pane -> Edit Ticket Pane; Please add top/bottom padding/margin between due date row and description form.
+- [x] In Tracker Activity -> Work Pane -> New Item Ticket Pane; Please add top/bottom padding/margin between summary row and description form.
+- [x] In Logs Activity -> Work Pane -> Logs Pane; Resize the Record column to most suitable size, because its too wide. auto resize it to match value in it.
+- [x] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between log record list and Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc).
+- [x] In Logs Activity -> Work Pane -> Logs Pane; Please add top/bottom padding/margin between Record Status (e.g. Record 9, Copy, Bookmark, Open In Editor, etc) and Log detail text area.
+- [x] In Logs Activity -> Work Pane -> Highlight Rules Popup; Please make this professional, tidy and structured. It look messy (vertical middle align, short regex field, padding/margin between checkbox and input field, etc).
+- [x] Test: the Logs record column sizes to its content rather than to the pane
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk the Automation job panes, the Tracker ticket detail and the Logs pane and popup
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `tool_logs::ui::line_column_width` sizes the record column (tested); the Highlight Rules popup is a grid with a header row and the pattern field forced to 300 px with `add_sized` (a grid cell shrank a `desired_width` field to its text). The Automation run status line was confirmed in code and sits under a runs table that filled the pane on screen.
 
 ### CR-0034 · Container and SSH work pane layout
-- **State:** Pending ·
+- **State:** Completed · Docker in WSL through Scan Local, the bench SSH container for the cards
 - **Scope:** The Container work panes (Docker, Kubernetes, Podman, Windows) and the SSH shell pane.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027
-- [ ] In SSH Activity -> Shell Pane; Make Tunnel Card and Monitor Card have some color to differentiate with the shell terminal.
-- [ ] In SSH Activity -> Shell Pane -> Monitor Card; Add proper icon to the Items (Cpu, Load, Memory, Disk, Up and Top) and color both the icon and lavel with proper color
-- [ ] In Container Activity -> Docker Work Pane -> Docker Summaries (Running, Stopped, Images, Volumes, Network), Follow the Dashboard summary format (rounded box, icon with lable below, horizontal align center, vertical align middle, same max box size, etc). Apply these in kubernetes, podman, windows container too (Where applicable).
-- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Ports (Open In Browser activity, etc) with top/right/bottom/left padding/margin. 
-- [ ] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Action (Logs, Shell, Restart, Stop, Kill, Remove) with top/right/bottom/left padding/margin and add proper icon for each button if none. Please check other activities that have same characteristic of these button and apply to it also.
-- [ ] In Container Activity -> Sidebar Panel -> Saved Command And Config Section; Add a sample for saved command and config, so that user can reference it later and can delete it later.
-- [ ] Test: the Docker summary row uses the shared `hs_ui::dashboard` summary box
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Docker summaries match the dashboard language; port and action buttons are real buttons; SSH tunnel and monitor cards stand out from the terminal
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In SSH Activity -> Shell Pane; Make Tunnel Card and Monitor Card have some color to differentiate with the shell terminal.
+- [x] In SSH Activity -> Shell Pane -> Monitor Card; Add proper icon to the Items (Cpu, Load, Memory, Disk, Up and Top) and color both the icon and lavel with proper color
+- [x] In Container Activity -> Docker Work Pane -> Docker Summaries (Running, Stopped, Images, Volumes, Network), Follow the Dashboard summary format (rounded box, icon with lable below, horizontal align center, vertical align middle, same max box size, etc). Apply these in kubernetes, podman, windows container too (Where applicable).
+- [x] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Ports (Open In Browser activity, etc) with top/right/bottom/left padding/margin. 
+- [x] In Container Activity -> Work Pane -> Container List -> Select a container -> Below Detail Panel; Make a proper button for Action (Logs, Shell, Restart, Stop, Kill, Remove) with top/right/bottom/left padding/margin and add proper icon for each button if none. Please check other activities that have same characteristic of these button and apply to it also.
+- [x] In Container Activity -> Sidebar Panel -> Saved Command And Config Section; Add a sample for saved command and config, so that user can reference it later and can delete it later.
+- [x] Test: the Docker summary row uses the shared `hs_ui::dashboard` summary box
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — Docker summaries match the dashboard language; port and action buttons are real buttons; SSH tunnel and monitor cards stand out from the terminal
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `docker_summary_stats` + a unit test hold the summary row to `hs_ui::dashboard::stats`; `verb_icon` gives every verb its glyph; `configs::seed_samples` writes the two samples only while the folder does not exist; Kubernetes, Podman and Windows containers have no summary row of their own (the cluster pane has its own facts table), so nothing there changed.
 
 ### CR-0039 · Spacing pass: NoSQL work pane
-- **State:** Pending ·
+- **State:** Completed · verified against the bench MongoDB 7 (shop.orders): Find, the editor, Indexes
 - **Scope:** The NoSQL work pane: Find, Aggregate, Index and their detail panels.
 - **Parent:** CR-0025
 - **Depends on:** CR-0027, CR-0028
-- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between below Header separator and Search Criteria (Filter, Project, Sort).
-- [ ] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between Search Criteria (Filter, Project, Sort) and buttons (Run, Count, New Document, Delete Matching, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between below Header separator and Json Array Label and Text Area.
-- [ ] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between Json Array Text Area and buttons (Run, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between buttons (Run, Count, New Document, Delete Matching, etc) and Result format (Table, Tree, Json, etc).
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between Result format (Table, Tree, Json, etc) and Result table.
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between id row and data view text area. 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between data view text area and action button below (Save, Delete, Cancel) 
-- [ ] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please make a proper button for Action Button (Save, Delete, Cancel) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
-- [ ] In NoSQL Activity -> Work Pane -> Index Pane -> Detail Panel Below; Please add top/bottom padding/margin between below Header separator and Table (Name, Definition, Unique). Please make it as a proper table with header, column and row line.
-- [ ] Test: no assertion beyond the gate: this is layout, verified on screen
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk the Find, Aggregate and Index panes and their detail panels
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between below Header separator and Search Criteria (Filter, Project, Sort).
+- [x] In NoSQL Activity -> Work Pane -> Find Pane; Please add top/bottom padding/margin between Search Criteria (Filter, Project, Sort) and buttons (Run, Count, New Document, Delete Matching, etc).
+- [x] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between below Header separator and Json Array Label and Text Area.
+- [x] In NoSQL Activity -> Work Pane -> Aggregate Pane; Please add top/bottom padding/margin between Json Array Text Area and buttons (Run, etc).
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between buttons (Run, Count, New Document, Delete Matching, etc) and Result format (Table, Tree, Json, etc).
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane; Please add top/bottom padding/margin between Result format (Table, Tree, Json, etc) and Result table.
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between id row and data view text area. 
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please add top/bottom padding/margin between data view text area and action button below (Save, Delete, Cancel) 
+- [x] In NoSQL Activity -> Work Pane -> Find and Aggregate Pane -> Detail Panel Below; Please make a proper button for Action Button (Save, Delete, Cancel) with top/right/bottom/left padding/margin and add proper icon for each button if none. 
+- [x] In NoSQL Activity -> Work Pane -> Index Pane -> Detail Panel Below; Please add top/bottom padding/margin between below Header separator and Table (Name, Definition, Unique). Please make it as a proper table with header, column and row line.
+- [x] Test: no assertion beyond the gate: this is layout, verified on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk the Find, Aggregate and Index panes and their detail panels
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** the Index pane is a `DataTable`; Aggregate is Mongo-only and was checked in code (its gaps are the same calls as Find's).
 
 ### FEAT-0095 · Server-populated fields: Tracker and Automation
 - **State:** Pending ·

@@ -860,3 +860,15 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Sources** - every saved source over the command or session it follows;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): the spacing pass (CR-0033)
+
+The record list's line-number column sizes to the widest line number
+(`ui::line_column_width`: one monospace glyph per digit plus a little
+air, never under two digits) instead of a fixed 62 px. The selected
+record's status row (Record n, Copy, Bookmark, Open in Editor) has
+`hs_ui::form::PANE_GAP` above it and between it and the detail below.
+**Highlight Rules** is a table: a header row names the columns (On,
+Colour, Bold, Pattern, Report, Alert, Cooldown), the pattern field is
+wide and the controls sit at a field's height, with Add Rule and Close
+under it.

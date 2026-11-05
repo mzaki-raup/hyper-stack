@@ -638,3 +638,17 @@ where it is ("Docker Engine 29.5.0 · WSL · Ubuntu-24.04"), asked once
 per session through `hs_core::versions::ensure_with` and left as the
 bare kind while the probe is out or the host is unreachable;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): work pane layout (CR-0034)
+
+A Docker host's summary row (Running, Stopped, Images, Volumes, Networks,
+Projects when any) is drawn with `hs_ui::dashboard::stats`, the same
+rounded, equal boxes as every dashboard, the icon and label under the
+figure; `docker_summary_stats` builds the figures and a test holds it to
+that shape. A selected container's ports and verbs are proper buttons -
+the toolbar's padding, air between them, an icon on each verb
+(`verb_icon`). The sidebar's Saved Commands and Configs section gets two
+samples the first time a workspace opens the activity (a command and a
+Compose stack, each saying it is a sample; `configs::seed_samples`, only
+while the folder does not exist, so an emptied list stays empty), and a
+row's right-click offers Delete.

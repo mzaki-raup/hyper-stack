@@ -341,3 +341,11 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Hosts** - every saved host over the `user@host:port` it would open;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): the tunnel and monitor cards (CR-0034)
+
+The Tunnels and Monitor cards above the terminal wear the surface colour
+with a rounded border, so they read as cards against the terminal rather
+than as more of it. Each monitor reading has an icon and a colour of its
+own - CPU (accent), Load (warning), Memory (secondary), Disk (success),
+Up (text), Top (muted) - on the icon and its label alike.

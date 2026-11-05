@@ -1586,6 +1586,9 @@ impl DbTool {
         // Tabs: one per statement, then Messages.
         let messages_tab = count;
         ui.horizontal_wrapped(|ui| {
+            // Air before the first tab, and a rule between the results
+            // and Messages (CR-0032).
+            ui.add_space(form::PANE_GAP);
             let sh = self.shared.lock();
             for (i, r) in sh.results.iter().enumerate() {
                 let (icon, color) = if r.running {
@@ -1636,6 +1639,9 @@ impl DbTool {
                     self.active_result = i;
                 }
             }
+            ui.add_space(form::PANE_GAP);
+            ui.separator();
+            ui.add_space(form::PANE_GAP);
             if form::selectable_button(
                 ui,
                 self.active_result == messages_tab,
@@ -1718,7 +1724,7 @@ impl DbTool {
         self.ensure_editable(i, s);
         let pending = self.edits.get(&i).map_or(0, |e| e.len());
         // Footer first (bottom-up) so the grid takes the rest.
-        let footer_h = if pending > 0 { 58.0 } else { 30.0 };
+        let footer_h = if pending > 0 { 58.0 } else { 30.0 } + form::PANE_GAP;
         let grid_h = (ui.available_height() - footer_h).max(60.0);
         let labels = grid::Labels {
             null: "NULL",
@@ -1785,8 +1791,11 @@ impl DbTool {
             let r = &sh.results[i];
             (r.summary.as_ref().is_some_and(|x| x.limited), r.class)
         };
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Air at both ends of the footer (CR-0032).
+                ui.add_space(form::PANE_GAP);
                 ui.menu_button(format!("{} {}", ph::EXPORT, s.t("db-export")), |ui| {
                     for f in [
                         Format::Csv,
@@ -1823,6 +1832,7 @@ impl DbTool {
                 ui.label(hs_ui::icons::SEARCH);
                 ui.separator();
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.add_space(form::PANE_GAP);
                     let mut text = s
                         .i18n
                         .t_args("db-rows-count", &[("rows", &total.to_string())]);
@@ -1981,51 +1991,78 @@ impl DbTool {
         }
     }
 
+    /// One card per statement: the statement, a rule, then what became
+    /// of it; the list keeps air from the pane's edge (CR-0032).
     fn messages(&self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         let sh = self.shared.lock();
+        ui.add_space(form::PANE_GAP);
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 for (i, r) in sh.results.iter().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("{}.", i + 1)).color(theme.text_muted),
-                        );
-                        ui.label(egui::RichText::new(short_sql(&r.sql)).monospace());
+                        ui.add_space(form::PANE_GAP);
+                        egui::Frame::new()
+                            .fill(theme.panel_bg)
+                            .stroke(egui::Stroke::new(1.0, theme.border))
+                            .corner_radius(egui::CornerRadius::same(6))
+                            .inner_margin(egui::Margin::symmetric(10, 8))
+                            .show(ui, |ui| {
+                                ui.set_width(ui.available_width() - form::PANE_GAP);
+                                self.message_card(ui, s, theme, i, r);
+                            });
                     });
-                    let line = if let Some(e) = &r.error {
-                        egui::RichText::new(e.to_string()).color(theme.error)
-                    } else if r.skipped {
-                        egui::RichText::new(s.t("db-skipped")).color(theme.text_muted)
-                    } else if let Some(sm) = &r.summary {
-                        let mut t = if sm.has_result {
-                            s.i18n.t_args(
-                                "db-tab-rows",
-                                &[
-                                    ("rows", &r.rows.len().to_string()),
-                                    ("ms", &sm.elapsed.as_millis().to_string()),
-                                ],
-                            )
-                        } else {
-                            s.i18n.t_args(
-                                "db-affected",
-                                &[
-                                    ("rows", &sm.rows_affected.unwrap_or(0).to_string()),
-                                    ("ms", &sm.elapsed.as_millis().to_string()),
-                                ],
-                            )
-                        };
-                        if let Some(m) = &sm.message {
-                            t.push_str(&format!("\n{m}"));
-                        }
-                        egui::RichText::new(t).color(theme.text_muted)
-                    } else {
-                        egui::RichText::new("…").color(theme.text_muted)
-                    };
-                    ui.label(line);
-                    ui.add_space(6.0);
+                    ui.add_space(form::PANE_GAP);
                 }
             });
+    }
+
+    /// The inside of one Messages card.
+    fn message_card(
+        &self,
+        ui: &mut egui::Ui,
+        s: &Services,
+        theme: &Theme,
+        i: usize,
+        r: &runner::ResultSet,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(format!("{}.", i + 1)).color(theme.text_muted));
+            ui.label(egui::RichText::new(short_sql(&r.sql)).monospace());
+        });
+        ui.add_space(6.0);
+        ui.separator();
+        ui.add_space(6.0);
+        let line = if let Some(e) = &r.error {
+            egui::RichText::new(e.to_string()).color(theme.error)
+        } else if r.skipped {
+            egui::RichText::new(s.t("db-skipped")).color(theme.text_muted)
+        } else if let Some(sm) = &r.summary {
+            let mut t = if sm.has_result {
+                s.i18n.t_args(
+                    "db-tab-rows",
+                    &[
+                        ("rows", &r.rows.len().to_string()),
+                        ("ms", &sm.elapsed.as_millis().to_string()),
+                    ],
+                )
+            } else {
+                s.i18n.t_args(
+                    "db-affected",
+                    &[
+                        ("rows", &sm.rows_affected.unwrap_or(0).to_string()),
+                        ("ms", &sm.elapsed.as_millis().to_string()),
+                    ],
+                )
+            };
+            if let Some(m) = &sm.message {
+                t.push_str(&format!("\n{m}"));
+            }
+            egui::RichText::new(t).color(theme.text_muted)
+        } else {
+            egui::RichText::new("…").color(theme.text_muted)
+        };
+        ui.label(line);
     }
 
     fn dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {

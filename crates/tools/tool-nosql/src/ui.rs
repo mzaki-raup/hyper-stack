@@ -122,6 +122,8 @@ pub struct NoSqlTool {
     /// Databases whose containers are shown.
     open_dbs: std::collections::HashSet<String>,
     table: TableState,
+    /// The Index pane's table.
+    indexes_table: TableState,
     /// The document being edited, and its text.
     editing: Option<(Document, String)>,
     /// `true` while the editor holds a new document.
@@ -153,6 +155,7 @@ impl NoSqlTool {
             kind: None,
             open_dbs: Default::default(),
             table: TableState::default(),
+            indexes_table: TableState::default(),
             editing: None,
             inserting: false,
             popup: None,
@@ -1144,6 +1147,7 @@ impl NoSqlTool {
             .map(|k| k.filter_example())
             .unwrap_or(r#"{"status": "failed"}"#);
         let extras = self.kind.is_none_or(|k| k.has_projection_and_sort());
+        ui.add_space(form::PANE_GAP);
         egui::Grid::new("nosql-query")
             .num_columns(2)
             .spacing([8.0, 4.0])
@@ -1179,7 +1183,7 @@ impl NoSqlTool {
                     ui.end_row();
                 }
             });
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         ui.horizontal_wrapped(|ui| {
             if form::primary_button(ui, theme, &s.t("nosql-run")).clicked() {
                 self.run_find();
@@ -1240,7 +1244,7 @@ impl NoSqlTool {
                 }
             }
         });
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         self.results(ui, theme, cx);
     }
 
@@ -1298,6 +1302,7 @@ impl NoSqlTool {
                 );
             }
         });
+        ui.add_space(form::PANE_GAP);
         if docs.is_empty() {
             form::hint(ui, theme, &s.t("nosql-no-documents"));
         }
@@ -1401,12 +1406,13 @@ impl NoSqlTool {
                 ui.label(egui::RichText::new(rev).small().color(theme.text_muted));
             }
         });
+        ui.add_space(form::PANE_GAP);
         let mut save = false;
         let mut delete = false;
         let mut close = false;
         egui::ScrollArea::vertical()
             .id_salt("nosql-editor")
-            .max_height(ui.available_height() - 36.0)
+            .max_height(ui.available_height() - 36.0 - 2.0 * form::PANE_GAP)
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.add(
@@ -1416,14 +1422,23 @@ impl NoSqlTool {
                         .desired_rows(8),
                 );
             });
+        ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
-            if form::primary_button(ui, theme, &s.t("save")).clicked() {
+            // Proper buttons: the toolbar's padding, an icon each (CR-0039).
+            ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
+            ui.spacing_mut().item_spacing.x = form::PANE_GAP;
+            if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
+                .clicked()
+            {
                 save = true;
             }
-            if !self.inserting && form::danger_button(ui, theme, &s.t("nosql-delete")).clicked() {
+            if !self.inserting
+                && form::danger_button(ui, theme, &format!("{} {}", ph::TRASH, s.t("nosql-delete")))
+                    .clicked()
+            {
                 delete = true;
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                 close = true;
             }
         });
@@ -1483,6 +1498,7 @@ impl NoSqlTool {
             form::note(ui, theme, ph::INFO, &s.t("nosql-aggregate-mongo-only"));
             return;
         }
+        ui.add_space(form::PANE_GAP);
         form::hint(ui, theme, &s.t("nosql-pipeline-hint"));
         ui.add(
             egui::TextEdit::multiline(&mut self.state.pipeline)
@@ -1493,7 +1509,7 @@ impl NoSqlTool {
                 .desired_width(f32::INFINITY)
                 .desired_rows(6),
         );
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         if form::primary_button(ui, theme, &s.t("nosql-run")).clicked()
             && let Some(c) = self.container()
         {
@@ -1508,7 +1524,7 @@ impl NoSqlTool {
                 },
             });
         }
-        ui.add_space(4.0);
+        ui.add_space(form::PANE_GAP);
         self.results(ui, theme, cx);
     }
 
@@ -1518,23 +1534,47 @@ impl NoSqlTool {
             return;
         }
         let indexes = self.shared.lock().indexes.clone();
+        ui.add_space(form::PANE_GAP);
         match indexes {
             Load::Ready(list) => {
-                egui::Grid::new("nosql-indexes")
-                    .num_columns(3)
-                    .striped(true)
-                    .show(ui, |ui| {
-                        ui.label(egui::RichText::new(s.t("nosql-index-name")).strong());
-                        ui.label(egui::RichText::new(s.t("nosql-index-definition")).strong());
-                        ui.label(egui::RichText::new(s.t("nosql-index-unique")).strong());
-                        ui.end_row();
-                        for i in list {
-                            ui.label(i.name);
-                            ui.label(egui::RichText::new(i.definition).monospace().small());
-                            ui.label(if i.unique { "✓" } else { "" });
-                            ui.end_row();
-                        }
-                    });
+                // The indexes as the table every other list uses (CR-0039).
+                let columns = [
+                    ColumnSpec::new(s.t("nosql-index-name"), 200.0),
+                    ColumnSpec::new(s.t("nosql-index-definition"), 360.0),
+                    ColumnSpec::new(s.t("nosql-index-unique"), 80.0),
+                ];
+                let rows: Vec<Vec<String>> = list
+                    .into_iter()
+                    .map(|i| {
+                        vec![
+                            i.name,
+                            i.definition,
+                            if i.unique {
+                                "✓".to_string()
+                            } else {
+                                String::new()
+                            },
+                        ]
+                    })
+                    .collect();
+                let table = DataTable {
+                    theme,
+                    columns: &columns,
+                    rows: &rows,
+                    row_height: hs_ui::table::ROW_HEIGHT,
+                    show_filter: rows.len() > 10,
+                    copy_row_label: &s.t("nosql-copy-row"),
+                    built_in_menu: true,
+                    row_icons: None,
+                };
+                let r = ui
+                    .push_id("nosql-indexes", |ui| {
+                        table.show(ui, &mut self.indexes_table)
+                    })
+                    .inner;
+                if let Some(text) = r.copied {
+                    ui.ctx().copy_text(text);
+                }
             }
             Load::Failed(e) => form::note(ui, theme, ph::WARNING, &e),
             _ => {

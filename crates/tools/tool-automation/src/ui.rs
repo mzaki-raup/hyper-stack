@@ -867,6 +867,7 @@ impl AutomationTool {
             salt: "automation-dashboard",
             tabs: &tabs,
             labels: &labels,
+            extra: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -906,6 +907,8 @@ impl AutomationTool {
             Some(hs_ui::dashboard::Pick::Open(id)) => {
                 cx.open("automation", Some(OpenRequest::Connection { id }));
             }
+            // No second grid on this dashboard (CR-0056).
+            Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id });
             }

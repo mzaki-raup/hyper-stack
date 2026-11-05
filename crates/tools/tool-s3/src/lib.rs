@@ -235,6 +235,7 @@ impl S3Tool {
             salt: "s3-dashboard",
             tabs: &tabs,
             labels: &labels,
+            extra: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -268,6 +269,8 @@ impl S3Tool {
             Some(hs_ui::dashboard::Pick::Open(id)) => {
                 cx.open("s3", Some(OpenRequest::Connection { id }));
             }
+            // No second grid on this dashboard (CR-0056).
+            Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }

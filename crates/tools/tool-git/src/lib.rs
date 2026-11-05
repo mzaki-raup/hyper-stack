@@ -355,7 +355,27 @@ impl GitTool {
                 }
             })
             .collect();
-        let credentials = s.git_credentials.read().all().len();
+        // The hosts, as the sidebar's Hosts section draws them (CR-0056).
+        let hosts: Vec<hs_ui::dashboard::Entry> = s
+            .git_credentials
+            .read()
+            .all()
+            .iter()
+            .map(|c| {
+                let mark = host_conn_icon(c.kind);
+                hs_ui::dashboard::Entry {
+                    id: c.id.clone(),
+                    name: c.label(),
+                    detail: c.host(),
+                    icon: mark.glyph.to_string(),
+                    tint: mark.uri().is_none().then(|| mark.brand()).flatten(),
+                    image: mark.uri(),
+                }
+            })
+            .collect();
+        let credentials = hosts.len();
+        let hosts_heading = s.t("git-dash-hosts");
+        let hosts_empty = s.t("git-dash-no-hosts");
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
@@ -371,6 +391,11 @@ impl GitTool {
             salt: "git-dashboard",
             tabs: &tabs,
             labels: &labels,
+            extra: Some(hs_ui::dashboard::Extra {
+                heading: &hosts_heading,
+                empty: &hosts_empty,
+                entries: &hosts,
+            }),
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -405,6 +430,8 @@ impl GitTool {
             ],
             &[
                 format!("{} {}", ph::PLUS, s.t("git-add-repo")),
+                // The sidebar's Add Host, here too (CR-0056).
+                format!("{} {}", ph::PLUS, s.t("git-add-host")),
                 format!("{} {}", ph::CLOUD_ARROW_DOWN, s.t("git-clone-from-host")),
                 format!("{} {}", ph::KEY, s.t("git-credentials")),
                 format!("{} {}", ph::GEAR, s.t("git-manage-repos")),
@@ -415,15 +442,19 @@ impl GitTool {
             Some(hs_ui::dashboard::Pick::Action(0)) => cx.actions.push(Action::RunCommand {
                 id: "settings:git:repo:new".into(),
             }),
-            Some(hs_ui::dashboard::Pick::Action(1)) => cx.actions.push(Action::RunCommand {
-                id: "settings:git:repo:new:remote".into(),
+            Some(hs_ui::dashboard::Pick::Action(1 | 3)) => cx.actions.push(Action::RunCommand {
+                id: "settings:git:credentials".into(),
             }),
             Some(hs_ui::dashboard::Pick::Action(2)) => cx.actions.push(Action::RunCommand {
-                id: "settings:git:credentials".into(),
+                id: "settings:git:repo:new:remote".into(),
             }),
             Some(hs_ui::dashboard::Pick::Action(_)) => cx.actions.push(Action::RunCommand {
                 id: "settings:git:repos".into(),
             }),
+            // A host card opens the host tab, one per host (FEAT-0100).
+            Some(hs_ui::dashboard::Pick::OpenExtra(id)) => {
+                cx.open("git", Some(OpenRequest::Connection { id }))
+            }
             Some(hs_ui::dashboard::Pick::Open(id)) => open_saved(cx, &id),
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id })

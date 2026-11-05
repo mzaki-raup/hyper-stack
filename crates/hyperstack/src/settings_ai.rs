@@ -82,6 +82,8 @@ struct Service {
     model: &'static str,
     blurb: &'static str,
     icon: &'static str,
+    /// The mark's file name under `assets/icons/simple` (CR-0055).
+    logo: Option<&'static str>,
 }
 
 /// The gallery: a capability, then its groups. Everything OpenAI-shaped
@@ -97,6 +99,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "OpenAI",
+                        logo: Some("openai"),
                         kind: Provider::OpenAi,
                         base: ai::OPENAI_BASE,
                         model: "gpt-4o-mini",
@@ -105,6 +108,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Anthropic",
+                        logo: Some("anthropic"),
                         kind: Provider::Anthropic,
                         base: "",
                         model: "claude-sonnet-4-5",
@@ -113,6 +117,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Google Gemini",
+                        logo: Some("googlegemini"),
                         kind: Provider::Gemini,
                         base: "",
                         model: "gemini-2.5-flash",
@@ -122,6 +127,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Azure OpenAI",
+                        logo: Some("azure"),
                         kind: Provider::Azure,
                         base: "",
                         model: "",
@@ -131,6 +137,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "AWS Bedrock",
+                        logo: Some("amazonwebservices"),
                         kind: Provider::Bedrock,
                         base: "",
                         model: "",
@@ -140,6 +147,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Mistral",
+                        logo: Some("mistralai"),
                         kind: Provider::OpenAi,
                         base: "https://api.mistral.ai/v1",
                         model: "mistral-large-latest",
@@ -148,6 +156,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "DeepSeek",
+                        logo: Some("deepseek"),
                         kind: Provider::OpenAi,
                         base: "https://api.deepseek.com",
                         model: "deepseek-flash",
@@ -156,6 +165,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "DeepSeek (Anthropic API)",
+                        logo: Some("deepseek"),
                         kind: Provider::Anthropic,
                         base: "https://api.deepseek.com/anthropic",
                         model: "deepseek-flash",
@@ -164,6 +174,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Moonshot (Kimi)",
+                        logo: Some("moonshotai"),
                         kind: Provider::OpenAi,
                         base: "https://api.moonshot.ai/v1",
                         model: "kimi-k2-0905-preview",
@@ -172,6 +183,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Tencent Hunyuan",
+                        logo: Some("tencentqq"),
                         kind: Provider::OpenAi,
                         base: "https://api.hunyuan.cloud.tencent.com/v1",
                         model: "hunyuan-turbos-latest",
@@ -180,6 +192,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "1min.AI",
+                        logo: Some("onemin"),
                         kind: Provider::OneMin,
                         base: "",
                         model: "gpt-4o-mini",
@@ -193,6 +206,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "OpenRouter",
+                        logo: Some("openrouter"),
                         kind: Provider::OpenAi,
                         base: "https://openrouter.ai/api/v1",
                         model: "",
@@ -201,6 +215,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "1min.AI (OpenAI-Compatible)",
+                        logo: Some("onemin"),
                         kind: Provider::OpenAi,
                         base: "https://api.1min.ai/openai/v1",
                         model: "gpt-4o-mini",
@@ -214,6 +229,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "LM Studio",
+                        logo: Some("lmstudio"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:1234/v1",
                         model: "",
@@ -222,6 +238,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Ollama",
+                        logo: Some("ollama"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:11434/v1",
                         model: "",
@@ -230,6 +247,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "vLLM",
+                        logo: Some("vllm"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:8000/v1",
                         model: "",
@@ -248,6 +266,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     // (owner's request, 2026-10-26).
                     Service {
                         name: "Windsurf / Devin (Local Bridge)",
+                        logo: Some("windsurf"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:3003/v1",
                         model: "",
@@ -256,6 +275,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Other OpenAI-Compatible",
+                        logo: None,
                         kind: Provider::OpenAi,
                         base: "",
                         model: "",
@@ -274,6 +294,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "fal.ai",
+                        logo: Some("fal"),
                         kind: Provider::Fal,
                         base: "",
                         model: "",
@@ -282,6 +303,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "1min.AI (Images)",
+                        logo: Some("onemin"),
                         kind: Provider::OneMin,
                         base: "",
                         model: "gpt-4o-mini",
@@ -295,6 +317,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "AUTOMATIC1111",
+                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
@@ -303,6 +326,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "SD.Next",
+                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
@@ -311,6 +335,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Forge",
+                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
@@ -319,6 +344,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "ComfyUI",
+                        logo: Some("comfyui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:8188",
                         model: "",
@@ -327,6 +353,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "SwarmUI",
+                        logo: Some("swarmui"),
                         kind: Provider::SwarmUi,
                         base: "http://127.0.0.1:7801",
                         model: "",
@@ -335,6 +362,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "SwarmUI (ComfyUI Backend)",
+                        logo: Some("swarmui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:7801/ComfyBackendDirect",
                         model: "",
@@ -343,6 +371,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "InvokeAI",
+                        logo: Some("invokeai"),
                         kind: Provider::InvokeAi,
                         base: "http://127.0.0.1:9090",
                         model: "",
@@ -351,6 +380,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Fooocus (Fooocus-API)",
+                        logo: Some("fooocus"),
                         kind: Provider::Fooocus,
                         base: "http://127.0.0.1:8888",
                         model: "",
@@ -359,6 +389,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Stability Matrix (WebUI Package)",
+                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
@@ -367,6 +398,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Stability Matrix (ComfyUI Package)",
+                        logo: Some("comfyui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:8188",
                         model: "",
@@ -375,6 +407,7 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     },
                     Service {
                         name: "Other WebUI API",
+                        logo: None,
                         kind: Provider::SdWebUi,
                         base: "",
                         model: "",
@@ -512,7 +545,7 @@ pub fn page(
                         if sub.chars().count() > 30 {
                             sub = format!("{}…", sub.chars().take(29).collect::<String>());
                         }
-                        if form::list_row(
+                        if form::conn_list_row(
                             ui,
                             theme,
                             state.selected.as_deref() == Some(&p.id),
@@ -789,7 +822,7 @@ const CARD_HEIGHT: f32 = 68.0;
 /// A provider whose endpoint has been edited by hand falls back to its
 /// capability's glyph, which is the honest answer rather than a guess at
 /// whose service it now is.
-fn provider_icon(p: &AiProvider) -> &'static str {
+fn provider_icon(p: &AiProvider) -> hs_ui::icons::ConnIcon {
     let want = normalise_base(&p.base_url);
     let mut same_kind: Option<&Service> = None;
     let mut seen = 0usize;
@@ -800,7 +833,7 @@ fn provider_icon(p: &AiProvider) -> &'static str {
                     continue;
                 }
                 if normalise_base(svc.base) == want {
-                    return svc.icon;
+                    return service_icon(svc);
                 }
                 same_kind = Some(svc);
                 seen += 1;
@@ -812,11 +845,41 @@ fn provider_icon(p: &AiProvider) -> &'static str {
     if seen == 1
         && let Some(svc) = same_kind
     {
-        return svc.icon;
+        return service_icon(svc);
     }
-    match p.kind.capability() {
-        Capability::Chat => ph::SPARKLE,
-        Capability::Image => ph::IMAGE,
+    // A kind with several services but an endpoint the catalogue does not
+    // know: the kind's own mark where it has one (CR-0055).
+    let by_kind = match p.kind {
+        Provider::OneMin => Some("onemin"),
+        Provider::Anthropic => Some("anthropic"),
+        Provider::Gemini => Some("googlegemini"),
+        Provider::Azure => Some("azure"),
+        Provider::Bedrock => Some("amazonwebservices"),
+        Provider::SdWebUi => Some("sdwebui"),
+        Provider::ComfyUi => Some("comfyui"),
+        Provider::SwarmUi => Some("swarmui"),
+        Provider::InvokeAi => Some("invokeai"),
+        Provider::Fooocus => Some("fooocus"),
+        Provider::Fal => Some("fal"),
+        Provider::OpenAi => None,
+    };
+    hs_ui::icons::ConnIcon {
+        glyph: match p.kind.capability() {
+            Capability::Chat => ph::SPARKLE,
+            Capability::Image => ph::IMAGE,
+        },
+        image: by_kind.and_then(hs_ui::icons::logo_for),
+        tint: hs_ui::icons::ConnTint::Default,
+    }
+}
+
+/// A catalogue service's mark: its logo where one is vendored, its glyph
+/// otherwise (CR-0055).
+fn service_icon(svc: &Service) -> hs_ui::icons::ConnIcon {
+    hs_ui::icons::ConnIcon {
+        glyph: svc.icon,
+        image: svc.logo.and_then(hs_ui::icons::logo_for),
+        tint: hs_ui::icons::ConnTint::Default,
     }
 }
 
@@ -840,7 +903,14 @@ fn service_card(ui: &mut egui::Ui, theme: &Theme, s: &Services, svc: &Service) -
             ui.set_width(CARD_WIDTH - 2.0 * 12.0);
             ui.set_min_height(CARD_HEIGHT);
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(svc.icon).size(20.0).color(theme.accent));
+                match service_icon(svc).image {
+                    Some(uri) => {
+                        ui.add(egui::Image::new(uri).fit_to_exact_size(egui::vec2(22.0, 22.0)));
+                    }
+                    None => {
+                        ui.label(egui::RichText::new(svc.icon).size(20.0).color(theme.accent));
+                    }
+                }
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new(svc.name).strong());
                     // The blurb is capped at two rows so every card in a row
@@ -1660,4 +1730,48 @@ fn probe(s: &Services, d: &Draft, test: bool) -> Probe {
         waker.request_repaint();
     });
     out
+}
+
+#[cfg(test)]
+mod logo_tests {
+    use super::*;
+
+    /// CR-0055: every mark the gallery names exists, and a saved provider
+    /// at a catalogue endpoint draws that service's mark.
+    #[test]
+    fn every_catalogue_logo_is_vendored_and_a_saved_provider_finds_its_mark() {
+        for (_, groups) in CATALOGUE {
+            for (_, services) in *groups {
+                for svc in *services {
+                    if let Some(slug) = svc.logo {
+                        assert!(
+                            hs_ui::icons::logo_for(slug).is_some(),
+                            "{}: {slug}",
+                            svc.name
+                        );
+                        assert!(
+                            hs_ui::icons::PROVIDER_LOGOS.contains(&slug),
+                            "{slug} is not in PROVIDER_LOGOS"
+                        );
+                    }
+                }
+            }
+        }
+        let mut p = AiProvider {
+            kind: Provider::Anthropic,
+            base_url: "https://api.anthropic.com/".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            provider_icon(&p).image,
+            hs_ui::icons::logo_for("anthropic"),
+            "the endpoint names Anthropic"
+        );
+        p.kind = Provider::OpenAi;
+        p.base_url = "https://example.test/v1".into();
+        assert!(
+            provider_icon(&p).image.is_none(),
+            "an unknown OpenAI-shaped endpoint keeps the glyph"
+        );
+    }
 }

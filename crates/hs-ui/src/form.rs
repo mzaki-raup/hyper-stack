@@ -89,13 +89,26 @@ pub fn section<R>(
     title: &str,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
+    section_max(ui, theme, title, CARD_MAX_WIDTH, add_contents)
+}
+
+/// A [`section`] with its own width cap: `f32::INFINITY` for a card that
+/// holds a wide table and would otherwise scroll sideways inside a page
+/// that has room (Settings → Security → Credentials, CR-0038).
+pub fn section_max<R>(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    max_width: f32,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
     let r = egui::Frame::new()
         .fill(theme.surface)
         .stroke(Stroke::new(1.0, theme.border))
         .corner_radius(CornerRadius::same(8))
         .inner_margin(Margin::symmetric(18, 14))
         .show(ui, |ui| {
-            ui.set_width(ui.available_width().min(CARD_MAX_WIDTH));
+            ui.set_width(ui.available_width().min(max_width));
             ui.label(RichText::new(title).size(15.0).strong());
             ui.add_space(2.0);
             ui.separator();

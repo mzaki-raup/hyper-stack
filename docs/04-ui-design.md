@@ -345,9 +345,11 @@ the same set the rail shows for this workspace, in the same order — Settings
 → Appearance → Activity Rail is per workspace, so an activity hidden there
 is hidden here — minus Home itself and the sidebar toggle, which is a view
 switch rather than an activity, plus **Settings** after a separator, as at
-the foot of the rail. Icons only, with the activity's name on hover: the
-names are already under the rail's icons, and a row of labels would be a
-worse version of the launcher further down the page. Their colour follows
+the foot of the rail. Icons only by default, with the activity's name on
+hover: the names are already under the rail's icons, and a row of labels
+would be a worse version of the launcher further down the page. Settings →
+Appearance → Activity Rail can put the names under these icons too, at one
+fixed width each (CR-0038, addendum below). Their colour follows
 Settings → Appearance → Sidebar → Coloured Activity Icons, so the two
 columns of icons never disagree. The icons are 22 px with 8 px between
 them, and hovering one fills its plate and draws an accent edge — a row
@@ -1298,3 +1300,40 @@ Copy Selected for the ticked keys, and **Sync All**, which makes every
 value the source has read the same in this collection while keeping the
 keys only this one has - a sync that deleted would be a surprise. The
 dialog edits the draft; Save writes it.
+
+## Addendum (2026-11-05): Settings polish, and the standard written down (CR-0038)
+
+Owner's rules from the v0.7.6 batch, so the next activity follows them
+without being told (the agent's copy is `.claude/rules/ui.md`):
+
+- **A Settings card is as wide as its content needs.** `form::section`
+  caps a card at `CARD_MAX_WIDTH`; a card holding a wide table uses
+  `form::section_max(…, f32::INFINITY, …)` so it takes the page rather than
+  scrolling sideways. Security → Credentials is the one so far. A table
+  column that no row fills is not drawn (its Key column, with no SSH key
+  on file).
+- **A requirement is stated where the choice is made.** The database form
+  tells the user, as a field hint every time Oracle or Db2 is the engine,
+  that the engine connects through ODBC and needs that vendor's client on
+  this machine; the warning that none is installed stays beside it.
+- **Home's toolbar follows the rail's label setting of its own.** Settings
+  → Appearance → Activity Rail gains *Show Tool Names Under Home's Toolbar
+  Icons*; on, every icon in Home's toolbar is one fixed width (76 px, a
+  6 px margin either side of a one-line, truncated name under a 22 px
+  glyph), so the row stays a grid whatever the names' lengths. Off (the
+  default) it is the 34 px icons-only row of §3.
+- **A field the server can fill is a `pick_field`.** Where the server
+  knows a field's values - a repository's refs, a project's people, its
+  priorities and types - the control is `hs_ui::form::pick_field`: a text
+  field with the list behind a caret, typed or chosen, which is a plain
+  text field when the list is empty. Dates are
+  `hs_ui::datefield::date_field`, a `YYYY-MM-DD` field with a calendar.
+- **Folders before files, each by name**, in every list that mixes them
+  (the Redis key list, CR-0037).
+- **Anything a user makes several of takes a name** (SSH forwards,
+  FEAT-0098), optional, shown first in its list.
+- **A sub-tab keeps its own state** (a Database query tab its results,
+  FEAT-0096): what a tab shows is what that tab did, not what happened
+  last.
+- **A server's log is laid out in its steps** before it is shown
+  (`tool_automation::logfmt`, FEAT-0095): banners, groups, commands, body.

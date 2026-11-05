@@ -1896,6 +1896,16 @@ fn appearance(
             )
             .changed();
         form::hint(ui, theme, &s.t("settings-rail-labels-hint"));
+        ui.add_space(6.0);
+        // The same choice for Home's toolbar, which is the rail's set of
+        // icons laid across the page (CR-0038).
+        changed |= ui
+            .checkbox(
+                &mut settings.appearance.home_toolbar_labels,
+                s.t("settings-home-toolbar-labels"),
+            )
+            .changed();
+        form::hint(ui, theme, &s.t("settings-home-toolbar-labels-hint"));
         ui.add_space(8.0);
         // Which workspace's rail is being edited: the open one unless the
         // picker says otherwise. Order and visibility are per workspace
@@ -4630,92 +4640,112 @@ fn credentials_section(
         }
     }
     let rows = crate::credentials::rows(s);
-    form::section(ui, theme, &s.t("settings-credentials"), |ui| {
-        form::hint(ui, theme, &s.t("settings-credentials-hint"));
-        if rows.is_empty() {
-            ui.add_space(4.0);
-            form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-none"));
-            return;
-        }
-        ui.add_space(6.0);
-        // Username and Password share one width — the wider of the two —
-        // so the two columns a reader compares line up instead of jumping
-        // about with the length of each value. Every other column is left
-        // to the grid, which sizes it to its own content.
-        let pair_width = credentials_pair_width(ui, s, &rows, state, now);
-        // Eight columns do not fit a settings page, and squeezing them
-        // would hide the values this page exists to show.
-        egui::ScrollArea::horizontal()
-            .id_salt("sec-cred-scroll")
-            .show(ui, |ui| {
-                egui::Grid::new("sec-cred-grid")
-                    .num_columns(8)
-                    .spacing([18.0, 6.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        for key in [
-                            "settings-cred-name",
-                            "settings-cred-type",
-                            "settings-cred-host",
-                            "settings-cred-port",
-                            "settings-cred-user",
-                            "settings-cred-password",
-                            "settings-cred-key",
-                            "settings-cred-actions",
-                        ] {
-                            ui.label(
-                                egui::RichText::new(s.t(key))
-                                    .color(theme.text_muted)
-                                    .small(),
-                            );
-                        }
-                        ui.end_row();
-                        for r in &rows {
-                            ui.label(&r.name);
-                            ui.label(credential_type(s, r));
-                            cred_cell(ui, s, theme, &r.host, None, effects);
-                            ui.label(&r.port);
-                            cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
-                            secret_cell(
-                                ui,
-                                s,
-                                theme,
-                                state,
-                                r,
-                                &r.password,
-                                now,
-                                pair_width,
-                                effects,
-                            );
-                            // A key-auth host shows its passphrase here and
-                            // keeps the file path as the tooltip; every
-                            // other row shows the path (or nothing).
-                            if r.key_secret == crate::credentials::Password::None {
-                                cred_cell(ui, s, theme, &r.key, None, effects);
-                            } else {
+    // The Key column is for SSH key files and their passphrases; with no
+    // such row it is an empty column pushing the actions off the right
+    // edge, so it is not drawn (CR-0038).
+    let show_key = rows
+        .iter()
+        .any(|r| !r.key.is_empty() || r.key_secret != crate::credentials::Password::None);
+    // The one card that is wider than the page's others: it holds a table
+    // of up to eight columns, and a card capped at the usual width made
+    // it scroll sideways on a window that had the room (CR-0038).
+    form::section_max(
+        ui,
+        theme,
+        &s.t("settings-credentials"),
+        f32::INFINITY,
+        |ui| {
+            form::hint(ui, theme, &s.t("settings-credentials-hint"));
+            if rows.is_empty() {
+                ui.add_space(4.0);
+                form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-none"));
+                return;
+            }
+            ui.add_space(6.0);
+            // Username and Password share one width — the wider of the two —
+            // so the two columns a reader compares line up instead of jumping
+            // about with the length of each value. Every other column is left
+            // to the grid, which sizes it to its own content.
+            let pair_width = credentials_pair_width(ui, s, &rows, state, now);
+            // Eight columns do not fit a narrow window, and squeezing them
+            // would hide the values this page exists to show.
+            egui::ScrollArea::horizontal()
+                .id_salt("sec-cred-scroll")
+                .show(ui, |ui| {
+                    egui::Grid::new("sec-cred-grid")
+                        .num_columns(if show_key { 8 } else { 7 })
+                        .spacing([18.0, 6.0])
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for key in [
+                                "settings-cred-name",
+                                "settings-cred-type",
+                                "settings-cred-host",
+                                "settings-cred-port",
+                                "settings-cred-user",
+                                "settings-cred-password",
+                                "settings-cred-key",
+                                "settings-cred-actions",
+                            ] {
+                                if key == "settings-cred-key" && !show_key {
+                                    continue;
+                                }
+                                ui.label(
+                                    egui::RichText::new(s.t(key))
+                                        .color(theme.text_muted)
+                                        .small(),
+                                );
+                            }
+                            ui.end_row();
+                            for r in &rows {
+                                ui.label(&r.name);
+                                ui.label(credential_type(s, r));
+                                cred_cell(ui, s, theme, &r.host, None, effects);
+                                ui.label(&r.port);
+                                cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
                                 secret_cell(
                                     ui,
                                     s,
                                     theme,
                                     state,
                                     r,
-                                    &r.key_secret,
+                                    &r.password,
                                     now,
                                     pair_width,
                                     effects,
-                                )
-                                .tip(if r.key.is_empty() {
-                                    s.t("settings-cred-key-passphrase")
+                                );
+                                // A key-auth host shows its passphrase here and
+                                // keeps the file path as the tooltip; every
+                                // other row shows the path (or nothing).
+                                if !show_key {
+                                    // No column at all; see above.
+                                } else if r.key_secret == crate::credentials::Password::None {
+                                    cred_cell(ui, s, theme, &r.key, None, effects);
                                 } else {
-                                    r.key.clone()
-                                });
+                                    secret_cell(
+                                        ui,
+                                        s,
+                                        theme,
+                                        state,
+                                        r,
+                                        &r.key_secret,
+                                        now,
+                                        pair_width,
+                                        effects,
+                                    )
+                                    .tip(if r.key.is_empty() {
+                                        s.t("settings-cred-key-passphrase")
+                                    } else {
+                                        r.key.clone()
+                                    });
+                                }
+                                actions_cell(ui, s, state, r, now);
+                                ui.end_row();
                             }
-                            actions_cell(ui, s, state, r, now);
-                            ui.end_row();
-                        }
-                    });
-            });
-    });
+                        });
+                });
+        },
+    );
     reveal_dialog(ui, theme, s, state, now);
     edit_secret_dialog(ui, theme, s, state, effects);
 }
@@ -8971,6 +9001,18 @@ fn db_form(
                             }
                         });
                     ui.end_row();
+                    // What these engines need on this machine, said every
+                    // time rather than only once the driver is missing
+                    // (CR-0038): the client is the user's to install.
+                    form::field_hint_row(
+                        ui,
+                        theme,
+                        &s.t(if engine == Engine::Oracle {
+                            "conn-db-odbc-need-oracle"
+                        } else {
+                            "conn-db-odbc-need-db2"
+                        }),
+                    );
                     if found.is_none() && f.odbc_driver.is_empty() {
                         form::label(ui, "");
                         ui.colored_label(

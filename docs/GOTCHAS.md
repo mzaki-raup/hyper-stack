@@ -115,6 +115,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **`ui.put` inside a painted button moves the row's cursor.** Home's toolbar buttons are painted on an `allocate_exact_size` rect; placing the name under the glyph with `ui.put(text_rect, Label)` allocated that rect in the parent too, so each next button started after it and the row stair-stepped down the page. Paint text inside a painted control (`painter().layout_job` with `TextWrapping { max_rows: 1, overflow_character: Some('…') }` for a truncated line), never place a widget there (CR-0038, 2026-11-05).
 - **`split_for_assistant` hands back a child `Ui` whose clip rectangle
   *excludes* the assistant's column.** Drawing the column through that
   child (`child.new_child(...)` with the panel rect) clips every pixel

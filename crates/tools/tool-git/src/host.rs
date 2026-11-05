@@ -63,6 +63,9 @@ pub struct HostView {
     cloning: Option<CloneJob>,
     pub tabs: Vec<RepoTab>,
     pub active: usize,
+    /// The parent folder the last clone from this host went into, offered
+    /// again next time (CR-0053).
+    pub clone_parent: Option<PathBuf>,
 }
 
 impl HostView {
@@ -76,6 +79,7 @@ impl HostView {
             cloning: None,
             tabs: Vec::new(),
             active: 0,
+            clone_parent: None,
         }
     }
 
@@ -164,6 +168,11 @@ impl HostView {
             match r {
                 Ok(()) => {
                     let name = self.register(cx, &project, &dest);
+                    // A fresh clone is a project too: the Editor lists it
+                    // without being opened (CR-0053).
+                    if let Err(e) = cx.services.projects.write().add_root(&dest, &name) {
+                        cx.toast(ToastLevel::Error, e.to_string());
+                    }
                     self.add_tab(cx.services, &project.full_name, &name, dest);
                 }
                 Err(e) => cx.toast(ToastLevel::Error, e),
@@ -186,6 +195,17 @@ impl HostView {
             out = out.join(slug(seg));
         }
         out
+    }
+
+    /// Where a clone lands under the parent folder the user picked: the
+    /// project's own name, slugged (CR-0053).
+    pub fn clone_dest(parent: &Path, project: &str) -> PathBuf {
+        let name = project
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .unwrap_or(project);
+        parent.join(slug(name))
     }
 
     /// Record a cloned project in the workspace's repository list, and
@@ -243,6 +263,27 @@ impl HostView {
         }
         if self.cloning.is_some() {
             cx.toast(ToastLevel::Info, s.t("git-host-clone-busy"));
+            return;
+        }
+        // The user picks the parent folder (CR-0053): the last pick for
+        // this host is offered first, else the default layout's parent.
+        let suggested = self
+            .clone_parent
+            .clone()
+            .or_else(|| dest.parent().map(Path::to_path_buf))
+            .filter(|d| d.is_dir());
+        let mut dialog = rfd::FileDialog::new().set_title(s.t("git-host-clone-into"));
+        if let Some(d) = suggested {
+            dialog = dialog.set_directory(d);
+        }
+        let Some(parent) = dialog.pick_folder() else {
+            return;
+        };
+        self.clone_parent = Some(parent.clone());
+        let dest = Self::clone_dest(&parent, &p.full_name);
+        if dest.join(".git").exists() {
+            let name = self.register(cx, p, &dest);
+            self.add_tab(cx.services, &p.full_name, &name, dest);
             return;
         }
         let resolved = match crate::auth::resolve_cred(s, &self.cred) {
@@ -530,6 +571,16 @@ pub fn slug(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_clone_lands_under_the_picked_folder_by_its_own_name() {
+        let d = HostView::clone_dest(Path::new("D:/src"), "owner/Hyper Stack");
+        assert_eq!(d, Path::new("D:/src").join(slug("Hyper Stack")));
+        assert_eq!(
+            HostView::clone_dest(Path::new("/tmp"), "lock-screen"),
+            Path::new("/tmp/lock-screen")
+        );
+    }
 
     #[test]
     fn a_clone_lands_under_host_owner_and_name() {

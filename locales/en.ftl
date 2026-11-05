@@ -3903,6 +3903,7 @@ git-host-pick = Pick a repository on the left. The first open clones it into the
 git-host-cloning = Cloning { $name }
 git-host-cloning-row = Cloning…
 git-host-clone-busy = A clone is already running; wait for it to finish.
+git-host-clone-into = Choose the folder to clone into
 git-host-missing-clone = The clone at { $path } is gone. Close this tab and open the repository again to clone it afresh.
 git-host-gone = This host's credential was removed in Settings → Git.
 git-close-repo = Close Repository

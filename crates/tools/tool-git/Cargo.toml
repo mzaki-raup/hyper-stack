@@ -12,6 +12,8 @@ publish.workspace = true
 [dependencies]
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
+# The editor engine for the Files view (FEAT-0101), as the Database tool uses it.
+hs-editor = { workspace = true }
 # The git driver (read and write over the git CLI, ADR-006); a driver
 # library, not a tool crate (ADR-004).
 hs-git = { workspace = true }

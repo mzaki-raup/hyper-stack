@@ -11,6 +11,7 @@ pub mod auth;
 mod blame;
 mod conflict;
 mod diffview;
+mod files;
 mod history;
 pub mod host;
 pub mod hosts;
@@ -660,6 +661,9 @@ impl Tool for GitTool {
             ("git.push", "Git: Push"),
             ("git.status", "Git: File Status"),
             ("git.history", "Git: History"),
+            ("git.files", "Git: Files"),
+            ("git.files.new-file", "Git: New File"),
+            ("git.files.new-folder", "Git: New Folder"),
             ("git.branch", "Git: Branch…"),
             ("git.merge", "Git: Merge…"),
             ("git.rebase", "Git: Rebase…"),

@@ -4,6 +4,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Git, Merges and Releases
 
+- **`origin` has no fetch refspec, so `git fetch origin` refreshes nothing.** `remote.origin.fetch` is unset in this checkout: `origin/main` only moves when *you* push to it, never when the release workflow commits on `main`. A branch cut from `origin/main` after a release was based on the previous release's commit and built without the work merged in between (the phase-2 Git branch, 2026-11-05). Before branching or merging, fetch with the refspec spelled out - `git fetch origin +refs/heads/main:refs/remotes/origin/main` - or compare against the forge's `branches/main` API.
 - **A merge resolution and its commit must be one `&&` chain, and the
   marker count a hard gate inside it.** On 2026-10-30 the resolver
   script died on a `/tmp` path, the `;` after it let `git add && git

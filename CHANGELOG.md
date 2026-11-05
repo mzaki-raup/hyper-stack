@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Git: a Files view in every repository pane - the working tree as a folder tree, the picked file read in the editor engine, Edit and Save landing the change in File Status, New File and New Folder, Open in Editor (FEAT-0101, phase 2)
 
 ## 0.120.0 — 2026-11-05
 

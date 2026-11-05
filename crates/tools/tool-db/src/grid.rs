@@ -264,6 +264,7 @@ fn grid_table(
         .id_salt(id)
         .striped(true)
         .resizable(true)
+        .cell_layout(hs_ui::table::cell_layout())
         .auto_shrink([false, false]);
     for (i, c) in columns.iter().enumerate() {
         builder = builder.column(

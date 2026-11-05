@@ -23,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Changed
 
+- S3: Nexus and WebDAV profiles wear a coloured glyph (Sonatype green package, folder blue) and every S3-activity connection tab wears its profile's icon and colour; the Due Date calendar is as wide as its month grid; every table's cells centre their text on the row, and headers are taller with larger bold text; Home's toolbar closes the gap between its labelled buttons (CR-0046)
 - Redis key list: folders first, then keys without a parent, each by name (CR-0037)
 - Settings -> Security -> Credentials takes the page's width and drops the Key column when no row has an SSH key; the database form says, whenever Oracle or Db2 is the engine, which vendor client it needs on this machine (CR-0038)
 - The UI standard for server-fed fields, lists, names, sub-tab state, logs, Settings cards and Home's toolbar is written down in `.claude/rules/ui.md` and `docs/04-ui-design.md` (CR-0038)

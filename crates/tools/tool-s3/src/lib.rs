@@ -73,6 +73,10 @@ struct State {
     /// profile is read: `header()` runs every frame with no services.
     #[serde(default)]
     kind_label: String,
+    /// The kind id (`s3`, `webdav`, `nexus`), for the tab's icon and
+    /// colour, which are asked for with no services (CR-0046).
+    #[serde(default)]
+    kind: String,
     #[serde(default)]
     session_label: String,
     #[serde(default)]
@@ -295,6 +299,16 @@ impl S3Tool {
             t.connect(services);
         }
         t
+    }
+
+    /// The kind the tab's icon follows: the one kept with the state, or
+    /// S3 for a tab saved before it was kept.
+    fn tab_kind(&self) -> &str {
+        if self.state.kind.is_empty() {
+            "s3"
+        } else {
+            &self.state.kind
+        }
     }
 
     fn fields(&self, services: &Services) -> Option<(String, S3Fields)> {
@@ -674,6 +688,7 @@ impl S3Tool {
         // 2026-10-27).
         let kind = self.kind(services);
         self.state.kind_label = hs_core::connections::kind_label(&kind).to_string();
+        self.state.kind = kind.clone();
         let found = {
             let conns = services.connections.read();
             self.state
@@ -2235,6 +2250,26 @@ impl Tool for S3Tool {
 
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
+    }
+
+    /// The connection tab wears the kind's glyph in the kind's colour -
+    /// the same icon the sidebar row has (CR-0046). A profile saved
+    /// before the kind was kept reads as S3 until it is opened again.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.state.conn_name.is_empty() {
+            return None;
+        }
+        Some(hs_ui::icons::connection_icon(self.tab_kind(), ""))
+    }
+
+    fn tab_icon_uri(&self) -> Option<String> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.tab_kind(), "").uri()
+    }
+
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(self.tab_kind(), "").brand()
     }
 
     /// The connection's own name, as every other connection activity

@@ -628,3 +628,4 @@ and ADR-025.
 | SSH: a forward has a name (FEAT-0098) | Completed | `ForwardSpec.name`, `SavedForward.name` on the profile; the list and Kept Forwards lead with it |
 | Redis key list sorted folders first (CR-0037) | Completed | one partition in `KeyTree::walk` |
 | Settings polish and the UI standard (CR-0038) | Completed | Credentials card at page width without an empty Key column; the Oracle/Db2 client requirement as a field hint; Home toolbar names (fixed-width buttons) from Settings → Appearance → Activity Rail; rules in `.claude/rules/ui.md` and `docs/04-ui-design.md` |
+| S3 kind colours, calendar width, table cells, Home toolbar spacing (CR-0046) | Completed | Nexus/WebDAV tints and the S3 tab icon; `CALENDAR_WIDTH`; `table::cell_layout()` with a 34 px / 14.5 px bold header on `DataTable` and the database grid; 2 px between Home's labelled buttons |

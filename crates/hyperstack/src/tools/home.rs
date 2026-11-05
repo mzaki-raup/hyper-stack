@@ -124,8 +124,10 @@ impl Tool for HomeTool {
             )
         };
         // Room to breathe between the icons; the row is a set of targets,
-        // not a word.
-        ui.spacing_mut().item_spacing.x = 8.0;
+        // not a word. With names on, each button carries its own margin
+        // inside its fixed width, so the gap between them closes up
+        // (CR-0046).
+        ui.spacing_mut().item_spacing.x = if labelled { 2.0 } else { 8.0 };
         let mut hub = self.hub.lock();
         let hub = &mut *hub;
         let ids: Vec<&'static str> = hub.tools.iter().map(|t| t.id).collect();

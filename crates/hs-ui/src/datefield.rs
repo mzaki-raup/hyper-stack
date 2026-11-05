@@ -11,6 +11,9 @@ use crate::icons::ph;
 use crate::theme::Theme;
 use crate::tip::TipExt;
 
+/// Seven day columns of 28 px with 2 px between, and the popup's margins.
+const CALENDAR_WIDTH: f32 = 7.0 * 30.0 + 24.0;
+
 /// The calendar's words, from the caller's locale.
 pub struct DateLabels<'a> {
     /// Tooltip of the calendar button.
@@ -41,7 +44,9 @@ pub fn date_field(
         let button = form::icon_button(ui, theme, ph::CALENDAR_BLANK, 14.0, false).tip(labels.open);
         let id = ui.make_persistent_id(("date-field", id_salt));
         let mut picked = false;
-        egui::Popup::menu(&button).show(|ui| {
+        // As wide as the month grid, no wider: a menu popup otherwise
+        // takes the justified width of the form it opens from (CR-0046).
+        egui::Popup::menu(&button).width(CALENDAR_WIDTH).show(|ui| {
             picked = calendar(ui, theme, id, value, labels);
         });
         if picked {
@@ -72,7 +77,7 @@ fn calendar(
             let (y, m, _) = current.unwrap_or(today);
             (y, m)
         });
-    ui.set_min_width(7.0 * 30.0 + 8.0);
+    ui.set_min_width(CALENDAR_WIDTH - 16.0);
     ui.horizontal(|ui| {
         if ui.small_button(ph::CARET_LEFT).clicked() {
             (year, month) = if month == 1 {

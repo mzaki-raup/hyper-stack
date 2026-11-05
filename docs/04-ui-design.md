@@ -1337,3 +1337,18 @@ without being told (the agent's copy is `.claude/rules/ui.md`):
   last.
 - **A server's log is laid out in its steps** before it is shown
   (`tool_automation::logfmt`, FEAT-0095): banners, groups, commands, body.
+
+## Addendum (2026-11-05): table cells, the calendar's width, S3 kind colours (CR-0046)
+
+- **Tables.** `DataTable` and the database grid lay every cell out with
+  `hs_ui::table::cell_layout()` - left to right, centred on the row - so
+  text sits in the middle of its row; the header is `HEADER_HEIGHT` 34 px
+  with `HEADER_TEXT` 14.5 px bold, air above and below the words.
+- **The calendar** (`hs_ui::datefield`) is `CALENDAR_WIDTH` wide: a menu
+  popup otherwise takes the justified width of the form it opens from.
+- **S3 kinds.** Nexus and WebDAV have no vendored logo, so they wear a
+  colour of their own (Sonatype green, folder blue) like S3's orange, and
+  the S3 activity's connection tabs take the profile's icon and colour
+  through `Tool::tab_icon*`, as the other connection activities do.
+- **Home's toolbar** with names on: 2 px between buttons; each button's
+  own margin is the air.

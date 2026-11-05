@@ -173,6 +173,24 @@ Change Request : CR-0040
 - [ ] App: `--data-dir ./tmp-data` — <what to click>
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
+### CR-0046 · S3 kind colours, the date picker's width, and table cell alignment
+- **State:** Completed · the bench S3 profile beside seeded Nexus and WebDAV profiles, a Redmine calendar, a Redis table and Home's toolbar, in the running app
+- **Scope:** `hs_ui::icons` (S3, Nexus, WebDAV tints), `tool-s3` tab icon, `hs_ui::datefield`, `hs_ui::table::DataTable`, `tool-db::grid`.
+- **Parent:** CR-0025
+- [x] In S3 Activity -> Sidebar Column -> Why is the tab for S3 Icon not colored? Follow the color in the sidebar column connection list.
+- [x] In S3 Activity -> Sidebar Column -> Why is the Nexus Connection Icon don't have color? Use suitable color for Nexus.
+- [x] In S3 Activity -> Sidebar Column -> For Webdav, use appropriate directory icon with suitable color.
+- [x] In S3 Activity -> Tab Strip -> Connection Tab; All connection tab use colored icon same as in the sidebar column.
+- [x] In Tracker Activity -> Redmine Dropdown Date Picker; Why is the date picker dialog is too wide? Resize it to make it appropriate.
+- [x] In All Activity -> All Table cells; Make all text inside table cell vertical middle align.
+- [x] In All Activity -> All Table Header cells; Make all text inside table header cell some top margin/padding. and make the all header slightly high, Bold all the header text and upsize the font for the text.
+- [x] In Home Activity -> Dashboard Toolbar Strip; When Label for Activities is enable, please reduce the padding/margin between activities icon/label to make the strip look neat and tidy
+- [x] Test: Nexus and WebDAV resolve to a brand-tinted glyph, and the S3 tab icon follows the profile's kind
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — an S3, a Nexus and a WebDAV profile in the sidebar and as tabs; the Redmine Due Date calendar; a Redis or S3 table's header and cells
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** Filed 2026-11-05 from the owner's two messages. `ConnTint::Brand` for `nexus` and `webdav`; `State.kind` + `tab_icon*` on the S3 tool; `CALENDAR_WIDTH` on the date popup; `hs_ui::table::cell_layout()` on `DataTable` and the database grid with `HEADER_HEIGHT` 34 / `HEADER_TEXT` 14.5; Home's toolbar spacing 2 px with names on. No Nexus or WebDAV server runs here, so their rows and tabs were checked for the icon and colour, not a listing.
+
 ---
 
 ## v0.7.6 — Planned

@@ -325,6 +325,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Compose and the container list** share the verb-click risk (see Double layout passes under Shell and UI Layout).
 - **Output must be cleared** when the selected item changes.
 
+- **A "not yet" toast outlives the phase it waited for.** The Containers sidebar's saved entries answered a click with "opening is a later phase" long after Compose (phase 5) and manifests (phase 6) shipped, because nothing listed the toast as a loose end. When a click is deferred, file the item that removes the deferral at the same time, or the dead click ships as a feature (BUG-0046, 2026-11-06).
+
 ## Tool-Specific: Graphics and Diagrams
 
 - **Crop overlay drag.** Use `press_origin()` for hit tests, not `interact_pointer_pos()` (see Drag thresholds above).

@@ -3576,21 +3576,39 @@ impl Tool for ContainersTool {
                 }
                 let mut delete: Option<configs::SavedConfig> = None;
                 for c in &self.configs {
-                    let r = form::list_row(
+                    let r = form::conn_list_row(
                         ui,
                         &theme,
                         false,
-                        c.kind.icon(),
+                        c.kind.conn_icon(),
                         &c.name,
                         Some(&c.describe()),
                     );
-                    // Opening one is phase 5 (Compose) and phase 6
-                    // (manifests); saying so beats a dead click.
+                    // A click opens the entry (BUG-0046): a file in the
+                    // Editor, a command typed into a new terminal.
                     if r.clicked() {
-                        cx.toast(
-                            hs_core::tool::ToastLevel::Info,
-                            s.t("container-config-not-yet"),
-                        );
+                        match c.kind {
+                            configs::Kind::Command => cx.open(
+                                "terminal",
+                                Some(hs_core::tool::OpenRequest::Terminal {
+                                    cwd: None,
+                                    host: None,
+                                    profile: None,
+                                    command: Some(c.command.clone()),
+                                }),
+                            ),
+                            _ => {
+                                let root = s.workspace.read().root().to_path_buf();
+                                let path = root.join(&c.path);
+                                cx.open(
+                                    "editor",
+                                    Some(hs_core::tool::OpenRequest::File {
+                                        uri: path.to_string_lossy().to_string(),
+                                        line: None,
+                                    }),
+                                );
+                            }
+                        }
                     }
                     // A saved entry can be dropped from its row (CR-0034).
                     r.context_menu(|ui| {

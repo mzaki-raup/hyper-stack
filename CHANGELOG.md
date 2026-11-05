@@ -11,16 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.123.0 — 2026-11-05
+
 ### Added
 
-- Automation: Puppet as a seventh kind - PuppetDB nodes with their latest report, a node's reports and a report's log lines, and Run as a Puppet Enterprise orchestrator deploy when the profile names an orchestrator URL (FEAT-0092)
-- Queue: Kafka SASL PLAIN, SCRAM-SHA-256 and SCRAM-SHA-512 verified against a SASL-only broker, in the live test and on screen (FEAT-0071, FEAT-0072)
-
-### Changed
-
-- Puppet, Qdrant, MQTT, Amazon S3 and Redmine connections draw their own marks in the brand colour (Simple Icons, CC0; Redmine CC BY-SA), and MySQL and MariaDB draw Devicon's marks with brand-coloured glyph fallbacks (CR-0052)
-- Kafka's connection icon wears a brand teal on rows, tabs, header bands and dashboard cards instead of the text colour (CR-0051)
-- The Queue and Automation sidebars' titles were checked on screen and the UI standard umbrella (CR-0025) is closed with its last child (CR-0042)
+- Brand marks for Puppet, Qdrant, MQTT, S3, Redmine, MySQL and MariaDB; Kafka's glyph in teal (35d9ec9e)
+- Puppet - PuppetDB nodes, reports and logs, a deploy through the orchestrator (f197a9db)
 
 ## 0.122.0 — 2026-11-05
 

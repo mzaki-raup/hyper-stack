@@ -664,3 +664,18 @@ became of it (rows and time, rows affected, the error, or Skipped) - with
 `hs_ui::form::PANE_GAP` from the pane's edge. The grid's footer keeps the
 same gap above it, the row count has air from the left edge and Export
 from the right.
+
+## Addendum (2026-11-05): results per query tab, double-click to edit (FEAT-0096)
+
+- **Each query tab keeps its own results.** `shared.results` is the front
+  tab's (or the running tab's, until the run ends). When another tab comes
+  to the front, the live result sets - with the open result tab, every
+  grid's sort and selection, the pending edits and the not-editable notes -
+  are put away under the tab that ran them (`Stash`, by the tab's uid) and
+  the new front tab's own come back, so Messages and the result tabs show
+  what *that* tab last ran. A run belongs to the tab it started from; a
+  closed tab's stash goes with it. A run still writing keeps the panel
+  wherever the user is, and the swap happens on the frame after it ends.
+- **Double-click a cell.** On an editable result (§8) it opens the same
+  Edit Cell dialog as the context menu and F2; on a result that cannot be
+  edited it opens the cell viewer as before.

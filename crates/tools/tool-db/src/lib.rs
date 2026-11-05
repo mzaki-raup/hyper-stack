@@ -356,6 +356,36 @@ pub struct DbTool {
     snapshot_for: Option<SnapshotUse>,
     /// Show an EXPLAIN result as its raw rows rather than the tree.
     plan_raw: bool,
+    /// Each query tab's last results while another tab is in front, by
+    /// the tab's uid (FEAT-0096). `shared.results` is always the front
+    /// tab's - or the running tab's, until its run ends.
+    stashes: HashMap<u64, Stash>,
+    /// The tab whose results `shared.results` holds now.
+    results_doc: u64,
+}
+
+/// What a query tab keeps of its last run while another tab is in front
+/// (FEAT-0096): the result sets and everything the panel holds about
+/// them - which tab is open, sort and selection, pending edits.
+#[derive(Default)]
+struct Stash {
+    results: Vec<ResultSet>,
+    active: usize,
+    grids: Vec<GridState>,
+    edits: HashMap<usize, Edits>,
+    not_editable: HashMap<usize, &'static str>,
+    plan_raw: bool,
+}
+
+/// Move the live results from the tab that owns them to the one coming
+/// to the front: `live` (owned by `from`) is put away and `to`'s own come
+/// back, empty if it never ran anything. Pure, so it can be checked.
+fn switch_stash(stashes: &mut HashMap<u64, Stash>, live: Stash, from: u64, to: u64) -> Stash {
+    if from == to {
+        return live;
+    }
+    stashes.insert(from, live);
+    stashes.remove(&to).unwrap_or_default()
 }
 
 fn char_to_byte(text: &str, ci: usize) -> usize {
@@ -559,6 +589,8 @@ impl DbTool {
         let first = QueryDoc::new(services, "");
         let mut t = Self {
             id: egui::Id::new(("hs-db", hs_core::new_id())),
+            stashes: HashMap::new(),
+            results_doc: first.uid,
             docs: vec![first],
             shared: Arc::new(Mutex::new(Shared::default())),
             cmd: None,
@@ -1104,7 +1136,48 @@ impl DbTool {
         self.start_run(stmts, limit, s);
     }
 
+    /// The result panel shows the front tab's own results (FEAT-0096): when
+    /// the front tab changes, the live results are put away with the tab
+    /// that ran them and the new front tab's last results come back. A
+    /// run still writing keeps the panel until it ends, so the user sees
+    /// it finish wherever they are; the swap happens on the next frame.
+    fn follow_front_tab(&mut self) {
+        let front = self.doc().uid;
+        if front == self.results_doc || self.shared.lock().running {
+            return;
+        }
+        let live = Stash {
+            results: std::mem::take(&mut self.shared.lock().results),
+            active: self.active_result,
+            grids: std::mem::take(&mut self.grids),
+            edits: std::mem::take(&mut self.edits),
+            not_editable: std::mem::take(&mut self.not_editable),
+            plan_raw: self.plan_raw,
+        };
+        let back = switch_stash(&mut self.stashes, live, self.results_doc, front);
+        {
+            let mut sh = self.shared.lock();
+            sh.results = back.results;
+            // A fresh run id, so the grids' egui ids and the plan cache
+            // never collide with the run that was just put away; and
+            // seen, so the frame does not reset what was just restored.
+            sh.run_id += 1;
+            self.seen_run = sh.run_id;
+        }
+        self.active_result = back.active;
+        self.grids = back.grids;
+        self.edits = back.edits;
+        self.not_editable = back.not_editable;
+        self.plan_raw = back.plan_raw;
+        self.plans.clear();
+        self.results_doc = front;
+    }
+
     fn start_run(&mut self, stmts: Vec<RunStmt>, limit: Option<usize>, s: &Services) {
+        // The run belongs to the tab it was started from (FEAT-0096);
+        // whatever the panel held before is that tab's old run, replaced.
+        self.results_doc = self.doc().uid;
+        self.stashes.remove(&self.results_doc);
         let limit = limit.or((self.state.limit > 0).then_some(self.state.limit));
         let timeout =
             (self.state.timeout_secs > 0).then(|| Duration::from_secs(self.state.timeout_secs));
@@ -1453,6 +1526,7 @@ impl DbTool {
 
     fn drain(&mut self, cx: &mut ToolContext) {
         let s = cx.services;
+        self.follow_front_tab();
         let (messages, history_changed, run_id, catalog) = {
             let mut sh = self.shared.lock();
             (
@@ -1768,7 +1842,14 @@ impl DbTool {
             });
         }
         if let Some((row, col)) = open_cell {
-            self.open_cell(i, row, col, s);
+            // A double-click on an editable result opens the cell for
+            // editing, as Edit Cell in the menu does (FEAT-0096); on a
+            // result that cannot be edited it opens the viewer as before.
+            if self.edits.contains_key(&i) {
+                self.begin_edit(i, row, col);
+            } else {
+                self.open_cell(i, row, col, s);
+            }
         }
         if let Some((row, col)) = edit_cell {
             self.begin_edit(i, row, col);
@@ -4791,6 +4872,7 @@ impl DbTool {
         {
             // The last one is emptied rather than removed: a connection
             // tab with no query in it has nothing to show.
+            self.stashes.remove(&uid);
             if self.docs.len() == 1 {
                 self.docs[0] = QueryDoc::new(s, "");
             } else {
@@ -5291,6 +5373,37 @@ mod tests {
 
     fn tabs(v: &[(bool, &str)]) -> Vec<(bool, String)> {
         v.iter().map(|(u, t)| (*u, (*t).to_string())).collect()
+    }
+
+    #[test]
+    fn each_query_tab_gets_its_own_results_back_when_it_comes_to_the_front() {
+        // FEAT-0096: tab 1 ran "select a", tab 2 ran "select b"; moving
+        // between them restores each tab's own result set, messages and
+        // open result tab rather than the last run's.
+        let run = |sql: &str, active: usize| Stash {
+            results: vec![ResultSet {
+                sql: sql.into(),
+                ..Default::default()
+            }],
+            active,
+            ..Default::default()
+        };
+        let mut stashes = HashMap::new();
+        // Tab 1 ran; the user opens tab 2, which has run nothing yet.
+        let back = switch_stash(&mut stashes, run("select a", 1), 1, 2);
+        assert!(back.results.is_empty());
+        assert_eq!(back.active, 0);
+        // Tab 2 runs; back to tab 1: its own results and open tab return.
+        let back = switch_stash(&mut stashes, run("select b", 0), 2, 1);
+        assert_eq!(back.results[0].sql, "select a");
+        assert_eq!(back.active, 1);
+        // And forward again to tab 2's.
+        let back = switch_stash(&mut stashes, back, 1, 2);
+        assert_eq!(back.results[0].sql, "select b");
+        // Staying put changes nothing.
+        let same = switch_stash(&mut stashes, run("select c", 0), 2, 2);
+        assert_eq!(same.results[0].sql, "select c");
+        assert_eq!(stashes.len(), 1, "only tab 1's is put away");
     }
 
     #[test]

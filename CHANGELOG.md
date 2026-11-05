@@ -15,6 +15,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Tracker: the Edit pane's Assignee and Priority are fed by the server (Redmine's project members, Jira's assignable users, each server's priorities) behind a caret and still take typed text when the server gives no list; Due Date has a calendar that writes the server's `YYYY-MM-DD`; Change Status shows the item, then the statuses as a list of rows with the current one marked (FEAT-0095)
 - Automation: the GitHub and Forgejo Run form lists the repository's branches for the ref, typed or chosen, the default branch first; the Log tab lays a run out in its steps - job banners, groups, commands, indented output - with air before each step (FEAT-0095)
+- Database: every query tab keeps its own results and messages and shows them again when it comes to the front; a double-click on a cell of an editable result opens Edit Cell (FEAT-0096)
 - SSH: a forward can be named when it is created; the name is kept with the host's profile and leads the tunnel list's title (FEAT-0098)
 - Settings -> Appearance -> Activity Rail: Show Tool Names Under Home's Toolbar Icons, every icon then one fixed width (CR-0038)
 - `hs_ui::form::pick_field` (a text field with a server's list behind a caret), `hs_ui::datefield::date_field` (an ISO date field with a calendar) and `form::section_max` for the shared UI (FEAT-0095, CR-0038)

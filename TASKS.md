@@ -151,9 +151,9 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0102
-Bugs : BUG-0043
-Change Request : CR-0050
+Features : FEAT-0103
+Bugs : BUG-0044
+Change Request : CR-0055
 ```
 
 ---
@@ -300,9 +300,97 @@ Change Request : CR-0050
 - [x] App: `--data-dir ./tmp-data` — in a cloned repository: rename a file and a folder, delete a file and a folder (typed), upload two files, switch branch from the picker; shallow clone a host repository and see one commit in History
 - [x] Docs: spec · CHANGELOG · CHECKLIST
 
+### FEAT-0103 · Database: a schema and table designer in its own work pane
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("In Database Activity, can you make user also can alter schema, alter table with its own work pane similar to MySQL Workbench, Navicat, etc?")
+- **Scope:** `tool-db` (a designer pane opened from the schema tree: columns, types, nullability, defaults, primary and foreign keys, indexes; a generated ALTER/CREATE script previewed before it runs, guarded on protected environments), per-engine DDL generation in the drivers, `docs/tools/database.md`.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0068
+- [ ] Plan first: the designer's layout (grid of columns, keys and indexes panes, a script preview), which engines generate which DDL, and what stays read-only - agreed with the owner before code
+- [ ] Alter Table: open a table in the designer, change columns, keys and indexes, preview the script, run it, the schema tree refreshes
+- [ ] Alter Schema / Create Table: a new table or schema from the designer; drop guarded by a typed confirmation
+- [ ] Test: the generated DDL per engine for add / rename / drop column, a key and an index; a protected environment refuses the run
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — alter a table on the bench SQLite and MySQL, see the script, run it, see the tree change
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### CR-0051 · Kafka's connection icon in a brand colour
+- **State:** Completed · the two SASL Kafka profiles' rows, tabs and header band in the teal on the v0.122.0 build, 2026-11-06; gate green
+- **Source:** owner, 2026-11-06 ("Can you make kafka icon some suitable color ... connection list, tab icon, header, etc. Because white and black color seem to look dull")
+- **Scope:** `hs_ui::icons` (the kind's `ConnTint`), which every row, tab, header band and dashboard tile reads.
+- **Parent:** CR-0025
+- [x] The Kafka glyph wears one colour everywhere a connection icon is drawn: sidebar row, tab, header band, dashboard card
+- [x] Test: the Kafka kind resolves to a brand tint
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a Kafka profile's row, tab and header band in the colour
+- [x] Docs: CHANGELOG
+
+### CR-0052 · Real marks for Puppet, Qdrant, MQTT, S3, Redmine, MySQL and MariaDB
+- **State:** Completed · every mark seen on its row, tab and header band on 2026-11-06 (Puppet orange, S3 green, Redmine red, MQTT purple, Qdrant red, the MySQL dolphin); gate green
+- **Source:** owner, 2026-11-06 ("Can you use actual puppet icon with color and reflect at all place use it?", "check all icon for container that still use generic icon and color", "do you have better solid icon color for mysql?")
+- **Scope:** `assets/icons/simple/` (Simple Icons marks filled with the brand colour), `hs_ui::icons` (`PRODUCT_LOGOS`, the slug map, `ConnTint`), the devicon README.
+- **Parent:** CR-0025
+- [x] Puppet, Qdrant, MQTT, Amazon S3 and Redmine draw their own mark in the brand colour wherever a connection icon is drawn; Valkey, WebDAV and Nexus keep a tinted glyph (no usable mark)
+- [x] MySQL and MariaDB draw Devicon's own marks (the dolphin, the seal); their glyph fallback is the teal blue and the sea green instead of the text colour
+- [x] Test: the MySQL kind resolves to a brand tint; the logo table and the slug map agree (existing icon tests)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the Puppet, S3, Redmine, MQTT and Qdrant rows and tabs show the marks; a MySQL profile's glyph is blue
+- [x] Docs: the devicon README names the Simple Icons source and licence · CHANGELOG
+
+### BUG-0044 · Git: clicking a host while a repository tab is open replaces that tab
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("When Open a repository in a tab, then click one of the host list, why the host replace the repository tab?")
+- **Scope:** `tool-git` (`open` with `OpenRequest::Connection`, `current_connection`, the shell's one-tab-per-connection rule).
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0100
+- [ ] Reproduce in a test: a repository tab open, then a host's `OpenRequest::Connection` - the shell must add a host tab, not reuse the repository's
+- [ ] Fix, keeping one tab per host and one per repository
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — open a repository from the list, click a host in Hosts: both tabs stay
+- [ ] Docs: CHANGELOG · GOTCHAS
+
+### CR-0053 · Git hosts: clone into a parent folder the user picks, and register the clone as an Editor project
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Allow user to clone the repository in parent folder selected by user", "When user clone to local folder, add also the project to Editor Activity")
+- **Scope:** `tool-git::host` (the first-open clone: a folder picker with the configured clone folder as the default), the Editor's project list through `Services`/`OpenRequest`, `docs/tools/git-activity.md`.
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0100
+- [ ] Opening a repository that is not cloned yet asks for the parent folder (default: Settings → Git → Default Clone Folder, else the data folder's `repos/<host>/<owner>`), remembers the pick per host, and clones under it
+- [ ] A finished clone is added to the Editor activity's projects (and the Git list, as today) without opening the Editor
+- [ ] Test: the destination is the picked parent plus the repository's path; the Editor registration happens once per clone
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — clone a host repository into a chosen folder; it appears in Editor → Projects and in the Git list
+- [ ] Docs: spec · CHANGELOG
+
+### CR-0054 · Settings → Git lists draw the sidebar's coloured marks
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Why the repository list not using colored icon for project language type (except if using project repository icon)?", "Why the credential list not using colored icon for the credential type (github, gitlab, forgejo, etc)")
+- **Scope:** `crates/hyperstack/src/settings_ui.rs` (the Git page's Repositories and Git Credentials lists), reusing `tool_git::repo_conn_icon` / `hs_ui::icons::language_conn_icon` and `conn_icon` for the forge kinds.
+- **Parent:** CR-0025
+- **Depends on:** CR-0047
+- [ ] Settings → Git → Repositories: each row wears the repository's picture, else its chosen glyph, else the detected language's logo in colour - the same resolution as the Git sidebar (CR-0047)
+- [ ] Settings → Git → Git Credentials: each row wears its forge's mark (GitHub, GitLab, Forgejo / Gitea, Bitbucket) in colour, as the Hosts section does
+- [ ] Test: the two lists resolve a row's icon through the shared helpers (no second table of glyphs)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench repositories show the Rust logo and the Forgejo credential its mark in Settings → Git
+- [ ] Docs: CHANGELOG
+
+### CR-0055 · Settings → AI Assistant: provider rows wear the provider's mark in colour
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Use actual provider icon with color. If not exist, create one that similar to the provider icon.")
+- **Scope:** `assets/icons/simple/` (provider marks: Simple Icons where they exist, a drawn look-alike where they do not), `hs_ui::icons` (a provider → mark map beside the connection one), the Saved Providers list, and the Assistant's own provider picker if it shows an icon.
+- **Parent:** CR-0025
+- **Depends on:** CR-0052
+- [ ] Every provider kind the Assistant offers has a mark in its brand colour; one without a published mark gets a drawn look-alike under `assets/icons/simple/` with a note in the README
+- [ ] Settings → AI Assistant → Providers → Saved Providers draws the mark on each row; any other list of providers reuses the same map
+- [ ] Test: every provider kind resolves to a registered mark
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the saved providers show their marks
+- [ ] Docs: CHANGELOG · the icons README
+
 ---
 
-## v0.7.6 — Planned
+## v0.7.6 — Done 2026-11-06
 
 > **Shipped in:** BUG-0037, BUG-0039 and FEAT-0084 went out in app
 > v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
@@ -441,7 +529,7 @@ Change Request : CR-0050
   and error rows - because no Material picture says those things.
   
 ### CR-0025 · Redesign UI UX on all activities, components, dashboards to a standard design.
-- **State:** In-Progress ·
+- **State:** Completed · every child Completed, the last (CR-0042) on 2026-11-06
 - **Scope:** All related UI components. Umbrella item — the work lives in its children.
 - **Depends on:** FEAT-0084
 - [x] CR-0026 · Shared control behaviour: hover highlights only, middle alignment, field heights
@@ -450,26 +538,26 @@ Change Request : CR-0050
 - [x] CR-0029 · Tab strip heights, icon sizing and position-aware context menus
 - [x] CR-0041 · Scratchpad: one pin for the note, the sidebar and the tab (added 2026-11-03)
 - [x] CR-0030 · Sidebar column header standard across every activity
-- [ ] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
+- [x] CR-0042 · Queue and Automation sidebars titled after their activity (added 2026-11-03)
 - [x] CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo (added 2026-11-03)
 - [x] BUG-0041 · Pinning a note from the sidebar did not put it on the tab strip (added 2026-11-03)
-- [ ] BUG-0042 · The release check's terminal probe can sink the whole self-test (added 2026-11-04)
-- [ ] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
-- [ ] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
-- [ ] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
-- [ ] CR-0035 · Editor work pane and Source Control tab layout
-- [ ] CR-0036 · Multi-coloured product icons for every connection kind
-- [ ] CR-0031 · Spacing pass: Redis, S3 and Queue work panes
-- [ ] CR-0032 · Spacing pass: Database result and message panels
-- [ ] CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
-- [ ] CR-0034 · Container and SSH work pane layout
-- [ ] CR-0039 · Spacing pass: NoSQL work pane
-- [ ] FEAT-0095 · Server-populated fields: Tracker and Automation
-- [ ] FEAT-0096 · Database: results retained per query tab, and double-click a cell to edit
-- [ ] FEAT-0097 · S3: a collapse/expand folder hierarchy column
-- [ ] FEAT-0098 · SSH: name a tunnel when creating it
-- [ ] CR-0037 · Redis key list sorted folders first
-- [ ] CR-0038 · Settings polish, and the UI standard written down
+- [x] BUG-0042 · The release check's terminal probe can sink the whole self-test (added 2026-11-04)
+- [x] FEAT-0093 · Add-and-focus: a Settings jump target per kind, and Save opens the new connection
+- [x] FEAT-0094 · Remove From List: delete a saved profile and its credential from the sidebar
+- [x] BUG-0038 · Editor -> Source Control -> Refresh Status does nothing
+- [x] CR-0035 · Editor work pane and Source Control tab layout
+- [x] CR-0036 · Multi-coloured product icons for every connection kind
+- [x] CR-0031 · Spacing pass: Redis, S3 and Queue work panes
+- [x] CR-0032 · Spacing pass: Database result and message panels
+- [x] CR-0033 · Spacing pass: Automation, Tracker and Logs work panes
+- [x] CR-0034 · Container and SSH work pane layout
+- [x] CR-0039 · Spacing pass: NoSQL work pane
+- [x] FEAT-0095 · Server-populated fields: Tracker and Automation
+- [x] FEAT-0096 · Database: results retained per query tab, and double-click a cell to edit
+- [x] FEAT-0097 · S3: a collapse/expand folder hierarchy column
+- [x] FEAT-0098 · SSH: name a tunnel when creating it
+- [x] CR-0037 · Redis key list sorted folders first
+- [x] CR-0038 · Settings polish, and the UI standard written down
 - **Notes:** split on 2026-11-02 (owner's decision). This item holds no work of
   its own; it is `Completed` when every child above is `Completed`. The 218
   original boxes were distributed verbatim across the children — none was dropped.
@@ -657,7 +745,7 @@ Change Request : CR-0050
 - [x] Docs: spec · CHANGELOG (no README or CHECKLIST line: no feature or phase moved; no new mistake for GOTCHAS)
 
 ### CR-0042 · Queue and Automation sidebars titled after their activity
-- **State:** In-Progress ·
+- **State:** Completed · both sidebars read their activity's name on the v0.122.0 build (Queue over Bench RabbitMQ, Automation over Bench Forgejo CI), 2026-11-06
 - **Scope:** The Queue and Automation sidebar headers.
 - **Parent:** CR-0025
 - **Depends on:** CR-0030
@@ -666,9 +754,9 @@ Change Request : CR-0050
   - Both now use the activity's own name (`tool-queue`, `tool-automation`), as Containers does. The `queue-brokers` and `automation-servers` strings had no other use and are removed; `settings-queue-brokers` and `settings-automation-servers` are different keys and stay.
 - [x] Test: covered by the bundled-locale parse test and CR-0030's header test
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the two sidebars read Queue and Automation
+- [x] App: `--data-dir ./tmp-data` — the two sidebars read Queue and Automation
 - [x] Docs: CHANGELOG
-- **Notes:** Filed 2026-11-03 from the owner's message after CR-0030 shipped. **App box open:** the owner was using this machine, so the app was not driven; the change is two string keys with no logic.
+- **Notes:** Filed 2026-11-03 from the owner's message after CR-0030 shipped. The app check ran on 2026-11-06 when the machine was free; the change is two string keys with no logic.
 
 ### CR-0043 · Fixed tabs wear their activity's colour, and the Editor's its workspace logo
 - **State:** Completed
@@ -1093,6 +1181,15 @@ Change Request : CR-0050
 
 ## v0.7.5 — In-Progress
 
+> **2026-11-06, on the owner's ask to complete the remainder:** FEAT-0092
+> (Puppet) is built and verified against recorded PuppetDB answers. The four
+> items still In-Progress each have one open box, the app check, and each is
+> blocked by a server that cannot run here: TeamCity's bench container is up
+> at http://127.0.0.1:8111 but waits at its licence agreement for the owner
+> (FEAT-0079); AWX needs a Kubernetes operator (FEAT-0083); Jira and
+> Confluence need licence keys (FEAT-0086, FEAT-0091). Every other box of
+> theirs is ticked and their mock-server tests pass.
+
 > Phase K (Automation), then phase N (Tracker), every kind the programme
 > names (owner, 2026-10-31) except Puppet, deferred to the Backlog the same day. Writes are exercised only against local
 > containers; git.zacx.net and GitHub are read only.
@@ -1283,20 +1380,21 @@ Change Request : CR-0050
 ## Backlog
 
 ### FEAT-0092 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
-- **State:** Pending · **Spec:** docs/tools/automation.md · **Phase:** K
+- **State:** Completed · built and verified on 2026-11-06 against recorded PuppetDB answers (`hs-puppetdb-fake`): three nodes, their reports and a failed report's log on screen, Run refused without an orchestrator and a deploy with one; gate green
 - **Depends on:** FEAT-0077
-- [ ] nodes with the last report's status and time; a node's reports; a report's log lines
-- [ ] Run offered only with a Puppet Enterprise orchestrator URL (deploy one node)
-- [ ] `X-Authentication` RBAC token as api-key
-- [ ] Test: <what it asserts>
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a `hs-puppetdb` container if it fits in memory, otherwise recorded responses
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] nodes with the last report's status and time; a node's reports; a report's log lines
+- [x] Run offered only with a Puppet Enterprise orchestrator URL (deploy one node)
+- [x] `X-Authentication` RBAC token as api-key
+- [x] Test: `puppet.rs` (report state, node's last report, log layout, the percent-encoded query); `mock.rs::puppet_lists_nodes_reads_reports_and_deploys_through_the_orchestrator` (nodes, reports, a report's logs, Run refused without an orchestrator, the deploy body with the environment, noop and the node)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a `hs-puppetdb` container if it fits in memory, otherwise recorded responses
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** deferred out of v0.7.5 on the owner's decision (2026-10-31). Puppet Enterprise is licensed and cannot run here; PuppetDB could run in a container.
 
 ---
 
 ## v0.7.4 — In-Progress
+- **Notes (2026-11-06):** built on the owner's ask to complete v0.7.5. `tool_automation::puppet`: PuppetDB `/pdb/query/v4` nodes, reports and logs; a Puppet Enterprise orchestrator URL in the profile's `project` field makes Run a `deploy` of the node (environment, noop); Cancel is off because a stored report is over; the RBAC token is an api-key in `X-Authentication`. Seen on screen against `hs-puppetdb-fake` (nginx with recorded PuppetDB answers on 127.0.0.1:8082: three nodes - a failed, a noop and a clean run; the deploy answered with job 1234). No PuppetDB or Puppet Enterprise runs here, so the live path is the recorded one.
 
 ### BUG-0036 · Saved Git Credentials Not Showing in Settings -> Security -> Credentials
 - **State:** Completed ·
@@ -1468,7 +1566,7 @@ Change Request : CR-0050
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir` scratch — `hs-kafka`: topics with offsets, a keyed publish ("Partition 0, offset 0") and its peek with key and JSON body
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** no replication column: `rskafka` lists partitions only (spec "What is implemented"). The TLS / SASL box stays open: the code is written (rskafka's SASL config; SCRAM in our groups client tested against RFC 7677's exchange) but no TLS or SASL broker was run here.
+- **Notes:** no replication column: `rskafka` lists partitions only (spec "What is implemented"). SASL verified 2026-11-06 against `hs-kafka-sasl` (Kafka 4.0, SASL_PLAINTEXT on 9094): `live.rs::kafka_connects_with_sasl_plain_and_scram` connects with PLAIN, SCRAM-SHA-256 and SCRAM-SHA-512, lists the topic, reads its groups through the groups client and sees a wrong password refused; two profiles (PLAIN, SCRAM-SHA-256) listed the topic on screen. The box stays open for TLS and OAUTHBEARER: the client verifies through the platform trust store, so a self-signed local broker cannot be used, and no OAuth broker runs here.
 
 ### FEAT-0072 · Kafka consumer groups and lag
 - **State:** In-Progress · **Spec:** docs/tools/queue.md · **Phase:** L
@@ -1482,7 +1580,7 @@ Change Request : CR-0050
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir` scratch — group `billing` on `hs-kafka` (9 of 24 consumed) shows lag 15, and 10 / 0 / 5 per partition
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Notes:** lag per partition works; the progress and Stop are in the Consumers pane rather than a shell Job (spec §7 updated) and were not seen on screen, because one group answers too fast to catch. TLS / SASL as FEAT-0071.
+- **Notes:** lag per partition works; the progress and Stop are in the Consumers pane rather than a shell Job (spec §7 updated) and were not seen on screen, because one group answers too fast to catch. SASL as FEAT-0071: the groups client authenticated with PLAIN and both SCRAM mechanisms against `hs-kafka-sasl` on 2026-11-06 (the live test's `consumers` call); TLS and OAUTHBEARER remain unverified for the same reasons.
 
 ### FEAT-0073 · Redis Streams
 - **State:** Completed · **Spec:** docs/tools/queue.md · **Phase:** L

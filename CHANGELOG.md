@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- Settings → AI Assistant: every service in the gallery and every saved provider draws its mark in colour - Simple Icons where one is published, a drawn look-alike for ComfyUI, the WebUI servers, SwarmUI, 1min.AI, fal.ai, InvokeAI and Fooocus (CR-0055)
+
+### Fixed
+
+- Every list row cuts its title and subtitle to the row with an ellipsis instead of painting past the column, which the Git host's repository descriptions did (BUG-0045)
 
 ## 0.124.0 — 2026-11-05
 

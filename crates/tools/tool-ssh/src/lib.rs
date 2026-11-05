@@ -190,6 +190,11 @@ pub struct SshTool {
     broadcast: bool,
     /// The Tunnels pane and the monitor strip above the shell (§8, §9).
     tunnels_open: bool,
+    /// Frames left in which to put the caret in the shell: set by an open
+    /// request or a click on the host's own row, so the click lands in
+    /// the shell (CR-0048). Two, not one: egui gives the clicked row the
+    /// focus at the end of the click's frame, after the shell asked.
+    focus_term: u8,
     monitor_open: bool,
     monitor_prev: Option<monitor::Sample>,
     monitor_cur: Option<monitor::Sample>,
@@ -338,6 +343,7 @@ impl SshTool {
             serial: broadcast::next_serial(),
             broadcast: false,
             tunnels_open: false,
+            focus_term: 0,
             monitor_open: false,
             monitor_prev: None,
             monitor_cur: None,
@@ -2514,10 +2520,14 @@ impl Tool for SshTool {
                 // The shell decides which tab this lands in; a host may hold up
                 // to three sessions, so clicking one again opens another until it
                 // has them.
-                if let Some((id, selected)) = open
-                    && !selected
-                {
-                    cx.open("ssh", Some(OpenRequest::Connection { id }));
+                if let Some((id, selected)) = open {
+                    if selected {
+                        // This tab's own host: the click means "back to
+                        // the shell", so the caret goes there (CR-0048).
+                        self.focus_term = 2;
+                    } else {
+                        cx.open("ssh", Some(OpenRequest::Connection { id }));
+                    }
                 }
             });
         ui.add_space(8.0);
@@ -2741,6 +2751,10 @@ impl Tool for SshTool {
                             self.follow_cd = Some(target);
                         }
                     }
+                    if self.focus_term > 0 {
+                        ui.memory_mut(|m| m.request_focus(self.view.id));
+                        self.focus_term -= 1;
+                    }
                     let r = self.view.show(ui, sess, &term_theme);
                     self.term_focused = r.focused;
                     if broadcast && !r.input.is_empty() {
@@ -2947,9 +2961,11 @@ impl Tool for SshTool {
                     if !matches!(self.status, Status::Connected | Status::Connecting) {
                         self.connect(cx.services);
                     }
+                    self.focus_term = 2;
                 } else if self.state.conn_id.is_none() {
                     self.state.conn_id = Some(id);
                     self.connect(cx.services);
+                    self.focus_term = 2;
                 } else {
                     cx.open("ssh", Some(OpenRequest::Connection { id }));
                 }

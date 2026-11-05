@@ -95,10 +95,11 @@ the fixtures behind them.
 | [Shell and workspaces](#shell-and-workspaces) | Home, launcher, palette, tabs, dock, workspaces, environments |
 | [Vault and connections](#vault-and-connections) | First-run vault, unlock, profiles and secrets |
 | [Editor](#editor) | Projects, files, Markdown and Mermaid, LSP, debugger, AI assistant |
-| [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts, assistant |
+| [Git](#git) | Git in the editor, and the **Git activity**: dashboard, File Status, History graph, blame, conflicts, Git Flow, hosts with a tab per host and its repositories, assistant |
 | [Terminal](#terminal) | Shells, search, links |
 | [SSH and SFTP](#ssh-and-sftp) | Host keys, dual pane, tunnels kept per host, broadcast input, server monitor, remote editing |
 | [S3](#s3-and-s3-compatible-storage) | Buckets, profiles, object details with tags and versions, folder sync, presigned URLs, guards; **WebDAV** and **Nexus** too |
+| [Containers](#containers-docker-podman-kubernetes) | Docker, Podman, Kubernetes and Windows containers: engines and clusters, containers, images, volumes, networks, Compose and Swarm, pods and workloads, logs into Logs, a shell in a container or pod, saved commands and Compose files |
 | [SQL databases](#sql-databases-postgresql-mysql--mariadb-sqlite) | Browser, completion, results, transactions, guards |
 | [Redis](#redis) | Key tree, type viewers, console, Info dashboard, Slowlog / clients / big keys / bulk ops, Pub/Sub, Streams; **Valkey** too |
 | [NoSQL](#nosql-mongodb-and-couchdb) | Containers, find, aggregate, indexes, documents; **Qdrant** too |
@@ -246,6 +247,15 @@ the lists.
 | **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
+
+### Containers (Docker, Podman, Kubernetes)
+
+| | |
+|---|---|
+| ![Containers dashboard](docs/screenshots/containers-dashboard.png) | ![A Docker engine: containers](docs/screenshots/containers-docker.png) |
+| **Dashboard** — every engine and cluster the workspace knows (Docker and Podman engines, Kubernetes contexts, Windows containers), **Scan Local** to find the ones on this machine and in WSL, the saved commands and Compose files, and the open tabs with their last picture | **An engine's tab** — the host's figures (running, stopped, images, volumes, networks), then Containers, Projects (Compose), Images, Volumes, Networks and the Swarm stacks, services and nodes as tables with a filter; a selected container's row offers start, stop, restart, remove, its logs (streamed into the Logs activity) and a shell in it |
+| ![Images](docs/screenshots/containers-images.png) | |
+| **Images and the rest** — images with size, age and id (pull, remove, prune), volumes and networks; a Kubernetes context shows namespaces, pods, workloads, services, config, nodes, events and custom resources, with YAML, pod logs, restart / scale / delete, `apply` behind a server-side dry-run diff, and port forwards; destructive verbs are guarded and read-only on a protected environment | |
 
 ### SQL databases (PostgreSQL, MySQL / MariaDB, SQLite)
 

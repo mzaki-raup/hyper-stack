@@ -151,9 +151,9 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0099
+Features : FEAT-0100
 Bugs : BUG-0040
-Change Request : CR-0040
+Change Request : CR-0050
 ```
 
 ---
@@ -203,6 +203,70 @@ Change Request : CR-0040
 - [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Notes:** Filed 2026-11-05 from the owner's two messages. `ConnTint::Brand` for `nexus` and `webdav`; `State.kind` + `tab_icon*` on the S3 tool; `CALENDAR_WIDTH` on the date popup; `hs_ui::table::cell_layout()` on `DataTable` and the database grid with `HEADER_HEIGHT` 34 / `HEADER_TEXT` 14.5; Home's toolbar spacing 2 px with names on. No Nexus or WebDAV server runs here, so their rows and tabs were checked for the icon and colour, not a listing.
 
+### FEAT-0100 · Git hosts: a tab per host with its repositories, phase 1
+- **State:** Completed · the Forgejo instance as an anonymous credential: host row, host tab, three repositories cloned on first open and reopened at once, three inner tabs, one host tab through every re-click
+- **Source:** owner's request, 2026-11-05 (planned in the session first; approach 1, a local clone behind the view)
+- **Scope:** `tool-git` (sidebar Hosts section, `host.rs`, the tool's tab identity), `hs_ui::tabs` reuse, Settings → Git credential Save, `docs/tools/git-activity.md`.
+- **Parent:** CR-0025
+- [x] Sidebar → Hosts lists only the Git credentials (forge logo, name, address); `+` opens Settings → Git → Git Credentials; a credential saved there is a host row at once and a new one opens its tab
+- [x] One tab per host, opened through `OpenRequest::Connection` and `current_connection()`; the tab is titled after the credential and wears the forge's logo; header band Kind · URL · User · Open
+- [x] The host tab: a repository column (Mine / Shared, filter, Refresh, private lock) and an inner strip of repository tabs, one per repository, each hosting the existing repository pane (File Status, History, Blame, diff, commit box, toolbar)
+- [x] Clone on first open as a Job into `<clone folder>/<host>/<owner>/<name>`, recorded in the repository list; a repository already listed or already cloned opens at once; one clone at a time
+- [x] The layout restores the host tab and its inner tabs; a missing clone folder is said, not crashed on
+- [x] Test: the clone path is `<host>/<owner>/<name>` with every piece a slug; the host icon follows the kind; a host row opens through the connection request
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the Forgejo credential as a host row, its tab with the repository list, a repository cloned on first open and opened again at once, two inner tabs, the one-tab rules
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** `tool_git::host::HostView` (column, inner strip, clone Job, registration); `Tool::current_connection` + `OpenRequest::Connection` give the one-tab rule for free; an anonymous credential lists the public repositories (`hosts::page_url`, Forgejo's `repos/search` envelope parsed); Settings → Git's Save on a new credential pushes `SettingsEffect::OpenConnection`. Phases 2 and 3 (Files view; rename/delete/upload/branch/shallow) are not in this item. GitHub, GitLab and Bitbucket listings are code-reviewed only (no token here).
+
+### CR-0047 · Git sidebar: the detected language's logo in its colour, on the tab too
+- **State:** Completed · a Rust repository's row, tab, header band and dashboard tile wear the Rust logo in its colour; the three Forgejo clones too
+- **Scope:** `tool-git` rows, tab icon, header band, dashboard tile.
+- **Parent:** CR-0025
+- [x] In Git Activity -> Sidebar Column; When there is no project repository icon, it will display the detected language of that project. Why the detected language icon is not colored? Also the tab will follow the icon from the sidebar (icon from project, detected language, colored).
+- [x] Test: a Rust repository with no picture and no chosen glyph resolves to the Rust logo, and the tab answers it as its icon uri
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — a Rust repository's row, tab and header band wear the Rust logo
+- [x] Docs: spec · CHANGELOG
+- **Notes:** `repo_conn_icon` + `hs_ui::icons::language_conn_icon`; the uploaded picture stays a separate String because `ConnIcon.image` is a static logo uri (GOTCHAS).
+
+### CR-0048 · Browser sidebar tab icons, the API client's custom library colour, Terminal and SSH focus on click
+- **State:** Completed · Browser tabs with star and key; the custom library amber on its row and tab; a PowerShell row click followed by typing at once; Home's Recent row with the terminal's coloured glyph; the SSH row of the open host focusing its shell
+- **Scope:** `tool-browser` sidebar, `tool-api` Package Libraries rows and tabs, `tool-terminal` and `tool-ssh` on a sidebar click.
+- **Parent:** CR-0025
+- [x] In Browser Activity -> Sidebar Column; Please add icon for Favorites and Passwords tab each.
+- [x] In API Client -> Sidebar Column -> Package Libraries Section; Please add color for Saved custom Library icon. And it will show the color also in the tab icon when open.
+- [x] In Terminal and SSH Activity. When user click the shell/ host connection, please focus straightaway in that terminal/host shell.
+- [x] In Home Activity -> Sidebar COlumn -> Recent List Section; Show also the color and icon on the each recent lists.
+- [x] Test: the custom library's icon carries its colour, and the tab icon colour is the same
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the two Browser sidebar tabs with icons; a saved custom library's row and tab coloured; a click on a shell or host lands the caret in the terminal; Home's Recent rows with the activity's coloured glyph
+- [x] Docs: spec · CHANGELOG
+- **Notes:** `tool_api::library_icon`, `pending_focus` on the Terminal's open request, `focus_term` on SSH (set on the open request and on a click of the open host's own row - the sidebar never called `open` for that row); `activity_colour` on the Recent glyph.
+
+### CR-0049 · Dashboard polish: coloured activity icons on Home, Material collection icons, centred card icons
+- **State:** Completed · Home's tool list coloured once Coloured Activity Icons is on; the API dashboard's collection card with the Material folder; the Terminal dashboard's shell cards with the icon level with the two lines
+- **Scope:** `hyperstack::launcher` tool cards, `tool-api` dashboard entries, `hs_ui::dashboard::saved_dashboard` cards.
+- **Parent:** CR-0025
+- [x] In Home Activity -> Dashboard Page -> What do you want to do Section -> Activity List; Show the icon color of the activities if user enable it in Settings -> Appearance -> Sidebar -> Coloured Activity Icons.
+- [x] In API Client Activity -> Dashboard Page -> Saved Collections Section -> Collection Icon; Please use the colored material icon inside the collection card same like in sidebar column.
+- [x] In Terminal Activity -> Dashboard Page -> Saved Shells Section -> Shell Card; Please vertical middle align the shell icon with the Shell name and command. Apply it to all activities too Saved Hosts, Hosts, Saved Databases, Saved Connections, Saved Brokers, Saved Collections, Saved Servers, Saved Trackers, Tools, Saved Sources, (where applicable)
+- [x] Test: the launcher card takes the activity colour only while Coloured Activity Icons is on; a collection entry carries the Material folder image
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — Home's tool list with colours on and off; the API dashboard's collection cards; a saved-card's icon level with its two text lines on Terminal and SSH
+- [x] Docs: spec · CHANGELOG
+- **Notes:** `launcher::tool_card` takes a colour; `item_button_art` centres the mark on the text block; the API entry carries `folder-api`'s uri.
+
+### CR-0050 · Rows and buttons do not grow on hover
+- **State:** Completed · a hovered Redis key row keeps its size (highlight only); the same style reaches every activity
+- **Scope:** `hs_ui::theme` (the egui style every activity draws with), the Redis key column first.
+- **Parent:** CR-0025
+- [x] In Redis Activity - Redis Work Pane -> Key Column; Don't magnify and resize the key and folder when hover mouse on it. Check other activities of this issues too and fix all.
+- [x] Test: the applied style has no hover or active expansion
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — hover a Redis key and a folder, a Database schema node and a toolbar button: a highlight, no growth
+- [x] Docs: spec · CHANGELOG
+
 ---
 
 ## v0.7.6 — Planned
@@ -218,6 +282,7 @@ Change Request : CR-0040
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
 > (CR-0026 … CR-0030) run first because the per-activity passes inherit them.
+- **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·

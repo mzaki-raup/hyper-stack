@@ -307,6 +307,7 @@ so both header bands share one toolchain-version cache.
 | **3 — Operations** | Pull / push / fetch, branch verbs, merge / rebase / cherry-pick with continue/abort, tags, stashes, discard, remotes, Git Flow panel, Open Terminal, protected-branch guards, file history | `feat:` minor |
 | **4 — Hosts** | Remote and Localhost sources, host API clients (GitHub, GitLab, Forgejo/Gitea, Bitbucket), Fetch Project with the searchable fuzzy dropdown, clone as a `Job`, `GIT_ASKPASS` token hand-off, credential Test | `feat:` minor |
 | **5 — Assistant** | The AI Assistant column, git quick actions, runnable command blocks through the Terminal activity | `feat:` minor |
+| **7 — Host tabs** | Hosts section in the sidebar (the credentials), one tab per host with the repository column, the inner repository strip over the existing pane, clone-on-open into the clone folder and registration in the list; then the Files view (tree, preview, edit, new file/folder); then rename, delete, upload, branch picker, shallow clones (FEAT-0100, three items) | `feat:` minor each |
 | **6 — Polish** | Host avatars as repository icons, dashboard summaries probed and cached, palette commands and shortcuts for every verb, keyboard navigation of the lists, screenshots and the README | `feat:`/`docs:` |
 
 Each phase is gated (fmt, clippy, tests), exercised in the running app
@@ -324,3 +325,64 @@ with the GUI harness, documented (this file, `CHANGELOG.md`,
 - Deleting anything on disk from the list: Remove From List forgets,
   never deletes (owner's requirement; `hs_core::projects` has the same
   rule).
+
+## Addendum (2026-11-05): host tabs (FEAT-0100, phase 1)
+
+**Sidebar → Hosts.** Under the repository list, a Hosts section lists the
+Git credentials themselves (Settings → Git → Git Credentials), each with
+the forge's logo and its address - nothing else, no repositories. The
+list is read from `Services.git_credentials` every frame, so a credential
+saved in Settings is a host row at once, a renamed one renames its row
+and its tab, and a removed one takes its row with it (an open host tab
+stays and says the credential is gone). The `+` opens Settings → Git →
+Git Credentials; saving a **new** credential there also opens its host
+tab (`SettingsEffect::OpenConnection { tool: "git" }`), as Add lands on
+what it added elsewhere.
+
+**One tab per host.** A host row opens through `OpenRequest::Connection
+{ id: <credential id> }`; the tool answers `current_connection()` with
+the credential id, so the shell's one-tab-per-connection rule focuses the
+tab that already has the host. The tab is titled after the credential,
+wears the forge's logo, and its header band says Kind · URL · User ·
+Open (the inner tabs).
+
+**The host tab's work pane** (`tool_git::host::HostView`):
+
+- *Left column:* the host's repositories from `hosts::list_projects`
+  (owned, collaborated and organisation repositories; GitHub, GitLab,
+  Forgejo/Gitea, Bitbucket - Azure and Generic have no listing and say
+  so), grouped **Mine** (the credential's login owns them) and
+  **Shared**, with a filter and a Refresh. Read once when the tab opens
+  and on Refresh, never per frame. A private repository wears a lock.
+- *Right:* an inner tab strip of repositories (`hs_ui::tabs::TabStrip`,
+  compact, the Database tab's shape), one tab per repository - opening a
+  repository that has a tab focuses it - and under it the repository pane
+  itself (`RepoPane`: left tree, File Status / History / Blame, diff
+  viewer, commit box, toolbar), exactly as a repository's own tab draws
+  it. Closing an inner tab forgets the tab; the clone and the list entry
+  stay.
+- *Clone on first open.* A repository that is not cloned yet is cloned as
+  a Job (git's progress lines, cancel) into
+  `<Settings → Git → Default Clone Folder>/<host>/<owner>/<name>` (every
+  piece a slug; `HyperStackData/repos/` when no folder is set), then
+  recorded in the workspace's repository list with `Source::Remote`, the
+  host, the project and the credential - so the plain sidebar and the
+  dashboard see it and the next open is instant. A repository the list
+  already has, or whose clone folder already exists, opens without
+  cloning. One clone at a time per host tab.
+- The layout saves the host id, the inner tabs (project, name, path) and
+  which is in front; a restored tab whose clone folder is gone says so
+  and offers nothing else until it is closed and opened again.
+
+Phases 2 and 3 (the Files view with the tree and the editor; rename,
+delete, upload, the branch picker, shallow clones) follow in their own
+items.
+
+## Addendum (2026-11-05): the language's logo in its colour (CR-0047)
+
+A repository with no uploaded picture and no chosen glyph wears its
+detected language's logo in the language's own colour -
+`hs_ui::icons::language_conn_icon`, the mark the Editor gives a project
+of that language - in the sidebar row, on the tab (`tab_icon_uri` /
+`tab_icon_colour`), in the header band and on the dashboard tile. A
+picture still wins; a chosen glyph stays a plain glyph.

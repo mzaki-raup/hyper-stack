@@ -108,12 +108,17 @@ pub fn sidebar(
     });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        for (tab, key) in [
-            (SideTab::Favorites, "browser-favorites"),
-            (SideTab::Passwords, "browser-passwords"),
+        // Each tab wears its glyph (CR-0048): a star for Favorites, a key
+        // for Passwords.
+        for (tab, key, icon) in [
+            (SideTab::Favorites, "browser-favorites", ph::STAR),
+            (SideTab::Passwords, "browser-passwords", ph::KEY),
         ] {
             if ui
-                .add(egui::Button::selectable(t.side.tab == tab, s.t(key)))
+                .add(egui::Button::selectable(
+                    t.side.tab == tab,
+                    format!("{icon} {}", s.t(key)),
+                ))
                 .clicked()
             {
                 t.side.tab = tab;

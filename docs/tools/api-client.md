@@ -442,3 +442,7 @@ and the shared **Open Here** grid, each section ruled apart.
 visible to every tool that accepts a `{{name}}`, in every workspace,
 whatever environment is selected; Settings -> Environments edits the
 same set, and an open tab notices a save made there on its next frame.
+
+## Addendum (2026-11-05): the custom library's colour (CR-0048)
+
+A package library the user wrote in the app (`LibraryKind::Custom`) is marked in amber (`tool_api::library_icon`), on its sidebar row and on its tab through `tab_icon_colour`; imported and fetched libraries keep the plain package glyph.

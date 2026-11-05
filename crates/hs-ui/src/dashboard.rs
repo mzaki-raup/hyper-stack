@@ -320,16 +320,23 @@ fn item_button_art(
     );
     let mut x = rect.left() + PAD;
     let top = rect.top() + 16.0;
+    // The mark sits level with the middle of the two text lines, or with
+    // the one line when there is no second (CR-0049).
+    let mid = if subtitle.is_empty() {
+        top
+    } else {
+        rect.center().y
+    };
     if let Some(uri) = image {
         let size = egui::Vec2::splat(ICON + 2.0);
-        let at = egui::Rect::from_center_size(egui::pos2(x + size.x / 2.0, top), size);
+        let at = egui::Rect::from_center_size(egui::pos2(x + size.x / 2.0, mid), size);
         egui::Image::from_uri(uri.to_string())
             .fit_to_exact_size(size)
             .paint_at(ui, at);
         x += ICON + 8.0;
     } else if !icon.is_empty() {
         painter.text(
-            egui::pos2(x, top),
+            egui::pos2(x, mid),
             egui::Align2::LEFT_CENTER,
             icon,
             egui::FontId::proportional(ICON),

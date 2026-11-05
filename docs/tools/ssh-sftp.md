@@ -359,3 +359,7 @@ tunnel list and the Kept Forwards list title a named forward
 `Name · :local → host:port` and an unnamed one by its ports alone, so two
 forwards through one host read apart. Add Another clears the name with the
 ports.
+
+## Addendum (2026-11-05): focus on open (CR-0048)
+
+Opening a host from the sidebar, or clicking its row while its tab is open, puts the caret in the host's shell on the next frame (`focus_term`), so typing starts at once.

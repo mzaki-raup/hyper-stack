@@ -117,6 +117,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **A focus request made in the frame of a click loses to the click.** egui hands the clicked widget the keyboard focus when the frame ends, after any `request_focus` the same frame made. The SSH sidebar's row click set a flag the shell read in that very frame, the row kept the focus and typing went nowhere - though the same flag set by an open request (a frame later) worked. Keep such a request alive for two frames (`focus_term: u8`), or make it from the next frame (CR-0048, 2026-11-05).
+- **`ConnIcon.image` is a `&'static str`**: it names a vendored logo, never a picture loaded at run time. A repository's uploaded icon (a `bytes://` URI made per session) cannot ride on a `ConnIcon`; keep it beside the icon and choose the row helper by it - `list_row_image` with the picture, `conn_list_row` with the `ConnIcon` - and in `tab_icon_uri` prefer the picture over `ConnIcon::uri()` (CR-0047, 2026-11-05).
 - **`ui.put` inside a painted button moves the row's cursor.** Home's toolbar buttons are painted on an `allocate_exact_size` rect; placing the name under the glyph with `ui.put(text_rect, Label)` allocated that rect in the parent too, so each next button started after it and the row stair-stepped down the page. Paint text inside a painted control (`painter().layout_job` with `TextWrapping { max_rows: 1, overflow_character: Some('…') }` for a truncated line), never place a widget there (CR-0038, 2026-11-05).
 - **`split_for_assistant` hands back a child `Ui` whose clip rectangle
   *excludes* the assistant's column.** Drawing the column through that

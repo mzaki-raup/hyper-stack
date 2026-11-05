@@ -6827,6 +6827,8 @@ fn credential_detail(
         if !store_typed_secrets(s, &label, [("Token", &mut cred.token)], effects) {
             return;
         }
+        let is_new = s.git_credentials.read().by_id(&cred.id).is_none();
+        let cred_id = cred.id.clone();
         match s.git_credentials.write().upsert(cred) {
             Ok(()) => {
                 state.cred_draft = None;
@@ -6835,6 +6837,15 @@ fn credential_detail(
                     hs_core::tool::ToastLevel::Success,
                     s.t("toast-saved"),
                 ));
+                // A new host is a row in the Git sidebar at once; Save
+                // also lands on its tab, as Add lands on what it added
+                // elsewhere (FEAT-0100, FEAT-0093).
+                if is_new {
+                    effects.push(SettingsEffect::OpenConnection {
+                        tool: "git".into(),
+                        id: cred_id,
+                    });
+                }
             }
             Err(e) => effects.push(SettingsEffect::Toast(
                 hs_core::tool::ToastLevel::Error,

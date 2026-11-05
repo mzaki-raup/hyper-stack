@@ -630,3 +630,13 @@ and ADR-025.
 | Redis key list sorted folders first (CR-0037) | Completed | one partition in `KeyTree::walk` |
 | Settings polish and the UI standard (CR-0038) | Completed | Credentials card at page width without an empty Key column; the Oracle/Db2 client requirement as a field hint; Home toolbar names (fixed-width buttons) from Settings → Appearance → Activity Rail; rules in `.claude/rules/ui.md` and `docs/04-ui-design.md` |
 | S3 kind colours, calendar width, table cells, Home toolbar spacing (CR-0046) | Completed | Nexus/WebDAV tints and the S3 tab icon; `CALENDAR_WIDTH`; `table::cell_layout()` with a 34 px / 14.5 px bold header on `DataTable` and the database grid; 2 px between Home's labelled buttons |
+
+## Owner's requests, 2026-11-05 (Git hosts and UI polish)
+
+| Item | State | Notes |
+|---|---|---|
+| Git hosts: a tab per host with its repositories, phase 1 (FEAT-0100) | Completed | Hosts section (the credentials), host tab with the repository column and an inner strip of repository tabs over the existing pane, clone on first open under host/owner/name, registration in the list, one tab per host and per repository; anonymous credentials list public repositories. Phases 2 and 3 pending |
+| Git: the language's logo in its colour on rows and tabs (CR-0047) | Completed | `repo_conn_icon` through `language_conn_icon`; picture wins, chosen glyph stays plain |
+| Browser tab icons, custom library colour, Terminal and SSH focus, Home Recent glyphs (CR-0048) | Completed | star and key; amber `library_icon`; `pending_focus` / `focus_term`; `activity_colour` on Recent |
+| Dashboard polish: coloured Home tool list, Material collection cards, centred card icons (CR-0049) | Completed | `tool_card` colour behind Coloured Activity Icons; `item_button_art` centres the mark; `folder-api` on the API entries |
+| Nothing grows on hover (CR-0050) | Completed | `Theme::apply` zeroes egui's hover, press and open expansion |

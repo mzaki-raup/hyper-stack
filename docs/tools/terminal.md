@@ -224,3 +224,7 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Saved Shells** - the shells detected on this machine, each over its executable;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-05): focus on open (CR-0048)
+
+An open request for a shell - a sidebar row, a CLI, "open terminal here" - puts the caret in the terminal on the next frame (`pending_focus`), so typing starts at once.

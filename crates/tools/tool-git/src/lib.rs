@@ -12,6 +12,7 @@ mod blame;
 mod conflict;
 mod diffview;
 mod history;
+pub mod host;
 pub mod hosts;
 mod pane;
 mod tree;
@@ -66,6 +67,11 @@ struct State {
     /// the tab is drawn (cheap: a stat); not saved.
     #[serde(skip)]
     image: Option<String>,
+    /// A host tab (FEAT-0100): the Git credential it shows, its inner
+    /// repository tabs and which of them is in front.
+    host_id: String,
+    host_tabs: Vec<host::RepoTabState>,
+    host_active: usize,
 }
 
 /// What the dashboard knows about one saved repository: whether its
@@ -89,6 +95,8 @@ pub struct GitTool {
     /// `Some(title)` while this is the activity's home tab.
     home_title: Option<String>,
     pane: pane::RepoPane,
+    /// The host this tab shows, when it is a host tab (FEAT-0100).
+    host: Option<host::HostView>,
 }
 
 impl GitTool {
@@ -101,11 +109,110 @@ impl GitTool {
             probing: Default::default(),
             home_title: None,
             pane: pane::RepoPane::default(),
+            host: None,
         };
         if let Some(p) = t.state.path.clone() {
             t.pane.set_root(services, p);
         }
+        if !t.state.host_id.is_empty() {
+            let id = t.state.host_id.clone();
+            let tabs = t.state.host_tabs.clone();
+            if t.become_host(services, &id) {
+                if let Some(h) = t.host.as_mut() {
+                    for saved in &tabs {
+                        h.restore_tab(services, saved);
+                    }
+                    h.active = t.state.host_active.min(h.tabs.len().saturating_sub(1));
+                }
+            } else {
+                // The credential is gone: the tab stays, and says so.
+                t.state.host_tabs.clear();
+            }
+        }
         t
+    }
+
+    /// Make this tab the host tab of credential `id` (FEAT-0100). `false`
+    /// when no such credential exists.
+    fn become_host(&mut self, s: &Services, id: &str) -> bool {
+        let Some(cred) = s.git_credentials.read().by_id(id).cloned() else {
+            return false;
+        };
+        if self.host.as_ref().is_some_and(|h| h.cred.id == id) {
+            if let Some(h) = self.host.as_mut() {
+                h.cred = cred;
+            }
+            return true;
+        }
+        self.state = State {
+            host_id: id.to_string(),
+            name: cred.label(),
+            ..Default::default()
+        };
+        self.pane = pane::RepoPane::default();
+        self.host = Some(host::HostView::new(cred));
+        true
+    }
+
+    fn is_host(&self) -> bool {
+        !self.state.host_id.is_empty()
+    }
+
+    /// The forge's mark for a host tab: its logo where one is vendored,
+    /// the branch glyph otherwise.
+    fn host_conn_icon(kind: hs_core::git_hosts::HostKind) -> hs_ui::icons::ConnIcon {
+        use hs_core::git_hosts::HostKind;
+        match kind {
+            HostKind::GitHub => hs_ui::icons::conn_icon("github-issues", ""),
+            HostKind::GitLab => hs_ui::icons::conn_icon("gitlab-issues", ""),
+            HostKind::Forgejo | HostKind::Gitea => hs_ui::icons::conn_icon("forgejo-issues", ""),
+            _ => hs_ui::icons::ConnIcon::glyph(ph::GIT_BRANCH),
+        }
+    }
+
+    /// The host tab's own layout: the repository column, a rule, then the
+    /// inner strip and the pane of the repository in front.
+    fn host_ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let theme = Self::theme(cx.services);
+        let Some(h) = self.host.as_mut() else {
+            ui.add_space(24.0);
+            ui.horizontal(|ui| {
+                ui.add_space(24.0);
+                hs_ui::form::note(ui, &theme, ph::WARNING, &cx.services.t("git-host-gone"));
+            });
+            return;
+        };
+        h.poll(cx);
+        let full = ui.available_size();
+        // A real width, not `available_width`: inside a horizontal layout
+        // that is unbounded, and the column would grow every frame.
+        let left = (full.x * 0.22).clamp(220.0, 320.0);
+        ui.horizontal_top(|ui| {
+            ui.allocate_ui_with_layout(
+                egui::vec2(left, full.y),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_width(left);
+                    ui.set_max_width(left);
+                    ui.add_space(hs_ui::form::PANE_GAP);
+                    h.column(ui, &theme, cx);
+                },
+            );
+            ui.separator();
+            let right = (full.x - left - 16.0).max(200.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(right, full.y),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_width(right);
+                    ui.set_max_width(right);
+                    h.body(ui, &theme, cx);
+                },
+            );
+        });
+        self.state.host_tabs = h.saved_tabs();
+        self.state.host_active = h.active;
+        self.state.name = h.cred.label();
     }
 
     fn theme(s: &Services) -> Theme {
@@ -202,13 +309,19 @@ impl GitTool {
             .read()
             .all()
             .iter()
-            .map(|r| hs_ui::dashboard::Entry {
-                id: r.id.clone(),
-                name: r.label(),
-                detail: r.path.display().to_string(),
-                icon: entry_icon(r).to_string(),
-                image: entry_image(ui.ctx(), s, &r.id),
-                tint: None,
+            .map(|r| {
+                // The picture, else the language's logo in its colour, as
+                // the sidebar row and the tab (CR-0047).
+                let mark = repo_conn_icon(&r.icon, &r.language);
+                let image = entry_image(ui.ctx(), s, &r.id);
+                hs_ui::dashboard::Entry {
+                    id: r.id.clone(),
+                    name: r.label(),
+                    detail: r.path.display().to_string(),
+                    icon: mark.glyph.to_string(),
+                    tint: image.is_none().then(|| mark.brand()).flatten(),
+                    image: image.or_else(|| mark.uri()),
+                }
             })
             .collect();
         let credentials = s.git_credentials.read().all().len();
@@ -294,7 +407,8 @@ struct SidebarRow {
     id: String,
     name: String,
     path: String,
-    icon: &'static str,
+    /// The chosen glyph key and the detected language (CR-0047).
+    icon: (String, String),
     /// The active tab shows this repository.
     here: bool,
     image: Option<String>,
@@ -309,15 +423,18 @@ fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
     hs_ui::icons::image_uri(ctx, &file)
 }
 
-/// The glyph a saved entry draws in lists.
-fn entry_icon(r: &hs_core::git_repos::RepoEntry) -> &'static str {
-    if let Some(g) = hs_ui::icons::named(&r.icon) {
-        return g;
+/// What a repository wears in the sidebar, on its tab and in its header
+/// band when it has no uploaded picture (CR-0047): the chosen glyph, else
+/// the detected language's logo in its own colour - the same mark the
+/// Editor gives a project of that language.
+fn repo_conn_icon(icon: &str, language: &str) -> hs_ui::icons::ConnIcon {
+    if let Some(g) = hs_ui::icons::named(icon) {
+        hs_ui::icons::ConnIcon::glyph(g)
+    } else if !language.is_empty() {
+        hs_ui::icons::language_conn_icon(language)
+    } else {
+        hs_ui::icons::ConnIcon::glyph(ph::GIT_BRANCH)
     }
-    if !r.language.is_empty() {
-        return hs_ui::icons::language_icon(&r.language);
-    }
-    ph::GIT_BRANCH
 }
 
 /// Open the saved repository `id` in its tab, or focus the tab that has
@@ -362,6 +479,9 @@ impl Tool for GitTool {
         if let Some(t) = &self.home_title {
             return Cow::Borrowed(t);
         }
+        if self.is_host() {
+            return Cow::Borrowed(&self.state.name);
+        }
         if self.state.name.is_empty() {
             Cow::Borrowed("Git")
         } else {
@@ -370,6 +490,9 @@ impl Tool for GitTool {
     }
 
     fn subtitle(&self) -> Option<String> {
+        if let Some(h) = &self.host {
+            return Some(h.cred.host());
+        }
         self.root().map(|r| r.display().to_string())
     }
 
@@ -377,27 +500,69 @@ impl Tool for GitTool {
         if self.is_home() {
             return Some(ph::GIT_BRANCH);
         }
+        if let Some(h) = &self.host {
+            return Some(Self::host_conn_icon(h.cred.kind).glyph);
+        }
         Some(self.icon())
     }
 
-    /// The uploaded icon, when the repository has one; read once per
-    /// change of entry rather than per frame (`state.image`).
+    /// The uploaded icon, when the repository has one, else the language's
+    /// logo (CR-0047); a host tab wears the forge's. Read once per change
+    /// of entry rather than per frame (`state.image`).
     fn tab_icon_uri(&self) -> Option<String> {
         if self.is_home() {
             return None;
         }
-        self.state.image.clone()
+        if let Some(h) = &self.host {
+            return Self::host_conn_icon(h.cred.kind).uri();
+        }
+        self.state
+            .image
+            .clone()
+            .or_else(|| repo_conn_icon(&self.state.icon, &self.state.language).uri())
+    }
+
+    /// The language's colour for the glyph, where the language has one and
+    /// there is no picture to draw (CR-0047).
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        if self.is_home() {
+            return None;
+        }
+        if let Some(h) = &self.host {
+            return Self::host_conn_icon(h.cred.kind).brand();
+        }
+        if self.state.image.is_some() {
+            return None;
+        }
+        repo_conn_icon(&self.state.icon, &self.state.language).brand()
+    }
+
+    /// The host credential a host tab is bound to, so opening the host
+    /// again focuses this tab (FEAT-0100).
+    fn current_connection(&self) -> Option<&str> {
+        self.is_host().then_some(self.state.host_id.as_str())
     }
 
     fn header(&self) -> Option<hs_core::tool::ToolHeader> {
         if self.is_home() {
             return None;
         }
+        if let Some(h) = &self.host {
+            return Some(
+                Self::host_conn_icon(h.cred.kind)
+                    .header(h.cred.label())
+                    .fact("Kind", h.cred.kind.name().to_string())
+                    .fact("URL", h.cred.host())
+                    .fact("User", h.cred.username.clone())
+                    .fact("Open", h.tabs.len().to_string()),
+            );
+        }
         let root = self.root()?;
         let language = hs_core::langver::display_name(&self.state.language);
-        let header = hs_core::tool::ToolHeader::new(self.icon(), self.title().to_string());
-        // The repository's uploaded icon, as its list row and tab show it,
-        // rather than the glyph alone (CR-0036).
+        // The repository's picture, chosen glyph or language logo in its
+        // colour, as its row and tab show it (CR-0036, CR-0047).
+        let header =
+            repo_conn_icon(&self.state.icon, &self.state.language).header(self.title().to_string());
         let header = match &self.state.image {
             Some(uri) => header.icon_image(uri.clone()),
             None => header,
@@ -415,6 +580,9 @@ impl Tool for GitTool {
     fn project_roots(&self) -> Vec<PathBuf> {
         if self.is_home() {
             return Vec::new();
+        }
+        if let Some(h) = &self.host {
+            return h.active_tab().map(|t| t.path.clone()).into_iter().collect();
         }
         self.root().map(|r| r.to_path_buf()).into_iter().collect()
     }
@@ -440,6 +608,14 @@ impl Tool for GitTool {
         if self.is_home() {
             return false;
         }
+        // A Git credential opens as a host tab (FEAT-0100); the shell has
+        // already made sure there is at most one per host.
+        if let OpenRequest::Connection { id } = &item {
+            return self.become_host(cx.services, id);
+        }
+        if self.is_host() {
+            return false;
+        }
         let OpenRequest::File { uri, .. } = item else {
             return false;
         };
@@ -463,6 +639,9 @@ impl Tool for GitTool {
     }
 
     fn draws_toolbar(&self) -> bool {
+        if let Some(h) = &self.host {
+            return h.active_tab().is_some_and(|t| t.path.join(".git").exists());
+        }
         !self.is_home() && self.root().is_some()
     }
 
@@ -499,6 +678,9 @@ impl Tool for GitTool {
     }
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
+        if let Some(h) = self.host.as_mut() {
+            return h.active_pane_mut().is_some_and(|p| p.run_command(id, cx));
+        }
         if self.is_home() || self.root().is_none() {
             return false;
         }
@@ -506,10 +688,16 @@ impl Tool for GitTool {
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
+        let theme = Self::theme(cx.services);
+        if let Some(h) = self.host.as_mut() {
+            if let Some(p) = h.active_pane_mut() {
+                p.toolbar(ui, &theme, cx);
+            }
+            return;
+        }
         if self.is_home() || self.root().is_none() {
             return;
         }
-        let theme = Self::theme(cx.services);
         self.pane.toolbar(ui, &theme, cx);
     }
 
@@ -544,19 +732,24 @@ impl Tool for GitTool {
                 id: r.id.clone(),
                 name: r.label(),
                 path: r.path.display().to_string(),
-                icon: entry_icon(r),
+                icon: (r.icon.clone(), r.language.clone()),
                 here: mine.as_deref() == Some(hs_core::projects::normalise(&r.path).as_str()),
                 image: entry_image(ui.ctx(), s, &r.id),
             })
             .collect();
+        // The hosts (FEAT-0100): the Git credentials themselves, so a
+        // credential saved in Settings → Git is a host row at once.
+        let hosts: Vec<hs_core::git_hosts::GitCredential> = s.git_credentials.read().all().to_vec();
+        let host_here = self.state.host_id.clone();
         if rows.is_empty() {
             hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("git-no-repos"));
-            return true;
         }
         let mut reorder = hs_ui::reorder::Reorder::new("git-repo-list");
         let mut open: Option<String> = None;
         let mut edit: Option<String> = None;
         let mut remove: Option<String> = None;
+        let mut open_host: Option<String> = None;
+        let mut add_host = false;
         egui::ScrollArea::vertical()
             .id_salt(self.id.with("repos"))
             .auto_shrink([false, false])
@@ -571,15 +764,28 @@ impl Tool for GitTool {
                         image,
                     } = r;
                     reorder.row(ui, i, |ui| {
-                        let row = hs_ui::form::list_row_image(
-                            ui,
-                            &theme,
-                            *here,
-                            image.as_deref(),
-                            icon,
-                            name,
-                            Some(path),
-                        );
+                        // The language's logo in its colour where there is
+                        // no picture and no chosen glyph (CR-0047).
+                        let mark = repo_conn_icon(&icon.0, &icon.1);
+                        let row = match image.as_deref() {
+                            Some(uri) => hs_ui::form::list_row_image(
+                                ui,
+                                &theme,
+                                *here,
+                                Some(uri),
+                                mark.glyph,
+                                name,
+                                Some(path),
+                            ),
+                            None => hs_ui::form::conn_list_row(
+                                ui,
+                                &theme,
+                                *here,
+                                mark,
+                                name,
+                                Some(path),
+                            ),
+                        };
                         if row.clicked() {
                             open = Some(id.clone());
                         }
@@ -597,7 +803,48 @@ impl Tool for GitTool {
                     });
                     ui.add_space(2.0);
                 }
+                ui.add_space(hs_ui::form::PANE_GAP);
+                if hs_ui::form::sidebar_head(
+                    ui,
+                    &theme,
+                    &s.t("git-hosts"),
+                    &[hs_ui::form::SideAction {
+                        icon: ph::PLUS,
+                        label: &s.t("git-add-host"),
+                        tip: "",
+                    }],
+                )
+                .is_some()
+                {
+                    add_host = true;
+                }
+                if hosts.is_empty() {
+                    hs_ui::form::note(ui, &theme, ph::LIGHTBULB, &s.t("git-no-hosts"));
+                }
+                for c in &hosts {
+                    let row = hs_ui::form::conn_list_row(
+                        ui,
+                        &theme,
+                        host_here == c.id,
+                        Self::host_conn_icon(c.kind),
+                        &c.label(),
+                        Some(&c.host()),
+                    );
+                    if row.clicked() {
+                        open_host = Some(c.id.clone());
+                    }
+                    ui.add_space(2.0);
+                }
             });
+        if add_host {
+            cx.actions.push(Action::RunCommand {
+                id: "settings:git:credentials".into(),
+            });
+        }
+        if let Some(id) = open_host {
+            // One tab per host: the shell focuses the one that has it.
+            cx.open("git", Some(OpenRequest::Connection { id }));
+        }
         if let Some((from, to)) = reorder.finish(ui, theme.accent)
             && let Err(e) = s.git_repos.write().reorder(from, to)
         {
@@ -622,6 +869,10 @@ impl Tool for GitTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         if self.is_home() {
             self.dashboard(ui, cx);
+            return;
+        }
+        if self.is_host() {
+            self.host_ui(ui, cx);
             return;
         }
         let theme = Self::theme(cx.services);
@@ -649,5 +900,35 @@ impl Tool for GitTool {
         }
         hs_core::langver::ensure(&cx.services.runtime, &self.state.language);
         self.pane.ui(ui, &theme, cx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CR-0047: a repository with no picture and no chosen glyph wears its
+    /// language's logo in the language's colour; a chosen glyph stays plain.
+    #[test]
+    fn a_repository_wears_its_language_unless_a_glyph_was_chosen() {
+        let rust = repo_conn_icon("", "rust");
+        assert!(rust.uri().is_some(), "the Rust logo");
+        assert_eq!(rust.glyph, hs_ui::icons::language_icon("rust"));
+        let chosen = repo_conn_icon("star", "rust");
+        assert!(chosen.uri().is_none() && chosen.brand().is_none());
+        let bare = repo_conn_icon("", "");
+        assert_eq!(bare.glyph, ph::GIT_BRANCH);
+    }
+
+    /// FEAT-0100: a host tab wears its forge's logo where one is vendored.
+    #[test]
+    fn a_host_tab_wears_the_forges_logo() {
+        use hs_core::git_hosts::HostKind;
+        assert!(GitTool::host_conn_icon(HostKind::GitLab).uri().is_some());
+        assert!(GitTool::host_conn_icon(HostKind::Forgejo).uri().is_some());
+        assert_eq!(
+            GitTool::host_conn_icon(HostKind::Azure).glyph,
+            ph::GIT_BRANCH
+        );
     }
 }

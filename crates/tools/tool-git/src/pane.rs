@@ -172,6 +172,18 @@ impl RepoPane {
                 self.tree.view = View::Files;
                 self.files.prompt_new_folder();
             }
+            "git.files.rename" => {
+                self.tree.view = View::Files;
+                self.files.prompt_rename();
+            }
+            "git.files.delete" => {
+                self.tree.view = View::Files;
+                self.files.prompt_delete();
+            }
+            "git.files.upload" => {
+                self.tree.view = View::Files;
+                self.files.upload(cx);
+            }
             "git.branch" => self.verbs.panel = Panel::Branch,
             "git.merge" => self.verbs.panel = Panel::Merge,
             "git.rebase" => self.verbs.panel = Panel::Rebase,
@@ -465,6 +477,9 @@ impl RepoPane {
         let finished = self.op_slot.lock().take();
         if let Some((label, out)) = finished {
             self.busy = None;
+            // A verb may have changed the work tree (a checkout, a pull):
+            // the Files view lists again and re-reads its open file.
+            self.files.reload(cx.services);
             match out {
                 Ok(text) => {
                     let text = text.trim().to_string();
@@ -649,6 +664,7 @@ impl RepoPane {
             View::History => (rest * 0.55).clamp(420.0, 900.0),
             View::Files => (rest * 0.32).clamp(280.0, 520.0),
         };
+        let mut files_checkout: Option<String> = None;
         egui::Panel::left(
             ui.id()
                 .with(("git-centre-col", self.tree.view == View::History)),
@@ -659,8 +675,20 @@ impl RepoPane {
         .show(ui, |ui| match self.tree.view {
             View::Status => self.status_column(ui, theme, cx),
             View::History => self.history_column(ui, theme, cx),
-            View::Files => self.files.tree_ui(ui, theme, cx),
+            View::Files => {
+                files_checkout =
+                    self.files
+                        .tree_ui(ui, theme, cx, &facts_branches, current.as_deref());
+            }
         });
+        if let Some(b) = files_checkout {
+            let op = Op::new(cx.services.t("git-menu-checkout"), move |r| {
+                hs_git::write::checkout(r, &b)
+                    .map(|_| String::new())
+                    .map_err(|e| e.to_string())
+            });
+            self.exec(cx.services, op);
+        }
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.panel_bg))
             .show(ui, |ui| {

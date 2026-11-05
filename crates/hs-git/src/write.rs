@@ -358,10 +358,12 @@ pub fn push_env(root: &Path, opts: &PushOptions, env: &[(String, String)]) -> Re
 /// (they arrive on stderr, one `\r`-separated step at a time), with
 /// `env` for the credentials and `cancel` polled between reads. The
 /// destination's parent is created; the destination itself must not
-/// exist yet, as git requires.
+/// exist yet, as git requires. `depth` makes it a shallow clone
+/// (`--depth N`).
 pub fn clone(
     url: &str,
     dest: &Path,
+    depth: Option<u32>,
     env: &[(String, String)],
     cancel: &dyn Fn() -> bool,
     on_line: &mut dyn FnMut(&str),
@@ -375,7 +377,11 @@ pub fn clone(
         })?;
     }
     let mut cmd = hs_core::paths::background_command("git");
-    cmd.args(["clone", "--progress", url])
+    cmd.args(["clone", "--progress"]);
+    if let Some(d) = depth {
+        cmd.arg(format!("--depth={d}"));
+    }
+    cmd.arg(url)
         .arg(dest)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("LC_ALL", "C")

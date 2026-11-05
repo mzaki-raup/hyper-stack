@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
+- Git: Rename, Delete (confirmed; a folder by typing its name) and Upload in the Files view, a branch picker over the tree, and Settings → Git → Shallow Clones from Hosts (FEAT-0102, phase 3)
 - Git: a Files view in every repository pane - the working tree as a folder tree, the picked file read in the editor engine, Edit and Save landing the change in File Status, New File and New Folder, Open in Editor (FEAT-0101, phase 2)
 
 ## 0.120.0 — 2026-11-05

@@ -11,6 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- Dropdown items - workspace, environment, shell, connection, engine, AI provider and others - show their kind's mark in colour, in the list and the closed box (CR-0081)
+- 18 more colour schemes: Tokyo Night, Rosé Pine, Kanagawa, Everforest Dark, Ayu Dark, Night Owl, Material Palenight, GitHub Dark, Catppuccin Macchiato, One Light, Gruvbox Light, Catppuccin Latte, Rosé Pine Dawn, Ayu Light, Everforest Light, Tokyo Night Day, Tomorrow and Light Owl, each checked for readable contrast (FEAT-0105)
+- Environment tiers: each environment wears its tier's icon and colour (matched from its name or set by hand), a protected one always the red shield; Production and Production Support default to protected (FEAT-0106)
+- A workspace without a logo shows a lettered tile in a colour of its own (CR-0082)
+
+
 ### Fixed
 
 - Selectable rows, tabs and labels no longer grow 1 px a side under the pointer (an egui sizing quirk); hover only fills and outlines. Form buttons expose their plain label to screen readers (owner, 2026-11-07)

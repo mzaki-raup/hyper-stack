@@ -151,9 +151,9 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0104
+Features : FEAT-0106
 Bugs : BUG-0047
-Change Request : CR-0080
+Change Request : CR-0082
 ```
 
 ---
@@ -497,13 +497,17 @@ Change Request : CR-0080
 - [ ] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS
 
 ### CR-0062 · Devtools: every tool's form to the layout standard
-- **State:** Pending ·
+- **State:** In-Progress · widened by the owner 2026-11-07
 - **Source:** owner, 2026-11-06 ("In Devtools Activity Form in all tools, please check proper form, input, label, wording comply to a standard … many form in the tools is lousy and not up to standard")
 - **Scope:** every tool in `tool-devtools` (convert, cron, diff, envfile, generate, hash, jwt, net, ports, regex, snippets, url, base64, firebase, yaml …).
 - **Parent:** CR-0025
 - **Depends on:** CR-0061
 - [ ] Each tool's inputs in a `form::field_grid` (or an `edit_table` for rows), labels in Title Case beside their fields, hints in sentence case on their own row, outputs in a `form::well`
 - [ ] Wording reviewed per tool: one name per thing, no jargon where a plain word exists, the casing rules
+- [ ] Every button standard size with padding, a fitting icon and a label; BUTTON_GAP between neighbours (owner, 2026-11-07)
+- [ ] Form rows spaced with ROW_GAP; label-and-field rows on one middle line (owner, 2026-11-07)
+- [ ] Tables to the table standard - accent header band, indented titles, centred cells, empty hints: Hashes, Cron Expression, Unit Conversion (every unit), and any other Devtools table (owner, 2026-11-07)
+- [ ] Jasypt: the inline password field and Save to Environment button on one middle line, with gaps between the parts (owner, 2026-11-07)
 - [ ] Test: the bundled locale parses; no bare text field left in the crate
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — every Devtools tool opened and checked against the standard
@@ -750,6 +754,58 @@ Change Request : CR-0080
 - [x] Test: a label and a sub-label start left; their controls share one x
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — several Settings pages; screenshots - General, About, Terminal seen 2026-11-07 (screenshots 47-49)
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0081 · Dropdown items colour their icons by kind
+- **State:** In-Progress · agreed 2026-11-07
+- **Source:** owner, 2026-11-07 ("In All Dropdown menu list that show icon and label, color those icon follow from its kind/type/etc")
+- **Scope:** every ComboBox, `pick_field` popup and menu whose items show an icon (workspace, environment, shell, connection, engine, kind, file pickers …) draws each icon in its kind's mark, and the closed box shows the selected item's mark.
+- **Parent:** CR-0065
+- [x] Every dropdown with icons colours them by kind
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — several dropdowns open; screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### FEAT-0105 · More colour schemes for dark and light mode
+- **State:** In-Progress · agreed 2026-11-07
+- **Source:** owner, 2026-11-07 ("can you add more color scheme palete, so that user have many option for choosing best theme/scheme color both dark mode and light mode")
+- **Scope:** `hs_ui::theme` gains 18 bundled schemes from their published palettes - dark: Tokyo Night, Rosé Pine, Kanagawa, Everforest Dark, Ayu Dark, Night Owl, Material Palenight, GitHub Dark, Catppuccin Macchiato; light: One Light, Gruvbox Light, Catppuccin Latte, Rosé Pine Dawn, Ayu Light, Everforest Light, Tokyo Night Day, Tomorrow, Light Owl - listed in Settings → Appearance with the others.
+- **Spec:** docs/04-ui-design.md (theming)
+- [x] 18 schemes added to `Theme::schemes()` / `by_id`
+- [x] Test: every scheme's text and muted text keep readable contrast on its window, panel and surface; every id resolves
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Settings → Appearance palette list, a few schemes applied; screenshots
+- [ ] Docs: CHANGELOG, docs/04 theming list, README if it lists schemes
+
+
+### FEAT-0106 · Environment tiers: an icon and colour per tier, Production and Production Support protected
+- **State:** In-Progress · agreed 2026-11-07
+- **Source:** owner, 2026-11-07 (asked for an icon per environment - LOCAL, LOCALHOST, LOWER, STAGING, TESTING, UAT, TRAINING, SIT, PROD, PRODUCTION - then "how production support will fit in?", "if user set the tier manually, the icon should change to the tier level also?", "Make production support also protected and proceed to implement this")
+- **Spec:** docs/06-security.md (protected environments), docs/04-ui-design.md (environment marks)
+- **Scope:** `hs_core::environments` gains a `Tier` (Local, Development, Integration, Testing, Training, Acceptance, Staging, ProductionSupport, Production; an unmatched name has no tier and shows the globe) matched from the name by keyword (Production Support checked before Production) and an optional manual tier that overrides it; `hs_ui` gives each tier an icon and colour; protected always shows the red shield. A new environment, or one whose tier is set or changed to Production or Production Support, defaults to protected (read-only); the user can still change it. The mark shows in the title-bar Environment dropdown, the environment banner and Settings → Environments (with a Tier dropdown); tabs are no longer tied to an environment, so they carry no mark.
+- **Parent:** CR-0025
+- [x] `Tier`, keyword matching (case and separators ignored; PROD-SUPPORT before PROD), manual override saved with the environment
+- [x] Tier icons and colours; protected → red shield; unknown → neutral globe
+- [x] Production and Production Support default to protected on create and on tier change
+- [x] Marks in the title-bar dropdown, the banner and Settings → Environments (Tier dropdown)
+- [x] Test: name matching for every listed name, precedence (protected > manual > matched > none), the protected default, the setting survives save and reload
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — environments of several tiers, one set by hand, the dropdown and banner; screenshots
+- [ ] Docs: CHANGELOG, docs/06, docs/04, ui.md rule
+
+
+### CR-0082 · A workspace without a logo shows a lettered tile
+- **State:** In-Progress · agreed 2026-11-07
+- **Source:** owner, 2026-11-07 (asked for a default workspace icon; chose "the lettered tile")
+- **Scope:** a shared `hs_ui` lettered tile - one or two initials on a rounded square, its colour picked from the name out of the rotating palette of eight (the Logs source palette, moved to hs_ui) - drawn wherever a workspace has no logo: the title-bar dropdown and selected value, Home's Workspaces cards, Settings → Workspace, the startup and copy-from pickers, the rail workspace picker. A set logo still wins.
+- **Parent:** CR-0079
+- [x] `hs_ui` lettered tile with stable initials and colour
+- [x] Used everywhere a workspace mark is drawn
+- [x] Test: initials ("default" → D, "hyper-stack" → HS, "My Work Space" → MW), the colour is stable for a name
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — two workspaces without logos; screenshots
 - [ ] Docs: CHANGELOG, ui.md rule
 
 ---

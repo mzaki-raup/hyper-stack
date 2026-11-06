@@ -414,21 +414,33 @@ impl FilesView {
             }
         });
         hs_ui::form::centred_row(ui, |ui| {
-            ui.label(ph::GIT_BRANCH);
-            egui::ComboBox::from_id_salt(ui.id().with("git-files-branch"))
-                .selected_text(current.unwrap_or("HEAD"))
-                .width(ui.available_width() - 8.0)
-                .show_ui(ui, |ui| {
+            // A branch as the branch tree draws one (CR-0081).
+            let material = self.material;
+            let mark = || {
+                hs_ui::form::Mark::tree(hs_ui::fileicons::item_icon(
+                    material,
+                    "branch",
+                    ph::GIT_BRANCH,
+                ))
+            };
+            hs_ui::form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt(ui.id().with("git-files-branch"))
+                    .width(ui.available_width() - 8.0),
+                mark(),
+                current.unwrap_or("HEAD"),
+                |ui| {
                     for b in branches.iter().filter(|b| !b.remote) {
-                        if hs_ui::form::selectable_label(ui, b.current, &b.name).clicked()
+                        if hs_ui::form::mark_selectable(ui, b.current, mark(), &b.name).clicked()
                             && !b.current
                         {
                             checkout = Some(b.name.clone());
                         }
                     }
-                })
-                .response
-                .tip(s.t("git-files-branch-tip"));
+                },
+            )
+            .response
+            .tip(s.t("git-files-branch-tip"));
         });
         ui.add_space(form::PANE_GAP);
         if let Some(e) = &self.error {

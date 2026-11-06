@@ -1066,20 +1066,29 @@ pub fn git_host_icon(kind: hs_core::git_hosts::HostKind) -> ConnIcon {
     }
 }
 
+/// An S3 store's mark by its provider: MinIO's own (CR-0079), every other
+/// provider the S3 mark.
+pub fn s3_provider_icon(provider: &str) -> ConnIcon {
+    if provider == "minio" {
+        product_icon("minio", connection_icon("s3", ""))
+    } else {
+        conn_icon("s3", "")
+    }
+}
+
 /// [`conn_icon`] for a saved profile: a database by its engine, an SSH
 /// host by its operating system ([`os_conn_icon`]), an S3 store by its
 /// provider where that has a mark of its own (MinIO, CR-0079).
 pub fn profile_conn_icon(profile: &hs_core::connections::ConnectionProfile) -> ConnIcon {
-    if profile.kind == "s3"
-        && profile
+    if profile.kind == "s3" {
+        let provider = profile
             .fields
             .get("s3")
             .and_then(|v| v.as_table())
             .and_then(|t| t.get("provider"))
             .and_then(|v| v.as_str())
-            == Some("minio")
-    {
-        return product_icon("minio", connection_icon("s3", ""));
+            .unwrap_or_default();
+        return s3_provider_icon(provider);
     }
     if profile.kind == "ssh" {
         let os = profile
@@ -1269,6 +1278,259 @@ pub fn named(key: &str) -> Option<&'static str> {
         .iter()
         .any(|(id, _)| *id == key)
         .then(|| language_icon(key))
+}
+
+/// One AI service's mark (CR-0055): a provider kind at an endpoint, its
+/// glyph, and its vendored logo's file name (one of [`PROVIDER_LOGOS`]).
+pub struct AiServiceMark {
+    pub kind: hs_core::ai::Provider,
+    /// The service's endpoint; empty is the kind's own default.
+    pub base: &'static str,
+    pub glyph: &'static str,
+    pub logo: Option<&'static str>,
+}
+
+/// Every AI service Settings → AI Assistant's gallery offers, in the
+/// gallery's order. Everything OpenAI-shaped shares one kind and differs
+/// only in its endpoint, so the endpoint is what tells their marks apart.
+pub const AI_SERVICE_MARKS: &[AiServiceMark] = {
+    use hs_core::ai::Provider as P;
+    const fn m(
+        kind: P,
+        base: &'static str,
+        glyph: &'static str,
+        logo: Option<&'static str>,
+    ) -> AiServiceMark {
+        AiServiceMark {
+            kind,
+            base,
+            glyph,
+            logo,
+        }
+    }
+    &[
+        // Chat, hosted.
+        m(
+            P::OpenAi,
+            hs_core::ai::OPENAI_BASE,
+            ph::CIRCLES_THREE,
+            Some("openai"),
+        ),
+        m(P::Anthropic, "", ph::ASTERISK, Some("anthropic")),
+        // nf-md-google: the real G
+        m(P::Gemini, "", "\u{f02ad}", Some("googlegemini")),
+        // nf-md-microsoft-azure
+        m(P::Azure, "", "\u{f0805}", Some("azure")),
+        // nf-dev-aws
+        m(P::Bedrock, "", "\u{e7ad}", Some("amazonwebservices")),
+        m(
+            P::OpenAi,
+            "https://api.mistral.ai/v1",
+            ph::WIND,
+            Some("mistralai"),
+        ),
+        m(
+            P::OpenAi,
+            "https://api.deepseek.com",
+            ph::FISH_SIMPLE,
+            Some("deepseek"),
+        ),
+        m(
+            P::Anthropic,
+            "https://api.deepseek.com/anthropic",
+            ph::FISH_SIMPLE,
+            Some("deepseek"),
+        ),
+        m(
+            P::OpenAi,
+            "https://api.moonshot.ai/v1",
+            ph::MOON,
+            Some("moonshotai"),
+        ),
+        m(
+            P::OpenAi,
+            "https://api.hunyuan.cloud.tencent.com/v1",
+            ph::TRANSLATE,
+            Some("tencentqq"),
+        ),
+        m(P::OneMin, "", ph::TIMER, Some("onemin")),
+        // Chat, gateways.
+        m(
+            P::OpenAi,
+            "https://openrouter.ai/api/v1",
+            ph::ARROWS_SPLIT,
+            Some("openrouter"),
+        ),
+        m(
+            P::OpenAi,
+            "https://api.1min.ai/openai/v1",
+            ph::TIMER,
+            Some("onemin"),
+        ),
+        // Chat, local.
+        m(
+            P::OpenAi,
+            "http://localhost:1234/v1",
+            ph::DESKTOP,
+            Some("lmstudio"),
+        ),
+        m(
+            P::OpenAi,
+            "http://localhost:11434/v1",
+            ph::DESKTOP,
+            Some("ollama"),
+        ),
+        m(
+            P::OpenAi,
+            "http://localhost:8000/v1",
+            ph::DESKTOP,
+            Some("vllm"),
+        ),
+        m(
+            P::OpenAi,
+            "http://localhost:3003/v1",
+            ph::SAILBOAT,
+            Some("windsurf"),
+        ),
+        m(P::OpenAi, "", ph::PLUGS_CONNECTED, None),
+        // Image, hosted.
+        m(P::Fal, "", ph::LIGHTNING, Some("fal")),
+        m(P::OneMin, "", ph::IMAGE, Some("onemin")),
+        // Image, local.
+        m(
+            P::SdWebUi,
+            "http://127.0.0.1:7860",
+            ph::DESKTOP,
+            Some("sdwebui"),
+        ),
+        m(
+            P::SdWebUi,
+            "http://127.0.0.1:7860",
+            ph::DESKTOP,
+            Some("sdwebui"),
+        ),
+        m(
+            P::SdWebUi,
+            "http://127.0.0.1:7860",
+            ph::DESKTOP,
+            Some("sdwebui"),
+        ),
+        m(
+            P::ComfyUi,
+            "http://127.0.0.1:8188",
+            ph::GRAPH,
+            Some("comfyui"),
+        ),
+        m(
+            P::SwarmUi,
+            "http://127.0.0.1:7801",
+            ph::DESKTOP,
+            Some("swarmui"),
+        ),
+        m(
+            P::ComfyUi,
+            "http://127.0.0.1:7801/ComfyBackendDirect",
+            ph::GRAPH,
+            Some("swarmui"),
+        ),
+        m(
+            P::InvokeAi,
+            "http://127.0.0.1:9090",
+            ph::DESKTOP,
+            Some("invokeai"),
+        ),
+        m(
+            P::Fooocus,
+            "http://127.0.0.1:8888",
+            ph::DESKTOP,
+            Some("fooocus"),
+        ),
+        m(
+            P::SdWebUi,
+            "http://127.0.0.1:7860",
+            ph::SQUARES_FOUR,
+            Some("sdwebui"),
+        ),
+        m(
+            P::ComfyUi,
+            "http://127.0.0.1:8188",
+            ph::SQUARES_FOUR,
+            Some("comfyui"),
+        ),
+        m(P::SdWebUi, "", ph::PLUGS_CONNECTED, None),
+    ]
+};
+
+/// An AI service's mark: its logo where one is vendored, its glyph
+/// otherwise (CR-0055).
+fn ai_service_icon(svc: &AiServiceMark) -> ConnIcon {
+    ConnIcon {
+        glyph: svc.glyph,
+        image: svc.logo.and_then(logo),
+        tint: ConnTint::Default,
+    }
+}
+
+/// Endpoints compare without a trailing slash or a difference of case:
+/// `https://api.mistral.ai/v1/` is the same service as
+/// `https://api.mistral.ai/v1`.
+fn normalise_ai_base(base: &str) -> String {
+    base.trim().trim_end_matches('/').to_lowercase()
+}
+
+/// A **saved** AI provider's mark: that of the service at its endpoint
+/// in [`AI_SERVICE_MARKS`], else its kind's ([`ai_kind_icon`]). Every
+/// provider picker and Settings' provider list wear it (CR-0055, CR-0081).
+///
+/// A provider whose endpoint has been edited by hand falls back to its
+/// kind's mark, the honest answer rather than a guess at whose service
+/// it now is.
+pub fn ai_provider_icon(kind: hs_core::ai::Provider, base_url: &str) -> ConnIcon {
+    let want = normalise_ai_base(base_url);
+    AI_SERVICE_MARKS
+        .iter()
+        .find(|svc| svc.kind == kind && normalise_ai_base(svc.base) == want)
+        .map(ai_service_icon)
+        .unwrap_or_else(|| ai_kind_icon(kind))
+}
+
+/// An AI provider kind's mark, with no endpoint to tell its services
+/// apart: the one service's own where the kind has only one, else the
+/// kind's (CR-0055). Every kind has a logo or a coloured glyph (CR-0081).
+pub fn ai_kind_icon(kind: hs_core::ai::Provider) -> ConnIcon {
+    use hs_core::ai::{Capability, Provider};
+    let mut same_kind = AI_SERVICE_MARKS.iter().filter(|svc| svc.kind == kind);
+    // Exactly one service has this kind, so the endpoint cannot be
+    // telling us anything the kind did not already say.
+    if let (Some(svc), None) = (same_kind.next(), same_kind.next()) {
+        return ai_service_icon(svc);
+    }
+    // A kind with several services but an endpoint the gallery does not
+    // know: the kind's own mark where it has one (CR-0055).
+    let by_kind = match kind {
+        Provider::OneMin => "onemin",
+        Provider::Anthropic => "anthropic",
+        Provider::Gemini => "googlegemini",
+        Provider::Azure => "azure",
+        Provider::Bedrock => "amazonwebservices",
+        Provider::SdWebUi => "sdwebui",
+        Provider::ComfyUi => "comfyui",
+        Provider::SwarmUi => "swarmui",
+        Provider::InvokeAi => "invokeai",
+        Provider::Fooocus => "fooocus",
+        Provider::Fal => "fal",
+        // Any OpenAI-shaped service: no one brand's logo, so the
+        // capability's glyph in OpenAI's green (CR-0081).
+        Provider::OpenAi => return branded(ph::SPARKLE, [0x10, 0xa3, 0x7f]),
+    };
+    ConnIcon {
+        glyph: match kind.capability() {
+            Capability::Chat => ph::SPARKLE,
+            Capability::Image => ph::IMAGE,
+        },
+        image: logo(by_kind),
+        tint: ConnTint::Default,
+    }
 }
 
 #[cfg(test)]
@@ -1558,6 +1820,48 @@ mod tests {
         {
             assert_ne!(connection_icon(k, ""), fallback, "{k}");
         }
+    }
+
+    /// CR-0081: every AI provider kind wears a logo or a glyph in a colour
+    /// of its own in the provider pickers, so none is a bare glyph.
+    #[test]
+    fn every_ai_provider_kind_resolves_to_a_logo_or_a_coloured_glyph() {
+        for kind in hs_core::ai::Provider::all() {
+            for icon in [
+                ai_kind_icon(kind),
+                ai_provider_icon(kind, "https://example.test/"),
+            ] {
+                assert!(
+                    icon.image.is_some() || icon.brand().is_some(),
+                    "{kind:?} has neither a logo nor a colour"
+                );
+            }
+        }
+    }
+
+    /// CR-0055: every AI service mark names a vendored logo, and a saved
+    /// provider at a gallery endpoint finds that service's mark.
+    #[test]
+    fn every_ai_service_logo_is_vendored_and_an_endpoint_finds_its_mark() {
+        for svc in AI_SERVICE_MARKS {
+            if let Some(slug) = svc.logo {
+                assert!(logo(slug).is_some(), "{slug} is not vendored");
+                assert!(
+                    PROVIDER_LOGOS.contains(&slug),
+                    "{slug} is not in PROVIDER_LOGOS"
+                );
+            }
+        }
+        use hs_core::ai::Provider;
+        assert_eq!(
+            ai_provider_icon(Provider::OpenAi, "https://API.mistral.ai/v1/").image,
+            logo("mistralai")
+        );
+        assert_eq!(
+            ai_provider_icon(Provider::Anthropic, "https://api.anthropic.com/").image,
+            logo("anthropic"),
+            "an unknown Anthropic endpoint falls back to the kind's logo"
+        );
     }
 }
 

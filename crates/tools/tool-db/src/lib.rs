@@ -2720,13 +2720,26 @@ impl DbTool {
                     let before = (*dialect, *opts);
                     hs_ui::form::centred_row(ui, |ui| {
                         ui.label(s.t("db-ddl-dialect"));
-                        egui::ComboBox::from_id_salt("db-ddl-dialect")
-                            .selected_text(dialect.label())
-                            .show_ui(ui, |ui| {
+                        let mark = |e: Engine| {
+                            hs_ui::form::Mark::conn(hs_ui::icons::conn_icon("db", e.id()), theme)
+                        };
+                        hs_ui::form::mark_combo(
+                            ui,
+                            egui::ComboBox::from_id_salt("db-ddl-dialect"),
+                            mark(*dialect),
+                            dialect.label(),
+                            |ui| {
                                 for e in Engine::ALL {
-                                    hs_ui::form::selectable_value(ui, dialect, e, e.label());
+                                    hs_ui::form::mark_selectable_value(
+                                        ui,
+                                        dialect,
+                                        e,
+                                        mark(e),
+                                        e.label(),
+                                    );
                                 }
-                            });
+                            },
+                        );
                     });
                     ui.horizontal_wrapped(|ui| {
                         ui.checkbox(&mut opts.if_not_exists, s.t("db-ddl-if-not-exists"));
@@ -2795,31 +2808,47 @@ impl DbTool {
                     ui.add_space(8.0);
                     // Every other saved database profile is a candidate; the
                     // tab's own connection is the source, so it is not one.
-                    let others: Vec<(String, String)> = {
+                    let others: Vec<(String, String, hs_ui::icons::ConnIcon)> = {
                         let conns = s.connections.read();
                         conns
                             .all()
                             .iter()
                             .filter(|c| c.kind == "db")
                             .filter(|c| Some(c.id.as_str()) != current_conn.as_deref())
-                            .map(|c| (c.id.clone(), c.name.clone()))
+                            .map(|c| {
+                                let icon = hs_ui::icons::profile_conn_icon(c);
+                                (c.id.clone(), c.name.clone(), icon)
+                            })
                             .collect()
                     };
-                    let selected = others
-                        .iter()
-                        .find(|(id, _)| id == conn_id)
-                        .map(|(_, n)| n.clone())
+                    let selected = others.iter().find(|(id, ..)| id == conn_id);
+                    // No target yet: the database kind's own mark.
+                    let selected_mark = hs_ui::form::Mark::conn(
+                        selected.map_or(hs_ui::icons::conn_icon("db", ""), |(.., icon)| *icon),
+                        theme,
+                    );
+                    let selected = selected
+                        .map(|(_, n, _)| n.clone())
                         .unwrap_or_else(|| s.t("db-cmp-pick-target"));
                     form::field_grid(ui, "db-cmp-pick-grid", |ui| {
                         ui.label(s.t("db-cmp-target"));
-                        egui::ComboBox::from_id_salt("db-cmp-target")
-                            .selected_text(selected)
-                            .width(260.0)
-                            .show_ui(ui, |ui| {
-                                for (id, name) in &others {
-                                    hs_ui::form::selectable_value(ui, conn_id, id.clone(), name);
+                        hs_ui::form::mark_combo(
+                            ui,
+                            egui::ComboBox::from_id_salt("db-cmp-target").width(260.0),
+                            selected_mark,
+                            selected,
+                            |ui| {
+                                for (id, name, icon) in &others {
+                                    hs_ui::form::mark_selectable_value(
+                                        ui,
+                                        conn_id,
+                                        id.clone(),
+                                        hs_ui::form::Mark::conn(*icon, theme),
+                                        name,
+                                    );
                                 }
-                            });
+                            },
+                        );
                         ui.end_row();
                         ui.label(s.t("db-cmp-target-schema"));
                         ui.add(

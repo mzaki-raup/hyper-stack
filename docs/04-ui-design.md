@@ -491,6 +491,30 @@ needed in `OpenRequest::Terminal`).
 - Protected environments: database connections default to read-only, API
   requests with non-GET methods ask for confirmation, SFTP/S3 deletes ask with
   the environment named, `git push --force` is disabled.
+- **Environment marks** (FEAT-0106): every environment wears its tier's icon
+  and colour (`hs_ui::envmark`) - in the title-bar switcher (closed box and
+  rows), the banner, Settings → Environments (list rows and the Inherits
+  From picker) and every connection's Environment picker. The tier is set
+  by hand with the **Tier** field (Automatic (Matched: …) or a tier), else
+  matched from the name (docs/06 §3):
+
+  | Tier | Icon | Colour |
+  |---|---|---|
+  | Local | laptop | muted grey |
+  | Development | code | blue |
+  | Integration | plugs connected | teal |
+  | Testing | flask | purple |
+  | Training | graduation cap | green |
+  | Acceptance | check square | amber |
+  | Staging | stack | orange |
+  | Production Support | lifebuoy | red-orange |
+  | Production | shield warning | red |
+  | no match | globe | muted |
+
+  A **protected** environment always wears the red shield (warning shield in
+  the theme's error colour), whatever its tier. The name keeps the
+  environment's own colour. No tab carries a mark, since no tab is bound to
+  an environment (above).
 
 ## 6. Shared widgets (`hs-ui`)
 
@@ -622,6 +646,19 @@ hands egui both palettes and follows the OS switch live (ADR-022).
 - Theme system: dark/light base, prebuilt themes, custom palette editor with
   live preview, accent/secondary derivation, font picker (same feature set
   users know from Eden Explorer, written for `hs-ui`).
+- Bundled schemes (`Theme::schemes()`, FEAT-0105), listed HyperStack first,
+  then dark and light each A–Z, from each theme's published palette:
+  - Dark: HyperStack Dark, Ayu Dark, Catppuccin Macchiato, Catppuccin Mocha,
+    Dracula, Everforest Dark, GitHub Dark, Gruvbox Dark, Kanagawa, Material
+    Palenight, Monokai, Night Owl, Nord, One Dark, Rosé Pine, Solarized Dark,
+    Tokyo Night.
+  - Light: HyperStack Light, Ayu Light, Catppuccin Latte, Everforest Light,
+    GitHub Light, Gruvbox Light, Light Owl, One Light, Rosé Pine Dawn,
+    Solarized Light, Tokyo Night Day, Tomorrow.
+  - Every scheme keeps text at 4.5:1 on its window, panel and surface, and
+    muted text and the accent at 3:1 on the window (tested). Where a
+    published colour falls short it is darkened just enough, with a comment
+    naming the original.
 - Additional semantic colours: `env.dev`, `env.test`, `env.staging`, `env.prod`,
   `diff.added`, `diff.removed`, `diff.changed`, `terminal.ansi[16]`,
   `syntax.*` (mapped to a syntect theme), `method.get/post/put/patch/delete`,

@@ -189,6 +189,24 @@ impl Theme {
             "solarized-dark" => Self::solarized_dark(),
             "solarized-light" => Self::solarized_light(),
             "github-light" => Self::github_light(),
+            "tokyo-night" => Self::tokyo_night(),
+            "rose-pine" => Self::rose_pine(),
+            "kanagawa" => Self::kanagawa(),
+            "everforest-dark" => Self::everforest_dark(),
+            "ayu-dark" => Self::ayu_dark(),
+            "night-owl" => Self::night_owl(),
+            "palenight" => Self::palenight(),
+            "github-dark" => Self::github_dark(),
+            "catppuccin-macchiato" => Self::catppuccin_macchiato(),
+            "one-light" => Self::one_light(),
+            "gruvbox-light" => Self::gruvbox_light(),
+            "catppuccin-latte" => Self::catppuccin_latte(),
+            "rose-pine-dawn" => Self::rose_pine_dawn(),
+            "ayu-light" => Self::ayu_light(),
+            "everforest-light" => Self::everforest_light(),
+            "tokyo-night-day" => Self::tokyo_night_day(),
+            "tomorrow" => Self::tomorrow(),
+            "light-owl" => Self::light_owl(),
             _ => Self::dark(),
         }
     }
@@ -198,15 +216,33 @@ impl Theme {
         &[
             ("dark", "HyperStack Dark", true),
             ("light", "HyperStack Light", false),
+            ("ayu-dark", "Ayu Dark", true),
+            ("catppuccin-macchiato", "Catppuccin Macchiato", true),
+            ("catppuccin-mocha", "Catppuccin Mocha", true),
             ("dracula", "Dracula", true),
+            ("everforest-dark", "Everforest Dark", true),
+            ("github-dark", "GitHub Dark", true),
+            ("gruvbox-dark", "Gruvbox Dark", true),
+            ("kanagawa", "Kanagawa", true),
+            ("palenight", "Material Palenight", true),
+            ("monokai", "Monokai", true),
+            ("night-owl", "Night Owl", true),
             ("nord", "Nord", true),
             ("one-dark", "One Dark", true),
-            ("monokai", "Monokai", true),
-            ("gruvbox-dark", "Gruvbox Dark", true),
-            ("catppuccin-mocha", "Catppuccin Mocha", true),
+            ("rose-pine", "Rosé Pine", true),
             ("solarized-dark", "Solarized Dark", true),
-            ("solarized-light", "Solarized Light", false),
+            ("tokyo-night", "Tokyo Night", true),
+            ("ayu-light", "Ayu Light", false),
+            ("catppuccin-latte", "Catppuccin Latte", false),
+            ("everforest-light", "Everforest Light", false),
             ("github-light", "GitHub Light", false),
+            ("gruvbox-light", "Gruvbox Light", false),
+            ("light-owl", "Light Owl", false),
+            ("one-light", "One Light", false),
+            ("rose-pine-dawn", "Rosé Pine Dawn", false),
+            ("solarized-light", "Solarized Light", false),
+            ("tokyo-night-day", "Tokyo Night Day", false),
+            ("tomorrow", "Tomorrow", false),
         ]
     }
 
@@ -428,6 +464,355 @@ impl Theme {
             c(0xCF222E),
         )
     }
+    pub fn tokyo_night() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Tokyo Night",
+            true,
+            c(0x16161E),
+            c(0x1A1B26),
+            c(0x24283B),
+            c(0x292E42),
+            c(0x3B4261),
+            c(0xC0CAF5),
+            c(0x9AA5CE),
+            c(0xBB9AF7),
+            c(0x7AA2F7),
+            c(0x9ECE6A),
+            c(0xE0AF68),
+            c(0xF7768E),
+        )
+    }
+    pub fn rose_pine() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Rosé Pine",
+            true,
+            c(0x16141F),
+            c(0x191724),
+            c(0x1F1D2E),
+            c(0x26233A),
+            c(0x403D52),
+            c(0xE0DEF4),
+            c(0x908CAA),
+            c(0xC4A7E7),
+            c(0xEBBCBA),
+            c(0x9CCFD8),
+            c(0xF6C177),
+            c(0xEB6F92),
+        )
+    }
+    pub fn kanagawa() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Kanagawa",
+            true,
+            c(0x16161D),
+            c(0x1F1F28),
+            c(0x2A2A37),
+            c(0x363646),
+            c(0x54546D),
+            c(0xDCD7BA),
+            c(0x727169),
+            c(0x957FB8),
+            c(0x7E9CD8),
+            c(0x98BB6C),
+            c(0xE6C384),
+            c(0xFF5D62),
+        )
+    }
+    pub fn everforest_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Everforest Dark",
+            true,
+            c(0x232A2E),
+            c(0x2D353B),
+            c(0x343F44),
+            c(0x3D484D),
+            c(0x475258),
+            c(0xD3C6AA),
+            c(0x9DA9A0),
+            c(0xA7C080),
+            c(0x7FBBB3),
+            c(0x83C092),
+            c(0xDBBC7F),
+            c(0xE67E80),
+        )
+    }
+    pub fn ayu_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Ayu Dark",
+            true,
+            c(0x0B0E14),
+            c(0x0D1017),
+            c(0x131721),
+            c(0x1A1F29),
+            c(0x1E232B),
+            c(0xBFBDB6),
+            c(0x707A8C),
+            c(0xE6B450),
+            c(0x59C2FF),
+            c(0xAAD94C),
+            c(0xFFB454),
+            c(0xD95757),
+        )
+    }
+    pub fn night_owl() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Night Owl",
+            true,
+            c(0x010E1A),
+            c(0x011627),
+            c(0x0B253A),
+            c(0x1D3B53),
+            c(0x1D3B53),
+            c(0xD6DEEB),
+            c(0x637777),
+            c(0xC792EA),
+            c(0x82AAFF),
+            c(0xADDB67),
+            c(0xECC48D),
+            c(0xEF5350),
+        )
+    }
+    pub fn palenight() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Material Palenight",
+            true,
+            c(0x202331),
+            c(0x292D3E),
+            c(0x34324A),
+            c(0x444267),
+            c(0x4E5579),
+            c(0xA6ACCD),
+            c(0x676E95),
+            c(0xC792EA),
+            c(0x82AAFF),
+            c(0xC3E88D),
+            c(0xFFCB6B),
+            c(0xF07178),
+        )
+    }
+    pub fn github_dark() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "GitHub Dark",
+            true,
+            c(0x010409),
+            c(0x0D1117),
+            c(0x161B22),
+            c(0x21262D),
+            c(0x30363D),
+            c(0xE6EDF3),
+            c(0x7D8590),
+            c(0xA371F7),
+            c(0x2F81F7),
+            c(0x3FB950),
+            c(0xD29922),
+            c(0xF85149),
+        )
+    }
+    pub fn catppuccin_macchiato() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Catppuccin Macchiato",
+            true,
+            c(0x1E2030),
+            c(0x24273A),
+            c(0x363A4F),
+            c(0x494D64),
+            c(0x494D64),
+            c(0xCAD3F5),
+            c(0xA5ADCB),
+            c(0xC6A0F6),
+            c(0x8AADF4),
+            c(0xA6DA95),
+            c(0xEED49F),
+            c(0xED8796),
+        )
+    }
+    pub fn one_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "One Light",
+            false,
+            c(0xF0F0F1),
+            c(0xFAFAFA),
+            c(0xEAEAEB),
+            c(0xDBDBDC),
+            c(0xDBDBDC),
+            c(0x383A42),
+            c(0x696C77),
+            c(0xA626A4),
+            c(0x4078F2),
+            c(0x50A14F),
+            c(0xC18401),
+            c(0xE45649),
+        )
+    }
+    pub fn gruvbox_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Gruvbox Light",
+            false,
+            c(0xF2E5BC),
+            c(0xFBF1C7),
+            c(0xEBDBB2),
+            c(0xD5C4A1),
+            c(0xD5C4A1),
+            c(0x3C3836),
+            c(0x7C6F64),
+            c(0x8F3F71),
+            c(0x076678),
+            c(0x79740E),
+            c(0xB57614),
+            c(0x9D0006),
+        )
+    }
+    pub fn catppuccin_latte() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Catppuccin Latte",
+            false,
+            c(0xE6E9EF),
+            c(0xEFF1F5),
+            c(0xDCE0E8),
+            c(0xCCD0DA),
+            c(0xBCC0CC),
+            c(0x4C4F69),
+            c(0x6C6F85),
+            c(0x8839EF),
+            c(0x1E66F5),
+            c(0x40A02B),
+            c(0xDF8E1D),
+            c(0xD20F39),
+        )
+    }
+    pub fn rose_pine_dawn() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Rosé Pine Dawn",
+            false,
+            c(0xFAF4ED),
+            c(0xFFFAF3),
+            c(0xF2E9E1),
+            c(0xDFDAD9),
+            c(0xCECACD),
+            c(0x575279),
+            c(0x797593),
+            c(0x907AA9),
+            c(0x286983),
+            c(0x56949F),
+            c(0xEA9D34),
+            c(0xB4637A),
+        )
+    }
+    pub fn ayu_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Ayu Light",
+            false,
+            c(0xF8F9FA),
+            c(0xFCFCFC),
+            c(0xF3F4F5),
+            c(0xE7EAED),
+            c(0xE7EAED),
+            c(0x5C6166),
+            c(0x8A9199),
+            // Contrast: the published keyword orange #FA8D3E, darkened for 3:1 on the window.
+            c(0xD27634),
+            c(0x399EE6),
+            c(0x86B300),
+            c(0xF2AE49),
+            c(0xE65050),
+        )
+    }
+    pub fn everforest_light() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Everforest Light",
+            false,
+            c(0xEFEBD4),
+            c(0xFDF6E3),
+            c(0xF4F0D9),
+            c(0xE6E2CC),
+            c(0xE0DCC7),
+            c(0x5C6A72),
+            // Contrast: the published grey2 #829181, darkened for 3:1 on the window.
+            c(0x7A8879),
+            // Contrast: the published green #8DA101, darkened for 3:1 on the window.
+            c(0x7C8E01),
+            c(0x3A94C5),
+            c(0x35A77C),
+            c(0xDFA000),
+            c(0xF85552),
+        )
+    }
+    pub fn tokyo_night_day() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Tokyo Night Day",
+            false,
+            c(0xD0D5E3),
+            c(0xE1E2E7),
+            c(0xE9E9EC),
+            c(0xC4C8DA),
+            c(0xC4C8DA),
+            // Contrast: the published fg #3760BF, darkened for 4.5:1 on the window.
+            c(0x3257AE),
+            c(0x6172B0),
+            // Contrast: the published magenta #9854F1, darkened for 3:1 on the window.
+            c(0x9351EA),
+            c(0x2E7DE9),
+            c(0x587539),
+            c(0x8C6C3E),
+            c(0xF52A65),
+        )
+    }
+    pub fn tomorrow() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Tomorrow",
+            false,
+            c(0xF5F5F5),
+            c(0xFFFFFF),
+            c(0xEFEFEF),
+            c(0xD6D6D6),
+            c(0xD6D6D6),
+            c(0x4D4D4C),
+            // Contrast: the published comment #8E908C, darkened for 3:1 on the window.
+            c(0x8B8D89),
+            c(0x8959A8),
+            c(0x4271AE),
+            c(0x718C00),
+            c(0xEAB700),
+            c(0xC82829),
+        )
+    }
+    pub fn light_owl() -> Self {
+        let c = Self::rgb;
+        Self::scheme(
+            "Light Owl",
+            false,
+            c(0xF0F0F0),
+            c(0xFBFBFB),
+            c(0xF6F6F6),
+            c(0xE0E0E0),
+            c(0xD9D9D9),
+            c(0x403F53),
+            // Contrast: the published comment #989FB1, darkened for 3:1 on the window.
+            c(0x838998),
+            c(0x994CC3),
+            c(0x4876D6),
+            c(0x08916A),
+            c(0xE0AF02),
+            c(0xDE3D3B),
+        )
+    }
 
     /// Push the palette into egui's visuals (both theme slots, preference
     /// pinned to this palette's darkness). Prefer `install` when the
@@ -629,5 +1014,55 @@ mod tests {
         assert_eq!(t.env_colour("production", None), t.env_prod);
         assert_eq!(t.env_colour("staging", None), t.env_staging);
         assert_eq!(t.env_colour("anything", Some("#0075D3")), BRAND_BLUE);
+    }
+
+    /// FEAT-0105: every listed id resolves to its own scheme, not the
+    /// HyperStack Dark fallback.
+    #[test]
+    fn every_scheme_id_resolves_to_itself() {
+        for (id, name, dark) in Theme::schemes() {
+            let t = Theme::by_name(id);
+            assert_eq!(t.name, *name, "{id}");
+            assert_eq!(t.dark, *dark, "{id}");
+        }
+    }
+
+    /// WCAG 2 relative luminance.
+    fn luminance(c: Color32) -> f64 {
+        let lin = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.04045 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    }
+
+    fn contrast(a: Color32, b: Color32) -> f64 {
+        let (x, y) = (luminance(a), luminance(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// FEAT-0105: text stays readable (WCAG AA) on every background of
+    /// every scheme; muted text and the accent keep 3:1 on the window.
+    #[test]
+    fn every_scheme_keeps_readable_contrast() {
+        for (id, _, _) in Theme::schemes() {
+            let t = Theme::by_name(id);
+            for (what, bg) in [
+                ("window", t.window_bg),
+                ("panel", t.panel_bg),
+                ("surface", t.surface),
+            ] {
+                let r = contrast(t.text, bg);
+                assert!(r >= 4.5, "{id}: text on {what} is {r:.2}:1");
+            }
+            let r = contrast(t.text_muted, t.window_bg);
+            assert!(r >= 3.0, "{id}: muted text on window is {r:.2}:1");
+            let r = contrast(t.accent, t.window_bg);
+            assert!(r >= 3.0, "{id}: accent on window is {r:.2}:1");
+        }
     }
 }

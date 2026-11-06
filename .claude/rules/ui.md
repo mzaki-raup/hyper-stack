@@ -159,6 +159,26 @@ look for it in `crates/hs-ui/src/` first.
   product's logo, a tool's picture, a Material item icon, a rotating
   source colour - never a generic or uncoloured glyph, in every activity
   (owner, 2026-11-06).
+- **Dropdown items wear their kind's mark:** every dropdown (ComboBox,
+  `pick_field` popup, menu) whose items show an icon colours it by the
+  item's kind exactly as that kind is drawn elsewhere - a connection's
+  product logo or brand colour, a shell's logo, a workspace's mark, an
+  environment's colour, a file or item kind's Material picture when
+  Material icons are on, an activity's rail colour - and the selected
+  value in the closed box wears the same mark (owner, 2026-11-07)
+  (CR-0081).
+- **An environment wears its tier's mark:** every environment shows the
+  icon and colour of its tier - set by hand, else matched from its name
+  (LOCAL/LOCALHOST, DEV/LOWER, SIT, TEST/QA, TRAINING, UAT, STAGING,
+  PROD-SUPPORT, PROD/PRODUCTION) - in the title-bar dropdown, the banner,
+  Settings → Environments and every tab tied to it; a protected
+  environment always shows the red shield, whatever its tier. Production
+  and Production Support default to protected (owner, 2026-11-07)
+  (FEAT-0106).
+- **A workspace without a logo is a lettered tile:** its one or two
+  initials on a rounded square in a colour picked from its name (the
+  shared palette of eight), the same in every place a workspace is drawn;
+  a set logo always wins (owner, 2026-11-07) (CR-0082).
 - **What opens a tab shows it:** any action that opens, adds or fills a
   tab - New Query, Open Data, a saved item, a history entry, a template -
   brings that tab to the front, whatever kind of tab (a designer, a

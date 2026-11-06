@@ -39,6 +39,9 @@ pub struct AiPageState {
     prompt_activity: String,
     /// The button open for editing, by id.
     prompt_editing: Option<String>,
+    /// Every activity's rail glyph by tool id, for the activity picker's
+    /// marks (CR-0081); filled once with the tool list.
+    pub activity_icons: Vec<(&'static str, &'static str)>,
 }
 
 struct Draft {
@@ -74,16 +77,14 @@ impl Draft {
 
 /// A service the gallery offers. `name` is a brand, so it is not
 /// translated; `blurb` is a Fluent key. An empty `base` or `model` means
-/// the kind's own default.
+/// the kind's own default. Its mark is `hs_ui::icons::AI_SERVICE_MARKS`'
+/// entry for its kind and endpoint (CR-0081).
 struct Service {
     name: &'static str,
     kind: Provider,
     base: &'static str,
     model: &'static str,
     blurb: &'static str,
-    icon: &'static str,
-    /// The mark's file name under `assets/icons/simple` (CR-0055).
-    logo: Option<&'static str>,
 }
 
 /// The gallery: a capability, then its groups. Everything OpenAI-shaped
@@ -99,105 +100,80 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "OpenAI",
-                        logo: Some("openai"),
                         kind: Provider::OpenAi,
                         base: ai::OPENAI_BASE,
                         model: "gpt-4o-mini",
                         blurb: "ai-svc-openai",
-                        icon: ph::CIRCLES_THREE,
                     },
                     Service {
                         name: "Anthropic",
-                        logo: Some("anthropic"),
                         kind: Provider::Anthropic,
                         base: "",
                         model: "claude-sonnet-4-5",
                         blurb: "ai-svc-anthropic",
-                        icon: ph::ASTERISK,
                     },
                     Service {
                         name: "Google Gemini",
-                        logo: Some("googlegemini"),
                         kind: Provider::Gemini,
                         base: "",
                         model: "gemini-2.5-flash",
                         blurb: "ai-svc-gemini",
-                        icon: // nf-md-google: the real G
-                        "\u{f02ad}",
                     },
                     Service {
                         name: "Azure OpenAI",
-                        logo: Some("azure"),
                         kind: Provider::Azure,
                         base: "",
                         model: "",
                         blurb: "ai-svc-azure",
-                        icon: // nf-md-microsoft-azure
-                        "\u{f0805}",
                     },
                     Service {
                         name: "AWS Bedrock",
-                        logo: Some("amazonwebservices"),
                         kind: Provider::Bedrock,
                         base: "",
                         model: "",
                         blurb: "ai-svc-bedrock",
-                        icon: // nf-dev-aws
-                        "\u{e7ad}",
                     },
                     Service {
                         name: "Mistral",
-                        logo: Some("mistralai"),
                         kind: Provider::OpenAi,
                         base: "https://api.mistral.ai/v1",
                         model: "mistral-large-latest",
                         blurb: "ai-svc-mistral",
-                        icon: ph::WIND,
                     },
                     Service {
                         name: "DeepSeek",
-                        logo: Some("deepseek"),
                         kind: Provider::OpenAi,
                         base: "https://api.deepseek.com",
                         model: "deepseek-flash",
                         blurb: "ai-svc-deepseek",
-                        icon: ph::FISH_SIMPLE,
                     },
                     Service {
                         name: "DeepSeek (Anthropic API)",
-                        logo: Some("deepseek"),
                         kind: Provider::Anthropic,
                         base: "https://api.deepseek.com/anthropic",
                         model: "deepseek-flash",
                         blurb: "ai-svc-deepseek-anthropic",
-                        icon: ph::FISH_SIMPLE,
                     },
                     Service {
                         name: "Moonshot (Kimi)",
-                        logo: Some("moonshotai"),
                         kind: Provider::OpenAi,
                         base: "https://api.moonshot.ai/v1",
                         model: "kimi-k2-0905-preview",
                         blurb: "ai-svc-moonshot",
-                        icon: ph::MOON,
                     },
                     Service {
                         name: "Tencent Hunyuan",
-                        logo: Some("tencentqq"),
                         kind: Provider::OpenAi,
                         base: "https://api.hunyuan.cloud.tencent.com/v1",
                         model: "hunyuan-turbos-latest",
                         blurb: "ai-svc-hunyuan",
-                        icon: ph::TRANSLATE,
                     },
                     Service {
                         name: "1min.AI",
-                        logo: Some("onemin"),
                         kind: Provider::OneMin,
                         base: "",
                         model: "gpt-4o-mini",
                         blurb: "ai-svc-1min",
-                        icon: ph::TIMER,
                     },
                 ],
             ),
@@ -206,21 +182,17 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "OpenRouter",
-                        logo: Some("openrouter"),
                         kind: Provider::OpenAi,
                         base: "https://openrouter.ai/api/v1",
                         model: "",
                         blurb: "ai-svc-openrouter",
-                        icon: ph::ARROWS_SPLIT,
                     },
                     Service {
                         name: "1min.AI (OpenAI-Compatible)",
-                        logo: Some("onemin"),
                         kind: Provider::OpenAi,
                         base: "https://api.1min.ai/openai/v1",
                         model: "gpt-4o-mini",
                         blurb: "ai-svc-1min-openai",
-                        icon: ph::TIMER,
                     },
                 ],
             ),
@@ -229,30 +201,24 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "LM Studio",
-                        logo: Some("lmstudio"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:1234/v1",
                         model: "",
                         blurb: "ai-svc-lmstudio",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "Ollama",
-                        logo: Some("ollama"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:11434/v1",
                         model: "",
                         blurb: "ai-svc-ollama",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "vLLM",
-                        logo: Some("vllm"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:8000/v1",
                         model: "",
                         blurb: "ai-svc-vllm",
-                        icon: ph::DESKTOP,
                     },
                     // Neither Windsurf nor Devin publishes an API a
                     // third-party client can call: Windsurf is an IDE and
@@ -266,21 +232,17 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                     // (owner's request, 2026-10-26).
                     Service {
                         name: "Windsurf / Devin (Local Bridge)",
-                        logo: Some("windsurf"),
                         kind: Provider::OpenAi,
                         base: "http://localhost:3003/v1",
                         model: "",
                         blurb: "ai-svc-windsurf",
-                        icon: ph::SAILBOAT,
                     },
                     Service {
                         name: "Other OpenAI-Compatible",
-                        logo: None,
                         kind: Provider::OpenAi,
                         base: "",
                         model: "",
                         blurb: "ai-svc-other",
-                        icon: ph::PLUGS_CONNECTED,
                     },
                 ],
             ),
@@ -294,21 +256,17 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "fal.ai",
-                        logo: Some("fal"),
                         kind: Provider::Fal,
                         base: "",
                         model: "",
                         blurb: "ai-svc-fal",
-                        icon: ph::LIGHTNING,
                     },
                     Service {
                         name: "1min.AI (Images)",
-                        logo: Some("onemin"),
                         kind: Provider::OneMin,
                         base: "",
                         model: "gpt-4o-mini",
                         blurb: "ai-svc-1min-images",
-                        icon: ph::IMAGE,
                     },
                 ],
             ),
@@ -317,102 +275,80 @@ const CATALOGUE: &[(Capability, &[Group])] = &[
                 &[
                     Service {
                         name: "AUTOMATIC1111",
-                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
                         blurb: "ai-svc-a1111",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "SD.Next",
-                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
                         blurb: "ai-svc-sdnext",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "Forge",
-                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
                         blurb: "ai-svc-forge",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "ComfyUI",
-                        logo: Some("comfyui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:8188",
                         model: "",
                         blurb: "ai-svc-comfyui",
-                        icon: ph::GRAPH,
                     },
                     Service {
                         name: "SwarmUI",
-                        logo: Some("swarmui"),
                         kind: Provider::SwarmUi,
                         base: "http://127.0.0.1:7801",
                         model: "",
                         blurb: "ai-svc-swarmui",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "SwarmUI (ComfyUI Backend)",
-                        logo: Some("swarmui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:7801/ComfyBackendDirect",
                         model: "",
                         blurb: "ai-svc-swarmui-comfy",
-                        icon: ph::GRAPH,
                     },
                     Service {
                         name: "InvokeAI",
-                        logo: Some("invokeai"),
                         kind: Provider::InvokeAi,
                         base: "http://127.0.0.1:9090",
                         model: "",
                         blurb: "ai-svc-invokeai",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "Fooocus (Fooocus-API)",
-                        logo: Some("fooocus"),
                         kind: Provider::Fooocus,
                         base: "http://127.0.0.1:8888",
                         model: "",
                         blurb: "ai-svc-fooocus",
-                        icon: ph::DESKTOP,
                     },
                     Service {
                         name: "Stability Matrix (WebUI Package)",
-                        logo: Some("sdwebui"),
                         kind: Provider::SdWebUi,
                         base: "http://127.0.0.1:7860",
                         model: "",
                         blurb: "ai-svc-stability-matrix-webui",
-                        icon: ph::SQUARES_FOUR,
                     },
                     Service {
                         name: "Stability Matrix (ComfyUI Package)",
-                        logo: Some("comfyui"),
                         kind: Provider::ComfyUi,
                         base: "http://127.0.0.1:8188",
                         model: "",
                         blurb: "ai-svc-stability-matrix-comfy",
-                        icon: ph::SQUARES_FOUR,
                     },
                     Service {
                         name: "Other WebUI API",
-                        logo: None,
                         kind: Provider::SdWebUi,
                         base: "",
                         model: "",
                         blurb: "ai-svc-other-webui",
-                        icon: ph::PLUGS_CONNECTED,
                     },
                 ],
             ),
@@ -609,19 +545,40 @@ fn prompt_buttons(
                 .find(|(id, _)| *id == here)
                 .map(|(_, key)| s.t(key))
                 .unwrap_or_else(|| here.clone());
-            egui::ComboBox::from_id_salt("ai-prompt-activity")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(name)
-                .show_ui(ui, |ui| {
+            let coloured = s.settings.read().appearance.rail_coloured;
+            let icons = &state.activity_icons;
+            // A prompt activity as the rail draws its tool: the tool's
+            // glyph, in its rail colour while Coloured Activity Icons is on.
+            let mark = |id: &str| {
+                let tool = match id {
+                    "container" => "containers",
+                    "diagram" | "generator" => "graphics",
+                    other => other,
+                };
+                let glyph = icons
+                    .iter()
+                    .find(|(t, _)| *t == tool)
+                    .map_or(ph::SPARKLE, |(_, g)| *g);
+                form::Mark::glyph(glyph, coloured.then(|| crate::app::activity_colour(tool)))
+            };
+            let mut chosen: Option<String> = None;
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("ai-prompt-activity").width(form::FIELD_MIN_WIDTH),
+                mark(&here),
+                name,
+                |ui| {
                     for (id, key) in prompts::ACTIVITIES {
-                        if hs_ui::form::selectable_label(ui, state.prompt_activity == *id, s.t(key))
-                            .clicked()
-                        {
-                            state.prompt_activity = (*id).to_string();
-                            state.prompt_editing = None;
+                        if form::mark_selectable(ui, here == *id, mark(id), s.t(key)).clicked() {
+                            chosen = Some((*id).to_string());
                         }
                     }
-                });
+                },
+            );
+            if let Some(id) = chosen {
+                state.prompt_activity = id;
+                state.prompt_editing = None;
+            }
             ui.end_row();
         });
 
@@ -782,88 +739,23 @@ const CARD_WIDTH: f32 = 236.0;
 const CARD_HEIGHT: f32 = 68.0;
 
 /// The glyph for a **saved** provider: the mark of the gallery entry it
-/// was added from.
-///
-/// A saved provider keeps its `kind` and its endpoint, not which card
-/// made it, so this matches back: the kind narrows it, the base URL
-/// picks between the many services that share one kind (everything
-/// OpenAI-shaped is `Provider::OpenAi` - OpenAI, Mistral, DeepSeek,
-/// Moonshot, OpenRouter, LM Studio and the rest differ only in where
-/// they live).
-///
-/// Without this the list drew one glyph per *capability*, so every chat
-/// provider was the same sparkle however carefully its card had been
-/// given Google's G or the AWS mark (owner's report, 2026-10-26).
-///
-/// A provider whose endpoint has been edited by hand falls back to its
-/// capability's glyph, which is the honest answer rather than a guess at
-/// whose service it now is.
+/// was added from, matched back by kind and endpoint
+/// (`hs_ui::icons::ai_provider_icon`, CR-0055). Every provider picker
+/// wears the same mark (CR-0081).
 fn provider_icon(p: &AiProvider) -> hs_ui::icons::ConnIcon {
-    let want = normalise_base(&p.base_url);
-    let mut same_kind: Option<&Service> = None;
-    let mut seen = 0usize;
-    for (_, groups) in CATALOGUE {
-        for (_, services) in *groups {
-            for svc in *services {
-                if svc.kind != p.kind {
-                    continue;
-                }
-                if normalise_base(svc.base) == want {
-                    return service_icon(svc);
-                }
-                same_kind = Some(svc);
-                seen += 1;
-            }
-        }
-    }
-    // Exactly one service has this kind, so the endpoint cannot be
-    // telling us anything the kind did not already say.
-    if seen == 1
-        && let Some(svc) = same_kind
-    {
-        return service_icon(svc);
-    }
-    // A kind with several services but an endpoint the catalogue does not
-    // know: the kind's own mark where it has one (CR-0055).
-    let by_kind = match p.kind {
-        Provider::OneMin => Some("onemin"),
-        Provider::Anthropic => Some("anthropic"),
-        Provider::Gemini => Some("googlegemini"),
-        Provider::Azure => Some("azure"),
-        Provider::Bedrock => Some("amazonwebservices"),
-        Provider::SdWebUi => Some("sdwebui"),
-        Provider::ComfyUi => Some("comfyui"),
-        Provider::SwarmUi => Some("swarmui"),
-        Provider::InvokeAi => Some("invokeai"),
-        Provider::Fooocus => Some("fooocus"),
-        Provider::Fal => Some("fal"),
-        Provider::OpenAi => None,
-    };
-    hs_ui::icons::ConnIcon {
-        glyph: match p.kind.capability() {
-            Capability::Chat => ph::SPARKLE,
-            Capability::Image => ph::IMAGE,
-        },
-        image: by_kind.and_then(hs_ui::icons::logo_for),
-        tint: hs_ui::icons::ConnTint::Default,
-    }
+    hs_ui::icons::ai_provider_icon(p.kind, &p.base_url)
+}
+
+/// A provider kind's mark (`hs_ui::icons::ai_kind_icon`, CR-0055). The
+/// Kind dropdown's rows wear it (CR-0081).
+fn kind_icon(kind: Provider) -> hs_ui::icons::ConnIcon {
+    hs_ui::icons::ai_kind_icon(kind)
 }
 
 /// A catalogue service's mark: its logo where one is vendored, its glyph
 /// otherwise (CR-0055).
 fn service_icon(svc: &Service) -> hs_ui::icons::ConnIcon {
-    hs_ui::icons::ConnIcon {
-        glyph: svc.icon,
-        image: svc.logo.and_then(hs_ui::icons::logo_for),
-        tint: hs_ui::icons::ConnTint::Default,
-    }
-}
-
-/// Endpoints compare without a trailing slash or a difference of case:
-/// `https://api.mistral.ai/v1/` is the same service as the catalogue's
-/// `https://api.mistral.ai/v1`.
-fn normalise_base(base: &str) -> String {
-    base.trim().trim_end_matches('/').to_lowercase()
+    hs_ui::icons::ai_provider_icon(svc.kind, svc.base)
 }
 
 /// One card in the gallery: icon, brand name and a line on what it is.
@@ -884,7 +776,8 @@ fn service_card(ui: &mut egui::Ui, theme: &Theme, s: &Services, svc: &Service) -
                         ui.add(egui::Image::new(uri).fit_to_exact_size(egui::vec2(22.0, 22.0)));
                     }
                     None => {
-                        ui.label(egui::RichText::new(svc.icon).size(20.0).color(theme.accent));
+                        let glyph = service_icon(svc).glyph;
+                        ui.label(egui::RichText::new(glyph).size(20.0).color(theme.accent));
                     }
                 }
                 ui.vertical(|ui| {
@@ -933,10 +826,12 @@ fn form_body(
             form::text_field(ui, &mut d.provider.name, &s.t("ai-name"));
             ui.end_row();
             form::label(ui, &s.t("ai-kind"));
-            egui::ComboBox::from_id_salt("ai-kind")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(kind_label(s, d.provider.kind))
-                .show_ui(ui, |ui| {
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("ai-kind").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(kind_icon(d.provider.kind), theme),
+                kind_label(s, d.provider.kind),
+                |ui| {
                     for c in [Capability::Chat, Capability::Image] {
                         ui.label(
                             egui::RichText::new(capability_label(s, c))
@@ -944,15 +839,17 @@ fn form_body(
                                 .color(theme.text_muted),
                         );
                         for k in Provider::all().into_iter().filter(|k| k.capability() == c) {
-                            hs_ui::form::selectable_value(
+                            form::mark_selectable_value(
                                 ui,
                                 &mut d.provider.kind,
                                 k,
+                                form::Mark::conn(kind_icon(k), theme),
                                 kind_label(s, k),
                             );
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::label(
                 ui,
@@ -1716,24 +1613,21 @@ fn probe(s: &Services, d: &Draft, test: bool) -> Probe {
 mod logo_tests {
     use super::*;
 
-    /// CR-0055: every mark the gallery names exists, and a saved provider
-    /// at a catalogue endpoint draws that service's mark.
+    /// CR-0055: every gallery service has a mark in `hs_ui` (whose own
+    /// test checks the logos are vendored), and a saved provider at a
+    /// catalogue endpoint draws that service's mark.
     #[test]
     fn every_catalogue_logo_is_vendored_and_a_saved_provider_finds_its_mark() {
         for (_, groups) in CATALOGUE {
             for (_, services) in *groups {
                 for svc in *services {
-                    if let Some(slug) = svc.logo {
-                        assert!(
-                            hs_ui::icons::logo_for(slug).is_some(),
-                            "{}: {slug}",
-                            svc.name
-                        );
-                        assert!(
-                            hs_ui::icons::PROVIDER_LOGOS.contains(&slug),
-                            "{slug} is not in PROVIDER_LOGOS"
-                        );
-                    }
+                    assert!(
+                        hs_ui::icons::AI_SERVICE_MARKS
+                            .iter()
+                            .any(|m| m.kind == svc.kind && m.base == svc.base),
+                        "{} has no entry in AI_SERVICE_MARKS",
+                        svc.name
+                    );
                 }
             }
         }

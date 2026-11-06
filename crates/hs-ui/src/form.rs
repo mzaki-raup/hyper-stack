@@ -763,24 +763,24 @@ pub const SIDEBAR_HEADER_HEIGHT: f32 = 28.0;
 ///
 /// Returns the index of the action that was clicked.
 /// A sidebar header with something drawn before the title: the
-/// workspace's own logo on Home, falling back to a glyph when none is
-/// set, so the column says which workspace these pins belong to rather
-/// than only naming it. Owner's requirement, 2026-10-17.
+/// workspace's own logo on Home, falling back to the title's lettered tile
+/// (CR-0082) when none is set, so the column says which workspace these
+/// pins belong to rather than only naming it. Owner's requirement,
+/// 2026-10-17.
 pub fn sidebar_header_icon(
     ui: &mut egui::Ui,
     theme: &Theme,
     icon: Option<egui::Image<'_>>,
-    fallback: &str,
     title: &str,
     actions: &[(&str, &str)],
 ) -> Option<usize> {
-    sidebar_header_inner(ui, theme, Some((icon, fallback)), title, actions)
+    sidebar_header_inner(ui, theme, Some(icon), title, actions)
 }
 
 fn sidebar_header_inner(
     ui: &mut egui::Ui,
     theme: &Theme,
-    leading: Option<(Option<egui::Image<'_>>, &str)>,
+    leading: Option<Option<egui::Image<'_>>>,
     title: &str,
     actions: &[(&str, &str)],
 ) -> Option<usize> {
@@ -795,7 +795,7 @@ fn sidebar_header_inner(
             egui::Vec2::new(width, height),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                if let Some((icon, fallback)) = leading {
+                if let Some(icon) = leading {
                     // Home's header names the open workspace, and its
                     // logo is the mark that says which project this is.
                     const SIZE: f32 = 22.0;
@@ -804,11 +804,7 @@ fn sidebar_header_inner(
                             ui.add(img.fit_to_exact_size(egui::Vec2::splat(SIZE)));
                         }
                         None => {
-                            ui.label(
-                                egui::RichText::new(fallback)
-                                    .size(SIZE - 2.0)
-                                    .color(theme.text_muted),
-                            );
+                            crate::lettered::tile(ui, title, SIZE);
                         }
                     }
                     ui.add_space(6.0);
@@ -1405,6 +1401,208 @@ pub fn add_selectable(ui: &mut egui::Ui, button: egui::Button<'_>) -> egui::Resp
     r
 }
 
+/// The size of a [`Mark`] in a dropdown row or a closed dropdown.
+pub const MARK_SIZE: f32 = 16.0;
+/// The gap between a [`Mark`] and the name after it.
+const MARK_GAP: f32 = 6.0;
+
+/// What a dropdown entry wears before its name (CR-0081): its kind's
+/// picture - a product logo, a workspace's logo, a Material item picture -
+/// or a glyph in its kind's colour (a brand, an environment, an activity),
+/// or a workspace's lettered tile when it has no logo (CR-0082).
+/// `None` colour is the control's own text colour.
+#[derive(Clone)]
+pub struct Mark {
+    image: Option<egui::Image<'static>>,
+    tile: Option<String>,
+    glyph: String,
+    colour: Option<egui::Color32>,
+    size: f32,
+}
+
+impl Mark {
+    /// A glyph, in `colour` or the control's own colour.
+    pub fn glyph(glyph: impl Into<String>, colour: Option<egui::Color32>) -> Self {
+        Self {
+            image: None,
+            tile: None,
+            glyph: glyph.into(),
+            colour,
+            size: MARK_SIZE,
+        }
+    }
+
+    /// A picture (a workspace's logo, an embedded image).
+    pub fn image(image: egui::Image<'static>) -> Self {
+        Self {
+            image: Some(image),
+            tile: None,
+            glyph: String::new(),
+            colour: None,
+            size: MARK_SIZE,
+        }
+    }
+
+    /// `name`'s lettered tile ([`crate::lettered`]): what a workspace
+    /// without a logo wears (CR-0082).
+    pub fn tile(name: impl Into<String>) -> Self {
+        Self {
+            image: None,
+            tile: Some(name.into()),
+            glyph: String::new(),
+            colour: None,
+            size: MARK_SIZE,
+        }
+    }
+
+    /// A connection kind, a shell or a CLI as it is drawn everywhere else:
+    /// its logo, or its glyph in its brand colour.
+    pub fn conn(icon: crate::icons::ConnIcon, theme: &Theme) -> Self {
+        match icon.image {
+            Some(uri) => Self::image(egui::Image::from_uri(uri)),
+            None => Self::glyph(icon.glyph, icon.fixed_colour(theme)),
+        }
+    }
+
+    /// An item or file kind from [`crate::fileicons`]: its Material
+    /// picture, or the plain glyph when Material icons are off.
+    pub fn tree(icon: TreeIcon) -> Self {
+        match icon {
+            TreeIcon::Image(src) => Self::image(egui::Image::new(src)),
+            TreeIcon::Glyph(g) => Self::glyph(g, None),
+        }
+    }
+
+    /// The same mark at another size (a workspace's logo is drawn larger).
+    pub fn sized(mut self, size: f32) -> Self {
+        self.size = size;
+        self
+    }
+
+    fn atom(self) -> egui::Atom<'static> {
+        let size = egui::vec2(self.size, self.size);
+        match self.image {
+            Some(img) => img.fit_to_exact_size(size).into(),
+            None => {
+                let text = RichText::new(self.glyph).size(self.size * 0.9);
+                match self.colour {
+                    Some(c) => text.color(c).into(),
+                    None => text.into(),
+                }
+            }
+        }
+    }
+
+    fn paint(&self, ui: &egui::Ui, left_centre: egui::Pos2, fallback: egui::Color32) {
+        let rect = egui::Rect::from_min_size(
+            egui::pos2(left_centre.x, left_centre.y - self.size / 2.0),
+            egui::vec2(self.size, self.size),
+        );
+        if let Some(name) = &self.tile {
+            crate::lettered::paint(ui.painter(), rect, name);
+            return;
+        }
+        match &self.image {
+            Some(img) => img
+                .clone()
+                .fit_to_exact_size(rect.size())
+                .paint_at(ui, rect),
+            None => {
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &self.glyph,
+                    egui::FontId::proportional(self.size * 0.9),
+                    self.colour.unwrap_or(fallback),
+                );
+            }
+        }
+    }
+}
+
+/// A dropdown row led by its kind's [`Mark`] (CR-0081), through
+/// [`selectable_label`].
+pub fn mark_selectable(
+    ui: &mut egui::Ui,
+    selected: bool,
+    mark: Mark,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let text: egui::WidgetText = text.into();
+    let Some(name) = &mark.tile else {
+        return selectable_label(ui, selected, (mark.atom(), text));
+    };
+    // A tile is painted, not an atom: keep its room, then paint into it.
+    let id = egui::Id::new("hs_ui_mark_tile");
+    let room = egui::Atom::custom(id, Vec2::splat(mark.size));
+    let saved = ui.visuals().widgets.inactive.bg_stroke;
+    ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+    let r = egui::Button::selectable(selected, (room, text)).atom_ui(ui);
+    ui.visuals_mut().widgets.inactive.bg_stroke = saved;
+    if let Some(rect) = r.rect(id) {
+        crate::lettered::paint(ui.painter(), rect, name);
+    }
+    r.response
+}
+
+/// [`selectable_value`] led by its kind's [`Mark`] (CR-0081).
+pub fn mark_selectable_value<V: PartialEq>(
+    ui: &mut egui::Ui,
+    current: &mut V,
+    value: V,
+    mark: Mark,
+    text: impl Into<egui::WidgetText>,
+) -> egui::Response {
+    let mut r = mark_selectable(ui, *current == value, mark, text);
+    if r.clicked() && *current != value {
+        *current = value;
+        r.mark_changed();
+    }
+    r
+}
+
+/// A dropdown whose closed box shows the selected value with its kind's
+/// [`Mark`] before the name (CR-0081), the same mark its rows wear.
+/// `combo` carries the id and width; its selected text is `text`.
+pub fn mark_combo<R>(
+    ui: &mut egui::Ui,
+    combo: egui::ComboBox,
+    mark: Mark,
+    text: impl Into<egui::WidgetText>,
+    add_contents: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let text = match text.into() {
+        egui::WidgetText::Text(t) => RichText::new(t).into(),
+        t => t,
+    };
+    let mut job = std::sync::Arc::unwrap_or_clone(text.into_layout_job(
+        ui.style(),
+        egui::FontSelection::Style(egui::TextStyle::Button),
+        egui::Align::Center,
+    ));
+    let room = mark.size + MARK_GAP;
+    match job.sections.first_mut() {
+        Some(first) => first.leading_space += room,
+        None => job.append(
+            " ",
+            room,
+            egui::TextFormat {
+                font_id: egui::TextStyle::Button.resolve(ui.style()),
+                color: egui::Color32::PLACEHOLDER,
+                ..Default::default()
+            },
+        ),
+    }
+    let r = combo.selected_text(job).show_ui(ui, add_contents);
+    let at = egui::pos2(
+        r.response.rect.left() + ui.spacing().button_padding.x,
+        r.response.rect.center().y,
+    );
+    let fallback = ui.style().interact(&r.response).text_color();
+    mark.paint(ui, at, fallback);
+    r
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1443,6 +1641,35 @@ mod tests {
             let _ = ctx.run_ui(egui::RawInput::default(), |ui| add(ui, &mut out));
         }
         out
+    }
+
+    #[test]
+    fn a_marked_dropdown_leaves_room_for_its_mark_before_the_name() {
+        // CR-0081: the closed box draws the mark where the name used to
+        // start, so the box grows by exactly the mark and its gap.
+        let (plain, marked) = settled(|ui, out: &mut (f32, f32)| {
+            out.0 = egui::ComboBox::from_id_salt("plain")
+                .width(1.0)
+                .selected_text("Production")
+                .show_ui(ui, |_| {})
+                .response
+                .rect
+                .width();
+            out.1 = mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("marked").width(1.0),
+                Mark::glyph(crate::icons::ENVIRONMENT, Some(egui::Color32::RED)),
+                "Production",
+                |_| {},
+            )
+            .response
+            .rect
+            .width();
+        });
+        assert!(
+            (marked - plain - (MARK_SIZE + MARK_GAP)).abs() < 0.5,
+            "plain {plain}, marked {marked}"
+        );
     }
 
     #[test]

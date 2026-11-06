@@ -71,6 +71,18 @@ impl Kind {
         }
     }
 
+    /// The Material picture the row wears when Material icons are on:
+    /// a Compose project, a stack, a YAML file, a shell script.
+    pub fn picture(self) -> Option<egui::ImageSource<'static>> {
+        use hs_ui::fileicons::{for_file, for_kind};
+        match self {
+            Kind::Compose => for_kind("project"),
+            Kind::Stack => for_kind("stack"),
+            Kind::Manifest => Some(for_file("manifest.yaml")),
+            Kind::Command => Some(for_file("command.sh")),
+        }
+    }
+
     /// The row's mark: the kind's glyph in its colour.
     pub fn conn_icon(self) -> hs_ui::icons::ConnIcon {
         hs_ui::icons::ConnIcon {
@@ -328,6 +340,14 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(cmd.describe(), "docker compose up -d");
+    }
+
+    /// Material icons on, every kind has a picture to draw (CR-0065).
+    #[test]
+    fn every_kind_has_a_material_picture() {
+        for k in Kind::ALL {
+            assert!(k.picture().is_some(), "{k:?} has no picture");
+        }
     }
 
     #[test]

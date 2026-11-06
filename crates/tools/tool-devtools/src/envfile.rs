@@ -198,8 +198,9 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         // content grows, and the delete column stops lining up.
         const REVEAL_W: f32 = 64.0;
         // Every cell in a row is this tall, so the actions can be
-        // centred against the key and value fields.
-        const ROW_H: f32 = 26.0;
+        // centred against the key and value fields: a field's height
+        // (CR-0061), so a `line_edit` fits its row.
+        let row_h = hs_ui::form::field_height(ui);
         // Fixed sizes: inside a grid the leftover width is tiny on the
         // first frame and the fields collapse to an ellipsis
         // (hs_ui::kv_editor learned this first).
@@ -225,22 +226,21 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             let hidden =
                                 state.mask && secret && !state.revealed.iter().any(|r| r == key);
                             ui.add_sized(
-                                [key_w, ROW_H],
-                                egui::TextEdit::singleline(key).font(egui::TextStyle::Monospace),
+                                [key_w, row_h],
+                                hs_ui::form::line_edit(key).font(egui::TextStyle::Monospace),
                             );
                             if hidden {
                                 let mut dots = "•".repeat(value.chars().count().clamp(6, 24));
                                 ui.add_enabled_ui(false, |ui| {
                                     ui.add_sized(
-                                        [value_w, ROW_H],
-                                        egui::TextEdit::singleline(&mut dots),
+                                        [value_w, row_h],
+                                        hs_ui::form::line_edit(&mut dots),
                                     );
                                 });
                             } else if ui
                                 .add_sized(
-                                    [value_w, ROW_H],
-                                    egui::TextEdit::singleline(value)
-                                        .font(egui::TextStyle::Monospace),
+                                    [value_w, row_h],
+                                    hs_ui::form::line_edit(value).font(egui::TextStyle::Monospace),
                                 )
                                 .changed()
                             {
@@ -250,10 +250,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             // Show/Hide and the delete button sit on the
                             // middle of the fields rather than their top.
                             ui.allocate_ui_with_layout(
-                                egui::vec2(REVEAL_W + 60.0, ROW_H),
+                                egui::vec2(REVEAL_W + 60.0, row_h),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
-                                    ui.set_min_height(ROW_H);
+                                    ui.set_min_height(row_h);
                                     // The reveal slot is held open on a plain
                                     // key as well, so Show/Hide and the delete
                                     // button line up down the whole table.

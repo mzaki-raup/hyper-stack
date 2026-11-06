@@ -91,6 +91,9 @@ pub struct DiagramState {
     saved: Option<PathBuf>,
     pub(crate) status: Option<String>,
     save_open: bool,
+    /// The properties pane is showing: a toolbar toggle hides it, as the
+    /// Editor's project column (CR-0069).
+    pub(crate) show_props: bool,
     save_project: usize,
     save_subfolder: String,
     save_name: String,
@@ -145,6 +148,7 @@ impl DiagramState {
             saved: None,
             status: None,
             save_open: false,
+            show_props: true,
             save_project: 0,
             save_subfolder: "docs/diagrams".into(),
             save_name: String::new(),
@@ -733,6 +737,15 @@ impl DiagramState {
         {
             self.redo();
         }
+        ui.separator();
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_props,
+            hs_ui::icons::ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-diagram-props-pane"),
+        )
+        .tip(s.t("gfx-diagram-props-pane-tip"));
         // Everything below draws on, or adds to, the canvas: in the
         // Source view there is no canvas to act on, so the whole group
         // goes rather than sitting there inert (owner's requirement,
@@ -937,6 +950,7 @@ impl DiagramState {
             ui.painter().rect_filled(ui.max_rect(), 8.0, theme.panel_bg);
             ui.heading(s.t("gfx-diagram-import"));
             ui.label(s.t("gfx-drawio-choose-page"));
+            hs_ui::form::match_field_height(ui);
             egui::ComboBox::from_id_salt("gfx-drawio-page")
                 .selected_text(&pages[selected].name)
                 .show_ui(ui, |ui| {
@@ -1076,11 +1090,19 @@ impl DiagramState {
         self.undo_limit = cx.services.settings.read().general.undo_limit as usize;
         self.save_window(ui.ctx(), cx);
         self.drawio_window(ui.ctx(), cx);
-        egui::Panel::left("gfx-diagram-props")
+        let mut props = egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
             .size_range(240.0..=(ui.available_width() * 0.4).max(240.0))
-            .resizable(true)
-            .show(ui, |ui| self.properties(ui, cx, theme));
+            .resizable(true);
+        // Hidden from the toolbar, as the Editor's column (CR-0069).
+        if !self.show_props {
+            props = props.exact_size(0.0).resizable(false);
+        }
+        props.show(ui, |ui| {
+            if self.show_props {
+                self.properties(ui, cx, theme);
+            }
+        });
         if self.view == DiagramView::Split {
             egui::Panel::right("gfx-diagram-source")
                 .default_size(420.0)
@@ -1147,7 +1169,7 @@ impl DiagramState {
                     props_label(ui, &s.t("gfx-diagram-title"));
                     doc_changed |= ui
                         .add(
-                            egui::TextEdit::singleline(&mut self.doc.title)
+                            hs_ui::form::line_edit(&mut self.doc.title)
                                 .hint_text(s.t("gfx-diagram-title"))
                                 .desired_width(f32::INFINITY),
                         )
@@ -1212,12 +1234,13 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut node.label)
+                                    hs_ui::form::line_edit(&mut node.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
                             ui.end_row();
                             props_label(ui, &s.t("gfx-diagram-shape"));
+                            hs_ui::form::match_field_height(ui);
                             egui::ComboBox::from_id_salt("gfx-diagram-shape")
                                 .width(ui.available_width())
                                 .selected_text(shape_label(node.kind, s))
@@ -1269,6 +1292,7 @@ impl DiagramState {
                             let mut move_up = None;
                             let mut move_down = None;
                             if let Some(erd) = node.erd.as_mut() {
+                                let n = erd.columns.len();
                                 egui::Grid::new("gfx-entity-columns")
                                     .num_columns(4)
                                     .spacing([6.0, 4.0])
@@ -1276,20 +1300,19 @@ impl DiagramState {
                                         for (i, column) in erd.columns.iter_mut().enumerate() {
                                             changed |= ui
                                                 .add(
-                                                    egui::TextEdit::singleline(&mut column.name)
+                                                    hs_ui::form::line_edit(&mut column.name)
                                                         .desired_width(78.0)
                                                         .hint_text(s.t("gfx-col-name")),
                                                 )
                                                 .changed();
                                             changed |= ui
                                                 .add(
-                                                    egui::TextEdit::singleline(
-                                                        &mut column.data_type,
-                                                    )
-                                                    .desired_width(64.0)
-                                                    .hint_text(s.t("gfx-col-type")),
+                                                    hs_ui::form::line_edit(&mut column.data_type)
+                                                        .desired_width(64.0)
+                                                        .hint_text(s.t("gfx-col-type")),
                                                 )
                                                 .changed();
+                                            hs_ui::form::match_field_height(ui);
                                             egui::ComboBox::from_id_salt(("column-key", i))
                                                 .width(56.0)
                                                 .selected_text(match column.key {
@@ -1338,7 +1361,10 @@ impl DiagramState {
                                                     move_up = Some(i);
                                                 }
                                                 if ui
-                                                    .small_button("↓")
+                                                    .add_enabled(
+                                                        i + 1 < n,
+                                                        egui::Button::new("↓").small(),
+                                                    )
                                                     .tip(s.t("gfx-col-down"))
                                                     .clicked()
                                                 {
@@ -1412,13 +1438,14 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut edge.label)
+                                    hs_ui::form::line_edit(&mut edge.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
                             ui.end_row();
                             if is_erd {
                                 props_label(ui, &s.t("gfx-prop-cardinality"));
+                                hs_ui::form::match_field_height(ui);
                                 egui::ComboBox::from_id_salt("gfx-edge-cardinality")
                                     .width(ui.available_width())
                                     .selected_text(
@@ -1574,7 +1601,7 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-prop-text"));
                             frame_changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut group.label)
+                                    hs_ui::form::line_edit(&mut group.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
@@ -1613,6 +1640,7 @@ impl DiagramState {
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
                             for (i, fragment) in self.doc.fragments.iter_mut().enumerate() {
+                                hs_ui::form::match_field_height(ui);
                                 egui::ComboBox::from_id_salt(("fragment-kind", i))
                                     .width(64.0)
                                     .selected_text(match fragment.kind {
@@ -1638,7 +1666,7 @@ impl DiagramState {
                                     });
                                 fragment_changed |= ui
                                     .add(
-                                        egui::TextEdit::singleline(&mut fragment.label)
+                                        hs_ui::form::line_edit(&mut fragment.label)
                                             .hint_text(s.t("gfx-frag-condition"))
                                             .desired_width(86.0),
                                     )

@@ -433,6 +433,7 @@ impl RedisTool {
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,
                     row_icons: None,
+                    empty_hint: None,
                 }
                 .show(ui, &mut self.depth.clients_table)
             })
@@ -451,11 +452,9 @@ impl RedisTool {
             let sh = self.shared.lock();
             (sh.bigkeys_running, sh.bigkeys_scanned, sh.bigkeys.clone())
         };
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("redis-bigkeys-pattern"));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.depth.bigkeys_pattern).desired_width(200.0),
-            );
+            ui.add(hs_ui::form::line_edit(&mut self.depth.bigkeys_pattern).desired_width(200.0));
             ui.label(s.t("redis-bigkeys-top"));
             ui.add(egui::DragValue::new(&mut self.depth.bigkeys_top).range(5..=500));
             if running {
@@ -515,6 +514,16 @@ impl RedisTool {
                 ]
             })
             .collect();
+        // Material icons on: every row is a key, so one picture serves
+        // the whole list, as the Docker tables do.
+        let icons: Vec<egui::ImageSource<'static>> =
+            if s.settings.read().appearance.material_icons("redis") {
+                hs_ui::fileicons::for_kind("key")
+                    .map(|i| vec![i; cells.len()])
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
         let r = ui
             .push_id("redis-bigkeys", |ui| {
                 DataTable {
@@ -525,7 +534,8 @@ impl RedisTool {
                     show_filter: true,
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,
-                    row_icons: None,
+                    row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
+                    empty_hint: None,
                 }
                 .show(ui, &mut self.depth.bigkeys_table)
             })
@@ -566,24 +576,22 @@ impl RedisTool {
             }
         });
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("redis-bulk-pattern"));
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.bulk_pattern)
+                hs_ui::form::line_edit(&mut self.depth.bulk_pattern)
                     .hint_text("session:*")
                     .desired_width(240.0),
             );
             match self.depth.bulk_action {
                 BulkAction::Expire => {
                     ui.label(s.t("redis-bulk-seconds"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.depth.bulk_secs).desired_width(90.0),
-                    );
+                    ui.add(hs_ui::form::line_edit(&mut self.depth.bulk_secs).desired_width(90.0));
                 }
                 BulkAction::RenamePrefix => {
                     ui.label(s.t("redis-bulk-to"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.depth.bulk_to)
+                        hs_ui::form::line_edit(&mut self.depth.bulk_to)
                             .hint_text("archive:session:")
                             .desired_width(200.0),
                     );
@@ -663,18 +671,18 @@ impl RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let on = self.shared.lock().pubsub_on;
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("redis-pubsub-channels"));
             ui.add_enabled(
                 !on,
-                egui::TextEdit::singleline(&mut self.depth.sub_channels)
+                hs_ui::form::line_edit(&mut self.depth.sub_channels)
                     .hint_text("events, orders")
                     .desired_width(220.0),
             );
             ui.label(s.t("redis-pubsub-patterns"));
             ui.add_enabled(
                 !on,
-                egui::TextEdit::singleline(&mut self.depth.sub_patterns)
+                hs_ui::form::line_edit(&mut self.depth.sub_patterns)
                     .hint_text("log:*")
                     .desired_width(160.0),
             );
@@ -716,15 +724,15 @@ impl RedisTool {
             }
         });
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("redis-pubsub-publish"));
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.pub_channel)
+                hs_ui::form::line_edit(&mut self.depth.pub_channel)
                     .hint_text("channel")
                     .desired_width(160.0),
             );
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.pub_message)
+                hs_ui::form::line_edit(&mut self.depth.pub_message)
                     .hint_text("message")
                     .desired_width(320.0),
             );
@@ -791,7 +799,7 @@ impl RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let streams: Vec<String> = self.shared.lock().tree.keys_with_kind(&KeyType::Stream);
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("redis-streams-key"));
             let shown = if self.depth.stream_key.is_empty() {
                 s.t("redis-streams-pick")
@@ -813,7 +821,7 @@ impl RedisTool {
                     }
                 });
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.stream_key)
+                hs_ui::form::line_edit(&mut self.depth.stream_key)
                     .hint_text(s.t("redis-streams-typed"))
                     .desired_width(220.0),
             );

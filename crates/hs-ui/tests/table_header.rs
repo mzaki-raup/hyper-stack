@@ -26,6 +26,7 @@ fn a_tables_header_stands_a_band_above_its_first_row() {
             copy_row_label: "Copy Row",
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         }
         .show(ui, &mut state);
     });

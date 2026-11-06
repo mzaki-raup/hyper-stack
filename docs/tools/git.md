@@ -282,3 +282,7 @@ the whole-file **Keep Ours** / **Keep Theirs** / **Mark as Resolved**
 actions remain on the row for a quick answer. Tags are annotated or
 lightweight; signing is left to the terminal because a pinentry prompt
 cannot be answered from the app.
+
+## Addendum (2026-11-06): repo cards and file rows (CR-0067, CR-0068)
+
+Repository cards on the Git dashboard have **Remove From List** in their right-click menu, the same confirmed removal as the sidebar row. Changed-file rows and repo cards wear their Material pictures when Material icons are on.

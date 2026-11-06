@@ -462,7 +462,7 @@ impl AssistantPanel {
             crate::form::note(ui, theme, crate::icons::INFO, &s.t("ai-setup-hint"));
             return output;
         }
-        ui.horizontal(|ui| {
+        crate::form::centred_row(ui, |ui| {
             let selected = providers
                 .iter()
                 .find(|p| p.id == self.provider)
@@ -483,7 +483,7 @@ impl AssistantPanel {
                     }
                 });
             ui.add(
-                egui::TextEdit::singleline(&mut self.model)
+                crate::form::line_edit(&mut self.model)
                     .hint_text(s.t("ai-model"))
                     .desired_width(180.0),
             );

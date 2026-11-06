@@ -224,6 +224,9 @@ pub struct GraphicsTool {
     generate: GenState,
     /// The New Image dialog, while it is open.
     new_image: Option<NewImage>,
+    /// A Recent change waiting for its confirmation (CR-0067):
+    /// `Some(None)` clears Recent, `Some(Some(path))` removes that entry.
+    confirm_recent: Option<Option<String>>,
 }
 
 /// What a finished generation produced: a picture, a description, or
@@ -420,6 +423,7 @@ impl Default for GraphicsTool {
             attach_cache: None,
             generate: GenState::default(),
             new_image: None,
+            confirm_recent: None,
         }
     }
 }
@@ -809,6 +813,7 @@ impl GraphicsTool {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(s.t("gfx-ai-generate-provider"));
+                    hs_ui::form::match_field_height(ui);
                     egui::ComboBox::from_id_salt("gfx-generate-provider")
                         .width(ui.available_width())
                         .selected_text(provider.name.clone())
@@ -846,7 +851,7 @@ impl GraphicsTool {
                             provider.checkpoint.clone()
                         };
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.generate.models[model_slot])
+                            hs_ui::form::line_edit(&mut self.generate.models[model_slot])
                                 .hint_text(hint)
                                 .desired_width(f32::INFINITY),
                         );
@@ -2012,7 +2017,7 @@ impl Rows<'_> {
         let controls_w = self.controls_width();
         self.ui.scope(|ui| {
             ui.set_max_width(controls_w);
-            ui.horizontal_wrapped(|ui| controls(ui));
+            hs_ui::form::centred_row_wrapped(ui, |ui| controls(ui));
         });
         let clicked = match apply {
             Some(text) => self.ui.small_button(text).clicked(),
@@ -3157,12 +3162,23 @@ impl Tool for GraphicsTool {
         ui.add_space(6.0);
         ui.separator();
         ui.add_space(4.0);
-        ui.label(
-            egui::RichText::new(s.t("gfx-recent"))
-                .strong()
-                .size(12.0)
-                .color(theme.text_muted),
-        );
+        let clear = s.t("gfx-clear-recent");
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(s.t("gfx-recent"))
+                    .strong()
+                    .size(12.0)
+                    .color(theme.text_muted),
+            )
+            .selectable(false)
+            .sense(egui::Sense::click()),
+        )
+        .context_menu(|ui| {
+            if ui.button(&clear).clicked() {
+                self.confirm_recent = Some(None);
+                ui.close();
+            }
+        });
         ui.add_space(2.0);
         // About half the remaining column: the function list keeps its
         // natural height and only Recent scrolls (owner's request).
@@ -3190,13 +3206,51 @@ impl Tool for GraphicsTool {
                         let remove = s.t("gfx-remove-recent");
                         row.context_menu(|ui| {
                             if ui.button(&remove).clicked() {
-                                hub.lock().remove_path(&path);
+                                self.confirm_recent = Some(Some(path.clone()));
+                                ui.close();
+                            }
+                            if ui.button(&clear).clicked() {
+                                self.confirm_recent = Some(None);
                                 ui.close();
                             }
                         });
                     }
                 });
             });
+        if let Some(which) = self.confirm_recent.clone() {
+            let (title, body, ok) = match &which {
+                Some(_) => (
+                    s.t("gfx-remove-recent"),
+                    s.t("gfx-remove-recent-body"),
+                    s.t("remove"),
+                ),
+                None => (
+                    s.t("gfx-clear-recent"),
+                    s.t("gfx-clear-recent-body"),
+                    s.t("gfx-clear-recent"),
+                ),
+            };
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                &theme,
+                "gfx-recent",
+                &title,
+                &body,
+                &ok,
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.confirm_recent = None;
+                    match which {
+                        Some(path) => hub.lock().remove_path(&path),
+                        None => hub.lock().clear(),
+                    }
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_recent = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        }
         true
     }
 
@@ -3589,6 +3643,16 @@ impl Tool for GraphicsTool {
                 shortcut_action: None,
             },
             CommandDescriptor {
+                id: "graphics.diagram_properties".into(),
+                title: "Graphics: Toggle Diagram Properties".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
+                id: "graphics.generator_prompt".into(),
+                title: "Graphics: Toggle Generator Prompt".into(),
+                shortcut_action: None,
+            },
+            CommandDescriptor {
                 id: "graphics.ai".into(),
                 title: "AI: Toggle Assistant".into(),
                 shortcut_action: None,
@@ -3630,6 +3694,20 @@ impl Tool for GraphicsTool {
                 self.assistant.toggle("graphics");
                 true
             }
+            "graphics.diagram_properties" => match &mut self.diagram {
+                Some(d) if self.kind == Kind::Diagram => {
+                    d.show_props = !d.show_props;
+                    true
+                }
+                _ => false,
+            },
+            "graphics.generator_prompt" => match &mut self.generator {
+                Some(g) if self.kind == Kind::Generator => {
+                    g.show_prompt = !g.show_prompt;
+                    true
+                }
+                _ => false,
+            },
             _ => false,
         }
     }

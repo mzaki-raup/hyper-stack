@@ -592,13 +592,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         ui.add_space(6.0);
         match st.frequency {
             FrequencySetting::EveryNMinutes => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-cron-interval-minutes"));
                     ui.add(egui::DragValue::new(&mut st.interval).range(1..=59));
                 });
             }
             FrequencySetting::EveryNHours => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-cron-interval-hours"));
                     ui.add(egui::DragValue::new(&mut st.interval).range(1..=23));
                     ui.label(s.t("dt-cron-at-minute"));
@@ -606,7 +606,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 });
             }
             _ => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-cron-at"));
                     ui.add(egui::DragValue::new(&mut st.hour).range(0..=23));
                     ui.label(":");
@@ -627,7 +627,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             FrequencySetting::Monthly | FrequencySetting::Yearly
         ) {
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
+            hs_ui::form::centred_row(ui, |ui| {
                 ui.label(s.t("dt-cron-day-of-month"));
                 ui.add(egui::DragValue::new(&mut st.day_of_month).range(1..=31));
                 if st.frequency == FrequencySetting::Yearly {
@@ -682,7 +682,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         form::hint(ui, theme, &s.t("dt-cron-check-hint"));
         ui.add_space(4.0);
         ui.add(
-            egui::TextEdit::singleline(&mut st.check_input)
+            hs_ui::form::line_edit(&mut st.check_input)
                 .hint_text("0 30 9 * * ?")
                 .desired_width(f32::INFINITY)
                 .font(egui::TextStyle::Monospace),

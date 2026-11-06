@@ -64,6 +64,10 @@ pub struct SideState {
     /// text field has the keyboard), not on every keystroke.
     pub favorites_dirty: bool,
     pub passwords_dirty: bool,
+    /// The width the tab row needs to show both tabs whole, measured on
+    /// the last frame; the shell keeps the sidebar at least this wide
+    /// (CR-0069).
+    pub min_width: Option<f32>,
 }
 
 /// Write back what the detail forms changed, once the keyboard is free.
@@ -107,39 +111,28 @@ pub fn sidebar(
         ui.label(egui::RichText::new(s.t("tool-browser")).strong().size(15.0));
     });
     ui.add_space(4.0);
-    ui.horizontal(|ui| {
-        // Each tab wears its glyph (CR-0048): a star for Favorites, a key
-        // for Passwords.
-        // Each glyph in a colour of its own (CR-0057): the star gold, the
-        // key the vault's teal.
-        for (tab, key, icon, colour) in [
-            (
-                SideTab::Favorites,
-                "browser-favorites",
-                ph::STAR,
-                egui::Color32::from_rgb(0xf5, 0xb3, 0x01),
-            ),
-            (
-                SideTab::Passwords,
-                "browser-passwords",
-                ph::KEY,
-                egui::Color32::from_rgb(0x14, 0xb8, 0xa6),
-            ),
-        ] {
-            if ui
-                .add(egui::Button::selectable(
-                    t.side.tab == tab,
-                    browser_tab_text(icon, colour, &s.t(key), theme.text),
-                ))
-                .clicked()
-            {
-                t.side.tab = tab;
-                // The panes edit different things; carrying a selection
-                // across would open the wrong editor.
-                t.side.editing = None;
-            }
-        }
-    });
+    // Each tab wears its glyph (CR-0048): a star for Favorites, a key
+    // for Passwords. Each glyph in a colour of its own (CR-0057): the star
+    // gold, the key the vault's teal. Shared segmented tabs, so the row
+    // never overflows the sidebar (CR-0069).
+    const TABS: [SideTab; 2] = [SideTab::Favorites, SideTab::Passwords];
+    let favorites_label = s.t("browser-favorites");
+    let passwords_label = s.t("browser-passwords");
+    let labels = [favorites_label.as_str(), passwords_label.as_str()];
+    let glyphs = [
+        Some((ph::STAR, egui::Color32::from_rgb(0xf5, 0xb3, 0x01))),
+        Some((ph::KEY, egui::Color32::from_rgb(0x14, 0xb8, 0xa6))),
+    ];
+    t.side.min_width = Some(hs_ui::tabs::segmented_min_width(ui, &labels, &[], &glyphs));
+    let selected = TABS.iter().position(|tab| *tab == t.side.tab).unwrap_or(0);
+    if let Some(i) = hs_ui::tabs::segmented(ui, theme, &labels, &[], &glyphs, selected)
+        && TABS[i] != t.side.tab
+    {
+        t.side.tab = TABS[i];
+        // The panes edit different things; carrying a selection
+        // across would open the wrong editor.
+        t.side.editing = None;
+    }
     ui.add_space(4.0);
     ui.add(
         egui::TextEdit::singleline(&mut t.side.filter)
@@ -781,7 +774,7 @@ fn favorite_detail(
         };
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(name).desired_width(f32::INFINITY))
             .changed();
     } else {
         let Some(l) = t.favorites.link_mut(id) else {
@@ -789,12 +782,12 @@ fn favorite_detail(
         };
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.name).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-url")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.url).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.url).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         icon_field(ui, theme, s, &mut l.icon, &mut changed);
@@ -834,7 +827,7 @@ fn icon_field(
     ui.label(egui::RichText::new(s.t("browser-icon")).size(11.0));
     *changed |= ui
         .add(
-            egui::TextEdit::singleline(icon)
+            hs_ui::form::line_edit(icon)
                 .hint_text(s.t("browser-icon-hint"))
                 .desired_width(f32::INFINITY),
         )
@@ -873,17 +866,17 @@ fn login_detail(
         let l = &mut t.passwords.items[i];
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.name).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-url")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.url).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.url).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-username")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.username).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.username).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         icon_field(ui, theme, s, &mut l.icon, &mut changed);
@@ -939,7 +932,7 @@ fn secret_field(
             s.t("browser-secret-stored")
         };
         ui.add(
-            egui::TextEdit::singleline(buf)
+            hs_ui::form::line_edit(buf)
                 .password(!shown)
                 .hint_text(hint)
                 .desired_width(ui.available_width() - 96.0),
@@ -1142,7 +1135,7 @@ pub fn add_favorite_dialog(
         if d.making_folder {
             ui.add_space(6.0);
             ui.add(
-                egui::TextEdit::singleline(&mut d.new_folder)
+                hs_ui::form::line_edit(&mut d.new_folder)
                     .hint_text(s.t("browser-add-favorite-new-hint"))
                     .desired_width(f32::INFINITY),
             );
@@ -1363,21 +1356,6 @@ fn fill_script(username: &str, password: &str, api_key: &str) -> String {
     format!(
         "(function(){{{body}  if (set(user, {u})) n++;\n  if (set(pw, {p})) n++;\n  if (set(key, {k})) n++;\n  return n;\n}})()"
     )
-}
-
-/// A tab label whose glyph carries a colour while the words keep the
-/// text colour (CR-0057).
-fn browser_tab_text(
-    icon: &str,
-    colour: egui::Color32,
-    label: &str,
-    text: egui::Color32,
-) -> egui::text::LayoutJob {
-    let mut job = egui::text::LayoutJob::default();
-    let font = egui::FontId::proportional(14.0);
-    job.append(icon, 0.0, egui::TextFormat::simple(font.clone(), colour));
-    job.append(label, 5.0, egui::TextFormat::simple(font, text));
-    job
 }
 
 #[cfg(test)]

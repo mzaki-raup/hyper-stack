@@ -62,6 +62,7 @@ pub fn picker(ui: &mut egui::Ui, id_salt: &str, none_label: &str, value: &mut St
     } else {
         name(value).to_string()
     };
+    crate::form::match_field_height(ui);
     egui::ComboBox::from_id_salt(id_salt)
         .selected_text(selected)
         .width(220.0)

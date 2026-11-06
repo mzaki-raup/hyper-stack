@@ -74,6 +74,9 @@ pub struct RepoPane {
     credential: String,
     /// The AI Assistant column (docs/tools/git-activity.md §7).
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The tree column is hidden from the toolbar, as the Editor's
+    /// project column can be (CR-0069). Shown by default.
+    hide_tree: bool,
     /// What the assistant is told about the repository, refreshed with
     /// the status: short status, bounded staged diff, recent log.
     ai_context: String,
@@ -151,6 +154,7 @@ impl RepoPane {
         use crate::verbs::Panel;
         let s = cx.services;
         match id {
+            "git.tree" => self.hide_tree = !self.hide_tree,
             "git.ai" => {
                 self.assistant.toggle("git");
                 if self.assistant.open {
@@ -569,6 +573,17 @@ impl RepoPane {
             ui.spinner();
             ui.label(egui::RichText::new(label).color(theme.text_muted));
         }
+        ui.separator();
+        let mut shown = !self.hide_tree;
+        hs_ui::toolbar::toggle(
+            ui,
+            theme,
+            &mut shown,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("git-tree-column"),
+        )
+        .on_hover_text(s.t("git-tree-column-tip"));
+        self.hide_tree = !shown;
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The same control in every tool, in the same place.
             if ui
@@ -648,17 +663,24 @@ impl RepoPane {
         let full = ui.available_width();
         // The tree, narrow and resizable.
         let mut tree_pick: Option<tree::Pick> = None;
-        egui::Panel::left(ui.id().with("git-tree-col"))
+        let mut column = egui::Panel::left(ui.id().with("git-tree-col"))
             .resizable(true)
             .default_size(220.0)
-            .size_range(160.0..=360.0)
-            .show(ui, |ui| {
+            .size_range(160.0..=360.0);
+        // Hidden from the toolbar, as the Editor's column (CR-0069).
+        if self.hide_tree {
+            column = column.exact_size(0.0).resizable(false);
+        }
+        column.show(ui, |ui| {
+            if !self.hide_tree {
                 tree_pick = self.tree.ui(ui, theme, cx);
-            });
+            }
+        });
         if let Some(p) = tree_pick {
             self.tree_pick(cx.services, p);
         }
-        let rest = (full - 220.0).max(400.0);
+        let tree_w = if self.hide_tree { 0.0 } else { 220.0 };
+        let rest = (full - tree_w).max(400.0);
         let centre_w = match self.tree.view {
             View::Status => (rest * 0.40).clamp(360.0, 620.0),
             View::History => (rest * 0.55).clamp(420.0, 900.0),
@@ -1041,6 +1063,7 @@ impl RepoPane {
 
     fn right_column(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
+        let material = s.settings.read().appearance.material_icons("git");
         // The Files view owns the right column while it is the centre:
         // the picked file, read or edited (FEAT-0101).
         if self.tree.view == View::Files {
@@ -1076,7 +1099,12 @@ impl RepoPane {
                     .inner_margin(egui::Margin::symmetric(12, 6))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
+                            hs_ui::fileicons::show_icon(
+                                ui,
+                                &hs_ui::fileicons::file_icon(material, &path, ph::FILE),
+                                16.0,
+                                theme.text_muted,
+                            );
                             ui.label(egui::RichText::new(&path).strong());
                             let what = match side {
                                 Side::Staged => s.t("git-staged"),
@@ -1123,7 +1151,12 @@ impl RepoPane {
                     .inner_margin(egui::Margin::symmetric(12, 6))
                     .show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
+                            hs_ui::fileicons::show_icon(
+                                ui,
+                                &hs_ui::fileicons::file_icon(material, &file.path, ph::FILE),
+                                16.0,
+                                theme.text_muted,
+                            );
                             ui.label(egui::RichText::new(&file.path).strong());
                             ui.label(
                                 egui::RichText::new(format!(
@@ -1256,7 +1289,7 @@ impl RepoPane {
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(egui::RichText::new(ph::MAGNIFYING_GLASS).color(theme.text_muted));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.filter)

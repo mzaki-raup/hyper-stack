@@ -46,6 +46,7 @@ fn harness<'a>() -> Harness<'a, State> {
                 set_null: "Set NULL",
                 delete_row: "Delete Row",
                 revert_row: "Revert Row",
+                empty: "The statement returned no rows.",
             };
             let order = grid::order(&s.rows, &mut s.grid);
             let r: GridResponse = grid::show(

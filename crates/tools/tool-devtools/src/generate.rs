@@ -769,7 +769,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 form::hint(ui, theme, &s.t("dt-gen-uuid-hint"));
             }
             Mode::Number => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-from"));
                     ui.add(egui::DragValue::new(&mut st.low));
                     ui.label(s.t("dt-gen-to"));
@@ -778,7 +778,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 form::hint(ui, theme, &s.t("dt-gen-seed-hint"));
             }
             Mode::Password => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-length"));
                     ui.add(egui::DragValue::new(&mut st.pw_length).range(1..=512));
                 });
@@ -798,13 +798,11 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 ));
             }
             Mode::Passphrase => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-words"));
                     ui.add(egui::DragValue::new(&mut st.phrase_words).range(1..=64));
                     ui.label(s.t("dt-gen-separator"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut st.phrase_separator).desired_width(60.0),
-                    );
+                    ui.add(hs_ui::form::line_edit(&mut st.phrase_separator).desired_width(60.0));
                 });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut st.phrase_capitalise, s.t("dt-gen-capitalise"));
@@ -823,15 +821,15 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             }
         }
         if st.mode != Mode::Password && st.mode != Mode::Passphrase {
-            ui.horizontal(|ui| {
+            hs_ui::form::centred_row(ui, |ui| {
                 ui.label(s.t("dt-gen-count"));
                 ui.add(egui::DragValue::new(&mut st.count).range(1..=1000));
             });
         }
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("dt-gen-seed"));
             ui.add(
-                egui::TextEdit::singleline(&mut st.seed)
+                hs_ui::form::line_edit(&mut st.seed)
                     .hint_text(s.t("dt-gen-seed-empty"))
                     .desired_width(140.0),
             );

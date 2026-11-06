@@ -353,7 +353,7 @@ impl HostView {
         });
         ui.add_space(4.0);
         ui.add(
-            egui::TextEdit::singleline(&mut self.filter)
+            hs_ui::form::line_edit(&mut self.filter)
                 .hint_text(s.t("git-host-filter"))
                 .desired_width(f32::INFINITY),
         );
@@ -389,6 +389,7 @@ impl HostView {
         let here = self.active_tab().map(|t| t.project.clone());
         let cloning = self.cloning.as_ref().map(|(p, _, _)| p.full_name.clone());
         let mut open: Option<Project> = None;
+        let material = s.settings.read().appearance.material_icons("git");
         egui::ScrollArea::vertical()
             .id_salt(("git-host-repos", &self.cred.id))
             .auto_shrink([false, false])
@@ -410,14 +411,25 @@ impl HostView {
                         } else {
                             p.description.clone()
                         };
-                        let row = form::list_row(
+                        let row = form::list_row_icon(
                             ui,
                             theme,
                             here.as_deref() == Some(p.full_name.as_str()),
-                            glyph,
+                            &hs_ui::fileicons::item_icon(material, "source-control", glyph),
                             &p.full_name,
                             (!subtitle.is_empty()).then_some(subtitle.as_str()),
                         );
+                        // The picture replaces the lock glyph, so a private
+                        // repository keeps it as a small badge on the picture.
+                        if material && p.private {
+                            ui.painter().text(
+                                egui::pos2(row.rect.left() + 36.0, row.rect.center().y + 11.0),
+                                egui::Align2::RIGHT_BOTTOM,
+                                ph::LOCK,
+                                egui::FontId::proportional(11.0),
+                                theme.text,
+                            );
+                        }
                         if row.clicked() {
                             open = Some((*p).clone());
                         }
@@ -445,6 +457,7 @@ impl HostView {
         struct Item {
             id: u64,
             title: String,
+            image: Option<egui::ImageSource<'static>>,
         }
         impl hs_ui::tabs::TabItem for Item {
             fn id(&self) -> u64 {
@@ -456,6 +469,9 @@ impl HostView {
             fn icon(&self) -> &str {
                 ph::GIT_BRANCH
             }
+            fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+                self.image.clone()
+            }
             fn pinned(&self) -> bool {
                 false
             }
@@ -463,12 +479,22 @@ impl HostView {
                 false
             }
         }
+        // Material icons on: the repository tabs wear the branch picture
+        // the Git lists use (CR-0065).
+        let image = s
+            .settings
+            .read()
+            .appearance
+            .material_icons("git")
+            .then(|| hs_ui::fileicons::for_kind("branch"))
+            .flatten();
         let items: Vec<Item> = self
             .tabs
             .iter()
             .map(|t| Item {
                 id: t.uid,
                 title: t.name.clone(),
+                image: image.clone(),
             })
             .collect();
         let labels = hs_ui::tabs::TabStripLabels {

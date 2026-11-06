@@ -17,6 +17,9 @@ pub struct LauncherResponse {
     pub reopen_closed: Option<usize>,
     /// (tool factory id, connection profile id) from a pinned-connection chip.
     pub open_connection: Option<(String, String)>,
+    /// Recent's right-click menu (CR-0067), waiting for a confirmation:
+    /// `Some(Some(i))` removes closed tab `i`, `Some(None)` clears Recent.
+    pub forget_closed: Option<Option<usize>>,
 }
 
 /// The tool that opens connection profiles of `kind`, or `None` while no
@@ -54,6 +57,7 @@ pub fn show(
         open_tool: None,
         reopen_closed: None,
         open_connection: None,
+        forget_closed: None,
     };
     let width = ui.available_width().min(960.0);
     ui.vertical_centered(|ui| {
@@ -155,6 +159,7 @@ pub fn side(
         open_tool: None,
         reopen_closed: None,
         open_connection: None,
+        forget_closed: None,
     };
     let pinned: Vec<_> = services.connections.read().pinned().cloned().collect();
     let recent: Vec<_> = closed.iter().rev().take(12).collect();
@@ -225,7 +230,13 @@ pub fn side(
                     ui.separator();
                     ui.add_space(6.0);
                 }
-                section_heading(ui, theme, &services.t("launcher-recent"));
+                let clear = services.t("launcher-clear-recent");
+                section_heading(ui, theme, &services.t("launcher-recent")).context_menu(|ui| {
+                    if ui.button(&clear).clicked() {
+                        resp.forget_closed = Some(None);
+                        ui.close();
+                    }
+                });
                 ui.add_space(4.0);
                 for (idx, factory, title) in recent {
                     let icon = tools
@@ -251,9 +262,20 @@ pub fn side(
                         .wrap_mode(egui::TextWrapMode::Truncate)
                         .min_size(Vec2::new(RECENT_WIDTH, 26.0)),
                     );
-                    if r.tip(services.t("launcher-reopen")).clicked() {
+                    let r = r.tip(services.t("launcher-reopen"));
+                    if r.clicked() {
                         resp.reopen_closed = Some(*idx);
                     }
+                    r.context_menu(|ui| {
+                        if ui.button(services.t("launcher-remove-recent")).clicked() {
+                            resp.forget_closed = Some(Some(*idx));
+                            ui.close();
+                        }
+                        if ui.button(&clear).clicked() {
+                            resp.forget_closed = Some(None);
+                            ui.close();
+                        }
+                    });
                 }
             }
         });
@@ -313,13 +335,18 @@ fn kind_heading(ui: &mut egui::Ui, theme: &Theme, text: &str, colour: egui::Colo
     });
 }
 
-fn section_heading(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.label(
-        egui::RichText::new(text)
-            .strong()
-            .size(15.0)
-            .color(theme.text),
-    );
+fn section_heading(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
+    // Clickable so a heading can carry a right-click menu (CR-0067).
+    ui.add(
+        egui::Label::new(
+            egui::RichText::new(text)
+                .strong()
+                .size(15.0)
+                .color(theme.text),
+        )
+        .selectable(false)
+        .sense(egui::Sense::click()),
+    )
 }
 
 /// The colour a connection kind is shown in, so a glance at Home sorts the

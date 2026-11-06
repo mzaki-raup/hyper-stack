@@ -1087,6 +1087,7 @@ impl TrackerTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -1128,6 +1129,7 @@ impl TrackerTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id });
             }
@@ -1239,7 +1241,17 @@ impl TrackerTool {
             self.new = None;
         }
         // Wide enough for the six columns; the item takes the rest.
-        let left = (ui.available_width() * 0.5).clamp(320.0, 720.0);
+        let mut left = (ui.available_width() * 0.5).clamp(320.0, 720.0);
+        if self.is_pages() {
+            // Never narrower than Browse / Search, whole (CR-0069).
+            let [browse, search] = Self::pages_labels(s);
+            left = left.max(hs_ui::tabs::segmented_min_width(
+                ui,
+                &[&browse, &search],
+                &[],
+                &[],
+            ));
+        }
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(left);
@@ -1265,24 +1277,28 @@ impl TrackerTool {
         });
     }
 
-    /// Browse and Search, for Confluence's left pane.
-    fn pages_mode(&mut self, ui: &mut egui::Ui, s: &Services) {
-        ui.horizontal(|ui| {
-            for (searching, icon, key) in [
-                (false, ph::TREE_STRUCTURE, "tracker-browse"),
-                (true, ph::MAGNIFYING_GLASS, "tracker-search"),
-            ] {
-                if ui
-                    .add(egui::Button::selectable(
-                        self.state.searching == searching,
-                        format!("{icon} {}", s.t(key)),
-                    ))
-                    .clicked()
-                {
-                    self.state.searching = searching;
-                }
-            }
-        });
+    /// The labels of Browse and Search, Confluence's left-pane tabs.
+    fn pages_labels(s: &Services) -> [String; 2] {
+        [
+            format!("{} {}", ph::TREE_STRUCTURE, s.t("tracker-browse")),
+            format!("{} {}", ph::MAGNIFYING_GLASS, s.t("tracker-search")),
+        ]
+    }
+
+    /// Browse and Search, for Confluence's left pane: shared segmented
+    /// tabs, so the pair never overflows the column (CR-0069).
+    fn pages_mode(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let [browse, search] = Self::pages_labels(s);
+        if let Some(i) = hs_ui::tabs::segmented(
+            ui,
+            theme,
+            &[&browse, &search],
+            &[],
+            &[],
+            usize::from(self.state.searching),
+        ) {
+            self.state.searching = i == 1;
+        }
         ui.add_space(4.0);
     }
 
@@ -1294,7 +1310,7 @@ impl TrackerTool {
         ui.horizontal(|ui| {
             let width = (ui.available_width() - 120.0).max(120.0);
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.query_text)
+                hs_ui::form::line_edit(&mut self.query_text)
                     .hint_text(s.t(match self.kind.as_str() {
                         "jira" => "tracker-query-hint-jql",
                         "confluence" => "tracker-query-hint-cql",
@@ -1376,7 +1392,7 @@ impl TrackerTool {
     fn items(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
         if self.is_pages() {
-            self.pages_mode(ui, s);
+            self.pages_mode(ui, theme, s);
         }
         ui.add_space(form::PANE_GAP);
         self.query_bar(ui, s, cx);
@@ -1483,6 +1499,7 @@ impl TrackerTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let more = found.next.is_some();
         let r = ui
@@ -1517,7 +1534,7 @@ impl TrackerTool {
     }
 
     fn page_tree(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
-        self.pages_mode(ui, s);
+        self.pages_mode(ui, theme, s);
         let (spaces, pages, busy) = {
             let sh = self.shared.lock();
             (sh.spaces.clone(), sh.pages.clone(), sh.busy)
@@ -1551,7 +1568,7 @@ impl TrackerTool {
             .and_then(|k| spaces.iter().find(|x| &x.key == k))
             .cloned();
         let mut picked = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             egui::ComboBox::from_id_salt("tracker-space")
                 .width(ui.available_width() - 30.0)
                 .selected_text(

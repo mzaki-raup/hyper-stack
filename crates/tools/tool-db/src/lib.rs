@@ -141,6 +141,14 @@ struct SavedQuery {
     connection: String,
 }
 
+/// A list action waiting for its confirmation (CR-0067).
+#[derive(Debug, Clone, PartialEq)]
+enum ListConfirm {
+    DeleteQuery { path: PathBuf, name: String },
+    RemoveHistory(i64),
+    ClearHistory,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct QueryHeader {
     #[serde(default)]
@@ -164,6 +172,31 @@ fn read_saved(path: &Path) -> Option<(QueryHeader, String)> {
         Some(h) => Some((h, rest.to_string())),
         None => Some((QueryHeader::default(), text)),
     }
+}
+
+/// A queries-section row with the Material picture in front of it when
+/// there is one; without, the row draws its own glyph as before.
+fn with_row_image(
+    ui: &mut egui::Ui,
+    image: Option<&egui::ImageSource<'static>>,
+    add: impl FnOnce(&mut egui::Ui) -> egui::Response,
+) -> egui::Response {
+    match image {
+        None => add(ui),
+        Some(src) => {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
+                ui.add(egui::Image::new(src.clone()).fit_to_exact_size(egui::Vec2::splat(16.0)));
+                add(ui)
+            })
+            .inner
+        }
+    }
+}
+
+/// Delete a saved query's file (Delete Query, CR-0067).
+fn delete_saved_file(path: &Path) -> std::io::Result<()> {
+    std::fs::remove_file(path)
 }
 
 /// The display name of a saved query: its header name, else the file stem.
@@ -331,6 +364,9 @@ pub struct DbTool {
     env_name: String,
     protected: bool,
     writes_unlocked: bool,
+    /// The schema column beside the editor is showing: a toolbar toggle
+    /// hides it, as the Editor's project column (CR-0069).
+    show_schema: bool,
     /// Resolved config for exports on a second connection (memory only).
     export_cfg: Option<ConnectConfig>,
     tree: TreeState,
@@ -345,6 +381,7 @@ pub struct DbTool {
     history_rows: Arc<Mutex<Vec<history::Entry>>>,
     history_search: String,
     saved: Vec<SavedQuery>,
+    list_confirm: Option<ListConfirm>,
     catalog_cached: bool,
     /// The saved query's name (from its header), for the tab title.
     query_name: Option<String>,
@@ -613,6 +650,7 @@ impl DbTool {
             env_name: String::new(),
             protected: false,
             writes_unlocked: false,
+            show_schema: true,
             export_cfg: None,
             tree: TreeState::default(),
             tree_filter: String::new(),
@@ -626,6 +664,7 @@ impl DbTool {
             history_rows: Arc::new(Mutex::new(Vec::new())),
             history_search: String::new(),
             saved: Vec::new(),
+            list_confirm: None,
             catalog_cached: false,
             query_name: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
@@ -913,6 +952,8 @@ impl DbTool {
             .unwrap_or(path)
             .to_string_lossy()
             .replace('\\', "/");
+        // The saved query opens in front of any Design tab (BUG-0047).
+        self.active_designer = None;
         let d = self.doc_mut();
         d.buf = Buffer::from_text(&body);
         d.buf.mark_saved();
@@ -1274,6 +1315,9 @@ impl DbTool {
     }
 
     fn insert_text(&mut self, text: &str) {
+        // Text lands in the query tab, so that tab comes to the front -
+        // history, templates and snippets alike (BUG-0047).
+        self.active_designer = None;
         let at = self.doc().buf.len_chars();
         let prefix = if self.doc().buf.text().trim().is_empty() {
             ""
@@ -1479,7 +1523,7 @@ impl DbTool {
         }
     }
 
-    fn completion_popup(&mut self, ui: &mut egui::Ui, theme: &Theme) {
+    fn completion_popup(&mut self, ui: &mut egui::Ui, theme: &Theme, material: bool) {
         let (Some(p), Some(rect)) = (&self.popup, self.doc().view.cursor_rect) else {
             return;
         };
@@ -1494,16 +1538,31 @@ impl DbTool {
                         .max_height(220.0)
                         .show(ui, |ui| {
                             for (i, it) in p.completion.items.iter().enumerate() {
-                                let icon = match it.kind {
-                                    complete::Kind::Column => ph::COLUMNS,
-                                    complete::Kind::Table => ph::TABLE,
-                                    complete::Kind::Keyword => ph::TEXT_AA,
+                                let (icon, kind) = match it.kind {
+                                    complete::Kind::Column => (ph::COLUMNS, Some("column")),
+                                    complete::Kind::Table => (ph::TABLE, Some("table")),
+                                    complete::Kind::Keyword => (ph::TEXT_AA, None),
                                 };
+                                // Material icons on: the column / table picture
+                                // the schema tree wears; keywords keep the glyph.
+                                let picture = kind
+                                    .filter(|_| material)
+                                    .and_then(hs_ui::fileicons::for_kind);
                                 let r = ui.horizontal(|ui| {
-                                    let r = ui.selectable_label(
-                                        i == p.selected,
-                                        format!("{icon} {}", it.label),
-                                    );
+                                    let r = match picture {
+                                        Some(src) => ui.add(egui::Button::selectable(
+                                            i == p.selected,
+                                            (
+                                                egui::Image::new(src)
+                                                    .fit_to_exact_size(egui::Vec2::splat(14.0)),
+                                                it.label.as_str(),
+                                            ),
+                                        )),
+                                        None => ui.selectable_label(
+                                            i == p.selected,
+                                            format!("{icon} {}", it.label),
+                                        ),
+                                    };
                                     if !it.detail.is_empty() {
                                         ui.label(
                                             egui::RichText::new(&it.detail)
@@ -1819,6 +1878,7 @@ impl DbTool {
             set_null: &s.t("db-edit-set-null"),
             delete_row: &s.t("db-edit-delete-row"),
             revert_row: &s.t("db-edit-revert-row"),
+            empty: &s.t("db-results-no-rows"),
         };
         let mut menu = None;
         let mut open_cell = None;
@@ -1882,7 +1942,7 @@ impl DbTool {
             (r.summary.as_ref().is_some_and(|x| x.limited), r.class)
         };
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Air at both ends of the footer (CR-0032).
                 ui.add_space(form::PANE_GAP);
@@ -1915,7 +1975,7 @@ impl DbTool {
                 // down to a box still worth typing in.
                 let filter_w = (ui.available_width() - 140.0).clamp(70.0, 160.0);
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.grids[i].filter)
+                    hs_ui::form::line_edit(&mut self.grids[i].filter)
                         .hint_text(s.t("db-grid-filter"))
                         .desired_width(filter_w),
                 );
@@ -2212,7 +2272,7 @@ impl DbTool {
                         ui.add_space(6.0);
                         ui.label(s.i18n.t_args("db-type-name", &[("name", name)]));
                         ui.add(
-                            egui::TextEdit::singleline(typed)
+                            hs_ui::form::line_edit(typed)
                                 .hint_text(name.as_str())
                                 .desired_width(f32::INFINITY),
                         );
@@ -2413,7 +2473,7 @@ impl DbTool {
                             }
                         }
                     });
-                    ui.horizontal(|ui| {
+                    hs_ui::form::centred_row(ui, |ui| {
                         ui.checkbox(&mut imp.opts.empty_as_null, s.t("db-import-empty-null"));
                         ui.separator();
                         ui.label(s.t("db-import-batch"));
@@ -2430,7 +2490,7 @@ impl DbTool {
                     ui.add_space(6.0);
                     match (&imp.columns, &imp.preview) {
                         (None, _) => {
-                            ui.horizontal(|ui| {
+                            hs_ui::form::centred_row(ui, |ui| {
                                 ui.spinner();
                                 ui.label(s.t("db-import-loading"));
                             });
@@ -2604,7 +2664,7 @@ impl DbTool {
                     ui.heading(s.t("db-save-query"));
                     ui.add_space(6.0);
                     let r = ui.add(
-                        egui::TextEdit::singleline(name)
+                        hs_ui::form::line_edit(name)
                             .hint_text(s.t("db-query-name"))
                             .desired_width(f32::INFINITY),
                     );
@@ -2649,7 +2709,7 @@ impl DbTool {
                     }
                     ui.add_space(6.0);
                     let before = (*dialect, *opts);
-                    ui.horizontal(|ui| {
+                    hs_ui::form::centred_row(ui, |ui| {
                         ui.label(s.t("db-ddl-dialect"));
                         egui::ComboBox::from_id_salt("db-ddl-dialect")
                             .selected_text(dialect.label())
@@ -2751,14 +2811,14 @@ impl DbTool {
                         ui.end_row();
                         ui.label(s.t("db-cmp-target-schema"));
                         ui.add(
-                            egui::TextEdit::singleline(other_schema)
+                            hs_ui::form::line_edit(other_schema)
                                 .hint_text(schema.as_str())
                                 .desired_width(260.0),
                         );
                         ui.end_row();
                         if data {
                             ui.label(s.t("db-cmp-limit"));
-                            ui.add(egui::TextEdit::singleline(limit).desired_width(100.0));
+                            ui.add(hs_ui::form::line_edit(limit).desired_width(100.0));
                             ui.end_row();
                         }
                     });
@@ -3102,7 +3162,11 @@ impl DbTool {
                                             let mut x = TreeNode::branch(
                                                 xid.clone(),
                                                 s.t("db-kind-indexes"),
-                                                art("", ph::LIGHTNING),
+                                                hs_ui::fileicons::folder_icon(
+                                                    material,
+                                                    "database",
+                                                    ph::LIGHTNING,
+                                                ),
                                                 Vec::new(),
                                             );
                                             x.children = loaded(&xid).map(|ix| {
@@ -3148,10 +3212,12 @@ impl DbTool {
                                 .collect::<Vec<_>>()
                         });
                         let count = loaded(&gid).map(|v| v.len());
+                        // A group is a folder: the database folder picture
+                        // when Material icons are on (CR-0065).
                         let mut g = TreeNode::branch(
                             gid.clone(),
                             s.t(kind_key(k)),
-                            art("", ph::FOLDER_SIMPLE),
+                            hs_ui::fileicons::folder_icon(material, "database", ph::FOLDER_SIMPLE),
                             Vec::new(),
                         );
                         g.children = match (children, failed_or_loading(&gid)) {
@@ -4306,6 +4372,16 @@ impl Tool for DbTool {
         ) {
             self.run_command("file.save", cx);
         }
+        // The schema column can be hidden, as the Editor's project column
+        // can (CR-0069).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_schema,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("db-schema-column"),
+        )
+        .tip(s.t("db-schema-column-tip"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -4699,6 +4775,14 @@ impl DbTool {
     /// 2026-10-17.
     fn queries_section(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
+        // Material icons on: saved queries and history wear the query
+        // tab's picture; off, the glyphs they always had.
+        let query_image = s
+            .settings
+            .read()
+            .appearance
+            .material_icons("db")
+            .then(|| hs_ui::fileicons::for_file("query.sql"));
         ui.add_space(8.0);
         ui.separator();
         ui.add_space(6.0);
@@ -4724,12 +4808,33 @@ impl DbTool {
                             .query_file
                             .as_ref()
                             .is_some_and(|f| q.path.ends_with(f));
-                        if ui
-                            .selectable_label(current, format!("{} {}", ph::FILE_SQL, q.name))
-                            .clicked()
-                        {
+                        let r = with_row_image(ui, query_image.as_ref(), |ui| {
+                            let label = if query_image.is_some() {
+                                q.name.clone()
+                            } else {
+                                format!("{} {}", ph::FILE_SQL, q.name)
+                            };
+                            ui.selectable_label(current, label)
+                        });
+                        if r.clicked() {
                             open = Some(q.path.clone());
                         }
+                        r.context_menu(|ui| {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("db-delete-query")
+                                ))
+                                .clicked()
+                            {
+                                self.list_confirm = Some(ListConfirm::DeleteQuery {
+                                    path: q.path.clone(),
+                                    name: q.name.clone(),
+                                });
+                                ui.close();
+                            }
+                        });
                     }
                     if let Some(p) = open {
                         // A saved query opens as another query tab on this
@@ -4781,8 +4886,8 @@ impl DbTool {
                             .get(..16)
                             .unwrap_or(&h.created_at)
                             .replace('T', " ");
-                        let r = ui
-                            .add(
+                        let r = with_row_image(ui, query_image.as_ref(), |ui| {
+                            ui.add(
                                 egui::Button::new({
                                     let mut job = egui::text::LayoutJob::default();
                                     icon.append_to(
@@ -4803,7 +4908,8 @@ impl DbTool {
                                 .frame(false)
                                 .truncate(),
                             )
-                            .tip(format!("{when} · {} ms\n{}", h.duration_ms, h.sql));
+                        })
+                        .tip(format!("{when} · {} ms\n{}", h.duration_ms, h.sql));
                         if r.clicked() {
                             let sql = if h.sql.trim_end().ends_with(';') {
                                 h.sql.clone()
@@ -4812,10 +4918,153 @@ impl DbTool {
                             };
                             self.insert_text(&sql);
                         }
+                        r.context_menu(|ui| {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("db-history-remove")
+                                ))
+                                .clicked()
+                            {
+                                self.list_confirm = Some(ListConfirm::RemoveHistory(h.id));
+                                ui.close();
+                            }
+                            if ui
+                                .button(format!("{} {}", ph::BROOM, s.t("db-history-clear")))
+                                .clicked()
+                            {
+                                self.list_confirm = Some(ListConfirm::ClearHistory);
+                                ui.close();
+                            }
+                        });
+                    }
+                })
+                .header_response
+                .context_menu(|ui| {
+                    if ui
+                        .button(format!("{} {}", ph::BROOM, s.t("db-history-clear")))
+                        .clicked()
+                    {
+                        self.list_confirm = Some(ListConfirm::ClearHistory);
+                        ui.close();
                     }
                 });
             });
         ui.add_space(6.0);
+        self.list_confirm_ui(ui, theme, s);
+    }
+
+    /// The confirmation behind Delete Query, Remove from History and Clear
+    /// History (CR-0067).
+    fn list_confirm_ui(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let Some(c) = &self.list_confirm else {
+            return;
+        };
+        let (title, body, ok) = match c {
+            ListConfirm::DeleteQuery { name, .. } => (
+                s.t("db-delete-query"),
+                s.i18n
+                    .t_args("db-delete-query-body", &[("name", name.as_str())]),
+                s.t("delete"),
+            ),
+            ListConfirm::RemoveHistory(_) => (
+                s.t("db-history-remove"),
+                s.t("db-history-remove-body"),
+                s.t("remove"),
+            ),
+            ListConfirm::ClearHistory => (
+                s.t("db-history-clear"),
+                s.i18n.t_args(
+                    "db-history-clear-body",
+                    &[("conn", self.conn_name.as_str())],
+                ),
+                s.t("db-history-clear"),
+            ),
+        };
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "db-list-confirm",
+            &title,
+            &body,
+            &ok,
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Open => {}
+            hs_ui::dialog::DialogResult::Cancel => self.list_confirm = None,
+            hs_ui::dialog::DialogResult::Ok => match self.list_confirm.take() {
+                Some(ListConfirm::DeleteQuery { path, .. }) => self.delete_saved(s, &path),
+                Some(ListConfirm::RemoveHistory(id)) => {
+                    self.change_history(s, move |h, _| h.remove(id));
+                }
+                Some(ListConfirm::ClearHistory) => {
+                    self.change_history(s, |h, conn| h.clear(conn));
+                }
+                None => {}
+            },
+        }
+    }
+
+    /// Delete a saved query's file and reload the list. A query tab that
+    /// held it keeps its text but becomes Untitled and unsaved.
+    fn delete_saved(&mut self, s: &Services, path: &Path) {
+        if let Err(e) = delete_saved_file(path) {
+            self.shared.lock().messages.push((
+                false,
+                s.i18n
+                    .t_args("db-delete-query-failed", &[("error", &e.to_string())]),
+            ));
+            return;
+        }
+        let root = s.workspace.read().root().to_path_buf();
+        let rel = path
+            .strip_prefix(&root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        for d in self.docs.iter_mut() {
+            if d.file.as_deref() == Some(rel.as_str()) {
+                d.file = None;
+                d.name = None;
+                d.buf.mark_modified_externally();
+            }
+        }
+        if self.state.query_file.as_deref() == Some(rel.as_str()) {
+            self.state.query_file = None;
+            self.query_name = None;
+        }
+        self.reload_saved(s);
+    }
+
+    /// Change the stored history off the UI thread (Remove from History,
+    /// Clear History), then reload the list from what is stored.
+    fn change_history<F>(&self, s: &Services, change: F)
+    where
+        F: FnOnce(&history::History, &str) -> rusqlite::Result<usize> + Send + 'static,
+    {
+        let Some(id) = self.state.conn_id.clone() else {
+            return;
+        };
+        let h = self.history.clone();
+        let out = self.history_rows.clone();
+        let search = self.history_search.clone();
+        let shared = self.shared.clone();
+        let failed = s.t("db-history-change-failed");
+        let waker = s.runtime.waker();
+        s.runtime.spawn_blocking(move || {
+            if let Err(e) = change(&h, &id) {
+                shared
+                    .lock()
+                    .messages
+                    .push((false, format!("{failed}: {e}")));
+            }
+            if let Ok(rows) = h.recent(&id, &search, 100) {
+                *out.lock() = rows;
+            }
+            waker.request_repaint();
+        });
     }
 
     /// The query tabs for this connection: a multi-row strip above the
@@ -4829,6 +5078,7 @@ impl DbTool {
             title: String,
             dirty: bool,
             designer: bool,
+            image: Option<egui::ImageSource<'static>>,
         }
         impl hs_ui::tabs::TabItem for QueryTab {
             fn id(&self) -> u64 {
@@ -4844,6 +5094,9 @@ impl DbTool {
                     ph::FILE_SQL
                 }
             }
+            fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+                self.image.clone()
+            }
             fn pinned(&self) -> bool {
                 false
             }
@@ -4851,6 +5104,13 @@ impl DbTool {
                 self.dirty
             }
         }
+        // Material icons on: the tabs wear the same pictures as the
+        // explorer's tables and saved queries (CR-0065).
+        let material = s.settings.read().appearance.material_icons("db");
+        let query_image = material.then(|| hs_ui::fileicons::for_file("query.sql"));
+        let table_image = material
+            .then(|| hs_ui::fileicons::for_kind("table"))
+            .flatten();
         let untitled = s.t("db-untitled");
         let design = s.t("db-designer-tab");
         let new_table = s.t("db-designer-new");
@@ -4862,6 +5122,7 @@ impl DbTool {
                 title: d.label(&untitled),
                 dirty: d.buf.dirty(),
                 designer: false,
+                image: query_image.clone(),
             })
             .collect();
         // Designers sit after the query tabs (FEAT-0103).
@@ -4870,6 +5131,7 @@ impl DbTool {
             title: d.title(&design, &new_table),
             dirty: false,
             designer: true,
+            image: table_image.clone(),
         }));
         let active = self.active_designer.unwrap_or(self.doc().uid);
         let labels = hs_ui::tabs::TabStripLabels {
@@ -5048,6 +5310,8 @@ impl DbTool {
     fn new_query(&mut self, services: &Services) {
         self.docs.push(QueryDoc::new(services, ""));
         self.state.active_query = self.docs.len() - 1;
+        // In front even when a Design tab was (BUG-0047).
+        self.active_designer = None;
     }
 
     /// Run a statement the user asked for from the schema tree in a query
@@ -5079,6 +5343,10 @@ impl DbTool {
                 self.state.active_query = self.docs.len() - 1;
             }
         }
+        // The query tab comes to the front even when a Design tab was in
+        // front: the designer would otherwise stay on screen and the data
+        // open behind it (owner's report, BUG-0047).
+        self.active_designer = None;
         self.sync_query_state();
         self.run_text(sql, usize::MAX, None, None, s);
     }
@@ -5163,6 +5431,7 @@ impl DbTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -5198,6 +5467,7 @@ impl DbTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -5269,11 +5539,19 @@ impl DbTool {
         // sidebar: hiding the connections list is about choosing a server,
         // and should not take the schema of the one you are in with it.
         if self.cmd.is_some() {
-            egui::Panel::left(self.id.with("db-schema"))
+            let mut column = egui::Panel::left(self.id.with("db-schema"))
                 .resizable(true)
                 .default_size(260.0)
-                .size_range(160.0..=460.0)
-                .show(ui, |ui| self.schema_column(ui, &theme, cx));
+                .size_range(160.0..=460.0);
+            // Hidden from the toolbar, as the Editor's column (CR-0069).
+            if !self.show_schema {
+                column = column.exact_size(0.0).resizable(false);
+            }
+            column.show(ui, |ui| {
+                if self.show_schema {
+                    self.schema_column(ui, &theme, cx);
+                }
+            });
         }
         self.query_tabs(ui, cx, &theme);
         if self.active_designer.is_some() {
@@ -5318,7 +5596,8 @@ impl DbTool {
             self.state.editor_frac = ((editor_h + r.drag_delta().y) / total_h).clamp(0.15, 0.85);
         }
         self.results_panel(ui, cx, &theme);
-        self.completion_popup(ui, &theme);
+        let material = cx.services.settings.read().appearance.material_icons("db");
+        self.completion_popup(ui, &theme, material);
         self.dialogs(ui, cx, &theme);
         let mut run_block: Option<String> = None;
         if self.assistant.open {
@@ -5394,6 +5673,7 @@ impl DbTool {
         };
         vec![
             c("db.ai", "AI: Toggle Assistant", None),
+            c("db.schema_column", "Database: Toggle Schema Column", None),
             c("run", "Database: Run Statement", Some("run")),
             c(
                 "db.run_script",
@@ -5445,6 +5725,7 @@ impl DbTool {
         let s = cx.services;
         match id {
             "db.ai" => self.assistant.toggle("SQL"),
+            "db.schema_column" => self.show_schema = !self.show_schema,
             "run" => self.run(RunMode::Current, s),
             "db.run_script" | "run.alt" => self.run(RunMode::Script, s),
             "db.explain" => self.run(RunMode::Explain, s),
@@ -5623,5 +5904,26 @@ mod tests {
         let out = prettify_sql("select a, b from t where a = 1", 2);
         assert!(out.lines().count() > 1, "{out}");
         assert!(out.contains("select"), "keywords keep their case: {out}");
+    }
+
+    #[test]
+    fn delete_query_removes_the_saved_file() {
+        // CR-0067: Delete Query removes what is stored, so the list
+        // reloaded from disk no longer has it.
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("queries").join("conn");
+        std::fs::create_dir_all(&folder).unwrap();
+        let keep = folder.join("keep.sql");
+        let gone = folder.join("gone.sql");
+        std::fs::write(&keep, "select 1;").unwrap();
+        std::fs::write(&gone, "select 2;").unwrap();
+        delete_saved_file(&gone).unwrap();
+        assert!(read_saved(&gone).is_none());
+        let left: Vec<_> = std::fs::read_dir(&folder)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(left, vec!["keep.sql".to_string()]);
     }
 }

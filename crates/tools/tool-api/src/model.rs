@@ -654,6 +654,30 @@ pub fn append_history(path: &Path, entry: &HistoryEntry, max: usize) {
     let _ = hs_core::storage::write_atomic(path, text.as_bytes());
 }
 
+/// Clear History (CR-0067): the stored file goes, not only the list shown.
+pub fn clear_history(path: &Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Remove from History (CR-0067): drop the newest stored entry equal to
+/// `entry` and write the rest back.
+pub fn remove_history(path: &Path, entry: &HistoryEntry) -> Result<(), String> {
+    let mut entries = load_history(path, usize::MAX);
+    if let Some(i) = entries.iter().rposition(|e| e == entry) {
+        entries.remove(i);
+    }
+    let text: String = entries
+        .iter()
+        .filter_map(|e| serde_json::to_string(e).ok())
+        .map(|l| l + "\n")
+        .collect();
+    hs_core::storage::write_atomic(path, text.as_bytes()).map_err(|e| e.to_string())
+}
+
 /// The name a copy takes: the original with a space and a sequence number
 /// on the end, counting up past whatever is already there. "List" becomes
 /// "List 001", and copying "List 001" gives "List 002" rather than
@@ -931,5 +955,29 @@ mod tests {
         let back = load_history(&h, 10);
         assert_eq!(back.len(), 3);
         assert_eq!(back[0].url, "u2");
+    }
+
+    #[test]
+    fn history_entries_are_removed_and_cleared_from_the_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = tmp.path().join("history.jsonl");
+        for i in 0..3 {
+            append_history(
+                &h,
+                &HistoryEntry {
+                    url: format!("u{i}"),
+                    ..Default::default()
+                },
+                10,
+            );
+        }
+        let middle = load_history(&h, 10)[1].clone();
+        remove_history(&h, &middle).unwrap();
+        let urls: Vec<String> = load_history(&h, 10).into_iter().map(|e| e.url).collect();
+        assert_eq!(urls, ["u0", "u2"]);
+        clear_history(&h).unwrap();
+        assert!(load_history(&h, 10).is_empty());
+        // Clearing an already empty history is not an error.
+        clear_history(&h).unwrap();
     }
 }

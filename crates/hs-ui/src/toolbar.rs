@@ -234,6 +234,32 @@ pub fn tab(
     crate::form::selectable_button(ui, selected, text)
 }
 
+/// [`tab`] led by a Material picture in place of the glyph when `image`
+/// is `Some`: an inner tab wears the picture its list does (CR-0065).
+pub fn tab_image(
+    ui: &mut egui::Ui,
+    theme: &crate::theme::Theme,
+    selected: bool,
+    image: Option<egui::ImageSource<'static>>,
+    icon: &str,
+    label: &str,
+) -> egui::Response {
+    let Some(src) = image else {
+        return tab(ui, theme, selected, icon, label);
+    };
+    let size = egui::TextStyle::Button.resolve(ui.style()).size;
+    let text = item_text(ui, theme, "", label);
+    ui.add(
+        egui::Button::new((
+            egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(size)),
+            text,
+        ))
+        .selected(selected)
+        .frame_when_inactive(true)
+        .frame(true),
+    )
+}
+
 /// [`tab`] for a toggle that owns its own flag: flips `on` when clicked,
 /// the way `Ui::toggle_value` does, but framed and coloured.
 pub fn toggle(

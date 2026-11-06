@@ -125,6 +125,19 @@ pub struct Stat<'a> {
 /// their own text - a count of 7 beside a count of 1204 looked like two
 /// unrelated controls (owner's requirement, 2026-10-27).
 pub fn stats(ui: &mut egui::Ui, theme: &Theme, stats: &[Stat<'_>]) {
+    stats_pictured(ui, theme, stats, &[]);
+}
+
+/// [`stats`] where a figure may wear a Material picture in place of its
+/// glyph: `pictures[i]` for `stats[i]`, `None` (or a short slice) keeping
+/// the glyph (Containers' images and volumes, Scratchpad's folders).
+pub fn stats_pictured(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    stats: &[Stat<'_>],
+    pictures: &[Option<egui::ImageSource<'static>>],
+) {
+    let picture = |i: usize| pictures.get(i).cloned().flatten();
     if stats.is_empty() {
         return;
     }
@@ -147,20 +160,24 @@ pub fn stats(ui: &mut egui::Ui, theme: &Theme, stats: &[Stat<'_>]) {
         let icon_font = egui::FontId::proportional(ICON);
         stats
             .iter()
-            .map(|s| {
+            .enumerate()
+            .map(|(i, s)| {
                 let value = f
                     .layout_no_wrap(s.value.to_string(), value_font.clone(), theme.text)
                     .size()
                     .x;
-                let icon = f
-                    .layout_no_wrap(s.icon.to_string(), icon_font.clone(), theme.text)
-                    .size()
-                    .x;
+                let icon = if picture(i).is_some() {
+                    ICON
+                } else {
+                    f.layout_no_wrap(s.icon.to_string(), icon_font.clone(), theme.text)
+                        .size()
+                        .x
+                };
                 let label = f
                     .layout_no_wrap(s.label.to_string(), label_font.clone(), theme.text)
                     .size()
                     .x;
-                let row = if s.icon.is_empty() {
+                let row = if s.icon.is_empty() && picture(i).is_none() {
                     label
                 } else {
                     icon + gap + label
@@ -179,7 +196,7 @@ pub fn stats(ui: &mut egui::Ui, theme: &Theme, stats: &[Stat<'_>]) {
     let row_height = LABEL + 6.0;
     ui.horizontal(|ui| {
         ui.add_space(HEAD_MARGIN);
-        for (s, (_, row_width)) in stats.iter().zip(measured.iter()) {
+        for (i, (s, (_, row_width))) in stats.iter().zip(measured.iter()).enumerate() {
             egui::Frame::new()
                 .fill(theme.panel_bg)
                 .stroke(egui::Stroke::new(1.0, theme.border))
@@ -210,7 +227,12 @@ pub fn stats(ui: &mut egui::Ui, theme: &Theme, stats: &[Stat<'_>]) {
                             egui::vec2(*row_width, row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                if !s.icon.is_empty() {
+                                if let Some(src) = picture(i) {
+                                    ui.add(
+                                        egui::Image::new(src)
+                                            .fit_to_exact_size(egui::Vec2::splat(ICON)),
+                                    );
+                                } else if !s.icon.is_empty() {
                                     ui.label(
                                         egui::RichText::new(s.icon).size(ICON).color(theme.accent),
                                     );
@@ -497,6 +519,10 @@ pub struct Page<'a> {
     /// A second grid of saved things under the first, with its own
     /// heading (Git's Saved Hosts under Saved Repositories, CR-0056).
     pub extra: Option<Extra<'a>>,
+    /// The label of a right-click menu item on each saved thing in the
+    /// first grid; choosing it returns [`Pick::Menu`]. `None` gives the
+    /// cards no menu (Git's Remove From List).
+    pub entry_menu: Option<&'a str>,
 }
 
 /// A second grid of saved things on a [`saved_dashboard`].
@@ -514,6 +540,8 @@ pub enum Pick {
     Open(String),
     /// The thing with this id in the second grid ([`Page::extra`]).
     OpenExtra(String),
+    /// [`Page::entry_menu`] was chosen on the saved thing with this id.
+    Menu(String),
     /// Go back to this open tab.
     Focus(u64),
 }
@@ -563,7 +591,7 @@ pub fn saved_dashboard(
                 page.empty,
                 |ui, i, w| {
                     let e = &entries[i];
-                    if item_button_art(
+                    let card = item_button_art(
                         ui,
                         theme,
                         e.image.as_deref(),
@@ -572,10 +600,17 @@ pub fn saved_dashboard(
                         &e.name,
                         &e.detail,
                         w,
-                    )
-                    .clicked()
-                    {
+                    );
+                    if card.clicked() {
                         pick = Some(Pick::Open(e.id.clone()));
+                    }
+                    if let Some(label) = page.entry_menu {
+                        card.context_menu(|ui| {
+                            if ui.button(label).clicked() {
+                                pick = Some(Pick::Menu(e.id.clone()));
+                                ui.close();
+                            }
+                        });
                     }
                 },
             );

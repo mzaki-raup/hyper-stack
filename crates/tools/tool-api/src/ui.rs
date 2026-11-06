@@ -576,26 +576,49 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
             if t.show_history {
                 ui.add_space(8.0);
                 ui.separator();
-                ui.label(
-                    egui::RichText::new(s.t("api-history"))
-                        .strong()
-                        .color(theme.text_muted),
-                );
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(s.t("api-history"))
+                            .strong()
+                            .color(theme.text_muted),
+                    )
+                    .selectable(false)
+                    .sense(egui::Sense::click()),
+                )
+                .context_menu(|ui| {
+                    if ui.button(s.t("api-history-clear")).clicked() {
+                        t.confirm_history = Some(None);
+                        ui.close();
+                    }
+                });
+                let mut pick = None;
                 for (i, h) in t.history.iter().enumerate().rev().take(60) {
                     let col = status_colour(theme, h.status);
                     let text = format!("{} {} {}", h.status, h.method, h.url);
-                    if ui
+                    let r = ui
                         .add(
                             egui::Label::new(egui::RichText::new(text).small().color(col))
                                 .truncate()
                                 .selectable(false)
                                 .sense(egui::Sense::click()),
                         )
-                        .tip(format!("{} · {} ms", h.at, h.millis))
-                        .clicked()
-                    {
+                        .tip(format!("{} · {} ms", h.at, h.millis));
+                    if r.clicked() {
                         actions.push(SideAction::LoadHistory(i));
                     }
+                    r.context_menu(|ui| {
+                        if ui.button(s.t("api-history-remove")).clicked() {
+                            pick = Some(Some(i));
+                            ui.close();
+                        }
+                        if ui.button(s.t("api-history-clear")).clicked() {
+                            pick = Some(None);
+                            ui.close();
+                        }
+                    });
+                }
+                if pick.is_some() {
+                    t.confirm_history = pick;
                 }
             }
         });
@@ -1075,14 +1098,14 @@ fn request_ids(item: &Item) -> Vec<String> {
 /// is numbered, the way a copy or a dragged-in row is.
 fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
     let s = cx.services;
-    ui.horizontal(|ui| {
+    hs_ui::form::centred_row(ui, |ui| {
         ui.label(
             egui::RichText::new(s.t("api-request-name"))
                 .size(11.0)
                 .color(theme.text_muted),
         );
         let r = ui.add(
-            egui::TextEdit::singleline(&mut t.request.name)
+            hs_ui::form::line_edit(&mut t.request.name)
                 .hint_text(s.t("api-request-name-hint"))
                 .desired_width(f32::INFINITY),
         );
@@ -1244,6 +1267,7 @@ pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
         tabs: &tabs,
         labels: &labels,
         extra: None,
+        entry_menu: None,
     };
     let pick = hs_ui::dashboard::saved_dashboard(
         ui,
@@ -1300,6 +1324,7 @@ pub fn home(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
         }
         // No second grid on this dashboard (CR-0056).
         Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+        Some(hs_ui::dashboard::Pick::Menu(_)) => {}
         Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
             cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
         }
@@ -1648,7 +1673,7 @@ fn auth_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 
 /// The authentication form, for a request and for a collection.
 fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id: &str) {
-    ui.horizontal(|ui| {
+    hs_ui::form::centred_row(ui, |ui| {
         ui.label(s.t("api-auth-type"));
         egui::ComboBox::from_id_salt(id)
             .selected_text(a.kind.label())
@@ -2202,6 +2227,50 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             hs_ui::dialog::DialogResult::Open => {}
         }
     }
+    // Remove from History / Clear History (CR-0067).
+    if let Some(which) = t.confirm_history {
+        let (title, body, ok) = match which {
+            Some(_) => (
+                s.t("api-history-remove"),
+                s.t("api-history-remove-body"),
+                s.t("remove"),
+            ),
+            None => (
+                s.t("api-history-clear"),
+                s.t("api-history-clear-body"),
+                s.t("api-history-clear"),
+            ),
+        };
+        match hs_ui::dialog::confirm(
+            &ctx,
+            theme,
+            "api-history",
+            &title,
+            &body,
+            &ok,
+            &s.t("cancel"),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                t.confirm_history = None;
+                let path = t.api_dir.join("history.jsonl");
+                let done = match which {
+                    Some(i) => match t.history.get(i).cloned() {
+                        Some(entry) => crate::model::remove_history(&path, &entry).map(|()| {
+                            t.history.remove(i);
+                        }),
+                        None => Ok(()),
+                    },
+                    None => crate::model::clear_history(&path).map(|()| t.history.clear()),
+                };
+                if let Err(e) = done {
+                    cx.toast(ToastLevel::Error, e);
+                }
+            }
+            hs_ui::dialog::DialogResult::Cancel => t.confirm_history = None,
+            hs_ui::dialog::DialogResult::Open => {}
+        }
+    }
     // New collection.
     if let Some(name) = &mut t.new_collection {
         let mut done: Option<bool> = None;
@@ -2674,7 +2743,7 @@ pub(crate) fn library_tab(
                         let url_id = ui.id().with("url");
                         let mut url: String = ui.data(|d| d.get_temp(url_id)).unwrap_or_default();
                         let r = ui.add(
-                            egui::TextEdit::singleline(&mut url)
+                            hs_ui::form::line_edit(&mut url)
                                 .hint_text(s.t("api-library-url-hint"))
                                 .desired_width(f32::INFINITY),
                         );

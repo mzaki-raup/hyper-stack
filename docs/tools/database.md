@@ -680,6 +680,13 @@ from the right.
   Edit Cell dialog as the context menu and F2; on a result that cannot be
   edited it opens the cell viewer as before.
 
+## Addendum (2026-11-06): history, saved queries and tab focus (CR-0067, CR-0068, BUG-0047)
+
+- Right-click the Query History heading: **Clear History** (confirmed; deletes the connection's stored history). Right-click a row: **Remove from History**.
+- Right-click a saved query: **Delete Query** (confirmed; the file is removed, an open tab keeps its text as an unsaved query).
+- Saved Queries and history rows wear the query tab's Material picture when Material icons are on.
+- New Query, Open Data, Count Rows, New SELECT, a saved query, a history entry and a template bring their query tab to the front even when a Design tab was in front.
+
 ## Addendum (2026-11-06): the table designer (FEAT-0103)
 
 A **Designer** tab opens inside a connection's tab, beside the query tabs,

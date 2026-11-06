@@ -768,6 +768,7 @@ impl NoSqlTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -799,6 +800,7 @@ impl NoSqlTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -875,12 +877,30 @@ impl NoSqlTool {
                 // to the whole tab, this belongs to this pane (owner's
                 // requirement, 2026-10-27).
                 if let Some(c) = self.container() {
+                    // Material icons on: the collection picture its tree
+                    // row wears, in place of the glyph.
+                    let material = s.settings.read().appearance.material_icons("nosql");
                     ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("{} {}", ph::TABLE, c.display()))
-                                .small()
-                                .color(theme.text_muted),
-                        );
+                        match hs_ui::fileicons::item_icon(material, "collection", ph::TABLE) {
+                            hs_ui::tree::TreeIcon::Image(src) => {
+                                ui.add(
+                                    egui::Image::new(src)
+                                        .fit_to_exact_size(egui::Vec2::splat(12.0)),
+                                );
+                                ui.label(
+                                    egui::RichText::new(c.display())
+                                        .small()
+                                        .color(theme.text_muted),
+                                );
+                            }
+                            hs_ui::tree::TreeIcon::Glyph(g) => {
+                                ui.label(
+                                    egui::RichText::new(format!("{g} {}", c.display()))
+                                        .small()
+                                        .color(theme.text_muted),
+                                );
+                            }
+                        }
                     });
                     ui.add_space(2.0);
                     ui.separator();
@@ -1170,7 +1190,7 @@ impl NoSqlTool {
                 if extras {
                     ui.label(s.t("nosql-projection"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.state.projection)
+                        hs_ui::form::line_edit(&mut self.state.projection)
                             .hint_text(r#"{"total": 1}"#)
                             .desired_width(f32::INFINITY)
                             .font(egui::TextStyle::Monospace),
@@ -1178,7 +1198,7 @@ impl NoSqlTool {
                     ui.end_row();
                     ui.label(s.t("nosql-sort"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.state.sort)
+                        hs_ui::form::line_edit(&mut self.state.sort)
                             .hint_text(r#"{"createdAt": -1}"#)
                             .desired_width(f32::INFINITY)
                             .font(egui::TextStyle::Monospace),
@@ -1339,6 +1359,7 @@ impl NoSqlTool {
                         copy_row_label: &s.t("nosql-copy-row"),
                         built_in_menu: true,
                         row_icons: None,
+                        empty_hint: None,
                     };
                     let resp = table.show(ui, &mut self.table);
                     if let Some(text) = resp.copied {
@@ -1546,6 +1567,7 @@ impl NoSqlTool {
                     ColumnSpec::new(s.t("nosql-index-definition"), 360.0),
                     ColumnSpec::new(s.t("nosql-index-unique"), 80.0),
                 ];
+                let empty_label = s.t("nosql-indexes-none");
                 let rows: Vec<Vec<String>> = list
                     .into_iter()
                     .map(|i| {
@@ -1569,6 +1591,7 @@ impl NoSqlTool {
                     copy_row_label: &s.t("nosql-copy-row"),
                     built_in_menu: true,
                     row_icons: None,
+                    empty_hint: Some(&empty_label),
                 };
                 let r = ui
                     .push_id("nosql-indexes", |ui| {

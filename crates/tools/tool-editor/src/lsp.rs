@@ -1585,8 +1585,7 @@ impl Lsp {
             ui.set_width(380.0);
             ui.heading(s.t("editor-rename-symbol"));
             ui.add_space(6.0);
-            let r =
-                ui.add(egui::TextEdit::singleline(&mut prompt.text).desired_width(f32::INFINITY));
+            let r = ui.add(hs_ui::form::line_edit(&mut prompt.text).desired_width(f32::INFINITY));
             if prompt.focus {
                 r.request_focus();
                 prompt.focus = false;

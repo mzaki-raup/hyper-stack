@@ -891,6 +891,173 @@ fn elide(title: &str, avail: f32, full: f32) -> String {
     s
 }
 
+/// Height of a [`segmented`] control.
+pub const SEGMENT_HEIGHT: f32 = 26.0;
+/// A Material picture's side in a segment, and the gap after it.
+const SEGMENT_ART: f32 = 15.0;
+const SEGMENT_ART_GAP: f32 = 5.0;
+/// Room left and right of a segment's content, together.
+const SEGMENT_PAD: f32 = 16.0;
+
+fn segment_font() -> egui::FontId {
+    egui::FontId::proportional(13.0)
+}
+
+/// A segment's text: its glyph in a colour of its own (CR-0048), when it
+/// has one, then the label.
+fn segment_job(
+    label: &str,
+    glyph: Option<(&str, Color32)>,
+    colour: Color32,
+) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    if let Some((g, c)) = glyph {
+        job.append(g, 0.0, egui::TextFormat::simple(segment_font(), c));
+        job.append(label, 5.0, egui::TextFormat::simple(segment_font(), colour));
+    } else {
+        job.append(label, 0.0, egui::TextFormat::simple(segment_font(), colour));
+    }
+    job
+}
+
+/// The narrowest a [`segmented`] control can be with every segment's
+/// picture or glyph and label shown whole: the widest segment's content
+/// plus its padding, times the number of segments (they are equal width).
+/// A pane holding one uses this as its minimum (CR-0069). `arts` and
+/// `glyphs` are index-aligned with `labels`, as for [`segmented`].
+pub fn segmented_min_width(
+    ui: &egui::Ui,
+    labels: &[&str],
+    arts: &[Option<egui::ImageSource<'static>>],
+    glyphs: &[Option<(&str, Color32)>],
+) -> f32 {
+    let widest = labels
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let glyph = glyphs.get(i).copied().flatten();
+            let text = ui
+                .painter()
+                .layout_job(segment_job(label, glyph, Color32::WHITE))
+                .size()
+                .x;
+            let art = if arts.get(i).is_some_and(Option::is_some) {
+                SEGMENT_ART + SEGMENT_ART_GAP
+            } else {
+                0.0
+            };
+            art + text
+        })
+        .fold(0.0_f32, f32::max);
+    labels.len() as f32 * (widest + SEGMENT_PAD)
+}
+
+/// A row of equal-width toggle segments across the available width (never
+/// wider, so a resizable side panel does not grow). Returns the clicked one.
+///
+/// A segment may show a Material picture beside its text instead of a
+/// leading glyph (FEAT-0084): `arts` is index-aligned with `labels`, and a
+/// missing or `None` entry draws the label alone, which is what an
+/// activity with Material icons off gets. `glyphs`, also index-aligned,
+/// gives a segment a leading glyph in its own colour (the Browser's gold
+/// star, CR-0048). Nothing is drawn outside its segment: when the content
+/// does not fit, the picture or glyph is drawn alone, and the text is
+/// clipped to the segment (CR-0069). Keep the pane at least
+/// [`segmented_min_width`] wide and that never happens.
+pub fn segmented(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    labels: &[&str],
+    arts: &[Option<egui::ImageSource<'static>>],
+    glyphs: &[Option<(&str, Color32)>],
+    selected: usize,
+) -> Option<usize> {
+    let (rect, _) = ui.allocate_exact_size(
+        egui::vec2(ui.available_width(), SEGMENT_HEIGHT),
+        Sense::hover(),
+    );
+    let w = rect.width() / labels.len().max(1) as f32;
+    let mut clicked = None;
+    for (i, label) in labels.iter().enumerate() {
+        let r = Rect::from_min_size(
+            egui::pos2(rect.left() + i as f32 * w, rect.top()),
+            egui::vec2(w, rect.height()),
+        )
+        .shrink2(egui::vec2(1.0, 0.0));
+        let resp = ui.interact(r, ui.id().with(("segment", i)), Sense::click());
+        resp.widget_info(|| {
+            egui::WidgetInfo::selected(
+                egui::WidgetType::SelectableLabel,
+                true,
+                i == selected,
+                *label,
+            )
+        });
+        let on = i == selected;
+        let fill = if on {
+            theme.accent.linear_multiply(0.3)
+        } else if resp.hovered() {
+            theme.surface_hover
+        } else {
+            theme.surface
+        };
+        ui.painter().rect_filled(r, CornerRadius::same(4), fill);
+        let p = ui.painter().with_clip_rect(r.intersect(ui.clip_rect()));
+        let colour = if on { theme.text } else { theme.text_muted };
+        let glyph = glyphs.get(i).copied().flatten();
+        let galley = p.layout_job(segment_job(label, glyph, colour));
+        let room = r.width() - 4.0;
+        match arts.get(i).and_then(|a| a.clone()) {
+            // Picture and text are centred as one unit, so the segment
+            // reads the same as the glyph-and-text one beside it.
+            Some(src) => {
+                let full = SEGMENT_ART + SEGMENT_ART_GAP + galley.size().x;
+                let fits = full <= room;
+                let total = if fits { full } else { SEGMENT_ART };
+                let left = r.center().x - total / 2.0;
+                let at = Rect::from_min_size(
+                    egui::pos2(left, r.center().y - SEGMENT_ART / 2.0),
+                    Vec2::splat(SEGMENT_ART),
+                );
+                // The picture only where it is whole inside the segment.
+                if r.contains_rect(at) {
+                    egui::Image::new(src)
+                        .fit_to_exact_size(Vec2::splat(SEGMENT_ART))
+                        .paint_at(ui, at);
+                }
+                if fits {
+                    p.galley(
+                        egui::pos2(
+                            left + SEGMENT_ART + SEGMENT_ART_GAP,
+                            r.center().y - galley.size().y / 2.0,
+                        ),
+                        galley,
+                        colour,
+                    );
+                }
+            }
+            None => match glyph {
+                Some((g, c)) if galley.size().x > room => {
+                    p.text(
+                        r.center(),
+                        egui::Align2::CENTER_CENTER,
+                        g,
+                        segment_font(),
+                        c,
+                    );
+                }
+                _ => {
+                    p.galley(r.center() - galley.size() / 2.0, galley, colour);
+                }
+            },
+        }
+        if resp.clicked() {
+            clicked = Some(i);
+        }
+    }
+    clicked
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1081,5 +1248,60 @@ mod tests {
         assert!(s.contains('…'));
         assert!(s.starts_with('d'));
         assert!(s.ends_with('l'));
+    }
+
+    #[test]
+    fn the_segmented_minimum_fits_every_label_and_nothing_paints_outside() {
+        let ctx = egui::Context::default();
+        let theme = Theme::dark();
+        let labels = ["Project", "Source Control (12)", "Favorites"];
+        let arts = [
+            Some(egui::ImageSource::Uri("bytes://art".into())),
+            None,
+            None,
+        ];
+        let glyphs = [None, None, Some(("*", Color32::GOLD))];
+        let mut narrow = Rect::NOTHING;
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let min = segmented_min_width(ui, &labels, &arts, &glyphs);
+            let seg = min / labels.len() as f32 - 2.0 - 4.0;
+            for (i, label) in labels.iter().enumerate() {
+                let text = ui
+                    .painter()
+                    .layout_job(segment_job(label, glyphs[i], Color32::WHITE))
+                    .size()
+                    .x;
+                let art = if arts[i].is_some() {
+                    SEGMENT_ART + SEGMENT_ART_GAP
+                } else {
+                    0.0
+                };
+                assert!(text > 0.0, "{label} was not measured");
+                assert!(art + text <= seg, "{label} does not fit {seg}");
+            }
+            // A longer label needs more room.
+            assert!(
+                segmented_min_width(ui, &["Project", "A much longer label"], &[], &[])
+                    > segmented_min_width(ui, &["Project", "Short"], &[], &[])
+            );
+            // Far narrower than the minimum: the text stays in its segment.
+            // No picture here - with no image loader in a test it would
+            // draw its own error mark, which is not the segment's text.
+            narrow = ui
+                .allocate_ui(egui::vec2(60.0, SEGMENT_HEIGHT), |ui| {
+                    segmented(ui, &theme, &labels, &[], &glyphs, 0);
+                })
+                .response
+                .rect;
+        });
+        for clipped in &out.shapes {
+            if matches!(clipped.shape, egui::Shape::Text(_)) {
+                assert!(
+                    narrow.expand(0.5).contains_rect(clipped.clip_rect),
+                    "text clipped to {:?}, outside {narrow:?}",
+                    clipped.clip_rect
+                );
+            }
+        }
     }
 }

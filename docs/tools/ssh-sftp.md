@@ -363,3 +363,7 @@ ports.
 ## Addendum (2026-11-05): focus on open (CR-0048)
 
 Opening a host from the sidebar, or clicking its row while its tab is open, puts the caret in the host's shell on the next frame (`focus_term`), so typing starts at once.
+
+## Addendum (2026-11-06): deleting a kept forward (CR-0067)
+
+A kept forward has **Delete Kept Forward** (trash button or right-click), confirmed; it leaves the host's profile, and a tunnel already running keeps running.

@@ -889,7 +889,7 @@ pub(crate) fn box_ui(
         let mut done = None;
         ui.horizontal(|ui| {
             let r = ui.add(
-                egui::TextEdit::singleline(name)
+                hs_ui::form::line_edit(name)
                     .hint_text(s.t("git-new-branch-hint"))
                     .desired_width(f32::INFINITY),
             );
@@ -910,13 +910,13 @@ pub(crate) fn box_ui(
     }
     if let Some((old, new)) = &mut ops.rename_branch {
         let mut done = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(
                 s.i18n
                     .t_args("git-rename-branch-prompt", &[("branch", old)]),
             );
             let r = ui.add(
-                egui::TextEdit::singleline(new)
+                hs_ui::form::line_edit(new)
                     .hint_text(s.t("git-rename-branch-hint"))
                     .desired_width(f32::INFINITY),
             );
@@ -1054,7 +1054,7 @@ fn rebase_panel(
         // The field takes the row on its own: an infinite width beside a
         // button in a narrow sidebar pushes the button out of sight.
         ui.add(
-            egui::TextEdit::singleline(&mut panel.base)
+            hs_ui::form::line_edit(&mut panel.base)
                 .hint_text(s.t("git-rebase-base-hint"))
                 .desired_width(f32::INFINITY),
         );
@@ -1082,7 +1082,7 @@ fn rebase_panel(
                 .show(ui, |ui| {
                     for i in 0..panel.commits.len() {
                         let commit = &panel.commits[i];
-                        ui.horizontal(|ui| {
+                        hs_ui::form::centred_row(ui, |ui| {
                             let first = i == 0;
                             let selected = action_label(panel.actions[i], s);
                             egui::ComboBox::from_id_salt(("rebase-action", i))
@@ -1123,20 +1123,25 @@ fn rebase_panel(
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if i + 1 < panel.commits.len()
-                                        && ui
-                                            .small_button(ph::ARROW_DOWN)
-                                            .tip(s.t("git-rebase-move-down"))
-                                            .clicked()
-                                    {
+                                    // Both arrows always drawn (dimmed where they
+                                    // cannot move), so the column stays aligned.
+                                    let can_down = i + 1 < panel.commits.len();
+                                    let down_btn = ui
+                                        .add_enabled_ui(can_down, |ui| {
+                                            ui.small_button(ph::ARROW_DOWN)
+                                                .tip(s.t("git-rebase-move-down"))
+                                        })
+                                        .inner;
+                                    if can_down && down_btn.clicked() {
                                         down = Some(i);
                                     }
-                                    if i > 0
-                                        && ui
-                                            .small_button(ph::ARROW_UP)
-                                            .tip(s.t("git-rebase-move-up"))
-                                            .clicked()
-                                    {
+                                    let up_btn = ui
+                                        .add_enabled_ui(i > 0, |ui| {
+                                            ui.small_button(ph::ARROW_UP)
+                                                .tip(s.t("git-rebase-move-up"))
+                                        })
+                                        .inner;
+                                    if i > 0 && up_btn.clicked() {
                                         up = Some(i);
                                     }
                                 },
@@ -1282,12 +1287,12 @@ fn tag_panel(
             });
         });
         ui.add(
-            egui::TextEdit::singleline(name)
+            hs_ui::form::line_edit(name)
                 .hint_text(s.t("git-tag-name"))
                 .desired_width(f32::INFINITY),
         );
         ui.add(
-            egui::TextEdit::singleline(message)
+            hs_ui::form::line_edit(message)
                 .hint_text(s.t("git-tag-message-hint"))
                 .desired_width(f32::INFINITY),
         );
@@ -1392,7 +1397,7 @@ fn stash_menu(
         ui.set_min_width(240.0);
         ui.label(egui::RichText::new(s.t("git-stash-new")).strong());
         let r = ui.add(
-            egui::TextEdit::singleline(&mut ops.stash_message)
+            hs_ui::form::line_edit(&mut ops.stash_message)
                 .hint_text(s.t("git-stash-hint"))
                 .desired_width(f32::INFINITY),
         );
@@ -1506,11 +1511,11 @@ fn branch_menu(
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.add(
-                        egui::TextEdit::singleline(&mut ops.remote_name)
+                        hs_ui::form::line_edit(&mut ops.remote_name)
                             .hint_text(s.t("git-remote-name")),
                     );
                     ui.add(
-                        egui::TextEdit::singleline(&mut ops.remote_url)
+                        hs_ui::form::line_edit(&mut ops.remote_url)
                             .hint_text(s.t("git-remote-url")),
                     );
                     if ui
@@ -1600,7 +1605,7 @@ fn branch_menu(
                     ui.label(egui::RichText::new(s.t("git-merge-heading")).strong());
                 }
                 ui.add(
-                    egui::TextEdit::singleline(&mut ops.merge_input.source)
+                    hs_ui::form::line_edit(&mut ops.merge_input.source)
                         .hint_text(s.t("git-merge-source")),
                 );
                 ui.checkbox(&mut ops.merge_input.no_commit, s.t("git-merge-no-commit"));
@@ -1619,8 +1624,7 @@ fn branch_menu(
                 ui.separator();
                 ui.label(egui::RichText::new(s.t("git-rebase-heading")).strong());
                 ui.add(
-                    egui::TextEdit::singleline(&mut ops.rebase_onto)
-                        .hint_text(s.t("git-rebase-onto")),
+                    hs_ui::form::line_edit(&mut ops.rebase_onto).hint_text(s.t("git-rebase-onto")),
                 );
                 if ui.button(s.t("git-rebase-run")).clicked() && !ops.rebase_onto.trim().is_empty()
                 {
@@ -1646,7 +1650,7 @@ fn branch_menu(
                 ui.separator();
                 ui.label(egui::RichText::new(s.t("git-cherry-pick-heading")).strong());
                 ui.add(
-                    egui::TextEdit::singleline(&mut ops.cherry_pick_commit)
+                    hs_ui::form::line_edit(&mut ops.cherry_pick_commit)
                         .hint_text(s.t("git-cherry-pick-commit")),
                 );
                 if ui.button(s.t("git-cherry-pick-run")).clicked()

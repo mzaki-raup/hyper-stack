@@ -63,20 +63,33 @@ and theme.
 > v0.98 to v0.103): saved repositories, a SourceTree-style work pane
 > with History graph, blame and a conflict editor, every branch / merge /
 > rebase / stash / tag / Git Flow verb, hosts (Fetch Project, Clone and
-> Save, tokens in the vault) and an AI Assistant. The remaining
+> Save, tokens in the vault) and an AI Assistant. Then the **depth
+> programme** (2026-10-30 to 2026-11-01, [docs/10-depth-programme.md](docs/10-depth-programme.md)):
+> Redis Info, Slowlog, Pub/Sub, Streams, big keys and bulk ops; SQL explain,
+> inline editing, CSV import, Excel export, ER diagram, DDL and schema / data
+> compare; SQL Server, ClickHouse, DuckDB and Oracle; journald and Event Log
+> sources, merged logs, statistics and alerts; SSH tunnels, broadcast and a
+> server monitor; S3 tags, versions, sync and policies; network tools, ports,
+> snippets and a `.env` editor; Scratchpad folders; and three new activities,
+> **Automation**, **Queue** and **Tracker** (2026-10-31). Since then: Git
+> hosts with a tab per host and a Files view (2026-11-05), Puppet and Kafka
+> SASL (2026-11-05), and a **table designer** in the Database activity
+> (v0.127.0, 2026-11-06). Cassandra, pull requests / issues / CI status in
+> Git, and ELK are still to come. The remaining
 > milestones are in [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
 > `../eden-explorer` (Rust + egui file manager) serves as a **reference
 > only**: HyperStack studies how it solved the multi-row tab strip,
 > terminal, SSH/SFTP, S3 and Git status, then writes its own
 > implementation. No code is copied or shared.
 
-The Graphics activity is being expanded (owner's request, 2026-10-19) into four
+The Graphics activity was expanded (owner's request, 2026-10-19) into four
 tools — Image, Icon, Diagram Editor and Diagram Generator — in two releases.
-The first Release 1 phase landed on 2026-10-19: the activity sidebar, the
-dashboard with Recent and screenshots, the separate Image and Icon tabs, and
-Convert to Icon. The flowchart/architecture editor and the prompt generator
-follow in the same release, with an AI assistant in every tool. Release 2 adds
-ERD and sequence diagrams plus Archify JSON and draw.io XML import. The
+Release 1 (2026-10-19/20) brought the activity sidebar, the dashboard with
+Recent and screenshots, the separate Image and Icon tabs, Convert to Icon, the
+flowchart/architecture editor and the prompt generator, with an AI assistant
+in every tool. Release 2 (2026-10-20/22) added ERD and sequence diagrams plus
+Archify JSON and draw.io XML import; a Mermaid flowchart import is still to
+come. The
 requirements and design are in [docs/tools/diagrams.md](docs/tools/diagrams.md);
 the pinned Archify schema adaptation is recorded in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
@@ -210,6 +223,14 @@ whatever the editor has open.
 Removing a repository from the list closes its tabs and **never touches
 the folder**; every verb is also a palette command, and Up / Down walk
 the lists.
+
+**Git hosts** (2026-11-05/06): each saved host opens a tab of its
+repositories (an anonymous credential lists the public ones), and a
+repository opens beside it; one not cloned yet asks for a parent folder
+(remembered per host), clones there (shallow if Settings → Git says so)
+and is registered as an Editor project too. A repository's **Files** view reads, edits, adds, renames,
+deletes and uploads files, with a branch picker; the dashboard has a
+Saved Hosts card and Add Host.
 
 ### Terminal
 

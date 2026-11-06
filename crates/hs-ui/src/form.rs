@@ -27,6 +27,27 @@ pub const FIELD_MARGIN: Margin = Margin {
 /// breathe alike and a change is made once.
 pub const PANE_GAP: f32 = 8.0;
 
+/// How far a work pane's content sits in from the pane's edges (CR-0061).
+pub const PANE_MARGIN: f32 = 12.0;
+
+/// The vertical space between two form rows, the same as
+/// [`field_grid`]'s row spacing (CR-0061).
+pub const ROW_GAP: f32 = 10.0;
+
+/// Draw a work pane's body [`PANE_MARGIN`] in from its left and right
+/// edges and [`PANE_GAP`] below what is above it (CR-0061).
+pub fn pane<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::new()
+        .inner_margin(Margin {
+            left: PANE_MARGIN as i8,
+            right: PANE_MARGIN as i8,
+            top: PANE_GAP as i8,
+            bottom: PANE_GAP as i8,
+        })
+        .show(ui, add)
+        .inner
+}
+
 /// How tall a text field drawn with [`FIELD_MARGIN`] comes out. A control
 /// put beside one — a ComboBox, a button — has to be told this, or the two
 /// frames sit at different heights and the row looks crooked even though
@@ -129,7 +150,7 @@ pub fn field_grid<R>(
     let h = field_height(ui);
     egui::Grid::new(id)
         .num_columns(2)
-        .spacing([18.0, 10.0])
+        .spacing([18.0, ROW_GAP])
         .min_col_width(170.0)
         .show(ui, |ui| {
             // Every cell in a form row is a field's height tall, so a
@@ -147,6 +168,53 @@ pub fn label(ui: &mut egui::Ui, text: &str) {
         [170.0, field_height(ui)],
         egui::Label::new(RichText::new(text)).halign(egui::Align::LEFT),
     );
+}
+
+/// A single-line `TextEdit` with the standard [`FIELD_MARGIN`], for a
+/// call site that sets its own width, hint or font. Every text field is
+/// built from this or from [`text_field`], so a field is the same height
+/// as a dropdown or a button beside it everywhere (CR-0026, CR-0061);
+/// egui's own default margin draws a field about ten pixels shorter.
+pub fn line_edit(value: &mut String) -> egui::TextEdit<'_> {
+    egui::TextEdit::singleline(value).margin(FIELD_MARGIN)
+}
+
+/// Give the controls of the rest of this `ui` - a dropdown, a checkbox,
+/// a button - a text field's height, so a row that mixes them lines up
+/// and sits on one middle line (CR-0026, CR-0061). Call it at the top of
+/// the row's closure; it ends with the closure.
+pub fn match_field_height(ui: &mut egui::Ui) {
+    let h = field_height(ui);
+    ui.spacing_mut().interact_size.y = h;
+}
+
+/// A row of mixed controls - a label, a text field, a dropdown, buttons -
+/// on one middle line (CR-0061). The row's height is a field's height
+/// *before* the row is laid out: egui fixes a horizontal row's height
+/// when it opens, so raising it inside the closure (as
+/// [`match_field_height`] alone does) leaves a label centred on the old,
+/// shorter row - it sits high beside the field.
+pub fn centred_row<R>(
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let saved = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = field_height(ui);
+    let r = ui.horizontal(add);
+    ui.spacing_mut().interact_size.y = saved;
+    r
+}
+
+/// [`centred_row`] that wraps to the next line when it runs out of width.
+pub fn centred_row_wrapped<R>(
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let saved = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = field_height(ui);
+    let r = ui.horizontal_wrapped(add);
+    ui.spacing_mut().interact_size.y = saved;
+    r
 }
 
 /// A comfortable single-line text field that fills the available width
@@ -184,12 +252,26 @@ pub fn pick_field(
     options: &[String],
     hint: &str,
 ) -> egui::Response {
+    let w = ui.available_width().clamp(FIELD_MIN_WIDTH, FIELD_MAX_WIDTH);
+    pick_field_width(ui, theme, value, options, hint, w)
+}
+
+/// [`pick_field`] at an exact outer width (the caret included), for a
+/// table cell or a row that sets its own widths (CR-0061).
+pub fn pick_field_width(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    value: &mut String,
+    options: &[String],
+    hint: &str,
+    width: f32,
+) -> egui::Response {
     if options.is_empty() {
-        return text_field(ui, value, hint);
+        return text_field_width(ui, value, hint, width);
     }
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        let w = (ui.available_width().clamp(FIELD_MIN_WIDTH, FIELD_MAX_WIDTH) - 32.0).max(80.0);
+        let w = (width - 32.0).max(80.0);
         let mut r = text_field_width(ui, value, hint, w);
         let caret = icon_button(ui, theme, crate::icons::CARET_DOWN, 14.0, false);
         let mut chosen = false;

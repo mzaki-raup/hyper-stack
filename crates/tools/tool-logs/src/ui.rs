@@ -1139,11 +1139,32 @@ fn lists_version() -> u64 {
 /// (owner's request, 2026-10-24). The host's own glyph is the fallback
 /// for a kind the table does not know.
 /// The sidebar's row colours (CR-0058): one per section, so a running
-/// service, a saved source, an investigation and a preset read apart.
+/// service, an investigation and a preset read apart. Saved sources wear
+/// [`source_colour`] instead, one each (CR-0059).
 const SERVICE_GREEN: egui::Color32 = egui::Color32::from_rgb(0x22, 0xc5, 0x5e);
-const SOURCE_BLUE: egui::Color32 = egui::Color32::from_rgb(0x3b, 0x82, 0xf6);
 const INVESTIGATION_AMBER: egui::Color32 = egui::Color32::from_rgb(0xf5, 0x9e, 0x0b);
 const PRESET_PURPLE: egui::Color32 = egui::Color32::from_rgb(0xa8, 0x55, 0xf7);
+
+/// Eight colours for the saved sources, mid-tones that read on the dark
+/// and the light theme alike, ordered so two neighbours never look alike
+/// (CR-0059): blue, orange, emerald, violet, gold, cyan, rose, fuchsia.
+const SOURCE_PALETTE: [egui::Color32; 8] = [
+    egui::Color32::from_rgb(0x3b, 0x82, 0xf6),
+    egui::Color32::from_rgb(0xea, 0x58, 0x0c),
+    egui::Color32::from_rgb(0x10, 0xb9, 0x81),
+    egui::Color32::from_rgb(0x8b, 0x5c, 0xf6),
+    egui::Color32::from_rgb(0xca, 0x8a, 0x04),
+    egui::Color32::from_rgb(0x06, 0xb6, 0xd4),
+    egui::Color32::from_rgb(0xf4, 0x3f, 0x5e),
+    egui::Color32::from_rgb(0xd9, 0x46, 0xef),
+];
+
+/// A saved source's colour, from its position in the saved list, so it
+/// is the same after a restart and follows the source to its row, its tab
+/// and its dashboard card (CR-0059).
+fn source_colour(position: usize) -> egui::Color32 {
+    SOURCE_PALETTE[position % SOURCE_PALETTE.len()]
+}
 
 /// A glyph in a section's colour, for the shared row.
 fn tinted(glyph: &'static str, colour: egui::Color32) -> hs_ui::icons::ConnIcon {
@@ -1328,6 +1349,19 @@ impl Tool for LogsTool {
                 egui::Color32::from_rgb(235, 170, 60),
             )
         })
+    }
+
+    /// A tab showing a saved source wears that source's colour, as its
+    /// sidebar row and dashboard card do (CR-0059).
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        if self.is_home || self.state.saved_name.is_empty() {
+            return None;
+        }
+        let uri = self.state.spec.as_ref().map(SourceSpec::uri)?;
+        self.saved
+            .iter()
+            .position(|src| src.name == self.state.saved_name && src.spec.uri() == uri)
+            .map(source_colour)
     }
 
     fn subtitle(&self) -> Option<String> {
@@ -1698,7 +1732,7 @@ impl Tool for LogsTool {
             // out by its own filter box.
             let room = (ui.available_width() - 8.0).max(60.0);
             ui.add(
-                egui::TextEdit::singleline(&mut self.sidebar_filter)
+                hs_ui::form::line_edit(&mut self.sidebar_filter)
                     .hint_text(s.t("logs-filter-sources"))
                     .desired_width(room),
             );
@@ -1720,12 +1754,15 @@ impl Tool for LogsTool {
         // same thing twice: the environment is chosen in the title bar and
         // every tab already follows it (owner's request, 2026-10-23).
         let needle = self.sidebar_filter.to_lowercase();
-        let shown: Vec<SavedSource> = self
+        // Each with its colour from its place in the whole list, not the
+        // filtered one, so filtering does not repaint it (CR-0059).
+        let (shown, colours): (Vec<SavedSource>, Vec<egui::Color32>) = self
             .saved
             .iter()
-            .filter(|src| needle.is_empty() || src.name.to_lowercase().contains(&needle))
-            .cloned()
-            .collect();
+            .enumerate()
+            .filter(|(_, src)| needle.is_empty() || src.name.to_lowercase().contains(&needle))
+            .map(|(i, src)| (src.clone(), source_colour(i)))
+            .unzip();
         let current_uri = self.state.spec.as_ref().map(SourceSpec::uri);
         let mut open: Option<SavedSource> = None;
         let mut edit: Option<SavedSource> = None;
@@ -1749,7 +1786,7 @@ impl Tool for LogsTool {
                             ui,
                             &theme,
                             live,
-                            tinted(saved_icon(src), SOURCE_BLUE),
+                            tinted(saved_icon(src), colours[i]),
                             &src.name,
                             Some(&src.spec.describe()),
                         );
@@ -2326,13 +2363,17 @@ impl LogsTool {
         let saved: Vec<hs_ui::dashboard::Entry> = self
             .saved
             .iter()
-            .map(|src| hs_ui::dashboard::Entry {
+            .enumerate()
+            .map(|(i, src)| hs_ui::dashboard::Entry {
                 id: src.spec.uri(),
                 name: src.name.clone(),
                 detail: src.spec.describe(),
-                icon: ph::SCROLL.to_string(),
+                // The sidebar's own icon and colour for a saved source
+                // (CR-0058), so the card matches its row (CR-0065), in
+                // the source's own colour (CR-0059).
+                icon: saved_icon(src).to_string(),
                 image: None,
-                tint: None,
+                tint: Some(source_colour(i)),
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
@@ -2351,6 +2392,7 @@ impl LogsTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -2404,6 +2446,7 @@ impl LogsTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -3811,7 +3854,7 @@ impl LogsTool {
         let mut toggle: Option<usize> = None;
         // Levels read in the source's own words (docs/tools/logs.md §6).
         let aliases = self.shared.lock().aliases.clone();
-        ui.horizontal_wrapped(|ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(egui::RichText::new(ph::FUNNEL).color(theme.text_muted));
             for (i, chip) in self.state.chips.iter().enumerate() {
                 let fill = if chip.negate {
@@ -3873,7 +3916,7 @@ impl LogsTool {
                 ui.separator();
                 ui.label(ph::MAGNIFYING_GLASS);
                 let r = ui.add(
-                    egui::TextEdit::singleline(&mut self.find.text)
+                    hs_ui::form::line_edit(&mut self.find.text)
                         .hint_text(s.t("logs-find-hint"))
                         .desired_width(180.0),
                 );
@@ -5087,6 +5130,20 @@ impl LogsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saved_source_colours_rotate_and_neighbours_differ() {
+        // Eight distinct colours, then round again.
+        for (i, a) in SOURCE_PALETTE.iter().enumerate() {
+            for b in &SOURCE_PALETTE[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        for i in 0..32 {
+            assert_eq!(source_colour(i), source_colour(i + SOURCE_PALETTE.len()));
+            assert_ne!(source_colour(i), source_colour(i + 1), "{i} and {}", i + 1);
+        }
+    }
 
     /// The record column follows the widest line number rather than a
     /// fixed width (CR-0033): two digits at least, one glyph per digit.

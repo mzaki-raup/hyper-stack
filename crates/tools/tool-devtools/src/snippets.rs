@@ -113,6 +113,8 @@ pub struct State {
     /// Values typed for a snippet's placeholders, keyed by name.
     pub fills: Vec<(String, String)>,
     pub selected: Option<usize>,
+    /// A Delete waiting for its confirmation, by index (CR-0067).
+    pub confirm_remove: Option<usize>,
 }
 
 /// The snippet with its `{{placeholders}}` filled in.
@@ -182,7 +184,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     ui.horizontal(|ui| {
                         let open = state.selected == Some(*i);
                         let slot = egui::Layout::left_to_right(egui::Align::Center);
-                        let clicked = ui
+                        let row = ui
                             .allocate_ui_with_layout(egui::vec2(name_w, 22.0), slot, |ui| {
                                 // The slot keeps its width when the name is
                                 // short: allocate_ui otherwise takes only
@@ -190,9 +192,17 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                 ui.set_min_width(name_w);
                                 ui.add(egui::Button::selectable(open, &sn.name))
                             })
-                            .inner
-                            .clicked();
-                        if clicked {
+                            .inner;
+                        row.context_menu(|ui| {
+                            if ui
+                                .button(format!("{} {}", hs_ui::icons::TRASH, s.t("delete")))
+                                .clicked()
+                            {
+                                remove = Some(*i);
+                                ui.close();
+                            }
+                        });
+                        if row.clicked() {
                             pick = Some(*i);
                         }
                         ui.allocate_ui_with_layout(egui::vec2(lang_w, 22.0), slot, |ui| {
@@ -246,11 +256,40 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         if let Some(i) = edit {
             state.editing = Some((Some(i), state.items[i].clone()));
         }
-        if let Some(i) = remove {
-            state.items.remove(i);
-            state.selected = None;
-            if let Err(e) = save(&dir, &state.items) {
-                state.error = Some(e);
+        if remove.is_some() {
+            state.confirm_remove = remove;
+        }
+        // Delete, from the trash button or the right-click menu, behind a
+        // confirmation (CR-0067).
+        if let Some(i) = state.confirm_remove {
+            let name = state
+                .items
+                .get(i)
+                .map(|sn| sn.name.clone())
+                .unwrap_or_default();
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                theme,
+                "dt-snippet-delete",
+                &s.t("dt-snippets-delete"),
+                &s.i18n
+                    .t_args("dt-snippets-delete-body", &[("name", name.as_str())]),
+                &s.t("delete"),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    state.confirm_remove = None;
+                    if i < state.items.len() {
+                        state.items.remove(i);
+                        state.selected = None;
+                        if let Err(e) = save(&dir, &state.items) {
+                            state.error = Some(e);
+                        }
+                    }
+                }
+                hs_ui::dialog::DialogResult::Cancel => state.confirm_remove = None,
+                hs_ui::dialog::DialogResult::Open => {}
             }
         }
         // The open snippet: its body, its placeholders and Copy.
@@ -261,7 +300,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.separator();
             ui.label(egui::RichText::new(&sn.name).strong());
             for (name, value) in state.fills.iter_mut() {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(
                         egui::RichText::new(format!("{{{{{name}}}}}"))
                             .small()
@@ -269,7 +308,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             .color(theme.text_muted),
                     );
                     ui.add(
-                        egui::TextEdit::singleline(value)
+                        hs_ui::form::line_edit(value)
                             .hint_text(name.as_str())
                             .desired_width(200.0),
                     );

@@ -721,6 +721,11 @@ impl Tool for BrowserTool {
         true
     }
 
+    /// The Favorites / Passwords tabs, whole (CR-0069).
+    fn sidebar_min_width(&self) -> Option<f32> {
+        self.side.min_width
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         self.tab_id = cx.tab_id;
@@ -892,7 +897,7 @@ impl Tool for BrowserTool {
             }
             let w = (ui.available_width() - 330.0).max(160.0);
             let resp = ui.add(
-                egui::TextEdit::singleline(&mut self.page_mut().address)
+                hs_ui::form::line_edit(&mut self.page_mut().address)
                     .hint_text(s.t("browser-address-hint"))
                     .desired_width(w),
             );

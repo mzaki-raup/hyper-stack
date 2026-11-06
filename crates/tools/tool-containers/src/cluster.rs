@@ -75,6 +75,21 @@ impl Resource {
         }
     }
 
+    /// The `fileicons::for_kind` kind whose Material picture stands for
+    /// this resource when Material icons are on; `None` keeps the glyph.
+    pub fn kind(self) -> Option<&'static str> {
+        match self {
+            Resource::Pods => Some("container"),
+            Resource::Workloads => Some("stack"),
+            Resource::Services => Some("service"),
+            Resource::Configs => Some("document"),
+            Resource::Claims => Some("volume"),
+            Resource::Nodes => Some("node"),
+            Resource::Events => Some("history"),
+            Resource::Custom => None,
+        }
+    }
+
     /// Whether this resource lives in a namespace. Nodes do not, so the
     /// namespace picker is irrelevant to them and saying otherwise
     /// would imply a filter that does nothing.
@@ -345,7 +360,7 @@ pub fn table_data(
                 ColumnSpec::new(s.t("cluster-col-object"), 240.0),
                 ColumnSpec::new(s.t("cluster-col-count"), 70.0),
                 ColumnSpec::new(s.t("cluster-col-age"), 80.0),
-                ColumnSpec::new(s.t("cluster-col-message"), 520.0),
+                ColumnSpec::new(s.t("cluster-col-message"), 400.0),
             ],
             inv.events
                 .iter()
@@ -726,13 +741,24 @@ pub fn resource_rail(
     counts: &[usize],
 ) -> Option<Resource> {
     let mut picked = None;
+    let material = s.settings.read().appearance.material_icons("containers");
     ui.vertical(|ui| {
         ui.set_width(150.0);
         for (i, r) in Resource::ALL.into_iter().enumerate() {
+            // Material icons on: the resource's picture leads the button
+            // in place of its glyph.
+            let picture = r
+                .kind()
+                .filter(|_| material)
+                .and_then(hs_ui::fileicons::for_kind);
             let mut label = egui::text::LayoutJob::default();
             let font = egui::FontId::proportional(14.0);
+            let text = match picture {
+                Some(_) => format!("{}  ", s.t(r.key())),
+                None => format!("{}  {}  ", r.icon(), s.t(r.key())),
+            };
             label.append(
-                &format!("{}  {}  ", r.icon(), s.t(r.key())),
+                &text,
                 0.0,
                 egui::TextFormat::simple(font.clone(), theme.text),
             );
@@ -743,10 +769,17 @@ pub fn resource_rail(
                     egui::TextFormat::simple(font, theme.text_muted),
                 );
             }
-            if ui
-                .add(egui::Button::selectable(current == r, label).min_size(egui::vec2(140.0, 0.0)))
-                .clicked()
-            {
+            let button = match picture {
+                Some(src) => egui::Button::selectable(
+                    current == r,
+                    (
+                        egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(16.0)),
+                        label,
+                    ),
+                ),
+                None => egui::Button::selectable(current == r, label),
+            };
+            if ui.add(button.min_size(egui::vec2(140.0, 0.0))).clicked() {
                 picked = Some(r);
             }
             ui.add_space(2.0);
@@ -758,6 +791,18 @@ pub fn resource_rail(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every resource but Custom names a kind with a Material picture,
+    /// or the rail and the table silently keep their glyphs (CR-0065).
+    #[test]
+    fn every_resource_but_custom_has_a_material_picture() {
+        for r in Resource::ALL {
+            match r.kind() {
+                Some(k) => assert!(hs_ui::fileicons::for_kind(k).is_some(), "{k}"),
+                None => assert_eq!(r, Resource::Custom),
+            }
+        }
+    }
 
     fn inv() -> Inventory {
         Inventory {

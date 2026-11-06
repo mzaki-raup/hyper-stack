@@ -5,7 +5,7 @@ States: `Completed` · `In-Progress` · `Pending`. Update a line only after the
 work is verified (checks pass and the feature was exercised in the running
 app), then commit and push.
 
-Last updated: 2026-10-22 (Graphics diagrams: Release 2 ERD, sequence, Archify/draw.io import and the draw.io page picker merged; a review pass over the last week's code (performance caches, selection and id fixes, narrow-window toolbars and panels) merged; frame-to-frame edges and draw.io image cells remain)
+Last updated: 2026-11-06 (the table designer (FEAT-0103) released in v0.127.0; the v0.7.4 and v0.7.6 batches and the 2026-11-06 follow-ups recorded; Kafka SASL verified against a broker; depth phases K, L and N still open on the servers this machine cannot run)
 
 ## Planning
 
@@ -263,7 +263,7 @@ store that already exists.
 | gRPC, mock server, OpenAPI export | Pending | |
 | SQL: ER diagram, DDL, schema/data compare, ClickHouse/DuckDB | Completed | ER diagram, DDL and the compares in phase H (2026-10-31); ClickHouse and DuckDB with FEAT-0068 (2026-11-01), verified by `tests/engines.rs` and on screen |
 | NoSQL: Cassandra/ScyllaDB | Pending | |
-| Forge integration (GitHub/GitLab/Forgejo) | In-Progress | Project listing, clone and avatars done (Git activity phase 4, 2026-10-29); PRs, issues and CI status pending |
+| Forge integration (GitHub/GitLab/Forgejo) | In-Progress | Project listing, clone and avatars done (Git activity phase 4, 2026-10-29); a tab per host with its repositories, the Files view, shallow clones and clone into a picked folder (FEAT-0100 to FEAT-0102, CR-0053, 2026-11-05); PRs, issues and CI status pending (depth phase J) |
 | Plugin API (WASM) | Pending | |
 | Detachable tabs, audit log, presentation mode | Pending | |
 | macOS runner and bundle, aarch64 builds | Pending | |
@@ -575,11 +575,11 @@ and ADR-025.
 | I — Cassandra / ScyllaDB driver in the NoSQL activity | Pending | |
 | J — Forge integration in the Git activity: pull requests, issues, CI status | Pending | |
 | K — Automation activity: Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX, Puppet | In-Progress | Six kinds built 2026-10-31; Puppet built 2026-11-06 (PuppetDB nodes, reports, logs; orchestrator deploy) against a mock server and recorded answers on screen. Jenkins and Forgejo exercised on screen and live against containers, GitHub and GitLab read live; TeamCity live against the bench server since 2026-11-06, AWX only against a mock server (it cannot run here), and GitHub / GitLab writes likewise (owner kept writes local) |
-| L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | In-Progress | Added 2026-10-30; scope widened to Redis Streams too (owner, 2026-10-31). `tool-queue` with all five drivers, Settings → Queue and the tab built; live tests pass against `hs-rabbitmq`, `hs-kafka`, `hs-redis`, `hs-nats`, `hs-mqtt`, and every kind listed, peeked and published on screen (2026-10-31). Open: Kafka over TLS / SASL not run against a broker (FEAT-0071, FEAT-0072) |
+| L — Queue activity: RabbitMQ, Kafka, NATS, MQTT brokers with connections, credentials, Settings → Queue, dashboard, peek / publish / purge | In-Progress | Added 2026-10-30; scope widened to Redis Streams too (owner, 2026-10-31). `tool-queue` with all five drivers, Settings → Queue and the tab built; live tests pass against `hs-rabbitmq`, `hs-kafka`, `hs-redis`, `hs-nats`, `hs-mqtt`, and every kind listed, peeked and published on screen (2026-10-31). Kafka SASL PLAIN and SCRAM-SHA-256/512 verified 2026-11-06 against `hs-kafka-sasl` for topics and consumer groups. Open: Kafka over TLS and OAUTHBEARER not run against a broker (FEAT-0071, FEAT-0072; the umbrella FEAT-0066 closes with them) |
 | M — ELK: Elasticsearch / OpenSearch as a Logs source and a NoSQL Search tab, Kibana deep links | Pending | Added 2026-10-30 |
 | N — Tracker activity: Jira, Redmine, GitLab / GitHub / Forgejo issues, Confluence with connections, credentials, Settings → Tracker, dashboard, edit / transition / comment | In-Progress | All six kinds built 2026-10-31. Redmine and Forgejo exercised on screen and live against containers (status, edit with review, comment, create), GitHub and GitLab read live; Jira and Confluence only against a mock server (they need a licence key), and GitHub / GitLab writes likewise (owner kept writes local) |
 | O — Scratchpad folders: folders and subfolders, drag to reorder or move (pinned notes excepted), `name 001` on a clash | Completed | Added 2026-10-30. `hyperstack::tools::scratchpad`: folders are real directories under `notes/`, `find_note`, per-level `order.json` (folders keyed `/Name`), `collapsed.json`, `level_entries`, `{create,rename,move}_folder`, `move_note`; the tree drawn with `hs_ui::reorder` the way the Browser's favourites are; Ctrl+P lists notes with their folder; `hs_core::storage::unique_name` (case-insensitive ` 001`). 12 new tests. Exercised on screen 2026-10-31 — nested folders, a drag in, a name clash, search and Ctrl+P paths, restart survival, an in-folder save with no stray copy, the guarded delete (`docs/screenshots/scratchpad-folders.png`); `TASKS.md` `FEAT-0067` |
-| Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | Pending | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials" |
+| Credentials of every new activity (K, L, M, N) accept a token and an API key beside user / password | In-Progress | Owner's rule, 2026-10-30; see docs/10-depth-programme.md "Credentials". Automation (K), Queue (L) and Tracker (N) take `password`, `token` and `api-key` credentials in the vault; ELK (M) is not built yet |
 
 ## Owner's requests, 2026-10-22 (UI batch)
 
@@ -619,6 +619,26 @@ and ADR-025.
 | Bottom dock Logs tab with a level setting; tool errors mirrored into the log | Completed | `dock::DockTab::Logs`, `logging::Logging::set_filter` (reload layer), `general.log_level`, Behaviour card combo, `Action::Toast` → `tracing` |
 | ComfyUI readable workflow errors; assistant input block never overlaps the conversation | Completed | `ai_local::comfy_error` (+ test); bottom-up input layout in `hs_ui::ai_assistant` |
 
+## Owner's requests, 2026-10-31 to 2026-11-05 (v0.7.4 batch and v0.7.6 batch, first half)
+
+| Item | State | Notes |
+|---|---|---|
+| Settings → Security → Credentials lists every saved credential, Git ones included (BUG-0036) | Completed | Docker, WebDAV, Nexus, container registry, AI provider and Git credential rows; Edit works on them; app v0.114.0 |
+| Queue, Tracker and Automation connections wear their product's mark (CR-0024) | Completed | Nerd Font marks per kind, a fallback where none exists; app v0.114.0 |
+| Scratchpad dashboard folder count and a larger folder glyph (FEAT-0076) | Completed | Folders card before Notes; folder glyph 22 px against a note's 20 px; app v0.114.0 |
+| Miscellaneous bugs (BUG-0037) | Completed | App v0.115.0 |
+| Mock-server tests survive AdGuard's loopback filter (BUG-0039) | Completed | App v0.115.0 |
+| Material icons inside each activity's work pane (FEAT-0084) | Completed | App v0.115.0 |
+| Opening the Scratchpad no longer hangs the app (BUG-0040) | Completed | Regression from v0.115.0; fixed in app v0.115.1 |
+| One UI standard across every activity (CR-0025) | Completed | The parent of CR-0026 to CR-0045; every child Completed, the last (CR-0042) on 2026-11-06 |
+| Shared control behaviour, toolbar strips, tables, tab strips and sidebar headers (CR-0026 to CR-0030) | Completed | App v0.115.2. CR-0027's NoSQL pane and CR-0028's Tracker, Containers and NoSQL headers are code-reviewed only (no server here) |
+| Scratchpad: one pin for the note, sidebar and tab (CR-0041, BUG-0041) | Completed | App v0.115.2 |
+| Queue and Automation sidebars titled after their activity; fixed tabs in their activity's colour (CR-0042, CR-0043) | Completed | App v0.115.2; CR-0042 seen on the v0.122.0 build |
+| Self-test survives a sinking terminal probe; deleting a connection removes its vault credentials (BUG-0042, BUG-0043) | Completed | App v0.116.0 |
+| Add-and-focus Settings targets per kind; Remove From List deletes a profile and its credential (FEAT-0093, FEAT-0094) | Completed | App v0.116.0 |
+| Add and Manage buttons land on the right Settings form (CR-0044); Editor work pane and Source Control layout (CR-0035); multi-coloured product icons (CR-0036); Start Here's button on the light theme (CR-0045) | Completed | App v0.117.0. Source Control's Refresh Status (BUG-0038) was closed as working on v0.116.0 |
+| Spacing passes: Redis, S3 and Queue (CR-0031); Database results (CR-0032); Automation, Tracker and Logs (CR-0033); Containers and SSH (CR-0034); NoSQL (CR-0039) | Completed | CR-0031 in app v0.118.1, the rest in v0.118.2; each pane walked on screen against the bench servers |
+
 ## Owner's requests, 2026-11-05 (v0.7.6 batch, second half)
 
 | Item | State | Notes |
@@ -635,11 +655,28 @@ and ADR-025.
 
 | Item | State | Notes |
 |---|---|---|
-| Git hosts: a tab per host with its repositories, phase 1 (FEAT-0100) | Completed | Hosts section (the credentials), host tab with the repository column and an inner strip of repository tabs over the existing pane, clone on first open under host/owner/name, registration in the list, one tab per host and per repository; anonymous credentials list public repositories. Phases 2 and 3 pending |
+| Git hosts: a tab per host with its repositories, phase 1 (FEAT-0100) | Completed | Hosts section (the credentials), host tab with the repository column and an inner strip of repository tabs over the existing pane, clone on first open under host/owner/name, registration in the list, one tab per host and per repository; anonymous credentials list public repositories. Phases 2 and 3 followed in FEAT-0101 and FEAT-0102 |
 | Git: the language's logo in its colour on rows and tabs (CR-0047) | Completed | `repo_conn_icon` through `language_conn_icon`; picture wins, chosen glyph stays plain |
 | Browser tab icons, custom library colour, Terminal and SSH focus, Home Recent glyphs (CR-0048) | Completed | star and key; amber `library_icon`; `pending_focus` / `focus_term`; `activity_colour` on Recent |
 | Dashboard polish: coloured Home tool list, Material collection cards, centred card icons (CR-0049) | Completed | `tool_card` colour behind Coloured Activity Icons; `item_button_art` centres the mark; `folder-api` on the API entries |
 | Nothing grows on hover (CR-0050) | Completed | `Theme::apply` zeroes egui's hover, press and open expansion |
 | Git hosts: the Files view - read, edit, add files, phase 2 (FEAT-0101) | Completed | Files row under Workspace; lazy folder tree; preview in the editor engine, Edit / Save / Discard, New File, New Folder, Open in Editor; a save re-reads the status so File Status shows it. Phase 3 in FEAT-0102 |
 | Git hosts: rename, delete, upload, a branch picker in Files, shallow clones, phase 3 (FEAT-0102) | Completed | Rename and Delete (guarded) on the picked row, Upload through the system picker, a local-branch picker that checks out through the pane's verbs, Settings → Git → Shallow Clones from Hosts |
-| Database: the table designer (FEAT-0103) | Completed | Design Table… / New Table… open a designer tab: columns, indexes and foreign keys as a form, the ALTER or CREATE script underneath, refusals for what the engine cannot do, Apply through the guarded run path; verified on the bench MySQL and SQLite 2026-11-06 |
+| Database: the table designer (FEAT-0103) | Completed | Design Table… / New Table… open a designer tab: columns, indexes and foreign keys as a form, the ALTER or CREATE script underneath, refusals for what the engine cannot do, Apply through the guarded run path; verified on the bench MySQL and SQLite 2026-11-06; app v0.127.0 |
+
+## Owner's requests, 2026-11-06 (marks, Git follow-ups and the layout standard)
+
+| Item | State | Notes |
+|---|---|---|
+| Kafka's mark in teal; real marks for Puppet, Qdrant, MQTT, S3, Redmine, MySQL and MariaDB (CR-0051, CR-0052) | Completed | Seen on rows, tabs and header bands; app v0.123.0 |
+| Git: a host click opens beside an open repository tab (BUG-0044); clone into a picked folder and register it as an Editor project (CR-0053); Settings → Git lists wear the sidebar's marks (CR-0054) | Completed | App v0.124.0 |
+| AI Assistant provider rows wear their marks in colour (CR-0055); list rows cut with an ellipsis (BUG-0045) | Completed | App v0.125.0 |
+| Git dashboard Saved Hosts card and Add Host (CR-0056); Containers saved commands and configs coloured, working and cut to the row (BUG-0046); Browser side tabs and Logs sidebar rows in colour (CR-0057, CR-0058) | Completed | App v0.126.0 |
+| One layout standard for tables, inputs and pane spacing (CR-0061) | In-Progress | The standard is written in `.claude/rules/ui.md`; the designer and the app-wide pass are built, the gate and the app check follow |
+| Home's activity toolbar shrinks to one row and wraps when it cannot (CR-0064) | In-Progress | Built 2026-11-06; the gate and the app check follow |
+| Coloured icons on every dashboard's saved cards; inner tabs follow Material icons (CR-0065) | In-Progress | Built 2026-11-06; the gate and the app check follow |
+
+| Quick Open and Commands icons in their kind's colour and Material picture (CR-0066) | In-Progress | Built 2026-11-06; the gate and the app check follow |
+| Clear History / Remove / Delete from a right-click in every activity (CR-0067) | In-Progress | Database, API, Graphics, Home Recent, SSH forwards, Devtools snippets, Editor and Git cards built; the sweep and the app check follow |
+| Material icons on every list row (CR-0068) | In-Progress | Database, Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad built; the sweep and the app check follow |
+| Database: a new or filled query tab comes to the front (BUG-0047) | In-Progress | Fixed 2026-11-06; the app check follows |

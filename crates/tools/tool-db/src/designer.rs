@@ -11,6 +11,7 @@ use hs_editor::view::EditorTheme;
 use hs_editor::{Buffer, Cursors, EditorView, languages};
 use hs_ui::form;
 use hs_ui::icons::ph;
+use hs_ui::table::{EditColumn, edit_table};
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
@@ -192,22 +193,44 @@ impl Designer {
         catalog: &[(String, String, Vec<String>)],
         read_only: bool,
     ) -> Option<Action> {
+        form::pane(ui, |ui| self.body(ui, theme, s, engine, catalog, read_only))
+    }
+
+    #[allow(clippy::too_many_arguments)] // reason: the pane's whole context, passed through from `ui` (CR-0061)
+    fn body(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: &Theme,
+        s: &Services,
+        engine: Engine,
+        catalog: &[(String, String, Vec<String>)],
+        read_only: bool,
+    ) -> Option<Action> {
         let mut action = None;
-        ui.add_space(form::PANE_GAP);
         if self.loading {
             form::hint(ui, theme, &s.t("db-designer-loading"));
             return None;
         }
         if let Some(e) = &self.error {
             form::note(ui, theme, ph::WARNING, e);
-            if self.original_name.is_some() && ui.button(s.t("db-designer-reload")).clicked() {
+            if self.original_name.is_some()
+                && ui
+                    .button(format!(
+                        "{} {}",
+                        ph::ARROW_CLOCKWISE,
+                        s.t("db-designer-reload")
+                    ))
+                    .clicked()
+            {
                 return Some(Action::Reload);
             }
             return None;
         }
         // Name and schema.
         let mut changed = false;
-        ui.horizontal(|ui| {
+        // Centred, so the schema prefix sits on the field's middle; still
+        // wraps when narrow (CR-0061).
+        form::centred_row_wrapped(ui, |ui| {
             if !self.schema.is_empty() {
                 ui.label(egui::RichText::new(format!("{}.", self.schema)).color(theme.text_muted));
             }
@@ -215,19 +238,41 @@ impl Designer {
                 form::text_field(ui, &mut self.edit.table.name, &s.t("db-designer-name-hint"))
                     .changed();
             ui.add_space(12.0);
-            for (sub, key) in [
-                (Sub::Columns, "db-designer-columns"),
-                (Sub::Indexes, "db-designer-indexes"),
-                (Sub::Keys, "db-designer-keys"),
+            let material = s.settings.read().appearance.material_icons("db");
+            for (sub, key, icon, kind) in [
+                (
+                    Sub::Columns,
+                    "db-designer-columns",
+                    ph::COLUMNS,
+                    Some("column"),
+                ),
+                (Sub::Indexes, "db-designer-indexes", ph::LIST_NUMBERS, None),
+                (Sub::Keys, "db-designer-keys", ph::LINK, Some("key")),
             ] {
-                if ui
-                    .add(egui::Button::selectable(self.sub == sub, s.t(key)))
-                    .clicked()
+                // Material icons on: the picture the schema tree gives a
+                // column or a key; Indexes has none and keeps its glyph.
+                let button = match kind
+                    .filter(|_| material)
+                    .and_then(hs_ui::fileicons::for_kind)
                 {
+                    Some(src) => egui::Button::selectable(
+                        self.sub == sub,
+                        (
+                            egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(14.0)),
+                            s.t(key),
+                        ),
+                    ),
+                    None => {
+                        egui::Button::selectable(self.sub == sub, format!("{icon} {}", s.t(key)))
+                    }
+                };
+                if ui.add(button).clicked() {
                     self.sub = sub;
                 }
             }
         });
+        ui.add_space(form::PANE_GAP);
+        ui.separator();
         ui.add_space(form::PANE_GAP);
         let total_h = ui.available_height();
         let form_h = (total_h * 0.55).max(120.0);
@@ -248,59 +293,75 @@ impl Designer {
         }
         self.refresh_script(engine);
         // The script, its refusals, and the buttons.
+        ui.add_space(form::PANE_GAP);
         ui.separator();
+        ui.add_space(form::PANE_GAP);
         for r in &self.script.refused {
             form::note(ui, theme, ph::WARNING, r);
+            ui.add_space(form::PANE_GAP);
         }
         let can_apply = !self.script.statements.is_empty() && self.script.refused.is_empty();
-        ui.horizontal(|ui| {
-            ui.label(
-                egui::RichText::new(s.t("db-designer-script"))
-                    .small()
-                    .strong(),
-            );
-            hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.button(s.t("db-designer-discard")).clicked() {
-                    self.discard();
+        form::centred_row_wrapped(ui, |ui| {
+            ui.label(egui::RichText::new(s.t("db-designer-script")).strong());
+            ui.add_space(12.0);
+            let apply = ui
+                .add_enabled(
+                    can_apply && !read_only,
+                    egui::Button::new(format!("{} {}", ph::PLAY, s.t("db-designer-apply"))),
+                )
+                .tip(if read_only {
+                    s.t("db-designer-read-only")
+                } else if !self.script.refused.is_empty() {
+                    s.t("db-designer-refused")
+                } else if self.script.statements.is_empty() {
+                    s.t("db-designer-no-changes")
+                } else {
+                    s.t("db-designer-apply-tip")
+                });
+            if apply.clicked() {
+                if ddlgen::drops_something(&self.script) {
+                    self.confirm = Some(String::new());
+                } else {
+                    action = Some(Action::Apply(self.script.statements.join("\n")));
                 }
-                if self.original_name.is_some() && ui.button(s.t("db-designer-reload")).clicked() {
-                    action = Some(Action::Reload);
-                }
-                if ui
-                    .add_enabled(
-                        !self.script.statements.is_empty(),
-                        egui::Button::new(format!("{} {}", ph::COPY, s.t("db-designer-copy"))),
-                    )
+            }
+            if ui
+                .add_enabled(
+                    !self.script.statements.is_empty(),
+                    egui::Button::new(format!("{} {}", ph::COPY, s.t("db-designer-copy"))),
+                )
+                .clicked()
+            {
+                ui.ctx().copy_text(self.script.statements.join("\n"));
+            }
+            if self.original_name.is_some()
+                && ui
+                    .button(format!(
+                        "{} {}",
+                        ph::ARROW_CLOCKWISE,
+                        s.t("db-designer-reload")
+                    ))
                     .clicked()
-                {
-                    ui.ctx().copy_text(self.script.statements.join("\n"));
-                }
-                let apply = ui
-                    .add_enabled(
-                        can_apply && !read_only,
-                        egui::Button::new(format!("{} {}", ph::PLAY, s.t("db-designer-apply"))),
-                    )
-                    .tip(if read_only {
-                        s.t("db-designer-read-only")
-                    } else if !self.script.refused.is_empty() {
-                        s.t("db-designer-refused")
-                    } else if self.script.statements.is_empty() {
-                        s.t("db-designer-no-changes")
-                    } else {
-                        s.t("db-designer-apply-tip")
-                    });
-                if apply.clicked() {
-                    if ddlgen::drops_something(&self.script) {
-                        self.confirm = Some(String::new());
-                    } else {
-                        action = Some(Action::Apply(self.script.statements.join("\n")));
-                    }
-                }
-            });
+            {
+                action = Some(Action::Reload);
+            }
+            if ui
+                .button(format!(
+                    "{} {}",
+                    ph::ARROW_COUNTER_CLOCKWISE,
+                    s.t("db-designer-discard")
+                ))
+                .clicked()
+            {
+                self.discard();
+            }
         });
+        ui.add_space(form::PANE_GAP);
         let ed_theme = EditorTheme::for_theme(theme);
-        self.view
-            .show(ui, &mut self.buf, &mut self.cursors, &ed_theme);
+        form::well(ui, theme, None, |ui| {
+            self.view
+                .show(ui, &mut self.buf, &mut self.cursors, &ed_theme);
+        });
         if let Some(a) = self.confirm_ui(ui, theme, s) {
             action = Some(a);
         }
@@ -338,15 +399,17 @@ impl Designer {
                 }
                 r.request_focus();
                 ui.add_space(12.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Icon and label on both, in a row that wraps (CR-0061).
+                ui.horizontal_wrapped(|ui| {
                     let ok = egui::Button::new(
-                        egui::RichText::new(s.t("db-designer-apply")).color(egui::Color32::WHITE),
+                        egui::RichText::new(format!("{} {}", ph::PLAY, s.t("db-designer-apply")))
+                            .color(egui::Color32::WHITE),
                     )
                     .fill(theme.error);
                     if ui.add_enabled(typed.trim() == name, ok).clicked() {
                         go = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -378,70 +441,98 @@ impl Designer {
         let mut remove: Option<usize> = None;
         let mut swap: Option<(usize, usize)> = None;
         let n = self.edit.table.columns.len();
-        egui::Grid::new(("db-designer-columns", self.uid))
-            .num_columns(7)
-            .spacing([8.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "db-designer-col-name",
-                    "db-designer-col-type",
-                    "db-designer-col-null",
-                    "db-designer-col-default",
-                    "db-designer-col-auto",
-                    "db-designer-col-pk",
-                ] {
-                    ui.label(egui::RichText::new(s.t(key)).small().strong());
-                }
-                ui.label("");
-                ui.end_row();
-                for i in 0..n {
-                    let c = &mut self.edit.table.columns[i];
-                    changed |= ui
-                        .add_sized([150.0, 22.0], egui::TextEdit::singleline(&mut c.name))
-                        .changed();
-                    changed |= form::pick_field(ui, theme, &mut c.data_type, &types, "").changed();
-                    changed |= ui.checkbox(&mut c.nullable, "").changed();
-                    let mut d = c.default.clone().unwrap_or_default();
-                    if ui
-                        .add_sized([130.0, 22.0], egui::TextEdit::singleline(&mut d))
-                        .changed()
-                    {
-                        c.default = (!d.trim().is_empty()).then_some(d);
-                        changed = true;
+        let (h_name, h_type, h_null, h_default, h_auto, h_key) = (
+            s.t("db-designer-col-name"),
+            s.t("db-designer-col-type"),
+            s.t("db-designer-col-null"),
+            s.t("db-designer-col-default"),
+            s.t("db-designer-col-auto"),
+            s.t("db-designer-col-pk"),
+        );
+        let remove_tip = s.t("db-designer-remove");
+        // The floors of the layout standard (.claude/rules/ui.md, CR-0061).
+        let columns = [
+            EditColumn::new(&h_name, 200.0),
+            EditColumn::new(&h_type, 220.0),
+            EditColumn::new(&h_null, 60.0),
+            EditColumn::new(&h_default, 180.0),
+            EditColumn::new(&h_auto, 60.0),
+            EditColumn::new(&h_key, 60.0),
+            EditColumn::new("", 0.0),
+        ];
+        let no_columns = s.t("db-designer-no-columns");
+        let table = &mut self.edit.table;
+        edit_table(
+            ui,
+            theme,
+            ("db-designer-columns", self.uid),
+            &columns,
+            n,
+            Some(&no_columns),
+            |ui, i, col| {
+                let w = ui.available_width() - 6.0;
+                let c = &mut table.columns[i];
+                match col {
+                    0 => {
+                        changed |= ui
+                            .add(form::line_edit(&mut c.name).desired_width(w))
+                            .changed()
                     }
-                    changed |= ui.checkbox(&mut c.auto_increment, "").changed();
-                    let name = c.name.clone();
-                    let mut pk = self.edit.table.primary_key.contains(&name);
-                    if ui.checkbox(&mut pk, "").changed() {
-                        if pk {
-                            self.edit.table.primary_key.push(name.clone());
-                        } else {
-                            self.edit.table.primary_key.retain(|k| k != &name);
+                    1 => {
+                        changed |=
+                            form::pick_field_width(ui, theme, &mut c.data_type, &types, "", w)
+                                .changed()
+                    }
+                    2 => changed |= ui.checkbox(&mut c.nullable, "").changed(),
+                    3 => {
+                        let mut d = c.default.clone().unwrap_or_default();
+                        if ui.add(form::line_edit(&mut d).desired_width(w)).changed() {
+                            c.default = (!d.trim().is_empty()).then_some(d);
+                            changed = true;
                         }
-                        changed = true;
                     }
-                    ui.horizontal(|ui| {
-                        if i > 0
-                            && form::icon_button(ui, theme, ph::ARROW_UP, 12.0, false).clicked()
-                        {
+                    4 => changed |= ui.checkbox(&mut c.auto_increment, "").changed(),
+                    5 => {
+                        let name = c.name.clone();
+                        let mut pk = table.primary_key.contains(&name);
+                        if ui.checkbox(&mut pk, "").changed() {
+                            if pk {
+                                table.primary_key.push(name);
+                            } else {
+                                table.primary_key.retain(|k| k != &name);
+                            }
+                            changed = true;
+                        }
+                    }
+                    _ => {
+                        // Both arrows always drawn (dimmed where they cannot
+                        // move), so the actions stay in one aligned column.
+                        let up = ui
+                            .add_enabled_ui(i > 0, |ui| {
+                                form::icon_button(ui, theme, ph::ARROW_UP, 14.0, false)
+                            })
+                            .inner;
+                        if i > 0 && up.clicked() {
                             swap = Some((i, i - 1));
                         }
-                        if i + 1 < n
-                            && form::icon_button(ui, theme, ph::ARROW_DOWN, 12.0, false).clicked()
-                        {
+                        let down = ui
+                            .add_enabled_ui(i + 1 < n, |ui| {
+                                form::icon_button(ui, theme, ph::ARROW_DOWN, 14.0, false)
+                            })
+                            .inner;
+                        if i + 1 < n && down.clicked() {
                             swap = Some((i, i + 1));
                         }
-                        if form::icon_button(ui, theme, ph::X, 12.0, false)
-                            .tip(s.t("db-designer-remove"))
+                        if form::icon_button(ui, theme, ph::X, 14.0, false)
+                            .tip(&remove_tip)
                             .clicked()
                         {
                             remove = Some(i);
                         }
-                    });
-                    ui.end_row();
+                    }
                 }
-            });
+            },
+        );
         if let Some((a, b)) = swap {
             self.edit.table.columns.swap(a, b);
             self.edit.original.swap(a, b);
@@ -453,7 +544,7 @@ impl Designer {
             self.edit.table.primary_key.retain(|k| k != &gone.name);
             changed = true;
         }
-        ui.add_space(4.0);
+        ui.add_space(form::ROW_GAP);
         if ui
             .button(format!("{} {}", ph::PLUS, s.t("db-designer-add-column")))
             .clicked()
@@ -479,51 +570,76 @@ impl Designer {
             self.index_cols
                 .push(self.edit.table.indexes[i].columns.join(", "));
         }
-        egui::Grid::new(("db-designer-indexes", self.uid))
-            .num_columns(4)
-            .spacing([8.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "db-designer-ix-name",
-                    "db-designer-ix-columns",
-                    "db-designer-ix-unique",
-                ] {
-                    ui.label(egui::RichText::new(s.t(key)).small().strong());
+        let (h_name, h_cols, h_unique, primary) = (
+            s.t("db-designer-ix-name"),
+            s.t("db-designer-ix-columns"),
+            s.t("db-designer-ix-unique"),
+            s.t("db-designer-ix-primary"),
+        );
+        let columns = [
+            EditColumn::new(&h_name, 200.0),
+            EditColumn::new(&h_cols, 200.0),
+            EditColumn::new(&h_unique, 120.0),
+            EditColumn::new("", 0.0),
+        ];
+        let n = self.edit.table.indexes.len();
+        let no_indexes = s.t("db-designer-no-indexes");
+        let (indexes, index_cols) = (&mut self.edit.table.indexes, &mut self.index_cols);
+        edit_table(
+            ui,
+            theme,
+            ("db-designer-indexes", self.uid),
+            &columns,
+            n,
+            Some(&no_indexes),
+            |ui, i, col| {
+                let w = ui.available_width() - 6.0;
+                let ix = &mut indexes[i];
+                if ix.primary {
+                    // The primary key's own index is shown and left alone.
+                    let text = match col {
+                        0 => ix.name.clone(),
+                        1 => ix.columns.join(", "),
+                        2 => primary.clone(),
+                        _ => String::new(),
+                    };
+                    ui.label(egui::RichText::new(text).color(theme.text_muted));
+                    return;
                 }
-                ui.label("");
-                ui.end_row();
-                for (i, ix) in self.edit.table.indexes.iter_mut().enumerate() {
-                    if ix.primary {
-                        ui.label(egui::RichText::new(&ix.name).color(theme.text_muted));
-                        ui.label(
-                            egui::RichText::new(ix.columns.join(", ")).color(theme.text_muted),
-                        );
-                        ui.label(s.t("db-designer-ix-primary"));
-                        ui.label("");
-                        ui.end_row();
-                        continue;
+                match col {
+                    0 => {
+                        changed |= ui
+                            .add(form::line_edit(&mut ix.name).desired_width(w))
+                            .changed()
                     }
-                    changed |= ui
-                        .add_sized([180.0, 22.0], egui::TextEdit::singleline(&mut ix.name))
-                        .changed();
-                    if form::text_field(ui, &mut self.index_cols[i], "a, b").changed() {
-                        ix.columns = split_list(&self.index_cols[i]);
-                        changed = true;
+                    1 => {
+                        if ui
+                            .add(
+                                form::line_edit(&mut index_cols[i])
+                                    .hint_text("a, b")
+                                    .desired_width(w),
+                            )
+                            .changed()
+                        {
+                            ix.columns = split_list(&index_cols[i]);
+                            changed = true;
+                        }
                     }
-                    changed |= ui.checkbox(&mut ix.unique, "").changed();
-                    if form::icon_button(ui, theme, ph::X, 12.0, false).clicked() {
-                        remove = Some(i);
+                    2 => changed |= ui.checkbox(&mut ix.unique, "").changed(),
+                    _ => {
+                        if form::icon_button(ui, theme, ph::X, 14.0, false).clicked() {
+                            remove = Some(i);
+                        }
                     }
-                    ui.end_row();
                 }
-            });
+            },
+        );
         if let Some(i) = remove {
             self.edit.table.indexes.remove(i);
             self.index_cols.remove(i);
             changed = true;
         }
-        ui.add_space(4.0);
+        ui.add_space(form::ROW_GAP);
         if ui
             .button(format!("{} {}", ph::PLUS, s.t("db-designer-add-index")))
             .clicked()
@@ -570,85 +686,120 @@ impl Designer {
             .iter()
             .map(|a| a.to_string())
             .collect();
-        egui::Grid::new(("db-designer-keys", self.uid))
-            .num_columns(7)
-            .spacing([8.0, 4.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "db-designer-fk-name",
-                    "db-designer-fk-columns",
-                    "db-designer-fk-table",
-                    "db-designer-fk-ref-columns",
-                    "db-designer-fk-on-delete",
-                    "db-designer-fk-on-update",
-                ] {
-                    ui.label(egui::RichText::new(s.t(key)).small().strong());
-                }
-                ui.label("");
-                ui.end_row();
-                for (i, fk) in self.edit.table.foreign_keys.iter_mut().enumerate() {
-                    changed |= ui
-                        .add_sized([160.0, 22.0], egui::TextEdit::singleline(&mut fk.name))
-                        .changed();
-                    if form::text_field(ui, &mut self.key_cols[i].0, "a, b").changed() {
-                        fk.columns = split_list(&self.key_cols[i].0);
-                        changed = true;
+        let heads = [
+            s.t("db-designer-fk-name"),
+            s.t("db-designer-fk-columns"),
+            s.t("db-designer-fk-table"),
+            s.t("db-designer-fk-ref-columns"),
+            s.t("db-designer-fk-on-delete"),
+            s.t("db-designer-fk-on-update"),
+        ];
+        let columns = [
+            EditColumn::new(&heads[0], 200.0),
+            EditColumn::new(&heads[1], 170.0),
+            EditColumn::new(&heads[2], 200.0),
+            EditColumn::new(&heads[3], 170.0),
+            EditColumn::new(&heads[4], 130.0),
+            EditColumn::new(&heads[5], 130.0),
+            EditColumn::new("", 0.0),
+        ];
+        let n = self.edit.table.foreign_keys.len();
+        let no_keys = s.t("db-designer-no-keys");
+        let (keys, key_cols) = (&mut self.edit.table.foreign_keys, &mut self.key_cols);
+        edit_table(
+            ui,
+            theme,
+            ("db-designer-keys", self.uid),
+            &columns,
+            n,
+            Some(&no_keys),
+            |ui, i, col| {
+                let w = ui.available_width() - 6.0;
+                let fk = &mut keys[i];
+                match col {
+                    0 => {
+                        changed |= ui
+                            .add(form::line_edit(&mut fk.name).desired_width(w))
+                            .changed()
                     }
-                    let mut target = if fk.ref_schema.is_empty() {
-                        fk.ref_table.clone()
-                    } else {
-                        format!("{}.{}", fk.ref_schema, fk.ref_table)
-                    };
-                    if form::pick_field(ui, theme, &mut target, &tables, "").changed() {
-                        match target.rsplit_once('.') {
-                            Some((sch, t)) => {
-                                fk.ref_schema = sch.to_string();
-                                fk.ref_table = t.to_string();
-                            }
-                            None => {
-                                fk.ref_schema.clear();
-                                fk.ref_table = target.clone();
-                            }
+                    1 => {
+                        if ui
+                            .add(
+                                form::line_edit(&mut key_cols[i].0)
+                                    .hint_text("a, b")
+                                    .desired_width(w),
+                            )
+                            .changed()
+                        {
+                            fk.columns = split_list(&key_cols[i].0);
+                            changed = true;
                         }
-                        changed = true;
                     }
-                    let ref_cols: Vec<String> = catalog
-                        .iter()
-                        .find(|(sch, t, _)| {
-                            t == &fk.ref_table
-                                && (sch == &fk.ref_schema || fk.ref_schema.is_empty())
-                        })
-                        .map(|(_, _, cols)| cols.clone())
-                        .unwrap_or_default();
-                    if form::pick_field(ui, theme, &mut self.key_cols[i].1, &ref_cols, "id")
-                        .changed()
-                    {
-                        fk.ref_columns = split_list(&self.key_cols[i].1);
-                        changed = true;
+                    2 => {
+                        let mut target = if fk.ref_schema.is_empty() {
+                            fk.ref_table.clone()
+                        } else {
+                            format!("{}.{}", fk.ref_schema, fk.ref_table)
+                        };
+                        if form::pick_field_width(ui, theme, &mut target, &tables, "", w).changed()
+                        {
+                            match target.rsplit_once('.') {
+                                Some((sch, t)) => {
+                                    fk.ref_schema = sch.to_string();
+                                    fk.ref_table = t.to_string();
+                                }
+                                None => {
+                                    fk.ref_schema.clear();
+                                    fk.ref_table = target.clone();
+                                }
+                            }
+                            changed = true;
+                        }
                     }
-                    let mut od = fk.on_delete.clone().unwrap_or_default();
-                    if form::pick_field(ui, theme, &mut od, &actions, "").changed() {
-                        fk.on_delete = (!od.trim().is_empty()).then_some(od);
-                        changed = true;
+                    3 => {
+                        let ref_cols: Vec<String> = catalog
+                            .iter()
+                            .find(|(sch, t, _)| {
+                                t == &fk.ref_table
+                                    && (sch == &fk.ref_schema || fk.ref_schema.is_empty())
+                            })
+                            .map(|(_, _, cols)| cols.clone())
+                            .unwrap_or_default();
+                        if form::pick_field_width(ui, theme, &mut key_cols[i].1, &ref_cols, "id", w)
+                            .changed()
+                        {
+                            fk.ref_columns = split_list(&key_cols[i].1);
+                            changed = true;
+                        }
                     }
-                    let mut ou = fk.on_update.clone().unwrap_or_default();
-                    if form::pick_field(ui, theme, &mut ou, &actions, "").changed() {
-                        fk.on_update = (!ou.trim().is_empty()).then_some(ou);
-                        changed = true;
+                    4 => {
+                        let mut od = fk.on_delete.clone().unwrap_or_default();
+                        if form::pick_field_width(ui, theme, &mut od, &actions, "", w).changed() {
+                            fk.on_delete = (!od.trim().is_empty()).then_some(od);
+                            changed = true;
+                        }
                     }
-                    if form::icon_button(ui, theme, ph::X, 12.0, false).clicked() {
-                        remove = Some(i);
+                    5 => {
+                        let mut ou = fk.on_update.clone().unwrap_or_default();
+                        if form::pick_field_width(ui, theme, &mut ou, &actions, "", w).changed() {
+                            fk.on_update = (!ou.trim().is_empty()).then_some(ou);
+                            changed = true;
+                        }
                     }
-                    ui.end_row();
+                    _ => {
+                        if form::icon_button(ui, theme, ph::X, 14.0, false).clicked() {
+                            remove = Some(i);
+                        }
+                    }
                 }
-            });
+            },
+        );
         if let Some(i) = remove {
             self.edit.table.foreign_keys.remove(i);
             self.key_cols.remove(i);
             changed = true;
         }
-        ui.add_space(4.0);
+        ui.add_space(form::ROW_GAP);
         if ui
             .button(format!("{} {}", ph::PLUS, s.t("db-designer-add-key")))
             .clicked()

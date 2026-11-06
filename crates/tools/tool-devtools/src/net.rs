@@ -384,10 +384,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         let mut go = false;
         match state.check {
             Check::Http => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-net-url"));
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut state.url)
+                        hs_ui::form::line_edit(&mut state.url)
                             .hint_text("https://example.com/health")
                             .desired_width(360.0),
                     );
@@ -395,10 +395,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
             }
             _ => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-net-host"));
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut state.host)
+                        hs_ui::form::line_edit(&mut state.host)
                             .hint_text("example.com")
                             .desired_width(240.0),
                     );
@@ -414,7 +414,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                         }
                     } else {
                         ui.label(s.t("dt-net-port"));
-                        ui.add(egui::TextEdit::singleline(&mut state.port).desired_width(70.0));
+                        ui.add(hs_ui::form::line_edit(&mut state.port).desired_width(70.0));
                     }
                 });
             }

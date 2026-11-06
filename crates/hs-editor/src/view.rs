@@ -1608,7 +1608,7 @@ impl EditorView {
             .fill(theme.gutter_bg)
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.find.query)
                             .desired_width(220.0)
@@ -1727,10 +1727,9 @@ impl EditorView {
             .fill(theme.gutter_bg)
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label("Go to Line");
-                    let r =
-                        ui.add(egui::TextEdit::singleline(&mut self.goto_text).desired_width(80.0));
+                    let r = ui.add(hs_ui::form::line_edit(&mut self.goto_text).desired_width(80.0));
                     if self.goto_text.is_empty() {
                         r.request_focus();
                     }

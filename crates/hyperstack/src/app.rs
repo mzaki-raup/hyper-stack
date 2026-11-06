@@ -272,6 +272,9 @@ pub struct HyperStackApp {
     /// sidebar (FEAT-0094): (id, name). Unlike a project or repository,
     /// this deletes the profile and its vault credentials.
     confirm_remove_connection: Option<(String, String)>,
+    /// Home's Recent menu (CR-0067), awaiting a yes: `Some(i)` removes
+    /// closed tab `i`, `None` clears Recent.
+    confirm_forget_closed: Option<Option<usize>>,
     last_input: Instant,
     /// When a secret copied from Settings → Security leaves the clipboard.
     clear_clipboard_at: Option<Instant>,
@@ -403,6 +406,7 @@ impl HyperStackApp {
             confirm_remove_project: None,
             confirm_remove_repo: None,
             confirm_remove_connection: None,
+            confirm_forget_closed: None,
             last_input: Instant::now(),
             clear_clipboard_at: None,
             last_layout_save: Instant::now(),
@@ -1630,29 +1634,69 @@ impl HyperStackApp {
         let km = s.shortcuts.read();
         let sc = |a: &str| km.get(a).map(|c| c.display());
         let mut items = Vec::new();
+        // Icons as the rest of the app draws them (CR-0066): an
+        // activity in its rail colour while Coloured Activity Icons is
+        // on, a connection in its product's mark, a file in its Material
+        // icon when the tool has Material icons on.
+        let (rail_coloured, theme) = {
+            let st = s.settings.read();
+            (
+                st.appearance.rail_coloured,
+                hs_ui::theme::Theme::from_settings(&st.appearance),
+            )
+        };
+        let tint = |id: &str| rail_coloured.then(|| activity_colour(id));
+        let material = |id: &str| s.settings.read().appearance.material_icons(id);
         match self.palette.mode {
             PaletteMode::Commands => {
                 let shell = [
-                    ("tab.new", "cmd-new-tab"),
-                    ("tab.close", "cmd-close-tab"),
-                    ("tab.reopen", "cmd-reopen-tab"),
-                    ("tab.next", "cmd-next-tab"),
-                    ("tab.prev", "cmd-prev-tab"),
-                    ("view.sidebar", "cmd-toggle-sidebar"),
-                    ("view.dock", "cmd-toggle-dock"),
-                    ("app.settings", "cmd-settings"),
-                    ("app.shortcuts", "cmd-shortcuts"),
-                    ("layout.save", "cmd-save-layout"),
-                    ("zoom.in", "cmd-zoom-in"),
-                    ("zoom.out", "cmd-zoom-out"),
+                    // Every row has a glyph, so the names line up (CR-0066).
+                    ("tab.new", "cmd-new-tab", hs_ui::icons::ph::PLUS),
+                    ("tab.close", "cmd-close-tab", hs_ui::icons::ph::X),
+                    (
+                        "tab.reopen",
+                        "cmd-reopen-tab",
+                        hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE,
+                    ),
+                    ("tab.next", "cmd-next-tab", hs_ui::icons::ph::ARROW_RIGHT),
+                    ("tab.prev", "cmd-prev-tab", hs_ui::icons::ph::ARROW_LEFT),
+                    (
+                        "view.sidebar",
+                        "cmd-toggle-sidebar",
+                        hs_ui::icons::ph::SIDEBAR,
+                    ),
+                    (
+                        "view.dock",
+                        "cmd-toggle-dock",
+                        hs_ui::icons::ph::SQUARE_HALF_BOTTOM,
+                    ),
+                    ("app.settings", "cmd-settings", hs_ui::icons::ph::GEAR),
+                    ("app.shortcuts", "cmd-shortcuts", hs_ui::icons::ph::KEYBOARD),
+                    (
+                        "layout.save",
+                        "cmd-save-layout",
+                        hs_ui::icons::ph::FLOPPY_DISK,
+                    ),
+                    (
+                        "zoom.in",
+                        "cmd-zoom-in",
+                        hs_ui::icons::ph::MAGNIFYING_GLASS_PLUS,
+                    ),
+                    (
+                        "zoom.out",
+                        "cmd-zoom-out",
+                        hs_ui::icons::ph::MAGNIFYING_GLASS_MINUS,
+                    ),
                 ];
-                for (id, key) in shell {
+                for (id, key, glyph) in shell {
                     items.push(PaletteItem {
                         id: id.into(),
                         title: s.t(key),
                         subtitle: None,
-                        icon: None,
+                        icon: Some(glyph.into()),
                         shortcut: sc(id),
+                        image: None,
+                        colour: None,
                     });
                 }
                 let vault_cmd = if s.secrets.is_locked() {
@@ -1666,6 +1710,8 @@ impl HyperStackApp {
                     subtitle: None,
                     icon: Some(hs_ui::icons::LOCK.into()),
                     shortcut: sc("vault.lock"),
+                    image: None,
+                    colour: None,
                 });
                 for f in &self.factories {
                     let d = f.descriptor();
@@ -1677,6 +1723,8 @@ impl HyperStackApp {
                         subtitle: Some(s.t(d.category.label_key())),
                         icon: Some(d.icon.into()),
                         shortcut: None,
+                        image: None,
+                        colour: tint(d.id),
                     });
                 }
                 if let Some(a) = self.tabs.active
@@ -1689,6 +1737,8 @@ impl HyperStackApp {
                             subtitle: Some(t.tool.title().to_string()),
                             icon: Some(t.tool.descriptor().icon.into()),
                             shortcut: c.shortcut_action.as_deref().and_then(sc),
+                            image: None,
+                            colour: tint(&t.factory_id),
                         });
                     }
                 }
@@ -1700,6 +1750,8 @@ impl HyperStackApp {
                     subtitle: None,
                     icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                     shortcut: None,
+                    image: None,
+                    colour: None,
                 });
                 for e in s.environments.read().all() {
                     items.push(PaletteItem {
@@ -1708,6 +1760,8 @@ impl HyperStackApp {
                         subtitle: e.protected.then(|| s.t("env-protected")),
                         icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
                 for w in &self.registry.workspaces {
@@ -1717,6 +1771,8 @@ impl HyperStackApp {
                         subtitle: Some(w.path.clone()),
                         icon: Some(hs_ui::icons::WORKSPACE.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
             }
@@ -1729,15 +1785,20 @@ impl HyperStackApp {
                         subtitle: Some(s.t(d.category.label_key())),
                         icon: Some(d.icon.into()),
                         shortcut: None,
+                        image: None,
+                        colour: tint(d.id),
                     });
                 }
                 for c in s.connections.read().all() {
+                    let mark = hs_ui::icons::profile_conn_icon(c);
                     items.push(PaletteItem {
                         id: format!("conn:{}", c.id),
                         title: c.name.clone(),
                         subtitle: Some(hs_core::connections::kind_label(&c.kind).to_string()),
-                        icon: None,
+                        icon: Some(mark.glyph.to_string()),
                         shortcut: None,
+                        image: mark.uri().map(|u| egui::ImageSource::Uri(u.into())),
+                        colour: mark.fixed_colour(&theme),
                     });
                 }
                 for e in s.environments.read().all() {
@@ -1747,6 +1808,8 @@ impl HyperStackApp {
                         subtitle: Some(s.t("settings-environments")),
                         icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
                 // Files and other items the open tools contribute (the active tab first,
@@ -1761,12 +1824,16 @@ impl HyperStackApp {
                         if !seen.insert(q.id.clone()) {
                             continue;
                         }
+                        let title = q.title;
                         items.push(PaletteItem {
                             id: format!("qo:{}:{}", t.id, q.id),
-                            title: q.title,
+                            title: title.clone(),
                             subtitle: Some(q.subtitle),
                             icon: Some(hs_ui::icons::ph::FILE.into()),
                             shortcut: None,
+                            image: material(&t.factory_id)
+                                .then(|| hs_ui::fileicons::for_file(&title)),
+                            colour: tint(&t.factory_id),
                         });
                     }
                 }
@@ -2423,7 +2490,7 @@ impl HyperStackApp {
                     ui.add_space(6.0);
                     hs_ui::form::hint(ui, &theme, &s.t("workspace-new-hint"));
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
+                    hs_ui::form::centred_row(ui, |ui| {
                         ui.label(s.t("workspace-name"));
                         let r = hs_ui::form::text_field(ui, name, &s.t("workspace-name-hint"));
                         r.request_focus();
@@ -2432,39 +2499,46 @@ impl HyperStackApp {
                         }
                     });
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        ui.label(s.t("workspace-logo"));
-                        let (rect, _) =
-                            ui.allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
-                        ui.painter().rect_filled(rect, 6.0, theme.surface);
-                        if let Some(img) = icon.as_ref().and_then(|p| logo_image(p)) {
-                            img.fit_to_exact_size(egui::vec2(36.0, 36.0))
-                                .paint_at(ui, rect.shrink(2.0));
-                        } else {
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                hs_ui::icons::WORKSPACE,
-                                egui::FontId::proportional(20.0),
-                                theme.text_muted,
-                            );
-                        }
-                        ui.add_space(6.0);
-                        if ui.button(s.t("workspace-logo-choose")).clicked()
-                            && let Some(p) = rfd::FileDialog::new()
-                                .add_filter("Image", hs_core::workspace::ICON_EXTS)
-                                .pick_file()
-                        {
-                            *icon = Some(p);
-                        }
-                        if icon.is_some() && ui.button(s.t("workspace-logo-remove")).clicked() {
-                            *icon = None;
-                        }
-                    });
+                    // The row is the logo's height before it opens, so the
+                    // label and buttons sit on the logo's middle line (CR-0061).
+                    let logo_row = egui::Layout::left_to_right(egui::Align::Center);
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(ui.available_width(), 40.0),
+                        logo_row,
+                        |ui| {
+                            ui.label(s.t("workspace-logo"));
+                            let (rect, _) = ui
+                                .allocate_exact_size(egui::vec2(40.0, 40.0), egui::Sense::hover());
+                            ui.painter().rect_filled(rect, 6.0, theme.surface);
+                            if let Some(img) = icon.as_ref().and_then(|p| logo_image(p)) {
+                                img.fit_to_exact_size(egui::vec2(36.0, 36.0))
+                                    .paint_at(ui, rect.shrink(2.0));
+                            } else {
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    hs_ui::icons::WORKSPACE,
+                                    egui::FontId::proportional(20.0),
+                                    theme.text_muted,
+                                );
+                            }
+                            ui.add_space(6.0);
+                            if ui.button(s.t("workspace-logo-choose")).clicked()
+                                && let Some(p) = rfd::FileDialog::new()
+                                    .add_filter("Image", hs_core::workspace::ICON_EXTS)
+                                    .pick_file()
+                            {
+                                *icon = Some(p);
+                            }
+                            if icon.is_some() && ui.button(s.t("workspace-logo-remove")).clicked() {
+                                *icon = None;
+                            }
+                        },
+                    );
                     ui.add_space(2.0);
                     hs_ui::form::hint(ui, &theme, &s.t("workspace-logo-hint"));
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
+                    hs_ui::form::centred_row(ui, |ui| {
                         ui.label(s.t("workspace-copy-from"));
                         let none = s.t("workspace-copy-none");
                         let selected = copy_from.clone().unwrap_or_else(|| none.clone());
@@ -3429,6 +3503,9 @@ impl HyperStackApp {
                 .inner;
             r.reopen_closed = r.reopen_closed.or(side.reopen_closed);
             r.open_connection = r.open_connection.or(side.open_connection);
+            if side.forget_closed.is_some() {
+                self.confirm_forget_closed = side.forget_closed;
+            }
             if let Some(id) = r.open_tool {
                 self.open_tool(&id, None);
             }
@@ -3558,6 +3635,7 @@ impl HyperStackApp {
         match r {
             HomeRequest::OpenTool(id) => self.open_tool(&id, None),
             HomeRequest::ReopenClosed(i) => self.reopen_closed(Some(i)),
+            HomeRequest::ForgetClosed(which) => self.confirm_forget_closed = Some(which),
             HomeRequest::OpenConnection { tool, id } => {
                 self.open_tool(&tool, Some(OpenRequest::Connection { id }))
             }
@@ -4273,12 +4351,28 @@ impl eframe::App for HyperStackApp {
             // The upper bound follows the window: a 640 px sidebar saved on
             // a wide monitor must not keep most of a small window.
             let max_w = (root.available_width() * 0.5).clamp(180.0, 640.0);
+            // The lower bound is the activity's own when its sidebar holds
+            // a tab row that needs more room (CR-0069).
+            let min_w = self
+                .tabs
+                .active
+                .and_then(|a| self.tabs.tabs.iter().find(|t| t.id == a))
+                .and_then(|t| t.tool.sidebar_min_width())
+                .map_or(180.0, |m| {
+                    // The tool measures its content; the panel adds its margins.
+                    (m + egui::Frame::side_top_panel(root.style())
+                        .inner_margin
+                        .sum()
+                        .x)
+                        .max(180.0)
+                });
+            let max_w = max_w.max(min_w);
             // egui remembers a panel's size by id; the workspace is part of
             // it so a switch does not carry the last one's width over.
             let panel_id = egui::Id::new(("hs-sidebar", ws_name.as_str(), activity.as_str()));
             let r = egui::Panel::left(panel_id)
-                .default_size(w.min(max_w))
-                .size_range(180.0..=max_w)
+                .default_size(w.clamp(min_w, max_w))
+                .size_range(min_w..=max_w)
                 .resizable(true)
                 .show(root, |ui| self.sidebar(ui));
             let _ = &r;
@@ -4377,7 +4471,8 @@ impl eframe::App for HyperStackApp {
             || self.settings_ui.lock().state.confirm_delete.is_some()
             || self.confirm_remove_project.is_some()
             || self.confirm_remove_repo.is_some()
-            || self.confirm_remove_connection.is_some();
+            || self.confirm_remove_connection.is_some()
+            || self.confirm_forget_closed.is_some();
         let (blocklist, devtools_panel) = {
             let st = self.services.settings.read();
             (st.browser.blocklist.clone(), st.browser.devtools_panel)
@@ -4564,6 +4659,39 @@ impl eframe::App for HyperStackApp {
                     self.confirm_remove_connection = None;
                 }
                 DialogResult::Cancel => self.confirm_remove_connection = None,
+                DialogResult::Open => {}
+            }
+        }
+        if let Some(which) = self.confirm_forget_closed {
+            let s = self.services.clone();
+            let (title, body) = match which {
+                Some(_) => (
+                    s.t("launcher-remove-recent"),
+                    s.t("launcher-remove-recent-body"),
+                ),
+                None => (
+                    s.t("launcher-clear-recent"),
+                    s.t("launcher-clear-recent-body"),
+                ),
+            };
+            match dialog::confirm(
+                ctx,
+                &self.theme,
+                "forget-closed",
+                &title,
+                &body,
+                &title,
+                &s.t("cancel"),
+                true,
+            ) {
+                DialogResult::Ok => {
+                    match which {
+                        Some(i) => self.tabs.remove_closed(i),
+                        None => self.tabs.clear_closed(),
+                    }
+                    self.confirm_forget_closed = None;
+                }
+                DialogResult::Cancel => self.confirm_forget_closed = None,
                 DialogResult::Open => {}
             }
         }

@@ -461,7 +461,7 @@ impl AiPanel {
             hs_ui::form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-setup-hint"));
             return;
         }
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             let name = providers
                 .iter()
                 .find(|p| p.0 == self.provider)
@@ -482,7 +482,7 @@ impl AiPanel {
                 self.model_picker(ui, s, theme, p);
             }
         });
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             let has_sel = ed.cursors.primary().has_selection();
             let label = |c: Context| match c {
                 Context::Auto if has_sel => s.t("ai-context-auto-selection"),
@@ -704,7 +704,7 @@ impl AiPanel {
                 ui.separator();
                 ui.label(egui::RichText::new(s.t("ai-model-other")).size(12.0));
                 let r = ui.add(
-                    egui::TextEdit::singleline(&mut self.model)
+                    hs_ui::form::line_edit(&mut self.model)
                         .hint_text(p.kind.default_model())
                         .desired_width(f32::INFINITY),
                 );

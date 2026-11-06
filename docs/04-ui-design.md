@@ -1366,3 +1366,28 @@ Each row in Home → Sidebar → Recent draws its activity's glyph in the activi
 ## Addendum (2026-11-05): no growth on hover (CR-0050)
 
 `Theme::apply` sets `widgets.hovered.expansion`, `widgets.active.expansion` and `widgets.open.expansion` to 0: egui's default grows a hovered or pressed widget by a pixel on each side, which read as rows and buttons magnifying under the pointer (the Redis key column was where it was noticed). Hover is the highlight colour alone, in every activity at once (CR-0026's rule, now enforced in the one place every widget reads).
+
+## Addendum (2026-11-06): one layout standard (CR-0061)
+
+The rules for tables, inputs, widths, alignment and pane spacing are
+collected in `.claude/rules/ui.md` → *Layout and controls standard*, with
+the numbers and the `hs_ui` helpers that carry them. New in this item:
+`hs_ui::table::edit_table` for rows of inputs (the table standard's header
+band, bold header, centred cells, field-height rows, column widths that
+show the value), `hs_ui::form::line_edit` for every single-line field,
+`form::match_field_height` for a row that mixes fields and dropdowns,
+`form::pick_field_width` for a pick field in a cell, and `form::pane`
+with `PANE_MARGIN` (12) and `ROW_GAP` (10) beside `PANE_GAP` (8). The
+whole app moved onto `line_edit` (124 fields) and its loose dropdowns
+onto the field height in the same change.
+
+## Addendum (2026-11-06): header band, centred rows, history menus, tab focus (CR-0061, CR-0067, CR-0068, BUG-0047)
+
+Written in full in `.claude/rules/ui.md`; in short: every table header is one
+accent band across the full row with titles indented by `HEADER_INDENT`, and
+an empty table says so under it; a row mixing a label and a field opens with
+`form::centred_row` so the label sits on the field's middle line; every
+History / Recent list has a right-click Clear History and Remove, and every
+saved item a Delete, each behind a confirmation and changing what is stored;
+any action that opens or fills a tab brings it to the front; list rows wear
+the Material picture their tab wears when Material icons are on.

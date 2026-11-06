@@ -162,6 +162,9 @@ pub struct ApiTool {
     pub(crate) confirm_delete: Option<(String, Option<String>)>,
     /// A package library delete waiting for its confirmation.
     pub(crate) confirm_delete_library: Option<String>,
+    /// A history change waiting for its confirmation (CR-0067):
+    /// `Some(None)` clears the history, `Some(Some(i))` removes entry `i`.
+    pub(crate) confirm_history: Option<Option<usize>>,
     pub(crate) curl_import: Option<String>,
     pub(crate) new_collection: Option<String>,
     pub(crate) show_history: bool,
@@ -265,6 +268,7 @@ impl ApiTool {
             confirm_send: None,
             confirm_delete: None,
             confirm_delete_library: None,
+            confirm_history: None,
             curl_import: None,
             new_collection: None,
             show_history: false,

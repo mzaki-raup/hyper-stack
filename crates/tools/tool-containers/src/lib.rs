@@ -1207,7 +1207,18 @@ impl ContainersTool {
                     .zip(labels.iter())
                     .map(|((icon, value, _), label)| hs_ui::dashboard::Stat { icon, value, label })
                     .collect();
-                hs_ui::dashboard::stats(ui, &theme, &stats);
+                // Material icons on: the kinds of thing wear their pictures;
+                // the running / stopped states keep their glyphs.
+                let material = s.settings.read().appearance.material_icons("containers");
+                let pictures: Vec<Option<egui::ImageSource<'static>>> = figures
+                    .iter()
+                    .map(|f| {
+                        docker_stat_kind(f.2)
+                            .filter(|_| material)
+                            .and_then(hs_ui::fileicons::for_kind)
+                    })
+                    .collect();
+                hs_ui::dashboard::stats_pictured(ui, &theme, &stats, &pictures);
                 ui.add_space(form::PANE_GAP);
                 let inv = inv.clone();
                 self.inventory(ui, &theme, &s, cx.actions, &profile, &inv);
@@ -1286,7 +1297,7 @@ impl ContainersTool {
 
         // The namespace picker, above everything it narrows.
         let namespaced = self.state.cluster_resource.namespaced();
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(
                 egui::RichText::new(s.t("cluster-namespace"))
                     .small()
@@ -1390,6 +1401,17 @@ impl ContainersTool {
             form::hint(ui, theme, &s.t(res.empty_key()));
             return;
         }
+        // One kind per list, so one picture serves every row, as the
+        // Docker table below does; Custom keeps its glyph.
+        let icons: Vec<egui::ImageSource<'static>> =
+            if s.settings.read().appearance.material_icons("containers") {
+                res.kind()
+                    .and_then(hs_ui::fileicons::for_kind)
+                    .map(|i| vec![i; rows.len()])
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
         let table = hs_ui::table::DataTable {
             theme,
             columns: &columns,
@@ -1398,7 +1420,8 @@ impl ContainersTool {
             show_filter: true,
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
-            row_icons: None,
+            row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
+            empty_hint: None,
         };
         let resp = table.show(ui, &mut self.table);
         // The table reports the index into the data it was given, not
@@ -1609,7 +1632,7 @@ impl ContainersTool {
         fresh: bool,
     ) {
         ui.add(
-            egui::TextEdit::singleline(&mut self.forward_port)
+            hs_ui::form::line_edit(&mut self.forward_port)
                 .desired_width(72.0)
                 .hint_text(s.t("cluster-forward-port")),
         );
@@ -1748,7 +1771,7 @@ impl ContainersTool {
         if cluster::Verb::Scale(0).applies_to(&target.kind) {
             ui.add_enabled(
                 !blocked,
-                egui::TextEdit::singleline(&mut self.scale_to)
+                hs_ui::form::line_edit(&mut self.scale_to)
                     // Wide enough for the word, not for a number: the
                     // hint is what tells a reader what the box is for,
                     // and at 48 px it clipped to "Rep…".
@@ -2422,8 +2445,7 @@ impl ContainersTool {
             return;
         }
         // Every row here is the same kind of thing, so one icon serves
-        // the whole list. The Kubernetes table above keeps its glyphs:
-        // pods and deployments have no Material icon (FEAT-0084).
+        // the whole list (FEAT-0084).
         let icons: Vec<egui::ImageSource<'static>> =
             if s.settings.read().appearance.material_icons("containers") {
                 hs_ui::fileicons::for_kind(res.kind())
@@ -2441,6 +2463,7 @@ impl ContainersTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
+            empty_hint: None,
         };
         let resp = table.show(ui, &mut self.table);
         // The table reports the index into the data it was given, not
@@ -3202,6 +3225,18 @@ fn docker_summary_stats(
     out
 }
 
+/// The `fileicons::for_kind` kind of a Docker summary figure, by its
+/// label key; `None` for the container states, which keep their glyphs.
+fn docker_stat_kind(key: &str) -> Option<&'static str> {
+    match key {
+        "container-dash-images" => Some("image"),
+        "container-dash-volumes" => Some("volume"),
+        "container-dash-networks" => Some("network"),
+        "container-dash-projects" => Some("project"),
+        _ => None,
+    }
+}
+
 /// The glyph a container verb's button wears (CR-0034).
 fn verb_icon(verb: hs_container::Verb) -> &'static str {
     use hs_container::Verb;
@@ -3575,15 +3610,28 @@ impl Tool for ContainersTool {
                     form::hint(ui, &theme, &s.t("container-no-configs"));
                 }
                 let mut delete: Option<configs::SavedConfig> = None;
+                let material = s.settings.read().appearance.material_icons("containers");
                 for c in &self.configs {
-                    let r = form::conn_list_row(
-                        ui,
-                        &theme,
-                        false,
-                        c.kind.conn_icon(),
-                        &c.name,
-                        Some(&c.describe()),
-                    );
+                    // Material icons on: the kind's picture; off, its glyph
+                    // in its colour (BUG-0046).
+                    let r = match c.kind.picture().filter(|_| material) {
+                        Some(src) => form::list_row_icon(
+                            ui,
+                            &theme,
+                            false,
+                            &hs_ui::tree::TreeIcon::Image(src),
+                            &c.name,
+                            Some(&c.describe()),
+                        ),
+                        None => form::conn_list_row(
+                            ui,
+                            &theme,
+                            false,
+                            c.kind.conn_icon(),
+                            &c.name,
+                            Some(&c.describe()),
+                        ),
+                    };
                     // A click opens the entry (BUG-0046): a file in the
                     // Editor, a command typed into a new terminal.
                     if r.clicked() {
@@ -3656,6 +3704,23 @@ impl Tool for ContainersTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The figures for kinds of thing wear Material pictures; the
+    /// container states keep their glyphs (CR-0065).
+    #[test]
+    fn the_docker_summary_kinds_have_material_pictures() {
+        for key in [
+            "container-dash-images",
+            "container-dash-volumes",
+            "container-dash-networks",
+            "container-dash-projects",
+        ] {
+            let kind = docker_stat_kind(key).expect("a kind");
+            assert!(hs_ui::fileicons::for_kind(kind).is_some(), "{kind}");
+        }
+        assert_eq!(docker_stat_kind("container-dash-running"), None);
+        assert_eq!(docker_stat_kind("container-dash-stopped"), None);
+    }
 
     /// The Docker summary row is the dashboard's box per figure: five
     /// figures with an icon each (a sixth joins for Compose projects)

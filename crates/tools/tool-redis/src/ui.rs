@@ -790,7 +790,9 @@ impl Tool for RedisTool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
-        // Icon plus label, the way the other tools' toolbars read.
+        // Icon plus label, the way the other tools' toolbars read. With
+        // Material icons on, Keys wears the key picture its list does.
+        let material = s.settings.read().appearance.material_icons("redis");
         for (tab, icon, key) in [
             (Tab::Keys, ph::KEY, "redis-tab-keys"),
             (Tab::Console, ph::TERMINAL_WINDOW, "redis-tab-console"),
@@ -799,7 +801,12 @@ impl Tool for RedisTool {
             (Tab::Streams, ph::WAVES, "redis-tab-streams"),
             (Tab::Tools, ph::WRENCH, "redis-tab-tools"),
         ] {
-            if hs_ui::toolbar::tab(ui, &theme, self.state.tab == tab, icon, &s.t(key)).clicked() {
+            let image = (material && tab == Tab::Keys)
+                .then(|| hs_ui::fileicons::for_kind("key"))
+                .flatten();
+            if hs_ui::toolbar::tab_image(ui, &theme, self.state.tab == tab, image, icon, &s.t(key))
+                .clicked()
+            {
                 self.state.tab = tab;
                 match tab {
                     Tab::Info => {
@@ -885,6 +892,7 @@ impl RedisTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -916,6 +924,7 @@ impl RedisTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -1077,7 +1086,7 @@ impl RedisTool {
             Some(Status::Ready(info)) => info.databases.max(1),
             _ => 16,
         };
-        ui.horizontal_wrapped(|ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-database"));
             let keys_here = keyspace
                 .iter()
@@ -1114,7 +1123,7 @@ impl RedisTool {
                 ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
                 let buttons = 2.0 * 110.0 + form::PANE_GAP;
                 let r = ui.add(
-                    egui::TextEdit::singleline(&mut self.state.pattern)
+                    hs_ui::form::line_edit(&mut self.state.pattern)
                         .hint_text(s.t("redis-pattern-hint"))
                         .desired_width((ui.available_width() - buttons).max(120.0)),
                 );
@@ -1534,6 +1543,7 @@ impl RedisTool {
             ) => {
                 let (columns, rows) = page_rows(p);
                 self.rows = rows;
+                let empty_label = s.t("redis-members-none");
                 let table = DataTable {
                     theme: &theme,
                     columns: &columns,
@@ -1543,6 +1553,7 @@ impl RedisTool {
                     copy_row_label: &s.t("redis-copy-row"),
                     built_in_menu: true,
                     row_icons: None,
+                    empty_hint: Some(&empty_label),
                 };
                 let resp = table.show(ui, &mut self.table);
                 if let Some(text) = resp.copied {
@@ -1670,7 +1681,7 @@ impl RedisTool {
         ui.separator();
         ui.horizontal(|ui| {
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.console_input)
+                hs_ui::form::line_edit(&mut self.console_input)
                     .hint_text(s.t("redis-console-input"))
                     .font(egui::TextStyle::Monospace)
                     .desired_width(ui.available_width() - 80.0),

@@ -67,6 +67,9 @@ pub struct GeneratorState {
     view: GeneratorView,
     zoom: f32,
     saved: Option<PathBuf>,
+    /// The prompt pane is showing: a toolbar toggle hides it, as the
+    /// Editor's project column (CR-0069).
+    pub(crate) show_prompt: bool,
 }
 
 struct Running {
@@ -107,6 +110,7 @@ impl GeneratorState {
             view: GeneratorView::Preview,
             zoom: 0.0,
             saved: None,
+            show_prompt: true,
         }
     }
 
@@ -176,244 +180,262 @@ impl GeneratorState {
                 }
             }
         }
+        ui.separator();
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_prompt,
+            hs_ui::icons::ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-gen-prompt-pane"),
+        )
+        .tip(s.t("gfx-gen-prompt-pane-tip"));
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
         let s = cx.services.clone();
         self.poll(&s);
-        egui::Panel::left("gfx-generator-prompt")
+        let mut prompt = egui::Panel::left("gfx-generator-prompt")
             .default_size(370.0)
             .size_range(300.0..=520.0)
-            .resizable(true)
-            .show(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("gfx-generator-scroll")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.add_space(6.0);
-                        ui.label(
-                            egui::RichText::new(s.t("gfx-gen-title"))
-                                .strong()
-                                .size(15.0)
-                                .color(theme.text),
-                        );
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.label(s.t("gfx-gen-type"));
-                            egui::ComboBox::from_id_salt("gfx-gen-kind")
-                                .selected_text(match self.kind {
-                                    DiagramKind::Flow => s.t("gfx-diagram-flow-template"),
-                                    DiagramKind::Architecture => {
-                                        s.t("gfx-diagram-arch-template")
-                                    }
-                                    DiagramKind::Erd => s.t("gfx-diagram-erd-template"),
-                                    DiagramKind::Sequence => {
-                                        s.t("gfx-diagram-sequence-template")
-                                    }
-                                })
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.kind,
-                                        DiagramKind::Flow,
-                                        s.t("gfx-diagram-flow-template"),
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.kind,
-                                        DiagramKind::Architecture,
-                                        s.t("gfx-diagram-arch-template"),
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.kind,
-                                        DiagramKind::Erd,
-                                        s.t("gfx-diagram-erd-template"),
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.kind,
-                                        DiagramKind::Sequence,
-                                        s.t("gfx-diagram-sequence-template"),
-                                    );
-                                });
-                        });
-                        ui.add_space(4.0);
-                        let providers = s.settings.read().ai.chat_providers();
-                        ui.horizontal(|ui| {
-                            ui.label(s.t("gfx-gen-provider"));
-                            let selected_name = providers
-                                .iter()
-                                .find(|p| p.id == self.provider_id)
-                                .map(|p| p.name.clone())
-                                .unwrap_or_else(|| s.t("gfx-gen-provider-default"));
-                            egui::ComboBox::from_id_salt("gfx-gen-provider")
-                                .selected_text(selected_name)
-                                .show_ui(ui, |ui| {
-                                    for p in &providers {
-                                        if ui
-                                            .selectable_label(
-                                                self.provider_id == p.id,
-                                                &p.name,
-                                            )
-                                            .clicked()
-                                        {
-                                            self.provider_id = p.id.clone();
-                                            self.model = p.model.clone();
-                                        }
-                                    }
-                                });
-                            if providers.is_empty()
-                                && ui.button(s.t("gfx-gen-set-provider")).clicked()
-                            {
-                                cx.actions.push(Action::RunCommand {
-                                    id: "settings:ai".into(),
-                                });
-                            }
-                        });
-                        if !providers.is_empty() {
-                            ui.horizontal(|ui| {
-                                ui.label(s.t("gfx-gen-model"));
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.model)
-                                        .hint_text(s.t("gfx-gen-model-hint"))
-                                        .desired_width(f32::INFINITY),
+            .resizable(true);
+        // Hidden from the toolbar, as the Editor's column (CR-0069).
+        let show_prompt = self.show_prompt;
+        if !show_prompt {
+            prompt = prompt.exact_size(0.0).resizable(false);
+        }
+        prompt.show(ui, |ui| {
+            if !show_prompt {
+                return;
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("gfx-generator-scroll")
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new(s.t("gfx-gen-title"))
+                            .strong()
+                            .size(15.0)
+                            .color(theme.text),
+                    );
+                    ui.add_space(6.0);
+                    hs_ui::form::centred_row(ui, |ui| {
+                        ui.label(s.t("gfx-gen-type"));
+                        egui::ComboBox::from_id_salt("gfx-gen-kind")
+                            .selected_text(match self.kind {
+                                DiagramKind::Flow => s.t("gfx-diagram-flow-template"),
+                                DiagramKind::Architecture => {
+                                    s.t("gfx-diagram-arch-template")
+                                }
+                                DiagramKind::Erd => s.t("gfx-diagram-erd-template"),
+                                DiagramKind::Sequence => {
+                                    s.t("gfx-diagram-sequence-template")
+                                }
+                            })
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.kind,
+                                    DiagramKind::Flow,
+                                    s.t("gfx-diagram-flow-template"),
+                                );
+                                ui.selectable_value(
+                                    &mut self.kind,
+                                    DiagramKind::Architecture,
+                                    s.t("gfx-diagram-arch-template"),
+                                );
+                                ui.selectable_value(
+                                    &mut self.kind,
+                                    DiagramKind::Erd,
+                                    s.t("gfx-diagram-erd-template"),
+                                );
+                                ui.selectable_value(
+                                    &mut self.kind,
+                                    DiagramKind::Sequence,
+                                    s.t("gfx-diagram-sequence-template"),
                                 );
                             });
-                        }
-                        ui.add_space(4.0);
-                        ui.add(
-                            egui::TextEdit::multiline(&mut self.prompt)
-                                .hint_text(s.t("gfx-gen-prompt-hint"))
-                                .desired_rows(7)
-                                .desired_width(f32::INFINITY),
-                        );
-                        ui.add_space(4.0);
-                        ui.label(
-                            egui::RichText::new(s.t("gfx-gen-examples"))
-                                .small()
-                                .color(theme.text_muted),
-                        );
-                        let examples = match self.kind {
-                            DiagramKind::Flow => [
-                                "Checkout flow: receive order, validate stock, charge card, reserve stock, send confirmation; on payment failure release the stock.",
-                                "CI pipeline: checkout, build, test, scan, deploy to staging, approve, deploy to production.",
-                                "Support triage: ticket arrives, classify, known issue? then reply with a runbook or escalate.",
-                            ],
-                            DiagramKind::Architecture => [
-                                "A web app with browser, API, worker, Redis and PostgreSQL; group the API, worker and databases behind a private network.",
-                                "Mobile client, CDN, API gateway, two services, a queue and a database, with the services inside a VPC.",
-                                "Event-driven orders: web, order service, payment service, event bus and two databases.",
-                            ],
-                            DiagramKind::Erd => [
-                                "Customers and orders: a customer has many orders; show the primary and foreign keys.",
-                                "A blog: users, posts, comments and tags with their relationships.",
-                                "Inventory: products, warehouses and stock levels.",
-                            ],
-                            DiagramKind::Sequence => [
-                                "Client calls the API, the API reads the database and returns the order.",
-                                "Login: client, auth service, user store and token store.",
-                                "Payment: client, order service, payment provider and webhook.",
-                            ],
-                        };
-                        for example in examples {
-                            if ui
-                                .add(egui::Button::new(
-                                    egui::RichText::new(example).small(),
-                                ))
-                                .clicked()
-                            {
-                                self.prompt = example.to_string();
-                            }
-                        }
-                        ui.add_space(6.0);
-                        ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(format!(
-                                    "{} {}",
-                                    hs_ui::icons::ph::TREE_STRUCTURE,
-                                    s.t("gfx-gen-offline")
-                                ))
-                                .tip(s.t("gfx-gen-offline-tip"))
-                                .clicked()
-                            {
-                                self.offline(&s);
-                            }
-                            if ui
-                                .button(s.t("gfx-gen-template"))
-                                .clicked()
-                            {
-                                self.template(&s);
-                            }
-                            ui.menu_button(s.t("gfx-gen-templates"), |ui| {
-                                for (key, doc) in [
-                                    ("gfx-tpl-ci", hs_diagram::template::ci_pipeline()),
-                                    ("gfx-tpl-triage", hs_diagram::template::support_triage()),
-                                    (
-                                        "gfx-tpl-events",
-                                        hs_diagram::template::event_architecture(),
-                                    ),
-                                    ("gfx-tpl-checkout", hs_diagram::template::flow()),
-                                    (
-                                        "gfx-tpl-services",
-                                        hs_diagram::template::architecture(),
-                                    ),
-                                    ("gfx-tpl-orders", hs_diagram::template::erd()),
-                                    ("gfx-tpl-sequence", hs_diagram::template::sequence()),
-                                ] {
-                                    let label = s.t(key);
-                                    if ui.button(&label).clicked() {
-                                        self.doc = Some(doc);
-                                        self.error = None;
-                                        self.view = GeneratorView::Preview;
-                                        self.status = Some(
-                                            s.i18n.t_args("gfx-gen-loaded", &[("name", &label)]),
-                                        );
-                                        ui.close();
+                    });
+                    ui.add_space(4.0);
+                    let providers = s.settings.read().ai.chat_providers();
+                    hs_ui::form::centred_row(ui, |ui| {
+                        ui.label(s.t("gfx-gen-provider"));
+                        let selected_name = providers
+                            .iter()
+                            .find(|p| p.id == self.provider_id)
+                            .map(|p| p.name.clone())
+                            .unwrap_or_else(|| s.t("gfx-gen-provider-default"));
+                        egui::ComboBox::from_id_salt("gfx-gen-provider")
+                            .selected_text(selected_name)
+                            .show_ui(ui, |ui| {
+                                for p in &providers {
+                                    if ui
+                                        .selectable_label(
+                                            self.provider_id == p.id,
+                                            &p.name,
+                                        )
+                                        .clicked()
+                                    {
+                                        self.provider_id = p.id.clone();
+                                        self.model = p.model.clone();
                                     }
                                 }
                             });
-                            if self.running.is_some() {
-                                if ui.button(s.t("gfx-gen-stop")).clicked() {
-                                    self.stop(&s);
-                                }
-                            } else if ui
-                                .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, s.t("gfx-gen-generate")))
-                                .clicked()
-                            {
-                                self.start(&s);
-                            }
-                        });
-                        ui.add_space(6.0);
-                        if let Some(error) = &self.error {
-                            ui.colored_label(theme.error, error);
-                        }
-                        if let Some(status) = &self.status {
-                            ui.label(
-                                egui::RichText::new(status)
-                                    .small()
-                                    .color(theme.text_muted),
-                            );
-                        }
-                        if let Some(doc) = &self.doc {
-                            ui.add_space(6.0);
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} · {} nodes · {} edges",
-                                    doc.title,
-                                    doc.nodes.len(),
-                                    doc.edges.len()
-                                ))
-                                .small()
-                                .color(theme.text_muted),
-                            );
-                        }
-                        if self.doc.is_none() {
-                            ui.add_space(8.0);
-                            ui.label(
-                                egui::RichText::new(s.t("gfx-gen-empty-hint"))
-                                    .small()
-                                    .color(theme.text_muted),
-                            );
+                        if providers.is_empty()
+                            && ui.button(s.t("gfx-gen-set-provider")).clicked()
+                        {
+                            cx.actions.push(Action::RunCommand {
+                                id: "settings:ai".into(),
+                            });
                         }
                     });
-            });
+                    if !providers.is_empty() {
+                        hs_ui::form::centred_row(ui, |ui| {
+                            ui.label(s.t("gfx-gen-model"));
+                            ui.add(
+                                hs_ui::form::line_edit(&mut self.model)
+                                    .hint_text(s.t("gfx-gen-model-hint"))
+                                    .desired_width(f32::INFINITY),
+                            );
+                        });
+                    }
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.prompt)
+                            .hint_text(s.t("gfx-gen-prompt-hint"))
+                            .desired_rows(7)
+                            .desired_width(f32::INFINITY),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(
+                        egui::RichText::new(s.t("gfx-gen-examples"))
+                            .small()
+                            .color(theme.text_muted),
+                    );
+                    let examples = match self.kind {
+                        DiagramKind::Flow => [
+                            "Checkout flow: receive order, validate stock, charge card, reserve stock, send confirmation; on payment failure release the stock.",
+                            "CI pipeline: checkout, build, test, scan, deploy to staging, approve, deploy to production.",
+                            "Support triage: ticket arrives, classify, known issue? then reply with a runbook or escalate.",
+                        ],
+                        DiagramKind::Architecture => [
+                            "A web app with browser, API, worker, Redis and PostgreSQL; group the API, worker and databases behind a private network.",
+                            "Mobile client, CDN, API gateway, two services, a queue and a database, with the services inside a VPC.",
+                            "Event-driven orders: web, order service, payment service, event bus and two databases.",
+                        ],
+                        DiagramKind::Erd => [
+                            "Customers and orders: a customer has many orders; show the primary and foreign keys.",
+                            "A blog: users, posts, comments and tags with their relationships.",
+                            "Inventory: products, warehouses and stock levels.",
+                        ],
+                        DiagramKind::Sequence => [
+                            "Client calls the API, the API reads the database and returns the order.",
+                            "Login: client, auth service, user store and token store.",
+                            "Payment: client, order service, payment provider and webhook.",
+                        ],
+                    };
+                    for example in examples {
+                        if ui
+                            .add(egui::Button::new(
+                                egui::RichText::new(example).small(),
+                            ))
+                            .clicked()
+                        {
+                            self.prompt = example.to_string();
+                        }
+                    }
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::TREE_STRUCTURE,
+                                s.t("gfx-gen-offline")
+                            ))
+                            .tip(s.t("gfx-gen-offline-tip"))
+                            .clicked()
+                        {
+                            self.offline(&s);
+                        }
+                        if ui
+                            .button(s.t("gfx-gen-template"))
+                            .clicked()
+                        {
+                            self.template(&s);
+                        }
+                        ui.menu_button(s.t("gfx-gen-templates"), |ui| {
+                            for (key, doc) in [
+                                ("gfx-tpl-ci", hs_diagram::template::ci_pipeline()),
+                                ("gfx-tpl-triage", hs_diagram::template::support_triage()),
+                                (
+                                    "gfx-tpl-events",
+                                    hs_diagram::template::event_architecture(),
+                                ),
+                                ("gfx-tpl-checkout", hs_diagram::template::flow()),
+                                (
+                                    "gfx-tpl-services",
+                                    hs_diagram::template::architecture(),
+                                ),
+                                ("gfx-tpl-orders", hs_diagram::template::erd()),
+                                ("gfx-tpl-sequence", hs_diagram::template::sequence()),
+                            ] {
+                                let label = s.t(key);
+                                if ui.button(&label).clicked() {
+                                    self.doc = Some(doc);
+                                    self.error = None;
+                                    self.view = GeneratorView::Preview;
+                                    self.status = Some(
+                                        s.i18n.t_args("gfx-gen-loaded", &[("name", &label)]),
+                                    );
+                                    ui.close();
+                                }
+                            }
+                        });
+                        if self.running.is_some() {
+                            if ui.button(s.t("gfx-gen-stop")).clicked() {
+                                self.stop(&s);
+                            }
+                        } else if ui
+                            .button(format!("{} {}", hs_ui::icons::ph::SPARKLE, s.t("gfx-gen-generate")))
+                            .clicked()
+                        {
+                            self.start(&s);
+                        }
+                    });
+                    ui.add_space(6.0);
+                    if let Some(error) = &self.error {
+                        ui.colored_label(theme.error, error);
+                    }
+                    if let Some(status) = &self.status {
+                        ui.label(
+                            egui::RichText::new(status)
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    }
+                    if let Some(doc) = &self.doc {
+                        ui.add_space(6.0);
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} · {} nodes · {} edges",
+                                doc.title,
+                                doc.nodes.len(),
+                                doc.edges.len()
+                            ))
+                            .small()
+                            .color(theme.text_muted),
+                        );
+                    }
+                    if self.doc.is_none() {
+                        ui.add_space(8.0);
+                        ui.label(
+                            egui::RichText::new(s.t("gfx-gen-empty-hint"))
+                                .small()
+                                .color(theme.text_muted),
+                        );
+                    }
+                });
+        });
 
         if self.view == GeneratorView::Split {
             egui::Panel::right("gfx-generator-source")
